@@ -39,6 +39,11 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		Provider:          func() *config.Provider { return r.Prov },
 
 		Client: r.Client,
+
+		ResetReadlineHistory: func() { r.RL.ResetHistory() },
+		AppendReadlineHistory: func(line string) error {
+			return r.RL.SaveHistory(line)
+		},
 	}
 }
 
