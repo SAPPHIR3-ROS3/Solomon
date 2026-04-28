@@ -16,6 +16,7 @@ type Data struct {
 	Tools      string
 	Syntax     string
 	ExtraRules string
+	Language   string
 }
 
 func ToolInvocationSyntax() string {
