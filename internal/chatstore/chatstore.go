@@ -13,9 +13,17 @@ import (
 	"solomon/internal/paths"
 )
 
+type ToolCall struct {
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 }
 
 type Session struct {

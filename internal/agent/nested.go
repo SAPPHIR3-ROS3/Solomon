@@ -17,6 +17,7 @@ import (
 	"solomon/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/packages/param"
 	"github.com/openai/openai-go/v2/shared"
 )
 
@@ -35,7 +36,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 	for iteration := 0; iteration < 512; iteration++ {
 		dur := time.Duration(config.SubagentTimeout(r.Cfg)) * time.Minute
 		roundCtx, cancel := context.WithDeadline(ctx, time.Now().Add(dur))
-		txt, err := r.streamNestedAssistant(roundCtx, system, msgs)
+		turn, err := r.streamNestedAssistant(roundCtx, system, msgs)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
 			sum, _ := r.summarizeNested(ctx, msgs)
@@ -50,33 +51,65 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 		if err != nil {
 			return transcript.String(), err
 		}
-		transcript.WriteString(txt)
+		transcript.WriteString(turn.Content)
 		transcript.WriteByte('\n')
-		msgs = append(msgs, chatstore.Message{Role: "assistant", Content: txt})
-		invs := tooling.ExtractToolInvocations(txt)
+		ast := chatstore.Message{Role: "assistant", Content: turn.Content}
+		for _, tc := range turn.ToolCalls {
+			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
+		}
+		msgs = append(msgs, ast)
+		var invs []tooling.Invocation
+		var toolIDs []string
+		if len(turn.ToolCalls) > 0 {
+			for _, tc := range turn.ToolCalls {
+				invs = append(invs, tooling.Invocation{Name: tc.Name, Args: json.RawMessage(tc.Arguments)})
+				toolIDs = append(toolIDs, tc.ID)
+			}
+		} else {
+			for _, inv := range tooling.ExtractToolInvocations(turn.Content) {
+				invs = append(invs, inv)
+				toolIDs = append(toolIDs, "")
+			}
+		}
 		if len(invs) == 0 {
 			return transcript.String(), nil
 		}
-		for _, inv := range invs {
+		for i, inv := range invs {
+			r.printToolLine(inv.Name, inv.Args)
+			transcript.WriteString(fmt.Sprintf("Tool: %s(%s)\n", inv.Name, string(inv.Args)))
 			res, err := r.execTool(ctx, inv)
 			if err != nil {
 				res = map[string]any{"error": err.Error()}
 			}
-			b, _ := json.Marshal(res)
-			msgs = append(msgs, chatstore.Message{Role: "user", Content: "tool_result(" + string(b) + ")"})
+			b, err := json.Marshal(res)
+			if err != nil {
+				b = []byte(`{"error":"marshal"}`)
+			}
+			payload := string(b)
+			if id := toolIDs[i]; id != "" {
+				msgs = append(msgs, chatstore.Message{Role: "tool", ToolCallID: id, Content: payload})
+			} else {
+				msgs = append(msgs, chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"})
+			}
 		}
 	}
 	return transcript.String(), nil
 }
 
-func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs []chatstore.Message) (string, error) {
+func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs []chatstore.Message) (llm.AssistantTurnResult, error) {
+	tools, err := NativeToolParams(r.Mode)
+	if err != nil {
+		return llm.AssistantTurnResult{}, err
+	}
 	p := openai.ChatCompletionNewParams{
-		Model:    shared.ChatModel(r.Model),
-		Messages: llm.MessageParams(system, msgs),
+		Model:             shared.ChatModel(r.Model),
+		Messages:          llm.MessageParams(system, msgs),
+		Tools:             tools,
+		ParallelToolCalls: param.NewOpt(false),
 	}
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)
 	fmt.Fprintf(r.Out, "%s%s(subagent):%s ", termcolor.Assistant, r.Model, termcolor.Reset)
-	return llm.StreamText(ctx, r.Client, p, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
+	return llm.StreamAssistantTurn(ctx, r.Client, p, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 }
 
 func (r *Runtime) summarizeNested(ctx context.Context, msgs []chatstore.Message) (string, error) {

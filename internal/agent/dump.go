@@ -4,7 +4,71 @@ import (
 	"fmt"
 
 	"solomon/internal/tooling"
+
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/shared"
 )
+
+func nativeToolUnion(name, desc string, props map[string]any, required []string) openai.ChatCompletionToolUnionParam {
+	return openai.ChatCompletionToolUnionParam{
+		OfFunction: &openai.ChatCompletionFunctionToolParam{
+			Function: shared.FunctionDefinitionParam{
+				Name:        name,
+				Description: openai.String(desc),
+				Parameters: openai.FunctionParameters{
+					"type":                 "object",
+					"properties":           props,
+					"required":             required,
+					"additionalProperties": false,
+				},
+			},
+		},
+	}
+}
+
+func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error) {
+	switch mode {
+	case "plan":
+		return []openai.ChatCompletionToolUnionParam{
+			nativeToolUnion("createPlan", "Create or overwrite a plan file (markdown) under the project plans directory.", map[string]any{
+				"name":     map[string]any{"type": "string", "description": "Plan filename, e.g. feature.md"},
+				"planText": map[string]any{"type": "string", "description": "Full markdown body for the plan"},
+			}, []string{"name", "planText"}),
+			nativeToolUnion("editPlan", "Replace first occurrence of old segment in plan file.", map[string]any{
+				"name": map[string]any{"type": "string", "description": "Plan filename"},
+				"old":  map[string]any{"type": "string", "description": "Exact substring to replace once"},
+				"new":  map[string]any{"type": "string", "description": "Replacement text"},
+			}, []string{"name", "old", "new"}),
+			nativeToolUnion("buildPlan", "Switch to BUILD mode and run an implementation session for the named plan.", map[string]any{
+				"name": map[string]any{"type": "string", "description": "Plan filename to implement"},
+			}, []string{"name"}),
+		}, nil
+	case "build":
+		return []openai.ChatCompletionToolUnionParam{
+			nativeToolUnion("shell", "Run a shell command in the harness working directory.", map[string]any{
+				"command": map[string]any{"type": "string", "description": "Shell command to run"},
+				"timeoutSeconds": map[string]any{
+					"type":        "integer",
+					"description": "Optional timeout in seconds for this command",
+				},
+			}, []string{"command"}),
+			nativeToolUnion("readFile", "Read a text file relative to project root.", map[string]any{
+				"path": map[string]any{"type": "string", "description": "Path relative to project root"},
+			}, []string{"path"}),
+			nativeToolUnion("editFile", "Replace oldString once with newString, or write newString when oldString is empty.", map[string]any{
+				"path":      map[string]any{"type": "string", "description": "Path relative to project root"},
+				"oldString": map[string]any{"type": "string", "description": "Substring to replace once; empty means create/overwrite per tool semantics"},
+				"newString": map[string]any{"type": "string", "description": "New content or replacement text"},
+			}, []string{"path", "oldString", "newString"}),
+			nativeToolUnion("subagent", "Run a nested agent with system prompt from file and task string.", map[string]any{
+				"sysPromptPath": map[string]any{"type": "string", "description": "Path to system prompt file"},
+				"task":          map[string]any{"type": "string", "description": "Concrete task for the nested run"},
+			}, []string{"sysPromptPath", "task"}),
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown mode %q", mode)
+	}
+}
 
 func buildPlanToolDump() (string, error) {
 	b := &dumpBuilder{}

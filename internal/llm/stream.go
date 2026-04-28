@@ -3,12 +3,24 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
 	"github.com/openai/openai-go/v2"
 	"solomon/internal/termcolor"
 )
+
+type AssistantToolCall struct {
+	ID        string
+	Name      string
+	Arguments string
+}
+
+type AssistantTurnResult struct {
+	Content   string
+	ToolCalls []AssistantToolCall
+}
 
 type StreamOpts struct {
 	ShowThinking  bool
@@ -68,6 +80,84 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		_ = f.Flush()
 	}
 	return full, nil
+}
+
+func StreamAssistantTurn(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts StreamOpts) (AssistantTurnResult, error) {
+	reasonSink := opts.ReasoningSink
+	if reasonSink == nil {
+		reasonSink = io.Discard
+	}
+	stream := client.Chat.Completions.NewStreaming(ctx, params)
+	var acc openai.ChatCompletionAccumulator
+	skipLeadingNL := true
+	var leadBuf string
+	for stream.Next() {
+		ch := stream.Current()
+		if !acc.AddChunk(ch) {
+			if err := stream.Err(); err != nil {
+				if f, ok := contentOut.(interface{ Flush() error }); ok {
+					_ = f.Flush()
+				}
+				return AssistantTurnResult{}, err
+			}
+			if f, ok := contentOut.(interface{ Flush() error }); ok {
+				_ = f.Flush()
+			}
+			return AssistantTurnResult{}, fmt.Errorf("chat completion stream accumulator rejected chunk")
+		}
+		if len(ch.Choices) == 0 {
+			continue
+		}
+		delta := ch.Choices[0].Delta
+		if opts.ShowThinking {
+			rs := deltaReasoningText(delta.RawJSON())
+			if rs != "" {
+				_, _ = io.WriteString(reasonSink, termcolor.Thinking)
+				_, _ = io.WriteString(reasonSink, rs)
+				_, _ = io.WriteString(reasonSink, termcolor.Reset)
+			}
+		}
+		d := delta.Content
+		if d == "" {
+			continue
+		}
+		if skipLeadingNL {
+			leadBuf += d
+			t := strings.TrimLeft(leadBuf, "\n\r")
+			if t == "" {
+				continue
+			}
+			skipLeadingNL = false
+			_, _ = io.WriteString(contentOut, t)
+			continue
+		}
+		_, _ = io.WriteString(contentOut, d)
+	}
+	if err := stream.Err(); err != nil {
+		if f, ok := contentOut.(interface{ Flush() error }); ok {
+			_ = f.Flush()
+		}
+		return AssistantTurnResult{}, err
+	}
+	if f, ok := contentOut.(interface{ Flush() error }); ok {
+		_ = f.Flush()
+	}
+	var out AssistantTurnResult
+	if len(acc.Choices) > 0 {
+		msg := acc.Choices[0].Message
+		out.Content = msg.Content
+		for _, tc := range msg.ToolCalls {
+			if tc.Function.Name == "" {
+				continue
+			}
+			out.ToolCalls = append(out.ToolCalls, AssistantToolCall{
+				ID:        tc.ID,
+				Name:      tc.Function.Name,
+				Arguments: tc.Function.Arguments,
+			})
+		}
+	}
+	return out, nil
 }
 
 func deltaReasoningText(rawJSON string) string {
