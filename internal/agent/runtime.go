@@ -136,7 +136,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 
 func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
 	if r.Session.Title == "" && len(r.Session.Messages) == 0 {
-		t, err := title.FromPrompt(ctx, r.Client, r.Model, line)
+		t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, line)
 		if err != nil || strings.TrimSpace(t) == "" {
 			t = title.FallbackFromWords(line)
 		}
