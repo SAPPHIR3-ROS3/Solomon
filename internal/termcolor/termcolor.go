@@ -10,8 +10,8 @@ import (
 const (
 	User      = "\033[96m"
 	Assistant = "\033[92m"
-	Tool      = "\033[90m"
-	Thinking  = "\033[38;2;255;246;157m"
+	Tool      = "\033[38;2;255;246;157m"
+	Thinking  = "\033[90m"
 	White     = "\033[97m"
 	Reset     = "\033[0m"
 )
