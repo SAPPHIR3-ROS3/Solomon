@@ -2,8 +2,13 @@ package prompt
 
 import (
 	_ "embed"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"text/template"
+	"time"
 )
 
 //go:embed templates/plan.tmpl
@@ -16,10 +21,17 @@ var buildRaw string
 var titleRaw string
 
 type Data struct {
-	Tools      string
-	Syntax     string
-	ExtraRules string
-	Language   string
+	Tools                 string
+	Syntax                string
+	ExtraRules            string
+	Language              string
+	SystemOS              string
+	SystemBits            string
+	SystemCPUFamily       string
+	SystemGOARCH          string
+	WorkspaceAbsolutePath string
+	Shell                 string
+	LocalDateTime         string
 }
 
 type TitleData struct {
@@ -66,7 +78,94 @@ func RenderTitle(d TitleData) (string, error) {
 }
 
 func render(raw string, d Data) (string, error) {
+	applyRuntimeSystem(&d)
+	d.Shell = effectiveShell()
+	d.LocalDateTime = time.Now().Format(time.RFC3339)
 	return executeTemplate("p", raw, d)
+}
+
+func applyRuntimeSystem(d *Data) {
+	d.SystemOS = runtime.GOOS
+	d.SystemGOARCH = runtime.GOARCH
+	d.SystemBits = systemBits(runtime.GOARCH)
+	d.SystemCPUFamily = systemCPUFamily(runtime.GOARCH)
+}
+
+func systemBits(arch string) string {
+	switch arch {
+	case "386", "arm", "mips", "mipsle":
+		return "32"
+	case "amd64", "arm64", "loong64", "mips64", "mips64le", "ppc64", "ppc64le", "riscv64", "s390x", "wasm":
+		return "64"
+	default:
+		if strconv.IntSize == 32 {
+			return "32"
+		}
+		return "64"
+	}
+}
+
+func systemCPUFamily(arch string) string {
+	switch arch {
+	case "386", "amd64":
+		return "x86"
+	case "arm", "arm64":
+		return "ARM"
+	default:
+		return "other"
+	}
+}
+
+func effectiveShell() string {
+	for _, key := range []string{"SHELL", "COMSPEC"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
+	}
+	if runtime.GOOS == "windows" {
+		if p := windowsFallbackShellExecutable(); p != "" {
+			return p
+		}
+	}
+	return "unknown"
+}
+
+func EffectiveShell() string {
+	return effectiveShell()
+}
+
+func windowsFallbackShellExecutable() string {
+	systemRoot := strings.TrimSpace(os.Getenv("SystemRoot"))
+	if systemRoot == "" {
+		systemRoot = strings.TrimSpace(os.Getenv("windir"))
+	}
+	if systemRoot != "" {
+		for _, rel := range []string{`System32\WindowsPowerShell\v1.0\powershell.exe`, `SysWOW64\WindowsPowerShell\v1.0\powershell.exe`} {
+			p := filepath.Join(systemRoot, rel)
+			if isExecutableFile(p) {
+				return p
+			}
+		}
+	}
+	for _, base := range []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)")} {
+		base = strings.TrimSpace(base)
+		if base == "" {
+			continue
+		}
+		p := filepath.Join(base, "PowerShell", "7", "pwsh.exe")
+		if isExecutableFile(p) {
+			return p
+		}
+	}
+	return ""
+}
+
+func isExecutableFile(path string) bool {
+	if path == "" {
+		return false
+	}
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
 }
 
 func executeTemplate(name, raw string, data any) (string, error) {

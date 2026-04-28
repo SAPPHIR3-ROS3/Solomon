@@ -3,11 +3,14 @@ package test
 import (
 	"bytes"
 	"errors"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"solomon/internal/agent"
 	"solomon/internal/chatstore"
+	"solomon/internal/prompt"
 )
 
 func TestSlashDispatch_emptyWhitespace(t *testing.T) {
@@ -32,11 +35,21 @@ func TestSlashDispatch_planBuildClear(t *testing.T) {
 	}
 	out := bytes.NewBuffer(nil)
 	d.Out = out
-	clearSeq := []byte("\033[2J\033[H")
 	if err := agent.SlashDispatch(d, "/clear"); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.Bytes(); !bytes.Equal(got, clearSeq) {
+	got := out.Bytes()
+	clearSeq := []byte("\033[2J\033[H")
+	if runtime.GOOS == "windows" {
+		sh := prompt.EffectiveShell()
+		if sh != "unknown" && strings.EqualFold(filepath.Base(sh), "cmd.exe") {
+			if !strings.Contains(string(got), "cmd.exe") {
+				t.Fatalf("/clear on cmd: want notice, got %q", got)
+			}
+			return
+		}
+	}
+	if !bytes.Equal(got, clearSeq) {
 		t.Fatalf("/clear ansi got %q (%d bytes)", got, len(got))
 	}
 }

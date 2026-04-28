@@ -1,13 +1,13 @@
 package project
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
-
-	"crypto/sha256"
 
 	"solomon/internal/paths"
 )
@@ -20,7 +20,25 @@ func CanonicalRoot(abs string) (string, error) {
 	if err != nil {
 		real = clean
 	}
-	return filepath.Abs(real)
+	p, err := filepath.Abs(real)
+	if err != nil {
+		return "", err
+	}
+	return normalizeRootPath(p), nil
+}
+
+func normalizeRootPath(p string) string {
+	p = filepath.Clean(p)
+	if runtime.GOOS != "windows" {
+		return p
+	}
+	if len(p) >= 2 && p[1] == ':' {
+		d := p[0]
+		if d >= 'a' && d <= 'z' {
+			return string(d-32) + p[1:]
+		}
+	}
+	return p
 }
 
 func IDHexFromRoot(root string) string {
@@ -39,6 +57,13 @@ func LoadMap(homeProjMap string) (MapFile, error) {
 	var m MapFile
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
+	}
+	if runtime.GOOS == "windows" && len(m) > 0 {
+		out := make(MapFile, len(m))
+		for k, v := range m {
+			out[normalizeRootPath(k)] = v
+		}
+		return out, nil
 	}
 	return m, nil
 }
@@ -112,7 +137,10 @@ func NormalizePlanName(raw string) (string, error) {
 	s := filepath.Base(strings.TrimSpace(raw))
 	s = filepath.Clean(s)
 	s = filepath.Base(s)
-	if s == "." || s == "/" || s == ".." || strings.Contains(s, "..") {
+	if s == "." || s == ".." || strings.Contains(s, "..") {
+		return "", os.ErrInvalid
+	}
+	if len(s) == 1 && (s[0] == '/' || s[0] == '\\') {
 		return "", os.ErrInvalid
 	}
 	s = strings.ReplaceAll(s, string(os.PathSeparator), "_")

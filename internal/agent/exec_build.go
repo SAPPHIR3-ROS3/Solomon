@@ -8,8 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
+
+	"solomon/internal/prompt"
 )
 
 type shellArgs struct {
@@ -34,14 +37,13 @@ func (r *Runtime) toolShell(ctx context.Context, raw json.RawMessage) (any, erro
 	if sec != nil {
 		timeout = time.Duration(*sec) * time.Second
 	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
+	wd := r.ProjRoot
+	if p, err := filepath.Abs(r.ProjRoot); err == nil {
+		wd = p
 	}
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	c := exec.CommandContext(cctx, "sh", "-c", command)
-	c.Dir = wd
+	c := newShellCommand(cctx, wd, command)
 	out, err := c.CombinedOutput()
 	exit := 0
 	if err != nil {
@@ -55,6 +57,43 @@ func (r *Runtime) toolShell(ctx context.Context, raw json.RawMessage) (any, erro
 		m["shell_error"] = err.Error()
 	}
 	return m, nil
+}
+
+func newShellCommand(ctx context.Context, dir, script string) *exec.Cmd {
+	shell := prompt.EffectiveShell()
+	if runtime.GOOS == "windows" {
+		if shell == "unknown" {
+			systemRoot := strings.TrimSpace(os.Getenv("SystemRoot"))
+			if systemRoot == "" {
+				systemRoot = strings.TrimSpace(os.Getenv("windir"))
+			}
+			if systemRoot != "" {
+				shell = filepath.Join(systemRoot, "System32", "cmd.exe")
+			} else {
+				shell = "cmd.exe"
+			}
+		}
+		base := strings.ToLower(filepath.Base(shell))
+		var c *exec.Cmd
+		switch base {
+		case "cmd.exe":
+			c = exec.CommandContext(ctx, shell, "/c", script)
+		case "powershell.exe", "pwsh.exe":
+			c = exec.CommandContext(ctx, shell, "-NoProfile", "-NonInteractive", "-Command", script)
+		default:
+			c = exec.CommandContext(ctx, shell, "-c", script)
+		}
+		c.Dir = dir
+		return c
+	}
+	if shell == "unknown" {
+		c := exec.CommandContext(ctx, "sh", "-c", script)
+		c.Dir = dir
+		return c
+	}
+	c := exec.CommandContext(ctx, shell, "-c", script)
+	c.Dir = dir
+	return c
 }
 
 func parseOptionalTimeoutSecs(m map[string]json.RawMessage) *int {
