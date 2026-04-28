@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -102,11 +103,16 @@ func (r *Runtime) systemPrompt() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	absWorkspace := r.ProjRoot
+	if p, err := filepath.Abs(r.ProjRoot); err == nil {
+		absWorkspace = p
+	}
 	d := prompt.Data{
-		Tools:      dump,
-		Syntax:     prompt.ToolInvocationSyntax(),
-		ExtraRules: "",
-		Language:   r.Cfg.EffectiveResponseLanguage(),
+		Tools:                 dump,
+		Syntax:                prompt.ToolInvocationSyntax(),
+		ExtraRules:            "",
+		Language:              r.Cfg.EffectiveResponseLanguage(),
+		WorkspaceAbsolutePath: absWorkspace,
 	}
 	if r.Mode == "plan" {
 		return prompt.RenderPlan(d)
