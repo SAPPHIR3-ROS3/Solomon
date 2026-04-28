@@ -17,6 +17,7 @@ import (
 	"solomon/internal/llm"
 	"solomon/internal/logging"
 	"solomon/internal/modelsapi"
+	"solomon/internal/termcolor"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
@@ -90,6 +91,18 @@ func (r *Runtime) handleSlash(ctx context.Context, line string) error {
 			return err
 		}
 		fmt.Fprintf(r.Out, "subagent_timeout_minutes=%d\n", n)
+		return nil
+	case "stats":
+		next := !r.Cfg.UsageStatsEnabled()
+		r.Cfg.ShowUsageStats = &next
+		if err := config.Save(r.Cfg); err != nil {
+			return err
+		}
+		onOff := "off"
+		if next {
+			onOff = "on"
+		}
+		fmt.Fprintf(r.Out, "token stats: %s\n", onOff)
 		return nil
 	case "thinking":
 		if len(parts) < 2 {
@@ -176,6 +189,7 @@ func slashRegistry() [][]string {
 		{"/models", "list models and switch current model"},
 		{"/reasoning", "/reasoning | /reasoning {none|low|med|high} main chat reasoning_effort"},
 		{"/resume", "/resume | /resume <id|title>"},
+		{"/stats", "toggle token usage line after assistant turns (saved)"},
 		{"/summarize, /compact", "summarize full chat; summary + last 8 msgs; then /clear"},
 		{"/thinking", "/thinking toggles preview; /thinking on|off streamed model reasoning (light yellow)"},
 		{"/timeout", "/timeout <minutes> subagent segment (1–180)"},
@@ -440,9 +454,12 @@ func (r *Runtime) slashSummarize(ctx context.Context) error {
 	}
 	llm.ApplyMaxResponseTokens(r.Cfg, &params)
 	const sep = "================================================================================"
-	summary, err := llm.StreamText(ctx, r.Client, params, io.Discard, llm.StreamOpts{})
+	summary, usage, err := llm.StreamText(ctx, r.Client, params, io.Discard, llm.StreamOpts{})
 	if err != nil {
 		return err
+	}
+	if r.Cfg.UsageStatsEnabled() {
+		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(usage.PromptTokens, usage.ReasoningTokens, usage.ResponseTokens, usage.TotalTokens, usage.OutputTPS, usage.TTFTSecs, usage.PromptTPS))
 	}
 	summary = strings.TrimSpace(summary)
 	if summary == "" {

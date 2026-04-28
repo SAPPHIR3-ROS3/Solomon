@@ -36,6 +36,14 @@ type Root struct {
 	LogLevel                string     `toml:"log_level"`
 	MaxResponseTokens       int        `toml:"max_response_tokens"`
 	ShowThinking            bool       `toml:"show_thinking"`
+	ShowUsageStats          *bool      `toml:"show_usage_stats"`
+}
+
+func (r *Root) UsageStatsEnabled() bool {
+	if r == nil || r.ShowUsageStats == nil {
+		return true
+	}
+	return *r.ShowUsageStats
 }
 
 func SubagentTimeout(r *Root) int {

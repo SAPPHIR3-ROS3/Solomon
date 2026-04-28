@@ -2,7 +2,9 @@ package termcolor
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"strconv"
 )
 
 const (
@@ -10,8 +12,18 @@ const (
 	Assistant = "\033[92m"
 	Tool      = "\033[90m"
 	Thinking  = "\033[38;2;255;246;157m"
+	White     = "\033[97m"
 	Reset     = "\033[0m"
 )
+
+func UsageTokensLine(promptTokens, reasoningTokens, responseTokens, totalTokens int64, outputTPS, ttftSecs, promptTPS float64) string {
+	return "token: " +
+		User + strconv.FormatInt(promptTokens, 10) + Reset + "+" +
+		Thinking + strconv.FormatInt(reasoningTokens, 10) + Reset + "+" +
+		Assistant + strconv.FormatInt(responseTokens, 10) + Reset + "=" +
+		White + strconv.FormatInt(totalTokens, 10) + Reset +
+		fmt.Sprintf("\t%.1ft/s ttft:%.3fs pp:%.1ft/s", outputTPS, ttftSecs, promptTPS)
+}
 
 type ToolLineWriter struct {
 	W io.Writer

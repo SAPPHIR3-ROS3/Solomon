@@ -176,6 +176,9 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if r.Cfg.UsageStatsEnabled() {
+			fmt.Fprintln(r.Out, termcolor.UsageTokensLine(turn.Usage.PromptTokens, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS))
+		}
 		ast := chatstore.Message{Role: "assistant", Content: turn.Content}
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
