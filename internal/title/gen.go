@@ -6,16 +6,22 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
+	"solomon/internal/config"
+	"solomon/internal/llm"
+	"solomon/internal/prompt"
 )
 
-func FromPrompt(ctx context.Context, client openai.Client, model string, userLine string) (string, error) {
-	p := openai.ChatCompletionNewParams{
-		Model: shared.ChatModel(model),
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage("Reply with only a short chat title: at most 10 words, prefer about 5; use hyphens instead of spaces; no quotes or extra text."),
-			openai.UserMessage("User message to name:\n" + userLine),
-		},
+func FromPrompt(ctx context.Context, client openai.Client, cfg *config.Root, model string, userLine string) (string, error) {
+	sys, err := prompt.RenderTitle(prompt.TitleData{Language: cfg.EffectiveResponseLanguage()})
+	if err != nil {
+		return "", err
 	}
+	p := openai.ChatCompletionNewParams{
+		Model:           shared.ChatModel(model),
+		Messages:        []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(sys), openai.UserMessage("User message to name:\n" + userLine)},
+		ReasoningEffort: shared.ReasoningEffort("none"),
+	}
+	llm.ApplyMaxResponseTokens(cfg, &p)
 	resp, err := client.Chat.Completions.New(ctx, p)
 	if err != nil {
 		return "", err

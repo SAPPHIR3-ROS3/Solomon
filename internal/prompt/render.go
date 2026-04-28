@@ -12,11 +12,18 @@ var planRaw string
 //go:embed templates/build.tmpl
 var buildRaw string
 
+//go:embed templates/title.tmpl
+var titleRaw string
+
 type Data struct {
 	Tools      string
 	Syntax     string
 	ExtraRules string
 	Language   string
+}
+
+type TitleData struct {
+	Language string
 }
 
 func ToolInvocationSyntax() string {
@@ -54,13 +61,21 @@ func RenderBuild(d Data) (string, error) {
 	return render(buildRaw, d)
 }
 
+func RenderTitle(d TitleData) (string, error) {
+	return executeTemplate("title", titleRaw, d)
+}
+
 func render(raw string, d Data) (string, error) {
-	t, err := template.New("p").Parse(raw)
+	return executeTemplate("p", raw, d)
+}
+
+func executeTemplate(name, raw string, data any) (string, error) {
+	t, err := template.New(name).Parse(raw)
 	if err != nil {
 		return "", err
 	}
 	var b strings.Builder
-	if err := t.Execute(&b, d); err != nil {
+	if err := t.Execute(&b, data); err != nil {
 		return "", err
 	}
 	return b.String(), nil
