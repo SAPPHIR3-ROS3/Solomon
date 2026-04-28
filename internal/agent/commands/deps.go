@@ -30,6 +30,11 @@ type Deps struct {
 	ApplyCurrentModel func(providerName, modelID string) error
 	Model             func() string
 	Provider          func() *config.Provider
+	CompactionThresholdTokens    func() int64
+	SetCompactionThresholdTokens func(int64)
 
 	Client openai.Client
+
+	ResetReadlineHistory   func()
+	AppendReadlineHistory  func(line string) error
 }
