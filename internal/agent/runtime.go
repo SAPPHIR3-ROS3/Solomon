@@ -167,7 +167,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			Messages:          llm.MessageParams(sys, msgs),
 			ReasoningEffort:   r.Cfg.GlobalReasoningEffort(),
 			Tools:             tools,
-			ParallelToolCalls: param.NewOpt(false),
+			ParallelToolCalls: param.NewOpt(true),
 		}
 		llm.ApplyMaxResponseTokens(r.Cfg, &params)
 		fmt.Fprintf(r.Out, "%s%s:%s ", termcolor.Assistant, r.Model, termcolor.Reset)

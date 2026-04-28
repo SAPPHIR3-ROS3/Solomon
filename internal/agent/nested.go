@@ -105,7 +105,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 		Model:             shared.ChatModel(r.Model),
 		Messages:          llm.MessageParams(system, msgs),
 		Tools:             tools,
-		ParallelToolCalls: param.NewOpt(false),
+		ParallelToolCalls: param.NewOpt(true),
 	}
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)
 	fmt.Fprintf(r.Out, "%s%s(subagent):%s ", termcolor.Assistant, r.Model, termcolor.Reset)
