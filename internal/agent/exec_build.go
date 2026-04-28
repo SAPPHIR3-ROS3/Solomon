@@ -59,6 +59,18 @@ func (r *Runtime) toolShell(ctx context.Context, raw json.RawMessage) (any, erro
 	return m, nil
 }
 
+func (r *Runtime) runUserShellLine(ctx context.Context, script string) error {
+	wd := r.ProjRoot
+	if p, err := filepath.Abs(r.ProjRoot); err == nil {
+		wd = p
+	}
+	c := newShellCommand(ctx, wd, script)
+	c.Stdout = r.Out
+	c.Stderr = r.Out
+	c.Stdin = os.Stdin
+	return c.Run()
+}
+
 func newShellCommand(ctx context.Context, dir, script string) *exec.Cmd {
 	shell := prompt.EffectiveShell()
 	if runtime.GOOS == "windows" {

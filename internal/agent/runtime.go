@@ -121,7 +121,7 @@ func (r *Runtime) systemPrompt() (string, error) {
 }
 
 func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
-	return r.onUserMessage(ctx, line)
+	return r.onUserMessage(ctx, strings.TrimSpace(line))
 }
 
 func (r *Runtime) persistSession() error {
@@ -158,6 +158,14 @@ func (r *Runtime) Run(ctx context.Context) error {
 }
 
 func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
+	line = strings.TrimSpace(line)
+	if strings.HasPrefix(line, "!") {
+		cmd := strings.TrimSpace(strings.TrimPrefix(line, "!"))
+		if cmd == "" {
+			return nil
+		}
+		return r.runUserShellLine(ctx, cmd)
+	}
 	if r.Session.Title == "" && len(r.Session.Messages) == 0 {
 		t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, line)
 		if err != nil || strings.TrimSpace(t) == "" {
