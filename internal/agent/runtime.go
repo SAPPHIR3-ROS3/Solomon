@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,6 +23,7 @@ import (
 	"github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v2/packages/param"
 	"github.com/openai/openai-go/v2/shared"
 )
 
@@ -155,37 +157,75 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		tools, err := NativeToolParams(r.Mode)
+		if err != nil {
+			return err
+		}
 		msgs := r.Session.Messages
 		params := openai.ChatCompletionNewParams{
-			Model:           shared.ChatModel(r.Model),
-			Messages:        llm.MessageParams(sys, msgs),
-			ReasoningEffort: r.Cfg.GlobalReasoningEffort(),
+			Model:             shared.ChatModel(r.Model),
+			Messages:          llm.MessageParams(sys, msgs),
+			ReasoningEffort:   r.Cfg.GlobalReasoningEffort(),
+			Tools:             tools,
+			ParallelToolCalls: param.NewOpt(false),
 		}
 		llm.ApplyMaxResponseTokens(r.Cfg, &params)
 		fmt.Fprintf(r.Out, "%s%s:%s ", termcolor.Assistant, r.Model, termcolor.Reset)
-		full, err := llm.StreamText(ctx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
+		turn, err := llm.StreamAssistantTurn(ctx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 		fmt.Fprintln(r.Out)
 		if err != nil {
 			return err
 		}
-		r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "assistant", Content: full})
+		ast := chatstore.Message{Role: "assistant", Content: turn.Content}
+		for _, tc := range turn.ToolCalls {
+			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
+		}
+		r.Session.Messages = append(r.Session.Messages, ast)
 		r.Session.LastMessageAt = time.Now()
 		_ = chatstore.WriteSession(r.ProjHex, r.Session)
-		invs := tooling.ExtractToolInvocations(full)
+		var invs []tooling.Invocation
+		var toolIDs []string
+		if len(turn.ToolCalls) > 0 {
+			for _, tc := range turn.ToolCalls {
+				invs = append(invs, tooling.Invocation{Name: tc.Name, Args: json.RawMessage(tc.Arguments)})
+				toolIDs = append(toolIDs, tc.ID)
+			}
+		} else {
+			for _, inv := range tooling.ExtractToolInvocations(turn.Content) {
+				invs = append(invs, inv)
+				toolIDs = append(toolIDs, "")
+			}
+		}
 		if len(invs) == 0 {
 			return nil
 		}
-		for _, inv := range invs {
+		for i, inv := range invs {
+			r.printToolLine(inv.Name, inv.Args)
 			res, err := r.execTool(ctx, inv)
 			if err != nil {
 				res = map[string]any{"error": err.Error()}
 			}
 			payload := toolingResultJSON(res)
-			r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"})
+			if id := toolIDs[i]; id != "" {
+				r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "tool", ToolCallID: id, Content: payload})
+			} else {
+				r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"})
+			}
 			r.Session.LastMessageAt = time.Now()
 			_ = chatstore.WriteSession(r.ProjHex, r.Session)
 		}
 	}
+}
+
+func (r *Runtime) printToolLine(name string, rawArgs json.RawMessage) {
+	s := string(rawArgs)
+	if len(rawArgs) > 0 && json.Valid(rawArgs) {
+		var buf bytes.Buffer
+		if err := json.Compact(&buf, rawArgs); err == nil {
+			s = buf.String()
+		}
+	}
+	fmt.Fprintf(r.Out, "%sTool: %s(%s)\n%s", termcolor.Tool, name, s, termcolor.Reset)
 }
 
 func toolingResultJSON(v any) string {

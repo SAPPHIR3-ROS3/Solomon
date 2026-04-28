@@ -400,6 +400,14 @@ func formatChatTranscript(msgs []chatstore.Message) string {
 			fmt.Fprintf(&b, "User:\n%s\n\n", m.Content)
 		case "assistant":
 			fmt.Fprintf(&b, "Assistant:\n%s\n\n", m.Content)
+			if len(m.ToolCalls) > 0 {
+				for _, tc := range m.ToolCalls {
+					fmt.Fprintf(&b, "  [tool_call %s] %s(%s)\n", tc.ID, tc.Name, tc.Arguments)
+				}
+				fmt.Fprintf(&b, "\n")
+			}
+		case "tool":
+			fmt.Fprintf(&b, "Tool[%s]:\n%s\n\n", m.ToolCallID, m.Content)
 		default:
 			fmt.Fprintf(&b, "%s:\n%s\n\n", m.Role, m.Content)
 		}
