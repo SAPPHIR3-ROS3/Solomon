@@ -146,6 +146,7 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
 	}
 	r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", Content: line})
 	r.Session.LastMessageAt = time.Now()
+	r.Session.LastUserMessageAt = time.Now()
 	if err := chatstore.WriteSession(r.ProjHex, r.Session); err != nil {
 		return err
 	}
