@@ -27,11 +27,12 @@ type Message struct {
 }
 
 type Session struct {
-	ID             string    `json:"id"`
-	Title          string    `json:"title"`
-	CreatedAt      time.Time `json:"created_at"`
-	LastMessageAt  time.Time `json:"last_message_at"`
-	Messages       []Message `json:"messages"`
+	ID                 string    `json:"id"`
+	Title              string    `json:"title"`
+	CreatedAt          time.Time `json:"created_at"`
+	LastMessageAt      time.Time `json:"last_message_at"`
+	LastUserMessageAt  time.Time `json:"last_user_message_at,omitempty"`
+	Messages           []Message `json:"messages"`
 }
 
 func ChatIDHex(title string, ts time.Time) string {
@@ -107,7 +108,7 @@ func ReadSession(projectHex, chatIDHex string) (*Session, error) {
 	return &s, nil
 }
 
-func ListRecent(projectHex string, n int) ([]*Session, error) {
+func loadAllSessions(projectHex string) ([]*Session, error) {
 	d, err := ChatsDir(projectHex)
 	if err != nil {
 		return nil, err
@@ -139,6 +140,21 @@ func ListRecent(projectHex string, n int) ([]*Session, error) {
 		}
 		out = append(out, &s)
 	}
+	return out, nil
+}
+
+func lastUserMessageSortTime(s *Session) time.Time {
+	if !s.LastUserMessageAt.IsZero() {
+		return s.LastUserMessageAt
+	}
+	return s.LastMessageAt
+}
+
+func ListRecent(projectHex string, n int) ([]*Session, error) {
+	out, err := loadAllSessions(projectHex)
+	if err != nil {
+		return nil, err
+	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].LastMessageAt.After(out[j].LastMessageAt)
 	})
@@ -146,6 +162,20 @@ func ListRecent(projectHex string, n int) ([]*Session, error) {
 		out = out[:n]
 	}
 	return out, nil
+}
+
+func SessionWithLatestUserMessage(projectHex string) (*Session, error) {
+	out, err := loadAllSessions(projectHex)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, os.ErrNotExist
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return lastUserMessageSortTime(out[i]).After(lastUserMessageSortTime(out[j]))
+	})
+	return out[0], nil
 }
 
 func FindByTitle(projectHex, title string) (*Session, error) {
