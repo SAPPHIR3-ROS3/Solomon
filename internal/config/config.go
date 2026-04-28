@@ -17,6 +17,8 @@ import (
 
 const DefaultSubagentTimeoutMinutes = 20
 
+const DefaultResponseLanguage = "English"
+
 type Provider struct {
 	Name    string `toml:"name"`
 	BaseURL string `toml:"base_url"`
@@ -37,6 +39,18 @@ type Root struct {
 	MaxResponseTokens       int        `toml:"max_response_tokens"`
 	ShowThinking            bool       `toml:"show_thinking"`
 	ShowUsageStats          *bool      `toml:"show_usage_stats"`
+	ResponseLanguage        string     `toml:"response_language"`
+}
+
+func (r *Root) EffectiveResponseLanguage() string {
+	if r == nil {
+		return DefaultResponseLanguage
+	}
+	s := strings.TrimSpace(r.ResponseLanguage)
+	if s == "" {
+		return DefaultResponseLanguage
+	}
+	return s
 }
 
 func (r *Root) UsageStatsEnabled() bool {
@@ -204,10 +218,17 @@ func RunWizardIfNeeded(stdin io.Reader) (*Root, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("Assistant response language [%s]: ", DefaultResponseLanguage)
+	br.Scan()
+	lang := strings.TrimSpace(br.Text())
+	if lang == "" {
+		lang = DefaultResponseLanguage
+	}
 	r := &Root{
 		Providers:              []Provider{p},
 		Current:                Current{Provider: name, Model: mid},
 		SubagentTimeoutMinutes: DefaultSubagentTimeoutMinutes,
+		ResponseLanguage:       lang,
 	}
 	if err := Save(r); err != nil {
 		return nil, err

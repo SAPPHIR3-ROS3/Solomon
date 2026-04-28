@@ -168,6 +168,37 @@ func (r *Runtime) handleSlash(ctx context.Context, line string) error {
 	case "exit", "quit":
 		r.slashExitQuit()
 		return ErrExitChat
+	case "language":
+		if len(parts) < 2 {
+			stored := strings.TrimSpace(r.Cfg.ResponseLanguage)
+			eff := r.Cfg.EffectiveResponseLanguage()
+			if stored == "" {
+				fmt.Fprintf(r.Out, "response_language=%s (default)\n", eff)
+			} else {
+				fmt.Fprintf(r.Out, "response_language=%s\n", eff)
+			}
+			return nil
+		}
+		rest := strings.Join(parts[1:], " ")
+		rest = strings.TrimSpace(rest)
+		if rest == "" {
+			return fmt.Errorf("usage: /language | /language <language> | /language clear")
+		}
+		switch strings.ToLower(rest) {
+		case "clear", "default", "reset":
+			r.Cfg.ResponseLanguage = ""
+		default:
+			r.Cfg.ResponseLanguage = rest
+		}
+		if err := config.Save(r.Cfg); err != nil {
+			return err
+		}
+		if strings.TrimSpace(r.Cfg.ResponseLanguage) != "" {
+			fmt.Fprintf(r.Out, "response_language=%s (saved; injected into system prompt)\n", strings.TrimSpace(r.Cfg.ResponseLanguage))
+		} else {
+			fmt.Fprintf(r.Out, "response_language reset to default %s (saved)\n", config.DefaultResponseLanguage)
+		}
+		return nil
 	case "help":
 		writeSlashHelp(r.Out)
 		return nil
@@ -184,6 +215,7 @@ func slashRegistry() [][]string {
 		{"/connect", "add OpenAI-compatible provider"},
 		{"/exit, /quit", "exit and show how to resume"},
 		{"/help", "this list"},
+		{"/language", "/language | /language <language> | /language clear — reply language (default English; saved; system prompt)"},
 		{"/log", "/log {error|warning|info|debug|result} visible log verbosity"},
 		{"/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)"},
 		{"/models", "list models and switch current model"},

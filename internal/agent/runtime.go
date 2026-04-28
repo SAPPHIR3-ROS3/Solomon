@@ -100,6 +100,7 @@ func (r *Runtime) systemPrompt() (string, error) {
 		Tools:      dump,
 		Syntax:     prompt.ToolInvocationSyntax(),
 		ExtraRules: "",
+		Language:   r.Cfg.EffectiveResponseLanguage(),
 	}
 	if r.Mode == "plan" {
 		return prompt.RenderPlan(d)
