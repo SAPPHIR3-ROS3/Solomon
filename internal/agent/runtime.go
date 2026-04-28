@@ -45,6 +45,8 @@ type Runtime struct {
 
 	CompactionThresholdTokens int64
 
+	EphemeralSession bool
+
 	Out io.Writer
 }
 
@@ -112,6 +114,17 @@ func (r *Runtime) systemPrompt() (string, error) {
 	return prompt.RenderBuild(d)
 }
 
+func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
+	return r.onUserMessage(ctx, line)
+}
+
+func (r *Runtime) persistSession() error {
+	if r.EphemeralSession {
+		return nil
+	}
+	return chatstore.WriteSession(r.ProjHex, r.Session)
+}
+
 func (r *Runtime) Run(ctx context.Context) error {
 	for {
 		line, err := r.RL.Readline()
@@ -151,7 +164,7 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
 	r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", Content: line})
 	r.Session.LastMessageAt = time.Now()
 	r.Session.LastUserMessageAt = time.Now()
-	if err := chatstore.WriteSession(r.ProjHex, r.Session); err != nil {
+	if err := r.persistSession(); err != nil {
 		return err
 	}
 	return r.runAgentTurns(ctx)
@@ -191,7 +204,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		}
 		r.Session.Messages = append(r.Session.Messages, ast)
 		r.Session.LastMessageAt = time.Now()
-		_ = chatstore.WriteSession(r.ProjHex, r.Session)
+		_ = r.persistSession()
 		var invs []tooling.Invocation
 		var toolIDs []string
 		if len(turn.ToolCalls) > 0 {
@@ -207,7 +220,20 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		}
 		if len(invs) == 0 {
 			if turn.Usage.PromptTokens > 0 && turn.Usage.PromptTokens >= r.CompactionThresholdTokens {
-				if err := commands.Summarize(r.slashDeps(ctx)); err != nil {
+				deps := r.slashDeps(ctx)
+				if r.EphemeralSession {
+					body, err := commands.SummarizeBody(deps)
+					if err != nil {
+						fmt.Fprintf(r.Out, "auto-compact: %v\n", err)
+						return nil
+					}
+					r.Session.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
+					r.Session.LastMessageAt = time.Now()
+					_ = r.persistSession()
+					fmt.Fprintln(r.Out, "context summarized")
+					continue
+				}
+				if err := commands.Summarize(deps); err != nil {
 					fmt.Fprintf(r.Out, "auto-compact: %v\n", err)
 				}
 			}
@@ -226,7 +252,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"})
 			}
 			r.Session.LastMessageAt = time.Now()
-			_ = chatstore.WriteSession(r.ProjHex, r.Session)
+			_ = r.persistSession()
 		}
 	}
 }

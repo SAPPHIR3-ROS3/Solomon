@@ -12,6 +12,7 @@ func Registry() [][]string {
 		{"/build", "build tools (shell, files, subagent)"},
 		{"/clear", "clear terminal (ANSI)"},
 		{"/connect", "add OpenAI-compatible provider"},
+		{"/exec", "/exec <prompt> | /exec \"prompt with spaces\" — send one user message"},
 		{"/exit, /quit", "exit and show how to resume"},
 		{"/help", "this list"},
 		{"/language", "/language | /language <language> | /language clear — reply language (default English; saved; system prompt)"},
