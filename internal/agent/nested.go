@@ -109,7 +109,15 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	}
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)
 	fmt.Fprintf(r.Out, "%s%s(subagent):%s ", termcolor.Assistant, r.Model, termcolor.Reset)
-	return llm.StreamAssistantTurn(ctx, r.Client, p, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
+	turn, err := llm.StreamAssistantTurn(ctx, r.Client, p, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
+	if err != nil {
+		return turn, err
+	}
+	fmt.Fprintln(r.Out)
+	if r.Cfg.UsageStatsEnabled() {
+		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(turn.Usage.PromptTokens, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS))
+	}
+	return turn, nil
 }
 
 func (r *Runtime) summarizeNested(ctx context.Context, msgs []chatstore.Message) (string, error) {
