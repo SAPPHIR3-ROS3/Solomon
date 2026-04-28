@@ -140,8 +140,39 @@ func TestSlashDispatch_help(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") {
+	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/exec") {
 		t.Fatalf("/help unexpected: %.200s", out)
+	}
+}
+
+func TestSlashDispatch_exec_quoted(t *testing.T) {
+	var got string
+	d := testDeps(nil)
+	d.SubmitUserMessage = func(s string) error { got = s; return nil }
+	if err := agent.SlashDispatch(d, `/exec "one two"`); err != nil {
+		t.Fatal(err)
+	}
+	if got != "one two" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSlashDispatch_exec_escapeQuote(t *testing.T) {
+	var got string
+	d := testDeps(nil)
+	d.SubmitUserMessage = func(s string) error { got = s; return nil }
+	if err := agent.SlashDispatch(d, `/exec "say \"hi\""`); err != nil {
+		t.Fatal(err)
+	}
+	if got != `say "hi"` {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSlashDispatch_exec_noDeps(t *testing.T) {
+	err := agent.SlashDispatch(testDeps(nil), `/exec "x"`)
+	if err == nil || err.Error() != "/exec unavailable" {
+		t.Fatalf("got %v", err)
 	}
 }
 

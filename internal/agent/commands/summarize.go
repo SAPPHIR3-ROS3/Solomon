@@ -63,14 +63,14 @@ func compactSummaryBody(sep, summaryLLM, retainedBlock string) string {
 	return b.String()
 }
 
-func Summarize(d Deps) error {
+func SummarizeBody(d Deps) (string, error) {
 	sess := d.Session()
 	if sess == nil {
-		return fmt.Errorf("no messages to summarize")
+		return "", fmt.Errorf("no messages to summarize")
 	}
 	msgs := sess.Messages
 	if len(msgs) == 0 {
-		return fmt.Errorf("no messages to summarize")
+		return "", fmt.Errorf("no messages to summarize")
 	}
 	fmt.Fprintln(d.Out, "Riassunto in corso…")
 	transcript := formatChatTranscript(msgs)
@@ -87,14 +87,14 @@ func Summarize(d Deps) error {
 	const sep = "================================================================================"
 	summary, usage, err := llm.StreamText(d.Ctx, d.Client, params, io.Discard, llm.StreamOpts{})
 	if err != nil {
-		return err
+		return "", err
 	}
 	if d.Cfg.UsageStatsEnabled() {
 		fmt.Fprintln(d.Out, termcolor.UsageTokensLine(usage.PromptTokens, usage.ReasoningTokens, usage.ResponseTokens, usage.TotalTokens, usage.OutputTPS, usage.TTFTSecs, usage.PromptTPS))
 	}
 	summary = strings.TrimSpace(summary)
 	if summary == "" {
-		return fmt.Errorf("empty summary from model")
+		return "", fmt.Errorf("empty summary from model")
 	}
 	var retainedBlock string
 	if len(msgs) > 8 {
@@ -102,7 +102,15 @@ func Summarize(d Deps) error {
 	} else {
 		retainedBlock = formatChatTranscript(msgs)
 	}
-	body := compactSummaryBody(sep, summary, retainedBlock)
+	return compactSummaryBody(sep, summary, retainedBlock), nil
+}
+
+func Summarize(d Deps) error {
+	body, err := SummarizeBody(d)
+	if err != nil {
+		return err
+	}
+	sess := d.Session()
 	sess.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
 	sess.LastMessageAt = time.Now()
 	if err := chatstore.WriteSession(d.ProjHex, sess); err != nil {

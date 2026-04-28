@@ -51,11 +51,47 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		AppendReadlineHistory: func(line string) error {
 			return r.RL.SaveHistory(line)
 		},
+		SubmitUserMessage: func(s string) error { return r.onUserMessage(ctx, s) },
 	}
 }
 
+func splitSlashArgs(line string) []string {
+	line = strings.TrimSpace(line)
+	var fields []string
+	for len(line) > 0 {
+		if line[0] == '"' {
+			line = line[1:]
+			var b strings.Builder
+			for len(line) > 0 {
+				if line[0] == '\\' && len(line) > 1 {
+					b.WriteByte(line[1])
+					line = line[2:]
+					continue
+				}
+				if line[0] == '"' {
+					line = line[1:]
+					break
+				}
+				b.WriteByte(line[0])
+				line = line[1:]
+			}
+			fields = append(fields, b.String())
+			line = strings.TrimLeft(line, " \t")
+			continue
+		}
+		i := strings.IndexAny(line, " \t")
+		if i < 0 {
+			fields = append(fields, line)
+			break
+		}
+		fields = append(fields, line[:i])
+		line = strings.TrimLeft(line[i:], " \t")
+	}
+	return fields
+}
+
 func SlashDispatch(d commands.Deps, line string) error {
-	parts := strings.Fields(line)
+	parts := splitSlashArgs(line)
 	if len(parts) == 0 {
 		return nil
 	}
@@ -67,6 +103,14 @@ func SlashDispatch(d commands.Deps, line string) error {
 		return commands.Build(d)
 	case "clear":
 		return commands.Clear(d)
+	case "exec":
+		if d.SubmitUserMessage == nil {
+			return fmt.Errorf("/exec unavailable")
+		}
+		if len(parts) < 2 {
+			return fmt.Errorf("usage: /exec <prompt> or /exec \"prompt with spaces\"")
+		}
+		return d.SubmitUserMessage(strings.Join(parts[1:], " "))
 	case "log":
 		return commands.SlashLog(d, parts)
 	case "reasoning":

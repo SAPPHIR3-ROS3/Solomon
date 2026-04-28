@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"solomon/internal/agent"
@@ -94,6 +95,31 @@ func main() {
 		Messages:       nil,
 	}
 	rt := agent.NewRuntime(rl, cfg, prov, hex, root, sess)
+	if len(os.Args) >= 4 && os.Args[1] == "temp" && os.Args[2] == "exec" {
+		rt.EphemeralSession = true
+		prompt := strings.TrimSpace(strings.Join(os.Args[3:], " "))
+		if prompt == "" {
+			fmt.Fprintln(os.Stderr, `usage: solomon temp exec <prompt>`)
+			os.Exit(1)
+		}
+		if err := rt.RunPromptOnce(ctx, prompt); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "exec" {
+		prompt := strings.TrimSpace(strings.Join(os.Args[2:], " "))
+		if prompt == "" {
+			fmt.Fprintln(os.Stderr, `usage: solomon exec <prompt>  (shell quotes grouping text, not passed to Solomon)`)
+			os.Exit(1)
+		}
+		if err := rt.RunPromptOnce(ctx, prompt); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := rt.Run(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
