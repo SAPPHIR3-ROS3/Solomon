@@ -117,15 +117,23 @@ func systemCPUFamily(arch string) string {
 }
 
 func effectiveShell() string {
-	for _, key := range []string{"SHELL", "COMSPEC"} {
-		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-			return v
-		}
+	if v := strings.TrimSpace(os.Getenv("SHELL")); v != "" {
+		return v
 	}
 	if runtime.GOOS == "windows" {
+		if sh := windowsInteractiveShellOverride(); sh != "" {
+			return sh
+		}
+		if v := strings.TrimSpace(os.Getenv("COMSPEC")); v != "" {
+			return v
+		}
 		if p := windowsFallbackShellExecutable(); p != "" {
 			return p
 		}
+		return "unknown"
+	}
+	if v := strings.TrimSpace(os.Getenv("COMSPEC")); v != "" {
+		return v
 	}
 	return "unknown"
 }
