@@ -38,6 +38,13 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		Model:             func() string { return r.Model },
 		Provider:          func() *config.Provider { return r.Prov },
 
+		CompactionThresholdTokens: func() int64 { return r.CompactionThresholdTokens },
+		SetCompactionThresholdTokens: func(n int64) {
+			r.CompactionThresholdTokens = n
+			r.Cfg.CompactionThresholdTokens = n
+			_ = config.Save(r.Cfg)
+		},
+
 		Client: r.Client,
 
 		ResetReadlineHistory: func() { r.RL.ResetHistory() },
@@ -72,6 +79,8 @@ func SlashDispatch(d commands.Deps, line string) error {
 		return commands.Thinking(d, parts)
 	case "max_response":
 		return commands.MaxResponse(d, parts)
+	case "threshold":
+		return commands.Threshold(d, parts)
 	case "models":
 		return commands.SlashModels(d)
 	case "connect":

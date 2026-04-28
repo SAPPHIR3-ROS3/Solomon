@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/openai/openai-go/v2/shared"
@@ -18,6 +19,10 @@ import (
 const DefaultSubagentTimeoutMinutes = 20
 
 const DefaultResponseLanguage = "English"
+
+const DefaultCompactionThresholdTokens int64 = 131072
+
+const MinCompactionThresholdTokens int64 = 32768
 
 type Provider struct {
 	Name    string `toml:"name"`
@@ -31,15 +36,16 @@ type Current struct {
 }
 
 type Root struct {
-	Providers               []Provider `toml:"providers"`
-	Current                 Current    `toml:"current"`
-	SubagentTimeoutMinutes  int        `toml:"subagent_timeout_minutes"`
-	ReasoningEffort         string     `toml:"reasoning_effort"`
-	LogLevel                string     `toml:"log_level"`
-	MaxResponseTokens       int        `toml:"max_response_tokens"`
-	ShowThinking            bool       `toml:"show_thinking"`
-	ShowUsageStats          *bool      `toml:"show_usage_stats"`
-	ResponseLanguage        string     `toml:"response_language"`
+	Providers                 []Provider `toml:"providers"`
+	Current                   Current    `toml:"current"`
+	SubagentTimeoutMinutes    int        `toml:"subagent_timeout_minutes"`
+	ReasoningEffort           string     `toml:"reasoning_effort"`
+	LogLevel                  string     `toml:"log_level"`
+	MaxResponseTokens         int        `toml:"max_response_tokens"`
+	ShowThinking              bool       `toml:"show_thinking"`
+	ShowUsageStats            *bool      `toml:"show_usage_stats"`
+	ResponseLanguage          string     `toml:"response_language"`
+	CompactionThresholdTokens int64      `toml:"compaction_threshold_tokens"`
 }
 
 func (r *Root) EffectiveResponseLanguage() string {
@@ -64,6 +70,17 @@ func SubagentTimeout(r *Root) int {
 	n := r.SubagentTimeoutMinutes
 	if n <= 0 {
 		return DefaultSubagentTimeoutMinutes
+	}
+	return n
+}
+
+func EffectiveCompactionThresholdTokens(r *Root) int64 {
+	if r == nil {
+		return DefaultCompactionThresholdTokens
+	}
+	n := r.CompactionThresholdTokens
+	if n <= 0 || n < MinCompactionThresholdTokens {
+		return DefaultCompactionThresholdTokens
 	}
 	return n
 }
@@ -224,11 +241,26 @@ func RunWizardIfNeeded(stdin io.Reader) (*Root, error) {
 	if lang == "" {
 		lang = DefaultResponseLanguage
 	}
+	fmt.Printf("Auto-compact threshold in prompt tokens [%d] (min %d, Enter=default): ", DefaultCompactionThresholdTokens, MinCompactionThresholdTokens)
+	br.Scan()
+	threshLine := strings.TrimSpace(br.Text())
+	var compactionThresh int64 = DefaultCompactionThresholdTokens
+	if threshLine != "" {
+		tn, err := strconv.ParseInt(threshLine, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("compaction threshold: %w", err)
+		}
+		if tn < MinCompactionThresholdTokens {
+			return nil, fmt.Errorf("compaction threshold must be >= %d", MinCompactionThresholdTokens)
+		}
+		compactionThresh = tn
+	}
 	r := &Root{
-		Providers:              []Provider{p},
-		Current:                Current{Provider: name, Model: mid},
-		SubagentTimeoutMinutes: DefaultSubagentTimeoutMinutes,
-		ResponseLanguage:       lang,
+		Providers:                 []Provider{p},
+		Current:                   Current{Provider: name, Model: mid},
+		SubagentTimeoutMinutes:    DefaultSubagentTimeoutMinutes,
+		ResponseLanguage:          lang,
+		CompactionThresholdTokens: compactionThresh,
 	}
 	if err := Save(r); err != nil {
 		return nil, err

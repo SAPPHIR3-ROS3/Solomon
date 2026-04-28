@@ -22,6 +22,7 @@ func Registry() [][]string {
 		{"/resume", "/resume | /resume last | /resume <id|title>"},
 		{"/stats", "toggle token usage line after assistant turns (saved)"},
 		{"/summarize, /compact", "summarize full chat; summary + last 8 msgs; then /clear"},
+		{"/threshold", "/threshold | /threshold <n> auto /summarize when prompt_tokens >= n (n>=32768; default 131072; needs API usage)"},
 		{"/thinking", "/thinking toggles preview; /thinking on|off streamed reasoning (dim gray); tool echoes (yellow)"},
 		{"/timeout", "/timeout <minutes> subagent segment (1–180)"},
 	}
