@@ -17,6 +17,7 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 	if sess == nil {
 		sess = &chatstore.Session{}
 	}
+	thresh := config.DefaultCompactionThresholdTokens
 	return commands.Deps{
 		Ctx:   context.Background(),
 		Out:   io.Discard,
@@ -37,6 +38,8 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		Provider: func() *config.Provider {
 			return &config.Provider{Name: "p", BaseURL: "http://127.0.0.1:9", APIKey: "k"}
 		},
-		Client: openai.NewClient(option.WithAPIKey("x"), option.WithBaseURL("http://127.0.0.1:9/")),
+		CompactionThresholdTokens:    func() int64 { return thresh },
+		SetCompactionThresholdTokens: func(n int64) { thresh = n },
+		Client:                       openai.NewClient(option.WithAPIKey("x"), option.WithBaseURL("http://127.0.0.1:9/")),
 	}
 }

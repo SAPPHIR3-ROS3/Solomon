@@ -3,16 +3,35 @@ package commands
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
 	"solomon/internal/chatstore"
+	"solomon/internal/config"
 	"solomon/internal/llm"
 	"solomon/internal/termcolor"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
 )
+
+func Threshold(d Deps, parts []string) error {
+	if len(parts) < 2 {
+		fmt.Fprintf(d.Out, "compaction_threshold_tokens=%d (auto /summarize when prompt_tokens >= this after an assistant reply; usage must be reported by the API)\n", d.CompactionThresholdTokens())
+		return nil
+	}
+	n, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return err
+	}
+	if n < config.MinCompactionThresholdTokens {
+		return fmt.Errorf("threshold must be >= %d", config.MinCompactionThresholdTokens)
+	}
+	d.SetCompactionThresholdTokens(n)
+	fmt.Fprintf(d.Out, "compaction_threshold_tokens=%d\n", n)
+	return nil
+}
 
 func formatChatTranscript(msgs []chatstore.Message) string {
 	var b strings.Builder

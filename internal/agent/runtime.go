@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"solomon/internal/agent/commands"
 	"solomon/internal/chatstore"
 	"solomon/internal/config"
 	"solomon/internal/llm"
@@ -42,6 +43,8 @@ type Runtime struct {
 
 	Session *chatstore.Session
 
+	CompactionThresholdTokens int64
+
 	Out io.Writer
 }
 
@@ -60,7 +63,8 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		ProjRoot: projRoot,
 		Mode:     "build",
 		Session:  sess,
-		Out:      os.Stdout,
+		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
+		Out:                       os.Stdout,
 	}
 }
 
@@ -202,6 +206,11 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			}
 		}
 		if len(invs) == 0 {
+			if turn.Usage.PromptTokens > 0 && turn.Usage.PromptTokens >= r.CompactionThresholdTokens {
+				if err := commands.Summarize(r.slashDeps(ctx)); err != nil {
+					fmt.Fprintf(r.Out, "auto-compact: %v\n", err)
+				}
+			}
 			return nil
 		}
 		for i, inv := range invs {

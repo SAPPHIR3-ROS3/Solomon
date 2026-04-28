@@ -58,6 +58,31 @@ func TestSlashDispatch_reasoning(t *testing.T) {
 	}
 }
 
+func TestSlashDispatch_threshold(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	d := testDeps(nil)
+	d.Out = buf
+	if err := agent.SlashDispatch(d, "/threshold"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "131072") {
+		t.Fatalf("/threshold default: %s", buf.String())
+	}
+	if err := agent.SlashDispatch(d, "/threshold 32767"); err == nil {
+		t.Fatal("want error for threshold < 32768")
+	}
+	if err := agent.SlashDispatch(d, "/threshold 65536"); err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	if err := agent.SlashDispatch(d, "/threshold"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "65536") {
+		t.Fatalf("/threshold after set: %s", buf.String())
+	}
+}
+
 func TestSlashDispatch_timeout_stats_thinking_max(t *testing.T) {
 	d := testDeps(nil)
 	if err := agent.SlashDispatch(d, "/timeout 10"); err != nil {
