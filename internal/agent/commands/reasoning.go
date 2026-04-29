@@ -9,9 +9,9 @@ import (
 func Reasoning(d Deps, parts []string) error {
 	if len(parts) < 2 {
 		if lab := d.Cfg.ReasoningEffortLabel(); lab != "" {
-			fmt.Fprintf(d.Out, "reasoning_effort=%s (main chat only; subagent omits reasoning)\n", lab)
+			fmt.Fprintf(d.Out, "reasoning_effort=%s (main chat); subagent always none\n", lab)
 		} else {
-			fmt.Fprintln(d.Out, "reasoning_effort unset (provider default); subagent never sends reasoning_effort")
+			fmt.Fprintln(d.Out, "reasoning_effort unset for main chat (provider default); subagent always none")
 		}
 		return nil
 	}
@@ -23,6 +23,6 @@ func Reasoning(d Deps, parts []string) error {
 	if err := d.SaveCfg(); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "reasoning_effort=%s (saved; main chat only)\n", canonical)
+	fmt.Fprintf(d.Out, "reasoning_effort=%s (saved; main chat); subagent always none\n", canonical)
 	return nil
 }
