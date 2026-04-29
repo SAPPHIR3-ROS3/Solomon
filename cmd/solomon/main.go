@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"solomon/internal/agent"
+	"solomon/internal/agent/commands"
 	"solomon/internal/chatstore"
 	"solomon/internal/config"
 	"solomon/internal/logging"
@@ -38,6 +39,62 @@ func main() {
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "add" {
+		wd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		root, hex, err := project.Resolve(wd)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, `usage: solomon add https://skills.sh/... [name] [global|project|local] | solomon add skill <owner/repo|url> [name] [global|project|local]`)
+			os.Exit(2)
+		}
+		deps := commands.Deps{
+			Ctx:      ctx,
+			Out:      os.Stdout,
+			Stdin:    os.Stdin,
+			ProjHex:  hex,
+			ProjRoot: root,
+		}
+		if err := commands.Add(deps, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "remove" {
+		wd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		root, hex, err := project.Resolve(wd)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		if len(os.Args) < 4 {
+			fmt.Fprintln(os.Stderr, `usage: solomon remove skill <name>`)
+			os.Exit(2)
+		}
+		deps := commands.Deps{
+			Ctx:      ctx,
+			Out:      os.Stdout,
+			Stdin:    os.Stdin,
+			ProjHex:  hex,
+			ProjRoot: root,
+		}
+		if err := commands.Remove(deps, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	}
 	cfg, err := config.RunWizardIfNeeded(os.Stdin)
 	if err != nil {

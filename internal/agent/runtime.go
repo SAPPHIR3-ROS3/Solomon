@@ -170,7 +170,10 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
 		}
 		return r.runUserShellLine(ctx, cmd)
 	}
-	if r.Session.Title == "" && len(r.Session.Messages) == 0 {
+	if !r.EphemeralSession && r.Session.ID == "" && len(r.Session.Messages) == 0 {
+		r.Session.ID = chatstore.NewPlaceholderChatID(time.Now())
+	}
+	if r.EphemeralSession && r.Session.Title == "" && len(r.Session.Messages) == 0 {
 		t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, line)
 		if err != nil || strings.TrimSpace(t) == "" {
 			t = title.FallbackFromWords(line)
@@ -185,7 +188,42 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
 	if err := r.persistSession(); err != nil {
 		return err
 	}
-	return r.runAgentTurns(ctx)
+	if err := r.runAgentTurns(ctx); err != nil {
+		return err
+	}
+	if !r.EphemeralSession && chatstore.IsPlaceholderChatID(r.Session.ID) {
+		return r.finalizeDeferredChatTitle(ctx)
+	}
+	return nil
+}
+
+func (r *Runtime) finalizeDeferredChatTitle(ctx context.Context) error {
+	var firstUser string
+	for _, m := range r.Session.Messages {
+		if m.Role == "user" && strings.TrimSpace(m.Content) != "" && !strings.HasPrefix(m.Content, "tool_result(") {
+			firstUser = m.Content
+			break
+		}
+	}
+	if firstUser == "" {
+		return nil
+	}
+	t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, firstUser)
+	if err != nil || strings.TrimSpace(t) == "" {
+		t = title.FallbackFromWords(firstUser)
+	}
+	t = title.NormalizeSlug(t)
+	oldID := r.Session.ID
+	r.Session.Title = t
+	r.Session.ID = chatstore.ChatIDHex(t, r.Session.CreatedAt)
+	if err := chatstore.RenameSessionFile(r.ProjHex, oldID, r.Session.ID); err != nil {
+		if err := r.persistSession(); err != nil {
+			return err
+		}
+		_ = chatstore.RemoveSessionPath(r.ProjHex, oldID)
+		return nil
+	}
+	return r.persistSession()
 }
 
 func (r *Runtime) runAgentTurns(ctx context.Context) error {

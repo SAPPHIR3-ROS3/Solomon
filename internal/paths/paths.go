@@ -44,3 +44,43 @@ func ProjectRoot(projectHexID string) (string, error) {
 	}
 	return filepath.Join(dir, projectHexID), nil
 }
+
+func SkillsRegistryPath() (string, error) {
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "skills.json"), nil
+}
+
+func SkillsRegistryLockPath() (string, error) {
+	p, err := SkillsRegistryPath()
+	if err != nil {
+		return "", err
+	}
+	return p + ".lock", nil
+}
+
+func GlobalSkillsDir() (string, error) {
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "skills"), nil
+}
+
+func ProjectSkillsDir(projectHexID string) (string, error) {
+	proot, err := ProjectRoot(projectHexID)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(proot, "skills"), nil
+}
+
+func LocalSkillsDir(projRoot string) string {
+	return filepath.Join(projRoot, ".solomon", "skills")
+}
+
+func LocalSkillsMirrorPath(projRoot string) string {
+	return filepath.Join(LocalSkillsDir(projRoot), "skills.json")
+}

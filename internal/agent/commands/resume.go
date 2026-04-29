@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"solomon/internal/chatstore"
 	"solomon/internal/termcolor"
@@ -133,4 +134,20 @@ func printResumedTranscript(out io.Writer, sess *chatstore.Session, model string
 		}
 	}
 	fmt.Fprintln(out)
+}
+
+func NewChat(d Deps) error {
+	now := time.Now()
+	d.SetSession(&chatstore.Session{
+		ID:            "",
+		Title:         "",
+		CreatedAt:     now,
+		LastMessageAt: now,
+		Messages:      nil,
+	})
+	if d.ResetReadlineHistory != nil {
+		d.ResetReadlineHistory()
+	}
+	fmt.Fprintln(d.Out, "Started new chat session.")
+	return nil
 }

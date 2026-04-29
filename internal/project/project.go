@@ -93,6 +93,7 @@ func EnsureDirs(projectHex string) error {
 		filepath.Join(proot, "chats"),
 		filepath.Join(proot, "chats", "subchats"),
 		filepath.Join(proot, "plans"),
+		filepath.Join(proot, "skills"),
 	}
 	for _, d := range dirs {
 		if err := os.MkdirAll(d, 0o700); err != nil {

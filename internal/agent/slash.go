@@ -26,7 +26,8 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		Cfg:     r.Cfg,
 		SaveCfg: func() error { return config.Save(r.Cfg) },
 
-		ProjHex: r.ProjHex,
+		ProjHex:  r.ProjHex,
+		ProjRoot: r.ProjRoot,
 
 		Session:    func() *chatstore.Session { return r.Session },
 		SetSession: func(s *chatstore.Session) { r.Session = s },
@@ -140,6 +141,8 @@ func SlashDispatch(d commands.Deps, line string) error {
 		return commands.SlashModels(d)
 	case "connect":
 		return commands.Connect(d)
+	case "new":
+		return commands.NewChat(d)
 	case "resume":
 		return commands.Resume(d, parts[1:])
 	case "summarize", "compact":
@@ -151,6 +154,16 @@ func SlashDispatch(d commands.Deps, line string) error {
 		return commands.Language(d, parts)
 	case "legacytools", "legacy":
 		return commands.LegacyTools(d, parts)
+	case "add":
+		if len(parts) < 2 {
+			return fmt.Errorf(`usage: /add https://skills.sh/... [name] [global|project|local] | /add skill <owner/repo|url> [name] [global|project|local]`)
+		}
+		return commands.Add(d, parts[1:])
+	case "remove":
+		if len(parts) < 2 {
+			return fmt.Errorf(`usage: /remove skill <name>`)
+		}
+		return commands.Remove(d, parts[1:])
 	case "help":
 		commands.WriteHelp(d.Out)
 		return nil
