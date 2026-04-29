@@ -107,9 +107,13 @@ func (r *Runtime) systemPrompt() (string, error) {
 	if p, err := filepath.Abs(r.ProjRoot); err == nil {
 		absWorkspace = p
 	}
+	syntax := prompt.NativeToolInvocationSyntax()
+	if r.Session.LegacyTools {
+		syntax = strings.TrimSpace(syntax + "\n\n" + prompt.LegacyToolInvocationSyntaxAppend())
+	}
 	d := prompt.Data{
 		Tools:                 dump,
-		Syntax:                prompt.ToolInvocationSyntax(),
+		Syntax:                syntax,
 		ExtraRules:            "",
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		WorkspaceAbsolutePath: absWorkspace,
@@ -226,7 +230,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				invs = append(invs, tooling.Invocation{Name: tc.Name, Args: json.RawMessage(tc.Arguments)})
 				toolIDs = append(toolIDs, tc.ID)
 			}
-		} else {
+		} else if r.Session.LegacyTools {
 			for _, inv := range tooling.ExtractToolInvocations(turn.Content) {
 				invs = append(invs, inv)
 				toolIDs = append(toolIDs, "")
