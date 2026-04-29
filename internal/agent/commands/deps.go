@@ -20,6 +20,7 @@ type Deps struct {
 	SaveCfg func() error
 
 	ProjHex string
+	ProjRoot string
 
 	Session    func() *chatstore.Session
 	SetSession func(*chatstore.Session)

@@ -13,6 +13,17 @@ import (
 	"solomon/internal/paths"
 )
 
+func NewPlaceholderChatID(t time.Time) string {
+	u := t.UTC()
+	s := u.Format(time.RFC3339Nano)
+	s = strings.ReplaceAll(s, ":", "-")
+	return "newchat-" + s
+}
+
+func IsPlaceholderChatID(id string) bool {
+	return strings.HasPrefix(id, "newchat-")
+}
+
 type ToolCall struct {
 	ID        string `json:"id,omitempty"`
 	Name      string `json:"name"`
@@ -91,6 +102,30 @@ func WriteSession(projectHex string, s *Session) error {
 		return err
 	}
 	return os.Rename(tmp, p)
+}
+
+func RenameSessionFile(projectHex, oldID, newID string) error {
+	oldPath, err := SessionPath(projectHex, oldID)
+	if err != nil {
+		return err
+	}
+	newPath, err := SessionPath(projectHex, newID)
+	if err != nil {
+		return err
+	}
+	return os.Rename(oldPath, newPath)
+}
+
+func RemoveSessionPath(projectHex, chatID string) error {
+	p, err := SessionPath(projectHex, chatID)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(p)
+	if err != nil && os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 
 func ReadSession(projectHex, chatIDHex string) (*Session, error) {

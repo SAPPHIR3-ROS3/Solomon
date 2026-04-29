@@ -24,7 +24,8 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		Stdin: strings.NewReader(""),
 		Cfg: &config.Root{Current: config.Current{Provider: "p", Model: "m"}, Providers: []config.Provider{{Name: "p", BaseURL: "http://127.0.0.1:9", APIKey: "k"}}}, 
 		SaveCfg: func() error { return nil },
-		ProjHex: "0000000000000000000000000000000000000000000000000000000000000000",
+		ProjHex:  "0000000000000000000000000000000000000000000000000000000000000000",
+		ProjRoot: "/tmp/solomon-test-proj",
 		Session: func() *chatstore.Session {
 			return sess
 		},

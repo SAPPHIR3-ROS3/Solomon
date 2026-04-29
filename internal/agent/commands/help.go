@@ -10,6 +10,7 @@ func Registry() [][]string {
 	return [][]string{
 		{"/plan", "planning tools only"},
 		{"/add", "/add https://skills.sh/... [name] [scope] | /add skill <owner/repo|url> [name] [scope] — scope: global|project|local"},
+		{"/remove skill", "/remove skill <name> — remove from registry and delete clone dirs (all scopes matching name)"},
 		{"/build", "build tools (shell, files, subagent)"},
 		{"/clear", "clear terminal (ANSI)"},
 		{"/connect", "add OpenAI-compatible provider"},
@@ -21,6 +22,7 @@ func Registry() [][]string {
 		{"/log", "/log {error|warning|info|debug|result} visible log verbosity"},
 		{"/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)"},
 		{"/models", "list models and switch current model"},
+		{"/new", "start a new chat session (empty transcript; prior chat stays saved on disk)"},
 		{"/reasoning", "/reasoning | /reasoning {none|low|med|high} main chat; subagent always none"},
 		{"/resume", "/resume | /resume last | /resume <id|title>"},
 		{"/stats", "toggle token usage line after assistant turns (saved)"},

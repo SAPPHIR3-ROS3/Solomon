@@ -128,6 +128,20 @@ func TestSlashDispatch_language_resume_list(t *testing.T) {
 	}
 }
 
+func TestSlashDispatch_new(t *testing.T) {
+	sess := &chatstore.Session{
+		ID:       "deadbeef",
+		Messages: []chatstore.Message{{Role: "user", Content: "hi"}},
+	}
+	d := testDeps(sess)
+	if err := agent.SlashDispatch(d, "/new"); err != nil {
+		t.Fatal(err)
+	}
+	if sess.ID != "" || len(sess.Messages) != 0 {
+		t.Fatalf("want fresh session, got id=%q msgs=%d", sess.ID, len(sess.Messages))
+	}
+}
+
 func TestSlashDispatch_resume_last_noChats(t *testing.T) {
 	d := testDeps(nil)
 	err := agent.SlashDispatch(d, "/resume last")
@@ -153,7 +167,7 @@ func TestSlashDispatch_help(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") {
+	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/remove skill") {
 		t.Fatalf("/help unexpected: %.200s", out)
 	}
 }
@@ -185,6 +199,20 @@ func TestSlashDispatch_exec_escapeQuote(t *testing.T) {
 func TestSlashDispatch_exec_noDeps(t *testing.T) {
 	err := agent.SlashDispatch(testDeps(nil), `/exec "x"`)
 	if err == nil || err.Error() != "/exec unavailable" {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestSlashDispatch_addUsage(t *testing.T) {
+	err := agent.SlashDispatch(testDeps(nil), "/add")
+	if err == nil || !strings.Contains(err.Error(), "usage:") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestSlashDispatch_removeUsage(t *testing.T) {
+	err := agent.SlashDispatch(testDeps(nil), "/remove")
+	if err == nil || !strings.Contains(err.Error(), "usage:") {
 		t.Fatalf("got %v", err)
 	}
 }
