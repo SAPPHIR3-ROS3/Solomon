@@ -104,6 +104,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	p := openai.ChatCompletionNewParams{
 		Model:             shared.ChatModel(r.Model),
 		Messages:          llm.MessageParams(system, msgs),
+		ReasoningEffort:   shared.ReasoningEffort("none"),
 		Tools:             tools,
 		ParallelToolCalls: param.NewOpt(true),
 	}
@@ -126,11 +127,12 @@ func (r *Runtime) summarizeNested(ctx context.Context, msgs []chatstore.Message)
 		sb.WriteString(m.Role + ": " + m.Content + "\n")
 	}
 	p := openai.ChatCompletionNewParams{
-		Model: shared.ChatModel(r.Model),
+		Model:           shared.ChatModel(r.Model),
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage("Briefly summarize the following conversation turns."),
 			openai.UserMessage(sb.String()),
 		},
+		ReasoningEffort: shared.ReasoningEffort("none"),
 	}
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)
 	resp, err := r.Client.Chat.Completions.New(ctx, p)
