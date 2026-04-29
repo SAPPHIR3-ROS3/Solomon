@@ -65,7 +65,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 				invs = append(invs, tooling.Invocation{Name: tc.Name, Args: json.RawMessage(tc.Arguments)})
 				toolIDs = append(toolIDs, tc.ID)
 			}
-		} else {
+		} else if r.Session.LegacyTools {
 			for _, inv := range tooling.ExtractToolInvocations(turn.Content) {
 				invs = append(invs, inv)
 				toolIDs = append(toolIDs, "")

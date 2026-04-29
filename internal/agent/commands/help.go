@@ -16,6 +16,7 @@ func Registry() [][]string {
 		{"/exit, /quit", "exit and show how to resume"},
 		{"/help", "this list"},
 		{"/language", "/language | /language <language> | /language clear — reply language (default English; saved; system prompt)"},
+		{"/legacytools", "/legacytools | /legacy | /legacytools on|off — parse Tool: lines from assistant text + inject syntax into system prompt"},
 		{"/log", "/log {error|warning|info|debug|result} visible log verbosity"},
 		{"/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)"},
 		{"/models", "list models and switch current model"},

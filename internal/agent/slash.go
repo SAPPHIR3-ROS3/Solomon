@@ -90,12 +90,23 @@ func splitSlashArgs(line string) []string {
 	return fields
 }
 
+func slashCommandName(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	t := strings.TrimSpace(parts[0])
+	t = strings.TrimPrefix(t, "/")
+	t = strings.TrimSpace(t)
+	t = strings.Trim(t, "\ufeff\u200b\u200c\u200d")
+	return strings.ToLower(t)
+}
+
 func SlashDispatch(d commands.Deps, line string) error {
 	parts := splitSlashArgs(line)
 	if len(parts) == 0 {
 		return nil
 	}
-	name := strings.TrimPrefix(parts[0], "/")
+	name := slashCommandName(parts)
 	switch name {
 	case "plan":
 		return commands.Plan(d)
@@ -138,6 +149,8 @@ func SlashDispatch(d commands.Deps, line string) error {
 		return ErrExitChat
 	case "language":
 		return commands.Language(d, parts)
+	case "legacytools", "legacy":
+		return commands.LegacyTools(d, parts)
 	case "help":
 		commands.WriteHelp(d.Out)
 		return nil

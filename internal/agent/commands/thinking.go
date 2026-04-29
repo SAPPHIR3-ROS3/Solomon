@@ -3,6 +3,8 @@ package commands
 import (
 	"fmt"
 	"strings"
+
+	"solomon/internal/chatstore"
 )
 
 func Thinking(d Deps, parts []string) error {
@@ -35,5 +37,34 @@ func Thinking(d Deps, parts []string) error {
 		onOff = "on"
 	}
 	fmt.Fprintf(d.Out, "streaming reasoning preview: %s\n", onOff)
+	return nil
+}
+
+func LegacyTools(d Deps, parts []string) error {
+	sess := d.Session()
+	if sess == nil {
+		return fmt.Errorf("no active session")
+	}
+	if len(parts) < 2 {
+		sess.LegacyTools = !sess.LegacyTools
+	} else {
+		sw := strings.ToLower(parts[1])
+		switch sw {
+		case "on", "yes", "true", "1":
+			sess.LegacyTools = true
+		case "off", "no", "false", "0":
+			sess.LegacyTools = false
+		default:
+			return fmt.Errorf("usage: /legacytools | /legacytools on|off")
+		}
+	}
+	if err := chatstore.WriteSession(d.ProjHex, sess); err != nil {
+		return err
+	}
+	state := "off"
+	if sess.LegacyTools {
+		state = "on"
+	}
+	fmt.Fprintf(d.Out, "legacy Tool: line parsing: %s (system prompt includes legacy syntax on next assistant turn)\n", state)
 	return nil
 }

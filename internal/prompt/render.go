@@ -38,37 +38,42 @@ type TitleData struct {
 	Language string
 }
 
-func ToolInvocationSyntax() string {
+func NativeToolInvocationSyntax() string {
 	return strings.TrimSpace(`
-Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Do not rely on embedding "Tool: ..." lines in assistant text unless the provider does not return tool calls.
+Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Use API tool_calls only; do not emit standalone Tool: lines in assistant text unless legacy text fallback is explicitly enabled for this chat.
 
 The harness may echo executed calls as lines like:
 
 Tool: TOOL_NAME({JSON_OBJECT})
 
-for readability; that echo is not a substitute for real tool_calls when the API supports them.
+for readability after execution; those echoes are not a substitute for native tool_calls when the API supports them.
+`)
+}
 
-Legacy fallback (text only): if tool_calls are unavailable, output exactly one invocation per line:
+func LegacyToolInvocationSyntaxAppend() string {
+	return strings.TrimSpace(`
+Legacy text fallback is enabled for this chat: when native tool_calls are unavailable from the API, output exactly one invocation per line:
 
 Tool: TOOL_NAME({JSON_OBJECT})
 
 Use valid JSON objects with keys matching each tool's schema. Multiple tools: one Tool: line per tool, each on its own line.
 
 Examples (PLAN): Tool: createPlan({"name": "feature.md", "planText": "# Goal\n\n## Steps\n1. ..."})
-Examples (BUILD): Tool: readFile({"path": "cmd/app/main.go"}), Tool: shell({"command": "go test ./..."})
+Examples (BUILD): Tool: readFile({"path": "cmd/app/main.go"})
+Examples (BUILD): Tool: shell({"command": "go test ./..."})
 `)
 }
 
 func RenderPlan(d Data) (string, error) {
 	if d.Syntax == "" {
-		d.Syntax = ToolInvocationSyntax()
+		d.Syntax = NativeToolInvocationSyntax()
 	}
 	return render(planRaw, d)
 }
 
 func RenderBuild(d Data) (string, error) {
 	if d.Syntax == "" {
-		d.Syntax = ToolInvocationSyntax()
+		d.Syntax = NativeToolInvocationSyntax()
 	}
 	return render(buildRaw, d)
 }
