@@ -13,15 +13,58 @@ const (
 	Tool      = "\033[38;2;255;246;157m"
 	Thinking  = "\033[90m"
 	White     = "\033[97m"
+	Context   = "\033[94m"
 	Reset     = "\033[0m"
 )
 
-func UsageTokensLine(promptTokens, reasoningTokens, responseTokens, totalTokens int64, outputTPS, ttftSecs, promptTPS float64) string {
-	return "token: " +
-		User + strconv.FormatInt(promptTokens, 10) + Reset + "+" +
-		Thinking + strconv.FormatInt(reasoningTokens, 10) + Reset + "+" +
-		Assistant + strconv.FormatInt(responseTokens, 10) + Reset + "=" +
-		White + strconv.FormatInt(totalTokens, 10) + Reset +
+func WrapUser(s string) string {
+	return User + s + Reset
+}
+
+func WrapAssistant(s string) string {
+	return Assistant + s + Reset
+}
+
+func WrapTool(s string) string {
+	return Tool + s + Reset
+}
+
+func WrapThinking(s string) string {
+	return Thinking + s + Reset
+}
+
+func WrapWhite(s string) string {
+	return White + s + Reset
+}
+
+func WrapContext(s string) string {
+	return Context + s + Reset
+}
+
+func formatContextPromptTok(n int64, estimated bool) string {
+	s := strconv.FormatInt(n, 10)
+	if estimated && n > 0 {
+		return "~" + s
+	}
+	return s
+}
+
+func UsageTokensLine(contextPromptTok, lastUserPromptTok, reasoningTokens, responseTokens, totalTokens int64, outputTPS, ttftSecs, promptTPS float64, contextEstimated bool) string {
+	var promptSeg string
+	switch {
+	case contextPromptTok <= 0 && lastUserPromptTok <= 0:
+		promptSeg = WrapUser("0")
+	case lastUserPromptTok <= 0:
+		promptSeg = WrapContext(formatContextPromptTok(contextPromptTok, contextEstimated))
+	case contextPromptTok <= 0:
+		promptSeg = WrapUser(strconv.FormatInt(lastUserPromptTok, 10))
+	default:
+		promptSeg = WrapContext(formatContextPromptTok(contextPromptTok, contextEstimated)) + "+" + WrapUser(strconv.FormatInt(lastUserPromptTok, 10))
+	}
+	return "token: " + promptSeg + "+" +
+		WrapThinking(strconv.FormatInt(reasoningTokens, 10)) + "+" +
+		WrapAssistant(strconv.FormatInt(responseTokens, 10)) + "=" +
+		WrapWhite(strconv.FormatInt(totalTokens, 10)) +
 		fmt.Sprintf("\t%.1ft/s ttft:%.3fs pp:%.1ft/s", outputTPS, ttftSecs, promptTPS)
 }
 
@@ -61,13 +104,7 @@ func (w *ToolLineWriter) Flush() error {
 func (w *ToolLineWriter) writeLine(line []byte) error {
 	trim := bytes.TrimSpace(line)
 	if bytes.HasPrefix(trim, []byte("Tool:")) {
-		if _, err := io.WriteString(w.W, Tool); err != nil {
-			return err
-		}
-		if _, err := w.W.Write(line); err != nil {
-			return err
-		}
-		_, err := io.WriteString(w.W, Reset)
+		_, err := io.WriteString(w.W, WrapTool(string(line)))
 		return err
 	}
 	_, err := w.W.Write(line)

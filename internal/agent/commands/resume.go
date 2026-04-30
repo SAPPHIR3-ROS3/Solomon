@@ -114,21 +114,21 @@ func printResumedTranscript(out io.Writer, sess *chatstore.Session, model string
 			if strings.HasPrefix(m.Content, "tool_result(") {
 				continue
 			}
-			fmt.Fprintf(out, "%sYou:%s %s\n", termcolor.User, termcolor.Reset, m.Content)
+			fmt.Fprintf(out, "%s %s\n", termcolor.WrapUser("You:"), m.Content)
 		case "assistant":
 			if c := strings.TrimSpace(m.Content); c != "" {
-				fmt.Fprintf(out, "%s%s:%s %s\n", termcolor.Assistant, model, termcolor.Reset, m.Content)
+				fmt.Fprintf(out, "%s %s\n", termcolor.WrapAssistant(model+":"), m.Content)
 			}
 			for _, tc := range m.ToolCalls {
 				args := compactJSONArgs(tc.Arguments)
-				fmt.Fprintf(out, "%sTool: %s(%s)\n%s", termcolor.Tool, tc.Name, args, termcolor.Reset)
+				fmt.Fprintf(out, "%s\n", termcolor.WrapTool(fmt.Sprintf("Tool: %s(%s)", tc.Name, args)))
 			}
 		case "tool":
 			id := m.ToolCallID
 			if id != "" {
-				fmt.Fprintf(out, "%s[tool %s]%s %s\n", termcolor.Thinking, id, termcolor.Reset, truncateRunes(m.Content, 240))
+				fmt.Fprintf(out, "%s %s\n", termcolor.WrapThinking(fmt.Sprintf("[tool %s]", id)), truncateRunes(m.Content, 240))
 			} else {
-				fmt.Fprintf(out, "%s[tool]%s %s\n", termcolor.Thinking, termcolor.Reset, truncateRunes(m.Content, 240))
+				fmt.Fprintf(out, "%s %s\n", termcolor.WrapThinking("[tool]"), truncateRunes(m.Content, 240))
 			}
 		default:
 		}

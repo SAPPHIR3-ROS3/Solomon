@@ -262,7 +262,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			ParallelToolCalls: param.NewOpt(true),
 		}
 		llm.ApplyMaxResponseTokens(r.Cfg, &params)
-		fmt.Fprintf(r.Out, "%s%s:%s ", termcolor.Assistant, r.Model, termcolor.Reset)
+		fmt.Fprintf(r.Out, "%s ", termcolor.WrapAssistant(r.Model+":"))
 		turn, err := llm.StreamAssistantTurn(ctx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 		fmt.Fprintln(r.Out)
 		if err != nil {
@@ -270,7 +270,8 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			return err
 		}
 		if r.Cfg.UsageStatsEnabled() {
-			fmt.Fprintln(r.Out, termcolor.UsageTokensLine(turn.Usage.PromptTokens, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS))
+			ctxTok, usrTok, ctxEst := llm.UsagePromptParts(sys, msgs, turn.Usage.PromptTokens, turn.Usage.CachedPromptTokens)
+			fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst))
 		}
 		ast := chatstore.Message{Role: "assistant", Content: turn.Content}
 		for _, tc := range turn.ToolCalls {
@@ -342,7 +343,7 @@ func (r *Runtime) printToolLine(name string, rawArgs json.RawMessage) {
 			s = buf.String()
 		}
 	}
-	fmt.Fprintf(r.Out, "%sTool: %s(%s)\n%s", termcolor.Tool, name, s, termcolor.Reset)
+	fmt.Fprintf(r.Out, "%s\n", termcolor.WrapTool(fmt.Sprintf("Tool: %s(%s)", name, s)))
 }
 
 func toolingResultJSON(v any) string {
