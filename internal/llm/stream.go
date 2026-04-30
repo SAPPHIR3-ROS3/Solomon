@@ -19,13 +19,14 @@ type AssistantToolCall struct {
 }
 
 type UsageStats struct {
-	PromptTokens    int64
-	ReasoningTokens int64
-	ResponseTokens  int64
-	TotalTokens     int64
-	OutputTPS       float64
-	TTFTSecs        float64
-	PromptTPS       float64
+	PromptTokens       int64
+	CachedPromptTokens int64
+	ReasoningTokens    int64
+	ResponseTokens     int64
+	TotalTokens        int64
+	OutputTPS          float64
+	TTFTSecs           float64
+	PromptTPS          float64
 }
 
 type AssistantTurnResult struct {
@@ -69,9 +70,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		if opts.ShowThinking {
 			rs := deltaReasoningText(delta.RawJSON())
 			if rs != "" {
-				_, _ = io.WriteString(reasonSink, termcolor.Thinking)
-				_, _ = io.WriteString(reasonSink, rs)
-				_, _ = io.WriteString(reasonSink, termcolor.Reset)
+				_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(rs))
 			}
 		}
 		d := delta.Content
@@ -145,9 +144,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		if opts.ShowThinking {
 			rs := deltaReasoningText(delta.RawJSON())
 			if rs != "" {
-				_, _ = io.WriteString(reasonSink, termcolor.Thinking)
-				_, _ = io.WriteString(reasonSink, rs)
-				_, _ = io.WriteString(reasonSink, termcolor.Reset)
+				_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(rs))
 			}
 		}
 		d := delta.Content
@@ -202,10 +199,11 @@ func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int
 		resp = 0
 	}
 	return UsageStats{
-		PromptTokens:    acc.Usage.PromptTokens,
-		ReasoningTokens: reasoningTok,
-		ResponseTokens:  resp,
-		TotalTokens:     acc.Usage.TotalTokens,
+		PromptTokens:       acc.Usage.PromptTokens,
+		CachedPromptTokens: acc.Usage.PromptTokensDetails.CachedTokens,
+		ReasoningTokens:    reasoningTok,
+		ResponseTokens:     resp,
+		TotalTokens:        acc.Usage.TotalTokens,
 	}
 }
 

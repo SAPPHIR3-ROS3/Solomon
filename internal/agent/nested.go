@@ -113,7 +113,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 		ParallelToolCalls: param.NewOpt(true),
 	}
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)
-	fmt.Fprintf(r.Out, "%s%s(subagent):%s ", termcolor.Assistant, r.Model, termcolor.Reset)
+	fmt.Fprintf(r.Out, "%s ", termcolor.WrapAssistant(r.Model+"(subagent):"))
 	turn, err := llm.StreamAssistantTurn(ctx, r.Client, p, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "nested subagent stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -121,7 +121,8 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	}
 	fmt.Fprintln(r.Out)
 	if r.Cfg.UsageStatsEnabled() {
-		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(turn.Usage.PromptTokens, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS))
+		ctxTok, usrTok, ctxEst := llm.UsagePromptParts(system, msgs, turn.Usage.PromptTokens, turn.Usage.CachedPromptTokens)
+		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst))
 	}
 	return turn, nil
 }
