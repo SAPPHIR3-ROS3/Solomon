@@ -320,23 +320,13 @@ func BackfillAssistantUsageFromTextIfEmpty(m *Message, prior []Message) {
 	m.TurnTotalTokens = eu + er + es
 }
 
-func ProjectWelcomeStats(projectHex string) (chatCount int, recentTitles []string, userSum, reasonSum, respSum int64, err error) {
+func ProjectWelcomeStats(projectHex string) (chatCount int, userSum, reasonSum, respSum int64, err error) {
 	sessions, err := loadAllSessions(projectHex)
 	if err != nil {
-		return 0, nil, 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 	chatCount = len(sessions)
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].LastMessageAt.After(sessions[j].LastMessageAt)
-	})
-	for i, s := range sessions {
-		if i < 3 {
-			t := strings.TrimSpace(s.Title)
-			if t == "" {
-				t = "(untitled)"
-			}
-			recentTitles = append(recentTitles, t)
-		}
+	for _, s := range sessions {
 		for j, m := range s.Messages {
 			if m.Role != "assistant" {
 				continue
@@ -353,5 +343,5 @@ func ProjectWelcomeStats(projectHex string) (chatCount int, recentTitles []strin
 			respSum += es
 		}
 	}
-	return chatCount, recentTitles, userSum, reasonSum, respSum, nil
+	return chatCount, userSum, reasonSum, respSum, nil
 }

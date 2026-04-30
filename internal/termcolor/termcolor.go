@@ -15,6 +15,8 @@ const (
 	White     = "\033[97m"
 	Context   = "\033[94m"
 	Reset     = "\033[0m"
+	Bold      = "\033[1m"
+	Gold      = "\033[38;2;255;215;0m"
 )
 
 func WrapUser(s string) string {
@@ -35,6 +37,10 @@ func WrapThinking(s string) string {
 
 func WrapWhite(s string) string {
 	return White + s + Reset
+}
+
+func WrapBoldGold(s string) string {
+	return Bold + Gold + s + Reset
 }
 
 func WrapContext(s string) string {

@@ -73,7 +73,7 @@ func runeDisplayWidth(r rune) int {
 }
 
 func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string) {
-	fmt.Fprintf(out, "%s\n\n", termcolor.WrapWhite("Welcome to Solomon"))
+	fmt.Fprintf(out, "%s\n\n", termcolor.WrapWhite("Welcome to ")+termcolor.WrapBoldGold("Solomon"))
 	raw := strings.ReplaceAll(logo.ASCII, "\r\n", "\n")
 	logoLines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
 	var logoW int
@@ -84,19 +84,24 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	}
 	gap := 4
 	rightColStart := logoW + gap
-	nChats, titles, uSum, rSum, sSum, _ := chatstore.ProjectWelcomeStats(projHex)
+	nChats, uSum, rSum, sSum, _ := chatstore.ProjectWelcomeStats(projHex)
 	skillN, _ := skills.InstalledSkillCount(projHex, projRoot)
 	var right []string
-	right = append(right, fmt.Sprintf("%d chats", nChats))
-	for _, t := range titles {
-		right = append(right, t)
+	const resumeLine = "/resume to show most recent chats"
+	if nChats == 1 {
+		right = append(right, "1 chat  "+resumeLine)
+	} else {
+		right = append(right, fmt.Sprintf("%d chats  %s", nChats, resumeLine))
 	}
-	right = append(right, "/resume for more ...")
 	totalDisp := uSum + rSum + sSum
 	tokLine := termcolor.WelcomeUsageTotals(uSum, rSum, sSum, totalDisp)
-	right = append(right, tokLine)
+	right = append(right, tokLine+"  token across chats for this path")
 	right = append(right, fmt.Sprintf("%d skills", skillN))
 	right = append(right, "0 MCP (soon)")
+	right = append(right, "/connect to link new providers")
+	right = append(right, "/models to switch models")
+	right = append(right, "/help to show available commands")
+	right = append(right, "!<command> to execute commands on the shell")
 	maxH := len(logoLines)
 	if len(right) > maxH {
 		maxH = len(right)
