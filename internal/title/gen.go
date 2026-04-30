@@ -7,6 +7,7 @@ import (
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
 	"solomon/internal/config"
+	"solomon/internal/logging"
 	"solomon/internal/llm"
 	"solomon/internal/prompt"
 )
@@ -14,6 +15,7 @@ import (
 func FromPrompt(ctx context.Context, client openai.Client, cfg *config.Root, model string, userLine string) (string, error) {
 	sys, err := prompt.RenderTitle(prompt.TitleData{Language: cfg.EffectiveResponseLanguage()})
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "title RenderTitle failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
 	p := openai.ChatCompletionNewParams{
@@ -24,6 +26,7 @@ func FromPrompt(ctx context.Context, client openai.Client, cfg *config.Root, mod
 	llm.ApplyMaxResponseTokens(cfg, &p)
 	resp, err := client.Chat.Completions.New(ctx, p)
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "title completions request failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
 	if len(resp.Choices) == 0 {

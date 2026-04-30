@@ -10,6 +10,8 @@ import (
 	"solomon/internal/agent/commands"
 	"solomon/internal/chatstore"
 	"solomon/internal/config"
+	"solomon/internal/logging"
+	"solomon/internal/skills"
 )
 
 var ErrExitChat = errors.New("exit chat")
@@ -51,6 +53,9 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		ResetReadlineHistory: func() { r.RL.ResetHistory() },
 		AppendReadlineHistory: func(line string) error {
 			return r.RL.SaveHistory(line)
+		},
+		PrefillInput: func(s string) {
+			r.RL.Operation.SetBuffer(s)
 		},
 		SubmitUserMessage: func(s string) error { return r.onUserMessage(ctx, s) },
 	}
@@ -108,6 +113,9 @@ func SlashDispatch(d commands.Deps, line string) error {
 		return nil
 	}
 	name := slashCommandName(parts)
+	if name != "" {
+		logging.Log(logging.INFO_LOG_LEVEL, "slash dispatch", logging.LogOptions{Params: map[string]any{"command": name}})
+	}
 	switch name {
 	case "plan":
 		return commands.Plan(d)
@@ -156,18 +164,27 @@ func SlashDispatch(d commands.Deps, line string) error {
 		return commands.LegacyTools(d, parts)
 	case "add":
 		if len(parts) < 2 {
-			return fmt.Errorf(`usage: /add https://skills.sh/... [name] [global|project|local] | /add skill <owner/repo|url> [name] [global|project|local]`)
+			return fmt.Errorf(`usage: /add npx ... | skills.sh | skill <.md> [name] [scope]`)
 		}
 		return commands.Add(d, parts[1:])
+	case "skills":
+		return commands.Skills(d)
 	case "remove":
 		if len(parts) < 2 {
 			return fmt.Errorf(`usage: /remove skill <name>`)
 		}
 		return commands.Remove(d, parts[1:])
 	case "help":
-		commands.WriteHelp(d.Out)
+		commands.WriteHelp(d.Out, d.ProjHex, d.ProjRoot)
 		return nil
 	default:
+		e, err := skills.LookupSkillBySlashCommand(name, d.ProjHex, d.ProjRoot)
+		if err != nil {
+			return err
+		}
+		if e != nil {
+			return commands.RunSkillSlash(d, *e)
+		}
 		return fmt.Errorf("unknown command /%s (try /help)", name)
 	}
 }

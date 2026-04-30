@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"solomon/internal/logging"
 	"solomon/internal/paths"
 )
 
@@ -124,6 +125,7 @@ func Resolve(absCwd string) (rootPath string, idHex string, err error) {
 		return root, idHex, nil
 	}
 	idHex = IDHexFromRoot(root)
+	logging.Log(logging.INFO_LOG_LEVEL, "registered new project", logging.LogOptions{Params: map[string]any{"id": idHex, "root": root}})
 	m[root] = idHex
 	if err := SaveMap(mapPath, m); err != nil {
 		return "", "", err

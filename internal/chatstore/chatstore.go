@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"solomon/internal/logging"
 	"solomon/internal/paths"
 )
 
@@ -95,13 +96,19 @@ func WriteSession(projectHex string, s *Session) error {
 	}
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "chatstore marshal session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
 	tmp := p + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "chatstore write session temp failed", logging.LogOptions{Params: map[string]any{"path": tmp, "err": err.Error()}})
 		return err
 	}
-	return os.Rename(tmp, p)
+	if err := os.Rename(tmp, p); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "chatstore finalize session rename failed", logging.LogOptions{Params: map[string]any{"path": p, "err": err.Error()}})
+		return err
+	}
+	return nil
 }
 
 func RenameSessionFile(projectHex, oldID, newID string) error {

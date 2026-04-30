@@ -76,7 +76,7 @@ func parseSkillsShFromHTML(html, pageURL string) (*SkillsShMeta, error) {
 		}
 	}
 	if meta.RepoURL == "" {
-		return nil, fmt.Errorf("could not find repository URL on skills.sh page (try: solomon add skill <owner/repo>)")
+		return nil, fmt.Errorf("could not find repository URL on skills.sh page (try: /add npx skills add https://github.com/owner/repo --skill <pkg>)")
 	}
 	if meta.DisplayName == "" {
 		p := strings.Trim(u.Path, "/")
@@ -89,6 +89,15 @@ func parseSkillsShFromHTML(html, pageURL string) (*SkillsShMeta, error) {
 		meta.AuditSummary = "Reported installs: " + strings.TrimSpace(m[1]) + " total (from skills.sh page)"
 	}
 	return meta, nil
+}
+
+func (m *SkillsShMeta) InstallShellCommand() string {
+	repo := strings.TrimSuffix(strings.TrimSpace(m.RepoURL), "/")
+	sk := strings.TrimSpace(m.PreferredSkill)
+	if sk != "" {
+		return fmt.Sprintf("npx --yes skills add -g -y %s --skill %s", repo, sk)
+	}
+	return fmt.Sprintf("npx --yes skills add -g -y %s", repo)
 }
 
 func ConfirmInstall(in io.Reader, out io.Writer, meta *SkillsShMeta) (bool, error) {

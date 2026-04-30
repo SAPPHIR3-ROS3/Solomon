@@ -39,5 +39,6 @@ type Deps struct {
 	ResetReadlineHistory   func()
 	AppendReadlineHistory  func(line string) error
 
+	PrefillInput      func(string)
 	SubmitUserMessage func(string) error
 }

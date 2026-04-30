@@ -13,3 +13,7 @@ func signatureReadFile(path string) {}
 func signatureEditFile(path, oldString, newString string) {}
 
 func signatureSubagent(sysPromptPath, task string) {}
+
+func signatureLoadSkill(name string) {}
+
+func signatureSearchSkill(query string) {}

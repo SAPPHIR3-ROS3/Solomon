@@ -64,6 +64,12 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 				"sysPromptPath": map[string]any{"type": "string", "description": "Path to system prompt file"},
 				"task":          map[string]any{"type": "string", "description": "Concrete task for the nested run"},
 			}, []string{"sysPromptPath", "task"}),
+			nativeToolUnion("loadSkill", "Load installed agent skill body (markdown body only). Name is the display name or slash token without leading slash.", map[string]any{
+				"name": map[string]any{"type": "string", "description": "Skill display name or slash command token (e.g. my-skill)"},
+			}, []string{"name"}),
+			nativeToolUnion("searchSkill", "BM25 search over installed skills; returns one best match or an error if nothing passes the quality threshold. Tries descriptions first, then full SKILL.md. The returned score is normalized to [0,1] (best raw BM25 for the query divided by a corpus ceiling). Default minimum is 0.05 (config key skill_search_min_normalized_score; set to 0 to disable).", map[string]any{
+				"query": map[string]any{"type": "string", "description": "Search query"},
+			}, []string{"query"}),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown mode %q", mode)
@@ -112,6 +118,16 @@ func buildBuildToolDump() (string, error) {
 		return "", err
 	}
 	b.addBlock("subagent", "Run a nested agent with system prompt from file and task string.", sig)
+	sig, err = tooling.FuncSignature(signatureLoadSkill)
+	if err != nil {
+		return "", err
+	}
+	b.addBlock("loadSkill", "Load installed agent skill body (markdown body only).", sig)
+	sig, err = tooling.FuncSignature(signatureSearchSkill)
+	if err != nil {
+		return "", err
+	}
+	b.addBlock("searchSkill", "BM25 search; two phases; score normalized [0,1]; min threshold from config (default 0.05).", sig)
 	return b.String(), nil
 }
 

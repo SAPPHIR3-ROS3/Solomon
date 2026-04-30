@@ -24,6 +24,8 @@ const DefaultCompactionThresholdTokens int64 = 131072
 
 const MinCompactionThresholdTokens int64 = 32768
 
+const DefaultSkillSearchMinNormalizedScore = 0.05
+
 type Provider struct {
 	Name    string `toml:"name"`
 	BaseURL string `toml:"base_url"`
@@ -46,6 +48,7 @@ type Root struct {
 	ShowUsageStats            *bool      `toml:"show_usage_stats"`
 	ResponseLanguage          string     `toml:"response_language"`
 	CompactionThresholdTokens int64      `toml:"compaction_threshold_tokens"`
+	SkillSearchMinNorm        *float64   `toml:"skill_search_min_normalized_score,omitempty"`
 }
 
 func (r *Root) EffectiveResponseLanguage() string {
@@ -83,6 +86,17 @@ func EffectiveCompactionThresholdTokens(r *Root) int64 {
 		return DefaultCompactionThresholdTokens
 	}
 	return n
+}
+
+func EffectiveSkillSearchMinNorm(r *Root) float64 {
+	if r == nil || r.SkillSearchMinNorm == nil {
+		return DefaultSkillSearchMinNormalizedScore
+	}
+	v := *r.SkillSearchMinNorm
+	if v < 0 || v > 1 {
+		return DefaultSkillSearchMinNormalizedScore
+	}
+	return v
 }
 
 func ClampTimeoutMinutes(n int) error {

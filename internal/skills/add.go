@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"solomon/internal/logging"
 	"solomon/internal/paths"
 )
 
@@ -22,11 +23,13 @@ type InstallOpts struct {
 }
 
 type parsedAdd struct {
+	FromSkillsSh bool
 	SkillsShURL  string
-	GitHubRef    string
+	FromRemoteMD bool
+	RemoteMDURL  string
+	NpmCommand   string
 	DisplayName  string
 	Scope        string
-	FromSkillsSh bool
 }
 
 func isScope(s string) bool {
@@ -40,7 +43,7 @@ func isScope(s string) bool {
 
 func ParseAddArgs(parts []string) (*parsedAdd, error) {
 	if len(parts) == 0 {
-		return nil, fmt.Errorf("usage: /add https://skills.sh/... [name] [global|project|local] | /add skill <owner/repo|url> [name] [global|project|local]")
+		return nil, fmt.Errorf(`usage: /add npx ... | skills.sh | skill <.md> [name] [scope]`)
 	}
 	toks := append([]string(nil), parts...)
 	scope := ScopeGlobal
@@ -53,7 +56,12 @@ func ParseAddArgs(parts []string) (*parsedAdd, error) {
 	}
 	p := &parsedAdd{Scope: scope}
 	first := strings.TrimSpace(toks[0])
-	if strings.HasPrefix(strings.ToLower(first), "https://skills.sh/") {
+	low := strings.ToLower(first)
+	if low == "npx" || low == "npm" {
+		p.NpmCommand = strings.Join(toks, " ")
+		return p, nil
+	}
+	if strings.HasPrefix(low, "https://skills.sh/") {
 		p.FromSkillsSh = true
 		p.SkillsShURL = first
 		switch len(toks) {
@@ -68,17 +76,24 @@ func ParseAddArgs(parts []string) (*parsedAdd, error) {
 	}
 	if strings.EqualFold(first, "skill") {
 		if len(toks) < 2 {
-			return nil, fmt.Errorf("usage: /add skill <owner/repo|https://...> [name] [scope]")
+			return nil, fmt.Errorf(`usage: /add skill <.md path|URL> [name] [scope]`)
 		}
-		p.GitHubRef = strings.TrimSpace(toks[1])
-		if len(toks) == 3 {
+		u := strings.TrimSpace(toks[1])
+		if !IsSkillMarkdownSource(u) {
+			return nil, fmt.Errorf("/add skill: .md via https, file://, or local path")
+		}
+		p.FromRemoteMD = true
+		p.RemoteMDURL = u
+		switch len(toks) {
+		case 2:
+		case 3:
 			p.DisplayName = strings.TrimSpace(toks[2])
-		} else if len(toks) > 3 {
-			return nil, fmt.Errorf("too many arguments for skill add")
+		default:
+			return nil, fmt.Errorf("too many arguments for /add skill")
 		}
 		return p, nil
 	}
-	return nil, fmt.Errorf("expected skills.sh URL or 'skill <repo>'")
+	return nil, fmt.Errorf(`expected npx/npm line, skills.sh URL, or skill <.md>`)
 }
 
 func RunInstall(opts InstallOpts) error {
@@ -86,29 +101,27 @@ func RunInstall(opts InstallOpts) error {
 	if err != nil {
 		return err
 	}
+	if p.FromRemoteMD {
+		return runRemoteMDInstall(opts, p)
+	}
 	ctx := opts.Ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	var canonical string
-	var preferred string
-	var pageURL string
-	var auditSummary string
+	var meta *SkillsShMeta
+	var pageURL, auditSummary string
 	if p.FromSkillsSh {
-		meta, err := FetchSkillsShMeta(ctx, p.SkillsShURL)
+		meta, err = FetchSkillsShMeta(ctx, p.SkillsShURL)
 		if err != nil {
 			return err
 		}
 		pageURL = meta.PageURL
 		auditSummary = meta.AuditSummary
-		preferred = meta.PreferredSkill
 		if p.DisplayName == "" {
 			p.DisplayName = meta.DisplayName
 		}
-		canonical, err = NormalizeRepoURL(meta.RepoURL)
-		if err != nil {
-			return err
-		}
+		shCmd := EnsureSkillsAddGlobalYes(meta.InstallShellCommand())
+		fmt.Fprintf(opts.Out, "Command: %s\n", shCmd)
 		ok, err := ConfirmInstall(opts.In, opts.Out, meta)
 		if err != nil {
 			return err
@@ -116,12 +129,49 @@ func RunInstall(opts InstallOpts) error {
 		if !ok {
 			return fmt.Errorf("install cancelled")
 		}
-	} else {
-		canonical, err = NormalizeRepoURL(p.GitHubRef)
-		if err != nil {
-			return err
-		}
+		p.NpmCommand = shCmd
 	}
+	if strings.TrimSpace(p.NpmCommand) == "" {
+		return fmt.Errorf("no install command (internal error)")
+	}
+	if err := RequireNpm(ctx); err != nil {
+		return err
+	}
+	agentsRoot, err := AgentsSkillsRoot()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(agentsRoot, 0o700); err != nil {
+		return err
+	}
+	before, err := snapAgentsSkills(agentsRoot)
+	if err != nil {
+		return err
+	}
+	installCmd := EnsureSkillsAddGlobalYes(strings.TrimSpace(p.NpmCommand))
+	logging.Log(logging.INFO_LOG_LEVEL, "skill npm install", logging.LogOptions{Params: map[string]any{"command": installCmd}})
+	if err := runInstallShellCommand(ctx, installCmd, opts.Out, opts.Out); err != nil {
+		return fmt.Errorf("npm/skills install failed: %w", err)
+	}
+	after, err := snapAgentsSkills(agentsRoot)
+	if err != nil {
+		return err
+	}
+	preferred := ""
+	if meta != nil {
+		preferred = meta.PreferredSkill
+	}
+	picked, err := pickImportedSkillDir(before, after, preferred)
+	if err != nil {
+		return err
+	}
+	srcDir := filepath.Join(agentsRoot, picked)
+	canonical, err := canonicalForRegistry(installCmd, meta)
+	if err != nil {
+		return err
+	}
+	skillRel := strings.ReplaceAll(picked, "\\", "/")
+	skillKey := StableKeyHex(canonical, skillRel)
 	base, err := cloneBaseDir(p.Scope, opts.ProjHex, opts.ProjRoot)
 	if err != nil {
 		return err
@@ -129,42 +179,17 @@ func RunInstall(opts InstallOpts) error {
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		return err
 	}
-	tempDir, err := os.MkdirTemp(base, "clone-*")
-	if err != nil {
-		return err
-	}
-	removeTemp := true
-	defer func() {
-		if removeTemp {
-			_ = os.RemoveAll(tempDir)
-		}
-	}()
-	cloneURL := canonical
-	if !strings.HasSuffix(cloneURL, ".git") {
-		cloneURL = cloneURL + ".git"
-	}
-	if err := CloneOrPull(ctx, cloneURL, tempDir); err != nil {
-		return err
-	}
-	skillRel, _, err := LocateSkillDir(tempDir, preferred)
-	if err != nil {
-		return err
-	}
-	skillKey := StableKeyHex(canonical, skillRel)
 	finalDir := filepath.Join(base, skillKey)
-	_ = os.RemoveAll(finalDir)
-	if err := os.Rename(tempDir, finalDir); err != nil {
-		return fmt.Errorf("move clone into place: %w", err)
+	if err := copySkillTree(srcDir, finalDir); err != nil {
+		return fmt.Errorf("copy from ~/.agents/skills: %w", err)
 	}
-	removeTemp = false
 	cloneAbs, err := filepath.Abs(finalDir)
 	if err != nil {
 		return err
 	}
-	mdRel := filepath.Join(filepath.FromSlash(skillRel), "SKILL.md")
-	mdAbs := filepath.Join(cloneAbs, mdRel)
-	if _, err := os.Stat(mdAbs); err != nil {
-		mdAbs = filepath.Join(cloneAbs, "SKILL.md")
+	skillRelDir, mdAbs, err := LocateSkillDir(cloneAbs, "")
+	if err != nil {
+		return err
 	}
 	mdAbs, err = filepath.Abs(mdAbs)
 	if err != nil {
@@ -186,7 +211,7 @@ func RunInstall(opts InstallOpts) error {
 	if err != nil {
 		return err
 	}
-	return WithRegistryLock(lockPath, regPath, func(r *Registry) error {
+	if err := WithRegistryLock(lockPath, regPath, func(r *Registry) error {
 		final := UniqueDisplayName(r, canonical, display, p.Scope, opts.ProjHex, skillKey)
 		if final != strings.TrimSpace(display) && opts.Out != nil {
 			fmt.Fprintf(opts.Out, "Display name %q already in use; using %q.\n", strings.TrimSpace(display), final)
@@ -194,7 +219,7 @@ func RunInstall(opts InstallOpts) error {
 		entry := SkillEntry{
 			Name:         final,
 			SourceRepo:   canonical,
-			SkillRelPath: skillRel,
+			SkillRelPath: skillRelDir,
 			ClonePath:    cloneAbs,
 			SkillMdPath:  mdAbs,
 			FrontMatter:  fm,
@@ -208,7 +233,14 @@ func RunInstall(opts InstallOpts) error {
 			return SaveMirrorJSON(mirror, ProjectEntries(r, opts.ProjHex))
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	logging.Log(logging.INFO_LOG_LEVEL, "skill install complete", logging.LogOptions{Params: map[string]any{"scope": p.Scope, "repo": canonical, "folder": picked}})
+	if opts.Out != nil {
+		fmt.Fprintf(opts.Out, "Skill copied from ~/.agents/skills/%s into Solomon registry.\n", picked)
+	}
+	return nil
 }
 
 func cloneBaseDir(scope, projHex, projRoot string) (string, error) {

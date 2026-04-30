@@ -167,7 +167,7 @@ func TestSlashDispatch_help(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/remove skill") {
+	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") {
 		t.Fatalf("/help unexpected: %.200s", out)
 	}
 }

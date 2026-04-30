@@ -13,6 +13,7 @@ import (
 	"solomon/internal/chatstore"
 	"solomon/internal/config"
 	"solomon/internal/llm"
+	"solomon/internal/logging"
 	"solomon/internal/termcolor"
 	"solomon/internal/tooling"
 
@@ -39,6 +40,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 		turn, err := r.streamNestedAssistant(roundCtx, system, msgs)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
+			logging.Log(logging.WARNING_LOG_LEVEL, "subagent round deadline exceeded", logging.LogOptions{Params: map[string]any{"timeout_min": config.SubagentTimeout(r.Cfg)}})
 			sum, _ := r.summarizeNested(ctx, msgs)
 			fmt.Fprintf(r.Out, "\n%s\nSubagent paused (timeout).\nContinue? [y/N]: ", sum)
 			br := bufio.NewReader(os.Stdin)
@@ -49,6 +51,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 			continue
 		}
 		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "subagent assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			return transcript.String(), err
 		}
 		transcript.WriteString(turn.Content)
@@ -79,6 +82,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 			transcript.WriteString(fmt.Sprintf("Tool: %s(%s)\n", inv.Name, string(inv.Args)))
 			res, err := r.execTool(ctx, inv)
 			if err != nil {
+				logging.Log(logging.WARNING_LOG_LEVEL, "nested tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
 				res = map[string]any{"error": err.Error()}
 			}
 			b, err := json.Marshal(res)
@@ -112,6 +116,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	fmt.Fprintf(r.Out, "%s%s(subagent):%s ", termcolor.Assistant, r.Model, termcolor.Reset)
 	turn, err := llm.StreamAssistantTurn(ctx, r.Client, p, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "nested subagent stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return turn, err
 	}
 	fmt.Fprintln(r.Out)
@@ -137,9 +142,11 @@ func (r *Runtime) summarizeNested(ctx context.Context, msgs []chatstore.Message)
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)
 	resp, err := r.Client.Chat.Completions.New(ctx, p)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "nested summarize completion failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
 	if len(resp.Choices) == 0 {
+		logging.Log(logging.WARNING_LOG_LEVEL, "nested summarize: no assistant choices in response")
 		return "", fmt.Errorf("no summary choices")
 	}
 	return strings.TrimSpace(resp.Choices[0].Message.Content), nil

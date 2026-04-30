@@ -10,6 +10,7 @@ import (
 	"solomon/internal/chatstore"
 	"solomon/internal/config"
 	"solomon/internal/llm"
+	"solomon/internal/logging"
 	"solomon/internal/termcolor"
 
 	"github.com/openai/openai-go/v2"
@@ -87,6 +88,7 @@ func SummarizeBody(d Deps) (string, error) {
 	const sep = "================================================================================"
 	summary, usage, err := llm.StreamText(d.Ctx, d.Client, params, io.Discard, llm.StreamOpts{})
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "/summarize StreamText failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
 	if d.Cfg.UsageStatsEnabled() {
@@ -94,6 +96,7 @@ func SummarizeBody(d Deps) (string, error) {
 	}
 	summary = strings.TrimSpace(summary)
 	if summary == "" {
+		logging.Log(logging.WARNING_LOG_LEVEL, "/summarize empty summary from model")
 		return "", fmt.Errorf("empty summary from model")
 	}
 	var retainedBlock string
@@ -114,6 +117,7 @@ func Summarize(d Deps) error {
 	sess.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
 	sess.LastMessageAt = time.Now()
 	if err := chatstore.WriteSession(d.ProjHex, sess); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "/summarize persist compacted session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
 	fmt.Fprint(d.Out, "\033[2J\033[H")
