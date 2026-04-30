@@ -49,6 +49,13 @@ func formatContextPromptTok(n int64, estimated bool) string {
 	return s
 }
 
+func WelcomeUsageTotals(userTok, reasoningTok, responseTok, totalTok int64) string {
+	return WrapUser(strconv.FormatInt(userTok, 10)) + "+" +
+		WrapThinking(strconv.FormatInt(reasoningTok, 10)) + "+" +
+		WrapAssistant(strconv.FormatInt(responseTok, 10)) + "=" +
+		WrapWhite(strconv.FormatInt(totalTok, 10))
+}
+
 func UsageTokensLine(contextPromptTok, lastUserPromptTok, reasoningTokens, responseTokens, totalTokens int64, outputTPS, ttftSecs, promptTPS float64, contextEstimated bool) string {
 	var promptSeg string
 	switch {

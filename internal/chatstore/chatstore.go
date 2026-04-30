@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"solomon/internal/logging"
 	"solomon/internal/paths"
@@ -36,6 +38,11 @@ type Message struct {
 	Content    string     `json:"content"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+
+	UserPromptTokens int64 `json:"user_prompt_tokens"`
+	ReasoningTokens  int64 `json:"reasoning_tokens"`
+	ResponseTokens   int64 `json:"response_tokens"`
+	TurnTotalTokens  int64 `json:"turn_total_tokens"`
 }
 
 type Session struct {
@@ -232,4 +239,119 @@ func FindByTitle(projectHex, title string) (*Session, error) {
 		}
 	}
 	return nil, os.ErrNotExist
+}
+
+func assistantMessageHasStoredUsage(m Message) bool {
+	return m.UserPromptTokens != 0 || m.ReasoningTokens != 0 || m.ResponseTokens != 0 || m.TurnTotalTokens != 0
+}
+
+func roughTokFromRunes(n int) int64 {
+	if n <= 0 {
+		return 0
+	}
+	return int64((n + 2) / 3)
+}
+
+func roughTokFromString(s string) int64 {
+	return roughTokFromRunes(utf8.RuneCountInString(s))
+}
+
+var thinkBlockRes = []*regexp.Regexp{
+	regexp.MustCompile(`(?is)<redacted_thinking>(.*?)</redacted_thinking>`),
+	regexp.MustCompile(`(?is)<thinking>(.*?)</thinking>`),
+	regexp.MustCompile(`(?is)<think>(.*?)</think>`),
+	regexp.MustCompile(`(?is)<redacted_reasoning>(.*?)</redacted_reasoning>`),
+}
+
+func extractBracketReasoning(content string) (reasoning string, visible string) {
+	visible = content
+	for _, re := range thinkBlockRes {
+		all := re.FindAllStringSubmatch(visible, -1)
+		for _, sm := range all {
+			if len(sm) > 1 {
+				reasoning += sm[1]
+			}
+		}
+		visible = re.ReplaceAllString(visible, "")
+	}
+	return reasoning, strings.TrimSpace(visible)
+}
+
+func priorNonToolUserForAssistant(msgs []Message, asstIdx int) string {
+	for j := asstIdx - 1; j >= 0; j-- {
+		if msgs[j].Role != "user" {
+			continue
+		}
+		c := msgs[j].Content
+		if strings.HasPrefix(strings.TrimSpace(c), "tool_result(") {
+			continue
+		}
+		return c
+	}
+	return ""
+}
+
+func estimateAssistantTurnTokens(msgs []Message, asstIdx int) (userTok, reasonTok, respTok int64) {
+	m := msgs[asstIdx]
+	u := priorNonToolUserForAssistant(msgs, asstIdx)
+	rText, vis := extractBracketReasoning(m.Content)
+	toolN := utf8.RuneCountInString(m.ToolCallID)
+	for _, tc := range m.ToolCalls {
+		toolN += utf8.RuneCountInString(tc.ID) + utf8.RuneCountInString(tc.Name) + utf8.RuneCountInString(tc.Arguments)
+	}
+	return roughTokFromString(u), roughTokFromString(rText), roughTokFromRunes(utf8.RuneCountInString(vis) + toolN)
+}
+
+func BackfillAssistantUsageFromTextIfEmpty(m *Message, prior []Message) {
+	if m == nil || m.Role != "assistant" {
+		return
+	}
+	if assistantMessageHasStoredUsage(*m) {
+		return
+	}
+	idx := len(prior)
+	thread := make([]Message, idx+1)
+	copy(thread, prior)
+	thread[idx] = *m
+	eu, er, es := estimateAssistantTurnTokens(thread, idx)
+	m.UserPromptTokens = eu
+	m.ReasoningTokens = er
+	m.ResponseTokens = es
+	m.TurnTotalTokens = eu + er + es
+}
+
+func ProjectWelcomeStats(projectHex string) (chatCount int, recentTitles []string, userSum, reasonSum, respSum int64, err error) {
+	sessions, err := loadAllSessions(projectHex)
+	if err != nil {
+		return 0, nil, 0, 0, 0, err
+	}
+	chatCount = len(sessions)
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].LastMessageAt.After(sessions[j].LastMessageAt)
+	})
+	for i, s := range sessions {
+		if i < 3 {
+			t := strings.TrimSpace(s.Title)
+			if t == "" {
+				t = "(untitled)"
+			}
+			recentTitles = append(recentTitles, t)
+		}
+		for j, m := range s.Messages {
+			if m.Role != "assistant" {
+				continue
+			}
+			if assistantMessageHasStoredUsage(m) {
+				userSum += m.UserPromptTokens
+				reasonSum += m.ReasoningTokens
+				respSum += m.ResponseTokens
+				continue
+			}
+			eu, er, es := estimateAssistantTurnTokens(s.Messages, j)
+			userSum += eu
+			reasonSum += er
+			respSum += es
+		}
+	}
+	return chatCount, recentTitles, userSum, reasonSum, respSum, nil
 }

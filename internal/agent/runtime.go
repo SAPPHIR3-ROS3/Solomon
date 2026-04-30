@@ -138,6 +138,7 @@ func (r *Runtime) persistSession() error {
 
 func (r *Runtime) Run(ctx context.Context) error {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
+	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
 	for {
 		line, err := r.RL.Readline()
 		if err != nil {
@@ -277,6 +278,8 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
+		llm.PopulateAssistantTurnUsage(&ast, sys, msgs, turn.Usage)
+		chatstore.BackfillAssistantUsageFromTextIfEmpty(&ast, msgs)
 		r.Session.Messages = append(r.Session.Messages, ast)
 		r.Session.LastMessageAt = time.Now()
 		_ = r.persistSession()

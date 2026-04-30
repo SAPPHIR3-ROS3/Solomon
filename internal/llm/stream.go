@@ -12,6 +12,45 @@ import (
 	"solomon/internal/termcolor"
 )
 
+func parseLooseReasoningTokensFromUsageRawJSON(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &top); err != nil {
+		return 0
+	}
+	tryNum := func(msg json.RawMessage) int64 {
+		var n int64
+		if json.Unmarshal(msg, &n) == nil && n > 0 {
+			return n
+		}
+		var f float64
+		if json.Unmarshal(msg, &f) == nil && f > 0 {
+			return int64(f + 0.5)
+		}
+		return 0
+	}
+	if v, ok := top["reasoning_tokens"]; ok {
+		if n := tryNum(v); n > 0 {
+			return n
+		}
+	}
+	if v, ok := top["completion_tokens_details"]; ok {
+		var det map[string]json.RawMessage
+		if json.Unmarshal(v, &det) != nil {
+			return 0
+		}
+		if r, ok := det["reasoning_tokens"]; ok {
+			if n := tryNum(r); n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
 type AssistantToolCall struct {
 	ID        string
 	Name      string
@@ -57,7 +96,11 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 	for stream.Next() {
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
-			reasoningFromUsage = ch.Usage.CompletionTokensDetails.ReasoningTokens
+			rt := ch.Usage.CompletionTokensDetails.ReasoningTokens
+			if rt == 0 {
+				rt = parseLooseReasoningTokensFromUsageRawJSON(ch.Usage.RawJSON())
+			}
+			reasoningFromUsage = rt
 		}
 		_ = acc.AddChunk(ch)
 		if len(ch.Choices) == 0 {
@@ -120,7 +163,11 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	for stream.Next() {
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
-			reasoningFromUsage = ch.Usage.CompletionTokensDetails.ReasoningTokens
+			rt := ch.Usage.CompletionTokensDetails.ReasoningTokens
+			if rt == 0 {
+				rt = parseLooseReasoningTokensFromUsageRawJSON(ch.Usage.RawJSON())
+			}
+			reasoningFromUsage = rt
 		}
 		if !acc.AddChunk(ch) {
 			if err := stream.Err(); err != nil {

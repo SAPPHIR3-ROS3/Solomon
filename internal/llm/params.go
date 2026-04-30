@@ -123,3 +123,14 @@ func MessageParams(system string, msgs []chatstore.Message) []openai.ChatComplet
 func ModelID(s string) shared.ChatModel {
 	return shared.ChatModel(s)
 }
+
+func PopulateAssistantTurnUsage(dst *chatstore.Message, system string, msgsPrior []chatstore.Message, u UsageStats) {
+	if dst == nil {
+		return
+	}
+	_, usrTok, _ := UsagePromptParts(system, msgsPrior, u.PromptTokens, u.CachedPromptTokens)
+	dst.UserPromptTokens = usrTok
+	dst.ReasoningTokens = u.ReasoningTokens
+	dst.ResponseTokens = u.ResponseTokens
+	dst.TurnTotalTokens = u.TotalTokens
+}
