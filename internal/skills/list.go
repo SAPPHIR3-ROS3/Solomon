@@ -9,6 +9,19 @@ import (
 	"solomon/internal/paths"
 )
 
+func InstalledSkillCount(projHex, projRoot string) (int, error) {
+	regPath, err := paths.SkillsRegistryPath()
+	if err != nil {
+		return 0, err
+	}
+	reg, err := LoadRegistry(regPath)
+	if err != nil {
+		return 0, err
+	}
+	locals, projects, globals := partitionInstalledSkills(reg, projHex, projRoot)
+	return len(locals) + len(projects) + len(globals), nil
+}
+
 func ListInstalledSkills(w io.Writer, projHex, projRoot string) error {
 	regPath, err := paths.SkillsRegistryPath()
 	if err != nil {
