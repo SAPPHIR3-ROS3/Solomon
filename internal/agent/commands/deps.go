@@ -41,4 +41,6 @@ type Deps struct {
 
 	PrefillInput      func(string)
 	SubmitUserMessage func(string) error
+
+	PrintWelcomeBanner func()
 }
