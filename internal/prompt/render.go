@@ -61,6 +61,8 @@ Use valid JSON objects with keys matching each tool's schema. Multiple tools: on
 Examples (PLAN): Tool: createPlan({"name": "feature.md", "planText": "# Goal\n\n## Steps\n1. ..."})
 Examples (BUILD): Tool: readFile({"path": "cmd/app/main.go"})
 Examples (BUILD): Tool: shell({"command": "go test ./..."})
+Examples (BUILD): Tool: searchSkill({"query": "documentation"})
+Examples (BUILD): Tool: loadSkill({"name": "my-skill"})
 `)
 }
 

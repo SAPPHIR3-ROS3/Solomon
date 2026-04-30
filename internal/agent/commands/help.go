@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"io"
 	"sort"
+
+	"solomon/internal/skills"
 )
 
 func Registry() [][]string {
 	return [][]string{
 		{"/plan", "planning tools only"},
-		{"/add", "/add https://skills.sh/... [name] [scope] | /add skill <owner/repo|url> [name] [scope] — scope: global|project|local"},
-		{"/remove skill", "/remove skill <name> — remove from registry and delete clone dirs (all scopes matching name)"},
+		{"/add", "/add npx skills add ... | https://skills.sh/... | skill <path/to/.md> [name] [global|project|local], default global"},
+		{"/remove skill", "/remove skill <name>"},
+		{"/skills", "/skills — list installed skills (Local → Project → Global; empty sections omitted)"},
 		{"/build", "build tools (shell, files, subagent)"},
 		{"/clear", "clear terminal (ANSI)"},
 		{"/connect", "add OpenAI-compatible provider"},
@@ -33,7 +36,7 @@ func Registry() [][]string {
 	}
 }
 
-func WriteHelp(w io.Writer) {
+func WriteHelp(w io.Writer, projHex, projRoot string) {
 	rows := Registry()
 	sort.Slice(rows, func(i, j int) bool { return rows[i][0] < rows[j][0] })
 	maxCmd := 0
@@ -45,4 +48,5 @@ func WriteHelp(w io.Writer) {
 	for _, row := range rows {
 		fmt.Fprintf(w, "%-*s\t%s\n", maxCmd, row[0], row[1])
 	}
+	_ = skills.WriteSkillsHelpSection(w, maxCmd, projHex, projRoot)
 }

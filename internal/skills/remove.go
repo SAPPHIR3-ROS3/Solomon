@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"solomon/internal/logging"
 	"solomon/internal/paths"
 )
 
@@ -19,7 +20,7 @@ type RemoveOpts struct {
 
 func ParseRemoveArgs(parts []string) (string, error) {
 	if len(parts) < 2 || !strings.EqualFold(strings.TrimSpace(parts[0]), "skill") {
-		return "", fmt.Errorf(`usage: /remove skill <name> — removes all registry entries with this display name and deletes their clone directories`)
+		return "", fmt.Errorf(`usage: /remove skill <name>`)
 	}
 	name := strings.TrimSpace(strings.Join(parts[1:], " "))
 	if name == "" {
@@ -88,6 +89,7 @@ func RunRemove(opts RemoveOpts) error {
 	if err != nil {
 		return err
 	}
+	logging.Log(logging.INFO_LOG_LEVEL, "skill removed from registry", logging.LogOptions{Params: map[string]any{"name": name, "clone_dirs": len(toDelete)}})
 	for _, p := range toDelete {
 		if err := os.RemoveAll(p); err != nil {
 			return fmt.Errorf("remove clone tree %s: %w", p, err)

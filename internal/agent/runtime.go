@@ -22,7 +22,7 @@ import (
 	"solomon/internal/title"
 	"solomon/internal/tooling"
 
-	"github.com/chzyer/readline"
+	readline "github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/packages/param"
@@ -75,6 +75,7 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 	r.Cfg.Current.Provider = providerName
 	r.Cfg.Current.Model = modelID
 	if err := config.Save(r.Cfg); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "save config failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
 	for i := range r.Cfg.Providers {
@@ -136,9 +137,18 @@ func (r *Runtime) persistSession() error {
 }
 
 func (r *Runtime) Run(ctx context.Context) error {
+	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
 	for {
 		line, err := r.RL.Readline()
 		if err != nil {
+			switch {
+			case errors.Is(err, io.EOF):
+				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (EOF)")
+			case errors.Is(err, readline.ErrInterrupt):
+				logging.Log(logging.WARNING_LOG_LEVEL, "interactive session interrupted")
+			default:
+				logging.Log(logging.ERROR_LOG_LEVEL, "readline failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			}
 			return err
 		}
 		line = strings.TrimSpace(line)
@@ -148,14 +158,16 @@ func (r *Runtime) Run(ctx context.Context) error {
 		if strings.HasPrefix(line, "/") {
 			if err := r.handleSlash(ctx, line); err != nil {
 				if errors.Is(err, ErrExitChat) {
+					logging.Log(logging.INFO_LOG_LEVEL, "user requested exit from chat")
 					return nil
 				}
+				logging.Log(logging.WARNING_LOG_LEVEL, "slash command failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 				fmt.Fprintf(r.Out, "%v\n", err)
 			}
 			continue
 		}
 		if err := r.onUserMessage(ctx, line); err != nil {
-			logging.Log(logging.ERROR_LOG_LEVEL, err.Error())
+			logging.Log(logging.ERROR_LOG_LEVEL, "onUserMessage failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			fmt.Fprintf(r.Out, "error: %v\n", err)
 		}
 	}
@@ -175,6 +187,9 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
 	}
 	if r.EphemeralSession && r.Session.Title == "" && len(r.Session.Messages) == 0 {
 		t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, line)
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "ephemeral title from model failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
 		if err != nil || strings.TrimSpace(t) == "" {
 			t = title.FallbackFromWords(line)
 		}
@@ -186,6 +201,7 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
 	r.Session.LastMessageAt = time.Now()
 	r.Session.LastUserMessageAt = time.Now()
 	if err := r.persistSession(); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "persist session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
 	if err := r.runAgentTurns(ctx); err != nil {
@@ -217,6 +233,7 @@ func (r *Runtime) finalizeDeferredChatTitle(ctx context.Context) error {
 	r.Session.Title = t
 	r.Session.ID = chatstore.ChatIDHex(t, r.Session.CreatedAt)
 	if err := chatstore.RenameSessionFile(r.ProjHex, oldID, r.Session.ID); err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "rename session file failed", logging.LogOptions{Params: map[string]any{"old_id": oldID, "new_id": r.Session.ID, "err": err.Error()}})
 		if err := r.persistSession(); err != nil {
 			return err
 		}
@@ -249,6 +266,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		turn, err := llm.StreamAssistantTurn(ctx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 		fmt.Fprintln(r.Out)
 		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			return err
 		}
 		if r.Cfg.UsageStatsEnabled() {
@@ -280,6 +298,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				if r.EphemeralSession {
 					body, err := commands.SummarizeBody(deps)
 					if err != nil {
+						logging.Log(logging.WARNING_LOG_LEVEL, "ephemeral auto-summarize failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 						fmt.Fprintf(r.Out, "auto-compact: %v\n", err)
 						return nil
 					}
@@ -290,6 +309,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 					continue
 				}
 				if err := commands.Summarize(deps); err != nil {
+					logging.Log(logging.WARNING_LOG_LEVEL, "auto-compact failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 					fmt.Fprintf(r.Out, "auto-compact: %v\n", err)
 				}
 			}
@@ -299,6 +319,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			r.printToolLine(inv.Name, inv.Args)
 			res, err := r.execTool(ctx, inv)
 			if err != nil {
+				logging.Log(logging.WARNING_LOG_LEVEL, "tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
 				res = map[string]any{"error": err.Error()}
 			}
 			payload := toolingResultJSON(res)

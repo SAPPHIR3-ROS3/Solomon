@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
+	"solomon/internal/logging"
 )
 
 func LoadRegistry(path string) (*Registry, error) {
@@ -67,6 +68,7 @@ func WithRegistryLock(lockPath, registryPath string, fn func(*Registry) error) e
 		return err
 	}
 	if !ok {
+		logging.Log(logging.WARNING_LOG_LEVEL, "skills registry lock not acquired", logging.LogOptions{Params: map[string]any{"lock_path": lockPath}})
 		return fmt.Errorf("could not acquire skills registry lock %s", lockPath)
 	}
 	defer fl.Unlock()

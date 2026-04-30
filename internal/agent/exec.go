@@ -9,7 +9,10 @@ import (
 	"strings"
 
 	"solomon/internal/chatstore"
+	"solomon/internal/config"
+	"solomon/internal/logging"
 	"solomon/internal/project"
+	"solomon/internal/skills"
 	"solomon/internal/tooling"
 )
 
@@ -17,14 +20,20 @@ func (r *Runtime) execTool(ctx context.Context, inv tooling.Invocation) (any, er
 	switch inv.Name {
 	case "createPlan", "editPlan", "buildPlan":
 		if r.Mode != "plan" {
-			return nil, fmt.Errorf("tool %s only in /plan mode", inv.Name)
+			err := fmt.Errorf("tool %s only in /plan mode", inv.Name)
+			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": r.Mode, "need": "/plan"}})
+			return nil, err
 		}
-	case "shell", "readFile", "editFile", "subagent":
+	case "shell", "readFile", "editFile", "subagent", "loadSkill", "searchSkill":
 		if r.Mode != "build" {
-			return nil, fmt.Errorf("tool %s only in /build mode", inv.Name)
+			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
+			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": r.Mode, "need": "/build"}})
+			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("unknown tool %q", inv.Name)
+		err := fmt.Errorf("unknown tool %q", inv.Name)
+		logging.Log(logging.WARNING_LOG_LEVEL, "unknown tool", logging.LogOptions{Params: map[string]any{"tool": inv.Name}})
+		return nil, err
 	}
 	switch inv.Name {
 	case "createPlan":
@@ -41,8 +50,14 @@ func (r *Runtime) execTool(ctx context.Context, inv tooling.Invocation) (any, er
 		return r.toolEditFile(inv.Args)
 	case "subagent":
 		return r.toolSubagent(ctx, inv.Args)
+	case "loadSkill":
+		return r.toolLoadSkill(inv.Args)
+	case "searchSkill":
+		return r.toolSearchSkill(inv.Args)
 	default:
-		return nil, fmt.Errorf("unknown tool %q", inv.Name)
+		err := fmt.Errorf("unknown tool %q", inv.Name)
+		logging.Log(logging.WARNING_LOG_LEVEL, "unknown tool dispatch", logging.LogOptions{Params: map[string]any{"tool": inv.Name}})
+		return nil, err
 	}
 }
 
@@ -139,4 +154,49 @@ func (r *Runtime) toolBuildPlan(ctx context.Context, raw json.RawMessage) (any, 
 
 func chatPlansDir(projectHex string) (string, error) {
 	return chatstore.PlansDir(projectHex)
+}
+
+type loadSkillArgs struct {
+	Name string `json:"name"`
+}
+
+func (r *Runtime) toolLoadSkill(raw json.RawMessage) (any, error) {
+	var a loadSkillArgs
+	if err := json.Unmarshal(raw, &a); err != nil {
+		return nil, err
+	}
+	e, slash, err := skills.ResolveSkillForLoad(a.Name, r.ProjHex, r.ProjRoot)
+	if err != nil {
+		return nil, err
+	}
+	body, err := skills.SkillMarkdownBody(e.SkillMdPath)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"name":  strings.TrimSpace(e.Name),
+		"slash": slash,
+		"body":  body,
+	}, nil
+}
+
+type searchSkillArgs struct {
+	Query string `json:"query"`
+}
+
+func (r *Runtime) toolSearchSkill(raw json.RawMessage) (any, error) {
+	var a searchSkillArgs
+	if err := json.Unmarshal(raw, &a); err != nil {
+		return nil, err
+	}
+	hit, err := skills.SearchBestInstalledSkill(a.Query, r.ProjHex, r.ProjRoot, config.EffectiveSkillSearchMinNorm(r.Cfg))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"name":        hit.Name,
+		"slash":       hit.Slash,
+		"description": hit.Description,
+		"score":       hit.Score,
+	}, nil
 }
