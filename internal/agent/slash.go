@@ -58,6 +58,10 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 			r.RL.Operation.SetBuffer(s)
 		},
 		SubmitUserMessage: func(s string) error { return r.onUserMessage(ctx, s) },
+
+		PrintWelcomeBanner: func() {
+			printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
+		},
 	}
 }
 

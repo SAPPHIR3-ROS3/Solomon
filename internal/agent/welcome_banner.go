@@ -5,6 +5,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"solomon/internal/chatstore"
@@ -13,6 +14,8 @@ import (
 	"solomon/internal/skills"
 	"solomon/internal/termcolor"
 )
+
+var reStripANSI = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
 
 func gitBranch(dir string) string {
 	c := exec.Command("git", "-C", dir, "rev-parse", "--is-inside-work-tree")
@@ -72,18 +75,29 @@ func runeDisplayWidth(r rune) int {
 	}
 }
 
+func visibleCells(s string) int {
+	return displayCells(reStripANSI.ReplaceAllString(s, ""))
+}
+
+func borderPaint(s string) string {
+	return termcolor.Bold + termcolor.Gold + s + termcolor.Reset
+}
+
 func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string) {
-	fmt.Fprintf(out, "%s\n\n", termcolor.WrapWhite("Welcome to ")+termcolor.WrapBoldGold("Solomon"))
-	raw := strings.ReplaceAll(logo.ASCII, "\r\n", "\n")
-	logoLines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
+	welcomeOut := termcolor.WrapWhite("Welcome to ") + termcolor.WrapBoldGold("Solomon")
+	wWel := visibleCells(welcomeOut)
+	logoLines := logo.WelcomeLogoLines()
 	var logoW int
 	for _, ln := range logoLines {
-		if w := displayCells(ln); w > logoW {
+		if w := displayCells(ln.Plain); w > logoW {
 			logoW = w
 		}
 	}
 	gap := 4
-	rightColStart := logoW + gap
+	colLeftW := logoW + gap
+	if colLeftW < 1+wWel {
+		colLeftW = 1 + wWel
+	}
 	nChats, uSum, rSum, sSum, _ := chatstore.ProjectWelcomeStats(projHex)
 	skillN, _ := skills.InstalledSkillCount(projHex, projRoot)
 	var right []string
@@ -102,24 +116,55 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	right = append(right, "/models to switch models")
 	right = append(right, "/help to show available commands")
 	right = append(right, "!<command> to execute commands on the shell")
+	maxRightW := 0
+	for _, ln := range right {
+		if w := visibleCells(ln); w > maxRightW {
+			maxRightW = w
+		}
+	}
+	colRightW := maxRightW
+	if colRightW < 1 {
+		colRightW = 1
+	}
+	innerW := colLeftW + 1 + colRightW
+	if innerW < wWel+2 {
+		innerW = wWel + 2
+	}
+	colRightW = innerW - colLeftW - 1
+	if colRightW < 1 {
+		colRightW = 1
+		innerW = colLeftW + 1 + colRightW
+	}
+	padL := colLeftW - 1 - wWel
+	if padL < 0 {
+		padL = 0
+	}
+	fmt.Fprintln(out, borderPaint("┌")+borderPaint("─")+welcomeOut+borderPaint(strings.Repeat("─", padL)+"┬"+strings.Repeat("─", colRightW)+"┐"))
 	maxH := len(logoLines)
 	if len(right) > maxH {
 		maxH = len(right)
 	}
 	for i := 0; i < maxH; i++ {
 		left := ""
+		lw := 0
 		if i < len(logoLines) {
-			left = logoLines[i]
+			left = logoLines[i].ANSI
+			lw = displayCells(logoLines[i].Plain)
 		}
 		rpart := ""
 		if i < len(right) {
 			rpart = right[i]
 		}
-		pad := rightColStart - displayCells(left)
-		if pad < gap {
-			pad = gap
+		lpad := colLeftW - lw
+		if lpad < 0 {
+			lpad = 0
 		}
-		fmt.Fprintln(out, left+strings.Repeat(" ", pad)+rpart)
+		rw := visibleCells(rpart)
+		rpad := colRightW - rw
+		if rpad < 0 {
+			rpad = 0
+		}
+		fmt.Fprintf(out, "%s%s%s%s%s%s%s\n", borderPaint("│"), left, strings.Repeat(" ", lpad), borderPaint("│"), rpart, strings.Repeat(" ", rpad), borderPaint("│"))
 	}
 	eff := "none"
 	if cfg != nil {
@@ -129,16 +174,27 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 			eff = lbl
 		}
 	}
-	fmt.Fprintf(out, "\n%s (%s)\n", termcolor.WrapAssistant(model), termcolor.WrapThinking(eff))
+	modelLine := fmt.Sprintf("%s (%s)", termcolor.WrapAssistant(model), termcolor.WrapThinking(eff))
 	abs := projRoot
 	if a, err := filepath.Abs(projRoot); err == nil {
 		abs = a
 	}
 	br := gitBranch(abs)
+	pathLine := abs
 	if br != "" {
-		fmt.Fprintf(out, "%s (%s)\n", abs, br)
-	} else {
-		fmt.Fprintln(out, abs)
+		pathLine = fmt.Sprintf("%s (%s)", abs, br)
 	}
+	fmt.Fprintln(out, borderPaint("├"+strings.Repeat("─", colLeftW)+"┴"+strings.Repeat("─", colRightW)+"┤"))
+	mpad := innerW - visibleCells(modelLine)
+	if mpad < 0 {
+		mpad = 0
+	}
+	fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), modelLine, strings.Repeat(" ", mpad), borderPaint("│"))
+	ppad := innerW - visibleCells(pathLine)
+	if ppad < 0 {
+		ppad = 0
+	}
+	fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), pathLine, strings.Repeat(" ", ppad), borderPaint("│"))
+	fmt.Fprintln(out, borderPaint("└"+strings.Repeat("─", innerW)+"┘"))
 }
 

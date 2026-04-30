@@ -43,6 +43,10 @@ func WrapBoldGold(s string) string {
 	return Bold + Gold + s + Reset
 }
 
+func ForegroundRGB(r, g, b uint8) string {
+	return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
+}
+
 func WrapContext(s string) string {
 	return Context + s + Reset
 }
