@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"solomon/internal/agent"
-	"solomon/internal/agent/commands"
-	"solomon/internal/chatstore"
-	"solomon/internal/config"
-	"solomon/internal/logging"
-	"solomon/internal/paths"
-	"solomon/internal/project"
-	"solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/project"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 
 	"github.com/chzyer/readline"
 )

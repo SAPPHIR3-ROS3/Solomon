@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"solomon/internal/agent/commands"
-	"solomon/internal/chatstore"
-	"solomon/internal/config"
-	"solomon/internal/logging"
-	"solomon/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
 )
 
 var ErrExitChat = errors.New("exit chat")
@@ -162,6 +162,8 @@ func SlashDispatch(d commands.Deps, line string) error {
 	case "exit", "quit":
 		commands.ExitMessage(d)
 		return ErrExitChat
+	case "name":
+		return commands.Name(d, parts)
 	case "language":
 		return commands.Language(d, parts)
 	case "legacytools", "legacy":

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 const bm25k1 = 1.2

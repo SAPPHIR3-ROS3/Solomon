@@ -5,7 +5,7 @@ import (
 	"io"
 	"sort"
 
-	"solomon/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
 )
 
 func Registry() [][]string {
@@ -25,6 +25,7 @@ func Registry() [][]string {
 		{"/log", "/log {error|warning|info|debug|result} visible log verbosity"},
 		{"/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)"},
 		{"/models", "list models and switch current model"},
+		{"/name", "/name | /name <name> | /name clear — user name (saved; system prompt)"},
 		{"/new", "start a new chat session (empty transcript; prior chat stays saved on disk)"},
 		{"/reasoning", "/reasoning | /reasoning {none|low|med|high} main chat; subagent always none"},
 		{"/resume", "/resume | /resume last | /resume <id|title>"},

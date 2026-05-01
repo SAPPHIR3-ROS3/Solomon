@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"solomon/internal/logging"
-	"solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 type RemoveOpts struct {

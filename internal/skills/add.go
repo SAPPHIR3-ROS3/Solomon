@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"solomon/internal/logging"
-	"solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 type InstallOpts struct {

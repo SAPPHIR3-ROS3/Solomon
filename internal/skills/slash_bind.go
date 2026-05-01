@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 type SkillRefWithKey struct {

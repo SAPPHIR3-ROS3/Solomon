@@ -25,6 +25,7 @@ type Data struct {
 	Syntax                string
 	ExtraRules            string
 	Language              string
+	UserName              string
 	SystemOS              string
 	SystemBits            string
 	SystemCPUFamily       string

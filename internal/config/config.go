@@ -8,12 +8,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/openai/openai-go/v2/shared"
 	to "github.com/pelletier/go-toml/v2"
-	"solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 const DefaultSubagentTimeoutMinutes = 20
@@ -38,6 +37,7 @@ type Current struct {
 }
 
 type Root struct {
+	UserName                  string     `toml:"user_name"`
 	Providers                 []Provider `toml:"providers"`
 	Current                   Current    `toml:"current"`
 	SubagentTimeoutMinutes    int        `toml:"subagent_timeout_minutes"`
@@ -229,6 +229,9 @@ func RunWizardIfNeeded(stdin io.Reader) (*Root, error) {
 		return Load()
 	}
 	br := bufio.NewScanner(stdin)
+	fmt.Print("Your name: ")
+	br.Scan()
+	userName := strings.TrimSpace(br.Text())
 	fmt.Print("Solomon setup: OpenAI-compatible API\n")
 	fmt.Print("Display name for this provider: ")
 	br.Scan()
@@ -255,26 +258,13 @@ func RunWizardIfNeeded(stdin io.Reader) (*Root, error) {
 	if lang == "" {
 		lang = DefaultResponseLanguage
 	}
-	fmt.Printf("Auto-compact threshold in prompt tokens [%d] (min %d, Enter=default): ", DefaultCompactionThresholdTokens, MinCompactionThresholdTokens)
-	br.Scan()
-	threshLine := strings.TrimSpace(br.Text())
-	var compactionThresh int64 = DefaultCompactionThresholdTokens
-	if threshLine != "" {
-		tn, err := strconv.ParseInt(threshLine, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("compaction threshold: %w", err)
-		}
-		if tn < MinCompactionThresholdTokens {
-			return nil, fmt.Errorf("compaction threshold must be >= %d", MinCompactionThresholdTokens)
-		}
-		compactionThresh = tn
-	}
 	r := &Root{
+		UserName:                  userName,
 		Providers:                 []Provider{p},
 		Current:                   Current{Provider: name, Model: mid},
 		SubagentTimeoutMinutes:    DefaultSubagentTimeoutMinutes,
 		ResponseLanguage:          lang,
-		CompactionThresholdTokens: compactionThresh,
+		CompactionThresholdTokens: DefaultCompactionThresholdTokens,
 	}
 	if err := Save(r); err != nil {
 		return nil, err

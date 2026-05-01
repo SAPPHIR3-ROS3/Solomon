@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"solomon/internal/agent"
-	"solomon/internal/chatstore"
-	"solomon/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 )
 
 func TestSlashDispatch_emptyWhitespace(t *testing.T) {
@@ -128,6 +128,25 @@ func TestSlashDispatch_language_resume_list(t *testing.T) {
 	}
 }
 
+func TestSlashDispatch_name(t *testing.T) {
+	d := testDeps(nil)
+	if err := agent.SlashDispatch(d, "/name"); err != nil {
+		t.Fatal(err)
+	}
+	if err := agent.SlashDispatch(d, "/name Ada Lovelace"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(d.Cfg.UserName) != "Ada Lovelace" {
+		t.Fatalf("user_name=%q", d.Cfg.UserName)
+	}
+	if err := agent.SlashDispatch(d, "/name clear"); err != nil {
+		t.Fatal(err)
+	}
+	if d.Cfg.UserName != "" {
+		t.Fatalf("want empty after clear, got %q", d.Cfg.UserName)
+	}
+}
+
 func TestSlashDispatch_new(t *testing.T) {
 	sess := &chatstore.Session{
 		ID:       "deadbeef",
@@ -167,7 +186,7 @@ func TestSlashDispatch_help(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") {
+	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") {
 		t.Fatalf("/help unexpected: %.200s", out)
 	}
 }

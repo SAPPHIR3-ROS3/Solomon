@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./... -count=1
+      - run: go build ./cmd/solomon
+
+  tag:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create calendar tag on default branch
+        run: |
+          set -e
+          git fetch --tags origin
+          if git symbolic-ref -q refs/remotes/origin/HEAD >/dev/null; then
+            DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+          else
+            DEFAULT_BRANCH="main"
+          fi
+          git checkout "$DEFAULT_BRANCH"
+          git pull origin "$DEFAULT_BRANCH" --ff-only
+
+          Y=$(date -u +%Y)
+          M=$((10#$(date -u +%m)))
+          D=$((10#$(date -u +%d)))
+          MD=$((M * 100 + D))
+          PREFIX="v${Y}.${MD}"
+
+          MAX_REV=-1
+          for t in $(git tag -l "${PREFIX}.*"); do
+            SUF=${t#"$PREFIX."}
+            if [[ "$SUF" =~ ^[0-9]+$ ]] && ((10#$SUF > MAX_REV)); then
+              MAX_REV=$((10#$SUF))
+            fi
+          done
+          REV=$((MAX_REV + 1))
+          VER="${PREFIX}.${REV}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VER" -m "Calendar tag $VER (${Y}-${M}-${D} rev ${REV})"
+          git push origin "$VER"
+          echo "Pushed $VER"

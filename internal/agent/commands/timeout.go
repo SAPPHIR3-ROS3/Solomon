@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 )
 
 func Timeout(d Deps, parts []string) error {

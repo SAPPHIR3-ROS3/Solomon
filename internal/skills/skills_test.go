@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"solomon/internal/config"
-	"solomon/internal/logging"
-	"solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 func TestMain(m *testing.M) {

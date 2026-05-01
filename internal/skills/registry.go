@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	"solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 func LoadRegistry(path string) (*Registry, error) {

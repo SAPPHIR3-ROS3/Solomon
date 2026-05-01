@@ -5,9 +5,9 @@ import (
 	"io"
 	"strings"
 
-	"solomon/internal/agent/commands"
-	"solomon/internal/chatstore"
-	"solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"

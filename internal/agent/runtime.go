@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"solomon/internal/agent/commands"
-	"solomon/internal/chatstore"
-	"solomon/internal/config"
-	"solomon/internal/llm"
-	"solomon/internal/logging"
-	"solomon/internal/prompt"
-	"solomon/internal/termcolor"
-	"solomon/internal/title"
-	"solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/title"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 
 	readline "github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
@@ -117,6 +117,7 @@ func (r *Runtime) systemPrompt() (string, error) {
 		Syntax:                syntax,
 		ExtraRules:            "",
 		Language:              r.Cfg.EffectiveResponseLanguage(),
+		UserName:              strings.TrimSpace(r.Cfg.UserName),
 		WorkspaceAbsolutePath: absWorkspace,
 	}
 	if r.Mode == "plan" {

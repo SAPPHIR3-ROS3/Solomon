@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"solomon/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 )
 
 type shellArgs struct {
