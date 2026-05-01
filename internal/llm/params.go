@@ -6,8 +6,8 @@ import (
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/packages/param"
 	"github.com/openai/openai-go/v2/shared"
-	"solomon/internal/chatstore"
-	"solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 )
 
 func runeCount(s string) int64 {

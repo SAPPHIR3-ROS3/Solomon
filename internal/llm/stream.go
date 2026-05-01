@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/openai/openai-go/v2"
-	"solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 func parseLooseReasoningTokensFromUsageRawJSON(raw string) int64 {

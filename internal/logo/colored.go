@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 const (

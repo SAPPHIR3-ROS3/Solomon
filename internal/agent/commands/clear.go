@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"strings"
 
-	"solomon/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 )
 
 func Clear(d Deps) error {

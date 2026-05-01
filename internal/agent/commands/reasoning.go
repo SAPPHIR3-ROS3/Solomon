@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 )
 
 func Reasoning(d Deps, parts []string) error {

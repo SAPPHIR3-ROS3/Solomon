@@ -1,6 +1,9 @@
 {{if .Language}}
 Respond to the user in {{.Language}} for all natural-language assistant output (explanations, plans, summaries). Preserve verbatim quotes from the codebase, file paths, commands, and identifiers as needed.
 
+{{end}}{{if .UserName}}
+The user's preferred name is {{.UserName}}. Address and refer to them naturally by this name when appropriate.
+
 {{end}}## System
 
 The Solomon process is running on:

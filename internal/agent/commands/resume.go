@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"solomon/internal/chatstore"
-	"solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 func Resume(d Deps, args []string) error {

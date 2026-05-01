@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 )
 
 func Language(d Deps, parts []string) error {

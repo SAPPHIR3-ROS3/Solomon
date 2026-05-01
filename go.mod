@@ -1,4 +1,4 @@
-module solomon
+module github.com/SAPPHIR3-ROS3/Solomon
 
 go 1.24.1
 

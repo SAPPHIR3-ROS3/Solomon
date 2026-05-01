@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"solomon/internal/chatstore"
-	"solomon/internal/config"
-	"solomon/internal/logging"
-	"solomon/internal/project"
-	"solomon/internal/skills"
-	"solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/project"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 )
 
 func (r *Runtime) execTool(ctx context.Context, inv tooling.Invocation) (any, error) {

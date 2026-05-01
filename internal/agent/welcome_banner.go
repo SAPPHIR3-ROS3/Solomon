@@ -8,11 +8,11 @@ import (
 	"regexp"
 	"strings"
 
-	"solomon/internal/chatstore"
-	"solomon/internal/config"
-	"solomon/internal/logo"
-	"solomon/internal/skills"
-	"solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logo"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 var reStripANSI = regexp.MustCompile(`\x1b\[[0-9;:]*m`)

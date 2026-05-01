@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"solomon/internal/config"
-	"solomon/internal/modelsapi"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
 )
 
 type ListedModel struct {

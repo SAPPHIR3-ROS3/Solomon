@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"solomon/internal/modelsapi"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
 )
 
 func AllDigits(s string) bool {

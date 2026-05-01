@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"solomon/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
 )
 
 func Skills(d Deps) error {

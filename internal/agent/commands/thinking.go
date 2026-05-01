@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 )
 
 func Thinking(d Deps, parts []string) error {

@@ -3,7 +3,7 @@ package agent
 import (
 	"fmt"
 
-	"solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"

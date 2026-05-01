@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"solomon/internal/chatstore"
-	"solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 
 	"github.com/openai/openai-go/v2"
 )
