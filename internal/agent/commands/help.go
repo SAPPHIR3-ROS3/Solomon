@@ -16,7 +16,7 @@ func Registry() [][]string {
 		{"/skills", "/skills — list installed skills (Local → Project → Global; empty sections omitted)"},
 		{"/build", "build tools (shell, files, subagent)"},
 		{"/clear", "clear terminal (ANSI)"},
-		{"/connect", "add OpenAI-compatible provider"},
+		{"/connect", "add provider (checks /models), pick model (0 current, 1-20 listed, truncated: 21=id, paste id)"},
 		{"/exec", "/exec <prompt> | /exec \"prompt with spaces\" — send one user message"},
 		{"/exit, /quit", "exit and show how to resume"},
 		{"/help", "this list"},
