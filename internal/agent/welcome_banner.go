@@ -11,6 +11,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logo"
+	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
@@ -111,7 +112,12 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	tokLine := termcolor.WelcomeUsageTotals(uSum, rSum, sSum, totalDisp)
 	right = append(right, tokLine+"  token across chats for this path")
 	right = append(right, fmt.Sprintf("%d skills", skillN))
-	right = append(right, "0 MCP (soon)")
+	mcpN, _ := solomonmcp.ConfiguredServerCount()
+	if mcpN == 1 {
+		right = append(right, "1 MCP")
+	} else {
+		right = append(right, fmt.Sprintf("%d MCP", mcpN))
+	}
 	right = append(right, "/connect to link new providers")
 	right = append(right, "/models to switch models")
 	right = append(right, "/help to show available commands")
@@ -197,4 +203,3 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), pathLine, strings.Repeat(" ", ppad), borderPaint("│"))
 	fmt.Fprintln(out, borderPaint("└"+strings.Repeat("─", innerW)+"┘"))
 }
-

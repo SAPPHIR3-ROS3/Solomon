@@ -17,6 +17,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/title"
@@ -49,6 +50,8 @@ type Runtime struct {
 	EphemeralSession bool
 
 	Out io.Writer
+
+	MCP *solomonmcp.Manager
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
@@ -57,15 +60,15 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		option.WithBaseURL(prov.BaseURL),
 	)
 	return &Runtime{
-		RL:       rl,
-		Client:   cl,
-		Model:    cfg.Current.Model,
-		Cfg:      cfg,
-		Prov:     prov,
-		ProjHex:  projHex,
-		ProjRoot: projRoot,
-		Mode:     "build",
-		Session:  sess,
+		RL:                        rl,
+		Client:                    cl,
+		Model:                     cfg.Current.Model,
+		Cfg:                       cfg,
+		Prov:                      prov,
+		ProjHex:                   projHex,
+		ProjRoot:                  projRoot,
+		Mode:                      "build",
+		Session:                   sess,
 		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
 		Out:                       os.Stdout,
 	}
@@ -103,6 +106,11 @@ func (r *Runtime) systemPrompt() (string, error) {
 	}
 	if err != nil {
 		return "", err
+	}
+	if r.MCP != nil {
+		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
+			dump = strings.TrimSpace(dump + "\n---\n" + mcpDump)
+		}
 	}
 	absWorkspace := r.ProjRoot
 	if p, err := filepath.Abs(r.ProjRoot); err == nil {
@@ -251,7 +259,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		tools, err := NativeToolParams(r.Mode)
+		tools, err := r.toolParams()
 		if err != nil {
 			return err
 		}

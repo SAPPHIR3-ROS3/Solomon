@@ -173,6 +173,8 @@ func main() {
 		Messages:       nil,
 	}
 	rt := agent.NewRuntime(rl, cfg, prov, hex, root, sess)
+	rt.InitMCP(ctx)
+	defer rt.Close()
 	if len(os.Args) >= 4 && os.Args[1] == "temp" && os.Args[2] == "exec" {
 		rt.EphemeralSession = true
 		prompt := strings.TrimSpace(strings.Join(os.Args[3:], " "))
