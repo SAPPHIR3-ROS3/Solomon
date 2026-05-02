@@ -21,6 +21,17 @@ func ConfigPath() (string, error) {
 	return filepath.Join(root, "config.toml"), nil
 }
 
+func MCPConfigPath() (string, error) {
+	if p := os.Getenv("SOLOMON_MCP_CONFIG"); p != "" {
+		return p, nil
+	}
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "mcp.json"), nil
+}
+
 func ProjectsMapPath() (string, error) {
 	root, err := SolomonHome()
 	if err != nil {

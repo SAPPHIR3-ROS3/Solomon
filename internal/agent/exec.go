@@ -17,6 +17,9 @@ import (
 )
 
 func (r *Runtime) execTool(ctx context.Context, inv tooling.Invocation) (any, error) {
+	if r.MCP != nil && r.MCP.HasTool(inv.Name) {
+		return r.MCP.CallTool(ctx, inv.Name, inv.Args)
+	}
 	switch inv.Name {
 	case "createPlan", "editPlan", "buildPlan":
 		if r.Mode != "plan" {
