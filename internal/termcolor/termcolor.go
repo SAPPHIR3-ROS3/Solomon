@@ -11,6 +11,7 @@ import (
 
 const (
 	User      = "\033[96m"
+	Red       = "\033[91m"
 	Assistant = "\033[92m"
 	Tool      = "\033[38;2;255;246;157m"
 	Thinking  = "\033[90m"
@@ -23,6 +24,10 @@ const (
 
 func WrapUser(s string) string {
 	return User + s + Reset
+}
+
+func WrapRed(s string) string {
+	return Red + s + Reset
 }
 
 func WrapAssistant(s string) string {

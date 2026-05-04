@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,7 +30,23 @@ import (
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/packages/param"
 	"github.com/openai/openai-go/v2/shared"
+	"sync"
 )
+
+var errUserStopGeneration = errors.New("user stopped generation")
+
+const cliMsgGenerationStopped = "Generation stopped."
+
+func flushWriter(w io.Writer) {
+	if f, ok := w.(interface{ Flush() error }); ok {
+		_ = f.Flush()
+	}
+}
+
+func showGenerationStopped(out io.Writer) {
+	fmt.Fprintf(out, "%s\n", termcolor.WrapRed("["+cliMsgGenerationStopped+"]"))
+	flushWriter(out)
+}
 
 type Runtime struct {
 	RL *readline.Instance
@@ -49,6 +66,10 @@ type Runtime struct {
 	CompactionThresholdTokens int64
 
 	EphemeralSession bool
+
+	chatPersistMu              sync.Mutex
+	deferredTitleScheduleMu    sync.Mutex
+	deferredTitleWorkerRunning bool
 
 	Out io.Writer
 
@@ -150,6 +171,12 @@ func (r *Runtime) persistSession() error {
 	if r.EphemeralSession {
 		return nil
 	}
+	r.chatPersistMu.Lock()
+	defer r.chatPersistMu.Unlock()
+	return chatstore.WriteSession(r.ProjHex, r.Session)
+}
+
+func (r *Runtime) persistSessionUnsafe() error {
 	return chatstore.WriteSession(r.ProjHex, r.Session)
 }
 
@@ -166,7 +193,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 			case errors.Is(err, io.EOF):
 				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (EOF)")
 			case errors.Is(err, readline.ErrInterrupt):
-				logging.Log(logging.WARNING_LOG_LEVEL, "interactive session interrupted")
+				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (Ctrl+C at prompt)")
+				commands.ExitMessage(r.slashDeps(ctx))
+				return nil
 			default:
 				logging.Log(logging.ERROR_LOG_LEVEL, "readline failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			}
@@ -207,16 +236,10 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 		r.Session.ID = chatstore.NewPlaceholderChatID(time.Now())
 	}
 	if r.EphemeralSession && r.Session.Title == "" && len(r.Session.Messages) == 0 {
-		t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, line)
-		if err != nil {
-			logging.Log(logging.WARNING_LOG_LEVEL, "ephemeral title from model failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		}
-		if err != nil || strings.TrimSpace(t) == "" {
-			t = title.FallbackFromWords(line)
-		}
-		t = title.NormalizeSlug(t)
-		r.Session.Title = t
-		r.Session.ID = chatstore.ChatIDHex(t, r.Session.CreatedAt)
+		tSlug := title.NormalizeSlug(title.FallbackFromWords(line))
+		r.Session.Title = tSlug
+		r.Session.ID = chatstore.ChatIDHex(tSlug, r.Session.CreatedAt)
+		go r.refineEphemeralTitle(ctx, strings.TrimSpace(line))
 	}
 	seq := checkpoint.Bump(r.Session)
 	um := chatstore.Message{Role: "user", Content: line}
@@ -235,42 +258,27 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 		return err
 	}
 	if !r.EphemeralSession && chatstore.IsPlaceholderChatID(r.Session.ID) {
-		return r.finalizeDeferredChatTitle(ctx)
+		r.scheduleDeferredChatTitleFinalize(ctx)
 	}
 	return nil
 }
 
-func (r *Runtime) finalizeDeferredChatTitle(ctx context.Context) error {
-	var firstUser string
-	for _, m := range r.Session.Messages {
-		if m.Role == "user" && strings.TrimSpace(m.Content) != "" && !strings.HasPrefix(m.Content, "tool_result(") {
-			firstUser = m.Content
-			break
-		}
-	}
-	if firstUser == "" {
-		return nil
-	}
-	t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, firstUser)
-	if err != nil || strings.TrimSpace(t) == "" {
-		t = title.FallbackFromWords(firstUser)
-	}
-	t = title.NormalizeSlug(t)
-	oldID := r.Session.ID
-	r.Session.Title = t
-	r.Session.ID = chatstore.ChatIDHex(t, r.Session.CreatedAt)
-	if err := chatstore.RenameSessionFile(r.ProjHex, oldID, r.Session.ID); err != nil {
-		logging.Log(logging.WARNING_LOG_LEVEL, "rename session file failed", logging.LogOptions{Params: map[string]any{"old_id": oldID, "new_id": r.Session.ID, "err": err.Error()}})
-		if err := r.persistSession(); err != nil {
-			return err
-		}
-		_ = chatstore.RemoveSessionPath(r.ProjHex, oldID)
-		return nil
-	}
-	return r.persistSession()
-}
-
 func (r *Runtime) runAgentTurns(ctx context.Context) error {
+	runCtx, stopRun := context.WithCancelCause(ctx)
+	defer stopRun(nil)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	defer signal.Stop(sigCh)
+	go func() {
+		for {
+			select {
+			case <-sigCh:
+				stopRun(errUserStopGeneration)
+			case <-runCtx.Done():
+				return
+			}
+		}
+	}()
 	for {
 		sys, err := r.systemPrompt()
 		if err != nil {
@@ -291,9 +299,14 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		llm.ApplyMaxResponseTokens(r.Cfg, &params)
 		astSeq := checkpoint.Bump(r.Session)
 		fmt.Fprintf(r.Out, "%s%s ", checkpoint.FormatLinePrefix(astSeq, r.Session.CheckpointBranchSuffix), termcolor.WrapAssistant(r.Model+":"))
-		turn, err := llm.StreamAssistantTurn(ctx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
+		turn, err := llm.StreamAssistantTurn(runCtx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 		fmt.Fprintln(r.Out)
 		if err != nil {
+			if interruptedDuringGeneration(ctx, runCtx, err) {
+				logging.Log(logging.INFO_LOG_LEVEL, cliMsgGenerationStopped)
+				showGenerationStopped(r.Out)
+				return nil
+			}
 			logging.Log(logging.ERROR_LOG_LEVEL, "assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			return err
 		}
@@ -326,7 +339,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		}
 		if len(invs) == 0 {
 			if turn.Usage.PromptTokens > 0 && turn.Usage.PromptTokens >= r.CompactionThresholdTokens {
-				deps := r.slashDeps(ctx)
+				deps := r.slashDeps(runCtx)
 				if r.EphemeralSession {
 					body, err := commands.SummarizeBody(deps)
 					if err != nil {
@@ -352,9 +365,24 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			}
 			return nil
 		}
-		for i, inv := range invs {
+		for i := range invs {
+			if interruptedDuringGeneration(ctx, runCtx, nil) {
+				if err := r.appendSyntheticToolResults(astSeq, invs, toolIDs, i); err != nil {
+					return err
+				}
+				showGenerationStopped(r.Out)
+				return nil
+			}
+			inv := invs[i]
 			r.printToolLine(astSeq, r.Session.CheckpointBranchSuffix, inv.Name, inv.Args)
-			res, err := r.execTool(ctx, inv)
+			res, err := r.execTool(runCtx, inv)
+			if interruptedDuringGeneration(ctx, runCtx, err) {
+				if err2 := r.appendSyntheticToolResults(astSeq, invs, toolIDs, i); err2 != nil {
+					return err2
+				}
+				showGenerationStopped(r.Out)
+				return nil
+			}
 			if err != nil {
 				logging.Log(logging.WARNING_LOG_LEVEL, "tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
 				res = map[string]any{"error": err.Error()}
@@ -372,6 +400,32 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			_ = r.persistSession()
 		}
 	}
+}
+
+func interruptedDuringGeneration(parent, runCtx context.Context, opErr error) bool {
+	if errors.Is(context.Cause(runCtx), errUserStopGeneration) {
+		return true
+	}
+	if opErr == nil {
+		return false
+	}
+	return parent.Err() == nil && errors.Is(runCtx.Err(), context.Canceled) && errors.Is(opErr, context.Canceled)
+}
+
+func (r *Runtime) appendSyntheticToolResults(astSeq int, invs []tooling.Invocation, toolIDs []string, start int) error {
+	payload := toolingResultJSON(map[string]any{"error": cliMsgGenerationStopped})
+	for j := start; j < len(invs); j++ {
+		var tm chatstore.Message
+		if id := toolIDs[j]; id != "" {
+			tm = chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
+		} else {
+			tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
+		}
+		checkpoint.StampMsg(&tm, r.Session, astSeq)
+		r.Session.Messages = append(r.Session.Messages, tm)
+		r.Session.LastMessageAt = time.Now()
+	}
+	return r.persistSession()
 }
 
 func (r *Runtime) printToolLine(cpSeq int, branchKey, name string, rawArgs json.RawMessage) {

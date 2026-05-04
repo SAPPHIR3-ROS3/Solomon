@@ -4,13 +4,15 @@ import (
 	"context"
 	"strings"
 
-	"github.com/openai/openai-go/v2"
-	"github.com/openai/openai-go/v2/shared"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/packages/param"
+	"github.com/openai/openai-go/v2/shared"
 )
+
+const maxCompletionTokens = 2048
 
 func FromPrompt(ctx context.Context, client openai.Client, cfg *config.Root, model string, userLine string) (string, error) {
 	sys, err := prompt.RenderTitle(prompt.TitleData{Language: cfg.EffectiveResponseLanguage()})
@@ -19,11 +21,11 @@ func FromPrompt(ctx context.Context, client openai.Client, cfg *config.Root, mod
 		return "", err
 	}
 	p := openai.ChatCompletionNewParams{
-		Model:           shared.ChatModel(model),
-		Messages:        []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(sys), openai.UserMessage("User message to name:\n" + userLine)},
-		ReasoningEffort: shared.ReasoningEffort("none"),
+		Model:               shared.ChatModel(model),
+		Messages:            []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(sys), openai.UserMessage("User message to name:\n" + userLine)},
+		ReasoningEffort:     shared.ReasoningEffort("none"),
+		MaxCompletionTokens: param.NewOpt(int64(maxCompletionTokens)),
 	}
-	llm.ApplyMaxResponseTokens(cfg, &p)
 	resp, err := client.Chat.Completions.New(ctx, p)
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "title completions request failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
