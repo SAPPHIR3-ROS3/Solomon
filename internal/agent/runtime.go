@@ -35,7 +35,7 @@ import (
 
 var errUserStopGeneration = errors.New("user stopped generation")
 
-const cliMsgGenerationStopped = "Generation stopped."
+const cliMsgGenerationStopped = "Generation stopped"
 
 func flushWriter(w io.Writer) {
 	if f, ok := w.(interface{ Flush() error }); ok {
