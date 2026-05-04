@@ -126,7 +126,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	fmt.Fprintln(r.Out)
 	if r.Cfg.UsageStatsEnabled() {
 		ctxTok, usrTok, ctxEst := llm.UsagePromptParts(system, msgs, turn.Usage.PromptTokens, turn.Usage.CachedPromptTokens)
-		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst))
+		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst, turn.Usage.TurnWallSecs))
 	}
 	return turn, nil
 }
