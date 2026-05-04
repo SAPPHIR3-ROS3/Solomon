@@ -41,7 +41,13 @@ func formatChatTranscript(msgs []chatstore.Message) string {
 		case "user":
 			fmt.Fprintf(&b, "User:\n%s\n\n", m.Content)
 		case "assistant":
-			fmt.Fprintf(&b, "Assistant:\n%s\n\n", m.Content)
+			rtxt, cshow := chatstore.AssistantDisplayParts(m)
+			if rtxt != "" {
+				fmt.Fprintf(&b, "Assistant (reasoning):\n%s\n\n", rtxt)
+			}
+			if cshow != "" {
+				fmt.Fprintf(&b, "Assistant:\n%s\n\n", cshow)
+			}
 			if len(m.ToolCalls) > 0 {
 				for _, tc := range m.ToolCalls {
 					fmt.Fprintf(&b, "  [tool_call %s] %s(%s)\n", tc.ID, tc.Name, tc.Arguments)
@@ -117,6 +123,12 @@ func Summarize(d Deps) error {
 	}
 	sess := d.Session()
 	sess.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
+	sess.MainOrphans = nil
+	sess.CheckpointBranchSuffix = ""
+	sess.ForkChildCount = nil
+	sess.CheckpointLast = -1
+	sess.CheckpointCP0 = true
+	sess.LastCommitOID = ""
 	sess.LastMessageAt = time.Now()
 	if err := chatstore.WriteSession(d.ProjHex, sess); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "/summarize persist compacted session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

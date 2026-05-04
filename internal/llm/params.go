@@ -15,7 +15,7 @@ func runeCount(s string) int64 {
 }
 
 func messageCharWeight(m chatstore.Message) int64 {
-	n := runeCount(m.Content)
+	n := runeCount(m.Content) + runeCount(m.ReasoningText)
 	for _, tc := range m.ToolCalls {
 		n += runeCount(tc.ID) + runeCount(tc.Name) + runeCount(tc.Arguments)
 	}

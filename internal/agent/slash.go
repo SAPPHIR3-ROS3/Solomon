@@ -57,11 +57,13 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		PrefillInput: func(s string) {
 			r.RL.Operation.SetBuffer(s)
 		},
-		SubmitUserMessage: func(s string) error { return r.onUserMessage(ctx, s) },
+		SubmitUserMessage: func(s string) error { return r.onUserMessage(ctx, s, false) },
 
 		PrintWelcomeBanner: func() {
 			printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
 		},
+
+		CheckpointGoto: r.ApplyGotoCheckpoint,
 	}
 }
 
@@ -183,6 +185,13 @@ func SlashDispatch(d commands.Deps, line string) error {
 	case "help":
 		commands.WriteHelp(d.Out, d.ProjHex, d.ProjRoot)
 		return nil
+	case "goto":
+		return commands.SlashGoto(d, parts)
+	case "checkpoint":
+		commands.SlashCheckpointAck(d)
+		return nil
+	case "mcp":
+		return commands.SlashMCP(d)
 	default:
 		e, err := skills.LookupSkillBySlashCommand(name, d.ProjHex, d.ProjRoot)
 		if err != nil {

@@ -43,4 +43,6 @@ type Deps struct {
 	SubmitUserMessage func(string) error
 
 	PrintWelcomeBanner func()
+
+	CheckpointGoto func(int) error
 }

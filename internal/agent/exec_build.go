@@ -153,6 +153,7 @@ func (r *Runtime) toolEditFile(raw json.RawMessage) (any, error) {
 		if err := os.WriteFile(p, []byte(a.NewString), 0o600); err != nil {
 			return nil, err
 		}
+		r.checkpointStageProjAbs(p)
 		return map[string]any{"ok": true, "action": "created_or_overwrite"}, nil
 	}
 	b, err := os.ReadFile(p)
@@ -167,6 +168,7 @@ func (r *Runtime) toolEditFile(raw json.RawMessage) (any, error) {
 	if err := os.WriteFile(p, []byte(s), 0o600); err != nil {
 		return nil, err
 	}
+	r.checkpointStageProjAbs(p)
 	return map[string]any{"ok": true, "action": "edited"}, nil
 }
 

@@ -42,5 +42,6 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		CompactionThresholdTokens:    func() int64 { return thresh },
 		SetCompactionThresholdTokens: func(n int64) { thresh = n },
 		Client: openai.NewClient(option.WithAPIKey("x"), option.WithBaseURL("http://127.0.0.1:9/")),
+		CheckpointGoto: func(int) error { return nil },
 	}
 }

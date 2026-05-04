@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"errors"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -159,6 +160,9 @@ func TestSlashDispatch_new(t *testing.T) {
 	if sess.ID != "" || len(sess.Messages) != 0 {
 		t.Fatalf("want fresh session, got id=%q msgs=%d", sess.ID, len(sess.Messages))
 	}
+	if sess.CheckpointLast != -1 || !sess.CheckpointCP0 {
+		t.Fatalf("new chat checkpoint baseline: last=%d cp0=%v", sess.CheckpointLast, sess.CheckpointCP0)
+	}
 }
 
 func TestSlashDispatch_resume_last_noChats(t *testing.T) {
@@ -186,8 +190,30 @@ func TestSlashDispatch_help(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") {
+	if !strings.Contains(out, "/goto") || !strings.Contains(out, "/checkpoint") || !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") || !strings.Contains(out, "/mcp") {
 		t.Fatalf("/help unexpected: %.200s", out)
+	}
+}
+
+func TestSlashDispatch_mcp(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "mcp.json")
+	t.Setenv("SOLOMON_MCP_CONFIG", p)
+	if err := os.WriteFile(p, []byte(`{"mcpServers":{"filesystem":{"command":"npx","args":["secret"],"allow":["read_file"],"deny":["write_file"]},"remote":{"url":"https://token@example.com/mcp"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	buf := bytes.NewBuffer(nil)
+	d := testDeps(nil)
+	d.Out = buf
+	if err := agent.SlashDispatch(d, "/mcp"); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "filesystem\tstdio\tnpx") || !strings.Contains(out, "remote\tstreamable-http\thttps://example.com") {
+		t.Fatalf("/mcp unexpected: %s", out)
+	}
+	if strings.Contains(out, "secret") || strings.Contains(out, "token") {
+		t.Fatalf("/mcp leaked sensitive config: %s", out)
 	}
 }
 
