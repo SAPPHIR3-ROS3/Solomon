@@ -124,15 +124,13 @@ func (r *Runtime) systemPrompt() (string, error) {
 	if p, err := filepath.Abs(r.ProjRoot); err == nil {
 		absWorkspace = p
 	}
-	syntax := prompt.NativeToolInvocationSyntax(r.Session.LegacyTools)
-	legacySyntax := ""
+	syntax := prompt.NativeToolInvocationSyntax()
 	if r.Session.LegacyTools {
-		legacySyntax = prompt.LegacyToolInvocationSyntaxAppend()
+		syntax = strings.TrimSpace(syntax + "\n\n" + prompt.LegacyToolInvocationSyntaxAppend())
 	}
 	d := prompt.Data{
 		Tools:                 dump,
 		Syntax:                syntax,
-		LegacySyntax:          legacySyntax,
 		ExtraRules:            "",
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
