@@ -14,6 +14,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
@@ -96,6 +97,13 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 	return fmt.Errorf("provider %q not found", providerName)
 }
 
+func (r *Runtime) refreshReadlinePrompt() {
+	if r.RL == nil {
+		return
+	}
+	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser("You: "))
+}
+
 func (r *Runtime) systemPrompt() (string, error) {
 	var dump string
 	var err error
@@ -135,7 +143,7 @@ func (r *Runtime) systemPrompt() (string, error) {
 }
 
 func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
-	return r.onUserMessage(ctx, strings.TrimSpace(line))
+	return r.onUserMessage(ctx, strings.TrimSpace(line), false)
 }
 
 func (r *Runtime) persistSession() error {
@@ -147,8 +155,11 @@ func (r *Runtime) persistSession() error {
 
 func (r *Runtime) Run(ctx context.Context) error {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
+	chatstore.FinishSessionLoad(r.Session)
 	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
 	for {
+		chatstore.FinishSessionLoad(r.Session)
+		r.refreshReadlinePrompt()
 		line, err := r.RL.Readline()
 		if err != nil {
 			switch {
@@ -176,14 +187,14 @@ func (r *Runtime) Run(ctx context.Context) error {
 			}
 			continue
 		}
-		if err := r.onUserMessage(ctx, line); err != nil {
+		if err := r.onUserMessage(ctx, line, true); err != nil {
 			logging.Log(logging.ERROR_LOG_LEVEL, "onUserMessage failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			fmt.Fprintf(r.Out, "error: %v\n", err)
 		}
 	}
 }
 
-func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
+func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline bool) error {
 	line = strings.TrimSpace(line)
 	if strings.HasPrefix(line, "!") {
 		cmd := strings.TrimSpace(strings.TrimPrefix(line, "!"))
@@ -207,9 +218,15 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string) error {
 		r.Session.Title = t
 		r.Session.ID = chatstore.ChatIDHex(t, r.Session.CreatedAt)
 	}
-	r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", Content: line})
+	seq := checkpoint.Bump(r.Session)
+	um := chatstore.Message{Role: "user", Content: line}
+	checkpoint.StampMsg(&um, r.Session, seq)
+	r.Session.Messages = append(r.Session.Messages, um)
 	r.Session.LastMessageAt = time.Now()
 	r.Session.LastUserMessageAt = time.Now()
+	if !fromReadline {
+		fmt.Fprintf(r.Out, "%s%s %s\n", checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey), termcolor.WrapUser("You:"), line)
+	}
 	if err := r.persistSession(); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "persist session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
@@ -272,7 +289,8 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			ParallelToolCalls: param.NewOpt(true),
 		}
 		llm.ApplyMaxResponseTokens(r.Cfg, &params)
-		fmt.Fprintf(r.Out, "%s ", termcolor.WrapAssistant(r.Model+":"))
+		astSeq := checkpoint.Bump(r.Session)
+		fmt.Fprintf(r.Out, "%s%s ", checkpoint.FormatLinePrefix(astSeq, r.Session.CheckpointBranchSuffix), termcolor.WrapAssistant(r.Model+":"))
 		turn, err := llm.StreamAssistantTurn(ctx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 		fmt.Fprintln(r.Out)
 		if err != nil {
@@ -283,7 +301,8 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			ctxTok, usrTok, ctxEst := llm.UsagePromptParts(sys, msgs, turn.Usage.PromptTokens, turn.Usage.CachedPromptTokens)
 			fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst))
 		}
-		ast := chatstore.Message{Role: "assistant", Content: turn.Content}
+		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: strings.TrimSpace(turn.ReasoningText)}
+		checkpoint.StampMsg(&ast, r.Session, astSeq)
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
@@ -316,6 +335,11 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 						return nil
 					}
 					r.Session.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
+					r.Session.MainOrphans = nil
+					r.Session.CheckpointBranchSuffix = ""
+					r.Session.ForkChildCount = nil
+					r.Session.CheckpointLast = -1
+					r.Session.LastCommitOID = ""
 					r.Session.LastMessageAt = time.Now()
 					_ = r.persistSession()
 					fmt.Fprintln(r.Out, "context summarized")
@@ -329,25 +353,28 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			return nil
 		}
 		for i, inv := range invs {
-			r.printToolLine(inv.Name, inv.Args)
+			r.printToolLine(astSeq, r.Session.CheckpointBranchSuffix, inv.Name, inv.Args)
 			res, err := r.execTool(ctx, inv)
 			if err != nil {
 				logging.Log(logging.WARNING_LOG_LEVEL, "tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
 				res = map[string]any{"error": err.Error()}
 			}
 			payload := toolingResultJSON(res)
+			var tm chatstore.Message
 			if id := toolIDs[i]; id != "" {
-				r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "tool", ToolCallID: id, Content: payload})
+				tm = chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
 			} else {
-				r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"})
+				tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
 			}
+			checkpoint.StampMsg(&tm, r.Session, astSeq)
+			r.Session.Messages = append(r.Session.Messages, tm)
 			r.Session.LastMessageAt = time.Now()
 			_ = r.persistSession()
 		}
 	}
 }
 
-func (r *Runtime) printToolLine(name string, rawArgs json.RawMessage) {
+func (r *Runtime) printToolLine(cpSeq int, branchKey, name string, rawArgs json.RawMessage) {
 	s := string(rawArgs)
 	if len(rawArgs) > 0 && json.Valid(rawArgs) {
 		var buf bytes.Buffer
@@ -355,7 +382,7 @@ func (r *Runtime) printToolLine(name string, rawArgs json.RawMessage) {
 			s = buf.String()
 		}
 	}
-	fmt.Fprintf(r.Out, "%s\n", termcolor.WrapTool(fmt.Sprintf("Tool: %s(%s)", name, s)))
+	fmt.Fprintf(r.Out, "%s%s\n", checkpoint.FormatLinePrefix(cpSeq, branchKey), termcolor.WrapTool(fmt.Sprintf("Tool: %s(%s)", name, s)))
 }
 
 func toolingResultJSON(v any) string {

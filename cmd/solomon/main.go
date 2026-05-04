@@ -166,11 +166,17 @@ func main() {
 	defer rl.Close()
 
 	sess := &chatstore.Session{
-		ID:             "",
-		Title:          "",
-		CreatedAt:      time.Now(),
-		LastMessageAt:  time.Now(),
-		Messages:       nil,
+		ID:                     "",
+		Title:                  "",
+		CreatedAt:              time.Now(),
+		LastMessageAt:          time.Now(),
+		Messages:               nil,
+		CheckpointLast:         -1,
+		CheckpointCP0:          true,
+		CheckpointBranchSuffix: "",
+		ForkChildCount:         nil,
+		MainOrphans:            nil,
+		LastCommitOID:          "",
 	}
 	rt := agent.NewRuntime(rl, cfg, prov, hex, root, sess)
 	rt.InitMCP(ctx)

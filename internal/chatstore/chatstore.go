@@ -34,10 +34,16 @@ type ToolCall struct {
 }
 
 type Message struct {
-	Role       string     `json:"role"`
-	Content    string     `json:"content"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	Role          string     `json:"role"`
+	Content       string     `json:"content"`
+	ToolCallID    string     `json:"tool_call_id,omitempty"`
+	ToolCalls     []ToolCall `json:"tool_calls,omitempty"`
+	ReasoningText string     `json:"reasoning_text,omitempty"`
+
+	CheckpointSeq       int    `json:"cp_seq,omitempty"`
+	CpSeqSet            bool   `json:"cp_set,omitempty"`
+	CheckpointBranchKey string `json:"cp_branch,omitempty"`
+	CommitOID           string `json:"commit_oid,omitempty"`
 
 	UserPromptTokens int64 `json:"user_prompt_tokens"`
 	ReasoningTokens  int64 `json:"reasoning_tokens"`
@@ -45,14 +51,26 @@ type Message struct {
 	TurnTotalTokens  int64 `json:"turn_total_tokens"`
 }
 
+type MainOrphanSegment struct {
+	ForkAtInclusive int       `json:"fork_at"`
+	Messages        []Message `json:"messages"`
+}
+
 type Session struct {
-	ID                 string    `json:"id"`
-	Title              string    `json:"title"`
-	CreatedAt          time.Time `json:"created_at"`
-	LastMessageAt      time.Time `json:"last_message_at"`
-	LastUserMessageAt  time.Time `json:"last_user_message_at,omitempty"`
-	LegacyTools        bool      `json:"legacy_tools,omitempty"`
-	Messages           []Message `json:"messages"`
+	ID                string    `json:"id"`
+	Title             string    `json:"title"`
+	CreatedAt         time.Time `json:"created_at"`
+	LastMessageAt     time.Time `json:"last_message_at"`
+	LastUserMessageAt time.Time `json:"last_user_message_at,omitempty"`
+	LegacyTools       bool      `json:"legacy_tools,omitempty"`
+	Messages          []Message `json:"messages"`
+
+	CheckpointLast         int                 `json:"checkpoint_last"`
+	CheckpointCP0          bool                `json:"cp0,omitempty"`
+	CheckpointBranchSuffix string              `json:"cp_branch_suffix,omitempty"`
+	ForkChildCount         map[int]int         `json:"fork_child_count,omitempty"`
+	MainOrphans            []MainOrphanSegment `json:"main_orphans,omitempty"`
+	LastCommitOID          string              `json:"last_commit_oid,omitempty"`
 }
 
 func ChatIDHex(title string, ts time.Time) string {
@@ -155,6 +173,7 @@ func ReadSession(projectHex, chatIDHex string) (*Session, error) {
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil, err
 	}
+	FinishSessionLoad(&s)
 	return &s, nil
 }
 
@@ -188,6 +207,7 @@ func loadAllSessions(projectHex string) ([]*Session, error) {
 		if json.Unmarshal(b, &s) != nil {
 			continue
 		}
+		FinishSessionLoad(&s)
 		out = append(out, &s)
 	}
 	return out, nil
@@ -277,6 +297,14 @@ func extractBracketReasoning(content string) (reasoning string, visible string) 
 	return reasoning, strings.TrimSpace(visible)
 }
 
+func AssistantDisplayParts(m Message) (reasoning string, visibleContent string) {
+	if rt := strings.TrimSpace(m.ReasoningText); rt != "" {
+		_, vis := extractBracketReasoning(m.Content)
+		return rt, strings.TrimSpace(vis)
+	}
+	return extractBracketReasoning(m.Content)
+}
+
 func priorNonToolUserForAssistant(msgs []Message, asstIdx int) string {
 	for j := asstIdx - 1; j >= 0; j-- {
 		if msgs[j].Role != "user" {
@@ -295,6 +323,9 @@ func estimateAssistantTurnTokens(msgs []Message, asstIdx int) (userTok, reasonTo
 	m := msgs[asstIdx]
 	u := priorNonToolUserForAssistant(msgs, asstIdx)
 	rText, vis := extractBracketReasoning(m.Content)
+	if rt := strings.TrimSpace(m.ReasoningText); rt != "" {
+		rText += rt
+	}
 	toolN := utf8.RuneCountInString(m.ToolCallID)
 	for _, tc := range m.ToolCalls {
 		toolN += utf8.RuneCountInString(tc.ID) + utf8.RuneCountInString(tc.Name) + utf8.RuneCountInString(tc.Arguments)

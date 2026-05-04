@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 func Resume(d Deps, args []string) error {
@@ -54,6 +53,7 @@ func Resume(d Deps, args []string) error {
 }
 
 func afterResumeLoaded(d Deps, sess *chatstore.Session) {
+	chatstore.FinishSessionLoad(sess)
 	printResumedTranscript(d.Out, sess, d.Model())
 	syncReadlineHistoryFromSession(d, sess)
 }
@@ -108,42 +108,24 @@ func printResumedTranscript(out io.Writer, sess *chatstore.Session, model string
 		return
 	}
 	fmt.Fprintln(out)
-	for _, m := range sess.Messages {
-		switch m.Role {
-		case "user":
-			if strings.HasPrefix(m.Content, "tool_result(") {
-				continue
-			}
-			fmt.Fprintf(out, "%s %s\n", termcolor.WrapUser("You:"), m.Content)
-		case "assistant":
-			if c := strings.TrimSpace(m.Content); c != "" {
-				fmt.Fprintf(out, "%s %s\n", termcolor.WrapAssistant(model+":"), m.Content)
-			}
-			for _, tc := range m.ToolCalls {
-				args := compactJSONArgs(tc.Arguments)
-				fmt.Fprintf(out, "%s\n", termcolor.WrapTool(fmt.Sprintf("Tool: %s(%s)", tc.Name, args)))
-			}
-		case "tool":
-			id := m.ToolCallID
-			if id != "" {
-				fmt.Fprintf(out, "%s %s\n", termcolor.WrapThinking(fmt.Sprintf("[tool %s]", id)), truncateRunes(m.Content, 240))
-			} else {
-				fmt.Fprintf(out, "%s %s\n", termcolor.WrapThinking("[tool]"), truncateRunes(m.Content, 240))
-			}
-		default:
-		}
-	}
+	WriteLabeledTranscript(out, sess.Messages, model)
 	fmt.Fprintln(out)
 }
 
 func NewChat(d Deps) error {
 	now := time.Now()
 	d.SetSession(&chatstore.Session{
-		ID:            "",
-		Title:         "",
-		CreatedAt:     now,
-		LastMessageAt: now,
-		Messages:      nil,
+		ID:                     "",
+		Title:                  "",
+		CreatedAt:              now,
+		LastMessageAt:          now,
+		Messages:               nil,
+		CheckpointLast:         -1,
+		CheckpointCP0:          true,
+		CheckpointBranchSuffix: "",
+		ForkChildCount:         nil,
+		MainOrphans:            nil,
+		LastCommitOID:          "",
 	})
 	if d.ResetReadlineHistory != nil {
 		d.ResetReadlineHistory()

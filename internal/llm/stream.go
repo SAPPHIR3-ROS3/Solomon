@@ -69,9 +69,10 @@ type UsageStats struct {
 }
 
 type AssistantTurnResult struct {
-	Content   string
-	ToolCalls []AssistantToolCall
-	Usage     UsageStats
+	Content        string
+	ReasoningText  string
+	ToolCalls      []AssistantToolCall
+	Usage          UsageStats
 }
 
 type StreamOpts struct {
@@ -159,6 +160,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	skipLeadingNL := true
 	var leadBuf string
 	var reasoningFromUsage int64
+	var reasoningBuf strings.Builder
 	var tFirst time.Time
 	for stream.Next() {
 		ch := stream.Current()
@@ -188,9 +190,10 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		if tFirst.IsZero() && firstAssistDelta(delta, opts) {
 			tFirst = time.Now()
 		}
-		if opts.ShowThinking {
-			rs := deltaReasoningText(delta.RawJSON())
-			if rs != "" {
+		rs := deltaReasoningText(delta.RawJSON())
+		if rs != "" {
+			reasoningBuf.WriteString(rs)
+			if opts.ShowThinking {
 				_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(rs))
 			}
 		}
@@ -221,6 +224,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	}
 	tEnd := time.Now()
 	var out AssistantTurnResult
+	out.ReasoningText = strings.TrimSpace(reasoningBuf.String())
 	if len(acc.Choices) > 0 {
 		msg := acc.Choices[0].Message
 		out.Content = msg.Content

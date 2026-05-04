@@ -54,9 +54,13 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 			logging.Log(logging.ERROR_LOG_LEVEL, "subagent assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			return transcript.String(), err
 		}
+		if rt := strings.TrimSpace(turn.ReasoningText); rt != "" {
+			transcript.WriteString(rt)
+			transcript.WriteByte('\n')
+		}
 		transcript.WriteString(turn.Content)
 		transcript.WriteByte('\n')
-		ast := chatstore.Message{Role: "assistant", Content: turn.Content}
+		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: strings.TrimSpace(turn.ReasoningText)}
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
@@ -78,7 +82,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 			return transcript.String(), nil
 		}
 		for i, inv := range invs {
-			r.printToolLine(inv.Name, inv.Args)
+			r.printToolLine(0, "", inv.Name, inv.Args)
 			transcript.WriteString(fmt.Sprintf("Tool: %s(%s)\n", inv.Name, string(inv.Args)))
 			res, err := r.execTool(ctx, inv)
 			if err != nil {
