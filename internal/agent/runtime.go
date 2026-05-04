@@ -124,13 +124,15 @@ func (r *Runtime) systemPrompt() (string, error) {
 	if p, err := filepath.Abs(r.ProjRoot); err == nil {
 		absWorkspace = p
 	}
-	syntax := prompt.NativeToolInvocationSyntax()
+	syntax := prompt.NativeToolInvocationSyntax(r.Session.LegacyTools)
+	legacySyntax := ""
 	if r.Session.LegacyTools {
-		syntax = strings.TrimSpace(syntax + "\n\n" + prompt.LegacyToolInvocationSyntaxAppend())
+		legacySyntax = prompt.LegacyToolInvocationSyntaxAppend()
 	}
 	d := prompt.Data{
 		Tools:                 dump,
 		Syntax:                syntax,
+		LegacySyntax:          legacySyntax,
 		ExtraRules:            "",
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
@@ -299,7 +301,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		}
 		if r.Cfg.UsageStatsEnabled() {
 			ctxTok, usrTok, ctxEst := llm.UsagePromptParts(sys, msgs, turn.Usage.PromptTokens, turn.Usage.CachedPromptTokens)
-			fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst))
+			fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst, turn.Usage.TurnWallSecs))
 		}
 		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: strings.TrimSpace(turn.ReasoningText)}
 		checkpoint.StampMsg(&ast, r.Session, astSeq)

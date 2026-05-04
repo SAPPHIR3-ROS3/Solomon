@@ -100,7 +100,7 @@ func SummarizeBody(d Deps) (string, error) {
 	if d.Cfg.UsageStatsEnabled() {
 		ms := []chatstore.Message{{Role: "user", Content: transcript}}
 		ctxTok, usrTok, ctxEst := llm.UsagePromptParts(sys, ms, usage.PromptTokens, usage.CachedPromptTokens)
-		fmt.Fprintln(d.Out, termcolor.UsageTokensLine(ctxTok, usrTok, usage.ReasoningTokens, usage.ResponseTokens, usage.TotalTokens, usage.OutputTPS, usage.TTFTSecs, usage.PromptTPS, ctxEst))
+		fmt.Fprintln(d.Out, termcolor.UsageTokensLine(ctxTok, usrTok, usage.ReasoningTokens, usage.ResponseTokens, usage.TotalTokens, usage.OutputTPS, usage.TTFTSecs, usage.PromptTPS, ctxEst, usage.TurnWallSecs))
 	}
 	summary = strings.TrimSpace(summary)
 	if summary == "" {

@@ -66,6 +66,8 @@ type UsageStats struct {
 	OutputTPS          float64
 	TTFTSecs           float64
 	PromptTPS          float64
+	TurnWallSecs       float64
+	ThoughtSecs        float64
 }
 
 type AssistantTurnResult struct {
@@ -93,7 +95,10 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 	skipLeadingNL := true
 	var leadBuf string
 	var reasoningFromUsage int64
-	var tFirst time.Time
+	var tTTFT time.Time
+	var tFirstVisible time.Time
+	var sawReasoning bool
+	var printedThought bool
 	for stream.Next() {
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
@@ -108,13 +113,21 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 			continue
 		}
 		delta := ch.Choices[0].Delta
-		if tFirst.IsZero() && firstAssistDelta(delta, opts) {
-			tFirst = time.Now()
-		}
-		if opts.ShowThinking {
-			rs := deltaReasoningText(delta.RawJSON())
-			if rs != "" {
+		rs := deltaReasoningText(delta.RawJSON())
+		if rs != "" {
+			sawReasoning = true
+			if opts.ShowThinking {
 				_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(rs))
+			}
+		}
+		if tTTFT.IsZero() && firstAssistDelta(delta, opts) {
+			tTTFT = time.Now()
+		}
+		if tFirstVisible.IsZero() && firstVisibleAssistDelta(delta) {
+			tFirstVisible = time.Now()
+			if sawReasoning && !printedThought {
+				_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(time.Since(tStart).Seconds()))
+				printedThought = true
 			}
 		}
 		d := delta.Content
@@ -145,7 +158,11 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		_ = f.Flush()
 	}
 	tEnd := time.Now()
-	return full, buildUsageStats(acc, reasoningFromUsage, tStart, tFirst, tEnd), nil
+	u := buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)
+	if sawReasoning && !printedThought && u.ThoughtSecs > 0 {
+		_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(u.ThoughtSecs))
+	}
+	return full, u, nil
 }
 
 func StreamAssistantTurn(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts StreamOpts) (AssistantTurnResult, error) {
@@ -161,7 +178,9 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	var leadBuf string
 	var reasoningFromUsage int64
 	var reasoningBuf strings.Builder
-	var tFirst time.Time
+	var tTTFT time.Time
+	var tFirstVisible time.Time
+	var printedThought bool
 	for stream.Next() {
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
@@ -187,14 +206,21 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			continue
 		}
 		delta := ch.Choices[0].Delta
-		if tFirst.IsZero() && firstAssistDelta(delta, opts) {
-			tFirst = time.Now()
-		}
 		rs := deltaReasoningText(delta.RawJSON())
 		if rs != "" {
 			reasoningBuf.WriteString(rs)
 			if opts.ShowThinking {
 				_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(rs))
+			}
+		}
+		if tTTFT.IsZero() && firstAssistDelta(delta, opts) {
+			tTTFT = time.Now()
+		}
+		if tFirstVisible.IsZero() && firstVisibleAssistDelta(delta) {
+			tFirstVisible = time.Now()
+			if reasoningBuf.Len() > 0 && !printedThought {
+				_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(time.Since(tStart).Seconds()))
+				printedThought = true
 			}
 		}
 		d := delta.Content
@@ -239,7 +265,10 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			})
 		}
 	}
-	out.Usage = buildUsageStats(acc, reasoningFromUsage, tStart, tFirst, tEnd)
+	out.Usage = buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)
+	if !printedThought && strings.TrimSpace(out.ReasoningText) != "" {
+		_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(out.Usage.ThoughtSecs))
+	}
 	return out, nil
 }
 
@@ -258,13 +287,30 @@ func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int
 	}
 }
 
-func buildUsageStats(acc openai.ChatCompletionAccumulator, reasoningTok int64, tStart, tFirst, tEnd time.Time) UsageStats {
+func buildUsageStats(acc openai.ChatCompletionAccumulator, reasoningTok int64, tStart, tTTFT, tFirstVisible, tEnd time.Time) UsageStats {
 	u := usageFromAccumulator(acc, reasoningTok)
-	if tFirst.IsZero() {
+	u.TurnWallSecs = tEnd.Sub(tStart).Seconds()
+	if !tFirstVisible.IsZero() {
+		u.ThoughtSecs = tFirstVisible.Sub(tStart).Seconds()
+	} else if reasoningTok > 0 {
+		u.ThoughtSecs = u.TurnWallSecs
+	}
+	if tTTFT.IsZero() {
+		if reasoningTok > 0 {
+			u.TTFTSecs = u.TurnWallSecs
+			genDur := u.TurnWallSecs
+			outToks := u.ResponseTokens + u.ReasoningTokens
+			if genDur > 0 && outToks > 0 {
+				u.OutputTPS = float64(outToks) / genDur
+			}
+			if u.TTFTSecs > 0 && u.PromptTokens > 0 {
+				u.PromptTPS = float64(u.PromptTokens) / u.TTFTSecs
+			}
+		}
 		return u
 	}
-	u.TTFTSecs = tFirst.Sub(tStart).Seconds()
-	genDur := tEnd.Sub(tFirst).Seconds()
+	u.TTFTSecs = tTTFT.Sub(tStart).Seconds()
+	genDur := tEnd.Sub(tTTFT).Seconds()
 	outToks := u.ResponseTokens + u.ReasoningTokens
 	if genDur > 0 && outToks > 0 {
 		u.OutputTPS = float64(outToks) / genDur
@@ -289,6 +335,21 @@ func firstAssistDelta(delta openai.ChatCompletionChunkChoiceDelta, opts StreamOp
 	}
 	if opts.ShowThinking && deltaReasoningText(delta.RawJSON()) != "" {
 		return true
+	}
+	return false
+}
+
+func firstVisibleAssistDelta(delta openai.ChatCompletionChunkChoiceDelta) bool {
+	if strings.TrimSpace(delta.Content) != "" {
+		return true
+	}
+	if strings.TrimSpace(delta.Refusal) != "" {
+		return true
+	}
+	for _, tc := range delta.ToolCalls {
+		if tc.Function.Name != "" || tc.Function.Arguments != "" {
+			return true
+		}
 	}
 	return false
 }
