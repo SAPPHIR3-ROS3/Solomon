@@ -19,7 +19,7 @@ func Registry() [][]string {
 		{"/clear", "clear terminal (ANSI)"},
 		{"/connect", "add provider (checks /models), pick model (0 current, 1-20 listed, truncated: 21=id, paste id)"},
 		{"/exec", "/exec <prompt> | /exec \"prompt with spaces\" — send one user message"},
-		{"/goto", "/goto <n> rewind transcript to checkpoint #n inclusive; fork suffix on new lines"},
+		{"/goto", "/goto <checkpoint-id> rewind transcript to checkpoint (e.g. 5, #006a); fork suffix on new lines"},
 		{"/exit, /quit", "exit and show how to resume"},
 		{"/help", "this list"},
 		{"/language", "/language | /language <language> | /language clear — reply language (default English; saved; system prompt)"},

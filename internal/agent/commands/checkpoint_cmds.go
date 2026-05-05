@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
@@ -13,13 +12,14 @@ func SlashGoto(d Deps, parts []string) error {
 		return fmt.Errorf("/goto unavailable")
 	}
 	if len(parts) < 2 {
-		return fmt.Errorf("usage: /goto <n>")
+		return fmt.Errorf("usage: /goto <checkpoint-id>")
 	}
-	n, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-	if err != nil || n < 0 {
-		return fmt.Errorf("usage: /goto <n>")
+	raw := strings.TrimSpace(parts[1])
+	id, err := checkpoint.ParseFullCheckpointID(raw)
+	if err != nil {
+		return fmt.Errorf("usage: /goto <checkpoint-id> (e.g. 5, #006a)")
 	}
-	return d.CheckpointGoto(n)
+	return d.CheckpointGoto(id)
 }
 
 func SlashCheckpointAck(d Deps) {
