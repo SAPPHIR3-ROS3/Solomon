@@ -105,9 +105,12 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 }
 
 func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs []chatstore.Message) (llm.AssistantTurnResult, error) {
-	tools, err := NativeToolParams(r.Mode)
+	tools, err := NativeToolParams("build")
 	if err != nil {
 		return llm.AssistantTurnResult{}, err
+	}
+	if r.MCP != nil {
+		tools = append(tools, r.MCP.OpenAITools()...)
 	}
 	p := openai.ChatCompletionNewParams{
 		Model:             shared.ChatModel(r.Model),
