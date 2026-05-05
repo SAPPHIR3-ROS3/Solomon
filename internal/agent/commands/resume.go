@@ -130,6 +130,9 @@ func NewChat(d Deps) error {
 	if d.ResetReadlineHistory != nil {
 		d.ResetReadlineHistory()
 	}
-	fmt.Fprintln(d.Out, "Started new chat session.")
+	fmt.Fprint(d.Out, "\033[2J\033[H")
+	if d.PrintWelcomeBanner != nil {
+		d.PrintWelcomeBanner()
+	}
 	return nil
 }
