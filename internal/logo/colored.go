@@ -3,9 +3,7 @@ package logo
 import (
 	_ "embed"
 	"math"
-	"regexp"
 	"strings"
-	"unicode"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
@@ -20,114 +18,87 @@ const (
 	logoYellowBrighten   = 0.11
 )
 
-//go:embed map.html
-var logoMapHTML string
+//go:embed colors.txt
+var ColorsRaw string
 
 type LogoLine struct {
 	Plain string
 	ANSI  string
 }
 
-var (
-	reSpanOpen = regexp.MustCompile(`<span\s+style="color:#([0-9a-fA-F]{6})"\s*>`)
-	reBr       = regexp.MustCompile(`(?i)<br\s*/?>`)
-	reAnyTag   = regexp.MustCompile(`(?s)<[^>]*>`)
-)
-
 func WelcomeLogoLines() []LogoLine {
-	lines := parseLogoHTML(logoMapHTML)
-	if len(lines) == 0 {
-		raw := strings.ReplaceAll(ASCII, "\r\n", "\n")
-		parts := strings.Split(strings.TrimRight(raw, "\n"), "\n")
-		out := make([]LogoLine, len(parts))
-		for i, p := range parts {
-			out[i] = LogoLine{Plain: p, ANSI: p}
+	raw := strings.ReplaceAll(ASCII, "\r\n", "\n")
+	txtParts := strings.Split(strings.TrimRight(raw, "\n"), "\n")
+
+	colorRaw := strings.ReplaceAll(ColorsRaw, "\r\n", "\n")
+	colorParts := strings.Split(strings.TrimRight(colorRaw, "\n"), "\n")
+
+	out := make([]LogoLine, len(txtParts))
+	for i, txtLine := range txtParts {
+		runes := []rune(txtLine)
+		hexes := parseColorRow(colorParts[i])
+
+		var ab strings.Builder
+		for j, r := range runes {
+			if j < len(hexes) && hexes[j] != "" {
+				r2, g2, b2 := enhanceLogoRGB(parseHexRGB(hexes[j]))
+				ab.WriteString(termcolor.ForegroundRGB(r2, g2, b2))
+			}
+			ab.WriteRune(r)
 		}
-		return out
+
+		ansiRaw := ab.String() + termcolor.Reset
+		// trimma a destra i Braille blank e spazi (sia da Plain che da ANSI)
+		plainTrimmed := strings.TrimRightFunc(txtLine, func(r rune) bool {
+			return r == '\u2800' || r == ' '
+		})
+
+		// Rimuove prima il Reset finale per poter trimmare i blank sottostanti.
+		ansiBody := strings.TrimSuffix(ansiRaw, termcolor.Reset)
+		ansiTrimmed := trimANSIRight(ansiBody) + termcolor.Reset
+
+		out[i] = LogoLine{Plain: plainTrimmed, ANSI: ansiTrimmed}
 	}
-	return lines
+	return out
 }
 
-func parseLogoHTML(html string) []LogoLine {
-	body := html
-	if i := strings.Index(strings.ToLower(html), "<body"); i >= 0 {
-		if j := strings.Index(html[i:], ">"); j >= 0 {
-			body = html[i+j+1:]
+// trimANSIRight rimuove i caratteri Braille blank (U+2800) e spazi dalla fine di una stringa ANSI,
+// insieme alle sequenze di colore che li precedono. La stringa NON deve includere il Reset finale.
+func trimANSIRight(s string) string {
+	runes := []rune(s)
+	end := len(runes)
+
+	for end > 0 {
+		pos := end - 1
+
+		// Il carattere più a destra: se è blank/spazio, lo rimuoviamo
+		r := runes[pos]
+		if r == '\u2800' || r == ' ' {
+			end-- // rimuove il blank
+			// Ora salta la sequenza escape che precede questo blank (es. \x1b[38;2;R;G;Bm)
+			for end > 0 && runes[end-1] != '\x1b' {
+				end--
+			}
+			if end > 0 && runes[end-1] == '\x1b' {
+				end-- // rimuove anche \x1b
+			}
+			continue
 		}
+
+		// Se siamo su una sequenza escape senza blank dopo, fermiamoci
+		break
 	}
-	if i := strings.Index(strings.ToLower(body), "</body>"); i >= 0 {
-		body = body[:i]
-	}
-	rawLines := reBr.Split(body, -1)
-	lines := make([]LogoLine, 0, len(rawLines))
-	for _, frag := range rawLines {
-		plain, ansi := renderColoredFragments(frag)
-		lines = append(lines, LogoLine{Plain: plain, ANSI: ansi})
-	}
-	for len(lines) > 0 {
-		last := lines[len(lines)-1]
-		if !isVisualPaddingLine(last.Plain) {
-			break
-		}
-		lines = lines[:len(lines)-1]
-	}
-	return lines
+
+	return string(runes[:end])
 }
 
-func isVisualPaddingLine(s string) bool {
-	for _, r := range s {
-		if r != '\u2800' && !unicode.IsSpace(r) {
-			return false
-		}
+func parseColorRow(line string) []string {
+	fields := strings.Fields(strings.TrimSpace(line))
+	hexes := make([]string, len(fields))
+	for i, f := range fields {
+		hexes[i] = f
 	}
-	return true
-}
-
-func renderColoredFragments(frag string) (plain string, ansi string) {
-	var pb, ab strings.Builder
-	var usedColor bool
-	i := 0
-	for i < len(frag) {
-		loc := reSpanOpen.FindStringSubmatchIndex(frag[i:])
-		if loc == nil {
-			t := stripTags(frag[i:])
-			pb.WriteString(t)
-			ab.WriteString(t)
-			break
-		}
-		if loc[0] > 0 {
-			t := stripTags(frag[i : i+loc[0]])
-			pb.WriteString(t)
-			ab.WriteString(t)
-		}
-		startContent := i + loc[1]
-		colorHex := frag[i+loc[2] : i+loc[3]]
-		closeIdx := strings.Index(frag[startContent:], "</span>")
-		if closeIdx < 0 {
-			t := stripTags(frag[startContent:])
-			pb.WriteString(t)
-			ab.WriteString(t)
-			break
-		}
-		text := frag[startContent : startContent+closeIdx]
-		if text != "" {
-			r, g, b := enhanceLogoRGB(parseHexRGB(colorHex))
-			pb.WriteString(text)
-			ab.WriteString(termcolor.ForegroundRGB(r, g, b))
-			ab.WriteString(text)
-			usedColor = true
-		}
-		i = startContent + closeIdx + len("</span>")
-	}
-	out := ab.String()
-	if usedColor {
-		return pb.String(), out + termcolor.Reset
-	}
-	return pb.String(), out
-}
-
-func stripTags(s string) string {
-	return reAnyTag.ReplaceAllString(s, "")
+	return hexes
 }
 
 func parseHexRGB(hex string) (r, g, b uint8) {
