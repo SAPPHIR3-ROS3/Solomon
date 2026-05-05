@@ -298,7 +298,11 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		}
 		llm.ApplyMaxResponseTokens(r.Cfg, &params)
 		astSeq := checkpoint.Bump(r.Session)
-		fmt.Fprintf(r.Out, "%s%s ", checkpoint.FormatLinePrefix(astSeq, r.Session.CheckpointBranchSuffix), termcolor.WrapAssistant(r.Model+":"))
+		reasoningEff := "none"
+		if lbl := r.Cfg.ReasoningEffortLabel(); lbl != "" {
+			reasoningEff = lbl
+		}
+		fmt.Fprintf(r.Out, "%s%s (%s): ", checkpoint.FormatLinePrefix(astSeq, r.Session.CheckpointBranchSuffix), termcolor.WrapAssistant(r.Model), termcolor.WrapThinking(reasoningEff))
 		turn, err := llm.StreamAssistantTurn(runCtx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 		fmt.Fprintln(r.Out)
 		if err != nil {
