@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 
 	"github.com/openai/openai-go/v2"
@@ -44,5 +45,5 @@ type Deps struct {
 
 	PrintWelcomeBanner func()
 
-	CheckpointGoto func(int) error
+	CheckpointGoto func(*checkpoint.FullCheckpointID) error
 }

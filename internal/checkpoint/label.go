@@ -42,12 +42,40 @@ func NextForkSuffix(s *chatstore.Session, forkAtDisplay int) string {
 	if forkAtDisplay < 0 {
 		return ""
 	}
-	if s.ForkChildCount == nil {
-		s.ForkChildCount = map[int]int{}
+	// Trova il suffisso massimo già usato su questo checkpointSeq scansionando
+	// tutti i messaggi (main + orphans).
+	maxIdx := -1
+	for _, m := range s.Messages {
+		if m.CheckpointSeq == forkAtDisplay && m.CheckpointBranchKey != "" {
+			idx := suffixToIndex(m.CheckpointBranchKey)
+			if idx > maxIdx {
+				maxIdx = idx
+			}
+		}
 	}
-	s.ForkChildCount[forkAtDisplay]++
-	idx := s.ForkChildCount[forkAtDisplay] - 1
-	return forkLetterIndex(idx)
+	for _, seg := range s.MainOrphans {
+		for _, m := range seg.Messages {
+			if m.CheckpointSeq == forkAtDisplay && m.CheckpointBranchKey != "" {
+				idx := suffixToIndex(m.CheckpointBranchKey)
+				if idx > maxIdx {
+					maxIdx = idx
+				}
+			}
+		}
+	}
+	return forkLetterIndex(maxIdx + 1)
+}
+
+// suffixToIndex converte un suffisso branch ("a"→0, "z"→25, "aa"→26, ...) in indice.
+// Usa lo stesso sistema base-26 senza zero di forkLetterIndex (come le colonne Excel).
+func suffixToIndex(s string) int {
+	idx := 0
+	for _, r := range s {
+		if r >= 'a' && r <= 'z' {
+			idx = idx*26 + int(r-'a'+1)
+		}
+	}
+	return idx - 1
 }
 
 func forkLetterIndex(i int) string {

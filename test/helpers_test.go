@@ -7,6 +7,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 
 	"github.com/openai/openai-go/v2"
@@ -42,6 +43,6 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		CompactionThresholdTokens:    func() int64 { return thresh },
 		SetCompactionThresholdTokens: func(n int64) { thresh = n },
 		Client: openai.NewClient(option.WithAPIKey("x"), option.WithBaseURL("http://127.0.0.1:9/")),
-		CheckpointGoto: func(int) error { return nil },
+		CheckpointGoto: func(*checkpoint.FullCheckpointID) error { return nil },
 	}
 }
