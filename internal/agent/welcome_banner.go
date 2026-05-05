@@ -80,6 +80,15 @@ func visibleCells(s string) int {
 	return displayCells(reStripANSI.ReplaceAllString(s, ""))
 }
 
+// logoDisplayWidth calcola la larghezza di una riga del logo ignorando il padding
+// a destra composto da Braille blank (U+2800) e spazi.
+func logoDisplayWidth(plain string) int {
+	trimmed := strings.TrimRightFunc(plain, func(r rune) bool {
+		return r == '\u2800' || r == ' '
+	})
+	return displayCells(trimmed)
+}
+
 func borderPaint(s string) string {
 	return termcolor.Bold + termcolor.Gold + s + termcolor.Reset
 }
@@ -90,11 +99,11 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	logoLines := logo.WelcomeLogoLines()
 	var logoW int
 	for _, ln := range logoLines {
-		if w := displayCells(ln.Plain); w > logoW {
+		if w := logoDisplayWidth(ln.Plain); w > logoW {
 			logoW = w
 		}
 	}
-	gap := 4
+	gap := 2
 	colLeftW := logoW + gap
 	if colLeftW < 1+wWel {
 		colLeftW = 1 + wWel
@@ -155,7 +164,7 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 		lw := 0
 		if i < len(logoLines) {
 			left = logoLines[i].ANSI
-			lw = displayCells(logoLines[i].Plain)
+			lw = logoDisplayWidth(logoLines[i].Plain)
 		}
 		rpart := ""
 		if i < len(right) {
