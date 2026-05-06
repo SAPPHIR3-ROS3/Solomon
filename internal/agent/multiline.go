@@ -152,6 +152,7 @@ func csiFinalIndex(buf []byte) int {
 
 func isSoftNewlineCSI(seq string) bool {
 	return strings.Contains(seq, "13;2") || strings.Contains(seq, "13;5") ||
+		strings.Contains(seq, "27;5;13") || strings.Contains(seq, ";5;13") ||
 		strings.Contains(seq, "13;3") || strings.Contains(seq, "27;2") ||
 		strings.Contains(seq, "13u")
 }
