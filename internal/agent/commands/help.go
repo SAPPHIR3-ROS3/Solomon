@@ -9,35 +9,13 @@ import (
 )
 
 func Registry() [][]string {
-	return [][]string{
-		{"/plan", "planning tools only"},
-		{"/add", "/add npx skills add ... | https://skills.sh/... | skill <path/to/.md> [name] [global|project|local], default global"},
-		{"/remove skill", "/remove skill <name>"},
-		{"/skills", "/skills — list installed skills (Local → Project → Global; empty sections omitted)"},
-		{"/build", "build tools (shell, files, subagent)"},
-		{"/checkpoint", "print current checkpoint tag"},
-		{"/clear", "clear terminal (ANSI)"},
-		{"/connect", "add provider (checks /models), pick model (0 current, 1-20 listed, truncated: 21=id, paste id)"},
-		{"/exec", "/exec <prompt> | /exec \"prompt with spaces\" — send one user message"},
-		{"/goto", "/goto <checkpoint-id> rewind transcript to checkpoint (e.g. 5, #006a); fork suffix on new lines"},
-		{"/exit, /quit", "exit and show how to resume"},
-		{"/help", "this list"},
-		{"/language", "/language | /language <language> | /language clear — reply language (default English; saved; system prompt)"},
-		{"/mcp", "list MCP servers from config (URLs redacted)"},
-		{"/legacytools", "/legacytools | /legacy | /legacytools on|off — parse Tool: lines from assistant text + inject syntax into system prompt"},
-		{"/log", "/log {error|warning|info|debug|result} visible log verbosity"},
-		{"/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)"},
-		{"/models", "list models and switch current model"},
-		{"/name", "/name | /name <name> | /name clear — user name (saved; system prompt)"},
-		{"/new", "start a new chat session (empty transcript; prior chat stays saved on disk)"},
-		{"/reasoning", "/reasoning | /reasoning {none|low|med|high} main chat; subagent always none"},
-		{"/resume", "/resume | /resume last | /resume <id|title>"},
-		{"/stats", "toggle token usage line after assistant turns (saved)"},
-		{"/summarize, /compact", "summarize full chat; summary + last 8 msgs; then /clear"},
-		{"/threshold", "/threshold | /threshold <n> auto /summarize when prompt_tokens >= n (n>=32768; default 131072; needs API usage)"},
-		{"/thinking", "/thinking toggles preview; /thinking on|off streamed reasoning (dim gray); tool echoes (yellow)"},
-		{"/timeout", "/timeout <minutes> subagent segment (1–180)"},
+	tab := getSlashBuiltins()
+	rows := make([][]string, len(tab))
+	for i := range tab {
+		b := &tab[i]
+		rows[i] = []string{b.helpCol, b.detail}
 	}
+	return rows
 }
 
 func WriteHelp(w io.Writer, projHex, projRoot string) {

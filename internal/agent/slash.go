@@ -122,84 +122,19 @@ func SlashDispatch(d commands.Deps, line string) error {
 	if name != "" {
 		logging.Log(logging.INFO_LOG_LEVEL, "slash dispatch", logging.LogOptions{Params: map[string]any{"command": name}})
 	}
-	switch name {
-	case "plan":
-		return commands.Plan(d)
-	case "build":
-		return commands.Build(d)
-	case "clear":
-		return commands.Clear(d)
-	case "exec":
-		if d.SubmitUserMessage == nil {
-			return fmt.Errorf("/exec unavailable")
+	ok, err := commands.DispatchBuiltinSlash(d, parts, name)
+	if ok {
+		if errors.Is(err, commands.ErrBuiltinExitChat) {
+			return ErrExitChat
 		}
-		if len(parts) < 2 {
-			return fmt.Errorf("usage: /exec <prompt> or /exec \"prompt with spaces\"")
-		}
-		return d.SubmitUserMessage(strings.Join(parts[1:], " "))
-	case "log":
-		return commands.SlashLog(d, parts)
-	case "reasoning":
-		return commands.Reasoning(d, parts)
-	case "timeout":
-		return commands.Timeout(d, parts)
-	case "stats":
-		return commands.Stats(d)
-	case "thinking":
-		return commands.Thinking(d, parts)
-	case "max_response":
-		return commands.MaxResponse(d, parts)
-	case "threshold":
-		return commands.Threshold(d, parts)
-	case "models":
-		return commands.SlashModels(d)
-	case "connect":
-		return commands.Connect(d)
-	case "new":
-		return commands.NewChat(d)
-	case "resume":
-		return commands.Resume(d, parts[1:])
-	case "summarize", "compact":
-		return commands.Summarize(d)
-	case "exit", "quit":
-		commands.ExitMessage(d)
-		return ErrExitChat
-	case "name":
-		return commands.Name(d, parts)
-	case "language":
-		return commands.Language(d, parts)
-	case "legacytools", "legacy":
-		return commands.LegacyTools(d, parts)
-	case "add":
-		if len(parts) < 2 {
-			return fmt.Errorf(`usage: /add npx ... | skills.sh | skill <.md> [name] [scope]`)
-		}
-		return commands.Add(d, parts[1:])
-	case "skills":
-		return commands.Skills(d)
-	case "remove":
-		if len(parts) < 2 {
-			return fmt.Errorf(`usage: /remove skill <name>`)
-		}
-		return commands.Remove(d, parts[1:])
-	case "help":
-		commands.WriteHelp(d.Out, d.ProjHex, d.ProjRoot)
-		return nil
-	case "goto":
-		return commands.SlashGoto(d, parts)
-	case "checkpoint":
-		commands.SlashCheckpointAck(d)
-		return nil
-	case "mcp":
-		return commands.SlashMCP(d)
-	default:
-		e, err := skills.LookupSkillBySlashCommand(name, d.ProjHex, d.ProjRoot)
-		if err != nil {
-			return err
-		}
-		if e != nil {
-			return commands.RunSkillSlash(d, *e)
-		}
-		return fmt.Errorf("unknown command /%s (try /help)", name)
+		return err
 	}
+	e, skillErr := skills.LookupSkillBySlashCommand(name, d.ProjHex, d.ProjRoot)
+	if skillErr != nil {
+		return skillErr
+	}
+	if e != nil {
+		return commands.RunSkillSlash(d, *e)
+	}
+	return fmt.Errorf("unknown command /%s (try /help)", name)
 }

@@ -125,6 +125,13 @@ func (r *Runtime) refreshReadlinePrompt() {
 	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser("You: "))
 }
 
+func (r *Runtime) refreshReadlinePromptContinue() {
+	if r.RL == nil {
+		return
+	}
+	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser("... "))
+}
+
 func (r *Runtime) systemPrompt() (string, error) {
 	var dump string
 	var err error
@@ -164,7 +171,8 @@ func (r *Runtime) systemPrompt() (string, error) {
 }
 
 func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
-	return r.onUserMessage(ctx, strings.TrimSpace(line), false)
+	clean, _ := stripSoftNewlineMarker(line)
+	return r.onUserMessage(ctx, trimMessageEdges(clean), false)
 }
 
 func (r *Runtime) persistSession() error {
@@ -184,9 +192,14 @@ func (r *Runtime) Run(ctx context.Context) error {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
 	chatstore.FinishSessionLoad(r.Session)
 	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
+	var pendingMultiline []string
 	for {
 		chatstore.FinishSessionLoad(r.Session)
-		r.refreshReadlinePrompt()
+		if len(pendingMultiline) > 0 {
+			r.refreshReadlinePromptContinue()
+		} else {
+			r.refreshReadlinePrompt()
+		}
 		line, err := r.RL.Readline()
 		if err != nil {
 			switch {
@@ -201,7 +214,17 @@ func (r *Runtime) Run(ctx context.Context) error {
 			}
 			return err
 		}
-		line = strings.TrimSpace(line)
+		line, isSoftBreak := stripSoftNewlineMarker(line)
+		if isSoftBreak {
+			pendingMultiline = append(pendingMultiline, line)
+			continue
+		}
+		if len(pendingMultiline) > 0 {
+			pendingMultiline = append(pendingMultiline, line)
+			line = strings.Join(pendingMultiline, "\n")
+			pendingMultiline = nil
+		}
+		line = trimMessageEdges(line)
 		if line == "" {
 			continue
 		}
@@ -224,9 +247,10 @@ func (r *Runtime) Run(ctx context.Context) error {
 }
 
 func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline bool) error {
-	line = strings.TrimSpace(line)
+	clean, _ := stripSoftNewlineMarker(line)
+	line = trimMessageEdges(clean)
 	if strings.HasPrefix(line, "!") {
-		cmd := strings.TrimSpace(strings.TrimPrefix(line, "!"))
+		cmd := trimMessageEdges(strings.TrimPrefix(line, "!"))
 		if cmd == "" {
 			return nil
 		}

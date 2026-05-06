@@ -157,6 +157,7 @@ func main() {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: map[string]any{"provider": prov.Name, "model": cfg.Current.Model, "project_hex": hex}})
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: termcolor.WrapUser("You: "),
+		Stdin:  agent.NewMultilineStdin(agent.PlatformStdin()),
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
