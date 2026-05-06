@@ -42,7 +42,7 @@ func NextForkSuffix(s *chatstore.Session, forkAtDisplay int) string {
 	if forkAtDisplay < 0 {
 		return ""
 	}
-	// Trova il suffisso massimo già usato su questo checkpointSeq scansionando
+
 	// tutti i messaggi (main + orphans).
 	maxIdx := -1
 	for _, m := range s.Messages {
