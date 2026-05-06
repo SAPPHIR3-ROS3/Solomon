@@ -131,6 +131,7 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	right = append(right, "/models to switch models")
 	right = append(right, "/help to show available commands")
 	right = append(right, "!<command> to execute commands on the shell")
+	right = append(right, "Paste multiline text stays as one input (manual Enter to send)")
 	right = append(right, "Alt+Enter / Ctrl+Enter for multiline input")
 	maxRightW := 0
 	for _, ln := range right {

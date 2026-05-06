@@ -8,6 +8,10 @@ import (
 )
 
 const softNewlineRune = '\u2063'
+const bracketedPasteStart = "\x1b[200~"
+const bracketedPasteEnd = "\x1b[201~"
+const bracketedPasteEnable = "\x1b[?2004h"
+const bracketedPasteDisable = "\x1b[?2004l"
 
 type stdinReadCloser interface {
 	io.Reader
@@ -44,10 +48,18 @@ func NewMultilineStdin(inner stdinReadCloser) io.ReadCloser {
 }
 
 type seqTranslator struct {
-	inner   stdinReadCloser
-	prefix  []byte
-	outHold []byte
-	readBuf []byte
+	inner            stdinReadCloser
+	prefix           []byte
+	outHold          []byte
+	readBuf          []byte
+	inBracketedPaste bool
+}
+
+func isPrefixOf(full string, part []byte) bool {
+	if len(part) > len(full) {
+		return false
+	}
+	return string(part) == full[:len(part)]
 }
 
 func (s *seqTranslator) Read(p []byte) (int, error) {
@@ -104,9 +116,58 @@ func (s *seqTranslator) Read(p []byte) (int, error) {
 func (s *seqTranslator) flushPrefix() []byte {
 	var b bytes.Buffer
 	for len(s.prefix) > 0 {
+		if s.inBracketedPaste {
+			if isPrefixOf(bracketedPasteEnd, s.prefix) && len(s.prefix) < len(bracketedPasteEnd) {
+				return b.Bytes()
+			}
+			if bytes.HasPrefix(s.prefix, []byte(bracketedPasteEnd)) {
+				s.prefix = s.prefix[len(bracketedPasteEnd):]
+				s.inBracketedPaste = false
+				continue
+			}
+			if s.prefix[0] == '\r' {
+				if len(s.prefix) >= 2 && s.prefix[1] == '\n' {
+					s.prefix = s.prefix[2:]
+				} else {
+					s.prefix = s.prefix[1:]
+				}
+				b.WriteString(string(softNewlineRune))
+				b.WriteByte('\r')
+				continue
+			}
+			if s.prefix[0] == '\n' {
+				s.prefix = s.prefix[1:]
+				b.WriteString(string(softNewlineRune))
+				b.WriteByte('\r')
+				continue
+			}
+			b.WriteByte(s.prefix[0])
+			s.prefix = s.prefix[1:]
+			continue
+		}
+		if s.prefix[0] == '\n' {
+			s.prefix = s.prefix[1:]
+			b.WriteString(string(softNewlineRune))
+			b.WriteByte('\r')
+			continue
+		}
+		if s.prefix[0] == '\r' && len(s.prefix) >= 2 && s.prefix[1] == '\n' {
+			s.prefix = s.prefix[2:]
+			b.WriteString(string(softNewlineRune))
+			b.WriteByte('\r')
+			continue
+		}
 		if s.prefix[0] != 0x1b {
 			b.WriteByte(s.prefix[0])
 			s.prefix = s.prefix[1:]
+			continue
+		}
+		if isPrefixOf(bracketedPasteStart, s.prefix) && len(s.prefix) < len(bracketedPasteStart) {
+			return b.Bytes()
+		}
+		if bytes.HasPrefix(s.prefix, []byte(bracketedPasteStart)) {
+			s.prefix = s.prefix[len(bracketedPasteStart):]
+			s.inBracketedPaste = true
 			continue
 		}
 		if len(s.prefix) == 1 {
@@ -168,4 +229,14 @@ func (s *seqTranslator) Close() error {
 
 func PlatformStdin() stdinReadCloser {
 	return platformStdin()
+}
+
+func enableBracketedPasteMode(w io.Writer) func() {
+	if w == nil {
+		return func() {}
+	}
+	_, _ = io.WriteString(w, bracketedPasteEnable)
+	return func() {
+		_, _ = io.WriteString(w, bracketedPasteDisable)
+	}
 }

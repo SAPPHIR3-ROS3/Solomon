@@ -192,6 +192,8 @@ func (r *Runtime) Run(ctx context.Context) error {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
 	chatstore.FinishSessionLoad(r.Session)
 	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
+	restoreBracketedPaste := enableBracketedPasteMode(r.RL.Stdout())
+	defer restoreBracketedPaste()
 	var pendingMultiline []string
 	cfg := r.RL.Config.Clone()
 	cfg.Listener = readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
