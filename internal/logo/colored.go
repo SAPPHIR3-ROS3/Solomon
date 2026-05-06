@@ -71,7 +71,7 @@ func trimANSIRight(s string) string {
 	for end > 0 {
 		pos := end - 1
 
-		// Il carattere più a destra: se è blank/spazio, lo rimuoviamo
+	
 		r := runes[pos]
 		if r == '\u2800' || r == ' ' {
 			end-- // rimuove il blank

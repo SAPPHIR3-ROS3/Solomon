@@ -66,7 +66,7 @@ func formatChatTranscript(msgs []chatstore.Message) string {
 func compactSummaryBody(sep, summaryLLM, retainedBlock string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n[Conversation summary]\n%s\n\n%s\n\n", sep, sep, summaryLLM)
-	fmt.Fprintf(&b, "%s\n[Messaggi conservati]\n%s\n\n%s\n\n%s\n", sep, sep, retainedBlock, sep)
+	fmt.Fprintf(&b, "%s\n[Retained messages]\n%s\n\n%s\n\n%s\n", sep, sep, retainedBlock, sep)
 	return b.String()
 }
 
@@ -79,7 +79,7 @@ func SummarizeBody(d Deps) (string, error) {
 	if len(msgs) == 0 {
 		return "", fmt.Errorf("no messages to summarize")
 	}
-	fmt.Fprintln(d.Out, "Riassunto in corso…")
+	fmt.Fprintln(d.Out, "Summarizing…")
 	transcript := formatChatTranscript(msgs)
 	sys := `You summarize technical conversations concisely. Preserve important facts: decisions, file paths, commands, errors, and open tasks. Match the language of the transcript. Output only the summary text, without preamble or meta-commentary.`
 	params := openai.ChatCompletionNewParams{
@@ -136,6 +136,6 @@ func Summarize(d Deps) error {
 	}
 	fmt.Fprint(d.Out, "\033[2J\033[H")
 	fmt.Fprintln(d.Out, body)
-	fmt.Fprintln(d.Out, "Cronologia compattata: riassunto salvato; i messaggi precedenti sono stati sostituiti.")
+	fmt.Fprintln(d.Out, "History compacted: summary saved; previous messages have been replaced.")
 	return nil
 }
