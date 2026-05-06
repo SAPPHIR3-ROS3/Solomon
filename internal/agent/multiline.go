@@ -27,14 +27,16 @@ func trimMessageEdges(s string) string {
 	return string(rs[start:end])
 }
 
-func stripSoftNewlineMarker(s string) (string, bool) {
+func parseMultilineControlRunes(s string) (clean string, softBreak bool) {
 	if s == "" {
 		return s, false
 	}
-	if !strings.ContainsRune(s, softNewlineRune) {
+	softBreak = strings.ContainsRune(s, softNewlineRune)
+	if !softBreak {
 		return s, false
 	}
-	return strings.ReplaceAll(s, string(softNewlineRune), ""), true
+	s = strings.ReplaceAll(s, string(softNewlineRune), "")
+	return s, softBreak
 }
 
 func NewMultilineStdin(inner stdinReadCloser) io.ReadCloser {

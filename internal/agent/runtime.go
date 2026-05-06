@@ -171,7 +171,7 @@ func (r *Runtime) systemPrompt() (string, error) {
 }
 
 func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
-	clean, _ := stripSoftNewlineMarker(line)
+	clean, _ := parseMultilineControlRunes(line)
 	return r.onUserMessage(ctx, trimMessageEdges(clean), false)
 }
 
@@ -193,6 +193,30 @@ func (r *Runtime) Run(ctx context.Context) error {
 	chatstore.FinishSessionLoad(r.Session)
 	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
 	var pendingMultiline []string
+	cfg := r.RL.Config.Clone()
+	cfg.Listener = readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
+		if len(pendingMultiline) == 0 {
+			return nil, 0, false
+		}
+		if line == nil {
+			return nil, 0, false
+		}
+		if (key == readline.CharBackspace || key == readline.CharCtrlH) && len(line) == 0 {
+			last := pendingMultiline[len(pendingMultiline)-1]
+			pendingMultiline = pendingMultiline[:len(pendingMultiline)-1]
+			// Remove previous continuation line artifact, then let readline redraw current row.
+			fmt.Fprint(r.RL.Stdout(), "\x1b[1A\r\x1b[2K")
+			if len(pendingMultiline) == 0 {
+				r.refreshReadlinePrompt()
+			} else {
+				r.refreshReadlinePromptContinue()
+			}
+			rs := []rune(last)
+			return rs, len(rs), true
+		}
+		return nil, 0, false
+	})
+	r.RL.SetConfig(cfg)
 	for {
 		chatstore.FinishSessionLoad(r.Session)
 		if len(pendingMultiline) > 0 {
@@ -214,7 +238,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 			}
 			return err
 		}
-		line, isSoftBreak := stripSoftNewlineMarker(line)
+		line, isSoftBreak := parseMultilineControlRunes(line)
 		if isSoftBreak {
 			pendingMultiline = append(pendingMultiline, line)
 			continue
@@ -247,7 +271,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 }
 
 func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline bool) error {
-	clean, _ := stripSoftNewlineMarker(line)
+	clean, _ := parseMultilineControlRunes(line)
 	line = trimMessageEdges(clean)
 	if strings.HasPrefix(line, "!") {
 		cmd := trimMessageEdges(strings.TrimPrefix(line, "!"))
