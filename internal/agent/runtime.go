@@ -74,6 +74,8 @@ type Runtime struct {
 	Out io.Writer
 
 	MCP *solomonmcp.Manager
+
+	ReplShellFirst bool
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
@@ -191,7 +193,7 @@ func (r *Runtime) persistSessionUnsafe() error {
 func (r *Runtime) Run(ctx context.Context) error {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
 	chatstore.FinishSessionLoad(r.Session)
-	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
+	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
 	restoreBracketedPaste := enableBracketedPasteMode(r.RL.Stdout())
 	defer restoreBracketedPaste()
 	var pendingMultiline []string
@@ -275,7 +277,19 @@ func (r *Runtime) Run(ctx context.Context) error {
 func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline bool) error {
 	clean, _ := parseMultilineControlRunes(line)
 	line = trimMessageEdges(clean)
-	if strings.HasPrefix(line, "!") {
+	if r.ReplShellFirst {
+		if strings.HasPrefix(line, "!") {
+			line = trimMessageEdges(strings.TrimPrefix(line, "!"))
+			if line == "" {
+				return nil
+			}
+		} else {
+			if line == "" {
+				return nil
+			}
+			return r.runUserShellLine(ctx, line)
+		}
+	} else if strings.HasPrefix(line, "!") {
 		cmd := trimMessageEdges(strings.TrimPrefix(line, "!"))
 		if cmd == "" {
 			return nil

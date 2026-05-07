@@ -31,6 +31,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"plan"}, "/plan", "planning tools only", func(d Deps, parts []string) error { return Plan(d) }},
 		{[]string{"build"}, "/build", "build tools (shell, files, subagent)", func(d Deps, parts []string) error { return Build(d) }},
 		{[]string{"clear"}, "/clear", "clear terminal (ANSI)", func(d Deps, parts []string) error { return Clear(d) }},
+		{[]string{"terminal"}, "/terminal", "/terminal | /terminal on|off — shell-first input: plain lines = shell; prefix ! = AI message (default is the opposite)", func(d Deps, parts []string) error { return Terminal(d, parts) }},
 		{[]string{"exec"}, "/exec", "/exec <prompt> | /exec \"prompt with spaces\" — send one user message", func(d Deps, parts []string) error {
 			if d.SubmitUserMessage == nil {
 				return fmt.Errorf("/exec unavailable")
@@ -84,6 +85,43 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"mcp"}, "/mcp", "list MCP servers from config (URLs redacted)", func(d Deps, parts []string) error { return SlashMCP(d) }},
 	}
 	return slashBuiltins
+}
+
+func Terminal(d Deps, parts []string) error {
+	if d.GetReplShellFirst == nil || d.SetReplShellFirst == nil {
+		return fmt.Errorf("/terminal unavailable")
+	}
+	if len(parts) < 2 {
+		next := !d.GetReplShellFirst()
+		d.SetReplShellFirst(next)
+		state := "off"
+		if next {
+			state = "on"
+		}
+		fmt.Fprintf(d.Out, "shell-first REPL: %s (plain line → shell; !… → AI)\n", state)
+		if d.PrintWelcomeBanner != nil {
+			d.PrintWelcomeBanner()
+		}
+		return nil
+	}
+	sw := strings.ToLower(parts[1])
+	switch sw {
+	case "on", "yes", "true", "1":
+		d.SetReplShellFirst(true)
+	case "off", "no", "false", "0":
+		d.SetReplShellFirst(false)
+	default:
+		return fmt.Errorf("usage: /terminal | /terminal on|off")
+	}
+	state := "off"
+	if d.GetReplShellFirst() {
+		state = "on"
+	}
+	fmt.Fprintf(d.Out, "shell-first REPL: %s (plain line → shell; !… → AI)\n", state)
+	if d.PrintWelcomeBanner != nil {
+		d.PrintWelcomeBanner()
+	}
+	return nil
 }
 
 func DispatchBuiltinSlash(d Deps, parts []string, name string) (matched bool, err error) {

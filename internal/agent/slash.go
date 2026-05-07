@@ -60,10 +60,13 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		SubmitUserMessage: func(s string) error { return r.onUserMessage(ctx, s, false) },
 
 		PrintWelcomeBanner: func() {
-			printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot)
+			printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
 		},
 
 		CheckpointGoto: r.ApplyGotoCheckpoint,
+
+		GetReplShellFirst: func() bool { return r.ReplShellFirst },
+		SetReplShellFirst: func(v bool) { r.ReplShellFirst = v },
 	}
 }
 

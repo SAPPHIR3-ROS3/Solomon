@@ -23,6 +23,35 @@ func TestSlashDispatch_emptyWhitespace(t *testing.T) {
 	}
 }
 
+func TestSlashDispatch_terminal(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	d := testDeps(nil)
+	d.Out = buf
+	if err := agent.SlashDispatch(d, "/terminal on"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "shell-first REPL: on") {
+		t.Fatalf("on: %q", buf.String())
+	}
+	buf.Reset()
+	if err := agent.SlashDispatch(d, "/terminal off"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "shell-first REPL: off") {
+		t.Fatalf("off: %q", buf.String())
+	}
+	buf.Reset()
+	if err := agent.SlashDispatch(d, "/terminal"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "shell-first REPL: on") {
+		t.Fatalf("toggle from off: %q", buf.String())
+	}
+	if err := agent.SlashDispatch(d, "/terminal bogus"); err == nil {
+		t.Fatal("want usage error")
+	}
+}
+
 func TestSlashDispatch_planBuildClear(t *testing.T) {
 	var mode string
 	sess := &chatstore.Session{}
