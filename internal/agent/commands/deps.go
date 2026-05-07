@@ -46,4 +46,7 @@ type Deps struct {
 	PrintWelcomeBanner func()
 
 	CheckpointGoto func(*checkpoint.FullCheckpointID) error
+
+	GetReplShellFirst func() bool
+	SetReplShellFirst func(bool)
 }

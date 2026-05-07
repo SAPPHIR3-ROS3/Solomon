@@ -93,7 +93,7 @@ func borderPaint(s string) string {
 	return termcolor.Bold + termcolor.Gold + s + termcolor.Reset
 }
 
-func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string) {
+func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool) {
 	welcomeOut := termcolor.WrapWhite("Welcome to ") + termcolor.WrapBoldGold("Solomon")
 	wWel := visibleCells(welcomeOut)
 	logoLines := logo.WelcomeLogoLines()
@@ -130,7 +130,11 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	right = append(right, "/connect to link new providers")
 	right = append(right, "/models to switch models")
 	right = append(right, "/help to show available commands")
-	right = append(right, "!<command> to execute commands on the shell")
+	if replShellFirst {
+		right = append(right, "!<prompt> to send input to the assistant")
+	} else {
+		right = append(right, "!<command> to execute commands on the shell")
+	}
 	right = append(right, "Paste multiline text stays as one input (manual Enter to send)")
 	right = append(right, "Alt+Enter / Ctrl+Enter for multiline input")
 	maxRightW := 0
