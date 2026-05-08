@@ -20,6 +20,9 @@ var buildRaw string
 //go:embed templates/title.tmpl
 var titleRaw string
 
+//go:embed templates/summarize.tmpl
+var summarizeRaw string
+
 type Data struct {
 	Tools                 string
 	Syntax                string
@@ -37,6 +40,10 @@ type Data struct {
 
 type TitleData struct {
 	Language string
+}
+
+type SummarizeData struct {
+	Transcript string
 }
 
 func NativeToolInvocationSyntax() string {
@@ -83,6 +90,10 @@ func RenderBuild(d Data) (string, error) {
 
 func RenderTitle(d TitleData) (string, error) {
 	return executeTemplate("title", titleRaw, d)
+}
+
+func RenderSummarize(d SummarizeData) (string, error) {
+	return executeTemplate("summarize", summarizeRaw, d)
 }
 
 func render(raw string, d Data) (string, error) {
