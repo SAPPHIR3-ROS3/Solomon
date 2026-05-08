@@ -11,11 +11,17 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
 )
+
+const summarizeSystemPromptTemplate = `You summarize technical conversations concisely.
+Preserve important facts: decisions, file paths, commands, errors, and open tasks.
+Match the language of the transcript.
+Output only the summary text, without preamble or meta-commentary.`
 
 func Threshold(d Deps, parts []string) error {
 	if len(parts) < 2 {
@@ -63,10 +69,85 @@ func formatChatTranscript(msgs []chatstore.Message) string {
 	return b.String()
 }
 
+func summarizePromptFromTemplate(transcript string) (string, string) {
+	user, err := prompt.RenderSummarize(prompt.SummarizeData{Transcript: transcript})
+	if err != nil {
+		return summarizeSystemPromptTemplate, transcript
+	}
+	return summarizeSystemPromptTemplate, user
+}
+
+func summarizeToolObjective(tc chatstore.ToolCall) string {
+	name := strings.TrimSpace(tc.Name)
+	if name == "" {
+		name = "tool"
+	}
+	args := strings.TrimSpace(compactJSONArgs(tc.Arguments))
+	if args == "" {
+		return fmt.Sprintf("Use %s to advance the task.", name)
+	}
+	return fmt.Sprintf("Use %s to advance the task with args: %s", name, truncateRunes(args, 140))
+}
+
+func appendRetainedEntry(entries *[]chatstore.Message, role, content string) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return
+	}
+	if role == "assistant" && len(*entries) > 0 && (*entries)[len(*entries)-1].Role == "assistant" {
+		(*entries)[len(*entries)-1].Content = strings.TrimSpace((*entries)[len(*entries)-1].Content + "\n\n" + content)
+		return
+	}
+	*entries = append(*entries, chatstore.Message{Role: role, Content: content})
+}
+
+func formatRetainedMessages(msgs []chatstore.Message) string {
+	var entries []chatstore.Message
+	for _, m := range msgs {
+		switch m.Role {
+		case "user":
+			if strings.HasPrefix(strings.TrimSpace(m.Content), "tool_result(") {
+				continue
+			}
+			appendRetainedEntry(&entries, "user", m.Content)
+		case "assistant":
+			var parts []string
+			rtxt, cshow := chatstore.AssistantDisplayParts(m)
+			if rtxt != "" {
+				parts = append(parts, "Reasoning:\n"+rtxt)
+			}
+			if cshow != "" {
+				parts = append(parts, cshow)
+			}
+			for _, tc := range m.ToolCalls {
+				parts = append(parts, "Tool objective: "+summarizeToolObjective(tc))
+			}
+			appendRetainedEntry(&entries, "assistant", strings.Join(parts, "\n\n"))
+		case "tool":
+			continue
+		default:
+			appendRetainedEntry(&entries, m.Role, m.Content)
+		}
+	}
+	var b strings.Builder
+	for _, m := range entries {
+		switch m.Role {
+		case "user":
+			fmt.Fprintf(&b, "User:\n%s\n\n", m.Content)
+		case "assistant":
+			fmt.Fprintf(&b, "Assistant:\n%s\n\n", m.Content)
+		default:
+			fmt.Fprintf(&b, "%s:\n%s\n\n", m.Role, m.Content)
+		}
+	}
+	return b.String()
+}
+
 func compactSummaryBody(sep, summaryLLM, retainedBlock string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n[Conversation summary]\n%s\n\n%s\n\n", sep, sep, summaryLLM)
-	fmt.Fprintf(&b, "%s\n[Retained messages]\n%s\n\n%s\n\n%s\n", sep, sep, retainedBlock, sep)
+	color := termcolor.WrapContext
+	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s\n\n", color(sep), color("[Conversation summary]"), color(sep), color(summaryLLM))
+	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s\n\n%s\n", color(sep), color("[Retained messages]"), color(sep), color(retainedBlock), color(sep))
 	return b.String()
 }
 
@@ -81,12 +162,12 @@ func SummarizeBody(d Deps) (string, error) {
 	}
 	fmt.Fprintln(d.Out, "Summarizing…")
 	transcript := formatChatTranscript(msgs)
-	sys := `You summarize technical conversations concisely. Preserve important facts: decisions, file paths, commands, errors, and open tasks. Match the language of the transcript. Output only the summary text, without preamble or meta-commentary.`
+	sys, userPrompt := summarizePromptFromTemplate(transcript)
 	params := openai.ChatCompletionNewParams{
 		Model: shared.ChatModel(d.Model()),
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(sys),
-			openai.UserMessage(transcript),
+			openai.UserMessage(userPrompt),
 		},
 		ReasoningEffort: d.Cfg.GlobalReasoningEffort(),
 	}
@@ -109,9 +190,9 @@ func SummarizeBody(d Deps) (string, error) {
 	}
 	var retainedBlock string
 	if len(msgs) > 8 {
-		retainedBlock = formatChatTranscript(msgs[len(msgs)-8:])
+		retainedBlock = formatRetainedMessages(msgs[len(msgs)-8:])
 	} else {
-		retainedBlock = formatChatTranscript(msgs)
+		retainedBlock = formatRetainedMessages(msgs)
 	}
 	return compactSummaryBody(sep, summary, retainedBlock), nil
 }
