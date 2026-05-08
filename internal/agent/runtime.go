@@ -131,7 +131,7 @@ func (r *Runtime) refreshReadlinePromptContinue() {
 	if r.RL == nil {
 		return
 	}
-	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser("... "))
+	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser(".... "))
 }
 
 func (r *Runtime) systemPrompt() (string, error) {
