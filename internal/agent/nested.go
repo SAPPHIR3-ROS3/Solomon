@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
@@ -105,18 +106,18 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 }
 
 func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs []chatstore.Message) (llm.AssistantTurnResult, error) {
-	tools, err := NativeToolParams("build")
+	toolParams, err := agenttools.NativeToolParams("build")
 	if err != nil {
 		return llm.AssistantTurnResult{}, err
 	}
 	if r.MCP != nil {
-		tools = append(tools, r.MCP.OpenAITools()...)
+		toolParams = append(toolParams, r.MCP.OpenAITools()...)
 	}
 	p := openai.ChatCompletionNewParams{
 		Model:             shared.ChatModel(r.Model),
 		Messages:          llm.MessageParams(system, msgs),
 		ReasoningEffort:   shared.ReasoningEffort("none"),
-		Tools:             tools,
+		Tools:             toolParams,
 		ParallelToolCalls: param.NewOpt(true),
 	}
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)

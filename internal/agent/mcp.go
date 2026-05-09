@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
 	"github.com/openai/openai-go/v2"
@@ -26,7 +27,7 @@ func (r *Runtime) Close() error {
 }
 
 func (r *Runtime) toolParams() ([]openai.ChatCompletionToolUnionParam, error) {
-	tools, err := NativeToolParams(r.Mode)
+	tools, err := agenttools.NativeToolParams(r.Mode)
 	if err != nil {
 		return nil, err
 	}
