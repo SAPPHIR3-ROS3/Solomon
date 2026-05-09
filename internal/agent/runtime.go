@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
@@ -138,9 +139,9 @@ func (r *Runtime) systemPrompt() (string, error) {
 	var dump string
 	var err error
 	if r.Mode == "plan" {
-		dump, err = buildPlanToolDump()
+		dump, err = agenttools.BuildPlanToolDump()
 	} else {
-		dump, err = buildBuildToolDump()
+		dump, err = agenttools.BuildBuildToolDump()
 	}
 	if err != nil {
 		return "", err
