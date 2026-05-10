@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 	"github.com/openai/openai-go/v2/shared"
 	to "github.com/pelletier/go-toml/v2"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 const DefaultSubagentTimeoutMinutes = 20
@@ -24,6 +24,8 @@ const DefaultCompactionThresholdTokens int64 = 131072
 const MinCompactionThresholdTokens int64 = 32768
 
 const DefaultSkillSearchMinNormalizedScore = 0.05
+
+const DefaultWebSearchEngine = "duckduckgo"
 
 type Provider struct {
 	Name    string `toml:"name"`
@@ -49,6 +51,21 @@ type Root struct {
 	ResponseLanguage          string     `toml:"response_language"`
 	CompactionThresholdTokens int64      `toml:"compaction_threshold_tokens"`
 	SkillSearchMinNorm        *float64   `toml:"skill_search_min_normalized_score,omitempty"`
+	WebSearchEngine           string     `toml:"web_search_engine,omitempty"`
+	WebSearchAPIKey           string     `toml:"web_search_api_key,omitempty"`
+	WebSearchBaseURL          string     `toml:"web_search_base_url,omitempty"`
+	WebSearchCX               string     `toml:"web_search_cx,omitempty"`
+}
+
+func (r *Root) EffectiveWebSearchEngine() string {
+	if r == nil {
+		return DefaultWebSearchEngine
+	}
+	v := strings.TrimSpace(r.WebSearchEngine)
+	if v == "" {
+		return DefaultWebSearchEngine
+	}
+	return v
 }
 
 func (r *Root) EffectiveResponseLanguage() string {

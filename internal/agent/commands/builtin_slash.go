@@ -83,6 +83,7 @@ func getSlashBuiltins() []slashBuiltin {
 			return nil
 		}},
 		{[]string{"mcp"}, "/mcp", "list MCP servers from config (URLs redacted)", func(d Deps, parts []string) error { return SlashMCP(d) }},
+		{[]string{"testweb"}, "/testweb", "test web search config; OK or NOT OK then duckduckgo fallback", func(d Deps, parts []string) error { return TestWeb(d) }},
 	}
 	return slashBuiltins
 }

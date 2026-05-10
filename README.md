@@ -90,7 +90,45 @@ Main file: `~/.solomon/config.toml`. Typical fields (`[config.Root](internal/con
 | `show_thinking`, `show_usage_stats` | Streams / footer                                |
 | `response_language`                 | Default reply language                          |
 | `compaction_threshold_tokens`       | Auto compaction threshold                       |
+| `web_search_engine`                 | Default engine for the **`webSearch`** tool (omit for `duckduckgo`) |
 
+### Web search (`webSearch`)
+
+The **`webSearch`** tool uses **`web_search_engine`** from `config.toml`. If that field is empty or omitted, **`duckduckgo`** is used. You can also pass **`engine`** and **`extras`** on a single tool call to override merged config-derived values (`[MergeWebSearchExtras](internal/agent/tools/web_search.go)`).
+
+Registered engines (string value → required config / overrides):
+
+| `web_search_engine` | Required `config.toml` | Notes |
+|--------------------|-------------------------|--------|
+| **`duckduckgo`** (default) | None | HTML results from DuckDuckGo; no API key. |
+| **`searxng`** | **`web_search_base_url`** (URL of **your** SearxNG instance, e.g. `https://search.example.net`) | There is **no** built-in pool of public instances. Per-call **`extras.baseURL`** overrides `web_search_base_url`. |
+| **`googlepse`** | **`web_search_api_key`** + **`web_search_cx`** | [Programmable Search Engine](https://developers.google.com/custom-search/v1/overview) (`apiKey`, `cx` in **`extras`** if overriding). **`maxResults`** is capped at **10**. |
+| **`brave`** | **`web_search_api_key`** | Brave Search subscription token (**`X-Subscription-Token`**). Optionally set **`extras.apiKey`** per call. |
+| **`bing`** | **`web_search_api_key`** | Bing Web Search (**`Ocp-Apim-Subscription-Key`**). Optional **`extras.endpoint`** overrides the REST URL (default `https://api.bing.microsoft.com/v7.0/search` — see `[bing.go](internal/search/bing.go)`); there is **no** `web_search_*` mapping for `'endpoint'` in TOML — pass **`extras.endpoint`** only on the **`webSearch`** tool call if needed. |
+
+Example snippets:
+
+```toml
+# Default: DuckDuckGo (nothing else needed)
+web_search_engine = "duckduckgo"
+
+# Self-hosted SearxNG — base URL without trailing slash is fine
+web_search_engine = "searxng"
+web_search_base_url = "https://search.example.net"
+
+# Google Custom Search JSON API
+web_search_engine = "googlepse"
+web_search_api_key = "YOUR_API_KEY"
+web_search_cx = "YOUR_SEARCH_ENGINE_ID"
+
+# Brave Search API
+web_search_engine = "brave"
+web_search_api_key = "YOUR_BRAVE_SUBSCRIPTION_TOKEN"
+
+# Bing Search API (optional custom endpoint via tool extras only)
+web_search_engine = "bing"
+web_search_api_key = "YOUR_SUBSCRIPTION_KEY"
+```
 
 You can edit the file directly or manage providers and models in the REPL with `/connect` and `/models`.
 
