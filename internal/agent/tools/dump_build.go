@@ -20,5 +20,11 @@ func BuildBuildToolDump() (string, error) {
 	if err := appendSearchSkillDump(b); err != nil {
 		return "", err
 	}
+	if err := appendFetchWebDump(b); err != nil {
+		return "", err
+	}
+	if err := appendWebSearchDump(b); err != nil {
+		return "", err
+	}
 	return b.String(), nil
 }

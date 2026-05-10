@@ -72,6 +72,8 @@ Examples (BUILD): Tool: readFile({"path": "cmd/app/main.go"})
 Examples (BUILD): Tool: shell({"command": "go test ./...", "intent": "Run full test suite"})
 Examples (BUILD): Tool: editFile({"path": "cmd/app/main.go", "oldString": "foo", "newString": "bar", "intent": "Fix variable name"})
 Examples (BUILD): Tool: searchSkill({"query": "documentation"})
+Examples (BUILD): Tool: fetchWeb({"url": "https://example.com/docs"})
+Examples (BUILD): Tool: webSearch({"query": "golang context cancel"})
 Examples (BUILD): Tool: loadSkill({"name": "my-skill"})
 `)
 }

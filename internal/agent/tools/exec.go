@@ -19,7 +19,7 @@ func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (a
 			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/plan"}})
 			return nil, err
 		}
-	case "shell", "readFile", "editFile", "subagent", "loadSkill", "searchSkill":
+	case "shell", "readFile", "editFile", "subagent", "loadSkill", "searchSkill", "fetchWeb", "webSearch":
 		if mode != "build" {
 			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
 			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
@@ -49,6 +49,10 @@ func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (a
 		return execLoadSkill(env, inv.Args)
 	case "searchSkill":
 		return execSearchSkill(env, inv.Args)
+	case "fetchWeb":
+		return execFetchWeb(ctx, inv.Args)
+	case "webSearch":
+		return execWebSearch(ctx, env, inv.Args)
 	default:
 		err := fmt.Errorf("unknown tool %q", inv.Name)
 		logging.Log(logging.WARNING_LOG_LEVEL, "unknown tool dispatch", logging.LogOptions{Params: map[string]any{"tool": inv.Name}})

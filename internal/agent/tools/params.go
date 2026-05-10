@@ -22,6 +22,8 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 			subagentOpenAI(),
 			loadSkillOpenAI(),
 			searchSkillOpenAI(),
+			fetchWebOpenAI(),
+			webSearchOpenAI(),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown mode %q", mode)
