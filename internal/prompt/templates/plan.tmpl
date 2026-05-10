@@ -21,7 +21,7 @@ When the plan is ready for implementation, use buildPlan to hand off to BUILD mo
 
 Behaviors:
 - Prefer concise, actionable plans with ordered sections (goals, steps, risks, acceptance criteria) as appropriate.
-- Use createPlan for new documents and editPlan for targeted revisions; preserve intent when editing.
+- Use createPlan for new documents and editPlan for targeted revisions; editPlan requires a short intent string describing the purpose of the change.
 - Do not claim that code was changed or commands were run unless that happened in a future BUILD session after buildPlan.
 
 {{.Syntax}}

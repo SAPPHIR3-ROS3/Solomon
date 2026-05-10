@@ -2,6 +2,7 @@ package tools
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 
@@ -10,12 +11,13 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureEditFile(path, oldString, newString string) {}
+func signatureEditFile(path, oldString, newString, intent string) {}
 
 type editArgs struct {
 	Path      string `json:"path"`
 	OldString string `json:"oldString"`
 	NewString string `json:"newString"`
+	Intent    string `json:"intent"`
 }
 
 func editFileOpenAI() openai.ChatCompletionToolUnionParam {
@@ -23,7 +25,8 @@ func editFileOpenAI() openai.ChatCompletionToolUnionParam {
 		"path":      map[string]any{"type": "string", "description": "Path relative to project root"},
 		"oldString": map[string]any{"type": "string", "description": "Substring to replace once; empty means create/overwrite per tool semantics"},
 		"newString": map[string]any{"type": "string", "description": "New content or replacement text"},
-	}, []string{"path", "oldString", "newString"})
+		"intent":    map[string]any{"type": "string", "description": "Brief phrase describing the purpose of this edit"},
+	}, []string{"path", "oldString", "newString", "intent"})
 }
 
 func appendEditFileDump(b *dumpBuilder) error {
@@ -31,7 +34,7 @@ func appendEditFileDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("editFile", "Replace oldString once with newString, or write newString when oldString empty.", sig)
+	b.addBlock("editFile", "Replace oldString once with newString, or write newString when oldString empty. Requires intent (brief purpose).", sig)
 	return nil
 }
 
@@ -40,13 +43,16 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 	if err := json.Unmarshal(raw, &a); err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(a.Intent) == "" {
+		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
+	}
 	p := resolveProjectPath(env.ProjRoot, a.Path)
 	if a.OldString == "" {
 		if err := os.WriteFile(p, []byte(a.NewString), 0o600); err != nil {
 			return nil, err
 		}
 		env.CheckpointStageProjAbs(p)
-		return map[string]any{"ok": true, "action": "created_or_overwrite"}, nil
+		return map[string]any{"ok": true, "action": "created_or_overwrite", "intent": a.Intent}, nil
 	}
 	b, err := os.ReadFile(p)
 	if err != nil {
@@ -61,5 +67,5 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 		return nil, err
 	}
 	env.CheckpointStageProjAbs(p)
-	return map[string]any{"ok": true, "action": "edited"}, nil
+	return map[string]any{"ok": true, "action": "edited", "intent": a.Intent}, nil
 }

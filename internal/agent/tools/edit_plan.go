@@ -2,6 +2,7 @@ package tools
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,20 +13,22 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureEditPlan(name, oldStr, newStr string) {}
+func signatureEditPlan(name, oldStr, newStr, intent string) {}
 
 type editPlanArgs struct {
-	Name string `json:"name"`
-	Old  string `json:"old"`
-	New  string `json:"new"`
+	Name   string `json:"name"`
+	Old    string `json:"old"`
+	New    string `json:"new"`
+	Intent string `json:"intent"`
 }
 
 func editPlanOpenAI() openai.ChatCompletionToolUnionParam {
 	return nativeToolUnion("editPlan", "Replace first occurrence of old segment in plan file.", map[string]any{
-		"name": map[string]any{"type": "string", "description": "Plan filename"},
-		"old":  map[string]any{"type": "string", "description": "Exact substring to replace once"},
-		"new":  map[string]any{"type": "string", "description": "Replacement text"},
-	}, []string{"name", "old", "new"})
+		"name":   map[string]any{"type": "string", "description": "Plan filename"},
+		"old":    map[string]any{"type": "string", "description": "Exact substring to replace once"},
+		"new":    map[string]any{"type": "string", "description": "Replacement text"},
+		"intent": map[string]any{"type": "string", "description": "Brief phrase describing the purpose of this plan edit"},
+	}, []string{"name", "old", "new", "intent"})
 }
 
 func appendEditPlanDump(b *dumpBuilder) error {
@@ -33,7 +36,7 @@ func appendEditPlanDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("editPlan", "Replace first occurrence of old segment in plan file.", sig)
+	b.addBlock("editPlan", "Replace first occurrence of old segment in plan file. Requires intent (brief purpose).", sig)
 	return nil
 }
 
@@ -41,6 +44,9 @@ func execEditPlan(env *Env, raw json.RawMessage) (any, error) {
 	var a editPlanArgs
 	if err := json.Unmarshal(raw, &a); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(a.Intent) == "" {
+		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
 	}
 	fn, err := project.NormalizePlanName(a.Name)
 	if err != nil {
@@ -63,5 +69,5 @@ func execEditPlan(env *Env, raw json.RawMessage) (any, error) {
 	if err := os.WriteFile(p, []byte(s), 0o600); err != nil {
 		return nil, err
 	}
-	return map[string]any{"ok": true, "path": p}, nil
+	return map[string]any{"ok": true, "path": p, "intent": a.Intent}, nil
 }

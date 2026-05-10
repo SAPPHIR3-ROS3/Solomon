@@ -67,8 +67,10 @@ Tool: TOOL_NAME({JSON_OBJECT})
 Use valid JSON objects with keys matching each tool's schema. Multiple tools: one Tool: line per tool, each on its own line.
 
 Examples (PLAN): Tool: createPlan({"name": "feature.md", "planText": "# Goal\n\n## Steps\n1. ..."})
+Examples (PLAN): Tool: editPlan({"name": "feature.md", "old": "## Steps\n1. A", "new": "## Steps\n1. B", "intent": "Reorder first step"})
 Examples (BUILD): Tool: readFile({"path": "cmd/app/main.go"})
-Examples (BUILD): Tool: shell({"command": "go test ./..."})
+Examples (BUILD): Tool: shell({"command": "go test ./...", "intent": "Run full test suite"})
+Examples (BUILD): Tool: editFile({"path": "cmd/app/main.go", "oldString": "foo", "newString": "bar", "intent": "Fix variable name"})
 Examples (BUILD): Tool: searchSkill({"query": "documentation"})
 Examples (BUILD): Tool: loadSkill({"name": "my-skill"})
 `)
