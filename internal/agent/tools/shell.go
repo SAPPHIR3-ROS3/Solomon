@@ -18,16 +18,17 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureShell(command string) {}
+func signatureShell(command, intent string) {}
 
 func shellOpenAI() openai.ChatCompletionToolUnionParam {
 	return nativeToolUnion("shell", "Run a shell command in the harness working directory.", map[string]any{
 		"command": map[string]any{"type": "string", "description": "Shell command to run"},
+		"intent":  map[string]any{"type": "string", "description": "Brief phrase describing why this command is being run"},
 		"timeoutSeconds": map[string]any{
 			"type":        "integer",
 			"description": "Optional timeout in seconds for this command",
 		},
-	}, []string{"command"})
+	}, []string{"command", "intent"})
 }
 
 func appendShellDump(b *dumpBuilder) error {
@@ -35,7 +36,7 @@ func appendShellDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("shell", "Run a shell command in the harness working directory. Optional JSON fields may tweak behavior.", sig)
+	b.addBlock("shell", "Run a shell command in the harness working directory. Requires intent (brief purpose). Optional JSON fields may tweak behavior.", sig)
 	return nil
 }
 
@@ -51,6 +52,17 @@ func execShell(ctx context.Context, env *Env, raw json.RawMessage) (any, error) 
 	var command string
 	if err := json.Unmarshal(cmdRaw, &command); err != nil {
 		return nil, err
+	}
+	intentRaw, ok := rawMap["intent"]
+	if !ok {
+		return nil, fmt.Errorf("intent required")
+	}
+	var intent string
+	if err := json.Unmarshal(intentRaw, &intent); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(intent) == "" {
+		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
 	}
 	sec := parseOptionalTimeoutSecs(rawMap)
 	timeout := time.Minute
@@ -72,7 +84,7 @@ func execShell(ctx context.Context, env *Env, raw json.RawMessage) (any, error) 
 			exit = ee.ExitCode()
 		}
 	}
-	m := map[string]any{"exit": exit, "output": string(out)}
+	m := map[string]any{"exit": exit, "output": string(out), "intent": intent}
 	if err != nil && !errors.As(err, new(*exec.ExitError)) {
 		m["shell_error"] = err.Error()
 	}
