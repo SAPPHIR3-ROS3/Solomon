@@ -1,6 +1,6 @@
 //go:build !windows
 
-package agent
+package agentruntime
 
 import (
 	"io"
