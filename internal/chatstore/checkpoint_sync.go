@@ -16,6 +16,7 @@ func FinishSessionLoad(s *Session) {
 	}
 	MigrateLegacyCheckpointsToBase0(s)
 	ReconcileCheckpointLast(s)
+	RepairSessionMalformedImages(s)
 }
 
 func MigrateLegacyCheckpointsToBase0(s *Session) {

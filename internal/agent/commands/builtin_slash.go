@@ -31,6 +31,9 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"plan"}, "/plan", "planning tools only", func(d Deps, parts []string) error { return Plan(d) }},
 		{[]string{"build"}, "/build", "build tools (shell, files, subagent)", func(d Deps, parts []string) error { return Build(d) }},
 		{[]string{"clear"}, "/clear", "clear terminal (ANSI)", func(d Deps, parts []string) error { return Clear(d) }},
+		{[]string{"cleansessioncache"}, "/cleansessioncache", "/cleansessioncache — drop broken pasted PNG paths and strip orphaned [img-*] from transcript", func(d Deps, parts []string) error {
+			return CleanSessionCache(d)
+		}},
 		{[]string{"terminal"}, "/terminal", "/terminal | /terminal on|off — shell-first input: plain lines = shell; prefix ! = AI message (default is the opposite)", func(d Deps, parts []string) error { return Terminal(d, parts) }},
 		{[]string{"exec"}, "/exec", "/exec <prompt> | /exec \"prompt with spaces\" — send one user message", func(d Deps, parts []string) error {
 			if d.SubmitUserMessage == nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -54,8 +55,25 @@ func ForegroundRGB(r, g, b uint8) string {
 	return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
 }
 
+func BackgroundRGB(r, g, b uint8) string {
+	return fmt.Sprintf("\033[48;2;%d;%d;%dm", r, g, b)
+}
+
 func WrapContext(s string) string {
 	return Context + s + Reset
+}
+
+func WrapImgTag(tag string) string {
+	return White + BackgroundRGB(0, 209, 240) + tag + Reset
+}
+
+var imgTagRe = regexp.MustCompile(`\[img-\d+\]`)
+
+// ColorizeImgTags highlights [img-<n>] placeholders with WrapImgTag.
+func ColorizeImgTags(s string) string {
+	return imgTagRe.ReplaceAllStringFunc(s, func(match string) string {
+		return WrapImgTag(match)
+	})
 }
 
 func formatContextPromptTok(n int64, estimated bool) string {

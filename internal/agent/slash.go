@@ -63,6 +63,8 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 			printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
 		},
 
+		PersistSession: r.persistSession,
+
 		CheckpointGoto: r.ApplyGotoCheckpoint,
 
 		GetReplShellFirst: func() bool { return r.ReplShellFirst },

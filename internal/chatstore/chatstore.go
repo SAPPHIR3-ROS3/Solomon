@@ -71,6 +71,8 @@ type Session struct {
 	ForkChildCount         map[int]int         `json:"fork_child_count,omitempty"`
 	MainOrphans            []MainOrphanSegment `json:"main_orphans,omitempty"`
 	LastCommitOID          string              `json:"last_commit_oid,omitempty"`
+	ImageSeq               int                 `json:"image_seq,omitempty"`
+	ImageFiles             map[int]string      `json:"image_files,omitempty"`
 }
 
 func ChatIDHex(title string, ts time.Time) string {

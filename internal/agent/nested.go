@@ -115,7 +115,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	}
 	p := openai.ChatCompletionNewParams{
 		Model:             shared.ChatModel(r.Model),
-		Messages:          llm.MessageParams(system, msgs),
+		Messages:          llm.MessageParams(system, msgs, r.Session.ImageFiles),
 		ReasoningEffort:   shared.ReasoningEffort("none"),
 		Tools:             toolParams,
 		ParallelToolCalls: param.NewOpt(true),
