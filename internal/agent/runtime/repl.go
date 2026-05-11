@@ -1,0 +1,149 @@
+package agentruntime
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"time"
+
+	solomonagent "github.com/SAPPHIR3-ROS3/Solomon/internal/agent"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/clipboard"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+
+	readline "github.com/chzyer/readline"
+)
+
+type imgReplDisplayPainter struct{}
+
+func (imgReplDisplayPainter) Paint(line []rune, _ int) []rune {
+	return []rune(termcolor.ColorizeImgTags(string(line)))
+}
+
+func (r *Runtime) Run(ctx context.Context) error {
+	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
+	chatstore.FinishSessionLoad(r.Session)
+	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
+	restoreBracketedPaste := enableBracketedPasteMode(r.RL.Stdout())
+	defer restoreBracketedPaste()
+	var pendingMultiline []string
+	cfg := r.RL.Config.Clone()
+	cfg.Painter = imgReplDisplayPainter{}
+	cfg.Listener = readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
+		if key == readline.CharBackward && len(line) > 0 {
+			if newPos := llm.JumpLeftOverImgTag(line, pos); newPos >= 0 {
+				return line, newPos, true
+			}
+			return nil, 0, false
+		}
+		if key == readline.CharForward && len(line) > 0 {
+			if newPos := llm.JumpRightOverImgTag(line, pos); newPos >= 0 {
+				return line, newPos, true
+			}
+			return nil, 0, false
+		}
+		if key == 22 && clipboard.HasImage() {
+			if r.Session.ID == "" {
+				r.Session.ID = chatstore.NewPlaceholderChatID(time.Now())
+			}
+			if r.Session.ImageFiles == nil {
+				r.Session.ImageFiles = make(map[int]string)
+			}
+			seq := r.Session.ImageSeq
+			r.Session.ImageSeq++
+			dir, err := paths.ChatImagesDir(r.ProjHex)
+			if err == nil {
+				path, err := clipboard.PasteImage(dir, r.Session.ID, seq)
+				if err == nil {
+					r.Session.ImageFiles[seq] = path
+					r.Session.LastMessageAt = time.Now()
+					_ = r.persistSession()
+					tag := llm.ImagePlaceholder(seq)
+					newRunes := make([]rune, 0, len(line)+len(tag))
+					newRunes = append(newRunes, line[:pos]...)
+					newRunes = append(newRunes, []rune(tag)...)
+					newRunes = append(newRunes, line[pos:]...)
+					return newRunes, pos + len([]rune(tag)), true
+				}
+			}
+			return nil, 0, false
+		}
+		if len(pendingMultiline) == 0 {
+			return nil, 0, false
+		}
+		if line == nil {
+			return nil, 0, false
+		}
+		if (key == readline.CharBackspace || key == readline.CharCtrlH) && len(line) == 0 {
+			last := pendingMultiline[len(pendingMultiline)-1]
+			pendingMultiline = pendingMultiline[:len(pendingMultiline)-1]
+			fmt.Fprint(r.RL.Stdout(), "\x1b[1A\r\x1b[2K")
+			if len(pendingMultiline) == 0 {
+				r.refreshReadlinePrompt()
+			} else {
+				r.refreshReadlinePromptContinue()
+			}
+			rs := []rune(last)
+			return rs, len(rs), true
+		}
+		return nil, 0, false
+	})
+	r.RL.SetConfig(cfg)
+	for {
+		chatstore.FinishSessionLoad(r.Session)
+		if len(pendingMultiline) > 0 {
+			r.refreshReadlinePromptContinue()
+		} else {
+			r.refreshReadlinePrompt()
+		}
+		line, err := r.RL.Readline()
+		if err != nil {
+			switch {
+			case errors.Is(err, io.EOF):
+				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (EOF)")
+			case errors.Is(err, readline.ErrInterrupt):
+				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (Ctrl+C at prompt)")
+				commands.ExitMessage(r.slashDeps(ctx))
+				return nil
+			default:
+				logging.Log(logging.ERROR_LOG_LEVEL, "readline failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			}
+			return err
+		}
+		line, isSoftBreak := parseMultilineControlRunes(line)
+		if isSoftBreak {
+			pendingMultiline = append(pendingMultiline, line)
+			continue
+		}
+		if len(pendingMultiline) > 0 {
+			pendingMultiline = append(pendingMultiline, line)
+			line = strings.Join(pendingMultiline, "\n")
+			pendingMultiline = nil
+		}
+		line = trimMessageEdges(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "/") {
+			if err := r.handleSlash(ctx, line); err != nil {
+				if errors.Is(err, solomonagent.ErrExitChat) {
+					logging.Log(logging.INFO_LOG_LEVEL, "user requested exit from chat")
+					return nil
+				}
+				logging.Log(logging.WARNING_LOG_LEVEL, "slash command failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+				fmt.Fprintf(r.Out, "%v\n", err)
+			}
+			continue
+		}
+		if err := r.onUserMessage(ctx, line, true); err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "onUserMessage failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			fmt.Fprintf(r.Out, "error: %v\n", err)
+		}
+	}
+}

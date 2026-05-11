@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
@@ -157,7 +157,7 @@ func main() {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: map[string]any{"provider": prov.Name, "model": cfg.Current.Model, "project_hex": hex}})
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: termcolor.WrapUser("You: "),
-		Stdin:  agent.NewMultilineStdin(agent.PlatformStdin()),
+		Stdin:  agentruntime.NewMultilineStdin(agentruntime.PlatformStdin()),
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -179,7 +179,7 @@ func main() {
 		MainOrphans:            nil,
 		LastCommitOID:          "",
 	}
-	rt := agent.NewRuntime(rl, cfg, prov, hex, root, sess)
+	rt := agentruntime.NewRuntime(rl, cfg, prov, hex, root, sess)
 	rt.InitMCP(ctx)
 	defer rt.Close()
 	if len(os.Args) >= 4 && os.Args[1] == "temp" && os.Args[2] == "exec" {

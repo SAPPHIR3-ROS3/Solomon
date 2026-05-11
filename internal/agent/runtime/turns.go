@@ -1,4 +1,4 @@
-package agent
+package agentruntime
 
 import (
 	"bytes"
@@ -9,42 +9,22 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"time"
 
-	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/clipboard"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
-	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/title"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 
-	readline "github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
-	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/packages/param"
 	"github.com/openai/openai-go/v2/shared"
-	"sync"
 )
-
-var errUserStopGeneration = errors.New("user stopped generation")
-
-const cliMsgGenerationStopped = "Generation stopped"
-
-type imgReplDisplayPainter struct{}
-
-func (imgReplDisplayPainter) Paint(line []rune, _ int) []rune {
-	return []rune(termcolor.ColorizeImgTags(string(line)))
-}
 
 func flushWriter(w io.Writer) {
 	if f, ok := w.(interface{ Flush() error }); ok {
@@ -55,280 +35,6 @@ func flushWriter(w io.Writer) {
 func showGenerationStopped(out io.Writer) {
 	fmt.Fprintf(out, "%s\n", termcolor.WrapRed("["+cliMsgGenerationStopped+"]"))
 	flushWriter(out)
-}
-
-type Runtime struct {
-	RL *readline.Instance
-
-	Client openai.Client
-	Model  string
-	Cfg    *config.Root
-	Prov   *config.Provider
-
-	ProjHex  string
-	ProjRoot string
-
-	Mode string
-
-	Session *chatstore.Session
-
-	CompactionThresholdTokens int64
-
-	EphemeralSession bool
-
-	chatPersistMu              sync.Mutex
-	deferredTitleScheduleMu    sync.Mutex
-	deferredTitleWorkerRunning bool
-
-	Out io.Writer
-
-	MCP *solomonmcp.Manager
-
-	ReplShellFirst bool
-}
-
-func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
-	cl := openai.NewClient(
-		option.WithAPIKey(prov.APIKey),
-		option.WithBaseURL(prov.BaseURL),
-	)
-	return &Runtime{
-		RL:                        rl,
-		Client:                    cl,
-		Model:                     cfg.Current.Model,
-		Cfg:                       cfg,
-		Prov:                      prov,
-		ProjHex:                   projHex,
-		ProjRoot:                  projRoot,
-		Mode:                      "build",
-		Session:                   sess,
-		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
-		Out:                       os.Stdout,
-	}
-}
-
-func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
-	prevP, prevM := r.Cfg.Current.Provider, r.Cfg.Current.Model
-	changed := prevP != providerName || prevM != modelID
-	r.Cfg.Current.Provider = providerName
-	r.Cfg.Current.Model = modelID
-	if changed {
-		config.NoteRecentModelUse(r.Cfg, providerName, modelID)
-	}
-	if err := config.Save(r.Cfg); err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "save config failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		return err
-	}
-	for i := range r.Cfg.Providers {
-		if r.Cfg.Providers[i].Name == providerName {
-			p := &r.Cfg.Providers[i]
-			r.Prov = p
-			r.Model = modelID
-			r.Client = openai.NewClient(
-				option.WithAPIKey(p.APIKey),
-				option.WithBaseURL(p.BaseURL),
-			)
-			return nil
-		}
-	}
-	return fmt.Errorf("provider %q not found", providerName)
-}
-
-func (r *Runtime) refreshReadlinePrompt() {
-	if r.RL == nil {
-		return
-	}
-	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser("You: "))
-}
-
-func (r *Runtime) refreshReadlinePromptContinue() {
-	if r.RL == nil {
-		return
-	}
-	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser(".... "))
-}
-
-func (r *Runtime) systemPrompt() (string, error) {
-	var dump string
-	var err error
-	if r.Mode == "plan" {
-		dump, err = agenttools.BuildPlanToolDump()
-	} else {
-		dump, err = agenttools.BuildBuildToolDump()
-	}
-	if err != nil {
-		return "", err
-	}
-	if r.MCP != nil {
-		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
-			dump = strings.TrimSpace(dump + "\n---\n" + mcpDump)
-		}
-	}
-	absWorkspace := r.ProjRoot
-	if p, err := filepath.Abs(r.ProjRoot); err == nil {
-		absWorkspace = p
-	}
-	syntax := prompt.NativeToolInvocationSyntax()
-	if r.Session.LegacyTools {
-		syntax = strings.TrimSpace(syntax + "\n\n" + prompt.LegacyToolInvocationSyntaxAppend())
-	}
-	d := prompt.Data{
-		Tools:                 dump,
-		Syntax:                syntax,
-		ExtraRules:            "",
-		Language:              r.Cfg.EffectiveResponseLanguage(),
-		UserName:              strings.TrimSpace(r.Cfg.UserName),
-		WorkspaceAbsolutePath: absWorkspace,
-	}
-	if r.Mode == "plan" {
-		return prompt.RenderPlan(d)
-	}
-	return prompt.RenderBuild(d)
-}
-
-func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
-	clean, _ := parseMultilineControlRunes(line)
-	return r.onUserMessage(ctx, trimMessageEdges(clean), false)
-}
-
-func (r *Runtime) persistSession() error {
-	if r.EphemeralSession {
-		return nil
-	}
-	r.chatPersistMu.Lock()
-	defer r.chatPersistMu.Unlock()
-	return chatstore.WriteSession(r.ProjHex, r.Session)
-}
-
-func (r *Runtime) persistSessionUnsafe() error {
-	return chatstore.WriteSession(r.ProjHex, r.Session)
-}
-
-func (r *Runtime) Run(ctx context.Context) error {
-	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
-	chatstore.FinishSessionLoad(r.Session)
-	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
-	restoreBracketedPaste := enableBracketedPasteMode(r.RL.Stdout())
-	defer restoreBracketedPaste()
-	var pendingMultiline []string
-	cfg := r.RL.Config.Clone()
-	cfg.Painter = imgReplDisplayPainter{}
-	cfg.Listener = readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
-		// Arrow left (CharBackward = 2): jump over entire [img-<n>] tag
-		if key == readline.CharBackward && len(line) > 0 {
-			if newPos := llm.JumpLeftOverImgTag(line, pos); newPos >= 0 {
-				return line, newPos, true
-			}
-			return nil, 0, false
-		}
-		// Arrow right (CharForward = 6): jump over entire [img-<n>] tag
-		if key == readline.CharForward && len(line) > 0 {
-			if newPos := llm.JumpRightOverImgTag(line, pos); newPos >= 0 {
-				return line, newPos, true
-			}
-			return nil, 0, false
-		}
-		// Ctrl+V (key == 22): paste image from clipboard as [img-<n>]
-		if key == 22 && clipboard.HasImage() {
-			// Ensure chat has a stable ID before saving images
-			if r.Session.ID == "" {
-				r.Session.ID = chatstore.NewPlaceholderChatID(time.Now())
-			}
-			if r.Session.ImageFiles == nil {
-				r.Session.ImageFiles = make(map[int]string)
-			}
-			seq := r.Session.ImageSeq
-			r.Session.ImageSeq++
-			dir, err := paths.ChatImagesDir(r.ProjHex)
-			if err == nil {
-				path, err := clipboard.PasteImage(dir, r.Session.ID, seq)
-				if err == nil {
-					r.Session.ImageFiles[seq] = path
-					r.Session.LastMessageAt = time.Now()
-					_ = r.persistSession()
-					tag := llm.ImagePlaceholder(seq)
-					newRunes := make([]rune, 0, len(line)+len(tag))
-					newRunes = append(newRunes, line[:pos]...)
-					newRunes = append(newRunes, []rune(tag)...)
-					newRunes = append(newRunes, line[pos:]...)
-					return newRunes, pos + len([]rune(tag)), true
-				}
-			}
-			return nil, 0, false
-		}
-		if len(pendingMultiline) == 0 {
-			return nil, 0, false
-		}
-		if line == nil {
-			return nil, 0, false
-		}
-		if (key == readline.CharBackspace || key == readline.CharCtrlH) && len(line) == 0 {
-			last := pendingMultiline[len(pendingMultiline)-1]
-			pendingMultiline = pendingMultiline[:len(pendingMultiline)-1]
-			// Remove previous continuation line artifact, then let readline redraw current row.
-			fmt.Fprint(r.RL.Stdout(), "\x1b[1A\r\x1b[2K")
-			if len(pendingMultiline) == 0 {
-				r.refreshReadlinePrompt()
-			} else {
-				r.refreshReadlinePromptContinue()
-			}
-			rs := []rune(last)
-			return rs, len(rs), true
-		}
-		return nil, 0, false
-	})
-	r.RL.SetConfig(cfg)
-	for {
-		chatstore.FinishSessionLoad(r.Session)
-		if len(pendingMultiline) > 0 {
-			r.refreshReadlinePromptContinue()
-		} else {
-			r.refreshReadlinePrompt()
-		}
-		line, err := r.RL.Readline()
-		if err != nil {
-			switch {
-			case errors.Is(err, io.EOF):
-				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (EOF)")
-			case errors.Is(err, readline.ErrInterrupt):
-				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (Ctrl+C at prompt)")
-				commands.ExitMessage(r.slashDeps(ctx))
-				return nil
-			default:
-				logging.Log(logging.ERROR_LOG_LEVEL, "readline failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			}
-			return err
-		}
-		line, isSoftBreak := parseMultilineControlRunes(line)
-		if isSoftBreak {
-			pendingMultiline = append(pendingMultiline, line)
-			continue
-		}
-		if len(pendingMultiline) > 0 {
-			pendingMultiline = append(pendingMultiline, line)
-			line = strings.Join(pendingMultiline, "\n")
-			pendingMultiline = nil
-		}
-		line = trimMessageEdges(line)
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "/") {
-			if err := r.handleSlash(ctx, line); err != nil {
-				if errors.Is(err, ErrExitChat) {
-					logging.Log(logging.INFO_LOG_LEVEL, "user requested exit from chat")
-					return nil
-				}
-				logging.Log(logging.WARNING_LOG_LEVEL, "slash command failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-				fmt.Fprintf(r.Out, "%v\n", err)
-			}
-			continue
-		}
-		if err := r.onUserMessage(ctx, line, true); err != nil {
-			logging.Log(logging.ERROR_LOG_LEVEL, "onUserMessage failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			fmt.Fprintf(r.Out, "error: %v\n", err)
-		}
-	}
 }
 
 func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline bool) error {

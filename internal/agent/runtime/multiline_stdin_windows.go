@@ -1,6 +1,6 @@
 //go:build windows
 
-package agent
+package agentruntime
 
 import (
 	readline "github.com/chzyer/readline"
