@@ -38,11 +38,17 @@ type Current struct {
 	Model    string `toml:"model"`
 }
 
+type RecentModelUse struct {
+	Provider string `toml:"provider"`
+	Model    string `toml:"model"`
+}
+
 type Root struct {
 	UserName                  string     `toml:"user_name"`
 	Providers                 []Provider `toml:"providers"`
-	Current                   Current    `toml:"current"`
-	SubagentTimeoutMinutes    int        `toml:"subagent_timeout_minutes"`
+	Current                   Current          `toml:"current"`
+	RecentModelUses           []RecentModelUse `toml:"recent_model_uses,omitempty"`
+	SubagentTimeoutMinutes    int              `toml:"subagent_timeout_minutes"`
 	ReasoningEffort           string     `toml:"reasoning_effort"`
 	LogLevel                  string     `toml:"log_level"`
 	MaxResponseTokens         int        `toml:"max_response_tokens"`
@@ -235,6 +241,32 @@ func Save(r *Root) error {
 		return err
 	}
 	return os.Rename(tmp, cfgPath)
+}
+
+const recentModelUseCap = 64
+
+func NoteRecentModelUse(r *Root, providerName, modelID string) {
+	if r == nil {
+		return
+	}
+	prov := strings.TrimSpace(providerName)
+	mid := strings.TrimSpace(modelID)
+	if prov == "" || mid == "" {
+		return
+	}
+	use := RecentModelUse{Provider: prov, Model: mid}
+	out := make([]RecentModelUse, 0, len(r.RecentModelUses)+1)
+	out = append(out, use)
+	for _, x := range r.RecentModelUses {
+		if strings.TrimSpace(x.Provider) == prov && strings.TrimSpace(x.Model) == mid {
+			continue
+		}
+		out = append(out, x)
+		if len(out) >= recentModelUseCap {
+			break
+		}
+	}
+	r.RecentModelUses = out
 }
 
 func RunWizardIfNeeded(stdin io.Reader) (*Root, error) {

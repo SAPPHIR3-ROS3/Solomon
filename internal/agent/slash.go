@@ -22,10 +22,20 @@ func (r *Runtime) handleSlash(ctx context.Context, line string) error {
 
 func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 	return commands.Deps{
-		Ctx:     ctx,
-		Out:     r.Out,
-		Stdin:   os.Stdin,
-		Cfg:     r.Cfg,
+		Ctx:   ctx,
+		Out:   r.Out,
+		Stdin: os.Stdin,
+		ReadLine: func(prompt string) (string, error) {
+			if r.RL == nil {
+				return "", fmt.Errorf("/models line input unavailable")
+			}
+			prev := r.RL.Config.Prompt
+			r.RL.SetPrompt(prompt)
+			line, err := r.RL.Readline()
+			r.RL.SetPrompt(prev)
+			return line, err
+		},
+		Cfg: r.Cfg,
 		SaveCfg: func() error { return config.Save(r.Cfg) },
 
 		ProjHex:  r.ProjHex,

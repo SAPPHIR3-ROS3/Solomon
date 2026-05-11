@@ -16,6 +16,7 @@ type Deps struct {
 
 	Out   io.Writer
 	Stdin io.Reader
+	ReadLine func(prompt string) (string, error)
 
 	Cfg     *config.Root
 	SaveCfg func() error

@@ -108,8 +108,13 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 }
 
 func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
+	prevP, prevM := r.Cfg.Current.Provider, r.Cfg.Current.Model
+	changed := prevP != providerName || prevM != modelID
 	r.Cfg.Current.Provider = providerName
 	r.Cfg.Current.Model = modelID
+	if changed {
+		config.NoteRecentModelUse(r.Cfg, providerName, modelID)
+	}
 	if err := config.Save(r.Cfg); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "save config failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
