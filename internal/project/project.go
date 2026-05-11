@@ -90,9 +90,14 @@ func EnsureDirs(projectHex string) error {
 	if err != nil {
 		return err
 	}
+	imgsDir, err := paths.ChatImagesDir(projectHex)
+	if err != nil {
+		return err
+	}
 	dirs := []string{
 		filepath.Join(proot, "chats"),
 		filepath.Join(proot, "chats", "subchats"),
+		filepath.Join(proot, "chats", paths.ImagesDirName),
 		filepath.Join(proot, "plans"),
 		filepath.Join(proot, "skills"),
 	}
@@ -101,6 +106,7 @@ func EnsureDirs(projectHex string) error {
 			return err
 		}
 	}
+	_ = imgsDir
 	return nil
 }
 

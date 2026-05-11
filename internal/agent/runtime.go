@@ -17,10 +17,12 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/clipboard"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/title"
@@ -37,6 +39,12 @@ import (
 var errUserStopGeneration = errors.New("user stopped generation")
 
 const cliMsgGenerationStopped = "Generation stopped"
+
+type imgReplDisplayPainter struct{}
+
+func (imgReplDisplayPainter) Paint(line []rune, _ int) []rune {
+	return []rune(termcolor.ColorizeImgTags(string(line)))
+}
 
 func flushWriter(w io.Writer) {
 	if f, ok := w.(interface{ Flush() error }); ok {
@@ -199,7 +207,50 @@ func (r *Runtime) Run(ctx context.Context) error {
 	defer restoreBracketedPaste()
 	var pendingMultiline []string
 	cfg := r.RL.Config.Clone()
+	cfg.Painter = imgReplDisplayPainter{}
 	cfg.Listener = readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
+		// Arrow left (CharBackward = 2): jump over entire [img-<n>] tag
+		if key == readline.CharBackward && len(line) > 0 {
+			if newPos := llm.JumpLeftOverImgTag(line, pos); newPos >= 0 {
+				return line, newPos, true
+			}
+			return nil, 0, false
+		}
+		// Arrow right (CharForward = 6): jump over entire [img-<n>] tag
+		if key == readline.CharForward && len(line) > 0 {
+			if newPos := llm.JumpRightOverImgTag(line, pos); newPos >= 0 {
+				return line, newPos, true
+			}
+			return nil, 0, false
+		}
+		// Ctrl+V (key == 22): paste image from clipboard as [img-<n>]
+		if key == 22 && clipboard.HasImage() {
+			// Ensure chat has a stable ID before saving images
+			if r.Session.ID == "" {
+				r.Session.ID = chatstore.NewPlaceholderChatID(time.Now())
+			}
+			if r.Session.ImageFiles == nil {
+				r.Session.ImageFiles = make(map[int]string)
+			}
+			seq := r.Session.ImageSeq
+			r.Session.ImageSeq++
+			dir, err := paths.ChatImagesDir(r.ProjHex)
+			if err == nil {
+				path, err := clipboard.PasteImage(dir, r.Session.ID, seq)
+				if err == nil {
+					r.Session.ImageFiles[seq] = path
+					r.Session.LastMessageAt = time.Now()
+					_ = r.persistSession()
+					tag := llm.ImagePlaceholder(seq)
+					newRunes := make([]rune, 0, len(line)+len(tag))
+					newRunes = append(newRunes, line[:pos]...)
+					newRunes = append(newRunes, []rune(tag)...)
+					newRunes = append(newRunes, line[pos:]...)
+					return newRunes, pos + len([]rune(tag)), true
+				}
+			}
+			return nil, 0, false
+		}
 		if len(pendingMultiline) == 0 {
 			return nil, 0, false
 		}
@@ -310,10 +361,14 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 	um := chatstore.Message{Role: "user", Content: line}
 	checkpoint.StampMsg(&um, r.Session, seq)
 	r.Session.Messages = append(r.Session.Messages, um)
+	chatstore.RepairSessionMalformedImages(r.Session)
 	r.Session.LastMessageAt = time.Now()
 	r.Session.LastUserMessageAt = time.Now()
 	if !fromReadline {
-		fmt.Fprintf(r.Out, "%s%s %s\n", checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey), termcolor.WrapUser("You:"), line)
+		echoLine := termcolor.ColorizeImgTags(line)
+		cpPref := checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey)
+		youLbl := termcolor.WrapUser("You:")
+		fmt.Fprintf(r.Out, "%s%s %s\n", cpPref, youLbl, echoLine)
 	}
 	if err := r.persistSession(); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "persist session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -356,7 +411,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		msgs := r.Session.Messages
 		params := openai.ChatCompletionNewParams{
 			Model:             shared.ChatModel(r.Model),
-			Messages:          llm.MessageParams(sys, msgs),
+			Messages:          llm.MessageParams(sys, msgs, r.Session.ImageFiles),
 			ReasoningEffort:   r.Cfg.GlobalReasoningEffort(),
 			Tools:             tools,
 			ParallelToolCalls: param.NewOpt(true),
@@ -423,6 +478,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 					r.Session.CheckpointLast = -1
 					r.Session.LastCommitOID = ""
 					r.Session.LastMessageAt = time.Now()
+					chatstore.RepairSessionMalformedImages(r.Session)
 					_ = r.persistSession()
 					fmt.Fprintln(r.Out, "context summarized")
 					continue

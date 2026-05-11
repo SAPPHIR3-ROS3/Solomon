@@ -1,9 +1,13 @@
 package paths
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
+
+const ImagesDirName = "images"
 
 func SolomonHome() (string, error) {
 	h, err := os.UserHomeDir()
@@ -94,4 +98,25 @@ func LocalSkillsDir(projRoot string) string {
 
 func LocalSkillsMirrorPath(projRoot string) string {
 	return filepath.Join(LocalSkillsDir(projRoot), "skills.json")
+}
+
+func ChatImagesDir(projectHex string) (string, error) {
+	proot, err := ProjectRoot(projectHex)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(proot, "chats", ImagesDirName), nil
+}
+
+func ImagePath(projectHex, chatIDHex string, seq int, t time.Time) (string, error) {
+	dir, err := ChatImagesDir(projectHex)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, imageFileName(chatIDHex, seq, t)), nil
+}
+
+func imageFileName(chatID string, seq int, t time.Time) string {
+	iso := t.Format("2006-01-02T15-04-05.000Z07-00")
+	return fmt.Sprintf("%s.%s.png", chatID, iso)
 }

@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -219,8 +220,67 @@ func TestSlashDispatch_help(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "/goto") || !strings.Contains(out, "/checkpoint") || !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") || !strings.Contains(out, "/mcp") {
+	if !strings.Contains(out, "/goto") || !strings.Contains(out, "/checkpoint") || !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") || !strings.Contains(out, "/mcp") || !strings.Contains(out, "/cleansessioncache") {
 		t.Fatalf("/help unexpected: %.200s", out)
+	}
+}
+
+func TestSlashDispatch_cleansessioncache_badAttachment(t *testing.T) {
+	badPath := filepath.Join(t.TempDir(), "missing.png")
+	sess := &chatstore.Session{
+		Messages:   []chatstore.Message{{Role: "user", Content: "text [img-0]"}},
+		ImageFiles: map[int]string{0: badPath},
+		ID:         "deadbeef",
+	}
+	var persisted bool
+	buf := bytes.NewBuffer(nil)
+	d := testDeps(sess)
+	d.Out = buf
+	d.PersistSession = func() error { persisted = true; return nil }
+	if err := agent.SlashDispatch(d, "/cleansessioncache"); err != nil {
+		t.Fatal(err)
+	}
+	if !persisted {
+		t.Fatal("expected persist")
+	}
+	if strings.Contains(sess.Messages[0].Content, "[img-0]") {
+		t.Fatalf("tag should be stripped: %q", sess.Messages[0].Content)
+	}
+	if len(sess.ImageFiles) != 0 {
+		t.Fatalf("image map cleared, got %+v", sess.ImageFiles)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "dropped") || !strings.Contains(out, "[cleansessioncache]") {
+		t.Fatalf("output: %q", out)
+	}
+}
+
+func TestSlashDispatch_cleansessioncache_keepsValidPath(t *testing.T) {
+	tinyPNG, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAusBWFYpXQAAAABJRU5ErkJggg==")
+	if err != nil {
+		t.Fatal(err)
+	}
+	goodPath := filepath.Join(t.TempDir(), "ok.png")
+	if err := os.WriteFile(goodPath, tinyPNG, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sess := &chatstore.Session{
+		Messages:   []chatstore.Message{{Role: "user", Content: "[img-0] caption"}},
+		ImageFiles: map[int]string{0: goodPath},
+		ID:         "cafe4242",
+	}
+	d := testDeps(sess)
+	d.Out = bytes.NewBuffer(nil)
+	d.PersistSession = func() error { return nil }
+	if err := agent.SlashDispatch(d, "/cleansessioncache"); err != nil {
+		t.Fatal(err)
+	}
+	if sess.Messages[0].Content != "[img-0] caption" {
+		t.Fatalf("want tag kept, got %q", sess.Messages[0].Content)
+	}
+	p, ok := sess.ImageFiles[0]
+	if !ok || p != goodPath {
+		t.Fatalf("map entry dropped incorrectly: %+v", sess.ImageFiles)
 	}
 }
 

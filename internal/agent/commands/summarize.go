@@ -211,6 +211,7 @@ func Summarize(d Deps) error {
 	sess.CheckpointCP0 = true
 	sess.LastCommitOID = ""
 	sess.LastMessageAt = time.Now()
+	chatstore.RepairSessionMalformedImages(sess)
 	if err := chatstore.WriteSession(d.ProjHex, sess); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "/summarize persist compacted session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err

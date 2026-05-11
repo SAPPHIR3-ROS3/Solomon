@@ -59,7 +59,13 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 	}
 
 	r.Session.Title = t
-	r.Session.ID = chatstore.ChatIDHex(t, r.Session.CreatedAt)
+	newChatID := chatstore.ChatIDHex(t, r.Session.CreatedAt)
+	if len(r.Session.ImageFiles) > 0 {
+		if err := chatstore.MigrateImagePathsAfterChatRename(r.ProjHex, r.Session, oldID, newChatID); err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "migrate pasted image paths after rename failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
+	}
+	r.Session.ID = newChatID
 	if err := chatstore.RenameSessionFile(r.ProjHex, oldID, r.Session.ID); err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "rename session file failed", logging.LogOptions{Params: map[string]any{"old_id": oldID, "new_id": r.Session.ID, "err": err.Error()}})
 		if err2 := r.persistSessionUnsafe(); err2 != nil {

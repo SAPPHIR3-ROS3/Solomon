@@ -126,6 +126,8 @@ func NewChat(d Deps) error {
 		ForkChildCount:         nil,
 		MainOrphans:            nil,
 		LastCommitOID:          "",
+		ImageSeq:               0,
+		ImageFiles:             nil,
 	})
 	if d.ResetReadlineHistory != nil {
 		d.ResetReadlineHistory()
