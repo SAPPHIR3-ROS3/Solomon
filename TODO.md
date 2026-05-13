@@ -4,6 +4,22 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ---
 
+## Bugs da risolvere
+
+Ordine suggerito: dal più **facile** al più **difficile** (code review interno).
+
+- **`internal/checkpoint/truncate.go` — `ParseFullCheckpointID`:** con suffisso dopo il numero sequenza (es. `#006a`) il suffisso viene perso per ordine errato di slicing sul token; correggere e aggiungere test in `internal/checkpoint/truncate_test.go`.
+- **`internal/chatstore/session_images.go` — `imageFileHasRecognizedBinaryPayload`:** precedenza `&&` / `||` sul controllo magic GIF; rischio panic per slice fuori range quando `n` è tra 3 e 5; parentesi esplicite sul ramo GIF.
+- **`internal/clipboard/clipboard.go` — paste immagine Windows:** script PowerShell senza `Add-Type -AssemblyName System.Windows.Forms`; può fallire a runtime.
+- **`internal/skills/registry.go` — lock registry:** `flock.TryLockContext` con `context.Background()` e delay lungo come “timeout” effettivo → retry potenzialmente indefinito; usare contesto con deadline e retry breve.
+- **`internal/agent/runtime/repl.go` — paste clipboard:** errori (directory immagini, `PasteImage`, ecc.) assorbiti in silenzio e UX incerta (es. carattere stray nel buffer); feedback esplicito su stdout/stderr.
+- **`internal/agent/commands/summarize.go`:** rischio di salvare escape ANSI nel contenuto del summary se l’output colorato finisce nel testo persistito.
+- **`internal/agent/tools/exec.go`:** ramo `switch` morto o ridondante sul dispatch tool (pulizia dopo verifica comportamento atteso).
+- **`internal/llm/stream.go`:** se l’accumulatore rifiuta un chunk di reasoning, testo reasoning può andare perso (edge case stream/provider).
+- **`internal/agent/runtime/deferred_chat_title.go` (+ turn loop):** possibile race tra aggiornamenti async della sessione e persistenza / append messaggi; allineare alla decisione di estendere `chatPersistMu` (vedi anche TODO architettura compaction).
+
+---
+
 ## 1 — Wiki
 
 - **Stato:** documentazione dispersa tra `README` e codice; nessuna **wiki** dedicata (hosting GitHub/GitLab, sito statico, o spazio strutturato con indice e pagine collegate).
