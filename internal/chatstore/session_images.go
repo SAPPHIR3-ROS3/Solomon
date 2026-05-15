@@ -39,9 +39,9 @@ func imageFileHasRecognizedBinaryPayload(path string) bool {
 	switch {
 	case n >= len(pngMagic) && bytes.Equal(hdr[:len(pngMagic)], pngMagic):
 		return true
-	case n >= 3 && hdr[0] == 0xff && hdr[1] == 0xd8 && hdr[2] == 0xff:
+	case hdr[0] == 0xff && hdr[1] == 0xd8 && hdr[2] == 0xff:
 		return true
-	case n >= 6 && string(hdr[:6]) == "GIF87a" || string(hdr[:6]) == "GIF89a":
+	case n >= 6 && (string(hdr[:6]) == "GIF87a" || string(hdr[:6]) == "GIF89a"):
 		return true
 	default:
 		return false
