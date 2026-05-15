@@ -8,7 +8,6 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 Ordine suggerito: dal più **facile** al più **difficile** (code review interno).
 
-- **`internal/checkpoint/truncate.go` — `ParseFullCheckpointID`:** con suffisso dopo il numero sequenza (es. `#006a`) il suffisso viene perso per ordine errato di slicing sul token; correggere e aggiungere test in `internal/checkpoint/truncate_test.go`.
 - **`internal/chatstore/session_images.go` — `imageFileHasRecognizedBinaryPayload`:** precedenza `&&` / `||` sul controllo magic GIF; rischio panic per slice fuori range quando `n` è tra 3 e 5; parentesi esplicite sul ramo GIF.
 - **`internal/clipboard/clipboard.go` — paste immagine Windows:** script PowerShell senza `Add-Type -AssemblyName System.Windows.Forms`; può fallire a runtime.
 - **`internal/skills/registry.go` — lock registry:** `flock.TryLockContext` con `context.Background()` e delay lungo come “timeout” effettivo → retry potenzialmente indefinito; usare contesto con deadline e retry breve.
