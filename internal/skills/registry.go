@@ -3,13 +3,19 @@ package skills
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/gofrs/flock"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/gofrs/flock"
+)
+
+const (
+	DefaultRegistryLockTimeout    = 2 * time.Second
+	DefaultRegistryLockRetryDelay = 50 * time.Millisecond
 )
 
 func LoadRegistry(path string) (*Registry, error) {
@@ -63,13 +69,18 @@ func WithRegistryLock(lockPath, registryPath string, fn func(*Registry) error) e
 		return err
 	}
 	fl := flock.New(lockPath)
-	ok, err := fl.TryLockContext(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultRegistryLockTimeout)
+	defer cancel()
+	ok, err := fl.TryLockContext(ctx, DefaultRegistryLockRetryDelay)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logging.Log(logging.WARNING_LOG_LEVEL, "skills registry lock not acquired", logging.LogOptions{Params: map[string]any{"lock_path": lockPath, "timeout": DefaultRegistryLockTimeout.String(), "retry_delay": DefaultRegistryLockRetryDelay.String()}})
+			return fmt.Errorf("could not acquire skills registry lock %s within %s", lockPath, DefaultRegistryLockTimeout)
+		}
 		return err
 	}
 	if !ok {
-		logging.Log(logging.WARNING_LOG_LEVEL, "skills registry lock not acquired", logging.LogOptions{Params: map[string]any{"lock_path": lockPath}})
-		return fmt.Errorf("could not acquire skills registry lock %s", lockPath)
+		return fmt.Errorf("could not acquire skills registry lock %s within %s", lockPath, DefaultRegistryLockTimeout)
 	}
 	defer fl.Unlock()
 
