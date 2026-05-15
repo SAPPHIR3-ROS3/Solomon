@@ -62,6 +62,10 @@ func NewManager(ctx context.Context, cfg *Config, stderr io.Writer) *Manager {
 	return m
 }
 
+func NewManagerWithRemoteTools(tools []RemoteTool) *Manager {
+	return &Manager{tools: tools}
+}
+
 func (m *Manager) connectServer(ctx context.Context, sc ServerConfig, stderr io.Writer, usedNames map[string]bool) {
 	connectCtx, cancel := context.WithTimeout(ctx, timeoutFor(sc, defaultConnectTimeout))
 	defer cancel()

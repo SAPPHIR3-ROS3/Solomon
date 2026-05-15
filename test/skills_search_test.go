@@ -1,4 +1,4 @@
-package skills
+package test
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
 )
 
 func TestSearchSkill_fallsBackToFullFileWhenDescriptionMiss(t *testing.T) {
@@ -22,19 +23,19 @@ func TestSearchSkill_fallsBackToFullFileWhenDescriptionMiss(t *testing.T) {
 	}
 	alphaPath := filepath.Join(home, "alpha.md")
 	betaPath := filepath.Join(home, "beta.md")
-	if err := WriteSkillMarkdown(alphaPath, map[string]any{"name": "Alpha", "description": "all about bananas"}, []byte("# Hello\n")); err != nil {
+	if err := skills.WriteSkillMarkdown(alphaPath, map[string]any{"name": "Alpha", "description": "all about bananas"}, []byte("# Hello\n")); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteSkillMarkdown(betaPath, map[string]any{"name": "Beta", "description": "all about oranges"}, []byte("# Body\n\nzebra taxonomy deep dive.\n")); err != nil {
+	if err := skills.WriteSkillMarkdown(betaPath, map[string]any{"name": "Beta", "description": "all about oranges"}, []byte("# Body\n\nzebra taxonomy deep dive.\n")); err != nil {
 		t.Fatal(err)
 	}
-	reg := NewRegistry()
-	reg.Global["k1"] = SkillEntry{
+	reg := skills.NewRegistry()
+	reg.Global["k1"] = skills.SkillEntry{
 		Name:        "Alpha",
 		SkillMdPath: alphaPath,
 		FrontMatter: map[string]any{"name": "Alpha", "description": "all about bananas"},
 	}
-	reg.Global["k2"] = SkillEntry{
+	reg.Global["k2"] = skills.SkillEntry{
 		Name:        "Beta",
 		SkillMdPath: betaPath,
 		FrontMatter: map[string]any{"name": "Beta", "description": "all about oranges"},
@@ -46,7 +47,7 @@ func TestSearchSkill_fallsBackToFullFileWhenDescriptionMiss(t *testing.T) {
 	if err := os.WriteFile(regPath, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h, err := SearchBestInstalledSkill("zebra", "", "", 0)
+	h, err := skills.SearchBestInstalledSkill("zebra", "", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,19 +68,19 @@ func TestSearchSkill_meetsDefaultNormalizedThreshold(t *testing.T) {
 	}
 	alphaPath := filepath.Join(home, "alpha.md")
 	betaPath := filepath.Join(home, "beta.md")
-	if err := WriteSkillMarkdown(alphaPath, map[string]any{"name": "Alpha", "description": "all about bananas"}, []byte("# Hello\n")); err != nil {
+	if err := skills.WriteSkillMarkdown(alphaPath, map[string]any{"name": "Alpha", "description": "all about bananas"}, []byte("# Hello\n")); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteSkillMarkdown(betaPath, map[string]any{"name": "Beta", "description": "all about oranges"}, []byte("# Body\n\nzebra taxonomy deep dive.\n")); err != nil {
+	if err := skills.WriteSkillMarkdown(betaPath, map[string]any{"name": "Beta", "description": "all about oranges"}, []byte("# Body\n\nzebra taxonomy deep dive.\n")); err != nil {
 		t.Fatal(err)
 	}
-	reg := NewRegistry()
-	reg.Global["k1"] = SkillEntry{
+	reg := skills.NewRegistry()
+	reg.Global["k1"] = skills.SkillEntry{
 		Name:        "Alpha",
 		SkillMdPath: alphaPath,
 		FrontMatter: map[string]any{"name": "Alpha", "description": "all about bananas"},
 	}
-	reg.Global["k2"] = SkillEntry{
+	reg.Global["k2"] = skills.SkillEntry{
 		Name:        "Beta",
 		SkillMdPath: betaPath,
 		FrontMatter: map[string]any{"name": "Beta", "description": "all about oranges"},
@@ -91,7 +92,7 @@ func TestSearchSkill_meetsDefaultNormalizedThreshold(t *testing.T) {
 	if err := os.WriteFile(regPath, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h, err := SearchBestInstalledSkill("zebra", "", "", config.DefaultSkillSearchMinNormalizedScore)
+	h, err := skills.SearchBestInstalledSkill("zebra", "", "", config.DefaultSkillSearchMinNormalizedScore)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,11 +112,11 @@ func TestSearchSkill_noMatchWhenScoreZero(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := filepath.Join(home, "only.md")
-	if err := WriteSkillMarkdown(p, map[string]any{"name": "Only", "description": "apples"}, []byte("# x\n")); err != nil {
+	if err := skills.WriteSkillMarkdown(p, map[string]any{"name": "Only", "description": "apples"}, []byte("# x\n")); err != nil {
 		t.Fatal(err)
 	}
-	reg := NewRegistry()
-	reg.Global["k"] = SkillEntry{
+	reg := skills.NewRegistry()
+	reg.Global["k"] = skills.SkillEntry{
 		Name:        "Only",
 		SkillMdPath: p,
 		FrontMatter: map[string]any{"description": "apples"},
@@ -127,7 +128,7 @@ func TestSearchSkill_noMatchWhenScoreZero(t *testing.T) {
 	if err := os.WriteFile(regPath, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err = SearchBestInstalledSkill("zebraxyzunique", "", "", 0)
+	_, err = skills.SearchBestInstalledSkill("zebraxyzunique", "", "", 0)
 	if err == nil {
 		t.Fatal("want error when no term matches description or file")
 	}
@@ -144,11 +145,11 @@ func TestSearchSkill_minNormFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 	betaPath := filepath.Join(home, "beta.md")
-	if err := WriteSkillMarkdown(betaPath, map[string]any{"name": "Beta", "description": "all about oranges"}, []byte("# Body\n\nzebra taxonomy deep dive.\n")); err != nil {
+	if err := skills.WriteSkillMarkdown(betaPath, map[string]any{"name": "Beta", "description": "all about oranges"}, []byte("# Body\n\nzebra taxonomy deep dive.\n")); err != nil {
 		t.Fatal(err)
 	}
-	reg := NewRegistry()
-	reg.Global["k2"] = SkillEntry{
+	reg := skills.NewRegistry()
+	reg.Global["k2"] = skills.SkillEntry{
 		Name:        "Beta",
 		SkillMdPath: betaPath,
 		FrontMatter: map[string]any{"name": "Beta", "description": "all about oranges"},
@@ -160,7 +161,7 @@ func TestSearchSkill_minNormFilters(t *testing.T) {
 	if err := os.WriteFile(regPath, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err = SearchBestInstalledSkill("zebra", "", "", 0.99)
+	_, err = skills.SearchBestInstalledSkill("zebra", "", "", 0.99)
 	if err == nil {
 		t.Fatal("want error when normalized score is below minNorm")
 	}
@@ -177,11 +178,11 @@ func TestResolveSkillForLoad_slashAndName(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := filepath.Join(home, "s.md")
-	if err := WriteSkillMarkdown(p, map[string]any{"name": "Gamma Skill", "description": "d"}, []byte("body line")); err != nil {
+	if err := skills.WriteSkillMarkdown(p, map[string]any{"name": "Gamma Skill", "description": "d"}, []byte("body line")); err != nil {
 		t.Fatal(err)
 	}
-	reg := NewRegistry()
-	reg.Global["gk"] = SkillEntry{
+	reg := skills.NewRegistry()
+	reg.Global["gk"] = skills.SkillEntry{
 		Name:        "Gamma Skill",
 		SkillMdPath: p,
 		FrontMatter: map[string]any{"description": "d"},
@@ -193,17 +194,17 @@ func TestResolveSkillForLoad_slashAndName(t *testing.T) {
 	if err := os.WriteFile(regPath, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	refs := orderedSkillRefs(reg, "", "")
-	binds := AssignSkillSlashCommands(refs)
+	refs := skills.OrderedSkillRefs(reg, "", "")
+	binds := skills.AssignSkillSlashCommands(refs)
 	if len(binds) != 1 {
 		t.Fatalf("binds: %+v", binds)
 	}
 	slashTok := binds[0].Slash
-	e1, s1, err := ResolveSkillForLoad("Gamma Skill", "", "")
+	e1, s1, err := skills.ResolveSkillForLoad("Gamma Skill", "", "")
 	if err != nil || s1 != slashTok || e1.Name != "Gamma Skill" {
 		t.Fatalf("%v %q %+v", err, s1, e1)
 	}
-	e2, s2, err := ResolveSkillForLoad("/"+slashTok, "", "")
+	e2, s2, err := skills.ResolveSkillForLoad("/"+slashTok, "", "")
 	if err != nil || s2 != slashTok || e2.Name != "Gamma Skill" {
 		t.Fatalf("%v %q %+v", err, s2, e2)
 	}

@@ -128,7 +128,7 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 		case "tool":
 			out = append(out, openai.ToolMessage(m.Content, m.ToolCallID))
 		case "user":
-			parts := buildUserContentParts(m.Content, imageFiles)
+			parts := BuildUserContentParts(m.Content, imageFiles)
 			if len(parts) == 0 {
 				out = append(out, openai.UserMessage(""))
 				continue
@@ -145,9 +145,7 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 	return out
 }
 
-// buildUserContentParts splits a user message into content parts, replacing
-// [img-<n>] placeholders with image parts when the corresponding file exists.
-func buildUserContentParts(content string, imageFiles map[int]string) []openai.ChatCompletionContentPartUnionParam {
+func BuildUserContentParts(content string, imageFiles map[int]string) []openai.ChatCompletionContentPartUnionParam {
 	content = chatstore.StripUnresolvedImgPlaceholders(content, imageFiles)
 	if !imgPlaceholderRe.MatchString(content) {
 		return []openai.ChatCompletionContentPartUnionParam{openai.TextContentPart(content)}

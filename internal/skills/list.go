@@ -18,7 +18,7 @@ func InstalledSkillCount(projHex, projRoot string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	locals, projects, globals := partitionInstalledSkills(reg, projHex, projRoot)
+	locals, projects, globals := PartitionInstalledSkills(reg, projHex, projRoot)
 	return len(locals) + len(projects) + len(globals), nil
 }
 
@@ -35,7 +35,7 @@ func ListInstalledSkills(w io.Writer, projHex, projRoot string) error {
 }
 
 func WriteInstalledSkillsSections(w io.Writer, r *Registry, projHex, projRoot string) error {
-	locals, projects, globals := partitionInstalledSkills(r, projHex, projRoot)
+	locals, projects, globals := PartitionInstalledSkills(r, projHex, projRoot)
 	sortSkillEntries(locals)
 	sortSkillEntries(projects)
 	sortSkillEntries(globals)
@@ -49,7 +49,7 @@ func WriteInstalledSkillsSections(w io.Writer, r *Registry, projHex, projRoot st
 	return nil
 }
 
-func partitionInstalledSkills(r *Registry, projHex, projRoot string) (local, project, global []SkillEntry) {
+func PartitionInstalledSkills(r *Registry, projHex, projRoot string) (local, project, global []SkillEntry) {
 	for _, e := range r.Global {
 		global = append(global, e)
 	}
@@ -158,7 +158,7 @@ func WriteSkillsHelpSection(w io.Writer, cmdColMin int, projHex, projRoot string
 	if err != nil {
 		return err
 	}
-	binds := AssignSkillSlashCommands(orderedSkillRefs(reg, projHex, projRoot))
+	binds := AssignSkillSlashCommands(OrderedSkillRefs(reg, projHex, projRoot))
 	if len(binds) == 0 {
 		return nil
 	}

@@ -199,7 +199,7 @@ func SearchBestInstalledSkill(query string, projHex, projRoot string, minNormali
 	if err != nil {
 		return nil, err
 	}
-	refs := orderedSkillRefs(reg, projHex, projRoot)
+	refs := OrderedSkillRefs(reg, projHex, projRoot)
 	binds := AssignSkillSlashCommands(refs)
 	if len(binds) == 0 {
 		return nil, fmt.Errorf("no skills installed")
@@ -245,7 +245,7 @@ func ResolveSkillForLoad(raw string, projHex, projRoot string) (*SkillEntry, str
 	if err != nil {
 		return nil, "", err
 	}
-	refs := orderedSkillRefs(reg, projHex, projRoot)
+	refs := OrderedSkillRefs(reg, projHex, projRoot)
 	binds := AssignSkillSlashCommands(refs)
 	slashKey := strings.ToLower(strings.TrimPrefix(raw, "/"))
 	for i := range binds {
