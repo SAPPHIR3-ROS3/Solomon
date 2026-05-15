@@ -9,7 +9,6 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 Ordine suggerito: dal più **facile** al più **difficile** (code review interno).
 
 - **`internal/clipboard/clipboard.go` — paste immagine Windows:** script PowerShell senza `Add-Type -AssemblyName System.Windows.Forms`; può fallire a runtime.
-- **`internal/skills/registry.go` — lock registry:** `flock.TryLockContext` con `context.Background()` e delay lungo come “timeout” effettivo → retry potenzialmente indefinito; usare contesto con deadline e retry breve.
 - **`internal/agent/runtime/repl.go` — paste clipboard:** errori (directory immagini, `PasteImage`, ecc.) assorbiti in silenzio e UX incerta (es. carattere stray nel buffer); feedback esplicito su stdout/stderr.
 - **`internal/agent/commands/summarize.go`:** rischio di salvare escape ANSI nel contenuto del summary se l’output colorato finisce nel testo persistito.
 - **`internal/agent/tools/exec.go`:** ramo `switch` morto o ridondante sul dispatch tool (pulizia dopo verifica comportamento atteso).
