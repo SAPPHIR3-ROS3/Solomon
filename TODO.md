@@ -8,7 +8,6 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 Ordine suggerito: dal più **facile** al più **difficile** (code review interno).
 
-- **`internal/chatstore/session_images.go` — `imageFileHasRecognizedBinaryPayload`:** precedenza `&&` / `||` sul controllo magic GIF; rischio panic per slice fuori range quando `n` è tra 3 e 5; parentesi esplicite sul ramo GIF.
 - **`internal/clipboard/clipboard.go` — paste immagine Windows:** script PowerShell senza `Add-Type -AssemblyName System.Windows.Forms`; può fallire a runtime.
 - **`internal/skills/registry.go` — lock registry:** `flock.TryLockContext` con `context.Background()` e delay lungo come “timeout” effettivo → retry potenzialmente indefinito; usare contesto con deadline e retry breve.
 - **`internal/agent/runtime/repl.go` — paste clipboard:** errori (directory immagini, `PasteImage`, ecc.) assorbiti in silenzio e UX incerta (es. carattere stray nel buffer); feedback esplicito su stdout/stderr.
