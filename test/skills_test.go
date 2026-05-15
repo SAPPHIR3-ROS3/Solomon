@@ -315,3 +315,26 @@ func TestRunRemove_global(t *testing.T) {
 		t.Fatalf("global map: %v", r2.Global)
 	}
 }
+
+func TestWithRegistryLockHappyPath(t *testing.T) {
+	tmp := t.TempDir()
+	lockPath := filepath.Join(tmp, "registry.lock")
+	registryPath := filepath.Join(tmp, "registry.json")
+	var called bool
+	err := skills.WithRegistryLock(lockPath, registryPath, func(r *skills.Registry) error {
+		if r == nil {
+			t.Fatal("expected non-nil registry")
+		}
+		called = true
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("callback was not invoked")
+	}
+	if _, err := os.Stat(registryPath); os.IsNotExist(err) {
+		t.Fatal("registry file does not exist")
+	}
+}
