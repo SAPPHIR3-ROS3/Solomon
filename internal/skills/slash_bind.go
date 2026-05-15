@@ -44,7 +44,7 @@ func sortRefsByNameKey(refs []SkillRefWithKey) {
 	})
 }
 
-func orderedSkillRefs(r *Registry, projHex, projRoot string) []SkillRefWithKey {
+func OrderedSkillRefs(r *Registry, projHex, projRoot string) []SkillRefWithKey {
 	var locals, projects, globals []SkillRefWithKey
 	for k, e := range r.Global {
 		globals = append(globals, SkillRefWithKey{RegistryKey: k, Entry: e})
@@ -159,7 +159,7 @@ func LookupSkillBySlashCommand(slashLower string, projHex, projRoot string) (*Sk
 	if err != nil {
 		return nil, err
 	}
-	refs := orderedSkillRefs(reg, projHex, projRoot)
+	refs := OrderedSkillRefs(reg, projHex, projRoot)
 	for _, b := range AssignSkillSlashCommands(refs) {
 		if b.Slash == slashLower {
 			e := b.Entry

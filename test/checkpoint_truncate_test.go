@@ -1,20 +1,21 @@
-package checkpoint
+package test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 )
 
 func TestFormatCheckpointTagZero(t *testing.T) {
-	if g := FormatCheckpointTag(0, ""); g != "[#000]" {
+	if g := checkpoint.FormatCheckpointTag(0, ""); g != "[#000]" {
 		t.Fatalf("got %q", g)
 	}
-	if g := FormatCheckpointTag(0, "a"); g != "[#000a]" {
+	if g := checkpoint.FormatCheckpointTag(0, "a"); g != "[#000a]" {
 		t.Fatalf("got %q", g)
 	}
-	if FormatCheckpointTag(-1, "") != "" {
+	if checkpoint.FormatCheckpointTag(-1, "") != "" {
 		t.Fatal("negative seq should be empty")
 	}
 }
@@ -25,7 +26,7 @@ func TestSplitAtInclusiveDisplay(t *testing.T) {
 		{Role: "assistant", CheckpointSeq: 1, CpSeqSet: true},
 		{Role: "user", CheckpointSeq: 2, CpSeqSet: true},
 	}
-	keep, drop, err := SplitAtInclusiveDisplay(msgs, 1)
+	keep, drop, err := checkpoint.SplitAtInclusiveDisplay(msgs, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,21 +39,21 @@ func TestSplitAtInclusiveDisplay(t *testing.T) {
 }
 
 func TestFormatReplPromptPrefixStartsAt000(t *testing.T) {
-	if g := FormatReplPromptPrefix(nil); g != "[#000] " {
+	if g := checkpoint.FormatReplPromptPrefix(nil); g != "[#000] " {
 		t.Fatalf("nil session: got %q", g)
 	}
 	s := &chatstore.Session{CheckpointLast: -1, CheckpointCP0: true}
-	if g := FormatReplPromptPrefix(s); g != "[#000] " {
+	if g := checkpoint.FormatReplPromptPrefix(s); g != "[#000] " {
 		t.Fatalf("fresh session: got %q", g)
 	}
 	s.CheckpointLast = 0
-	if g := FormatReplPromptPrefix(s); g != "[#001] " {
+	if g := checkpoint.FormatReplPromptPrefix(s); g != "[#001] " {
 		t.Fatalf("after checkpoint 0: got %q", g)
 	}
 }
 
 func TestParseFullCheckpointID_plainNumeric(t *testing.T) {
-	id, err := ParseFullCheckpointID("5")
+	id, err := checkpoint.ParseFullCheckpointID("5")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +63,7 @@ func TestParseFullCheckpointID_plainNumeric(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_hashNumeric(t *testing.T) {
-	id, err := ParseFullCheckpointID("#5")
+	id, err := checkpoint.ParseFullCheckpointID("#5")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +73,7 @@ func TestParseFullCheckpointID_hashNumeric(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_paddedNumeric(t *testing.T) {
-	id, err := ParseFullCheckpointID("006")
+	id, err := checkpoint.ParseFullCheckpointID("006")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestParseFullCheckpointID_paddedNumeric(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_hashPaddedNumeric(t *testing.T) {
-	id, err := ParseFullCheckpointID("#006")
+	id, err := checkpoint.ParseFullCheckpointID("#006")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestParseFullCheckpointID_hashPaddedNumeric(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_threeDigit(t *testing.T) {
-	id, err := ParseFullCheckpointID("#010")
+	id, err := checkpoint.ParseFullCheckpointID("#010")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +103,7 @@ func TestParseFullCheckpointID_threeDigit(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_lowerSuffix(t *testing.T) {
-	id, err := ParseFullCheckpointID("#006a")
+	id, err := checkpoint.ParseFullCheckpointID("#006a")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +113,7 @@ func TestParseFullCheckpointID_lowerSuffix(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_suffixNoHash(t *testing.T) {
-	id, err := ParseFullCheckpointID("006a")
+	id, err := checkpoint.ParseFullCheckpointID("006a")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +123,7 @@ func TestParseFullCheckpointID_suffixNoHash(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_upperSuffixNormalized(t *testing.T) {
-	id, err := ParseFullCheckpointID("#006A")
+	id, err := checkpoint.ParseFullCheckpointID("#006A")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +133,7 @@ func TestParseFullCheckpointID_upperSuffixNormalized(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_multiLetterSuffix(t *testing.T) {
-	id, err := ParseFullCheckpointID("#006aa")
+	id, err := checkpoint.ParseFullCheckpointID("#006aa")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +143,7 @@ func TestParseFullCheckpointID_multiLetterSuffix(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_multiLetterUpperSuffix(t *testing.T) {
-	id, err := ParseFullCheckpointID("#006AB")
+	id, err := checkpoint.ParseFullCheckpointID("#006AB")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +153,7 @@ func TestParseFullCheckpointID_multiLetterUpperSuffix(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_trimWhitespace(t *testing.T) {
-	id, err := ParseFullCheckpointID("  #006a  ")
+	id, err := checkpoint.ParseFullCheckpointID("  #006a  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestParseFullCheckpointID_trimWhitespace(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_emptyString(t *testing.T) {
-	id, err := ParseFullCheckpointID("")
+	id, err := checkpoint.ParseFullCheckpointID("")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -175,7 +176,7 @@ func TestParseFullCheckpointID_emptyString(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_whitespaceOnly(t *testing.T) {
-	id, err := ParseFullCheckpointID("   ")
+	id, err := checkpoint.ParseFullCheckpointID("   ")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -188,7 +189,7 @@ func TestParseFullCheckpointID_whitespaceOnly(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_hashOnly(t *testing.T) {
-	id, err := ParseFullCheckpointID("#")
+	id, err := checkpoint.ParseFullCheckpointID("#")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -201,7 +202,7 @@ func TestParseFullCheckpointID_hashOnly(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_nonNumeric(t *testing.T) {
-	id, err := ParseFullCheckpointID("abc")
+	id, err := checkpoint.ParseFullCheckpointID("abc")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -214,7 +215,7 @@ func TestParseFullCheckpointID_nonNumeric(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_hashNonNumeric(t *testing.T) {
-	id, err := ParseFullCheckpointID("#abc")
+	id, err := checkpoint.ParseFullCheckpointID("#abc")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -227,7 +228,7 @@ func TestParseFullCheckpointID_hashNonNumeric(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_negativeNumber(t *testing.T) {
-	id, err := ParseFullCheckpointID("#-1")
+	id, err := checkpoint.ParseFullCheckpointID("#-1")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -240,7 +241,7 @@ func TestParseFullCheckpointID_negativeNumber(t *testing.T) {
 }
 
 func TestParseFullCheckpointID_suffixWithDigits(t *testing.T) {
-	id, err := ParseFullCheckpointID("#006a3")
+	id, err := checkpoint.ParseFullCheckpointID("#006a3")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -261,11 +262,11 @@ func TestSplitAtFullID_gotoMainExact(t *testing.T) {
 		{Role: "user", CheckpointSeq: 7, CheckpointBranchKey: "", CpSeqSet: true},
 	}
 
-	id, err := ParseFullCheckpointID("#006")
+	id, err := checkpoint.ParseFullCheckpointID("#006")
 	if err != nil {
 		t.Fatal(err)
 	}
-	keep, drop, err := SplitAtFullID(msgs, id)
+	keep, drop, err := checkpoint.SplitAtFullID(msgs, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,11 +287,11 @@ func TestSplitAtFullID_gotoBranchA(t *testing.T) {
 		{Role: "user", CheckpointSeq: 7, CheckpointBranchKey: "", CpSeqSet: true},
 	}
 
-	id, err := ParseFullCheckpointID("#006a")
+	id, err := checkpoint.ParseFullCheckpointID("#006a")
 	if err != nil {
 		t.Fatal(err)
 	}
-	keep, drop, err := SplitAtFullID(msgs, id)
+	keep, drop, err := checkpoint.SplitAtFullID(msgs, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,11 +312,11 @@ func TestSplitAtFullID_gotoBranchB(t *testing.T) {
 		{Role: "user", CheckpointSeq: 7, CheckpointBranchKey: "", CpSeqSet: true},
 	}
 
-	id, err := ParseFullCheckpointID("#006b")
+	id, err := checkpoint.ParseFullCheckpointID("#006b")
 	if err != nil {
 		t.Fatal(err)
 	}
-	keep, drop, err := SplitAtFullID(msgs, id)
+	keep, drop, err := checkpoint.SplitAtFullID(msgs, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,11 +337,11 @@ func TestSplitAtFullID_gotoNonexistentBranch(t *testing.T) {
 		{Role: "user", CheckpointSeq: 7, CheckpointBranchKey: "", CpSeqSet: true},
 	}
 
-	id, err := ParseFullCheckpointID("#006c")
+	id, err := checkpoint.ParseFullCheckpointID("#006c")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = SplitAtFullID(msgs, id)
+	_, _, err = checkpoint.SplitAtFullID(msgs, id)
 	if err == nil {
 		t.Fatal("expected error for nonexistent branch")
 	}
@@ -355,11 +356,11 @@ func TestSplitAtFullID_gotoNonexistentSeq(t *testing.T) {
 		{Role: "assistant", CheckpointSeq: 6, CheckpointBranchKey: "", CpSeqSet: true},
 	}
 
-	id, err := ParseFullCheckpointID("#999")
+	id, err := checkpoint.ParseFullCheckpointID("#999")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = SplitAtFullID(msgs, id)
+	_, _, err = checkpoint.SplitAtFullID(msgs, id)
 	if err == nil {
 		t.Fatal("expected error for nonexistent seq")
 	}
