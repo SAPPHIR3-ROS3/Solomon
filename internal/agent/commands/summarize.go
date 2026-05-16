@@ -143,12 +143,69 @@ func formatRetainedMessages(msgs []chatstore.Message) string {
 	return b.String()
 }
 
-func compactSummaryBody(sep, summaryLLM, retainedBlock string) string {
+func CompactSummaryBody(sep, summaryLLM, retainedBlock string) string {
 	var b strings.Builder
-	color := termcolor.WrapContext
-	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s\n\n", color(sep), color("[Conversation summary]"), color(sep), color(summaryLLM))
-	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s\n\n%s\n", color(sep), color("[Retained messages]"), color(sep), color(retainedBlock), color(sep))
+	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s\n\n", sep, "[Conversation summary]", sep, summaryLLM)
+	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s\n\n%s\n", sep, "[Retained messages]", sep, retainedBlock, sep)
 	return b.String()
+}
+
+// RenderCompactSummaryBody applies terminal color to a plain-text summary body
+// for display only. The returned string must never be persisted.
+func RenderCompactSummaryBody(body string) string {
+	return termcolor.WrapContext(body)
+}
+
+// SummarizeProgressLine returns the progress line text for a given number of dots.
+func SummarizeProgressLine(dots int) string {
+	return "Summarizing" + strings.Repeat(".", dots)
+}
+
+// summarizeProgress manages a live same-line progress indicator.
+// It prints "Summarizing" immediately and appends one dot every 5 seconds on the same line.
+// Call stop() exactly once when summarization finishes or fails; it blocks until the
+// goroutine has printed its final line, preventing output interleaving.
+type summarizeProgress struct {
+	out     io.Writer
+	done    chan struct{}
+	stopped chan struct{}
+}
+
+type SummarizeProgress struct {
+	p *summarizeProgress
+}
+
+func NewSummarizeProgress(out io.Writer) *SummarizeProgress {
+	p := &summarizeProgress{out: out, done: make(chan struct{}), stopped: make(chan struct{})}
+	fmt.Fprint(p.out, SummarizeProgressLine(0))
+	go p.run()
+	return &SummarizeProgress{p: p}
+}
+
+func (s *SummarizeProgress) Stop() {
+	s.p.stop()
+}
+
+func (p *summarizeProgress) run() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	defer close(p.stopped)
+	dots := 0
+	for {
+		select {
+		case <-p.done:
+			fmt.Fprintf(p.out, "\r%s\n", SummarizeProgressLine(dots))
+			return
+		case <-ticker.C:
+			dots++
+			fmt.Fprintf(p.out, "\r%s", SummarizeProgressLine(dots))
+		}
+	}
+}
+
+func (p *summarizeProgress) stop() {
+	close(p.done)
+	<-p.stopped
 }
 
 func SummarizeBody(d Deps) (string, error) {
@@ -160,7 +217,7 @@ func SummarizeBody(d Deps) (string, error) {
 	if len(msgs) == 0 {
 		return "", fmt.Errorf("no messages to summarize")
 	}
-	fmt.Fprintln(d.Out, "Summarizing…")
+	progress := NewSummarizeProgress(d.Out)
 	transcript := formatChatTranscript(msgs)
 	sys, userPrompt := summarizePromptFromTemplate(transcript)
 	params := openai.ChatCompletionNewParams{
@@ -174,6 +231,7 @@ func SummarizeBody(d Deps) (string, error) {
 	llm.ApplyMaxResponseTokens(d.Cfg, &params)
 	const sep = "================================================================================"
 	summary, usage, err := llm.StreamText(d.Ctx, d.Client, params, io.Discard, llm.StreamOpts{})
+	progress.Stop()
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "/summarize StreamText failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
@@ -194,7 +252,7 @@ func SummarizeBody(d Deps) (string, error) {
 	} else {
 		retainedBlock = formatRetainedMessages(msgs)
 	}
-	return compactSummaryBody(sep, summary, retainedBlock), nil
+	return CompactSummaryBody(sep, summary, retainedBlock), nil
 }
 
 func Summarize(d Deps) error {
@@ -217,7 +275,7 @@ func Summarize(d Deps) error {
 		return err
 	}
 	fmt.Fprint(d.Out, "\033[2J\033[H")
-	fmt.Fprintln(d.Out, body)
+	fmt.Fprintln(d.Out, RenderCompactSummaryBody(body))
 	fmt.Fprintln(d.Out, "History compacted: summary saved; previous messages have been replaced.")
 	return nil
 }
