@@ -1,21 +1,22 @@
-package llm
+package test
 
 import (
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 )
 
 func TestAggregateConsecutiveTurnUsage_TwoTurns(t *testing.T) {
 	// Simula 2 turni consecutivi con tool calling.
 	// Turno 1: prompt=100, reasoning=50, response=30, total=180
 	// Turno 2: prompt=200 (include risposta turno 1), reasoning=40, response=25, total=265
-	usages := []UsageStats{
+	usages := []llm.UsageStats{
 		{PromptTokens: 100, ReasoningTokens: 50, ResponseTokens: 30, TotalTokens: 180},
 		{PromptTokens: 200, ReasoningTokens: 40, ResponseTokens: 25, TotalTokens: 265},
 	}
 
-	agg := AggregateConsecutiveTurnUsage(usages)
+	agg := llm.AggregateConsecutiveTurnUsage(usages)
 
 	t.Logf("Aggregated: Prompt=%d Cached=%d Reasoning=%d Response=%d Total=%d",
 		agg.PromptTokens, agg.CachedPromptTokens, agg.ReasoningTokens, agg.ResponseTokens, agg.TotalTokens)
@@ -53,15 +54,15 @@ func TestUsageTokensDisplayParts_MultiTurn(t *testing.T) {
 	sys := "system prompt"
 
 	// Aggregato di 2 turni
-	agg := UsageStats{
-		PromptTokens:    200,
+	agg := llm.UsageStats{
+		PromptTokens:       200,
 		CachedPromptTokens: 0,
-		ReasoningTokens: 90, // 50+40
-		ResponseTokens:  55, // 30+25
-		TotalTokens:     0,  // non ricalcolato da AggregateConsecutiveTurnUsage
+		ReasoningTokens:    90, // 50+40
+		ResponseTokens:     55, // 30+25
+		TotalTokens:        345,
 	}
 
-	ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := UsageTokensDisplayParts(sys, msgs, agg, 2)
+	ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(sys, msgs, agg, 2)
 
 	t.Logf("ctxTok=%d usrTok=%d ctxEst=%v reasonTok=%d respTok=%d totalTok=%d",
 		ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok)
