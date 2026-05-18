@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/openai/openai-go/v2"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
@@ -270,6 +271,55 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(out.Usage.ThoughtSecs))
 	}
 	return out, nil
+}
+
+func AggregateConsecutiveTurnUsage(usages []UsageStats) UsageStats {
+	if len(usages) == 0 {
+		return UsageStats{}
+	}
+	if len(usages) == 1 {
+		return usages[0]
+	}
+	out := usages[len(usages)-1]
+	out.ReasoningTokens = 0
+	out.ResponseTokens = 0
+	out.TotalTokens = 0
+	out.OutputTPS = 0
+	out.PromptTPS = 0
+	out.TurnWallSecs = 0
+	for _, u := range usages {
+		out.ReasoningTokens += u.ReasoningTokens
+		out.ResponseTokens += u.ResponseTokens
+		out.TurnWallSecs += u.TurnWallSecs
+		out.OutputTPS += u.OutputTPS
+		out.PromptTPS += u.PromptTPS
+	}
+	n := float64(len(usages))
+	out.OutputTPS /= n
+	out.PromptTPS /= n
+	out.TTFTSecs = usages[0].TTFTSecs
+	return out
+}
+
+func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u UsageStats, turnCount int) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
+	reasoningTok = u.ReasoningTokens
+	responseTok = u.ResponseTokens
+	contextTok, lastUserTok, contextEstimated = UsagePromptParts(system, msgs, u.PromptTokens, u.CachedPromptTokens)
+	if turnCount > 1 {
+		d := reasoningTok + responseTok
+		if contextTok > d {
+			contextTok -= d
+		} else {
+			contextTok = 0
+		}
+		totalTok = contextTok + lastUserTok + reasoningTok + responseTok
+		return
+	}
+	totalTok = u.TotalTokens
+	if totalTok <= 0 {
+		totalTok = contextTok + lastUserTok + reasoningTok + responseTok
+	}
+	return
 }
 
 func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int64) UsageStats {

@@ -110,6 +110,19 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			}
 		}
 	}()
+	var usageTurns []llm.UsageStats
+	var usageSys string
+	var usageMsgs []chatstore.Message
+	flushUsageStats := func() {
+		if !r.Cfg.UsageStatsEnabled() || len(usageTurns) == 0 {
+			usageTurns = nil
+			return
+		}
+		agg := llm.AggregateConsecutiveTurnUsage(usageTurns)
+		ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(usageSys, usageMsgs, agg, len(usageTurns))
+		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, ctxEst, agg.TurnWallSecs))
+		usageTurns = nil
+	}
 	for {
 		sys, err := r.systemPrompt()
 		if err != nil {
@@ -138,16 +151,18 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		fmt.Fprintln(r.Out)
 		if err != nil {
 			if interruptedDuringGeneration(ctx, runCtx, err) {
+				flushUsageStats()
 				logging.Log(logging.INFO_LOG_LEVEL, cliMsgGenerationStopped)
 				showGenerationStopped(r.Out)
 				return nil
 			}
+			flushUsageStats()
 			logging.Log(logging.ERROR_LOG_LEVEL, "assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			return err
 		}
 		if r.Cfg.UsageStatsEnabled() {
-			ctxTok, usrTok, ctxEst := llm.UsagePromptParts(sys, msgs, turn.Usage.PromptTokens, turn.Usage.CachedPromptTokens)
-			fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst, turn.Usage.TurnWallSecs))
+			usageTurns = append(usageTurns, turn.Usage)
+			usageSys, usageMsgs = sys, msgs
 		}
 		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: strings.TrimSpace(turn.ReasoningText)}
 		checkpoint.StampMsg(&ast, r.Session, astSeq)
@@ -173,6 +188,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			}
 		}
 		if len(invs) == 0 {
+			flushUsageStats()
 			if turn.Usage.PromptTokens > 0 && turn.Usage.PromptTokens >= r.CompactionThresholdTokens {
 				deps := r.slashDeps(runCtx)
 				if r.EphemeralSession {
@@ -206,6 +222,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				if err := r.appendSyntheticToolResults(astSeq, invs, toolIDs, i); err != nil {
 					return err
 				}
+				flushUsageStats()
 				showGenerationStopped(r.Out)
 				return nil
 			}
@@ -216,6 +233,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				if err2 := r.appendSyntheticToolResults(astSeq, invs, toolIDs, i); err2 != nil {
 					return err2
 				}
+				flushUsageStats()
 				showGenerationStopped(r.Out)
 				return nil
 			}
