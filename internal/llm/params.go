@@ -89,6 +89,42 @@ func ApplyMaxResponseTokens(cfg *config.Root, p *openai.ChatCompletionNewParams)
 	p.MaxCompletionTokens = param.NewOpt(int64(cfg.MaxResponseTokens))
 }
 
+func ApplyReasoningDisable(p *openai.ChatCompletionNewParams) {
+	if p == nil {
+		return
+	}
+	p.ReasoningEffort = shared.ReasoningEffort("none")
+	applyReasoningDisableExtras(p)
+}
+
+func ApplyChatReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, forceDisable bool) {
+	if p == nil {
+		return
+	}
+	if forceDisable {
+		ApplyReasoningDisable(p)
+		return
+	}
+	if cfg == nil {
+		return
+	}
+	if eff := cfg.GlobalReasoningEffort(); eff != "" {
+		p.ReasoningEffort = eff
+	}
+	if cfg.ReasoningEffortIsNone() {
+		applyReasoningDisableExtras(p)
+	}
+}
+
+func applyReasoningDisableExtras(p *openai.ChatCompletionNewParams) {
+	p.SetExtraFields(map[string]any{
+		"enable_thinking": false,
+		"chat_template_kwargs": map[string]any{
+			"enable_thinking": false,
+		},
+	})
+}
+
 var imgPlaceholderRe = regexp.MustCompile(`\[img-(\d+)\]`)
 
 // ImagePlaceholder returns the placeholder string for a given image sequence number.

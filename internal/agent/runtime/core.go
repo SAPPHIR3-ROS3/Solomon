@@ -119,7 +119,7 @@ func (r *Runtime) refreshReadlinePromptContinue() {
 	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser(".... "))
 }
 
-func (r *Runtime) systemPrompt() (string, error) {
+func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	var dump string
 	var err error
 	if r.Mode == "plan" {
@@ -149,6 +149,7 @@ func (r *Runtime) systemPrompt() (string, error) {
 		ExtraRules:            "",
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
+		DisableThinking:       disableThinking,
 		WorkspaceAbsolutePath: absWorkspace,
 	}
 	if r.Mode == "plan" {

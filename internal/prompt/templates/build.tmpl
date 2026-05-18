@@ -4,6 +4,9 @@ Respond to the user in {{.Language}} for all natural-language assistant output (
 {{end}}{{if .UserName}}
 The user's preferred name is {{.UserName}}. Address and refer to them naturally by this name when appropriate.
 
+{{end}}{{if .DisableThinking}}
+/no_think
+
 {{end}}## System
 
 The Solomon process is running on:

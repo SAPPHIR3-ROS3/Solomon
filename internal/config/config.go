@@ -145,6 +145,14 @@ func ParseReasoningEffortToken(s string) (string, error) {
 	}
 }
 
+func (r *Root) ReasoningEffortIsNone() bool {
+	if r == nil {
+		return false
+	}
+	c, err := ParseReasoningEffortToken(r.ReasoningEffort)
+	return err == nil && c == "none"
+}
+
 func (r *Root) GlobalReasoningEffort() shared.ReasoningEffort {
 	if r == nil {
 		return ""

@@ -15,6 +15,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 
@@ -24,7 +25,7 @@ import (
 )
 
 func (r *Runtime) runNested(ctx context.Context, task string) (string, error) {
-	sys, err := r.systemPrompt()
+	sys, err := r.systemPrompt(true)
 	if err != nil {
 		return "", err
 	}
@@ -137,10 +138,10 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	p := openai.ChatCompletionNewParams{
 		Model:             shared.ChatModel(r.Model),
 		Messages:          llm.MessageParams(system, msgs, r.Session.ImageFiles),
-		ReasoningEffort:   shared.ReasoningEffort("none"),
 		Tools:             toolParams,
 		ParallelToolCalls: param.NewOpt(true),
 	}
+	llm.ApplyReasoningDisable(&p)
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)
 	fmt.Fprintf(r.Out, "%s ", termcolor.WrapAssistant(r.Model+"(subagent):"))
 	turn, err := llm.StreamAssistantTurn(ctx, r.Client, p, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
@@ -158,13 +159,13 @@ func (r *Runtime) summarizeNested(ctx context.Context, msgs []chatstore.Message)
 		sb.WriteString(m.Role + ": " + m.Content + "\n")
 	}
 	p := openai.ChatCompletionNewParams{
-		Model:           shared.ChatModel(r.Model),
+		Model: shared.ChatModel(r.Model),
 		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage("Briefly summarize the following conversation turns."),
+			openai.SystemMessage(prompt.SystemWithNoThink(true, "Briefly summarize the following conversation turns.")),
 			openai.UserMessage(sb.String()),
 		},
-		ReasoningEffort: shared.ReasoningEffort("none"),
 	}
+	llm.ApplyReasoningDisable(&p)
 	llm.ApplyMaxResponseTokens(r.Cfg, &p)
 	resp, err := r.Client.Chat.Completions.New(ctx, p)
 	if err != nil {
