@@ -34,6 +34,19 @@ func (r *Runtime) runNested(ctx context.Context, task string) (string, error) {
 func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) (string, error) {
 	msgs := []chatstore.Message{{Role: "user", Content: task}}
 	var transcript strings.Builder
+	var usageTurns []llm.UsageStats
+	var usageSys string
+	var usageMsgs []chatstore.Message
+	flushUsageStats := func() {
+		if !r.Cfg.UsageStatsEnabled() || len(usageTurns) == 0 {
+			usageTurns = nil
+			return
+		}
+		agg := llm.AggregateConsecutiveTurnUsage(usageTurns)
+		ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(usageSys, usageMsgs, agg, len(usageTurns))
+		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, ctxEst, agg.TurnWallSecs))
+		usageTurns = nil
+	}
 
 	for iteration := 0; iteration < 512; iteration++ {
 		dur := time.Duration(config.SubagentTimeout(r.Cfg)) * time.Minute
@@ -41,6 +54,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 		turn, err := r.streamNestedAssistant(roundCtx, system, msgs)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
+			flushUsageStats()
 			logging.Log(logging.WARNING_LOG_LEVEL, "subagent round deadline exceeded", logging.LogOptions{Params: map[string]any{"timeout_min": config.SubagentTimeout(r.Cfg)}})
 			sum, _ := r.summarizeNested(ctx, msgs)
 			fmt.Fprintf(r.Out, "\n%s\nSubagent paused (timeout).\nContinue? [y/N]: ", sum)
@@ -52,8 +66,13 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 			continue
 		}
 		if err != nil {
+			flushUsageStats()
 			logging.Log(logging.ERROR_LOG_LEVEL, "subagent assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			return transcript.String(), err
+		}
+		if r.Cfg.UsageStatsEnabled() {
+			usageTurns = append(usageTurns, turn.Usage)
+			usageSys, usageMsgs = system, msgs
 		}
 		if rt := strings.TrimSpace(turn.ReasoningText); rt != "" {
 			transcript.WriteString(rt)
@@ -80,6 +99,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 			}
 		}
 		if len(invs) == 0 {
+			flushUsageStats()
 			return transcript.String(), nil
 		}
 		for i, inv := range invs {
@@ -102,6 +122,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 			}
 		}
 	}
+	flushUsageStats()
 	return transcript.String(), nil
 }
 
@@ -128,10 +149,6 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 		return turn, err
 	}
 	fmt.Fprintln(r.Out)
-	if r.Cfg.UsageStatsEnabled() {
-		ctxTok, usrTok, ctxEst := llm.UsagePromptParts(system, msgs, turn.Usage.PromptTokens, turn.Usage.CachedPromptTokens)
-		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, turn.Usage.ReasoningTokens, turn.Usage.ResponseTokens, turn.Usage.TotalTokens, turn.Usage.OutputTPS, turn.Usage.TTFTSecs, turn.Usage.PromptTPS, ctxEst, turn.Usage.TurnWallSecs))
-	}
 	return turn, nil
 }
 
