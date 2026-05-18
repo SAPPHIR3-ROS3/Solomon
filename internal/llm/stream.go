@@ -298,6 +298,7 @@ func AggregateConsecutiveTurnUsage(usages []UsageStats) UsageStats {
 	out.OutputTPS /= n
 	out.PromptTPS /= n
 	out.TTFTSecs = usages[0].TTFTSecs
+	out.TotalTokens = out.PromptTokens + out.ReasoningTokens + out.ResponseTokens
 	return out
 }
 
