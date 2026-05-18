@@ -23,12 +23,16 @@ var titleRaw string
 //go:embed templates/summarize.tmpl
 var summarizeRaw string
 
+//go:embed templates/summarize_system.tmpl
+var summarizeSystemRaw string
+
 type Data struct {
 	Tools                 string
 	Syntax                string
 	ExtraRules            string
 	Language              string
 	UserName              string
+	DisableThinking       bool
 	SystemOS              string
 	SystemBits            string
 	SystemCPUFamily       string
@@ -39,11 +43,13 @@ type Data struct {
 }
 
 type TitleData struct {
-	Language string
+	Language        string
+	DisableThinking bool
 }
 
 type SummarizeData struct {
-	Transcript string
+	Transcript        string
+	DisableThinking   bool
 }
 
 func NativeToolInvocationSyntax() string {
@@ -98,6 +104,10 @@ func RenderTitle(d TitleData) (string, error) {
 
 func RenderSummarize(d SummarizeData) (string, error) {
 	return executeTemplate("summarize", summarizeRaw, d)
+}
+
+func RenderSummarizeSystem(d SummarizeData) (string, error) {
+	return executeTemplate("summarize_system", summarizeSystemRaw, d)
 }
 
 func render(raw string, d Data) (string, error) {
@@ -163,6 +173,24 @@ func effectiveShell() string {
 
 func EffectiveShell() string {
 	return effectiveShell()
+}
+
+func SummarizeSystemFallback() string {
+	return strings.TrimSpace(`You summarize technical conversations concisely.
+Preserve important facts: decisions, file paths, commands, errors, and open tasks.
+Match the language of the transcript.
+Output only the summary text, without preamble or meta-commentary.`)
+}
+
+func SystemWithNoThink(disableThinking bool, content string) string {
+	if !disableThinking {
+		return content
+	}
+	content = strings.TrimSpace(content)
+	if strings.HasPrefix(content, "/no_think") {
+		return content
+	}
+	return "/no_think\n" + content
 }
 
 func windowsFallbackShellExecutable() string {

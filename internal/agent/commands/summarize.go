@@ -18,11 +18,6 @@ import (
 	"github.com/openai/openai-go/v2/shared"
 )
 
-const summarizeSystemPromptTemplate = `You summarize technical conversations concisely.
-Preserve important facts: decisions, file paths, commands, errors, and open tasks.
-Match the language of the transcript.
-Output only the summary text, without preamble or meta-commentary.`
-
 func Threshold(d Deps, parts []string) error {
 	if len(parts) < 2 {
 		fmt.Fprintf(d.Out, "compaction_threshold_tokens=%d (auto /summarize when prompt_tokens >= this after an assistant reply; usage must be reported by the API)\n", d.CompactionThresholdTokens())
@@ -69,12 +64,17 @@ func formatChatTranscript(msgs []chatstore.Message) string {
 	return b.String()
 }
 
-func summarizePromptFromTemplate(transcript string) (string, string) {
-	user, err := prompt.RenderSummarize(prompt.SummarizeData{Transcript: transcript})
+func summarizePromptFromTemplate(transcript string, disableThinking bool) (string, string) {
+	d := prompt.SummarizeData{Transcript: transcript, DisableThinking: disableThinking}
+	sys, err := prompt.RenderSummarizeSystem(d)
 	if err != nil {
-		return summarizeSystemPromptTemplate, transcript
+		sys = prompt.SystemWithNoThink(disableThinking, prompt.SummarizeSystemFallback())
 	}
-	return summarizeSystemPromptTemplate, user
+	user, err := prompt.RenderSummarize(d)
+	if err != nil {
+		return sys, transcript
+	}
+	return sys, user
 }
 
 func summarizeToolObjective(tc chatstore.ToolCall) string {
@@ -219,15 +219,15 @@ func SummarizeBody(d Deps) (string, error) {
 	}
 	progress := NewSummarizeProgress(d.Out)
 	transcript := formatChatTranscript(msgs)
-	sys, userPrompt := summarizePromptFromTemplate(transcript)
+	sys, userPrompt := summarizePromptFromTemplate(transcript, d.Cfg.ReasoningEffortIsNone())
 	params := openai.ChatCompletionNewParams{
 		Model: shared.ChatModel(d.Model()),
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(sys),
 			openai.UserMessage(userPrompt),
 		},
-		ReasoningEffort: d.Cfg.GlobalReasoningEffort(),
 	}
+	llm.ApplyChatReasoning(d.Cfg, &params, false)
 	llm.ApplyMaxResponseTokens(d.Cfg, &params)
 	const sep = "================================================================================"
 	summary, usage, err := llm.StreamText(d.Ctx, d.Client, params, io.Discard, llm.StreamOpts{})

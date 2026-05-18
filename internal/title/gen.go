@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/openai/openai-go/v2"
@@ -15,7 +16,7 @@ import (
 const maxCompletionTokens = 2048
 
 func FromPrompt(ctx context.Context, client openai.Client, cfg *config.Root, model string, userLine string) (string, error) {
-	sys, err := prompt.RenderTitle(prompt.TitleData{Language: cfg.EffectiveResponseLanguage()})
+	sys, err := prompt.RenderTitle(prompt.TitleData{Language: cfg.EffectiveResponseLanguage(), DisableThinking: true})
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "title RenderTitle failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
@@ -23,9 +24,9 @@ func FromPrompt(ctx context.Context, client openai.Client, cfg *config.Root, mod
 	p := openai.ChatCompletionNewParams{
 		Model:               shared.ChatModel(model),
 		Messages:            []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(sys), openai.UserMessage("User message to name:\n" + userLine)},
-		ReasoningEffort:     shared.ReasoningEffort("none"),
 		MaxCompletionTokens: param.NewOpt(int64(maxCompletionTokens)),
 	}
+	llm.ApplyReasoningDisable(&p)
 	resp, err := client.Chat.Completions.New(ctx, p)
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "title completions request failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

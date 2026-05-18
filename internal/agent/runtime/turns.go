@@ -124,7 +124,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		usageTurns = nil
 	}
 	for {
-		sys, err := r.systemPrompt()
+		sys, err := r.systemPrompt(r.Cfg.ReasoningEffortIsNone())
 		if err != nil {
 			return err
 		}
@@ -136,10 +136,10 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		params := openai.ChatCompletionNewParams{
 			Model:             shared.ChatModel(r.Model),
 			Messages:          llm.MessageParams(sys, msgs, r.Session.ImageFiles),
-			ReasoningEffort:   r.Cfg.GlobalReasoningEffort(),
 			Tools:             tools,
 			ParallelToolCalls: param.NewOpt(true),
 		}
+		llm.ApplyChatReasoning(r.Cfg, &params, false)
 		llm.ApplyMaxResponseTokens(r.Cfg, &params)
 		astSeq := checkpoint.Bump(r.Session)
 		reasoningEff := "none"
