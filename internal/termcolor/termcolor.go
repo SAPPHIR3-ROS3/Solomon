@@ -39,6 +39,39 @@ func WrapTool(s string) string {
 	return Tool + s + Reset
 }
 
+const NoBold = "\033[22m"
+
+func ToolLine(toolName, body string) string {
+	var b strings.Builder
+	b.WriteString(Tool)
+	b.WriteString(Bold)
+	b.WriteString(toolName)
+	b.WriteString(NoBold)
+	b.WriteString(Tool)
+	if body != "" {
+		b.WriteString(" ")
+		b.WriteString(body)
+	}
+	b.WriteString(Reset)
+	return b.String()
+}
+
+func ToolHeaderLine(toolName, body string) string {
+	var b strings.Builder
+	b.WriteString(Tool)
+	b.WriteString("Tool: ")
+	b.WriteString(Bold)
+	b.WriteString(toolName)
+	b.WriteString(NoBold)
+	b.WriteString(Tool)
+	if body != "" {
+		b.WriteString(" ")
+		b.WriteString(body)
+	}
+	b.WriteString(Reset)
+	return b.String()
+}
+
 func WrapThinking(s string) string {
 	return Thinking + s + Reset
 }
