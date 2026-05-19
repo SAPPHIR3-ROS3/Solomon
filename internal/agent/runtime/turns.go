@@ -1,7 +1,6 @@
 package agentruntime
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -283,14 +282,10 @@ func (r *Runtime) appendSyntheticToolResults(astSeq int, invs []tooling.Invocati
 }
 
 func (r *Runtime) printToolLine(cpSeq int, branchKey, name string, rawArgs json.RawMessage) {
-	s := string(rawArgs)
-	if len(rawArgs) > 0 && json.Valid(rawArgs) {
-		var buf bytes.Buffer
-		if err := json.Compact(&buf, rawArgs); err == nil {
-			s = buf.String()
-		}
+	prefix := checkpoint.FormatLinePrefix(cpSeq, branchKey)
+	for _, line := range formatToolDisplayLines(name, rawArgs) {
+		fmt.Fprintf(r.Out, "%s%s\n", prefix, line)
 	}
-	fmt.Fprintf(r.Out, "%s%s\n", checkpoint.FormatLinePrefix(cpSeq, branchKey), termcolor.WrapTool(fmt.Sprintf("Tool: %s(%s)", name, s)))
 }
 
 func toolingResultJSON(v any) string {

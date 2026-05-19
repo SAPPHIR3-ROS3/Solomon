@@ -105,7 +105,9 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 		}
 		for i, inv := range invs {
 			r.printToolLine(0, "", inv.Name, inv.Args)
-			transcript.WriteString(fmt.Sprintf("Tool: %s(%s)\n", inv.Name, string(inv.Args)))
+			for _, line := range formatToolPlainLines(inv.Name, inv.Args) {
+				transcript.WriteString(line + "\n")
+			}
 			res, err := r.execTool(ctx, inv)
 			if err != nil {
 				logging.Log(logging.WARNING_LOG_LEVEL, "nested tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
