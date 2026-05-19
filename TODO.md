@@ -10,7 +10,6 @@ Ordine suggerito: dal più **facile** al più **difficile** (code review interno
 
 - **`internal/clipboard/clipboard.go` — paste immagine Windows:** script PowerShell senza `Add-Type -AssemblyName System.Windows.Forms`; può fallire a runtime.
 - **`internal/agent/runtime/repl.go` — paste clipboard:** errori (directory immagini, `PasteImage`, ecc.) assorbiti in silenzio e UX incerta (es. carattere stray nel buffer); feedback esplicito su stdout/stderr.
-- **`internal/agent/tools/exec.go`:** ramo `switch` morto o ridondante sul dispatch tool (pulizia dopo verifica comportamento atteso).
 - **`internal/llm/stream.go`:** se l’accumulatore rifiuta un chunk di reasoning, testo reasoning può andare perso (edge case stream/provider).
 - **`internal/agent/runtime/deferred_chat_title.go` (+ turn loop):** possibile race tra aggiornamenti async della sessione e persistenza / append messaggi; allineare alla decisione di estendere `chatPersistMu` (vedi anche TODO architettura compaction).
 
