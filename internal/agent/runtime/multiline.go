@@ -3,8 +3,12 @@ package agentruntime
 import (
 	"bytes"
 	"io"
+	"os"
+	"runtime"
 	"strings"
 	"unicode"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/clipboard"
 )
 
 const softNewlineRune = '\u2063'
@@ -48,13 +52,20 @@ func NewMultilineStdin(inner stdinReadCloser) io.ReadCloser {
 	return &seqTranslator{inner: inner}
 }
 
+var replImagePaste func() (tag string, ok bool)
+
+func SetReplImagePaste(fn func() (string, bool)) {
+	replImagePaste = fn
+}
+
 type seqTranslator struct {
-	inner            stdinReadCloser
-	prefix           []byte
-	outHold          []byte
-	readBuf          []byte
-	inBracketedPaste bool
-	mouseAcc         []byte
+	inner               stdinReadCloser
+	prefix              []byte
+	outHold             []byte
+	readBuf             []byte
+	inBracketedPaste    bool
+	bracketedPasteEmpty bool
+	mouseAcc            []byte
 }
 
 func isPrefixOf(full string, part []byte) bool {
@@ -242,19 +253,34 @@ func (s *seqTranslator) Read(p []byte) (int, error) {
 	return n, nil
 }
 
+func (s *seqTranslator) finishBracketedPaste(b *bytes.Buffer) {
+	s.inBracketedPaste = false
+	empty := s.bracketedPasteEmpty
+	s.bracketedPasteEmpty = false
+	if !empty {
+		return
+	}
+	if replImagePaste != nil {
+		if tag, ok := replImagePaste(); ok && tag != "" {
+			b.WriteString(tag)
+			return
+		}
+	}
+	if clipboard.HasImage() {
+		b.WriteByte(replImagePasteKey)
+	}
+}
+
 func (s *seqTranslator) flushPrefix() []byte {
 	var b bytes.Buffer
 	for len(s.prefix) > 0 {
-		if s.applyMouseFilterAtHead() {
-			continue
-		}
 		if s.inBracketedPaste {
 			if isPrefixOf(bracketedPasteEnd, s.prefix) && len(s.prefix) < len(bracketedPasteEnd) {
 				return b.Bytes()
 			}
 			if bytes.HasPrefix(s.prefix, []byte(bracketedPasteEnd)) {
 				s.prefix = s.prefix[len(bracketedPasteEnd):]
-				s.inBracketedPaste = false
+				s.finishBracketedPaste(&b)
 				continue
 			}
 			if s.prefix[0] == '\r' {
@@ -263,18 +289,33 @@ func (s *seqTranslator) flushPrefix() []byte {
 				} else {
 					s.prefix = s.prefix[1:]
 				}
+				s.bracketedPasteEmpty = false
 				b.WriteString(string(softNewlineRune))
 				b.WriteByte('\r')
 				continue
 			}
 			if s.prefix[0] == '\n' {
 				s.prefix = s.prefix[1:]
+				s.bracketedPasteEmpty = false
 				b.WriteString(string(softNewlineRune))
 				b.WriteByte('\r')
 				continue
 			}
+			s.bracketedPasteEmpty = false
 			b.WriteByte(s.prefix[0])
 			s.prefix = s.prefix[1:]
+			continue
+		}
+		if isPrefixOf(bracketedPasteStart, s.prefix) && len(s.prefix) < len(bracketedPasteStart) {
+			return b.Bytes()
+		}
+		if bytes.HasPrefix(s.prefix, []byte(bracketedPasteStart)) {
+			s.prefix = s.prefix[len(bracketedPasteStart):]
+			s.inBracketedPaste = true
+			s.bracketedPasteEmpty = true
+			continue
+		}
+		if s.applyMouseFilterAtHead() {
 			continue
 		}
 		if s.prefix[0] == '\n' {
@@ -292,14 +333,6 @@ func (s *seqTranslator) flushPrefix() []byte {
 		if s.prefix[0] != 0x1b {
 			b.WriteByte(s.prefix[0])
 			s.prefix = s.prefix[1:]
-			continue
-		}
-		if isPrefixOf(bracketedPasteStart, s.prefix) && len(s.prefix) < len(bracketedPasteStart) {
-			return b.Bytes()
-		}
-		if bytes.HasPrefix(s.prefix, []byte(bracketedPasteStart)) {
-			s.prefix = s.prefix[len(bracketedPasteStart):]
-			s.inBracketedPaste = true
 			continue
 		}
 		if len(s.prefix) == 1 {
@@ -379,14 +412,25 @@ func PlatformStdin() stdinReadCloser {
 	return platformStdin()
 }
 
+func writeTerminalModeSequences(seq string) {
+	if seq == "" {
+		return
+	}
+	if runtime.GOOS == "windows" {
+		_, _ = os.Stdout.Write([]byte(seq))
+		return
+	}
+	_, _ = io.WriteString(os.Stdout, seq)
+}
+
 func enableReplInputModes(w io.Writer) func() {
 	if w == nil {
 		return func() {}
 	}
 	restoreConsole := prepareConsoleInput()
-	_, _ = io.WriteString(w, mouseReportDisable+bracketedPasteEnable)
+	writeTerminalModeSequences(mouseReportDisable + bracketedPasteEnable)
 	return func() {
-		_, _ = io.WriteString(w, bracketedPasteDisable)
+		writeTerminalModeSequences(bracketedPasteDisable)
 		restoreConsole()
 	}
 }
