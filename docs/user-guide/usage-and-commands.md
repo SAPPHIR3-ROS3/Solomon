@@ -4,7 +4,7 @@
 
 - Interactive readline REPL plus one-shot runs: [`exec`](../../cmd/solomon/main.go), [`temp exec`](../../cmd/solomon/main.go)
 - Configuration and state under `~/.solomon`: [`config.toml`](../../internal/paths/paths.go), `mcp.json`, `projects/`, `logs/`, `skills.json`, project-scoped dirs
-- First-run wizard if config is missing ([`RunWizardIfNeeded`](../../internal/config/config.go))
+- First-run or incomplete LLM setup via [`RunInitialSetup`](../../internal/config/onboard_setup.go); re-run with `/onboard` ([`RunOnboardWizard`](../../internal/config/onboard.go))
 - **Working directory ↔ project**: stable id from cwd; chats and skills partitioned per tree ([`project.Resolve`](../../internal/project/project.go))
 - **Skills**: `solomon add` / `solomon remove`; `/skills`, `/add`, … in-session (authoritative list: `/help`)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools

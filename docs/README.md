@@ -14,9 +14,10 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 
 **New user**
 
-1. [Configuration](user-guide/configuration.md)
-2. [Usage and commands](user-guide/usage-and-commands.md)
-3. [Data layout](user-guide/data-layout.md)
+1. [Project README](../README.md) — install and quickstart
+2. [Configuration](user-guide/configuration.md)
+3. [Usage and commands](user-guide/usage-and-commands.md)
+4. [Data layout](user-guide/data-layout.md)
 
 **Contributor or debugger**
 
