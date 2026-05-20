@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -100,13 +101,24 @@ func WrapImgTag(tag string) string {
 	return White + BackgroundRGB(0, 209, 240) + tag + Reset
 }
 
+func wrapImgTagReplInput(tag string) string {
+	if runtime.GOOS == "windows" {
+		return "\033[37m\033[46m" + tag + Reset
+	}
+	return WrapImgTag(tag)
+}
+
 var imgTagRe = regexp.MustCompile(`\[img-\d+\]`)
 
 // ColorizeImgTags highlights [img-<n>] placeholders with WrapImgTag.
 func ColorizeImgTags(s string) string {
-	return imgTagRe.ReplaceAllStringFunc(s, func(match string) string {
-		return WrapImgTag(match)
-	})
+	return imgTagRe.ReplaceAllStringFunc(s, WrapImgTag)
+}
+
+// ColorizeImgTagsReplInput highlights img tags for the readline input buffer.
+// Windows readline uses a limited ANSI translator that panics on truecolor (48;2;…).
+func ColorizeImgTagsReplInput(s string) string {
+	return imgTagRe.ReplaceAllStringFunc(s, wrapImgTagReplInput)
 }
 
 func formatContextPromptTok(n int64, estimated bool) string {

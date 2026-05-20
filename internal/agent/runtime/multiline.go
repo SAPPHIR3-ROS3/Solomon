@@ -12,6 +12,7 @@ const bracketedPasteStart = "\x1b[200~"
 const bracketedPasteEnd = "\x1b[201~"
 const bracketedPasteEnable = "\x1b[?2004h"
 const bracketedPasteDisable = "\x1b[?2004l"
+const mouseReportDisable = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l"
 
 type stdinReadCloser interface {
 	io.Reader
@@ -53,6 +54,7 @@ type seqTranslator struct {
 	outHold          []byte
 	readBuf          []byte
 	inBracketedPaste bool
+	mouseAcc         []byte
 }
 
 func isPrefixOf(full string, part []byte) bool {
@@ -60,6 +62,133 @@ func isPrefixOf(full string, part []byte) bool {
 		return false
 	}
 	return string(part) == full[:len(part)]
+}
+
+func isMouseAccChar(c byte) bool {
+	switch {
+	case c >= '0' && c <= '9':
+		return true
+	case c == ';', c == '<', c == '[', c == '?':
+		return true
+	default:
+		return false
+	}
+}
+
+func isMouseReportBody(body string) bool {
+	if !strings.Contains(body, ";") {
+		return false
+	}
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		if (c < '0' || c > '9') && c != ';' {
+			return false
+		}
+	}
+	return true
+}
+
+func isMouseReportBytes(b []byte) bool {
+	if len(b) < 5 {
+		return false
+	}
+	s := string(b)
+	switch {
+	case strings.HasPrefix(s, "\x1b[<"):
+		s = s[3:]
+	case len(s) > 0 && s[0] == '[':
+		s = s[1:]
+	}
+	if len(s) < 4 {
+		return false
+	}
+	last := s[len(s)-1]
+	if last != 'M' && last != 'm' {
+		return false
+	}
+	return isMouseReportBody(s[:len(s)-1])
+}
+
+func isTerminalModeReportBytes(b []byte) bool {
+	s := string(b)
+	switch {
+	case strings.HasPrefix(s, "\x1b[?"):
+		s = s[3:]
+	case strings.HasPrefix(s, "[?"):
+		s = s[2:]
+	default:
+		return false
+	}
+	if len(s) < 2 {
+		return false
+	}
+	last := s[len(s)-1]
+	if last != 'l' && last != 'h' {
+		return false
+	}
+	for i := 0; i < len(s)-1; i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *seqTranslator) mouseFilterStep(c byte) (emit []byte, consumed bool) {
+	if len(s.mouseAcc) == 0 {
+		if c == 0x1b || c == '[' || (c >= '0' && c <= '9') {
+			s.mouseAcc = append(s.mouseAcc, c)
+			return nil, true
+		}
+		return nil, false
+	}
+	if c == 'M' || c == 'm' {
+		s.mouseAcc = append(s.mouseAcc, c)
+		if isMouseReportBytes(s.mouseAcc) {
+			s.mouseAcc = nil
+			return nil, true
+		}
+		out := append([]byte(nil), s.mouseAcc...)
+		s.mouseAcc = nil
+		return out, true
+	}
+	if c == 'l' || c == 'h' {
+		s.mouseAcc = append(s.mouseAcc, c)
+		if isTerminalModeReportBytes(s.mouseAcc) {
+			s.mouseAcc = nil
+			return nil, true
+		}
+		out := append([]byte(nil), s.mouseAcc...)
+		s.mouseAcc = nil
+		return out, true
+	}
+	if isMouseAccChar(c) {
+		s.mouseAcc = append(s.mouseAcc, c)
+		if len(s.mouseAcc) > 64 {
+			out := append([]byte(nil), s.mouseAcc...)
+			s.mouseAcc = nil
+			return out, false
+		}
+		return nil, true
+	}
+	out := append([]byte(nil), s.mouseAcc...)
+	s.mouseAcc = nil
+	return out, false
+}
+
+func (s *seqTranslator) applyMouseFilterAtHead() bool {
+	if len(s.prefix) == 0 {
+		return false
+	}
+	emit, consumed := s.mouseFilterStep(s.prefix[0])
+	if !consumed {
+		return false
+	}
+	s.prefix = s.prefix[1:]
+	if len(emit) > 0 {
+		s.prefix = append(emit, s.prefix...)
+	}
+	return true
 }
 
 func (s *seqTranslator) Read(p []byte) (int, error) {
@@ -116,6 +245,9 @@ func (s *seqTranslator) Read(p []byte) (int, error) {
 func (s *seqTranslator) flushPrefix() []byte {
 	var b bytes.Buffer
 	for len(s.prefix) > 0 {
+		if s.applyMouseFilterAtHead() {
+			continue
+		}
 		if s.inBracketedPaste {
 			if isPrefixOf(bracketedPasteEnd, s.prefix) && len(s.prefix) < len(bracketedPasteEnd) {
 				return b.Bytes()
@@ -179,6 +311,10 @@ func (s *seqTranslator) flushPrefix() []byte {
 			s.prefix = s.prefix[2:]
 			continue
 		}
+		if s.prefix[1] == 'M' && len(s.prefix) >= 4 {
+			s.prefix = s.prefix[4:]
+			continue
+		}
 		if s.prefix[1] != '[' {
 			b.WriteByte(s.prefix[0])
 			s.prefix = s.prefix[1:]
@@ -192,7 +328,7 @@ func (s *seqTranslator) flushPrefix() []byte {
 		if isSoftNewlineCSI(seq) {
 			b.WriteString(string(softNewlineRune))
 			b.WriteByte('\r')
-		} else {
+		} else if !isMouseCSI(seq) && !isTerminalModeCSI(seq) {
 			b.Write(s.prefix[:end])
 		}
 		s.prefix = s.prefix[end:]
@@ -213,6 +349,18 @@ func csiFinalIndex(buf []byte) int {
 	return -1
 }
 
+func isMouseCSI(seq string) bool {
+	if !strings.HasPrefix(seq, "\x1b[<") || len(seq) == 0 {
+		return false
+	}
+	last := seq[len(seq)-1]
+	return last == 'M' || last == 'm'
+}
+
+func isTerminalModeCSI(seq string) bool {
+	return isTerminalModeReportBytes([]byte(seq))
+}
+
 func isSoftNewlineCSI(seq string) bool {
 	return strings.Contains(seq, "13;2") || strings.Contains(seq, "13;5") ||
 		strings.Contains(seq, "27;5;13") || strings.Contains(seq, ";5;13") ||
@@ -231,12 +379,14 @@ func PlatformStdin() stdinReadCloser {
 	return platformStdin()
 }
 
-func enableBracketedPasteMode(w io.Writer) func() {
+func enableReplInputModes(w io.Writer) func() {
 	if w == nil {
 		return func() {}
 	}
-	_, _ = io.WriteString(w, bracketedPasteEnable)
+	restoreConsole := prepareConsoleInput()
+	_, _ = io.WriteString(w, mouseReportDisable+bracketedPasteEnable)
 	return func() {
 		_, _ = io.WriteString(w, bracketedPasteDisable)
+		restoreConsole()
 	}
 }
