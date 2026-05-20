@@ -10,7 +10,6 @@ Ordine suggerito: dal più **facile** al più **difficile** (code review interno
 
 - **`internal/clipboard/clipboard.go` — paste immagine Windows:** script PowerShell senza `Add-Type -AssemblyName System.Windows.Forms`; può fallire a runtime.
 - **`internal/agent/runtime/repl.go` — paste clipboard:** errori (directory immagini, `PasteImage`, ecc.) assorbiti in silenzio e UX incerta (es. carattere stray nel buffer); feedback esplicito su stdout/stderr.
-- **`internal/llm/stream.go`:** se l’accumulatore rifiuta un chunk di reasoning, testo reasoning può andare perso (edge case stream/provider).
 - **`internal/agent/runtime/deferred_chat_title.go` (+ turn loop):** possibile race tra aggiornamenti async della sessione e persistenza / append messaggi; allineare alla decisione di estendere `chatPersistMu` (vedi anche TODO architettura compaction).
 
 ---
@@ -166,6 +165,7 @@ Ordine suggerito: dal più **facile** al più **difficile** (code review interno
 ## 22 — Sicurezza
 
 - **Stato:** `shell` è **comando reale** sulla macchina, nella working directory del progetto; `readFile`/`editFile` risolvono path senza **path jail** forte (path assoluti possono uscire dalla root; symlink/`..` non sono trattati come "cage" del workspace). MCP ha allow/deny per nome tool sul server, ma l'host resta potente.
+- **Integrità stream SSE (fail-closed):** in [`internal/llm/stream.go`](internal/llm/stream.go), `StreamText` e `StreamAssistantTurn` abortiscono il turno se `ChatCompletionAccumulator.AddChunk` rifiuta un chunk (tipicamente `id` completion incoerente nello stesso stream). Nessun salvage di `ReasoningText`, content o usage in sessione — possibile forgery / jailbreak surface, stessa filosofia del rifiuto delle completion forgiate lato provider. Errore: `llm.ErrStreamAccumulatorRejected`. Test: [`test/stream_integrity_test.go`](test/stream_integrity_test.go). Output già stampato sul terminale prima dell’abort può restare visibile ma non viene persistito.
 - **Cosa manca (tipico desiderata):** sandbox o policy (whitelist comandi, blocchi per operazioni distruttive, conferme dove serve); **vincolo percorsi** sotto `ProjRoot` risolvendo e verificando prefisso; limiti più chiari per output sensibili.
 - **`intent`** su shell/edit è **solo metadati per il modello**, non un sistema di approvazioni.
 

@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -12,6 +13,21 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
+
+var ErrStreamAccumulatorRejected = errors.New("chat completion stream accumulator rejected chunk")
+
+func flushStreamOut(w io.Writer) {
+	if f, ok := w.(interface{ Flush() error }); ok {
+		_ = f.Flush()
+	}
+}
+
+func streamAccumulatorRejectErr(stream interface{ Err() error }) error {
+	if err := stream.Err(); err != nil {
+		return err
+	}
+	return ErrStreamAccumulatorRejected
+}
 
 func parseLooseReasoningTokensFromUsageRawJSON(raw string) int64 {
 	raw = strings.TrimSpace(raw)
@@ -109,7 +125,10 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 			}
 			reasoningFromUsage = rt
 		}
-		_ = acc.AddChunk(ch)
+		if !acc.AddChunk(ch) {
+			flushStreamOut(contentOut)
+			return "", UsageStats{}, streamAccumulatorRejectErr(stream)
+		}
 		if len(ch.Choices) == 0 {
 			continue
 		}
@@ -192,16 +211,8 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			reasoningFromUsage = rt
 		}
 		if !acc.AddChunk(ch) {
-			if err := stream.Err(); err != nil {
-				if f, ok := contentOut.(interface{ Flush() error }); ok {
-					_ = f.Flush()
-				}
-				return AssistantTurnResult{}, err
-			}
-			if f, ok := contentOut.(interface{ Flush() error }); ok {
-				_ = f.Flush()
-			}
-			return AssistantTurnResult{}, fmt.Errorf("chat completion stream accumulator rejected chunk")
+			flushStreamOut(contentOut)
+			return AssistantTurnResult{}, streamAccumulatorRejectErr(stream)
 		}
 		if len(ch.Choices) == 0 {
 			continue
