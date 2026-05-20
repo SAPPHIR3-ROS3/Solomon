@@ -93,6 +93,15 @@ func (r *Runtime) Run(ctx context.Context) error {
 		chatstore.FinishSessionLoad(s)
 	})
 	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
+	SetReplImagePaste(func() (string, bool) {
+		seq, _, err := r.saveReplClipboardImage()
+		if err != nil {
+			fmt.Fprintf(r.RL.Stderr(), "clipboard image paste failed: %v\n", err)
+			return "", false
+		}
+		return llm.ImagePlaceholder(seq), true
+	})
+	defer SetReplImagePaste(nil)
 	restoreInput := enableReplInputModes(r.RL.Stdout())
 	defer restoreInput()
 	var pendingMultiline []string
