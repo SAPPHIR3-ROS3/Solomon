@@ -159,13 +159,15 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	if p, err := filepath.Abs(r.ProjRoot); err == nil {
 		absWorkspace = p
 	}
-	syntax := prompt.NativeToolInvocationSyntax()
+	syntax := prompt.NativeToolInvocationSyntax(r.Session.LegacyTools)
+	legacySyntax := ""
 	if r.Session.LegacyTools {
-		syntax = strings.TrimSpace(syntax + "\n\n" + prompt.LegacyToolInvocationSyntaxAppend())
+		legacySyntax = prompt.LegacyToolInvocationSyntaxAppend()
 	}
 	d := prompt.Data{
 		Tools:                 dump,
 		Syntax:                syntax,
+		LegacySyntax:          legacySyntax,
 		ExtraRules:            "",
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),

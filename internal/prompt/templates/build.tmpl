@@ -27,7 +27,9 @@ Behaviors:
 - editFile replaces exactly one occurrence of oldString when oldString is non-empty; use empty oldString only when intentionally creating or overwriting per tool semantics. Both shell and editFile require a short intent string describing the purpose of the action.
 - Use subagent for well-scoped tasks that benefit from a separate context (large exploration, parallel hypothesis), passing a concrete task string and a system prompt path when required by the tool.
 
-{{.Syntax}}
+{{.Syntax}}{{if .LegacySyntax}}
+
+{{.LegacySyntax}}{{end}}
 
 ## Available tools
 
