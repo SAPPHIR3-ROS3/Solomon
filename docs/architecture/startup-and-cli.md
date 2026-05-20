@@ -8,7 +8,10 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 
 | Package / file | Responsibility |
 |----------------|----------------|
-| `cmd/solomon/main.go` | Entry: logging, CLI branches, readline, `Runtime` lifecycle |
+| `cmd/solomon/main.go` | Entry: logging, CLI branches, REPL |
+| `cmd/solomon/exec.go` | `exec` / `temp exec`, `--json` / `--jsonl`, headless config |
+| `internal/agent/cievents` | CI event schema, JSONL/collector sinks, exit codes |
+| `internal/config/exec_resolve.go` | TOML → env → env-file for machine exec |
 | `internal/paths` | `SolomonHome()` → `~/.solomon` |
 | `internal/config` | Load/save TOML, wizard, provider resolve, model pick |
 | `internal/project` | `Resolve(wd)` → canonical root + 64-char hex id |
@@ -20,7 +23,9 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 
 | Function | File | Behavior |
 |----------|------|----------|
-| `main` | `cmd/solomon/main.go` | Init logging; handle `add`/`remove`; else wizard + REPL path |
+| `main` | `cmd/solomon/main.go` | Init logging; `add`/`remove`; early `exec` path; else wizard + REPL |
+| `runExecCLI` | `cmd/solomon/exec.go` | One-shot exec with optional machine output |
+| `config.ResolveExecConfig` | `internal/config/exec_resolve.go` | Headless credentials for `--json`/`--jsonl` |
 | `paths.SolomonHome` | `internal/paths/paths.go` | User data root |
 | `config.RunWizardIfNeeded` | `internal/config/config.go` | First-run interactive setup |
 | `config.ResolveProvider` | `internal/config/config.go` | Active provider from `current.*` |
@@ -56,13 +61,12 @@ Before the wizard, `main` handles:
 
 - `solomon add ...` → `commands.Add` with `project.Resolve` deps
 - `solomon remove skill <name>` → `commands.Remove`
+- `solomon exec` / `solomon temp exec` → `runExecCLI` (human or `--json` / `--jsonl`; readline skipped in machine mode)
 
-After runtime construction:
+After runtime construction (REPL path only):
 
-- `solomon temp exec <prompt>` — sets `EphemeralSession`, no long-term chat file
-- REPL `/temp` — same persistence rules when the current chat has no messages ([`commands.TempChat`](../../internal/agent/commands/resume.go))
-- `solomon exec <prompt>` — one shot with normal session persistence rules
 - default — `Runtime.Run`
+- REPL `/temp` — ephemeral in-memory chat ([`commands.TempChat`](../../internal/agent/commands/resume.go))
 
 ## Session construction at boot
 

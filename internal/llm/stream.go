@@ -97,6 +97,7 @@ type AssistantTurnResult struct {
 type StreamOpts struct {
 	ShowThinking  bool
 	ReasoningSink io.Writer
+	OnDelta       func(channel, text string)
 }
 
 func StreamText(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {
@@ -221,6 +222,9 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		rs := deltaReasoningText(delta.RawJSON())
 		if rs != "" {
 			reasoningBuf.WriteString(rs)
+			if opts.OnDelta != nil {
+				opts.OnDelta("reasoning", rs)
+			}
 			if opts.ShowThinking {
 				_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(rs))
 			}
@@ -246,8 +250,14 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 				continue
 			}
 			skipLeadingNL = false
+			if opts.OnDelta != nil {
+				opts.OnDelta("content", t)
+			}
 			_, _ = io.WriteString(contentOut, t)
 			continue
+		}
+		if opts.OnDelta != nil {
+			opts.OnDelta("content", d)
 		}
 		_, _ = io.WriteString(contentOut, d)
 	}

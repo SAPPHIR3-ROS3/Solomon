@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
@@ -57,6 +58,10 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 		if errors.Is(err, context.DeadlineExceeded) {
 			flushUsageStats()
 			logging.Log(logging.WARNING_LOG_LEVEL, "subagent round deadline exceeded", logging.LogOptions{Params: map[string]any{"timeout_min": config.SubagentTimeout(r.Cfg)}})
+			if r.machineMode() {
+				r.ciEmit(cievents.ErrorEvent(cievents.ExitTimeout, "subagent timeout"))
+				return transcript.String(), cievents.TimeoutError(err)
+			}
 			sum, _ := r.summarizeNested(ctx, msgs)
 			fmt.Fprintf(r.Out, "\n%s\nSubagent paused (timeout).\nContinue? [y/N]: ", sum)
 			br := bufio.NewReader(os.Stdin)
