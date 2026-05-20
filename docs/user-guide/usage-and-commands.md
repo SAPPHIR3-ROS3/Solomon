@@ -15,7 +15,8 @@
 | ---- | ------- |
 | Interactive REPL | `solomon` |
 | One shot (persisted chat) | `solomon exec <prompt>` |
-| Ephemeral session | `solomon temp exec <prompt>` |
+| Ephemeral session (one shot) | `solomon temp exec <prompt>` |
+| Ephemeral session (REPL) | `/temp` on an empty chat (in memory only; not written to disk) |
 | Skill install | `solomon add npx ...` |
 | Skill remove | `solomon remove skill <name>` |
 
@@ -33,7 +34,7 @@ Highlights:
 | ------- | ---- |
 | `/plan` | Planning-only tooling |
 | `/build` | Build tools (shell, files, subagent) |
-| `/resume`, `/new` | Session switching |
+| `/resume`, `/new`, `/temp` | Session switching (`/temp` = ephemeral, empty chat only) |
 | `/summarize`, `/compact` | Long-context hygiene |
 | `/connect` | Add provider and models |
 

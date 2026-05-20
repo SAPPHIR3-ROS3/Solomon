@@ -54,6 +54,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"models"}, "/models", "list models and switch current model", func(d Deps, parts []string) error { return SlashModels(d) }},
 		{[]string{"connect"}, "/connect", "add provider (checks /models), pick model (0 current, 1-20 listed, truncated: 21=id, paste id)", func(d Deps, parts []string) error { return Connect(d) }},
 		{[]string{"new"}, "/new", "start a new chat session (empty transcript; prior chat stays saved on disk)", func(d Deps, parts []string) error { return NewChat(d) }},
+		{[]string{"temp"}, "/temp", "/temp — empty chat only: in-memory session (not saved; like solomon temp exec)", func(d Deps, parts []string) error { return TempChat(d) }},
 		{[]string{"resume"}, "/resume", "/resume | /resume last | /resume <id|title>", func(d Deps, parts []string) error { return Resume(d, parts[1:]) }},
 		{[]string{"summarize", "compact"}, "/summarize, /compact", "summarize full chat; summary + last 8 msgs; then /clear", func(d Deps, parts []string) error { return Summarize(d) }},
 		{[]string{"exit", "quit"}, "/exit, /quit", "exit and show how to resume", func(d Deps, parts []string) error {

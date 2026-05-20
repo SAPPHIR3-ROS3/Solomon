@@ -54,8 +54,18 @@ flowchart TD
 | `RL` | readline instance; prompt includes checkpoint prefix |
 | `Mode` | `plan` or `build` — affects tools and system prompt |
 | `ReplShellFirst` | Non-`!` lines run as shell when set |
-| `EphemeralSession` | Skip normal session file persistence |
+| `EphemeralSession` | In-memory transcript only; see [Ephemeral session](#ephemeral-session) |
 | `Out` | Assistant and tool output stream |
+
+## Ephemeral session
+
+When `EphemeralSession` is true, `persistSession` does not write `chatstore` JSON to disk (see [Sessions and storage](sessions-and-storage.md)).
+
+| Entry | Behavior |
+| ----- | -------- |
+| `solomon temp exec <prompt>` | One-shot run; flag set at startup in [`cmd/solomon/main.go`](../../cmd/solomon/main.go) |
+| `/temp` | REPL only, via [`commands.TempChat`](../../internal/agent/commands/resume.go): allowed only if the current chat has **no messages**; sets `EphemeralSession` and resets an in-memory session. If messages are already present, Solomon prints an error and does not switch mode. |
+| `/new`, `/resume` | Clear ephemeral mode and return to normal persisted chats |
 
 ## Extension points
 

@@ -29,7 +29,7 @@ Slash handlers live in `commands` package; the runtime bridge constructs `Deps` 
 
 `/help` prints the authoritative sorted list from [`commands.Registry`](../../internal/agent/commands/help.go).
 
-Common commands: `/plan`, `/build`, `/resume`, `/new`, `/summarize`, `/connect`, `/models`, `/skills`, MCP-related slashes in `mcp_slash.go`.
+Common commands: `/plan`, `/build`, `/resume`, `/new`, `/temp`, `/summarize`, `/connect`, `/models`, `/skills`, MCP-related slashes in `mcp_slash.go`.
 
 ## Skills registry
 

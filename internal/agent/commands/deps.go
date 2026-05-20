@@ -53,4 +53,7 @@ type Deps struct {
 
 	GetReplShellFirst func() bool
 	SetReplShellFirst func(bool)
+
+	GetEphemeralSession func() bool
+	SetEphemeralSession func(bool)
 }
