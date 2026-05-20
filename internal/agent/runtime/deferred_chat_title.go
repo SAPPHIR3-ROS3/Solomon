@@ -11,12 +11,20 @@ import (
 
 func (r *Runtime) scheduleDeferredChatTitleFinalize(ctx context.Context) {
 	r.deferredTitleScheduleMu.Lock()
-	if !chatstore.IsPlaceholderChatID(r.Session.ID) || r.deferredTitleWorkerRunning {
+	if r.deferredTitleWorkerRunning {
 		r.deferredTitleScheduleMu.Unlock()
 		return
 	}
-	r.deferredTitleWorkerRunning = true
+	r.chatPersistMu.Lock()
+	start := chatstore.IsPlaceholderChatID(r.Session.ID)
+	if start {
+		r.deferredTitleWorkerRunning = true
+	}
+	r.chatPersistMu.Unlock()
 	r.deferredTitleScheduleMu.Unlock()
+	if !start {
+		return
+	}
 	go r.runDeferredChatTitleFinalize(ctx)
 }
 
@@ -27,15 +35,16 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 		r.deferredTitleScheduleMu.Unlock()
 	}()
 
-	r.chatPersistMu.Lock()
 	var firstUser string
+	var oldID string
+	r.chatPersistMu.Lock()
 	for _, m := range r.Session.Messages {
 		if m.Role == "user" && strings.TrimSpace(m.Content) != "" && !strings.HasPrefix(m.Content, "tool_result(") {
 			firstUser = m.Content
 			break
 		}
 	}
-	oldID := r.Session.ID
+	oldID = r.Session.ID
 	r.chatPersistMu.Unlock()
 
 	if firstUser == "" {

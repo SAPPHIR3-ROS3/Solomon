@@ -50,6 +50,7 @@ type Runtime struct {
 	chatPersistMu              sync.Mutex
 	deferredTitleScheduleMu    sync.Mutex
 	deferredTitleWorkerRunning bool
+	sessionFileCreated         bool
 
 	Out io.Writer
 
@@ -109,14 +110,22 @@ func (r *Runtime) refreshReadlinePrompt() {
 	if r.RL == nil {
 		return
 	}
-	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser("You: "))
+	var prefix string
+	r.mutateSession(func(s *chatstore.Session) {
+		prefix = checkpoint.FormatReplPromptPrefix(s) + termcolor.WrapUser("You: ")
+	})
+	r.RL.SetPrompt(prefix)
 }
 
 func (r *Runtime) refreshReadlinePromptContinue() {
 	if r.RL == nil {
 		return
 	}
-	r.RL.SetPrompt(checkpoint.FormatReplPromptPrefix(r.Session) + termcolor.WrapUser(".... "))
+	var prefix string
+	r.mutateSession(func(s *chatstore.Session) {
+		prefix = checkpoint.FormatReplPromptPrefix(s) + termcolor.WrapUser(".... ")
+	})
+	r.RL.SetPrompt(prefix)
 }
 
 func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
@@ -163,15 +172,50 @@ func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
 	return r.onUserMessage(ctx, trimMessageEdges(clean), false)
 }
 
-func (r *Runtime) persistSession() error {
-	if r.EphemeralSession {
-		return nil
-	}
+func (r *Runtime) mutateSession(fn func(*chatstore.Session)) {
 	r.chatPersistMu.Lock()
 	defer r.chatPersistMu.Unlock()
+	fn(r.Session)
+}
+
+func (r *Runtime) markSessionFileCreated() {
+	r.sessionFileCreated = true
+}
+
+func (r *Runtime) shouldWriteSessionFile() bool {
+	if r.EphemeralSession || !r.sessionFileCreated {
+		return false
+	}
+	return r.Session != nil && r.Session.ID != ""
+}
+
+func (r *Runtime) writeSessionLocked() error {
+	if !r.shouldWriteSessionFile() {
+		return nil
+	}
 	return chatstore.WriteSession(r.ProjHex, r.Session)
 }
 
+func (r *Runtime) persistSession() error {
+	r.chatPersistMu.Lock()
+	defer r.chatPersistMu.Unlock()
+	return r.writeSessionLocked()
+}
+
 func (r *Runtime) persistSessionUnsafe() error {
-	return chatstore.WriteSession(r.ProjHex, r.Session)
+	return r.writeSessionLocked()
+}
+
+func (r *Runtime) sessionMessagesSnapshot() (msgs []chatstore.Message, imageFiles map[int]string) {
+	r.chatPersistMu.Lock()
+	defer r.chatPersistMu.Unlock()
+	msgs = append([]chatstore.Message(nil), r.Session.Messages...)
+	if len(r.Session.ImageFiles) == 0 {
+		return msgs, nil
+	}
+	imageFiles = make(map[int]string, len(r.Session.ImageFiles))
+	for k, v := range r.Session.ImageFiles {
+		imageFiles[k] = v
+	}
+	return msgs, imageFiles
 }

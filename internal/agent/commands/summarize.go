@@ -209,11 +209,16 @@ func (p *summarizeProgress) stop() {
 }
 
 func SummarizeBody(d Deps) (string, error) {
-	sess := d.Session()
-	if sess == nil {
-		return "", fmt.Errorf("no messages to summarize")
+	var msgs []chatstore.Message
+	if d.MutateSession != nil {
+		d.MutateSession(func(sess *chatstore.Session) {
+			if sess != nil {
+				msgs = append([]chatstore.Message(nil), sess.Messages...)
+			}
+		})
+	} else if sess := d.Session(); sess != nil {
+		msgs = append([]chatstore.Message(nil), sess.Messages...)
 	}
-	msgs := sess.Messages
 	if len(msgs) == 0 {
 		return "", fmt.Errorf("no messages to summarize")
 	}
@@ -260,17 +265,24 @@ func Summarize(d Deps) error {
 	if err != nil {
 		return err
 	}
-	sess := d.Session()
-	sess.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
-	sess.MainOrphans = nil
-	sess.CheckpointBranchSuffix = ""
-	sess.ForkChildCount = nil
-	sess.CheckpointLast = -1
-	sess.CheckpointCP0 = true
-	sess.LastCommitOID = ""
-	sess.LastMessageAt = time.Now()
-	chatstore.RepairSessionMalformedImages(sess)
-	if err := chatstore.WriteSession(d.ProjHex, sess); err != nil {
+	if d.MutateSession == nil {
+		return fmt.Errorf("no active session")
+	}
+	d.MutateSession(func(sess *chatstore.Session) {
+		sess.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
+		sess.MainOrphans = nil
+		sess.CheckpointBranchSuffix = ""
+		sess.ForkChildCount = nil
+		sess.CheckpointLast = -1
+		sess.CheckpointCP0 = true
+		sess.LastCommitOID = ""
+		sess.LastMessageAt = time.Now()
+		chatstore.RepairSessionMalformedImages(sess)
+	})
+	if d.PersistSession == nil {
+		return fmt.Errorf("no active session")
+	}
+	if err := d.PersistSession(); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "/summarize persist compacted session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}

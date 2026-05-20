@@ -41,28 +41,41 @@ func Thinking(d Deps, parts []string) error {
 }
 
 func LegacyTools(d Deps, parts []string) error {
-	sess := d.Session()
-	if sess == nil {
+	if d.MutateSession == nil {
 		return fmt.Errorf("no active session")
 	}
-	if len(parts) < 2 {
-		sess.LegacyTools = !sess.LegacyTools
-	} else {
-		sw := strings.ToLower(parts[1])
-		switch sw {
-		case "on", "yes", "true", "1":
-			sess.LegacyTools = true
-		case "off", "no", "false", "0":
-			sess.LegacyTools = false
-		default:
-			return fmt.Errorf("usage: /legacytools | /legacytools on|off")
+	var legacy bool
+	var usageErr error
+	d.MutateSession(func(sess *chatstore.Session) {
+		if sess == nil {
+			return
+		}
+		if len(parts) < 2 {
+			sess.LegacyTools = !sess.LegacyTools
+		} else {
+			sw := strings.ToLower(parts[1])
+			switch sw {
+			case "on", "yes", "true", "1":
+				sess.LegacyTools = true
+			case "off", "no", "false", "0":
+				sess.LegacyTools = false
+			default:
+				usageErr = fmt.Errorf("usage: /legacytools | /legacytools on|off")
+				return
+			}
+		}
+		legacy = sess.LegacyTools
+	})
+	if usageErr != nil {
+		return usageErr
+	}
+	if d.PersistSession != nil {
+		if err := d.PersistSession(); err != nil {
+			return err
 		}
 	}
-	if err := chatstore.WriteSession(d.ProjHex, sess); err != nil {
-		return err
-	}
 	state := "off"
-	if sess.LegacyTools {
+	if legacy {
 		state = "on"
 	}
 	fmt.Fprintf(d.Out, "legacy Tool: line parsing: %s (system prompt includes legacy syntax on next assistant turn)\n", state)

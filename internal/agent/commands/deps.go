@@ -49,6 +49,7 @@ type Deps struct {
 	CheckpointGoto func(*checkpoint.FullCheckpointID) error
 
 	PersistSession func() error
+	MutateSession  func(fn func(*chatstore.Session))
 
 	GetReplShellFirst func() bool
 	SetReplShellFirst func(bool)

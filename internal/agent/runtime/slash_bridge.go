@@ -37,7 +37,13 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		ProjRoot: r.ProjRoot,
 
 		Session:    func() *chatstore.Session { return r.Session },
-		SetSession: func(s *chatstore.Session) { r.Session = s },
+		SetSession: func(s *chatstore.Session) {
+			r.chatPersistMu.Lock()
+			r.Session = s
+			r.sessionFileCreated = s != nil && s.ID != ""
+			r.chatPersistMu.Unlock()
+		},
+		MutateSession: r.mutateSession,
 
 		SetMode: func(m string) { r.Mode = m },
 		GetMode: func() string { return r.Mode },

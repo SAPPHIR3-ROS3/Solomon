@@ -58,22 +58,32 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 		}
 		return r.runUserShellLine(ctx, cmd)
 	}
-	if !r.EphemeralSession && r.Session.ID == "" && len(r.Session.Messages) == 0 {
-		r.Session.ID = chatstore.NewPlaceholderChatID(time.Now())
+	var um chatstore.Message
+	var firstUserLine string
+	r.mutateSession(func(s *chatstore.Session) {
+		if !r.EphemeralSession {
+			r.markSessionFileCreated()
+			if s.ID == "" && len(s.Messages) == 0 {
+				s.ID = chatstore.NewPlaceholderChatID(time.Now())
+			}
+		}
+		if r.EphemeralSession && s.Title == "" && len(s.Messages) == 0 {
+			tSlug := title.NormalizeSlug(title.FallbackFromWords(line))
+			s.Title = tSlug
+			s.ID = chatstore.ChatIDHex(tSlug, s.CreatedAt)
+			firstUserLine = strings.TrimSpace(line)
+		}
+		seq := checkpoint.Bump(s)
+		um = chatstore.Message{Role: "user", Content: line}
+		checkpoint.StampMsg(&um, s, seq)
+		s.Messages = append(s.Messages, um)
+		chatstore.RepairSessionMalformedImages(s)
+		s.LastMessageAt = time.Now()
+		s.LastUserMessageAt = time.Now()
+	})
+	if firstUserLine != "" {
+		go r.refineEphemeralTitle(ctx, firstUserLine)
 	}
-	if r.EphemeralSession && r.Session.Title == "" && len(r.Session.Messages) == 0 {
-		tSlug := title.NormalizeSlug(title.FallbackFromWords(line))
-		r.Session.Title = tSlug
-		r.Session.ID = chatstore.ChatIDHex(tSlug, r.Session.CreatedAt)
-		go r.refineEphemeralTitle(ctx, strings.TrimSpace(line))
-	}
-	seq := checkpoint.Bump(r.Session)
-	um := chatstore.Message{Role: "user", Content: line}
-	checkpoint.StampMsg(&um, r.Session, seq)
-	r.Session.Messages = append(r.Session.Messages, um)
-	chatstore.RepairSessionMalformedImages(r.Session)
-	r.Session.LastMessageAt = time.Now()
-	r.Session.LastUserMessageAt = time.Now()
 	if !fromReadline {
 		echoLine := termcolor.ColorizeImgTags(line)
 		cpPref := checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey)
@@ -87,7 +97,11 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 	if err := r.runAgentTurns(ctx); err != nil {
 		return err
 	}
-	if !r.EphemeralSession && chatstore.IsPlaceholderChatID(r.Session.ID) {
+	var deferTitle bool
+	r.mutateSession(func(s *chatstore.Session) {
+		deferTitle = !r.EphemeralSession && chatstore.IsPlaceholderChatID(s.ID)
+	})
+	if deferTitle {
 		r.scheduleDeferredChatTitleFinalize(ctx)
 	}
 	return nil
@@ -131,21 +145,26 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		msgs := r.Session.Messages
+		msgs, imageFiles := r.sessionMessagesSnapshot()
 		params := openai.ChatCompletionNewParams{
 			Model:             shared.ChatModel(r.Model),
-			Messages:          llm.MessageParams(sys, msgs, r.Session.ImageFiles),
+			Messages:          llm.MessageParams(sys, msgs, imageFiles),
 			Tools:             tools,
 			ParallelToolCalls: param.NewOpt(true),
 		}
 		llm.ApplyChatReasoning(r.Cfg, &params, false)
 		llm.ApplyMaxResponseTokens(r.Cfg, &params)
-		astSeq := checkpoint.Bump(r.Session)
+		var astSeq int
+		var branchKey string
+		r.mutateSession(func(s *chatstore.Session) {
+			astSeq = checkpoint.Bump(s)
+			branchKey = s.CheckpointBranchSuffix
+		})
 		reasoningEff := "none"
 		if lbl := r.Cfg.ReasoningEffortLabel(); lbl != "" {
 			reasoningEff = lbl
 		}
-		fmt.Fprintf(r.Out, "%s%s (%s): ", checkpoint.FormatLinePrefix(astSeq, r.Session.CheckpointBranchSuffix), termcolor.WrapAssistant(r.Model), termcolor.WrapThinking(reasoningEff))
+		fmt.Fprintf(r.Out, "%s%s (%s): ", checkpoint.FormatLinePrefix(astSeq, branchKey), termcolor.WrapAssistant(r.Model), termcolor.WrapThinking(reasoningEff))
 		turn, err := llm.StreamAssistantTurn(runCtx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 		fmt.Fprintln(r.Out)
 		if err != nil {
@@ -164,14 +183,16 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			usageSys, usageMsgs = sys, msgs
 		}
 		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: strings.TrimSpace(turn.ReasoningText)}
-		checkpoint.StampMsg(&ast, r.Session, astSeq)
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
 		llm.PopulateAssistantTurnUsage(&ast, sys, msgs, turn.Usage)
 		chatstore.BackfillAssistantUsageFromTextIfEmpty(&ast, msgs)
-		r.Session.Messages = append(r.Session.Messages, ast)
-		r.Session.LastMessageAt = time.Now()
+		r.mutateSession(func(s *chatstore.Session) {
+			checkpoint.StampMsg(&ast, s, astSeq)
+			s.Messages = append(s.Messages, ast)
+			s.LastMessageAt = time.Now()
+		})
 		_ = r.persistSession()
 		var invs []tooling.Invocation
 		var toolIDs []string
@@ -180,10 +201,16 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				invs = append(invs, tooling.Invocation{Name: tc.Name, Args: json.RawMessage(tc.Arguments)})
 				toolIDs = append(toolIDs, tc.ID)
 			}
-		} else if r.Session.LegacyTools {
-			for _, inv := range tooling.ExtractToolInvocations(turn.Content) {
-				invs = append(invs, inv)
-				toolIDs = append(toolIDs, "")
+		} else {
+			var legacyTools bool
+			r.mutateSession(func(s *chatstore.Session) {
+				legacyTools = s.LegacyTools
+			})
+			if legacyTools {
+				for _, inv := range tooling.ExtractToolInvocations(turn.Content) {
+					invs = append(invs, inv)
+					toolIDs = append(toolIDs, "")
+				}
 			}
 		}
 		if len(invs) == 0 {
@@ -197,14 +224,16 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 						fmt.Fprintf(r.Out, "auto-compact: %v\n", err)
 						return nil
 					}
-					r.Session.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
-					r.Session.MainOrphans = nil
-					r.Session.CheckpointBranchSuffix = ""
-					r.Session.ForkChildCount = nil
-					r.Session.CheckpointLast = -1
-					r.Session.LastCommitOID = ""
-					r.Session.LastMessageAt = time.Now()
-					chatstore.RepairSessionMalformedImages(r.Session)
+					r.mutateSession(func(s *chatstore.Session) {
+						s.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
+						s.MainOrphans = nil
+						s.CheckpointBranchSuffix = ""
+						s.ForkChildCount = nil
+						s.CheckpointLast = -1
+						s.LastCommitOID = ""
+						s.LastMessageAt = time.Now()
+						chatstore.RepairSessionMalformedImages(s)
+					})
 					_ = r.persistSession()
 					fmt.Fprintln(r.Out, "context summarized")
 					continue
@@ -226,7 +255,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				return nil
 			}
 			inv := invs[i]
-			r.printToolLine(astSeq, r.Session.CheckpointBranchSuffix, inv.Name, inv.Args)
+			r.printToolLine(astSeq, branchKey, inv.Name, inv.Args)
 			res, err := r.execTool(runCtx, inv)
 			if interruptedDuringGeneration(ctx, runCtx, err) {
 				if err2 := r.appendSyntheticToolResults(astSeq, invs, toolIDs, i); err2 != nil {
@@ -247,9 +276,11 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			} else {
 				tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
 			}
-			checkpoint.StampMsg(&tm, r.Session, astSeq)
-			r.Session.Messages = append(r.Session.Messages, tm)
-			r.Session.LastMessageAt = time.Now()
+			r.mutateSession(func(s *chatstore.Session) {
+				checkpoint.StampMsg(&tm, s, astSeq)
+				s.Messages = append(s.Messages, tm)
+				s.LastMessageAt = time.Now()
+			})
 			_ = r.persistSession()
 		}
 	}
@@ -267,17 +298,19 @@ func interruptedDuringGeneration(parent, runCtx context.Context, opErr error) bo
 
 func (r *Runtime) appendSyntheticToolResults(astSeq int, invs []tooling.Invocation, toolIDs []string, start int) error {
 	payload := toolingResultJSON(map[string]any{"error": cliMsgGenerationStopped})
-	for j := start; j < len(invs); j++ {
-		var tm chatstore.Message
-		if id := toolIDs[j]; id != "" {
-			tm = chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
-		} else {
-			tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
+	r.mutateSession(func(s *chatstore.Session) {
+		for j := start; j < len(invs); j++ {
+			var tm chatstore.Message
+			if id := toolIDs[j]; id != "" {
+				tm = chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
+			} else {
+				tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
+			}
+			checkpoint.StampMsg(&tm, s, astSeq)
+			s.Messages = append(s.Messages, tm)
+			s.LastMessageAt = time.Now()
 		}
-		checkpoint.StampMsg(&tm, r.Session, astSeq)
-		r.Session.Messages = append(r.Session.Messages, tm)
-		r.Session.LastMessageAt = time.Now()
-	}
+	})
 	return r.persistSession()
 }
 
