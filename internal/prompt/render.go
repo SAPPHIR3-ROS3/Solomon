@@ -29,6 +29,7 @@ var summarizeSystemRaw string
 type Data struct {
 	Tools                 string
 	Syntax                string
+	LegacySyntax          string
 	ExtraRules            string
 	Language              string
 	UserName              string
@@ -52,9 +53,12 @@ type SummarizeData struct {
 	DisableThinking   bool
 }
 
-func NativeToolInvocationSyntax() string {
-	return strings.TrimSpace(`
-Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Use API tool_calls only; do not emit standalone Tool: lines in assistant text unless legacy text fallback is explicitly enabled for this chat.
+func NativeToolInvocationSyntax(legacyFallbackEnabled bool) string {
+	first := "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Use API tool_calls only; do not emit standalone Tool: lines in assistant text unless legacy text fallback is explicitly enabled for this chat."
+	if !legacyFallbackEnabled {
+		first = "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations."
+	}
+	return strings.TrimSpace(first + `
 
 The harness may echo executed calls as lines like:
 
@@ -86,14 +90,14 @@ Examples (BUILD): Tool: loadSkill({"name": "my-skill"})
 
 func RenderPlan(d Data) (string, error) {
 	if d.Syntax == "" {
-		d.Syntax = NativeToolInvocationSyntax()
+		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
 	return render(planRaw, d)
 }
 
 func RenderBuild(d Data) (string, error) {
 	if d.Syntax == "" {
-		d.Syntax = NativeToolInvocationSyntax()
+		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
 	return render(buildRaw, d)
 }
