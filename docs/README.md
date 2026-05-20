@@ -25,6 +25,12 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 3. [Agent turn pipeline](architecture/agent-turn-pipeline.md)
 4. Continue through the [architecture portal](architecture/README.md) in listed order.
 
+**CI / automation**
+
+1. [Usage and commands — machine output](user-guide/usage-and-commands.md#machine-readable-output---json---jsonl)
+2. [Startup and CLI](architecture/startup-and-cli.md)
+3. [GitHub Actions example](development/ci-github-actions.example.yml)
+
 **Maintainer**
 
 1. [Building and releases](development/building-and-releases.md)

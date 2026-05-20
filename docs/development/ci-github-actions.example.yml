@@ -1,0 +1,38 @@
+# Example: Solomon in GitHub Actions (machine-readable output).
+# Copy/adapt; secrets and model are placeholders.
+
+name: solomon-ci-example
+
+on:
+  workflow_dispatch:
+
+jobs:
+  agent-jsonl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Solomon
+        run: go install ./cmd/solomon
+      - name: Stream JSONL events
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: https://api.openai.com/v1
+          MODEL_ID: gpt-4o
+        run: solomon exec --jsonl --fail-on-tool-error summarize CI failure logs
+
+  agent-json-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Solomon
+        run: go install ./cmd/solomon
+      - name: Write final JSON report
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: https://api.openai.com/v1
+          MODEL_ID: gpt-4o
+        run: solomon exec --json fix lint issues > solomon-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solomon-report
+          path: solomon-report.json

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
@@ -57,6 +58,14 @@ type Runtime struct {
 	MCP *solomonmcp.Manager
 
 	ReplShellFirst bool
+
+	EventSink       cievents.Sink
+	FailOnToolError bool
+
+	ciPrompt        string
+	ciTurn          int
+	ciToolErr       bool
+	ciFinalContent  string
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
@@ -169,7 +178,11 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 
 func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
 	clean, _ := parseMultilineControlRunes(line)
-	return r.onUserMessage(ctx, trimMessageEdges(clean), false)
+	line = trimMessageEdges(clean)
+	if r.machineMode() {
+		return r.runPromptOnceCI(ctx, line)
+	}
+	return r.onUserMessage(ctx, line, false)
 }
 
 func (r *Runtime) mutateSession(fn func(*chatstore.Session)) {

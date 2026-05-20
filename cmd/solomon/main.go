@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
@@ -42,6 +41,10 @@ func main() {
 		os.Exit(1)
 	}
 	logging.Log(logging.INFO_LOG_LEVEL, "Solomon starting")
+	if kind, rest := detectExecSubcommand(os.Args); kind != execNone {
+		runExecCLI(ctx, kind, rest)
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "add" {
 		wd, err := os.Getwd()
 		if err != nil {
@@ -182,37 +185,6 @@ func main() {
 	rt := agentruntime.NewRuntime(rl, cfg, prov, hex, root, sess)
 	rt.InitMCP(ctx)
 	defer rt.Close()
-	if len(os.Args) >= 4 && os.Args[1] == "temp" && os.Args[2] == "exec" {
-		rt.EphemeralSession = true
-		prompt := strings.TrimSpace(strings.Join(os.Args[3:], " "))
-		if prompt == "" {
-			fmt.Fprintln(os.Stderr, `usage: solomon temp exec <prompt>`)
-			logging.Log(logging.WARNING_LOG_LEVEL, "temp exec: missing prompt")
-			os.Exit(1)
-		}
-		logging.Log(logging.INFO_LOG_LEVEL, "one-shot temp exec session")
-		if err := rt.RunPromptOnce(ctx, prompt); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			logging.Log(logging.ERROR_LOG_LEVEL, "run prompt failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			os.Exit(1)
-		}
-		return
-	}
-	if len(os.Args) >= 2 && os.Args[1] == "exec" {
-		prompt := strings.TrimSpace(strings.Join(os.Args[2:], " "))
-		if prompt == "" {
-			fmt.Fprintln(os.Stderr, `usage: solomon exec <prompt>  (shell quotes grouping text, not passed to Solomon)`)
-			logging.Log(logging.WARNING_LOG_LEVEL, "exec: missing prompt")
-			os.Exit(1)
-		}
-		logging.Log(logging.INFO_LOG_LEVEL, "one-shot exec session")
-		if err := rt.RunPromptOnce(ctx, prompt); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			logging.Log(logging.ERROR_LOG_LEVEL, "run prompt failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			os.Exit(1)
-		}
-		return
-	}
 	if err := rt.Run(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "repl run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

@@ -7,6 +7,7 @@ How to build, test, and tag Solomon from source.
 | Article | Summary |
 |---------|---------|
 | [building-and-releases.md](building-and-releases.md) | `go vet`, tests, build, GitHub release workflow |
+| [ci-github-actions.example.yml](ci-github-actions.example.yml) | Example workflow: `--jsonl` stream and `--json` report |
 
 ## See also
 

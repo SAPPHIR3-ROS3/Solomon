@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
@@ -84,7 +85,7 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 	if firstUserLine != "" {
 		go r.refineEphemeralTitle(ctx, firstUserLine)
 	}
-	if !fromReadline {
+	if !fromReadline && !r.machineMode() {
 		echoLine := termcolor.ColorizeImgTags(line)
 		cpPref := checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey)
 		youLbl := termcolor.WrapUser("You:")
@@ -127,7 +128,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 	var usageSys string
 	var usageMsgs []chatstore.Message
 	flushUsageStats := func() {
-		if !r.Cfg.UsageStatsEnabled() || len(usageTurns) == 0 {
+		if r.machineMode() || !r.Cfg.UsageStatsEnabled() || len(usageTurns) == 0 {
 			usageTurns = nil
 			return
 		}
@@ -160,23 +161,49 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			astSeq = checkpoint.Bump(s)
 			branchKey = s.CheckpointBranchSuffix
 		})
-		reasoningEff := "none"
-		if lbl := r.Cfg.ReasoningEffortLabel(); lbl != "" {
-			reasoningEff = lbl
+		turnIdx := r.ciTurn
+		if r.machineMode() {
+			r.ciEmit(cievents.AssistantStart(turnIdx, astSeq))
+		} else {
+			reasoningEff := "none"
+			if lbl := r.Cfg.ReasoningEffortLabel(); lbl != "" {
+				reasoningEff = lbl
+			}
+			fmt.Fprintf(r.Out, "%s%s (%s): ", checkpoint.FormatLinePrefix(astSeq, branchKey), termcolor.WrapAssistant(r.Model), termcolor.WrapThinking(reasoningEff))
 		}
-		fmt.Fprintf(r.Out, "%s%s (%s): ", checkpoint.FormatLinePrefix(astSeq, branchKey), termcolor.WrapAssistant(r.Model), termcolor.WrapThinking(reasoningEff))
-		turn, err := llm.StreamAssistantTurn(runCtx, r.Client, params, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
-		fmt.Fprintln(r.Out)
+		var contentOut io.Writer = termcolor.NewToolLineWriter(r.Out)
+		streamOpts := llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out}
+		if r.machineMode() {
+			contentOut = io.Discard
+			streamOpts = r.streamOptsCI(turnIdx)
+		}
+		turn, err := llm.StreamAssistantTurn(runCtx, r.Client, params, contentOut, streamOpts)
+		if !r.machineMode() {
+			fmt.Fprintln(r.Out)
+		}
 		if err != nil {
 			if interruptedDuringGeneration(ctx, runCtx, err) {
 				flushUsageStats()
 				logging.Log(logging.INFO_LOG_LEVEL, cliMsgGenerationStopped)
-				showGenerationStopped(r.Out)
+				if !r.machineMode() {
+					showGenerationStopped(r.Out)
+				}
 				return nil
 			}
 			flushUsageStats()
 			logging.Log(logging.ERROR_LOG_LEVEL, "assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			if r.machineMode() {
+				return r.wrapLLMErr(err)
+			}
 			return err
+		}
+		if r.machineMode() {
+			tcs := make([]chatstore.ToolCall, 0, len(turn.ToolCalls))
+			for _, tc := range turn.ToolCalls {
+				tcs = append(tcs, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
+			}
+			r.ciEmit(cievents.AssistantEnd(turnIdx, turn.Content, strings.TrimSpace(turn.ReasoningText), toolCallsCI(tcs)))
+			r.ciTurn++
 		}
 		if r.Cfg.UsageStatsEnabled() {
 			usageTurns = append(usageTurns, turn.Usage)
@@ -215,6 +242,9 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		}
 		if len(invs) == 0 {
 			flushUsageStats()
+			if r.machineMode() {
+				r.ciFinalContent = turn.Content
+			}
 			if turn.Usage.PromptTokens > 0 && turn.Usage.PromptTokens >= r.CompactionThresholdTokens {
 				deps := r.slashDeps(runCtx)
 				if r.EphemeralSession {
@@ -255,7 +285,15 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				return nil
 			}
 			inv := invs[i]
-			r.printToolLine(astSeq, branchKey, inv.Name, inv.Args)
+			toolID := ""
+			if i < len(toolIDs) {
+				toolID = toolIDs[i]
+			}
+			if r.machineMode() {
+				r.ciEmit(cievents.ToolStart(turnIdx, toolID, inv.Name, inv.Args))
+			} else {
+				r.printToolLine(astSeq, branchKey, inv.Name, inv.Args)
+			}
 			res, err := r.execTool(runCtx, inv)
 			if interruptedDuringGeneration(ctx, runCtx, err) {
 				if err2 := r.appendSyntheticToolResults(astSeq, invs, toolIDs, i); err2 != nil {
@@ -270,6 +308,16 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				res = map[string]any{"error": err.Error()}
 			}
 			payload := toolingResultJSON(res)
+			if r.machineMode() {
+				r.noteCIToolResult(res)
+				errMsg := ""
+				if m, ok := res.(map[string]any); ok {
+					if e, ok := m["error"].(string); ok {
+						errMsg = e
+					}
+				}
+				r.ciEmit(cievents.ToolResult(turnIdx, toolID, inv.Name, json.RawMessage(payload), errMsg))
+			}
 			var tm chatstore.Message
 			if id := toolIDs[i]; id != "" {
 				tm = chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
