@@ -1,3 +1,24 @@
+<div align="center">
+
+# ⚠️ EARLY RELEASE ⚠️
+
+## PREVIEW SOFTWARE — NOT PRODUCTION-READY
+
+**APIs, behavior, and on-disk formats may change without notice.**
+
+Bring your own OpenAI-compatible endpoint · Expect rough edges · [Open an issue](https://github.com/SAPPHIR3-ROS3/Solomon/issues) with feedback
+
+```
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║   S O L O M O N   ·   E A R L Y   R E L E A S E   ·   U S E   A T        ║
+║   Y O U R   O W N   R I S K   ·   F E E D B A C K   W E L C O M E        ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+```
+
+</div>
+
 # Solomon
 
 Interactive terminal harness for LLMs over OpenAI-compatible APIs — project-aware sessions, skills, slash commands, planning, and tooling.
@@ -6,7 +27,7 @@ Interactive terminal harness for LLMs over OpenAI-compatible APIs — project-aw
 
 ### 1. `go install` (recommended)
 
-Requires [Go](https://go.dev/) **1.24.1+** ([`go.mod`](go.mod)).
+Requires [Go](https://go.dev/) **1.25.0+** ([`go.mod`](go.mod)).
 
 Latest:
 
