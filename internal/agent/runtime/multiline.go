@@ -147,7 +147,7 @@ func isTerminalModeReportBytes(b []byte) bool {
 
 func (s *seqTranslator) mouseFilterStep(c byte) (emit []byte, consumed bool) {
 	if len(s.mouseAcc) == 0 {
-		if c == 0x1b || c == '[' || (c >= '0' && c <= '9') {
+		if c == '[' || (c >= '0' && c <= '9') {
 			s.mouseAcc = append(s.mouseAcc, c)
 			return nil, true
 		}
@@ -193,6 +193,9 @@ func (s *seqTranslator) applyMouseFilterAtHead() bool {
 	}
 	emit, consumed := s.mouseFilterStep(s.prefix[0])
 	if !consumed {
+		if len(emit) > 0 {
+			s.prefix = append(emit, s.prefix...)
+		}
 		return false
 	}
 	s.prefix = s.prefix[1:]
