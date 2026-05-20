@@ -1,5 +1,3 @@
-<div align="center">
-
 # ⚠️ EARLY RELEASE ⚠️
 
 ## PREVIEW SOFTWARE — NOT PRODUCTION-READY
@@ -16,8 +14,6 @@ Bring your own OpenAI-compatible endpoint · Expect rough edges · [Open an issu
 ║                                                                          ║
 ╚══════════════════════════════════════════════════════════════════════════╝
 ```
-
-</div>
 
 # Solomon
 
@@ -38,7 +34,7 @@ go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest
 Pin a [GitHub tag](https://github.com/SAPPHIR3-ROS3/Solomon/tags):
 
 ```bash
-go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@v0.1.0
+go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest
 ```
 
 Ensure `$GOPATH/bin` (or `$GOBIN`) is on your `PATH`.
@@ -59,7 +55,7 @@ Produces `./solomon` (Unix/macOS) or `./solomon.exe` (Windows). See [Building an
 
 ```bash
 cd /path/to/your/project
-solomon
+solomon .
 ```
 
 On first run, Solomon starts an **interactive setup** (provider URL, API key, model). Name and language are optional; provider credentials are required.
