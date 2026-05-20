@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
@@ -18,6 +19,41 @@ import (
 
 	"github.com/chzyer/readline"
 )
+
+func expandPathArg(raw string) string {
+	if raw == "~" {
+		if h, err := os.UserHomeDir(); err == nil {
+			return h
+		}
+		return raw
+	}
+	if strings.HasPrefix(raw, "~/") || strings.HasPrefix(raw, "~\\") {
+		if h, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(h, raw[2:])
+		}
+	}
+	return raw
+}
+
+func resolveREPLWorkingDir(args []string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if len(args) < 2 {
+		return home, nil
+	}
+	raw := expandPathArg(args[1])
+	abs, err := filepath.Abs(filepath.Clean(raw))
+	if err != nil {
+		return home, nil
+	}
+	info, err := os.Stat(abs)
+	if err != nil || !info.IsDir() {
+		return home, nil
+	}
+	return abs, nil
+}
 
 func main() {
 	ctx := context.Background()
@@ -144,10 +180,10 @@ func main() {
 		logging.Log(logging.ERROR_LOG_LEVEL, "resolve provider failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
-	wd, err := os.Getwd()
+	wd, err := resolveREPLWorkingDir(os.Args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		logging.Log(logging.ERROR_LOG_LEVEL, "get working directory failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		logging.Log(logging.ERROR_LOG_LEVEL, "resolve repl working directory failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
 	root, hex, err := project.Resolve(wd)
@@ -156,8 +192,7 @@ func main() {
 		logging.Log(logging.ERROR_LOG_LEVEL, "resolve project failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
-	_ = root
-	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: map[string]any{"provider": prov.Name, "model": cfg.Current.Model, "project_hex": hex}})
+	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: map[string]any{"provider": prov.Name, "model": cfg.Current.Model, "project_hex": hex, "workspace": root}})
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: termcolor.WrapUser("You: "),
 		Stdin:  agentruntime.NewMultilineStdin(agentruntime.PlatformStdin()),
