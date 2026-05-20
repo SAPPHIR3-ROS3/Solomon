@@ -1,0 +1,50 @@
+# Solomon documentation
+
+Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by topic into **portals** (folders). Each portal has an index page; articles end with a **See also** section for cross-links.
+
+## Portals
+
+| Portal | Index | Topics |
+|--------|-------|--------|
+| **Using Solomon** | [user-guide/README.md](user-guide/README.md) | Configuration, CLI modes, slash commands, on-disk layout |
+| **Internals & design** | [architecture/README.md](architecture/README.md) | Packages, functions, runtime flows, tools, MCP |
+| **Building & releasing** | [development/README.md](development/README.md) | `go vet` / test / build, release workflow |
+
+## Suggested reading paths
+
+**New user**
+
+1. [Configuration](user-guide/configuration.md)
+2. [Usage and commands](user-guide/usage-and-commands.md)
+3. [Data layout](user-guide/data-layout.md)
+
+**Contributor or debugger**
+
+1. [Overview](architecture/overview.md)
+2. [Startup and CLI](architecture/startup-and-cli.md)
+3. [Agent turn pipeline](architecture/agent-turn-pipeline.md)
+4. Continue through the [architecture portal](architecture/README.md) in listed order.
+
+**Maintainer**
+
+1. [Building and releases](development/building-and-releases.md)
+
+## Glossary
+
+| Term | Meaning |
+|------|---------|
+| **Runtime** | `internal/agent/runtime.Runtime` — REPL, turns, persistence, MCP wiring |
+| **Session** | `chatstore.Session` — messages, checkpoints, images, persisted as JSON under `~/.solomon/projects/<id>/chats/` |
+| **Project id** | 64-char hex from canonical workspace root (`project.Resolve`) |
+| **Plan / build mode** | `Runtime.Mode` — restricts native tools and system prompt (`plan` vs `build`) |
+| **Slash command** | REPL line starting with `/` — handled by `agent.SlashDispatch` → `commands` package |
+
+## Featured articles
+
+- [Configuration](user-guide/configuration.md) — `config.toml`, web search, logs
+- [Overview](architecture/overview.md) — package map and design tenets
+- [Agent turn pipeline](architecture/agent-turn-pipeline.md) — LLM stream and tool loop
+
+## See also
+
+- [Project README](../README.md) — requirements, install, quickstart, philosophy
