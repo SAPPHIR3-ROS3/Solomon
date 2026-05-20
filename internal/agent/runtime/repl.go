@@ -28,7 +28,9 @@ func (imgReplDisplayPainter) Paint(line []rune, _ int) []rune {
 
 func (r *Runtime) Run(ctx context.Context) error {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
-	chatstore.FinishSessionLoad(r.Session)
+	r.mutateSession(func(s *chatstore.Session) {
+		chatstore.FinishSessionLoad(s)
+	})
 	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
 	restoreBracketedPaste := enableBracketedPasteMode(r.RL.Stdout())
 	defer restoreBracketedPaste()
@@ -49,30 +51,37 @@ func (r *Runtime) Run(ctx context.Context) error {
 			return nil, 0, false
 		}
 		if key == 22 && clipboard.HasImage() {
-			if r.Session.ID == "" {
-				r.Session.ID = chatstore.NewPlaceholderChatID(time.Now())
-			}
-			if r.Session.ImageFiles == nil {
-				r.Session.ImageFiles = make(map[int]string)
-			}
-			seq := r.Session.ImageSeq
-			r.Session.ImageSeq++
-			dir, err := paths.ChatImagesDir(r.ProjHex)
-			if err == nil {
-				path, err := clipboard.PasteImage(dir, r.Session.ID, seq)
-				if err == nil {
-					r.Session.ImageFiles[seq] = path
-					r.Session.LastMessageAt = time.Now()
-					_ = r.persistSession()
-					tag := llm.ImagePlaceholder(seq)
-					newRunes := make([]rune, 0, len(line)+len(tag))
-					newRunes = append(newRunes, line[:pos]...)
-					newRunes = append(newRunes, []rune(tag)...)
-					newRunes = append(newRunes, line[pos:]...)
-					return newRunes, pos + len([]rune(tag)), true
+			var chatID string
+			var seq int
+			r.mutateSession(func(s *chatstore.Session) {
+				if s.ID == "" {
+					s.ID = chatstore.NewPlaceholderChatID(time.Now())
 				}
+				seq = s.ImageSeq
+				s.ImageSeq++
+				chatID = s.ID
+			})
+			dir, err := paths.ChatImagesDir(r.ProjHex)
+			if err != nil {
+				return nil, 0, false
 			}
-			return nil, 0, false
+			path, err := clipboard.PasteImage(dir, chatID, seq)
+			if err != nil {
+				return nil, 0, false
+			}
+			r.mutateSession(func(s *chatstore.Session) {
+				if s.ImageFiles == nil {
+					s.ImageFiles = make(map[int]string)
+				}
+				s.ImageFiles[seq] = path
+				s.LastMessageAt = time.Now()
+			})
+			tag := llm.ImagePlaceholder(seq)
+			newRunes := make([]rune, 0, len(line)+len(tag))
+			newRunes = append(newRunes, line[:pos]...)
+			newRunes = append(newRunes, []rune(tag)...)
+			newRunes = append(newRunes, line[pos:]...)
+			return newRunes, pos + len([]rune(tag)), true
 		}
 		if len(pendingMultiline) == 0 {
 			return nil, 0, false
@@ -96,7 +105,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 	})
 	r.RL.SetConfig(cfg)
 	for {
-		chatstore.FinishSessionLoad(r.Session)
+		r.mutateSession(func(s *chatstore.Session) {
+			chatstore.FinishSessionLoad(s)
+		})
 		if len(pendingMultiline) > 0 {
 			r.refreshReadlinePromptContinue()
 		} else {

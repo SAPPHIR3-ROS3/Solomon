@@ -7,11 +7,16 @@ import (
 )
 
 func CleanSessionCache(d Deps) error {
-	s := d.Session()
-	if s == nil {
+	if d.MutateSession == nil {
 		return fmt.Errorf("no session")
 	}
-	broken, patched, emptied := chatstore.RepairSessionMalformedImages(s)
+	var broken, patched, emptied int
+	d.MutateSession(func(s *chatstore.Session) {
+		if s == nil {
+			return
+		}
+		broken, patched, emptied = chatstore.RepairSessionMalformedImages(s)
+	})
 	if d.PersistSession != nil {
 		if err := d.PersistSession(); err != nil {
 			return err

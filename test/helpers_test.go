@@ -33,6 +33,8 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		},
 		SetSession: func(s *chatstore.Session) { *sess = *s },
 
+		MutateSession: func(fn func(*chatstore.Session)) { fn(sess) },
+
 		SetMode: func(string) {},
 		GetMode: func() string { return "build" },
 

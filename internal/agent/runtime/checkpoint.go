@@ -16,24 +16,38 @@ func (r *Runtime) checkpointStageProjAbs(absResolved string) {
 }
 
 func (r *Runtime) ApplyGotoCheckpoint(id *checkpoint.FullCheckpointID) error {
-	keep, drop, err := checkpoint.SplitAtFullID(r.Session.Messages, id)
-	if err != nil {
-		return err
-	}
-	dropCopy := append([]chatstore.Message(nil), drop...)
-	r.Session.MainOrphans = append(r.Session.MainOrphans, chatstore.MainOrphanSegment{
-		ForkAtInclusive: id.Seq,
-		Messages:        dropCopy,
+	var splitErr error
+	var dropCopy []chatstore.Message
+	var truncLen int
+	r.mutateSession(func(s *chatstore.Session) {
+		keep, drop, err := checkpoint.SplitAtFullID(s.Messages, id)
+		if err != nil {
+			splitErr = err
+			return
+		}
+		dropCopy = append([]chatstore.Message(nil), drop...)
+		s.MainOrphans = append(s.MainOrphans, chatstore.MainOrphanSegment{
+			ForkAtInclusive: id.Seq,
+			Messages:        dropCopy,
+		})
+		s.Messages = keep
+		s.CheckpointBranchSuffix = checkpoint.NextForkSuffix(s, id.Seq)
+		chatstore.FinishSessionLoad(s)
+		truncLen = len(dropCopy)
 	})
-	r.Session.Messages = keep
-	r.Session.CheckpointBranchSuffix = checkpoint.NextForkSuffix(r.Session, id.Seq)
-	chatstore.FinishSessionLoad(r.Session)
+	if splitErr != nil {
+		return splitErr
+	}
 	cmds := r.slashDeps(context.Background())
 	if err := commands.Clear(cmds); err != nil {
 		return err
 	}
-	commands.WriteLabeledTranscript(r.Out, r.Session.Messages, r.Model)
+	var msgs []chatstore.Message
+	r.mutateSession(func(s *chatstore.Session) {
+		msgs = append([]chatstore.Message(nil), s.Messages...)
+	})
+	commands.WriteLabeledTranscript(r.Out, msgs, r.Model)
 	tag := checkpoint.FormatCheckpointTag(id.Seq, id.Suffix)
-	fmt.Fprintf(r.Out, "goto %s: transcript truncated (%d messages moved to orphan main).\n", tag, len(dropCopy))
+	fmt.Fprintf(r.Out, "goto %s: transcript truncated (%d messages moved to orphan main).\n", tag, truncLen)
 	return r.persistSession()
 }
