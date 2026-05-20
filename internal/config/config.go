@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -278,53 +277,13 @@ func NoteRecentModelUse(r *Root, providerName, modelID string) {
 }
 
 func RunWizardIfNeeded(stdin io.Reader) (*Root, error) {
-	cfgPath, err := paths.ConfigPath()
+	_ = stdin
+	r, err := LoadOptional()
 	if err != nil {
 		return nil, err
 	}
-	if _, statErr := os.Stat(cfgPath); statErr == nil {
-		return Load()
-	}
-	br := bufio.NewScanner(stdin)
-	fmt.Print("Your name: ")
-	br.Scan()
-	userName := strings.TrimSpace(br.Text())
-	fmt.Print("Solomon setup: OpenAI-compatible API\n")
-	fmt.Print("Display name for this provider: ")
-	br.Scan()
-	name := strings.TrimSpace(br.Text())
-	fmt.Print("Base URL (e.g. https://api.openai.com): ")
-	br.Scan()
-	base := strings.TrimSpace(br.Text())
-	fmt.Print("API key: ")
-	br.Scan()
-	key := strings.TrimSpace(br.Text())
-	norm, err := NormalizeAPIBase(base)
-	if err != nil {
-		return nil, err
-	}
-	p := Provider{Name: name, BaseURL: norm, APIKey: key}
-	fmt.Print("Fetching models…\n")
-	mid, err := PickModelInteractive(stdin, &p, name)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("Assistant response language [%s]: ", DefaultResponseLanguage)
-	br.Scan()
-	lang := strings.TrimSpace(br.Text())
-	if lang == "" {
-		lang = DefaultResponseLanguage
-	}
-	r := &Root{
-		UserName:                  userName,
-		Providers:                 []Provider{p},
-		Current:                   Current{Provider: name, Model: mid},
-		SubagentTimeoutMinutes:    DefaultSubagentTimeoutMinutes,
-		ResponseLanguage:          lang,
-		CompactionThresholdTokens: DefaultCompactionThresholdTokens,
-	}
-	if err := Save(r); err != nil {
-		return nil, err
+	if NeedsOnboard(r) {
+		return nil, fmt.Errorf("config not set up; run solomon and use /onboard")
 	}
 	return r, nil
 }

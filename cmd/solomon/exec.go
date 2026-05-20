@@ -118,13 +118,13 @@ func runExecCLI(ctx context.Context, kind execKind, argRest []string) {
 			exitExec(cievents.ExitConfig, "config")
 		}
 	} else {
-		cfg, err = config.RunWizardIfNeeded(os.Stdin)
+		cfg, err = config.LoadOptional()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			exitExec(cievents.ExitConfig, "config")
 		}
-		if cfg.Current.Model == "" {
-			fmt.Fprintln(os.Stderr, "model not configured; set current.model in ~/.solomon/config.toml")
+		if config.NeedsOnboard(cfg) {
+			fmt.Fprintln(os.Stderr, "config not set up; run solomon and use /onboard")
 			exitExec(cievents.ExitConfig, "config")
 		}
 		prov, err = config.ResolveProvider(cfg)

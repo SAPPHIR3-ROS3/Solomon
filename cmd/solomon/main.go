@@ -56,6 +56,10 @@ func resolveREPLWorkingDir(args []string) (string, error) {
 }
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "version" {
+		commands.WriteVersion(os.Stdout)
+		return
+	}
 	ctx := context.Background()
 	lroot, err := paths.SolomonHome()
 	if err != nil {
@@ -147,38 +151,32 @@ func main() {
 		}
 		return
 	}
-	cfg, err := config.RunWizardIfNeeded(os.Stdin)
+	cfg, err := config.LoadOptional()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		logging.Log(logging.ERROR_LOG_LEVEL, "config setup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		logging.Log(logging.ERROR_LOG_LEVEL, "config load failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
-	if cfg.Current.Model == "" {
-		p, err := config.ResolveProvider(cfg)
+	configExists, err := config.ConfigExists()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		logging.Log(logging.ERROR_LOG_LEVEL, "config path check failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		os.Exit(1)
+	}
+	if err := config.RunInitialSetup(os.Stdin, os.Stdout, os.Stderr, cfg, configExists); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		logging.Log(logging.ERROR_LOG_LEVEL, "initial setup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		os.Exit(1)
+	}
+	config.WriteConfigSetupWarning(os.Stderr, cfg)
+	var prov *config.Provider
+	if !config.NeedsOnboard(cfg) {
+		prov, err = config.ResolveProvider(cfg)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			logging.Log(logging.ERROR_LOG_LEVEL, "resolve provider failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			os.Exit(1)
 		}
-		mid, err := config.PickModelInteractive(os.Stdin, p, p.Name)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "model selection failed: %v\nSet current.model in ~/.solomon/config.toml\n", err)
-			logging.Log(logging.ERROR_LOG_LEVEL, "model selection failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			os.Exit(1)
-		}
-		cfg.Current.Model = mid
-		cfg.Current.Provider = p.Name
-		if err := config.Save(cfg); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			logging.Log(logging.ERROR_LOG_LEVEL, "save config failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			os.Exit(1)
-		}
-	}
-	prov, err := config.ResolveProvider(cfg)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		logging.Log(logging.ERROR_LOG_LEVEL, "resolve provider failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		os.Exit(1)
 	}
 	wd, err := resolveREPLWorkingDir(os.Args)
 	if err != nil {
@@ -192,7 +190,11 @@ func main() {
 		logging.Log(logging.ERROR_LOG_LEVEL, "resolve project failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
-	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: map[string]any{"provider": prov.Name, "model": cfg.Current.Model, "project_hex": hex, "workspace": root}})
+	sessParams := map[string]any{"model": cfg.Current.Model, "project_hex": hex, "workspace": root}
+	if prov != nil {
+		sessParams["provider"] = prov.Name
+	}
+	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: sessParams})
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: termcolor.WrapUser("You: "),
 		Stdin:  agentruntime.NewMultilineStdin(agentruntime.PlatformStdin()),

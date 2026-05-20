@@ -69,13 +69,8 @@ type Runtime struct {
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
-	cl := openai.NewClient(
-		option.WithAPIKey(prov.APIKey),
-		option.WithBaseURL(prov.BaseURL),
-	)
-	return &Runtime{
+	rt := &Runtime{
 		RL:                        rl,
-		Client:                    cl,
 		Model:                     cfg.Current.Model,
 		Cfg:                       cfg,
 		Prov:                      prov,
@@ -86,6 +81,13 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
 		Out:                       os.Stdout,
 	}
+	if prov != nil {
+		rt.Client = openai.NewClient(
+			option.WithAPIKey(prov.APIKey),
+			option.WithBaseURL(prov.BaseURL),
+		)
+	}
+	return rt
 }
 
 func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
