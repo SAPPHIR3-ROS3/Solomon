@@ -14,3 +14,7 @@ func (nopCloseStdin) Close() error { return nil }
 func platformStdin() stdinReadCloser {
 	return nopCloseStdin{Reader: os.Stdin}
 }
+
+func prepareConsoleInput() func() {
+	return func() {}
+}

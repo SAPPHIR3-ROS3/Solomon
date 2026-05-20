@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
@@ -137,6 +138,9 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	}
 	right = append(right, "Paste multiline text stays as one input (manual Enter to send)")
 	right = append(right, "Alt+Enter / Ctrl+Enter for multiline input")
+	if runtime.GOOS == "windows" {
+		right = append(right, "Ctrl+V to paste a clipboard image")
+	}
 	maxRightW := 0
 	for _, ln := range right {
 		if w := visibleCells(ln); w > maxRightW {

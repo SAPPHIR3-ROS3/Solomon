@@ -12,6 +12,11 @@ import (
 
 var ErrNoImage = errors.New("no image in clipboard")
 
+const (
+	psLoadWinForms = `Add-Type -AssemblyName System.Windows.Forms; `
+	psLoadDrawing  = `Add-Type -AssemblyName System.Drawing; `
+)
+
 // HasImage checks whether the system clipboard currently holds an image.
 func HasImage() bool {
 	switch runtime.GOOS {
@@ -51,7 +56,7 @@ func hasImageLinux() bool {
 }
 
 func hasImageWindows() bool {
-	ps := `Add-Type -AssemblyName System.Windows.Forms; ` +
+	ps := psLoadWinForms +
 		`if ([System.Windows.Forms.Clipboard]::ContainsImage()) { exit 0 } else { exit 1 }`
 	err := exec.Command("powershell", "-NoProfile", "-Command", ps).Run()
 	return err == nil
@@ -118,7 +123,7 @@ func pasteImageLinux(path string) error {
 }
 
 func pasteImageWindows(path string) error {
-	ps := `Add-Type -AssemblyName System.Drawing; ` +
+	ps := psLoadWinForms + psLoadDrawing +
 		`$img = [System.Windows.Forms.Clipboard]::GetImage(); ` +
 		`if ($img -eq $null) { exit 1 }; ` +
 		`$img.Save('` + strings.ReplaceAll(path, `'`, `''`) + `', [System.Drawing.Imaging.ImageFormat]::Png); ` +

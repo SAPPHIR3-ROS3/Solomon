@@ -8,7 +8,6 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 Ordine suggerito: dal più **facile** al più **difficile** (code review interno).
 
-- **`internal/clipboard/clipboard.go` — paste immagine Windows:** script PowerShell senza `Add-Type -AssemblyName System.Windows.Forms`; può fallire a runtime.
 - **`internal/agent/runtime/repl.go` — paste clipboard:** errori (directory immagini, `PasteImage`, ecc.) assorbiti in silenzio e UX incerta (es. carattere stray nel buffer); feedback esplicito su stdout/stderr.
 
 ---
