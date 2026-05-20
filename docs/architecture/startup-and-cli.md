@@ -13,7 +13,7 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 | `internal/agent/cievents` | CI event schema, JSONL/collector sinks, exit codes |
 | `internal/config/exec_resolve.go` | TOML → env → env-file for machine exec |
 | `internal/paths` | `SolomonHome()` → `~/.solomon` |
-| `internal/config` | Load/save TOML, wizard, provider resolve, model pick |
+| `internal/config` | Load/save TOML, onboard setup, provider resolve, model pick |
 | `internal/project` | `Resolve(wd)` → canonical root + 64-char hex id |
 | `internal/logging` | File logs under `~/.solomon/logs` |
 | `internal/chatstore` | Empty or loaded `Session` passed into runtime |
@@ -23,11 +23,13 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 
 | Function | File | Behavior |
 |----------|------|----------|
-| `main` | `cmd/solomon/main.go` | Init logging; `add`/`remove`; early `exec` path; else wizard + REPL |
+| `main` | `cmd/solomon/main.go` | Init logging; `add`/`remove`; early `exec` path; initial setup + REPL |
 | `runExecCLI` | `cmd/solomon/exec.go` | One-shot exec with optional machine output |
 | `config.ResolveExecConfig` | `internal/config/exec_resolve.go` | Headless credentials for `--json`/`--jsonl` |
 | `paths.SolomonHome` | `internal/paths/paths.go` | User data root |
-| `config.RunWizardIfNeeded` | `internal/config/config.go` | First-run interactive setup |
+| `config.RunInitialSetup` | `internal/config/onboard_setup.go` | First-run / incomplete LLM setup (required provider) |
+| `config.RunOnboardWizard` | `internal/config/onboard.go` | Interactive `/onboard` wizard (optional skips on re-run) |
+| `config.NeedsOnboard` | `internal/config/onboard.go` | True when provider, API key, or model is missing |
 | `config.ResolveProvider` | `internal/config/config.go` | Active provider from `current.*` |
 | `project.Resolve` | `internal/project/project.go` | Map cwd → `(root, hex)` |
 | `agentruntime.NewRuntime` | `runtime/core.go` | OpenAI client, default `Mode: "build"` |
@@ -40,24 +42,26 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 ```mermaid
 flowchart LR
   start[Run solomon]
-  cfg{config exists}
-  wizard[wizard]
   load[Load config]
+  ok{LLM setup complete}
+  setup[RunInitialSetup / onboard]
+  warn[Warn if still incomplete]
   proj[Resolve cwd]
   mode{CLI mode}
   repl[REPL]
   execOnce[exec]
-  start --> cfg
-  cfg -->|no| wizard --> load
-  cfg -->|yes| load
-  load --> proj --> mode
+  start --> load --> ok
+  ok -->|no| setup --> ok
+  ok -->|yes| warn
+  setup --> warn
+  warn --> proj --> mode
   mode -->|default| repl
   mode -->|exec args| execOnce
 ```
 
 ## CLI branches (early exit)
 
-Before the wizard, `main` handles:
+Before initial setup, `main` handles:
 
 - `solomon add ...` → `commands.Add` with `project.Resolve` deps
 - `solomon remove skill <name>` → `commands.Remove`
@@ -74,7 +78,7 @@ After runtime construction (REPL path only):
 
 ## Extension points
 
-- New global CLI subcommands: add branch in `main` before wizard (mirror `add`/`remove` pattern with `commands.Deps`).
+- New global CLI subcommands: add branch in `main` before REPL setup (mirror `add`/`remove` pattern with `commands.Deps`).
 - Boot-time defaults: `NewRuntime` and `config.Root` fields.
 
 ## Related code
