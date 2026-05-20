@@ -60,6 +60,7 @@ Before the wizard, `main` handles:
 After runtime construction:
 
 - `solomon temp exec <prompt>` — sets `EphemeralSession`, no long-term chat file
+- REPL `/temp` — same persistence rules when the current chat has no messages ([`commands.TempChat`](../../internal/agent/commands/resume.go))
 - `solomon exec <prompt>` — one shot with normal session persistence rules
 - default — `Runtime.Run`
 

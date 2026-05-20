@@ -5,6 +5,13 @@ import "fmt"
 func ExitMessage(d Deps) {
 	fmt.Fprintln(d.Out, "Goodbye.")
 	s := d.Session()
+	ephemeral := d.GetEphemeralSession != nil && d.GetEphemeralSession()
+	if ephemeral {
+		if s != nil && len(s.Messages) > 0 {
+			fmt.Fprintln(d.Out, "This was a temporary chat (not saved to disk).")
+		}
+		return
+	}
 	if s != nil && s.ID != "" {
 		fmt.Fprintf(d.Out, "Resume this chat by id:   /resume %s\n", s.ID)
 		if s.Title != "" {

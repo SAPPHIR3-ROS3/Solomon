@@ -178,14 +178,50 @@ func TestSlashDispatch_name(t *testing.T) {
 	}
 }
 
-func TestSlashDispatch_new(t *testing.T) {
+func TestSlashDispatch_temp(t *testing.T) {
+	var ephemeral bool
 	sess := &chatstore.Session{
 		ID:       "deadbeef",
 		Messages: []chatstore.Message{{Role: "user", Content: "hi"}},
 	}
 	d := testDeps(sess)
+	d.SetEphemeralSession = func(v bool) { ephemeral = v }
+	err := agent.SlashDispatch(d, "/temp")
+	if err == nil || !strings.Contains(err.Error(), "already has messages") {
+		t.Fatalf("non-empty: got %v", err)
+	}
+	sess.Messages = nil
+	sess.ID = ""
+	buf := bytes.NewBuffer(nil)
+	d.Out = buf
+	if err := agent.SlashDispatch(d, "/temp"); err != nil {
+		t.Fatal(err)
+	}
+	if !ephemeral {
+		t.Fatal("want ephemeral=true")
+	}
+	if sess.ID != "" || len(sess.Messages) != 0 {
+		t.Fatalf("want fresh session, got id=%q msgs=%d", sess.ID, len(sess.Messages))
+	}
+	if !strings.Contains(buf.String(), "temp session") {
+		t.Fatalf("banner: %q", buf.String())
+	}
+}
+
+func TestSlashDispatch_new(t *testing.T) {
+	var ephemeral bool
+	sess := &chatstore.Session{
+		ID:       "deadbeef",
+		Messages: []chatstore.Message{{Role: "user", Content: "hi"}},
+	}
+	d := testDeps(sess)
+	d.SetEphemeralSession = func(v bool) { ephemeral = v }
+	ephemeral = true
 	if err := agent.SlashDispatch(d, "/new"); err != nil {
 		t.Fatal(err)
+	}
+	if ephemeral {
+		t.Fatal("want ephemeral=false after /new")
 	}
 	if sess.ID != "" || len(sess.Messages) != 0 {
 		t.Fatalf("want fresh session, got id=%q msgs=%d", sess.ID, len(sess.Messages))
@@ -220,7 +256,7 @@ func TestSlashDispatch_help(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "/goto") || !strings.Contains(out, "/checkpoint") || !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") || !strings.Contains(out, "/mcp") || !strings.Contains(out, "/cleansessioncache") {
+	if !strings.Contains(out, "/goto") || !strings.Contains(out, "/checkpoint") || !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/temp") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") || !strings.Contains(out, "/mcp") || !strings.Contains(out, "/cleansessioncache") {
 		t.Fatalf("/help unexpected: %.200s", out)
 	}
 }

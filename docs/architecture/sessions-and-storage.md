@@ -36,6 +36,7 @@ Persist chat transcripts as JSON per project, resolve storage paths from project
 ## Persistence rules (runtime)
 
 - `Runtime.persistSession` writes only when `sessionFileCreated` and non-empty `Session.ID` and not `EphemeralSession`.
+- Ephemeral mode: `solomon temp exec`, or `/temp` on an empty REPL chat (`commands.TempChat` sets `Runtime.EphemeralSession`). Transcript stays in memory; no `WriteSession` until the user starts a normal chat (`/new`, `/resume`, or first persisted message after leaving ephemeral mode).
 - User/assistant/tool append paths call persist after mutation (see [Agent turn pipeline](agent-turn-pipeline.md)).
 
 ## On-disk layout

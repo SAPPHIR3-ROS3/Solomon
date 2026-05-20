@@ -80,5 +80,8 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 
 		GetReplShellFirst: func() bool { return r.ReplShellFirst },
 		SetReplShellFirst: func(v bool) { r.ReplShellFirst = v },
+
+		GetEphemeralSession: func() bool { return r.EphemeralSession },
+		SetEphemeralSession: func(v bool) { r.EphemeralSession = v },
 	}
 }

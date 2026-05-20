@@ -13,7 +13,14 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 )
 
+func sessionIsEmpty(sess *chatstore.Session) bool {
+	return sess == nil || len(sess.Messages) == 0
+}
+
 func Resume(d Deps, args []string) error {
+	if d.SetEphemeralSession != nil {
+		d.SetEphemeralSession(false)
+	}
 	if len(args) == 0 {
 		list, err := chatstore.ListRecent(d.ProjHex, 10)
 		if err != nil {
@@ -113,6 +120,9 @@ func printResumedTranscript(out io.Writer, sess *chatstore.Session, model string
 }
 
 func NewChat(d Deps) error {
+	if d.SetEphemeralSession != nil {
+		d.SetEphemeralSession(false)
+	}
 	now := time.Now()
 	d.SetSession(&chatstore.Session{
 		ID:                     "",
@@ -133,6 +143,42 @@ func NewChat(d Deps) error {
 		d.ResetReadlineHistory()
 	}
 	fmt.Fprint(d.Out, "\033[2J\033[H")
+	if d.PrintWelcomeBanner != nil {
+		d.PrintWelcomeBanner()
+	}
+	return nil
+}
+
+func TempChat(d Deps) error {
+	if d.SetEphemeralSession == nil {
+		return fmt.Errorf("/temp unavailable")
+	}
+	sess := d.Session()
+	if !sessionIsEmpty(sess) {
+		return fmt.Errorf("cannot create a temporary chat: the current chat already has messages")
+	}
+	d.SetEphemeralSession(true)
+	now := time.Now()
+	d.SetSession(&chatstore.Session{
+		ID:                     "",
+		Title:                  "",
+		CreatedAt:              now,
+		LastMessageAt:          now,
+		Messages:               nil,
+		CheckpointLast:         -1,
+		CheckpointCP0:          true,
+		CheckpointBranchSuffix: "",
+		ForkChildCount:         nil,
+		MainOrphans:            nil,
+		LastCommitOID:          "",
+		ImageSeq:               0,
+		ImageFiles:             nil,
+	})
+	if d.ResetReadlineHistory != nil {
+		d.ResetReadlineHistory()
+	}
+	fmt.Fprint(d.Out, "\033[2J\033[H")
+	fmt.Fprintln(d.Out, "temp session (in memory only; not saved to disk)")
 	if d.PrintWelcomeBanner != nil {
 		d.PrintWelcomeBanner()
 	}
