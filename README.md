@@ -21,7 +21,37 @@ Interactive terminal harness for LLMs over OpenAI-compatible APIs — project-aw
 
 ## Install
 
-### 1. `go install` (recommended)
+### 1. Install script (one command)
+
+Installs Go **1.25.0+** if needed, configures your shell `PATH`, and runs `go install` for `solomon`.
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh | bash
+```
+
+From a clone:
+
+```bash
+./scripts/install.sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex
+```
+
+From a clone:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+```
+
+Reload the terminal (or `source` your rc file), then run `solomon version`.
+
+### 2. `go install` (manual)
 
 Requires [Go](https://go.dev/) **1.25.0+** ([`go.mod`](go.mod)).
 
@@ -38,7 +68,7 @@ go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest
 ```
 
 
-### 2. Build from a clone
+### 3. Build from a clone
 
 For contributors or local patches:
 
