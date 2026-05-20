@@ -26,7 +26,7 @@ jobs:
       - run: go test ./... -count=1
       - run: go build ./cmd/solomon
 
-  tag:
+  release:
     if: github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: ubuntu-latest
@@ -37,7 +37,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create calendar tag on default branch
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - id: version
+        name: Resolve calendar version tag
         run: |
           set -e
           git fetch --tags origin
@@ -65,8 +70,43 @@ jobs:
           REV=$((MAX_REV + 1))
           VER="${PREFIX}.${REV}"
 
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$VER" -m "Calendar tag $VER (${Y}-${M}-${D} rev ${REV})"
+          git tag -a "$VER" -m "Calendar release $VER"
           git push origin "$VER"
-          echo "Pushed $VER"
+          echo "Pushed tag $VER"
+
+      - name: Build release executables
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          set -e
+          mkdir -p dist
+          for spec in linux/amd64 linux/arm64 windows/amd64 windows/arm64 darwin/amd64 darwin/arm64; do
+            goos="${spec%/*}"
+            goarch="${spec#*/}"
+            out="dist/solomon-${VER}-${goos}-${goarch}"
+            if [ "$goos" = "windows" ]; then
+              out="${out}.exe"
+            fi
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/solomon
+          done
+
+      - name: Create GitHub pre-release
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          gh release create "$VER" dist/* \
+            --title "$VER" \
+            --notes "Calendar pre-release $VER. Assets are native executables per platform (linux, windows, macOS; amd64 and arm64)." \
+            --prerelease
