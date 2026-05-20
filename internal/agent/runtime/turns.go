@@ -15,6 +15,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
@@ -40,6 +41,9 @@ func showGenerationStopped(out io.Writer) {
 func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline bool) error {
 	clean, _ := parseMultilineControlRunes(line)
 	line = trimMessageEdges(clean)
+	if config.NeedsOnboard(r.Cfg) || r.Prov == nil {
+		return fmt.Errorf("config not set up; use /onboard")
+	}
 	if r.ReplShellFirst {
 		if strings.HasPrefix(line, "!") {
 			line = trimMessageEdges(strings.TrimPrefix(line, "!"))

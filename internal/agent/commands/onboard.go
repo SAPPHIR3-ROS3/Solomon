@@ -1,0 +1,80 @@
+package commands
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+)
+
+func Onboard(d Deps) error {
+	if d.Cfg == nil {
+		return fmt.Errorf("/onboard unavailable")
+	}
+	stdin := d.Stdin
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	exists, err := config.ConfigExists()
+	if err != nil {
+		return err
+	}
+	if exists {
+		ok, err := config.ConfirmOnboardRerun(stdin, d.Out)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			fmt.Fprintln(d.Out, "Onboard cancelled.")
+			return nil
+		}
+	}
+	existing := cloneRootSnapshot(d.Cfg)
+	res, err := config.RunOnboardWizard(stdin, d.Out, existing, config.OnboardOpts{})
+	if err != nil {
+		return err
+	}
+	return finishOnboard(d, res)
+}
+
+func finishOnboard(d Deps, res *config.OnboardResult) error {
+	config.ApplyOnboardMerge(d.Cfg, res)
+	if d.SaveCfg == nil {
+		return fmt.Errorf("/onboard unavailable")
+	}
+	if err := d.SaveCfg(); err != nil {
+		return err
+	}
+	if res.SwitchCurrent && d.ApplyCurrentModel != nil {
+		if err := d.ApplyCurrentModel(res.CurrentProvider, res.CurrentModel); err != nil {
+			return err
+		}
+	} else if d.Provider() == nil && !config.NeedsOnboard(d.Cfg) && d.ApplyCurrentModel != nil {
+		if err := d.ApplyCurrentModel(d.Cfg.Current.Provider, d.Cfg.Current.Model); err != nil {
+			return err
+		}
+	}
+	if d.SetCompactionThresholdTokens != nil {
+		d.SetCompactionThresholdTokens(config.EffectiveCompactionThresholdTokens(d.Cfg))
+	}
+	if config.NeedsOnboard(d.Cfg) {
+		fmt.Fprintln(d.Out, "Onboard complete (no provider configured; use /onboard to add one)")
+	} else {
+		fmt.Fprintf(d.Out, "Onboard complete: %s[%s]\n", d.Cfg.Current.Model, d.Cfg.Current.Provider)
+	}
+	if d.PrintWelcomeBanner != nil {
+		d.PrintWelcomeBanner()
+	}
+	return nil
+}
+
+func cloneRootSnapshot(r *config.Root) *config.Root {
+	if r == nil {
+		return nil
+	}
+	cp := *r
+	if len(r.Providers) > 0 {
+		cp.Providers = append([]config.Provider(nil), r.Providers...)
+	}
+	return &cp
+}

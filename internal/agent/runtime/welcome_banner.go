@@ -195,7 +195,10 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 			eff = lbl
 		}
 	}
-	modelLine := fmt.Sprintf("%s (%s)", termcolor.WrapAssistant(model), termcolor.WrapThinking(eff))
+	modelLine := termcolor.WrapAssistant("(not configured — run /onboard)")
+	if strings.TrimSpace(model) != "" {
+		modelLine = fmt.Sprintf("%s (%s)", termcolor.WrapAssistant(model), termcolor.WrapThinking(eff))
+	}
 	abs := projRoot
 	if a, err := filepath.Abs(projRoot); err == nil {
 		abs = a
