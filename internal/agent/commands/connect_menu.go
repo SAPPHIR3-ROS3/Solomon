@@ -1,32 +1,31 @@
 package commands
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
 )
 
-func connectChooseKind(d Deps, sc *bufio.Scanner) (int, error) {
+func connectReadLine(d Deps, prompt string) (string, error) {
+	return config.ReadPromptLine(PromptIO(d), prompt)
+}
+
+func connectChooseKind(d Deps) (int, error) {
 	fmt.Fprintln(d.Out, "Connect provider type:")
 	fmt.Fprintln(d.Out, "  1) ChatGPT Sub (browser sign-in)")
 	fmt.Fprintln(d.Out, "  2) OpenAI Compatible API (base URL + API key)")
 	fmt.Fprintln(d.Out, "  3) Anthropic Compatible API (base URL + API key)")
 	fmt.Fprintln(d.Out, "  4) Claude Sub (OAuth, coming soon)")
-	fmt.Fprint(d.Out, "Select [1-4]: ")
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return 0, err
-		}
+	line, err := connectReadLine(d, "Select [1-4]: ")
+	if err != nil {
+		return 0, err
+	}
+	if line == "" {
 		return 0, fmt.Errorf("missing selection")
 	}
-	line := strings.TrimSpace(sc.Text())
 	switch line {
 	case "1":
 		return 1, nil
@@ -41,7 +40,7 @@ func connectChooseKind(d Deps, sc *bufio.Scanner) (int, error) {
 	}
 }
 
-func connectChatGPTSub(d Deps, sc *bufio.Scanner) error {
+func connectChatGPTSub(d Deps) error {
 	ctx := d.Ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -61,7 +60,7 @@ func connectChatGPTSub(d Deps, sc *bufio.Scanner) error {
 		return err
 	}
 	ids := codex.SubModelCatalog()
-	return connectPickModel(d, sc, prevProv, prevModel, prov.Name, ids)
+	return connectPickModel(d, prevProv, prevModel, prov.Name, ids)
 }
 
 func connectClaudeSubComingSoon(d Deps) error {
@@ -71,37 +70,34 @@ func connectClaudeSubComingSoon(d Deps) error {
 	return nil
 }
 
-func connectCompatibleAPI(d Deps, sc *bufio.Scanner) error {
-	fmt.Fprint(d.Out, "Provider display name: ")
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return err
-		}
+func connectCompatibleAPI(d Deps) error {
+	n, err := connectReadLine(d, "Provider display name: ")
+	if err != nil {
+		return err
+	}
+	if n == "" {
 		return fmt.Errorf("missing provider display name")
 	}
-	n := strings.TrimSpace(sc.Text())
 	if n == config.ProviderNameChatGPTSub {
 		return fmt.Errorf("display name %q is reserved; use option 1 for ChatGPT Sub", n)
 	}
 	if n == config.ProviderNameClaudeSub {
 		return fmt.Errorf("display name %q is reserved; use option 4 for Claude Sub", n)
 	}
-	fmt.Fprint(d.Out, "Base URL: ")
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return err
-		}
+	u, err := connectReadLine(d, "Base URL: ")
+	if err != nil {
+		return err
+	}
+	if u == "" {
 		return fmt.Errorf("missing base URL")
 	}
-	u := strings.TrimSpace(sc.Text())
-	fmt.Fprint(d.Out, "API key: ")
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return err
-		}
+	k, err := connectReadLine(d, "API key: ")
+	if err != nil {
+		return err
+	}
+	if k == "" {
 		return fmt.Errorf("missing API key")
 	}
-	k := strings.TrimSpace(sc.Text())
 	base, err := config.NormalizeAPIBase(u)
 	if err != nil {
 		return err
@@ -121,40 +117,37 @@ func connectCompatibleAPI(d Deps, sc *bufio.Scanner) error {
 	if err := d.SaveCfg(); err != nil {
 		return err
 	}
-	return connectPickModel(d, sc, prevProv, prevModel, prov.Name, ids)
+	return connectPickModel(d, prevProv, prevModel, prov.Name, ids)
 }
 
-func connectAnthropicCompatibleAPI(d Deps, sc *bufio.Scanner) error {
-	fmt.Fprint(d.Out, "Provider display name: ")
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return err
-		}
+func connectAnthropicCompatibleAPI(d Deps) error {
+	n, err := connectReadLine(d, "Provider display name: ")
+	if err != nil {
+		return err
+	}
+	if n == "" {
 		return fmt.Errorf("missing provider display name")
 	}
-	n := strings.TrimSpace(sc.Text())
 	if n == config.ProviderNameChatGPTSub {
 		return fmt.Errorf("display name %q is reserved; use option 1 for ChatGPT Sub", n)
 	}
 	if n == config.ProviderNameClaudeSub {
 		return fmt.Errorf("display name %q is reserved; use option 4 for Claude Sub", n)
 	}
-	fmt.Fprint(d.Out, "Base URL e.g. https://api.anthropic.com: ")
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return err
-		}
+	u, err := connectReadLine(d, "Base URL e.g. https://api.anthropic.com: ")
+	if err != nil {
+		return err
+	}
+	if u == "" {
 		return fmt.Errorf("missing base URL")
 	}
-	u := strings.TrimSpace(sc.Text())
-	fmt.Fprint(d.Out, "API key: ")
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return err
-		}
+	k, err := connectReadLine(d, "API key: ")
+	if err != nil {
+		return err
+	}
+	if k == "" {
 		return fmt.Errorf("missing API key")
 	}
-	k := strings.TrimSpace(sc.Text())
 	base, err := config.NormalizeAnthropicBase(u)
 	if err != nil {
 		return err
@@ -167,7 +160,7 @@ func connectAnthropicCompatibleAPI(d Deps, sc *bufio.Scanner) error {
 		return err
 	}
 	ids := modelsapi.CuratedAnthropicModels()
-	return connectPickModel(d, sc, prevProv, prevModel, prov.Name, ids)
+	return connectPickModel(d, prevProv, prevModel, prov.Name, ids)
 }
 
 func listModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {
@@ -185,11 +178,4 @@ func listModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Prov
 		return nil, err
 	}
 	return modelsapi.List(p.BaseURL, bearer)
-}
-
-func connectScanner(stdin io.Reader) *bufio.Scanner {
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	return bufio.NewScanner(stdin)
 }

@@ -1,12 +1,10 @@
 package agentruntime
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -59,9 +57,8 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 				return transcript.String(), cievents.TimeoutError(err)
 			}
 			sum, _ := r.summarizeNested(ctx, msgs)
-			fmt.Fprintf(r.Out, "\n%s\nSubagent paused (timeout).\nContinue? [y/N]: ", sum)
-			br := bufio.NewReader(os.Stdin)
-			line, _ := br.ReadString('\n')
+			fmt.Fprintf(r.Out, "\n%s\nSubagent paused (timeout).\n", sum)
+			line, _ := config.ReadPromptLine(r.promptIO(), "Continue? [y/N]: ")
 			if strings.TrimSpace(strings.ToLower(line)) != "y" {
 				return transcript.String(), nil
 			}

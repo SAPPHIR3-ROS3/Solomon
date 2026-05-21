@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 )
@@ -11,16 +10,13 @@ func Onboard(d Deps) error {
 	if d.Cfg == nil {
 		return fmt.Errorf("/onboard unavailable")
 	}
-	stdin := d.Stdin
-	if stdin == nil {
-		stdin = os.Stdin
-	}
+	pio := PromptIO(d)
 	exists, err := config.ConfigExists()
 	if err != nil {
 		return err
 	}
 	if exists {
-		ok, err := config.ConfirmOnboardRerun(stdin, d.Out)
+		ok, err := config.ConfirmOnboardRerun(pio)
 		if err != nil {
 			return err
 		}
@@ -30,7 +26,7 @@ func Onboard(d Deps) error {
 		}
 	}
 	existing := cloneRootSnapshot(d.Cfg)
-	res, err := config.RunOnboardWizard(stdin, d.Out, existing, config.OnboardOpts{})
+	res, err := config.RunOnboardWizard(pio, existing, config.OnboardOpts{})
 	if err != nil {
 		return err
 	}

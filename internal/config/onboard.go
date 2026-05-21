@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -19,7 +18,8 @@ const (
 	onboardAPIAnthropic  = 2
 )
 
-func onboardChooseAPIKind(br *bufio.Scanner, out io.Writer, require bool) (kind int, skipped bool, err error) {
+func onboardChooseAPIKind(pio PromptIO, require bool) (kind int, skipped bool, err error) {
+	out := pio.promptOut()
 	fmt.Fprintln(out, "LLM provider API type:")
 	fmt.Fprintln(out, "  1) OpenAI Compatible API (base URL + API key)")
 	fmt.Fprintln(out, "  2) Anthropic Compatible API (base URL + API key)")
@@ -28,7 +28,7 @@ func onboardChooseAPIKind(br *bufio.Scanner, out io.Writer, require bool) (kind 
 		prompt = "Select [1-2] (skip to skip provider setup): "
 	}
 	for {
-		line, err := readOnboardLine(br, out, prompt)
+		line, err := readOnboardLine(pio, prompt)
 		if err != nil {
 			return 0, false, err
 		}
@@ -60,8 +60,9 @@ func onboardListModels(p *Provider) ([]string, error) {
 	return ids, nil
 }
 
-func runOnboardProviderSetup(br *bufio.Scanner, stdin io.Reader, out io.Writer, existing *Root, opts OnboardOpts, res *OnboardResult) error {
-	apiKind, skipped, err := onboardChooseAPIKind(br, out, opts.RequireProvider)
+func runOnboardProviderSetup(pio PromptIO, existing *Root, opts OnboardOpts, res *OnboardResult) error {
+	out := pio.promptOut()
+	apiKind, skipped, err := onboardChooseAPIKind(pio, opts.RequireProvider)
 	if err != nil {
 		return err
 	}
@@ -78,12 +79,12 @@ func runOnboardProviderSetup(br *bufio.Scanner, stdin io.Reader, out io.Writer, 
 	fmt.Fprintln(out, setupTitle)
 	var provNameLine string
 	if opts.RequireProvider {
-		provNameLine, err = readRequired(br, out, "Display name for this provider: ")
+		provNameLine, err = readRequired(pio, "Display name for this provider: ")
 		if err != nil {
 			return err
 		}
 	} else {
-		provNameLine, err = readOnboardLine(br, out, "Display name for this provider (skip to skip provider setup): ")
+		provNameLine, err = readOnboardLine(pio, "Display name for this provider (skip to skip provider setup): ")
 		if err != nil {
 			return err
 		}
@@ -97,17 +98,17 @@ func runOnboardProviderSetup(br *bufio.Scanner, stdin io.Reader, out io.Writer, 
 	}
 	var base, key string
 	if opts.RequireProvider {
-		base, err = readRequired(br, out, basePrompt+": ")
+		base, err = readRequired(pio, basePrompt+": ")
 		if err != nil {
 			return err
 		}
-		key, err = readRequired(br, out, "API key: ")
+		key, err = readRequired(pio, "API key: ")
 		if err != nil {
 			return err
 		}
 	} else {
 		var baseSkipped bool
-		base, baseSkipped, err = readRequiredOrSkip(br, out, basePrompt+" (skip to skip provider setup): ")
+		base, baseSkipped, err = readRequiredOrSkip(pio, basePrompt+" (skip to skip provider setup): ")
 		if err != nil {
 			return err
 		}
@@ -115,7 +116,7 @@ func runOnboardProviderSetup(br *bufio.Scanner, stdin io.Reader, out io.Writer, 
 			PrintConfigSkipHint(out, "provider")
 			return errOnboardProviderSkipped
 		}
-		key, baseSkipped, err = readRequiredOrSkip(br, out, "API key (skip to skip provider setup): ")
+		key, baseSkipped, err = readRequiredOrSkip(pio, "API key (skip to skip provider setup): ")
 		if err != nil {
 			return err
 		}
@@ -152,7 +153,7 @@ func runOnboardProviderSetup(br *bufio.Scanner, stdin io.Reader, out io.Writer, 
 	res.NewProvider = &p
 	hadExisting := existing != nil && len(existing.Providers) > 0 && strings.TrimSpace(existing.Current.Model) != ""
 	if hadExisting {
-		choice, err := PickModelAfterAdd(stdin, out, existing.Current.Provider, existing.Current.Model, p.Name, ids, !opts.RequireProvider)
+		choice, err := PickModelAfterAdd(pio, existing.Current.Provider, existing.Current.Model, p.Name, ids, !opts.RequireProvider)
 		if err != nil {
 			return err
 		}
@@ -162,7 +163,7 @@ func runOnboardProviderSetup(br *bufio.Scanner, stdin io.Reader, out io.Writer, 
 			res.CurrentModel = choice.ModelID
 		}
 	} else {
-		mid, err := PickModelInteractive(stdin, out, &p, p.Name, ids, !opts.RequireProvider)
+		mid, err := PickModelInteractive(pio, &p, p.Name, ids, !opts.RequireProvider)
 		if err != nil {
 			return err
 		}
@@ -335,20 +336,21 @@ func isSkipInput(s string) bool {
 	return strings.EqualFold(strings.TrimSpace(s), "skip")
 }
 
-func readOnboardLine(br *bufio.Scanner, out io.Writer, prompt string) (string, error) {
-	fmt.Fprint(out, prompt)
-	if !br.Scan() {
-		if err := br.Err(); err != nil {
-			return "", err
+func readOnboardLine(pio PromptIO, prompt string) (string, error) {
+	line, err := ReadPromptLine(pio, prompt)
+	if err != nil {
+		if err == io.EOF {
+			return "", fmt.Errorf("unexpected end of input")
 		}
-		return "", fmt.Errorf("unexpected end of input")
+		return "", err
 	}
-	return strings.TrimSpace(br.Text()), nil
+	return line, nil
 }
 
-func readRequiredOrSkip(br *bufio.Scanner, out io.Writer, prompt string) (value string, skipped bool, err error) {
+func readRequiredOrSkip(pio PromptIO, prompt string) (value string, skipped bool, err error) {
+	out := pio.promptOut()
 	for {
-		line, err := readOnboardLine(br, out, prompt)
+		line, err := readOnboardLine(pio, prompt)
 		if err != nil {
 			return "", false, err
 		}
@@ -363,9 +365,10 @@ func readRequiredOrSkip(br *bufio.Scanner, out io.Writer, prompt string) (value 
 	}
 }
 
-func readRequired(br *bufio.Scanner, out io.Writer, prompt string) (string, error) {
+func readRequired(pio PromptIO, prompt string) (string, error) {
+	out := pio.promptOut()
 	for {
-		line, err := readOnboardLine(br, out, prompt)
+		line, err := readOnboardLine(pio, prompt)
 		if err != nil {
 			return "", err
 		}
@@ -381,20 +384,14 @@ type OnboardOpts struct {
 	RequireProvider bool
 }
 
-func RunOnboardWizard(stdin io.Reader, out io.Writer, existing *Root, opts OnboardOpts) (*OnboardResult, error) {
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	if out == nil {
-		out = os.Stdout
-	}
-	br := bufio.NewScanner(stdin)
+func RunOnboardWizard(pio PromptIO, existing *Root, opts OnboardOpts) (*OnboardResult, error) {
+	out := pio.promptOut()
 	res := &OnboardResult{
 		SubagentTimeoutMinutes:    DefaultSubagentTimeoutMinutes,
 		CompactionThresholdTokens: DefaultCompactionThresholdTokens,
 		ResponseLanguage:          DefaultResponseLanguage,
 	}
-	nameLine, err := readOnboardLine(br, out, "Your name (skip for default): ")
+	nameLine, err := readOnboardLine(pio, "Your name (skip for default): ")
 	if err != nil {
 		return nil, err
 	}
@@ -403,14 +400,14 @@ func RunOnboardWizard(stdin io.Reader, out io.Writer, existing *Root, opts Onboa
 	} else {
 		res.UserName = nameLine
 	}
-	if err := runOnboardProviderSetup(br, stdin, out, existing, opts, res); err != nil {
+	if err := runOnboardProviderSetup(pio, existing, opts, res); err != nil {
 		if err == errOnboardProviderSkipped {
 			goto language
 		}
 		return nil, err
 	}
 language:
-	langLine, err := readOnboardLine(br, out, fmt.Sprintf("Assistant response language [%s] (skip for default): ", DefaultResponseLanguage))
+	langLine, err := readOnboardLine(pio, fmt.Sprintf("Assistant response language [%s] (skip for default): ", DefaultResponseLanguage))
 	if err != nil {
 		return nil, err
 	}
@@ -422,22 +419,15 @@ language:
 	return res, nil
 }
 
-func ConfirmOnboardRerun(stdin io.Reader, out io.Writer) (bool, error) {
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	if out == nil {
-		out = os.Stdout
-	}
-	fmt.Fprint(out, "Re-run onboarding will update profile fields and may add a provider. Continue? [y/N]: ")
-	br := bufio.NewScanner(stdin)
-	if !br.Scan() {
-		if err := br.Err(); err != nil {
-			return false, err
+func ConfirmOnboardRerun(pio PromptIO) (bool, error) {
+	line, err := ReadPromptLine(pio, "Re-run onboarding will update profile fields and may add a provider. Continue? [y/N]: ")
+	if err != nil {
+		if err == io.EOF {
+			return false, nil
 		}
-		return false, nil
+		return false, err
 	}
-	switch strings.ToLower(strings.TrimSpace(br.Text())) {
+	switch strings.ToLower(line) {
 	case "y", "yes":
 		return true, nil
 	default:

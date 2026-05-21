@@ -17,7 +17,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/project"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 
-	"github.com/chzyer/readline"
 )
 
 func expandPathArg(raw string) string {
@@ -163,7 +162,17 @@ func main() {
 		logging.Log(logging.ERROR_LOG_LEVEL, "config path check failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
-	if err := config.RunInitialSetup(os.Stdin, os.Stdout, os.Stderr, cfg, configExists); err != nil {
+	rl, readLine, rlErr := agentruntime.NewREPLReadline(termcolor.WrapUser("You: "))
+	if rlErr != nil {
+		fmt.Fprintln(os.Stderr, rlErr)
+		logging.Log(logging.ERROR_LOG_LEVEL, "readline init failed", logging.LogOptions{Params: map[string]any{"err": rlErr.Error()}})
+		os.Exit(1)
+	}
+	if rl != nil {
+		defer rl.Close()
+	}
+	setupIO := config.PromptIO{Stdin: os.Stdin, Out: os.Stdout, ReadLine: readLine}
+	if err := config.RunInitialSetup(setupIO, os.Stderr, cfg, configExists); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "initial setup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
@@ -195,16 +204,20 @@ func main() {
 		sessParams["provider"] = prov.Name
 	}
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: sessParams})
-	rl, err := readline.NewEx(&readline.Config{
-		Prompt: termcolor.WrapUser("You: "),
-		Stdin:  agentruntime.NewMultilineStdin(agentruntime.PlatformStdin()),
-	})
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		logging.Log(logging.ERROR_LOG_LEVEL, "readline init failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		os.Exit(1)
+	if rl == nil {
+		var err2 error
+		rl, _, err2 = agentruntime.NewREPLReadline(termcolor.WrapUser("You: "))
+		if err2 != nil {
+			fmt.Fprintln(os.Stderr, err2)
+			logging.Log(logging.ERROR_LOG_LEVEL, "readline init failed", logging.LogOptions{Params: map[string]any{"err": err2.Error()}})
+			os.Exit(1)
+		}
+		if rl == nil {
+			fmt.Fprintln(os.Stderr, "interactive session requires a terminal")
+			os.Exit(1)
+		}
+		defer rl.Close()
 	}
-	defer rl.Close()
 
 	sess := &chatstore.Session{
 		ID:                     "",

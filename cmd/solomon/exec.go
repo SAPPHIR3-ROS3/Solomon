@@ -150,12 +150,13 @@ func runExecCLI(ctx context.Context, kind execKind, argRest []string) {
 	var rl *readline.Instance
 	if !machine {
 		var err2 error
-		rl, err2 = readline.NewEx(&readline.Config{
-			Prompt: termcolor.WrapUser("You: "),
-			Stdin:  agentruntime.NewMultilineStdin(agentruntime.PlatformStdin()),
-		})
+		rl, _, err2 = agentruntime.NewREPLReadline(termcolor.WrapUser("You: "))
 		if err2 != nil {
 			fmt.Fprintln(os.Stderr, err2)
+			exitExec(cievents.ExitGeneric, "error")
+		}
+		if rl == nil {
+			fmt.Fprintln(os.Stderr, "interactive exec requires a terminal")
 			exitExec(cievents.ExitGeneric, "error")
 		}
 		defer rl.Close()

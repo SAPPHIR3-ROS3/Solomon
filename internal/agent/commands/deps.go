@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"io"
+	"os"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
@@ -59,4 +60,16 @@ type Deps struct {
 
 	GetEphemeralSession func() bool
 	SetEphemeralSession func(bool)
+}
+
+func PromptIO(d Deps) config.PromptIO {
+	stdin := d.Stdin
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	out := d.Out
+	if out == nil {
+		out = os.Stdout
+	}
+	return config.PromptIO{Stdin: stdin, Out: out, ReadLine: d.ReadLine}
 }

@@ -9,27 +9,68 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+
+	readline "github.com/chzyer/readline"
 )
+
+func StdinIsTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
+func ReadlinePrompt(rl *readline.Instance, prompt string) (string, error) {
+	if rl == nil {
+		return "", fmt.Errorf("readline unavailable")
+	}
+	prev := rl.Config.Prompt
+	rl.SetPrompt(prompt)
+	line, err := rl.Readline()
+	rl.SetPrompt(prev)
+	return line, err
+}
+
+func NewREPLReadline(defaultPrompt string) (*readline.Instance, func(string) (string, error), error) {
+	if !StdinIsTerminal() {
+		return nil, nil, nil
+	}
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt: defaultPrompt,
+		Stdin:  NewMultilineStdin(PlatformStdin()),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	fn := func(prompt string) (string, error) {
+		return ReadlinePrompt(rl, prompt)
+	}
+	return rl, fn, nil
+}
+
+func (r *Runtime) promptIO() config.PromptIO {
+	pio := config.PromptIO{Stdin: os.Stdin, Out: r.Out}
+	if r.RL != nil {
+		rl := r.RL
+		pio.ReadLine = func(prompt string) (string, error) {
+			return ReadlinePrompt(rl, prompt)
+		}
+	}
+	return pio
+}
 
 func (r *Runtime) handleSlash(ctx context.Context, line string) error {
 	return solomonagent.SlashDispatch(r.slashDeps(ctx), line)
 }
 
 func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
+	pio := r.promptIO()
 	return commands.Deps{
 		Ctx:   ctx,
-		Out:   r.Out,
-		Stdin: os.Stdin,
-		ReadLine: func(prompt string) (string, error) {
-			if r.RL == nil {
-				return "", fmt.Errorf("/models line input unavailable")
-			}
-			prev := r.RL.Config.Prompt
-			r.RL.SetPrompt(prompt)
-			line, err := r.RL.Readline()
-			r.RL.SetPrompt(prev)
-			return line, err
-		},
+		Out:   pio.Out,
+		Stdin: pio.Stdin,
+		ReadLine: pio.ReadLine,
 		Cfg: r.Cfg,
 		SaveCfg: func() error { return config.Save(r.Cfg) },
 
@@ -62,12 +103,21 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		Client:  r.Client,
 		Backend: r.Backend,
 
-		ResetReadlineHistory: func() { r.RL.ResetHistory() },
+		ResetReadlineHistory: func() {
+			if r.RL != nil {
+				r.RL.ResetHistory()
+			}
+		},
 		AppendReadlineHistory: func(line string) error {
+			if r.RL == nil {
+				return nil
+			}
 			return r.RL.SaveHistory(line)
 		},
 		PrefillInput: func(s string) {
-			r.RL.Operation.SetBuffer(s)
+			if r.RL != nil {
+				r.RL.Operation.SetBuffer(s)
+			}
 		},
 		SubmitUserMessage: func(s string) error { return r.onUserMessage(ctx, s, false) },
 
