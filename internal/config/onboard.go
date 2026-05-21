@@ -58,10 +58,10 @@ func NeedsOnboard(r *Root) bool {
 	if p == nil {
 		return true
 	}
-	if strings.TrimSpace(p.APIKey) == "" {
+	if strings.TrimSpace(p.BaseURL) == "" {
 		return true
 	}
-	if strings.TrimSpace(p.BaseURL) == "" {
+	if !ProviderCredentialsReady(p) {
 		return true
 	}
 	return false
@@ -103,8 +103,12 @@ func WriteConfigSetupWarning(w io.Writer, r *Root) {
 			if strings.TrimSpace(p.BaseURL) == "" {
 				missing = append(missing, "providers[].base_url")
 			}
-			if strings.TrimSpace(p.APIKey) == "" {
-				missing = append(missing, "providers[].api_key")
+			if !ProviderCredentialsReady(p) {
+				if p.EffectiveAuthKind() == AuthKindOAuthChatGPT {
+					missing = append(missing, "providers[].oauth tokens")
+				} else {
+					missing = append(missing, "providers[].api_key")
+				}
 			}
 		}
 	}
@@ -156,21 +160,11 @@ func ApplyOnboardMerge(dst *Root, res *OnboardResult) {
 	dst.SubagentTimeoutMinutes = res.SubagentTimeoutMinutes
 	dst.CompactionThresholdTokens = res.CompactionThresholdTokens
 	if res.NewProvider != nil {
-		appendOrUpdateProvider(dst, *res.NewProvider)
+		AppendOrUpdateProvider(dst, *res.NewProvider)
 	}
 	if res.SwitchCurrent {
 		dst.Current = Current{Provider: res.CurrentProvider, Model: res.CurrentModel}
 	}
-}
-
-func appendOrUpdateProvider(r *Root, p Provider) {
-	for i := range r.Providers {
-		if r.Providers[i].Name == p.Name {
-			r.Providers[i] = p
-			return
-		}
-	}
-	r.Providers = append(r.Providers, p)
 }
 
 func isSkipInput(s string) bool {

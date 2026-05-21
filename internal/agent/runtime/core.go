@@ -14,6 +14,7 @@ import (
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
@@ -82,12 +83,36 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		Out:                       os.Stdout,
 	}
 	if prov != nil {
-		rt.Client = openai.NewClient(
-			option.WithAPIKey(prov.APIKey),
-			option.WithBaseURL(prov.BaseURL),
-		)
+		if client, err := newOpenAIClient(context.Background(), cfg, prov); err == nil {
+			rt.Client = client
+		}
 	}
 	return rt
+}
+
+func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider) (openai.Client, error) {
+	config.EnsureChatGPTSubBaseURL(p)
+	if p.IsChatGPTSub() && cfg != nil {
+		for i := range cfg.Providers {
+			if cfg.Providers[i].Name == p.Name {
+				cfg.Providers[i].BaseURL = p.BaseURL
+				_ = config.Save(cfg)
+				break
+			}
+		}
+	}
+	bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
+	if err != nil {
+		return openai.Client{}, err
+	}
+	opts := []option.RequestOption{
+		option.WithAPIKey(bearer),
+		option.WithBaseURL(p.BaseURL),
+	}
+	if p.IsChatGPTSub() {
+		opts = append(opts, codex.WithChatGPTSubMiddleware(p.OAuthAccountID))
+	}
+	return openai.NewClient(opts...), nil
 }
 
 func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
@@ -107,10 +132,11 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 			p := &r.Cfg.Providers[i]
 			r.Prov = p
 			r.Model = modelID
-			r.Client = openai.NewClient(
-				option.WithAPIKey(p.APIKey),
-				option.WithBaseURL(p.BaseURL),
-			)
+			client, err := newOpenAIClient(context.Background(), r.Cfg, p)
+			if err != nil {
+				return err
+			}
+			r.Client = client
 			return nil
 		}
 	}

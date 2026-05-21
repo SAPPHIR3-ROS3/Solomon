@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +12,6 @@ import (
 	readline "github.com/chzyer/readline"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
 )
 
 type ListedModel struct {
@@ -19,9 +19,18 @@ type ListedModel struct {
 	Model string
 }
 
+type pickerSection int
+
+const (
+	sectionCurrent pickerSection = iota
+	sectionRecent
+	sectionChatGPTSub
+	sectionCatalog
+)
+
 type pickerRow struct {
-	lm     ListedModel
-	recent bool
+	lm      ListedModel
+	section pickerSection
 }
 
 func lmKey(l ListedModel) string {
@@ -38,11 +47,10 @@ func catalogContains(all []ListedModel, lm ListedModel) bool {
 	return false
 }
 
-func pickRecentListed(d Deps, all []ListedModel, cur ListedModel, max int) []ListedModel {
+func pickRecentListed(d Deps, all []ListedModel, cur ListedModel, claimed map[string]bool, max int) []ListedModel {
 	if max <= 0 || d.Cfg == nil {
 		return nil
 	}
-	claimed := map[string]bool{lmKey(cur): true}
 	var out []ListedModel
 	for _, u := range d.Cfg.RecentModelUses {
 		lm := ListedModel{Prov: strings.TrimSpace(u.Provider), Model: strings.TrimSpace(u.Model)}
@@ -67,31 +75,63 @@ func pickRecentListed(d Deps, all []ListedModel, cur ListedModel, max int) []Lis
 	return out
 }
 
-func assemblePickerRows(cur ListedModel, recents, prov []ListedModel) []pickerRow {
-	out := []pickerRow{{lm: cur}}
+func pickChatGPTSubListed(d Deps, all []ListedModel, cur ListedModel, claimed map[string]bool, max int) []ListedModel {
+	if max <= 0 || d.Cfg == nil {
+		return nil
+	}
+	var out []ListedModel
+	for _, u := range d.Cfg.RecentModelUses {
+		lm := ListedModel{Prov: strings.TrimSpace(u.Provider), Model: strings.TrimSpace(u.Model)}
+		if lm.Prov != config.ProviderNameChatGPTSub || lm.Model == "" {
+			continue
+		}
+		if !config.ModelPassesChatGPTSubFilter(lm.Model) {
+			continue
+		}
+		if lmKey(lm) == lmKey(cur) {
+			continue
+		}
+		if claimed[lmKey(lm)] {
+			continue
+		}
+		if !catalogContains(all, lm) {
+			continue
+		}
+		out = append(out, lm)
+		claimed[lmKey(lm)] = true
+		if len(out) >= max {
+			break
+		}
+	}
+	return out
+}
+
+func assemblePickerRows(cur ListedModel, recents, chatgptSub, prov []ListedModel) []pickerRow {
+	out := []pickerRow{{lm: cur, section: sectionCurrent}}
 	for i := range recents {
-		out = append(out, pickerRow{lm: recents[i], recent: true})
+		out = append(out, pickerRow{lm: recents[i], section: sectionRecent})
+	}
+	for i := range chatgptSub {
+		out = append(out, pickerRow{lm: chatgptSub[i], section: sectionChatGPTSub})
 	}
 	for i := range prov {
-		out = append(out, pickerRow{lm: prov[i], recent: false})
+		out = append(out, pickerRow{lm: prov[i], section: sectionCatalog})
 	}
 	return out
 }
 
 func buildSlashPicker(d Deps, catalog []ListedModel) ([]pickerRow, map[string]bool) {
 	cur := ListedModel{Prov: d.Provider().Name, Model: d.Model()}
-	recents := pickRecentListed(d, catalog, cur, 5)
 	claimed := map[string]bool{lmKey(cur): true}
-	for i := range recents {
-		claimed[lmKey(recents[i])] = true
-	}
-	need := 20 - len(recents)
+	recents := pickRecentListed(d, catalog, cur, claimed, 5)
+	chatgptSub := pickChatGPTSubListed(d, catalog, cur, claimed, 5)
+	need := 20 - len(recents) - len(chatgptSub)
 	prov := fillProviderPicks(catalog, claimed, need)
 	shown := map[string]bool{}
 	for k, v := range claimed {
 		shown[k] = v
 	}
-	return assemblePickerRows(cur, recents, prov), shown
+	return assemblePickerRows(cur, recents, chatgptSub, prov), shown
 }
 
 func fillProviderPicks(catalog []ListedModel, claimed map[string]bool, need int) []ListedModel {
@@ -143,10 +183,14 @@ func readInputLine(d Deps, bannerOneLine string, rlPrompt string) (string, error
 }
 
 func SlashModels(d Deps) error {
+	ctx := d.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var catalog []ListedModel
 	for i := range d.Cfg.Providers {
 		p := &d.Cfg.Providers[i]
-		ids, err := modelsapi.List(p.BaseURL, p.APIKey)
+		ids, err := listModelsForProvider(ctx, d.Cfg, p)
 		if err != nil {
 			fmt.Fprintf(d.Out, "provider %s: error: %v\n", p.Name, err)
 			continue
@@ -204,26 +248,25 @@ func printSlashModelPicker(out io.Writer, rows []pickerRow) {
 		return
 	}
 	fmt.Fprintf(out, "0\t%s[%s]\t(current)\n", rows[0].lm.Model, rows[0].lm.Prov)
-	nRec := 0
-	for i := 1; i < len(rows); i++ {
-		if rows[i].recent {
-			nRec++
-		} else {
-			break
+	i := 1
+	printSection := func(title string, sec pickerSection, tag string) {
+		if i >= len(rows) || rows[i].section != sec {
+			return
 		}
-	}
-	if nRec > 0 {
 		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "[recents]")
-		for i := 1; i <= nRec; i++ {
+		fmt.Fprintln(out, title)
+		for i < len(rows) && rows[i].section == sec {
 			pr := rows[i]
-			fmt.Fprintf(out, "%d\t%s[%s]\t(recent)\n", i, pr.lm.Model, pr.lm.Prov)
+			fmt.Fprintf(out, "%d\t%s[%s]\t%s\n", i, pr.lm.Model, pr.lm.Prov, tag)
+			i++
 		}
 	}
-	if nRec+1 < len(rows) {
+	printSection("[recents]", sectionRecent, "(recent)")
+	printSection("[ChatGPT Sub]", sectionChatGPTSub, "(ChatGPT Sub)")
+	if i < len(rows) {
 		fmt.Fprintln(out, "")
 		fmt.Fprintln(out, "[models]")
-		for i := nRec + 1; i < len(rows); i++ {
+		for ; i < len(rows); i++ {
 			pr := rows[i]
 			fmt.Fprintf(out, "%d\t%s[%s]\n", i, pr.lm.Model, pr.lm.Prov)
 		}
