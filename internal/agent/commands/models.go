@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -194,28 +193,10 @@ func readInputLine(d Deps, bannerOneLine string, rlPrompt string) (string, error
 	if p == "" {
 		p = "> "
 	}
-	if d.ReadLine != nil {
-		if s := strings.TrimSpace(bannerOneLine); s != "" {
-			fmt.Fprintln(d.Out, s)
-		}
-		line, err := d.ReadLine(p)
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(line), nil
-	}
 	if s := strings.TrimSpace(bannerOneLine); s != "" {
 		fmt.Fprintln(d.Out, s)
 	}
-	fmt.Fprint(d.Out, p)
-	br := bufio.NewScanner(d.Stdin)
-	if !br.Scan() {
-		if err := br.Err(); err != nil {
-			return "", err
-		}
-		return "", io.EOF
-	}
-	return strings.TrimSpace(br.Text()), nil
+	return config.ReadPromptLine(PromptIO(d), p)
 }
 
 func SlashModels(d Deps) error {

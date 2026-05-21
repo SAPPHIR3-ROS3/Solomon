@@ -1,19 +1,57 @@
 package config
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 )
 
-func RunInitialSetup(stdin io.Reader, out, errOut io.Writer, cfg *Root, configExists bool) error {
-	if stdin == nil {
-		stdin = os.Stdin
+type PromptIO struct {
+	Stdin    io.Reader
+	Out      io.Writer
+	ReadLine func(prompt string) (string, error)
+}
+
+func (p PromptIO) promptOut() io.Writer {
+	if p.Out != nil {
+		return p.Out
 	}
-	if out == nil {
-		out = os.Stdout
+	return os.Stdout
+}
+
+func (p PromptIO) promptIn() io.Reader {
+	if p.Stdin != nil {
+		return p.Stdin
 	}
+	return os.Stdin
+}
+
+func ReadPromptLine(p PromptIO, prompt string) (string, error) {
+	if p.ReadLine != nil {
+		line, err := p.ReadLine(prompt)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(line), nil
+	}
+	out := p.promptOut()
+	if prompt != "" {
+		fmt.Fprint(out, prompt)
+	}
+	br := bufio.NewScanner(p.promptIn())
+	if !br.Scan() {
+		if err := br.Err(); err != nil {
+			return "", err
+		}
+		return "", io.EOF
+	}
+	return strings.TrimSpace(br.Text()), nil
+}
+
+func RunInitialSetup(pio PromptIO, errOut io.Writer, cfg *Root, configExists bool) error {
+	out := pio.promptOut()
 	if errOut == nil {
 		errOut = os.Stderr
 	}
@@ -29,7 +67,7 @@ func RunInitialSetup(stdin io.Reader, out, errOut io.Writer, cfg *Root, configEx
 	}
 	opts := OnboardOpts{RequireProvider: true}
 	for NeedsOnboard(cfg) {
-		res, err := RunOnboardWizard(stdin, out, cfg, opts)
+		res, err := RunOnboardWizard(pio, cfg, opts)
 		if err != nil {
 			fmt.Fprintf(errOut, "%v\n", err)
 			if strings.Contains(err.Error(), "unexpected end of input") {

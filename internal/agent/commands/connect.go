@@ -5,18 +5,17 @@ import (
 )
 
 func Connect(d Deps) error {
-	sc := connectScanner(d.Stdin)
-	choice, err := connectChooseKind(d, sc)
+	choice, err := connectChooseKind(d)
 	if err != nil {
 		return err
 	}
 	switch choice {
 	case 1:
-		return connectChatGPTSub(d, sc)
+		return connectChatGPTSub(d)
 	case 2:
-		return connectCompatibleAPI(d, sc)
+		return connectCompatibleAPI(d)
 	case 3:
-		return connectAnthropicCompatibleAPI(d, sc)
+		return connectAnthropicCompatibleAPI(d)
 	case 4:
 		return connectClaudeSubComingSoon(d)
 	default:

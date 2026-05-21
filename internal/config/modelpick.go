@@ -1,13 +1,22 @@
 package config
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 )
+
+func readModelPickLine(pio PromptIO, prompt string) (string, error) {
+	line, err := ReadPromptLine(pio, prompt)
+	if err != nil {
+		if err == io.EOF {
+			return "", fmt.Errorf("unexpected end of input")
+		}
+		return "", err
+	}
+	return line, nil
+}
 
 func AllDigits(s string) bool {
 	if s == "" {
@@ -36,17 +45,12 @@ type ModelPickChoice struct {
 	Changed      bool
 }
 
-func PickModelInteractive(stdin io.Reader, out io.Writer, p *Provider, providerLabel string, ids []string, allowSkip bool) (string, error) {
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	if out == nil {
-		out = os.Stdout
-	}
+func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids []string, allowSkip bool) (string, error) {
+	out := pio.promptOut()
 	if len(ids) == 0 {
 		return "", fmt.Errorf("no models returned by API")
 	}
-	br := bufio.NewScanner(stdin)
+	_ = p
 	if len(ids) <= 20 {
 		for i, id := range ids {
 			fmt.Fprintf(out, "%d\t%s[%s]\n", i, id, providerLabel)
@@ -58,24 +62,22 @@ func PickModelInteractive(stdin io.Reader, out io.Writer, p *Provider, providerL
 		fmt.Fprintln(out, "...")
 	}
 	for {
+		var prompt string
 		if len(ids) <= 20 {
 			if allowSkip {
-				fmt.Fprintf(out, "Select model number (0-%d), paste exact model id, or skip for default [%s]: ", len(ids)-1, ids[0])
+				prompt = fmt.Sprintf("Select model number (0-%d), paste exact model id, or skip for default [%s]: ", len(ids)-1, ids[0])
 			} else {
-				fmt.Fprintf(out, "Select model number (0-%d) or paste exact model id: ", len(ids)-1)
+				prompt = fmt.Sprintf("Select model number (0-%d) or paste exact model id: ", len(ids)-1)
 			}
 		} else if allowSkip {
-			fmt.Fprintf(out, "Enter index 0–19, 20 to type a model id, paste exact model id, or skip for default [%s]: ", ids[0])
+			prompt = fmt.Sprintf("Enter index 0–19, 20 to type a model id, paste exact model id, or skip for default [%s]: ", ids[0])
 		} else {
-			fmt.Fprint(out, "Enter index 0–19, 20 to type a model id, or paste exact model id: ")
+			prompt = "Enter index 0–19, 20 to type a model id, or paste exact model id: "
 		}
-		if !br.Scan() {
-			if err := br.Err(); err != nil {
-				return "", err
-			}
-			return "", fmt.Errorf("unexpected end of input")
+		line, err := readModelPickLine(pio, prompt)
+		if err != nil {
+			return "", err
 		}
-		line := strings.TrimSpace(br.Text())
 		if allowSkip && isSkipInput(line) {
 			PrintConfigSkipHint(out, "current_model")
 			return ids[0], nil
@@ -100,14 +102,10 @@ func PickModelInteractive(stdin io.Reader, out io.Writer, p *Provider, providerL
 				}
 				if n == 20 {
 					for {
-						fmt.Fprint(out, "Model id: ")
-						if !br.Scan() {
-							if err := br.Err(); err != nil {
-								return "", err
-							}
-							return "", fmt.Errorf("unexpected end of input")
+						s, err := readModelPickLine(pio, "Model id: ")
+						if err != nil {
+							return "", err
 						}
-						s := strings.TrimSpace(br.Text())
 						if allowSkip && isSkipInput(s) {
 							PrintConfigSkipHint(out, "current_model")
 							return ids[0], nil
@@ -154,17 +152,11 @@ func PickModelInteractive(stdin io.Reader, out io.Writer, p *Provider, providerL
 	}
 }
 
-func PickModelAfterAdd(stdin io.Reader, out io.Writer, prevProv, prevModel, newProvName string, newIDs []string, allowSkip bool) (ModelPickChoice, error) {
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	if out == nil {
-		out = os.Stdout
-	}
+func PickModelAfterAdd(pio PromptIO, prevProv, prevModel, newProvName string, newIDs []string, allowSkip bool) (ModelPickChoice, error) {
+	out := pio.promptOut()
 	if len(newIDs) == 0 {
 		return ModelPickChoice{}, fmt.Errorf("no models returned by API")
 	}
-	br := bufio.NewScanner(stdin)
 	const maxShown = 20
 	nShownNew := len(newIDs)
 	truncated := false
@@ -181,25 +173,11 @@ func PickModelAfterAdd(stdin io.Reader, out io.Writer, prevProv, prevModel, newP
 	}
 	pasteIdx := 21
 	for {
-		fmt.Fprintf(out, "Select: 0 = keep current provider/model")
-		if nShownNew > 0 {
-			fmt.Fprintf(out, ", 1-%d = model on %s", nShownNew, newProvName)
+		prompt := pickAfterAddPrompt(nShownNew, newProvName, truncated, pasteIdx, allowSkip)
+		line, err := readModelPickLine(pio, prompt)
+		if err != nil {
+			return ModelPickChoice{}, err
 		}
-		if truncated {
-			fmt.Fprintf(out, ", %d = enter model id", pasteIdx)
-		}
-		fmt.Fprint(out, ", paste exact model id for the new provider")
-		if allowSkip {
-			fmt.Fprint(out, ", or skip to keep current")
-		}
-		fmt.Fprint(out, "\n> ")
-		if !br.Scan() {
-			if err := br.Err(); err != nil {
-				return ModelPickChoice{}, err
-			}
-			return ModelPickChoice{}, fmt.Errorf("unexpected end of input")
-		}
-		line := strings.TrimSpace(br.Text())
 		if allowSkip && isSkipInput(line) {
 			PrintConfigSkipHint(out, "current_model")
 			return ModelPickChoice{ProviderName: prevProv, ModelID: prevModel, Changed: false}, nil
@@ -222,14 +200,10 @@ func PickModelAfterAdd(stdin io.Reader, out io.Writer, prevProv, prevModel, newP
 			}
 			if truncated && n == pasteIdx {
 				for {
-					fmt.Fprint(out, "Model id: ")
-					if !br.Scan() {
-						if err := br.Err(); err != nil {
-							return ModelPickChoice{}, err
-						}
-						return ModelPickChoice{}, fmt.Errorf("unexpected end of input")
+					id, err := readModelPickLine(pio, "Model id: ")
+					if err != nil {
+						return ModelPickChoice{}, err
 					}
-					id := strings.TrimSpace(br.Text())
 					if allowSkip && isSkipInput(id) {
 						PrintConfigSkipHint(out, "current_model")
 						return ModelPickChoice{ProviderName: prevProv, ModelID: prevModel, Changed: false}, nil
@@ -256,6 +230,23 @@ func PickModelAfterAdd(stdin io.Reader, out io.Writer, prevProv, prevModel, newP
 		}
 		return ModelPickChoice{ProviderName: newProvName, ModelID: line, Changed: true}, nil
 	}
+}
+
+func pickAfterAddPrompt(nShownNew int, newProvName string, truncated bool, pasteIdx int, allowSkip bool) string {
+	var b strings.Builder
+	b.WriteString("Select: 0 = keep current provider/model")
+	if nShownNew > 0 {
+		fmt.Fprintf(&b, ", 1-%d = model on %s", nShownNew, newProvName)
+	}
+	if truncated {
+		fmt.Fprintf(&b, ", %d = enter model id", pasteIdx)
+	}
+	b.WriteString(", paste exact model id for the new provider")
+	if allowSkip {
+		b.WriteString(", or skip to keep current")
+	}
+	b.WriteString("\n> ")
+	return b.String()
 }
 
 func resolvePasteNewProvider(newProvName string, newIDs []string, id string) error {

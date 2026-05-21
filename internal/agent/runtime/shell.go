@@ -8,6 +8,21 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 )
 
+func (r *Runtime) releaseTTYForSubprocess() func() {
+	if r.RL == nil {
+		return func() {}
+	}
+	r.RL.Clean()
+	_ = r.RL.Terminal.ExitRawMode()
+	writeTerminalModeSequences(bracketedPasteDisable + mouseReportDisable)
+	restoreConsole := prepareConsoleInput()
+	return func() {
+		restoreConsole()
+		writeTerminalModeSequences(bracketedPasteEnable)
+		r.RL.Refresh()
+	}
+}
+
 func (r *Runtime) runUserShellLine(ctx context.Context, script string) error {
 	wd := r.ProjRoot
 	if p, err := filepath.Abs(r.ProjRoot); err == nil {
@@ -17,5 +32,7 @@ func (r *Runtime) runUserShellLine(ctx context.Context, script string) error {
 	c.Stdout = r.Out
 	c.Stderr = r.Out
 	c.Stdin = os.Stdin
+	release := r.releaseTTYForSubprocess()
+	defer release()
 	return c.Run()
 }
