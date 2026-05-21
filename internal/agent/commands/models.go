@@ -52,7 +52,7 @@ func pickRecentListed(d Deps, all []ListedModel, cur ListedModel, claimed map[st
 		return nil
 	}
 	var out []ListedModel
-	for _, u := range d.Cfg.RecentModelUses {
+	for _, u := range config.RecentModelUseEntries(d.Cfg, cur.Prov) {
 		lm := ListedModel{Prov: strings.TrimSpace(u.Provider), Model: strings.TrimSpace(u.Model)}
 		if lm.Prov == "" || lm.Model == "" {
 			continue
@@ -80,7 +80,7 @@ func pickChatGPTSubListed(d Deps, all []ListedModel, cur ListedModel, claimed ma
 		return nil
 	}
 	var out []ListedModel
-	for _, u := range d.Cfg.RecentModelUses {
+	for _, u := range config.RecentModelUseEntries(d.Cfg, cur.Prov) {
 		lm := ListedModel{Prov: strings.TrimSpace(u.Provider), Model: strings.TrimSpace(u.Model)}
 		if lm.Prov != config.ProviderNameChatGPTSub || lm.Model == "" {
 			continue
@@ -188,15 +188,15 @@ func SlashModels(d Deps) error {
 		ctx = context.Background()
 	}
 	var catalog []ListedModel
-	for i := range d.Cfg.Providers {
-		p := &d.Cfg.Providers[i]
-		ids, err := listModelsForProvider(ctx, d.Cfg, p)
+	for _, p := range config.ProviderList(d.Cfg) {
+		pp := p
+		ids, err := listModelsForProvider(ctx, d.Cfg, &pp)
 		if err != nil {
 			fmt.Fprintf(d.Out, "provider %s: error: %v\n", p.Name, err)
 			continue
 		}
 		for _, mid := range ids {
-			catalog = append(catalog, ListedModel{p.Name, mid})
+			catalog = append(catalog, ListedModel{pp.Name, mid})
 		}
 	}
 	if len(catalog) == 0 {

@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
-	"path/filepath"
+	"sort"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 	"github.com/openai/openai-go/v2/shared"
-	to "github.com/pelletier/go-toml/v2"
 )
 
 const DefaultSubagentTimeoutMinutes = 20
@@ -27,7 +24,7 @@ const DefaultSkillSearchMinNormalizedScore = 0.05
 const DefaultWebSearchEngine = "duckduckgo"
 
 type Provider struct {
-	Name              string `toml:"name"`
+	Name              string `toml:"-"`
 	BaseURL           string `toml:"base_url"`
 	APIKey            string `toml:"api_key"`
 	AuthKind          string `toml:"auth_kind,omitempty"`
@@ -48,10 +45,10 @@ type RecentModelUse struct {
 }
 
 type Root struct {
-	UserName                  string     `toml:"user_name"`
-	Providers                 []Provider `toml:"providers"`
-	Current                   Current          `toml:"current"`
-	RecentModelUses           []RecentModelUse `toml:"recent_model_uses,omitempty"`
+	UserName                  string                `toml:"user_name"`
+	Providers                 map[string]*Provider    `toml:"-"`
+	Current                   Current               `toml:"current"`
+	RecentModels              map[string][]string   `toml:"recent_models,omitempty"`
 	SubagentTimeoutMinutes    int              `toml:"subagent_timeout_minutes"`
 	ReasoningEffort           string     `toml:"reasoning_effort"`
 	LogLevel                  string     `toml:"log_level"`
@@ -220,41 +217,6 @@ func NormalizeAPIBase(raw string) (string, error) {
 	return u.String(), nil
 }
 
-func Load() (*Root, error) {
-	cfgPath, err := paths.ConfigPath()
-	if err != nil {
-		return nil, err
-	}
-	b, err := os.ReadFile(cfgPath)
-	if err != nil {
-		return nil, err
-	}
-	var r Root
-	if err := to.Unmarshal(b, &r); err != nil {
-		return nil, err
-	}
-	return &r, nil
-}
-
-func Save(r *Root) error {
-	cfgPath, err := paths.ConfigPath()
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o700); err != nil {
-		return err
-	}
-	buf, err := to.Marshal(r)
-	if err != nil {
-		return err
-	}
-	tmp := cfgPath + ".tmp"
-	if err := os.WriteFile(tmp, buf, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, cfgPath)
-}
-
 const recentModelUseCap = 64
 
 func NoteRecentModelUse(r *Root, providerName, modelID string) {
@@ -266,19 +228,92 @@ func NoteRecentModelUse(r *Root, providerName, modelID string) {
 	if prov == "" || mid == "" {
 		return
 	}
-	use := RecentModelUse{Provider: prov, Model: mid}
-	out := make([]RecentModelUse, 0, len(r.RecentModelUses)+1)
-	out = append(out, use)
-	for _, x := range r.RecentModelUses {
-		if strings.TrimSpace(x.Provider) == prov && strings.TrimSpace(x.Model) == mid {
+	if r.RecentModels == nil {
+		r.RecentModels = make(map[string][]string)
+	}
+	list := r.RecentModels[prov]
+	out := []string{mid}
+	for _, m := range list {
+		if strings.TrimSpace(m) == mid {
 			continue
 		}
-		out = append(out, x)
+		out = append(out, m)
 		if len(out) >= recentModelUseCap {
 			break
 		}
 	}
-	r.RecentModelUses = out
+	r.RecentModels[prov] = out
+}
+
+func RecentModelUseEntries(r *Root, preferProvider string) []RecentModelUse {
+	if r == nil || len(r.RecentModels) == 0 {
+		return nil
+	}
+	prefer := strings.TrimSpace(preferProvider)
+	names := make([]string, 0, len(r.RecentModels))
+	for name := range r.RecentModels {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var ordered []string
+	if prefer != "" {
+		ordered = append(ordered, prefer)
+		for _, name := range names {
+			if name != prefer {
+				ordered = append(ordered, name)
+			}
+		}
+	} else {
+		ordered = names
+	}
+	var out []RecentModelUse
+	for _, prov := range ordered {
+		for _, model := range r.RecentModels[prov] {
+			mid := strings.TrimSpace(model)
+			if mid == "" {
+				continue
+			}
+			out = append(out, RecentModelUse{Provider: prov, Model: mid})
+		}
+	}
+	return out
+}
+
+func ProviderByName(r *Root, name string) *Provider {
+	if r == nil || len(r.Providers) == 0 {
+		return nil
+	}
+	return r.Providers[name]
+}
+
+func ProviderList(r *Root) []Provider {
+	if r == nil || len(r.Providers) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(r.Providers))
+	for name := range r.Providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]Provider, len(names))
+	for i, name := range names {
+		p := r.Providers[name]
+		if p == nil {
+			continue
+		}
+		cp := *p
+		cp.Name = name
+		out[i] = cp
+	}
+	return out
+}
+
+func FirstProviderName(r *Root) string {
+	list := ProviderList(r)
+	if len(list) == 0 {
+		return ""
+	}
+	return list[0].Name
 }
 
 func RunWizardIfNeeded(stdin io.Reader) (*Root, error) {
@@ -298,16 +333,12 @@ func ResolveProvider(r *Root) (*Provider, error) {
 		return nil, errors.New("nil config")
 	}
 	name := r.Current.Provider
-	for i := range r.Providers {
-		if r.Providers[i].Name == name {
-			p := &r.Providers[i]
-			return p, nil
-		}
+	if p := ProviderByName(r, name); p != nil {
+		return p, nil
 	}
-	if len(r.Providers) > 0 {
-		p := &r.Providers[0]
-		r.Current.Provider = p.Name
-		return p, Save(r)
+	if first := FirstProviderName(r); first != "" {
+		r.Current.Provider = first
+		return ProviderByName(r, first), Save(r)
 	}
 	return nil, errors.New("no providers in config")
 }

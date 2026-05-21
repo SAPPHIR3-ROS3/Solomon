@@ -93,12 +93,9 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider) (openai.Client, error) {
 	config.EnsureChatGPTSubBaseURL(p)
 	if p.IsChatGPTSub() && cfg != nil {
-		for i := range cfg.Providers {
-			if cfg.Providers[i].Name == p.Name {
-				cfg.Providers[i].BaseURL = p.BaseURL
-				_ = config.Save(cfg)
-				break
-			}
+		if ep := config.ProviderByName(cfg, p.Name); ep != nil {
+			ep.BaseURL = p.BaseURL
+			_ = config.Save(cfg)
 		}
 	}
 	bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
@@ -127,18 +124,15 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 		logging.Log(logging.ERROR_LOG_LEVEL, "save config failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
-	for i := range r.Cfg.Providers {
-		if r.Cfg.Providers[i].Name == providerName {
-			p := &r.Cfg.Providers[i]
-			r.Prov = p
-			r.Model = modelID
-			client, err := newOpenAIClient(context.Background(), r.Cfg, p)
-			if err != nil {
-				return err
-			}
-			r.Client = client
-			return nil
+	if p := config.ProviderByName(r.Cfg, providerName); p != nil {
+		r.Prov = p
+		r.Model = modelID
+		client, err := newOpenAIClient(context.Background(), r.Cfg, p)
+		if err != nil {
+			return err
 		}
+		r.Client = client
+		return nil
 	}
 	return fmt.Errorf("provider %q not found", providerName)
 }

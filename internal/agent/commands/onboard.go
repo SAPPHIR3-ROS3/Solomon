@@ -74,7 +74,20 @@ func cloneRootSnapshot(r *config.Root) *config.Root {
 	}
 	cp := *r
 	if len(r.Providers) > 0 {
-		cp.Providers = append([]config.Provider(nil), r.Providers...)
+		cp.Providers = make(map[string]*config.Provider, len(r.Providers))
+		for k, v := range r.Providers {
+			if v == nil {
+				continue
+			}
+			p := *v
+			cp.Providers[k] = &p
+		}
+	}
+	if len(r.RecentModels) > 0 {
+		cp.RecentModels = make(map[string][]string, len(r.RecentModels))
+		for k, v := range r.RecentModels {
+			cp.RecentModels[k] = append([]string(nil), v...)
+		}
 	}
 	return &cp
 }

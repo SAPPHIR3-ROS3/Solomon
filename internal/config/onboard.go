@@ -71,12 +71,14 @@ func lookupProvider(r *Root, name string) *Provider {
 	if r == nil || len(r.Providers) == 0 {
 		return nil
 	}
-	for i := range r.Providers {
-		if r.Providers[i].Name == name {
-			return &r.Providers[i]
-		}
+	if p := ProviderByName(r, name); p != nil {
+		return p
 	}
-	return &r.Providers[0]
+	first := FirstProviderName(r)
+	if first == "" {
+		return nil
+	}
+	return ProviderByName(r, first)
 }
 
 func WriteConfigSetupWarning(w io.Writer, r *Root) {
@@ -124,8 +126,7 @@ func PrintConfigSkipHint(out io.Writer, topic string) {
 		fmt.Fprintln(out, "Skipped. Configure later: /name <your name>  —  or in ~/.solomon/config.toml: user_name = \"...\"")
 	case "provider":
 		fmt.Fprintln(out, "Skipped. Configure later: /onboard or /connect  —  or in ~/.solomon/config.toml:")
-		fmt.Fprintln(out, "  [[providers]]")
-		fmt.Fprintln(out, "  name = \"...\"")
+		fmt.Fprintln(out, "  [providers.my-provider]")
 		fmt.Fprintln(out, "  base_url = \"https://...\"")
 		fmt.Fprintln(out, "  api_key = \"...\"")
 		fmt.Fprintln(out, "  [current]")

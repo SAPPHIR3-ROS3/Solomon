@@ -78,13 +78,13 @@ func syntheticExecConfig(baseURL, apiKey, model string) (*Root, *Provider, error
 	}
 	p := Provider{Name: ciProviderName, BaseURL: norm, APIKey: apiKey}
 	cfg := &Root{
-		Providers:                 []Provider{p},
 		Current:                   Current{Provider: ciProviderName, Model: model},
 		SubagentTimeoutMinutes:    DefaultSubagentTimeoutMinutes,
 		CompactionThresholdTokens: DefaultCompactionThresholdTokens,
 		ResponseLanguage:          DefaultResponseLanguage,
 	}
-	return cfg, &cfg.Providers[0], nil
+	setProviderOnRoot(cfg, ciProviderName, p)
+	return cfg, ProviderByName(cfg, ciProviderName), nil
 }
 
 func ResolveExecConfig(existing *Root, opts ExecResolveOpts) (*Root, *Provider, error) {
