@@ -13,9 +13,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
-
-	"github.com/openai/openai-go/v2"
-	"github.com/openai/openai-go/v2/shared"
 )
 
 func Threshold(d Deps, parts []string) error {
@@ -42,10 +39,7 @@ func formatChatTranscript(msgs []chatstore.Message) string {
 		case "user":
 			fmt.Fprintf(&b, "User:\n%s\n\n", m.Content)
 		case "assistant":
-			rtxt, cshow := chatstore.AssistantDisplayParts(m)
-			if rtxt != "" {
-				fmt.Fprintf(&b, "Assistant (reasoning):\n%s\n\n", rtxt)
-			}
+			_, cshow := chatstore.AssistantDisplayParts(m)
 			if cshow != "" {
 				fmt.Fprintf(&b, "Assistant:\n%s\n\n", cshow)
 			}
@@ -112,10 +106,7 @@ func formatRetainedMessages(msgs []chatstore.Message) string {
 			appendRetainedEntry(&entries, "user", m.Content)
 		case "assistant":
 			var parts []string
-			rtxt, cshow := chatstore.AssistantDisplayParts(m)
-			if rtxt != "" {
-				parts = append(parts, "Reasoning:\n"+rtxt)
-			}
+			_, cshow := chatstore.AssistantDisplayParts(m)
 			if cshow != "" {
 				parts = append(parts, cshow)
 			}
@@ -225,17 +216,17 @@ func SummarizeBody(d Deps) (string, error) {
 	progress := NewSummarizeProgress(d.Out)
 	transcript := formatChatTranscript(msgs)
 	sys, userPrompt := summarizePromptFromTemplate(transcript, d.Cfg.ReasoningEffortIsNone())
-	params := openai.ChatCompletionNewParams{
-		Model: shared.ChatModel(d.Model()),
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(sys),
-			openai.UserMessage(userPrompt),
-		},
-	}
-	llm.ApplyChatReasoning(d.Cfg, &params, false)
-	llm.ApplyMaxResponseTokens(d.Cfg, &params)
 	const sep = "================================================================================"
-	summary, usage, err := llm.StreamText(d.Ctx, d.Client, params, io.Discard, llm.StreamOpts{})
+	if d.Backend == nil {
+		return "", fmt.Errorf("LLM backend not configured")
+	}
+	summary, usage, err := d.Backend.StreamText(d.Ctx, llm.SimpleCompletionRequest{
+		Cfg:                   d.Cfg,
+		Model:                 d.Model(),
+		System:                sys,
+		User:                  userPrompt,
+		ForceDisableReasoning: false,
+	}, io.Discard, llm.StreamOpts{})
 	progress.Stop()
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "/summarize StreamText failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

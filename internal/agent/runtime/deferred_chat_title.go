@@ -51,7 +51,7 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 		return
 	}
 
-	t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, firstUser)
+	t, err := title.FromPrompt(ctx, r.Backend, r.Client, r.Cfg, r.Model, firstUser)
 	if err != nil || strings.TrimSpace(t) == "" {
 		if err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "deferred chat title FromPrompt failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -90,7 +90,7 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 
 func (r *Runtime) refineEphemeralTitle(ctx context.Context, firstUserLine string) {
 	firstUserLine = strings.TrimSpace(firstUserLine)
-	t, err := title.FromPrompt(ctx, r.Client, r.Cfg, r.Model, firstUserLine)
+	t, err := title.FromPrompt(ctx, r.Backend, r.Client, r.Cfg, r.Model, firstUserLine)
 	if err != nil || strings.TrimSpace(t) == "" {
 		return
 	}

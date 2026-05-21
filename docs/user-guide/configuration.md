@@ -9,7 +9,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | Field | Role |
 | ----- | ---- |
 | `current.provider`, `current.model` | Active backend |
-| `providers.<name>` | Named provider blocks (`base_url`, `api_key`, …) |
+| `providers.<name>` | Named provider blocks (`base_url`, `api_key`, `api_protocol`, …) |
 | `recent_models.<name>` | Recent model ids per provider |
 | `user_name` | Shown / used in-session |
 | `subagent_timeout_minutes` | Subagent slices (wizard default 20) |
@@ -20,7 +20,17 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `compaction_threshold_tokens` | Auto compaction threshold |
 | `web_search_engine` | Default engine for the **`webSearch`** tool (omit for `duckduckgo`) |
 
-You can edit the file directly or manage providers and models in the REPL with `/connect` and `/models`.
+You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic Compatible API), or manage providers and models in the REPL with `/connect` and `/models`.
+
+### LLM providers
+
+| Setup | `api_protocol` | Notes |
+|-------|----------------|--------|
+| `/onboard` or `/connect` → OpenAI Compatible API | `openai` (default) | Any OpenAI Chat Completions-compatible `base_url` |
+| `/onboard` or `/connect` → Anthropic Compatible API | `anthropic` | Messages API (`POST …/v1/messages`); curated model list |
+| `/connect` → ChatGPT Sub | `openai` | OAuth; Codex middleware |
+
+Provider block fields: `base_url`, `api_key`, optional `api_protocol` (`openai` | `anthropic`). Anthropic official base: `https://api.anthropic.com` (normalized on save).
 
 ## Logs
 

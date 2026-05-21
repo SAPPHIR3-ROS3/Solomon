@@ -155,6 +155,12 @@ Ordine suggerito: dal più **facile** al più **difficile** (code review interno
 
 ---
 
+## LOW PRIORITY
+
+- **Anthropic / extended thinking (dopo adapter Messages API v1):** oggi il piano Anthropic nativo prevede extended thinking **disattivato** e reasoning in API solo sull’ultimo messaggio `assistant`; in sessione resta `ReasoningText` per display. **Cosa manca:** abilitare `thinking` in request (`budget_tokens` / adaptive da config); persistere **`ThinkingBlocks`** (blocchi `thinking` + `signature` immutabile) su messaggi assistant in `chatstore`; mapper Anthropic che reinserisce i blocchi in history; rivalutare se la policy “solo ultimo assistant” basta per tool/multi-turn o serve history thinking completa; stream/usage per thinking tokens; documentare impatto token (prompt gonfio se si reinvia tutta la history). Dipende da: layer `CompletionBackend` + provider `api_protocol = anthropic`.
+
+---
+
 ## EXTREMELY LOW PRIORITY
 
 - **Wiki (`docs/`) — ampliamenti opzionali:** base consegnata ([`docs/README.md`](docs/README.md), portali `user-guide/` / `architecture/` / `development/`, README snellito). Per dopo, solo se serve: troubleshooting, contributing, GitHub Pages / MkDocs, sync continua documentazione ↔ codice.

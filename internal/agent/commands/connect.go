@@ -15,6 +15,8 @@ func Connect(d Deps) error {
 		return connectChatGPTSub(d, sc)
 	case 2:
 		return connectCompatibleAPI(d, sc)
+	case 3:
+		return connectAnthropicCompatibleAPI(d, sc)
 	default:
 		return fmt.Errorf("internal error: unknown connect choice %d", choice)
 	}

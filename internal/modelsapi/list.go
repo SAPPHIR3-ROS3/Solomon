@@ -26,6 +26,13 @@ func List(baseURL, bearer string) ([]string, error) {
 	return ListWithOpts(baseURL, bearer, ListOpts{})
 }
 
+func ListForProvider(baseURL, bearer string, apiProtocol string) ([]string, error) {
+	if strings.TrimSpace(apiProtocol) == "anthropic" {
+		return CuratedAnthropicModels(), nil
+	}
+	return List(baseURL, bearer)
+}
+
 func ListWithOpts(baseURL, bearer string, opts ListOpts) ([]string, error) {
 	u := strings.TrimSuffix(baseURL, "/") + "/models"
 	req, err := http.NewRequest(http.MethodGet, u, nil)

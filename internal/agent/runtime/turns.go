@@ -21,10 +21,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/title"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
-
-	"github.com/openai/openai-go/v2"
-	"github.com/openai/openai-go/v2/packages/param"
-	"github.com/openai/openai-go/v2/shared"
 )
 
 func flushWriter(w io.Writer) {
@@ -151,14 +147,20 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			return err
 		}
 		msgs, imageFiles := r.sessionMessagesSnapshot()
-		params := openai.ChatCompletionNewParams{
-			Model:             shared.ChatModel(r.Model),
-			Messages:          llm.MessageParams(sys, msgs, imageFiles),
-			Tools:             tools,
-			ParallelToolCalls: param.NewOpt(true),
+		toolDefs := llm.ToolDefsFromOpenAI(tools)
+		turnReq := llm.TurnRequest{
+			Cfg:                   r.Cfg,
+			Model:                 r.Model,
+			System:                sys,
+			Messages:              msgs,
+			ImageFiles:            imageFiles,
+			Tools:                 toolDefs,
+			ParallelToolCalls:     true,
+			ForceDisableReasoning: false,
 		}
-		llm.ApplyChatReasoning(r.Cfg, &params, false)
-		llm.ApplyMaxResponseTokens(r.Cfg, &params)
+		if r.Cfg.ReasoningEffortIsNone() {
+			turnReq.ForceDisableReasoning = true
+		}
 		var astSeq int
 		var branchKey string
 		r.mutateSession(func(s *chatstore.Session) {
@@ -181,7 +183,10 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			contentOut = io.Discard
 			streamOpts = r.streamOptsCI(turnIdx)
 		}
-		turn, err := llm.StreamAssistantTurn(runCtx, r.Client, params, contentOut, streamOpts)
+		if r.Backend == nil {
+			return fmt.Errorf("LLM backend not configured")
+		}
+		turn, err := r.Backend.StreamTurn(runCtx, turnReq, contentOut, streamOpts)
 		if !r.machineMode() {
 			fmt.Fprintln(r.Out)
 		}

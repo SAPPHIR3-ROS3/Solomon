@@ -19,10 +19,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
-
-	"github.com/openai/openai-go/v2"
-	"github.com/openai/openai-go/v2/packages/param"
-	"github.com/openai/openai-go/v2/shared"
 )
 
 func (r *Runtime) runNested(ctx context.Context, task string) (string, error) {
@@ -142,16 +138,21 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	if r.MCP != nil {
 		toolParams = append(toolParams, r.MCP.OpenAITools()...)
 	}
-	p := openai.ChatCompletionNewParams{
-		Model:             shared.ChatModel(r.Model),
-		Messages:          llm.MessageParams(system, msgs, r.Session.ImageFiles),
-		Tools:             toolParams,
-		ParallelToolCalls: param.NewOpt(true),
+	turnReq := llm.TurnRequest{
+		Cfg:                   r.Cfg,
+		Model:                 r.Model,
+		System:                system,
+		Messages:              msgs,
+		ImageFiles:            r.Session.ImageFiles,
+		Tools:                 llm.ToolDefsFromOpenAI(toolParams),
+		ParallelToolCalls:     true,
+		ForceDisableReasoning: true,
 	}
-	llm.ApplyReasoningDisable(&p)
-	llm.ApplyMaxResponseTokens(r.Cfg, &p)
 	fmt.Fprintf(r.Out, "%s ", termcolor.WrapAssistant(r.Model+"(subagent):"))
-	turn, err := llm.StreamAssistantTurn(ctx, r.Client, p, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
+	if r.Backend == nil {
+		return llm.AssistantTurnResult{}, fmt.Errorf("LLM backend not configured")
+	}
+	turn, err := r.Backend.StreamTurn(ctx, turnReq, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "nested subagent stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return turn, err
@@ -165,23 +166,24 @@ func (r *Runtime) summarizeNested(ctx context.Context, msgs []chatstore.Message)
 	for _, m := range msgs {
 		sb.WriteString(m.Role + ": " + m.Content + "\n")
 	}
-	p := openai.ChatCompletionNewParams{
-		Model: shared.ChatModel(r.Model),
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(prompt.SystemWithNoThink(true, "Briefly summarize the following conversation turns.")),
-			openai.UserMessage(sb.String()),
-		},
+	if r.Backend == nil {
+		return "", fmt.Errorf("LLM backend not configured")
 	}
-	llm.ApplyReasoningDisable(&p)
-	llm.ApplyMaxResponseTokens(r.Cfg, &p)
-	resp, err := r.Client.Chat.Completions.New(ctx, p)
+	sys := prompt.SystemWithNoThink(true, "Briefly summarize the following conversation turns.")
+	text, err := r.Backend.CompleteText(ctx, llm.SimpleCompletionRequest{
+		Cfg:                   r.Cfg,
+		Model:                 r.Model,
+		System:                sys,
+		User:                  sb.String(),
+		ForceDisableReasoning: true,
+	})
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "nested summarize completion failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
-	if len(resp.Choices) == 0 {
-		logging.Log(logging.WARNING_LOG_LEVEL, "nested summarize: no assistant choices in response")
+	if strings.TrimSpace(text) == "" {
+		logging.Log(logging.WARNING_LOG_LEVEL, "nested summarize: empty response")
 		return "", fmt.Errorf("no summary choices")
 	}
-	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
+	return strings.TrimSpace(text), nil
 }

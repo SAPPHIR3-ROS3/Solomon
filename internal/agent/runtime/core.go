@@ -14,8 +14,8 @@ import (
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
@@ -23,7 +23,6 @@ import (
 
 	readline "github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
-	"github.com/openai/openai-go/v2/option"
 )
 
 var errUserStopGeneration = errors.New("user stopped generation")
@@ -33,8 +32,9 @@ const cliMsgGenerationStopped = "Generation stopped"
 type Runtime struct {
 	RL *readline.Instance
 
-	Client openai.Client
-	Model  string
+	Client  openai.Client
+	Backend llm.CompletionBackend
+	Model   string
 	Cfg    *config.Root
 	Prov   *config.Provider
 
@@ -83,33 +83,22 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		Out:                       os.Stdout,
 	}
 	if prov != nil {
-		if client, err := newOpenAIClient(context.Background(), cfg, prov); err == nil {
-			rt.Client = client
-		}
+		rt.applyProviderClient(context.Background(), prov)
 	}
 	return rt
 }
 
-func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider) (openai.Client, error) {
-	config.EnsureChatGPTSubBaseURL(p)
-	if p.IsChatGPTSub() && cfg != nil {
-		if ep := config.ProviderByName(cfg, p.Name); ep != nil {
-			ep.BaseURL = p.BaseURL
-			_ = config.Save(cfg)
-		}
-	}
-	bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
+func (r *Runtime) applyProviderClient(ctx context.Context, p *config.Provider) {
+	backend, err := llm.NewCompletionBackend(ctx, r.Cfg, p)
 	if err != nil {
-		return openai.Client{}, err
+		return
 	}
-	opts := []option.RequestOption{
-		option.WithAPIKey(bearer),
-		option.WithBaseURL(p.BaseURL),
+	r.Backend = backend
+	if c, ok := llm.OpenAIClientFromBackend(backend); ok {
+		r.Client = c
+	} else {
+		r.Client = openai.Client{}
 	}
-	if p.IsChatGPTSub() {
-		opts = append(opts, codex.WithChatGPTSubMiddleware(p.OAuthAccountID))
-	}
-	return openai.NewClient(opts...), nil
 }
 
 func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
@@ -127,11 +116,16 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 	if p := config.ProviderByName(r.Cfg, providerName); p != nil {
 		r.Prov = p
 		r.Model = modelID
-		client, err := newOpenAIClient(context.Background(), r.Cfg, p)
+		backend, err := llm.NewCompletionBackend(context.Background(), r.Cfg, p)
 		if err != nil {
 			return err
 		}
-		r.Client = client
+		r.Backend = backend
+		if c, ok := llm.OpenAIClientFromBackend(backend); ok {
+			r.Client = c
+		} else {
+			r.Client = openai.Client{}
+		}
 		return nil
 	}
 	return fmt.Errorf("provider %q not found", providerName)
