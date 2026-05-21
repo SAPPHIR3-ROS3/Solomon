@@ -9,7 +9,8 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | Field | Role |
 | ----- | ---- |
 | `current.provider`, `current.model` | Active backend |
-| `providers[]` | Named providers (`name`, `base_url`, `api_key`) |
+| `providers.<name>` | Named provider blocks (`base_url`, `api_key`, …) |
+| `recent_models.<name>` | Recent model ids per provider |
 | `user_name` | Shown / used in-session |
 | `subagent_timeout_minutes` | Subagent slices (wizard default 20) |
 | `reasoning_effort` | Main chat reasoning profile |

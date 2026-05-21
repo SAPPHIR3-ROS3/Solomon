@@ -24,7 +24,10 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		Ctx:   context.Background(),
 		Out:   io.Discard,
 		Stdin: strings.NewReader(""),
-		Cfg: &config.Root{Current: config.Current{Provider: "p", Model: "m"}, Providers: []config.Provider{{Name: "p", BaseURL: "http://127.0.0.1:9", APIKey: "k"}}}, 
+		Cfg: func() *config.Root {
+			p := &config.Provider{Name: "p", BaseURL: "http://127.0.0.1:9", APIKey: "k"}
+			return &config.Root{Current: config.Current{Provider: "p", Model: "m"}, Providers: map[string]*config.Provider{"p": p}}
+		}(), 
 		SaveCfg: func() error { return nil },
 		ProjHex:  "0000000000000000000000000000000000000000000000000000000000000000",
 		ProjRoot: "/tmp/solomon-test-proj",

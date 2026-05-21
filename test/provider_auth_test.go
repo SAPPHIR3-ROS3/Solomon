@@ -52,12 +52,12 @@ func TestAppendOrUpdateProvider(t *testing.T) {
 	r := config.EmptyRoot()
 	p1 := config.Provider{Name: "a", BaseURL: "https://x/v1/", APIKey: "k1"}
 	config.AppendOrUpdateProvider(r, p1)
-	if len(r.Providers) != 1 || r.Providers[0].APIKey != "k1" {
+	if len(r.Providers) != 1 || r.Providers["a"] == nil || r.Providers["a"].APIKey != "k1" {
 		t.Fatal("expected one provider")
 	}
 	p2 := config.Provider{Name: "a", BaseURL: "https://y/v1/", APIKey: "k2"}
 	config.AppendOrUpdateProvider(r, p2)
-	if len(r.Providers) != 1 || r.Providers[0].APIKey != "k2" {
+	if len(r.Providers) != 1 || r.Providers["a"].APIKey != "k2" {
 		t.Fatal("expected upsert not append")
 	}
 }

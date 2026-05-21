@@ -56,13 +56,11 @@ func ProviderCredentialsReady(p *Provider) bool {
 }
 
 func AppendOrUpdateProvider(r *Root, p Provider) {
-	for i := range r.Providers {
-		if r.Providers[i].Name == p.Name {
-			r.Providers[i] = p
-			return
-		}
+	name := strings.TrimSpace(p.Name)
+	if name == "" {
+		return
 	}
-	r.Providers = append(r.Providers, p)
+	setProviderOnRoot(r, name, p)
 }
 
 func ModelPassesChatGPTSubFilter(modelID string) bool {
