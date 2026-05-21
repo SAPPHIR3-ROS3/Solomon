@@ -147,6 +147,7 @@ func runExecCLI(ctx context.Context, kind execKind, argRest []string) {
 	if opts.NoColor {
 		_ = os.Setenv("NO_COLOR", "1")
 	}
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, NoColor: opts.NoColor})
 	var rl *readline.Instance
 	if !machine {
 		var err2 error

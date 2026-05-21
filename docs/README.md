@@ -6,7 +6,7 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 
 | Portal | Index | Topics |
 |--------|-------|--------|
-| **Using Solomon** | [user-guide/README.md](user-guide/README.md) | Configuration, CLI modes, slash commands, on-disk layout |
+| **Using Solomon** | [user-guide/README.md](user-guide/README.md) | Configuration, CLI modes, terminal fonts/colors, on-disk layout |
 | **Internals & design** | [architecture/README.md](architecture/README.md) | Packages, functions, runtime flows, tools, MCP |
 | **Building & releasing** | [development/README.md](development/README.md) | `go vet` / test / build, release workflow |
 
@@ -17,7 +17,8 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 1. [Project README](../README.md) — install and quickstart
 2. [Configuration](user-guide/configuration.md)
 3. [Usage and commands](user-guide/usage-and-commands.md)
-4. [Data layout](user-guide/data-layout.md)
+4. [Terminal setup](user-guide/terminal-setup.md) — monospace font and colors
+5. [Data layout](user-guide/data-layout.md)
 
 **Contributor or debugger**
 
@@ -49,6 +50,7 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 ## Featured articles
 
 - [Configuration](user-guide/configuration.md) — `config.toml`, web search, logs
+- [Terminal setup](user-guide/terminal-setup.md) — monospace font, ligatures, ANSI colors
 - [Overview](architecture/overview.md) — package map and design tenets
 - [Agent turn pipeline](architecture/agent-turn-pipeline.md) — LLM stream and tool loop
 

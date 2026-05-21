@@ -72,6 +72,7 @@ func main() {
 		}
 	}
 	logging.LogInit(initLogLevel)
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout})
 	if err := logging.Configure(logging.Config{
 		Dir: filepath.Join(lroot, "logs"), WriteConsole: false, WriteFile: true, Retention: 7,
 	}); err != nil {
