@@ -18,7 +18,8 @@ func connectChooseKind(d Deps, sc *bufio.Scanner) (int, error) {
 	fmt.Fprintln(d.Out, "  1) ChatGPT Sub (browser sign-in)")
 	fmt.Fprintln(d.Out, "  2) OpenAI Compatible API (base URL + API key)")
 	fmt.Fprintln(d.Out, "  3) Anthropic Compatible API (base URL + API key)")
-	fmt.Fprint(d.Out, "Select [1-3]: ")
+	fmt.Fprintln(d.Out, "  4) Claude Sub (OAuth, coming soon)")
+	fmt.Fprint(d.Out, "Select [1-4]: ")
 	if !sc.Scan() {
 		if err := sc.Err(); err != nil {
 			return 0, err
@@ -33,8 +34,10 @@ func connectChooseKind(d Deps, sc *bufio.Scanner) (int, error) {
 		return 2, nil
 	case "3":
 		return 3, nil
+	case "4":
+		return 4, nil
 	default:
-		return 0, fmt.Errorf("invalid selection %q (use 1, 2, or 3)", line)
+		return 0, fmt.Errorf("invalid selection %q (use 1, 2, 3, or 4)", line)
 	}
 }
 
@@ -61,6 +64,13 @@ func connectChatGPTSub(d Deps, sc *bufio.Scanner) error {
 	return connectPickModel(d, sc, prevProv, prevModel, prov.Name, ids)
 }
 
+func connectClaudeSubComingSoon(d Deps) error {
+	fmt.Fprintf(d.Out, "Claude Sub (OAuth via Agent SDK) is not available yet.\n")
+	fmt.Fprintf(d.Out, "Expected after %s when Anthropic enables subscription auth for third-party apps.\n", config.ClaudeSubExpectedDate)
+	fmt.Fprintln(d.Out, "Use option 3 (Anthropic API key) until then.")
+	return nil
+}
+
 func connectCompatibleAPI(d Deps, sc *bufio.Scanner) error {
 	fmt.Fprint(d.Out, "Provider display name: ")
 	if !sc.Scan() {
@@ -72,6 +82,9 @@ func connectCompatibleAPI(d Deps, sc *bufio.Scanner) error {
 	n := strings.TrimSpace(sc.Text())
 	if n == config.ProviderNameChatGPTSub {
 		return fmt.Errorf("display name %q is reserved; use option 1 for ChatGPT Sub", n)
+	}
+	if n == config.ProviderNameClaudeSub {
+		return fmt.Errorf("display name %q is reserved; use option 4 for Claude Sub", n)
 	}
 	fmt.Fprint(d.Out, "Base URL: ")
 	if !sc.Scan() {
@@ -123,6 +136,9 @@ func connectAnthropicCompatibleAPI(d Deps, sc *bufio.Scanner) error {
 	if n == config.ProviderNameChatGPTSub {
 		return fmt.Errorf("display name %q is reserved; use option 1 for ChatGPT Sub", n)
 	}
+	if n == config.ProviderNameClaudeSub {
+		return fmt.Errorf("display name %q is reserved; use option 4 for Claude Sub", n)
+	}
 	fmt.Fprint(d.Out, "Base URL e.g. https://api.anthropic.com: ")
 	if !sc.Scan() {
 		if err := sc.Err(); err != nil {
@@ -155,6 +171,9 @@ func connectAnthropicCompatibleAPI(d Deps, sc *bufio.Scanner) error {
 }
 
 func listModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {
+	if p.IsClaudeSub() {
+		return modelsapi.CuratedClaudeSubModels(), nil
+	}
 	if p.EffectiveAuthKind() == config.AuthKindOAuthChatGPT {
 		return codex.SubModelCatalog(), nil
 	}

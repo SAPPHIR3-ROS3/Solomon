@@ -9,3 +9,11 @@ func CuratedAnthropicModels() []string {
 		"claude-3-opus-20240229",
 	}
 }
+
+func CuratedClaudeSubModels() []string {
+	return []string{
+		"claude-sonnet-4-20250514",
+		"claude-3-7-sonnet-20250219",
+		"claude-3-5-haiku-20241022",
+	}
+}

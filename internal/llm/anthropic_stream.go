@@ -2,7 +2,6 @@ package llm
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -21,7 +20,7 @@ type anthropicStreamState struct {
 	toolNames  map[int]string
 	toolArgs   map[int]*strings.Builder
 	toolIDs    map[int]string
-	usage      anthropicUsagePayload
+	usage      AnthropicUsagePayload
 	stopReason string
 }
 
@@ -30,13 +29,10 @@ func (b *AnthropicBackend) postStream(ctx context.Context, body map[string]any) 
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, anthropicMessagesURL(b.baseURL), bytes.NewReader(raw))
+	req, err := anthropicHTTPNew(ctx, AnthropicMessagesURL(b.baseURL), raw, b.auth)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", b.apiKey)
-	req.Header.Set("anthropic-version", anthropicAPIVersion)
 	req.Header.Set("Accept", "text/event-stream")
 	cli := &http.Client{Timeout: 0}
 	return cli.Do(req)
@@ -151,7 +147,7 @@ func readAnthropicStreamTurn(body io.Reader, contentOut io.Writer, opts StreamOp
 	var out AssistantTurnResult
 	out.Content = strings.TrimSpace(st.content.String())
 	out.ReasoningText = strings.TrimSpace(st.reasoning.String())
-	out.Usage = normalizeAnthropicUsage(st.usage)
+	out.Usage = NormalizeAnthropicUsage(st.usage)
 	fillAnthropicTiming(&out.Usage, tStart, tTTFT, tFirstVisible, time.Now())
 	for idx, name := range st.toolNames {
 		args := ""
@@ -176,7 +172,7 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 	case "message_start":
 		var wrap struct {
 			Message struct {
-				Usage anthropicUsagePayload `json:"usage"`
+				Usage AnthropicUsagePayload `json:"usage"`
 			} `json:"message"`
 		}
 		if raw, ok := ev["message"]; ok {
@@ -189,7 +185,7 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 		st.usage.CacheCreationInputTokens += wrap.Message.Usage.CacheCreationInputTokens
 	case "message_delta":
 		var wrap struct {
-			Usage anthropicUsagePayload `json:"usage"`
+			Usage AnthropicUsagePayload `json:"usage"`
 			Delta struct {
 				StopReason string `json:"stop_reason"`
 			} `json:"delta"`

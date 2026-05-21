@@ -10,15 +10,15 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
 )
 
-const anthropicAPIVersion = "2023-06-01"
+const AnthropicAPIVersion = "2023-06-01"
 
 type AnthropicBackend struct {
 	baseURL string
-	apiKey  string
+	auth    AnthropicAuth
 }
 
-func NewAnthropicBackend(baseURL, apiKey string) *AnthropicBackend {
-	return &AnthropicBackend{baseURL: strings.TrimSpace(baseURL), apiKey: strings.TrimSpace(apiKey)}
+func NewAnthropicBackend(baseURL string, auth AnthropicAuth) *AnthropicBackend {
+	return &AnthropicBackend{baseURL: strings.TrimSpace(baseURL), auth: auth}
 }
 
 func (b *AnthropicBackend) Protocol() Protocol { return ProtocolAnthropic }
@@ -29,7 +29,7 @@ func (b *AnthropicBackend) CompleteText(ctx context.Context, req SimpleCompletio
 	if err != nil {
 		return "", err
 	}
-	httpReq, err := anthropicHTTPNew(ctx, anthropicMessagesURL(b.baseURL), raw, b.apiKey)
+	httpReq, err := anthropicHTTPNew(ctx, AnthropicMessagesURL(b.baseURL), raw, b.auth)
 	if err != nil {
 		return "", err
 	}

@@ -20,7 +20,11 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 		if err != nil {
 			return nil, err
 		}
-		return NewAnthropicBackend(p.BaseURL, bearer), nil
+		auth := AnthropicAuthFromAPIKey(bearer)
+		if p.UsesAnthropicOAuthBearer() {
+			auth = AnthropicAuthFromOAuthBearer(bearer)
+		}
+		return NewAnthropicBackend(p.BaseURL, auth), nil
 	default:
 		client, err := newOpenAIClient(ctx, cfg, p)
 		if err != nil {

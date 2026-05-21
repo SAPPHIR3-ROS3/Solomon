@@ -268,7 +268,7 @@ func WriteConfigSetupWarning(w io.Writer, r *Root) {
 				missing = append(missing, "providers[].base_url")
 			}
 			if !ProviderCredentialsReady(p) {
-				if p.EffectiveAuthKind() == AuthKindOAuthChatGPT {
+				if p.IsOAuthProvider() {
 					missing = append(missing, "providers[].oauth tokens")
 				} else {
 					missing = append(missing, "providers[].api_key")

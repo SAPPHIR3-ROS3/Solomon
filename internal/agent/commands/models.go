@@ -25,6 +25,7 @@ const (
 	sectionCurrent pickerSection = iota
 	sectionRecent
 	sectionChatGPTSub
+	sectionClaudeSub
 	sectionCatalog
 )
 
@@ -106,13 +107,47 @@ func pickChatGPTSubListed(d Deps, all []ListedModel, cur ListedModel, claimed ma
 	return out
 }
 
-func assemblePickerRows(cur ListedModel, recents, chatgptSub, prov []ListedModel) []pickerRow {
+func pickClaudeSubListed(d Deps, all []ListedModel, cur ListedModel, claimed map[string]bool, max int) []ListedModel {
+	if max <= 0 || d.Cfg == nil {
+		return nil
+	}
+	var out []ListedModel
+	for _, u := range config.RecentModelUseEntries(d.Cfg, cur.Prov) {
+		lm := ListedModel{Prov: strings.TrimSpace(u.Provider), Model: strings.TrimSpace(u.Model)}
+		if lm.Prov != config.ProviderNameClaudeSub || lm.Model == "" {
+			continue
+		}
+		if !config.ModelPassesClaudeSubFilter(lm.Model) {
+			continue
+		}
+		if lmKey(lm) == lmKey(cur) {
+			continue
+		}
+		if claimed[lmKey(lm)] {
+			continue
+		}
+		if !catalogContains(all, lm) {
+			continue
+		}
+		out = append(out, lm)
+		claimed[lmKey(lm)] = true
+		if len(out) >= max {
+			break
+		}
+	}
+	return out
+}
+
+func assemblePickerRows(cur ListedModel, recents, chatgptSub, claudeSub, prov []ListedModel) []pickerRow {
 	out := []pickerRow{{lm: cur, section: sectionCurrent}}
 	for i := range recents {
 		out = append(out, pickerRow{lm: recents[i], section: sectionRecent})
 	}
 	for i := range chatgptSub {
 		out = append(out, pickerRow{lm: chatgptSub[i], section: sectionChatGPTSub})
+	}
+	for i := range claudeSub {
+		out = append(out, pickerRow{lm: claudeSub[i], section: sectionClaudeSub})
 	}
 	for i := range prov {
 		out = append(out, pickerRow{lm: prov[i], section: sectionCatalog})
@@ -125,13 +160,14 @@ func buildSlashPicker(d Deps, catalog []ListedModel) ([]pickerRow, map[string]bo
 	claimed := map[string]bool{lmKey(cur): true}
 	recents := pickRecentListed(d, catalog, cur, claimed, 5)
 	chatgptSub := pickChatGPTSubListed(d, catalog, cur, claimed, 5)
-	need := 20 - len(recents) - len(chatgptSub)
+	claudeSub := pickClaudeSubListed(d, catalog, cur, claimed, 5)
+	need := 20 - len(recents) - len(chatgptSub) - len(claudeSub)
 	prov := fillProviderPicks(catalog, claimed, need)
 	shown := map[string]bool{}
 	for k, v := range claimed {
 		shown[k] = v
 	}
-	return assemblePickerRows(cur, recents, chatgptSub, prov), shown
+	return assemblePickerRows(cur, recents, chatgptSub, claudeSub, prov), shown
 }
 
 func fillProviderPicks(catalog []ListedModel, claimed map[string]bool, need int) []ListedModel {
@@ -263,6 +299,7 @@ func printSlashModelPicker(out io.Writer, rows []pickerRow) {
 	}
 	printSection("[recents]", sectionRecent, "(recent)")
 	printSection("[ChatGPT Sub]", sectionChatGPTSub, "(ChatGPT Sub)")
+	printSection("[Claude Sub]", sectionClaudeSub, "(Claude Sub)")
 	if i < len(rows) {
 		fmt.Fprintln(out, "")
 		fmt.Fprintln(out, "[models]")

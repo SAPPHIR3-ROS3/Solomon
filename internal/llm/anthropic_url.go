@@ -2,7 +2,7 @@ package llm
 
 import "strings"
 
-func anthropicMessagesURL(base string) string {
+func AnthropicMessagesURL(base string) string {
 	base = strings.TrimSpace(base)
 	base = strings.TrimSuffix(base, "/")
 	if strings.HasSuffix(base, "/v1/messages") {
