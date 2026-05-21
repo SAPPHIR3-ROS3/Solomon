@@ -100,7 +100,7 @@ jobs:
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/solomon
           done
 
-      - name: Create GitHub pre-release
+      - name: Create GitHub release
         env:
           VER: ${{ steps.version.outputs.ver }}
           GH_TOKEN: ${{ github.token }}
@@ -108,5 +108,4 @@ jobs:
           set -e
           gh release create "$VER" dist/* \
             --title "$VER" \
-            --notes "Calendar pre-release $VER. Assets are native executables per platform (linux, windows, macOS; amd64 and arm64)." \
-            --prerelease
+            --notes "Calendar release $VER. Assets are native executables per platform (linux, windows, macOS; amd64 and arm64)."
