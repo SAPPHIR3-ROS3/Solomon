@@ -87,13 +87,9 @@ func buildCodexInput(chat map[string]any) []any {
 		case "system":
 			continue
 		case "user":
-			texts := collectTextSegments(mm["content"], false)
-			if len(texts) == 0 {
+			contents := collectCodexUserContentParts(mm["content"])
+			if len(contents) == 0 {
 				continue
-			}
-			contents := make([]any, 0, len(texts))
-			for _, t := range texts {
-				contents = append(contents, map[string]any{"type": "input_text", "text": t})
 			}
 			input = append(input, map[string]any{
 				"type": "message", "role": "user", "content": contents,
@@ -159,6 +155,52 @@ func mapToolsToCodex(chat map[string]any) []any {
 		})
 	}
 	return out
+}
+
+func collectCodexUserContentParts(content any) []any {
+	switch v := content.(type) {
+	case string:
+		t := strings.TrimSpace(v)
+		if t == "" {
+			return nil
+		}
+		return []any{map[string]any{"type": "input_text", "text": t}}
+	case []any:
+		var parts []any
+		for _, item := range v {
+			m, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if url := chatPartImageURL(m); url != "" {
+				parts = append(parts, map[string]any{
+					"type":       "input_image",
+					"image_url":  url,
+				})
+				continue
+			}
+			if text, _ := m["text"].(string); text != "" {
+				parts = append(parts, map[string]any{"type": "input_text", "text": text})
+			}
+		}
+		return parts
+	default:
+		return nil
+	}
+}
+
+func chatPartImageURL(m map[string]any) string {
+	switch v := m["image_url"].(type) {
+	case map[string]any:
+		if url, _ := v["url"].(string); strings.TrimSpace(url) != "" {
+			return strings.TrimSpace(url)
+		}
+	case string:
+		if s := strings.TrimSpace(v); s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 func collectTextSegments(content any, _ bool) []string {
