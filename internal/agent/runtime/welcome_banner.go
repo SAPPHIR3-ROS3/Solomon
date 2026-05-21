@@ -91,7 +91,7 @@ func logoDisplayWidth(plain string) int {
 }
 
 func borderPaint(s string) string {
-	return termcolor.Bold + termcolor.Gold + s + termcolor.Reset
+	return termcolor.WrapBoldGold(s)
 }
 
 func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool) {

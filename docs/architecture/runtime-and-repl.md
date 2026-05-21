@@ -82,3 +82,4 @@ When `EphemeralSession` is true, `persistSession` does not write `chatstore` JSO
 - [Agent turn pipeline](agent-turn-pipeline.md)
 - [Skills and slash](skills-and-slash.md)
 - [Usage and commands](../user-guide/usage-and-commands.md)
+- [Terminal setup](../user-guide/terminal-setup.md)

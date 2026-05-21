@@ -47,15 +47,15 @@ func WelcomeLogoLines() []LogoLine {
 			ab.WriteRune(r)
 		}
 
-		ansiRaw := ab.String() + termcolor.Reset
+		ansiRaw := ab.String() + termcolor.ResetSeq()
 		// trimma a destra i Braille blank e spazi (sia da Plain che da ANSI)
 		plainTrimmed := strings.TrimRightFunc(txtLine, func(r rune) bool {
 			return r == '\u2800' || r == ' '
 		})
 
 		// Rimuove prima il Reset finale per poter trimmare i blank sottostanti.
-		ansiBody := strings.TrimSuffix(ansiRaw, termcolor.Reset)
-		ansiTrimmed := trimANSIRight(ansiBody) + termcolor.Reset
+		ansiBody := strings.TrimSuffix(ansiRaw, termcolor.ResetSeq())
+		ansiTrimmed := trimANSIRight(ansiBody) + termcolor.ResetSeq()
 
 		out[i] = LogoLine{Plain: plainTrimmed, ANSI: ansiTrimmed}
 	}

@@ -34,9 +34,11 @@ Other flags (any order **before** the prompt; the prompt must be the trailing po
 
 | Flag | Effect |
 | ---- | ------ |
-| `--no-color` | Plain human output when not using `--json` / `--jsonl` |
+| `--no-color` | Plain human output (no ANSI styling on stdout) |
 | `--fail-on-tool-error` | Exit code `5` if any tool result JSON contains an `"error"` field |
 | `--env-file <path>` | Dotenv file with `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `MODEL_ID` |
+
+**Colors without the flag:** Solomon also disables colors when stdout is piped or redirected, when `NO_COLOR` is set, or when `CLICOLOR=0`. See [Terminal setup](terminal-setup.md).
 
 **Configuration precedence** (only with `--json` or `--jsonl`): valid `~/.solomon/config.toml` (provider + model + API key) → environment variables → `--env-file`. No interactive wizard in this mode.
 
@@ -63,6 +65,7 @@ Implementation: [Skills and slash](../architecture/skills-and-slash.md).
 ## See also
 
 - [Configuration](configuration.md)
+- [Terminal setup](terminal-setup.md)
 - [Data layout](data-layout.md)
 - [Runtime and REPL](../architecture/runtime-and-repl.md)
 - [Plan vs build](../architecture/plan-vs-build.md)
