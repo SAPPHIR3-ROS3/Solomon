@@ -136,14 +136,21 @@ func ImagePlaceholder(seq int) string {
 // If imageFiles is non-nil and contains entries for [img-<n>] placeholders
 // found in user messages, those placeholders are replaced with image content parts.
 func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]string) []openai.ChatCompletionMessageParamUnion {
+	msgs = MessagesForAPI(msgs)
+	lastAsst := LastAssistantIndex(msgs)
 	out := []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(system)}
-	for _, m := range msgs {
+	for i, m := range msgs {
 		switch m.Role {
 		case "assistant":
 			if len(m.ToolCalls) > 0 {
 				ap := openai.ChatCompletionAssistantMessageParam{}
 				if m.Content != "" {
 					ap.Content.OfString = param.NewOpt(m.Content)
+				}
+				if i == lastAsst {
+					if rt := strings.TrimSpace(m.ReasoningText); rt != "" {
+						ap.SetExtraFields(map[string]any{"reasoning_content": rt})
+					}
 				}
 				for _, tc := range m.ToolCalls {
 					ap.ToolCalls = append(ap.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
@@ -159,6 +166,15 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 				}
 				out = append(out, openai.ChatCompletionMessageParamUnion{OfAssistant: &ap})
 				continue
+			}
+			if i == lastAsst {
+				if rt := strings.TrimSpace(m.ReasoningText); rt != "" {
+					ap := openai.ChatCompletionAssistantMessageParam{}
+					ap.Content.OfString = param.NewOpt(m.Content)
+					ap.SetExtraFields(map[string]any{"reasoning_content": rt})
+					out = append(out, openai.ChatCompletionMessageParamUnion{OfAssistant: &ap})
+					continue
+				}
 			}
 			out = append(out, openai.AssistantMessage(m.Content))
 		case "tool":

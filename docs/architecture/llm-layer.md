@@ -2,70 +2,76 @@
 
 ## Purpose
 
-Translate `chatstore` messages into OpenAI chat completion params, stream assistant output to the terminal, collect usage, handle reasoning streams, and enforce stream accumulator integrity (fail-closed).
+Translate `chatstore` messages into provider API requests, stream assistant output to the terminal, collect usage, handle reasoning streams, and enforce stream integrity where applicable.
+
+## Provider backends
+
+| Protocol | Implementation | API surface |
+|----------|----------------|-------------|
+| `openai` (default) | `OpenAIBackend` | OpenAI Chat Completions (`openai-go`) |
+| `anthropic` | `AnthropicBackend` | Anthropic Messages API (HTTP + SSE) |
+
+Runtime holds `CompletionBackend` (`NewCompletionBackend` in [`internal/llm/factory.go`](../../internal/llm/factory.go)). OpenAI-compatible and ChatGPT Sub providers use `openai`; Anthropic Compatible API providers use `anthropic`.
 
 ## Packages and files
 
 | Package / file | Responsibility |
 |----------------|----------------|
-| `internal/llm/stream.go` | `StreamAssistantTurn`, streaming display, accumulator |
-| `internal/llm/params.go` | `MessageParams`, images `[img-N]`, token display helpers |
-| `internal/agent/tools/openai.go` | Shared OpenAI types at tool boundary |
+| `internal/llm/backend.go` | `CompletionBackend`, `TurnRequest`, `ToolDef` |
+| `internal/llm/openai_backend.go` | OpenAI adapter |
+| `internal/llm/anthropic_*.go` | Anthropic mapper, stream, usage |
+| `internal/llm/stream.go` | Shared types, OpenAI stream helpers |
+| `internal/llm/params.go` | `MessageParams`, images `[img-N]`, token display |
+| `internal/llm/reasoning.go` | `MessagesForAPI` (reasoning only on last assistant) |
 
 ## Key functions
 
 | Function | Behavior |
 |----------|----------|
-| `StreamAssistantTurn` | Stream chunks, build assistant message, tool calls, usage stats |
-| `MessageParams` | Map session messages + image files to API params |
-| `ImagePlaceholder` | `[img-N]` tag format for pasted images |
-| `JumpLeftOverImgTag` / `JumpRightOverImgTag` | REPL cursor skips image tags |
-| `AggregateConsecutiveTurnUsage` | Footer stats across turns in one user message |
-| `ErrStreamAccumulatorRejected` | Chunk rejected (e.g. inconsistent completion id) — turn aborted, not persisted |
-
-## Stream integrity
-
-`ChatCompletionAccumulator.AddChunk` must accept every chunk in a single completion stream. On rejection, Solomon aborts the turn without salvaging reasoning, content, or usage into the session. Terminal output already printed may remain visible.
-
-Tests: [`test/stream_integrity_test.go`](../../test/stream_integrity_test.go).
+| `CompletionBackend.StreamTurn` | Stream assistant turn (content, tools, usage) |
+| `MessageParams` | Map session messages to OpenAI chat params |
+| `buildAnthropicMessages` | Map session messages to Anthropic message blocks |
+| `MessagesForAPI` | Strip `ReasoningText` from all but the last assistant message |
+| `AggregateConsecutiveTurnUsage` | Footer stats across tool sub-turns |
+| `ErrStreamAccumulatorRejected` | OpenAI stream chunk rejected — turn aborted |
 
 ## Reasoning and thinking
 
-Config `reasoning_effort` and `show_thinking` interact with stream rendering. `systemPrompt(disableThinking)` passes `DisableThinking` when effort is `none`.
+- **Display:** `ReasoningText` in session; `show_thinking` / `reasoning_effort` (OpenAI path).
+- **API history:** only the **last** assistant message may include reasoning toward the model (`MessagesForAPI`).
+- **Anthropic extended thinking:** disabled in v1 (no `thinking` blocks in requests).
+- **Compaction:** `/summarize` transcript and retained tail omit reasoning text.
 
-Bracketed reasoning in stored content is split for display via `chatstore.AssistantDisplayParts`.
+## Usage stats
+
+`UsageStats` is provider-agnostic. Anthropic maps `input_tokens`, `output_tokens`, `cache_read_input_tokens`, and `cache_creation_input_tokens` (creation stored but not shown in the REPL footer v1).
 
 ## Images
 
-User messages may contain `[img-N]` placeholders; `Session.ImageFiles` maps index to on-disk paths under the project chat images directory. Params layer attaches image parts for the API.
+User messages may contain `[img-N]` placeholders. OpenAI uses `image_url` data URIs; Anthropic uses `image` blocks with base64 `source` (PNG/JPEG/GIF).
+
+## Stream integrity (OpenAI)
+
+`ChatCompletionAccumulator.AddChunk` must accept every chunk in a single completion stream. On rejection, Solomon aborts the turn without persisting partial results.
+
+Tests: [`test/stream_integrity_test.go`](../../test/stream_integrity_test.go).
 
 ## Flow
 
 ```mermaid
 sequenceDiagram
   participant RT as Runtime
-  participant LLM as llm
-  participant API as OpenAI_compatible
+  participant BE as CompletionBackend
+  participant API as Provider_API
 
-  RT->>LLM: StreamAssistantTurn client params
-  LLM->>API: ChatCompletion stream
+  RT->>BE: StreamTurn TurnRequest
+  BE->>API: stream request
   loop chunks
-    API-->>LLM: delta
-    LLM->>LLM: accumulator AddChunk
-    LLM-->>RT: print reasoning/content
+    API-->>BE: delta
+    BE-->>RT: print reasoning/content
   end
-  LLM-->>RT: AssistantTurnResult
+  BE-->>RT: AssistantTurnResult
 ```
-
-## Extension points
-
-- Provider quirks: adjust `params.go` mapping or stream handler in `stream.go`.
-- New display helpers: `termcolor` usage from stream package.
-
-## Related code
-
-- [`internal/llm/stream.go`](../../internal/llm/stream.go)
-- [`internal/llm/params.go`](../../internal/llm/params.go)
 
 ## See also
 

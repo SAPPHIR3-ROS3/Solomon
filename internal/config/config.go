@@ -23,10 +23,15 @@ const DefaultSkillSearchMinNormalizedScore = 0.05
 
 const DefaultWebSearchEngine = "duckduckgo"
 
+const APIProtocolOpenAI = "openai"
+
+const APIProtocolAnthropic = "anthropic"
+
 type Provider struct {
 	Name              string `toml:"-"`
 	BaseURL           string `toml:"base_url"`
 	APIKey            string `toml:"api_key"`
+	APIProtocol       string `toml:"api_protocol,omitempty"`
 	AuthKind          string `toml:"auth_kind,omitempty"`
 	OAuthAccessToken  string `toml:"oauth_access_token,omitempty"`
 	OAuthRefreshToken string `toml:"oauth_refresh_token,omitempty"`
@@ -185,6 +190,48 @@ func (r *Root) ReasoningEffortLabel() string {
 		return ""
 	}
 	return c
+}
+
+func (p *Provider) EffectiveAPIProtocol() string {
+	if p == nil {
+		return APIProtocolOpenAI
+	}
+	switch strings.TrimSpace(p.APIProtocol) {
+	case APIProtocolAnthropic:
+		return APIProtocolAnthropic
+	default:
+		return APIProtocolOpenAI
+	}
+}
+
+func (p *Provider) IsAnthropic() bool {
+	return p != nil && p.EffectiveAPIProtocol() == APIProtocolAnthropic
+}
+
+func NormalizeAnthropicBase(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", errors.New("empty base url")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("scheme must be http or https")
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("missing host")
+	}
+	p := strings.TrimSuffix(u.Path, "/")
+	if p == "" || p == "/" {
+		u.Path = "/"
+	} else {
+		u.Path = p + "/"
+	}
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String(), nil
 }
 
 func NormalizeAPIBase(raw string) (string, error) {

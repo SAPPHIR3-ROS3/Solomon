@@ -28,7 +28,7 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 | `config.ResolveExecConfig` | `internal/config/exec_resolve.go` | Headless credentials for `--json`/`--jsonl` |
 | `paths.SolomonHome` | `internal/paths/paths.go` | User data root |
 | `config.RunInitialSetup` | `internal/config/onboard_setup.go` | First-run / incomplete LLM setup (required provider) |
-| `config.RunOnboardWizard` | `internal/config/onboard.go` | Interactive `/onboard` wizard (optional skips on re-run) |
+| `config.RunOnboardWizard` | `internal/config/onboard.go` | Interactive `/onboard` wizard: OpenAI or Anthropic Compatible API (optional skips on re-run) |
 | `config.NeedsOnboard` | `internal/config/onboard.go` | True when provider, API key, or model is missing |
 | `config.ResolveProvider` | `internal/config/config.go` | Active provider from `current.*` |
 | `project.Resolve` | `internal/project/project.go` | Map cwd → `(root, hex)` |

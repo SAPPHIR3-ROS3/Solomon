@@ -75,11 +75,12 @@ type AssistantToolCall struct {
 }
 
 type UsageStats struct {
-	PromptTokens       int64
-	CachedPromptTokens int64
-	ReasoningTokens    int64
-	ResponseTokens     int64
-	TotalTokens        int64
+	PromptTokens              int64
+	CachedPromptTokens        int64
+	CacheCreationPromptTokens int64
+	ReasoningTokens           int64
+	ResponseTokens            int64
+	TotalTokens               int64
 	OutputTPS          float64
 	TTFTSecs           float64
 	PromptTPS          float64

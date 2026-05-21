@@ -15,15 +15,34 @@ import (
 
 const maxCompletionTokens = 2048
 
-func FromPrompt(ctx context.Context, client openai.Client, cfg *config.Root, model string, userLine string) (string, error) {
+func FromPrompt(ctx context.Context, backend llm.CompletionBackend, client openai.Client, cfg *config.Root, model string, userLine string) (string, error) {
 	sys, err := prompt.RenderTitle(prompt.TitleData{Language: cfg.EffectiveResponseLanguage(), DisableThinking: true})
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "title RenderTitle failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
+	user := "User message to name:\n" + userLine
+	if backend != nil {
+		t, err := backend.CompleteText(ctx, llm.SimpleCompletionRequest{
+			Cfg:                   cfg,
+			Model:                 model,
+			System:                sys,
+			User:                  user,
+			ForceDisableReasoning: true,
+		})
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "title completion failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			return "", err
+		}
+		t = strings.TrimSpace(t)
+		if t == "" {
+			return "", nil
+		}
+		return t, nil
+	}
 	p := openai.ChatCompletionNewParams{
 		Model:               shared.ChatModel(model),
-		Messages:            []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(sys), openai.UserMessage("User message to name:\n" + userLine)},
+		Messages:            []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(sys), openai.UserMessage(user)},
 		MaxCompletionTokens: param.NewOpt(int64(maxCompletionTokens)),
 	}
 	llm.ApplyReasoningDisable(&p)

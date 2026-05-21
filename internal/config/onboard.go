@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,167 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
+
+var errOnboardProviderSkipped = errors.New("onboard provider skipped")
+
+const (
+	onboardAPIOpenAI     = 1
+	onboardAPIAnthropic  = 2
+)
+
+func onboardChooseAPIKind(br *bufio.Scanner, out io.Writer, require bool) (kind int, skipped bool, err error) {
+	fmt.Fprintln(out, "LLM provider API type:")
+	fmt.Fprintln(out, "  1) OpenAI Compatible API (base URL + API key)")
+	fmt.Fprintln(out, "  2) Anthropic Compatible API (base URL + API key)")
+	prompt := "Select [1-2]: "
+	if !require {
+		prompt = "Select [1-2] (skip to skip provider setup): "
+	}
+	for {
+		line, err := readOnboardLine(br, out, prompt)
+		if err != nil {
+			return 0, false, err
+		}
+		if !require && isSkipInput(line) {
+			return 0, true, nil
+		}
+		switch strings.TrimSpace(line) {
+		case "1":
+			return onboardAPIOpenAI, false, nil
+		case "2":
+			return onboardAPIAnthropic, false, nil
+		default:
+			fmt.Fprintln(out, "Invalid selection (use 1 or 2).")
+		}
+	}
+}
+
+func onboardListModels(p *Provider) ([]string, error) {
+	if p.IsAnthropic() {
+		return modelsapi.CuratedAnthropicModels(), nil
+	}
+	ids, err := modelsapi.List(p.BaseURL, p.APIKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("no models returned by API")
+	}
+	return ids, nil
+}
+
+func runOnboardProviderSetup(br *bufio.Scanner, stdin io.Reader, out io.Writer, existing *Root, opts OnboardOpts, res *OnboardResult) error {
+	apiKind, skipped, err := onboardChooseAPIKind(br, out, opts.RequireProvider)
+	if err != nil {
+		return err
+	}
+	if skipped {
+		PrintConfigSkipHint(out, "provider")
+		return errOnboardProviderSkipped
+	}
+	setupTitle := "Solomon setup: OpenAI Compatible API"
+	basePrompt := "Base URL e.g. https://api.openai.com"
+	if apiKind == onboardAPIAnthropic {
+		setupTitle = "Solomon setup: Anthropic Compatible API"
+		basePrompt = "Base URL e.g. https://api.anthropic.com"
+	}
+	fmt.Fprintln(out, setupTitle)
+	var provNameLine string
+	if opts.RequireProvider {
+		provNameLine, err = readRequired(br, out, "Display name for this provider: ")
+		if err != nil {
+			return err
+		}
+	} else {
+		provNameLine, err = readOnboardLine(br, out, "Display name for this provider (skip to skip provider setup): ")
+		if err != nil {
+			return err
+		}
+		if isSkipInput(provNameLine) {
+			PrintConfigSkipHint(out, "provider")
+			return errOnboardProviderSkipped
+		}
+		if provNameLine == "" {
+			return fmt.Errorf("provider display name cannot be empty (type skip to skip provider setup)")
+		}
+	}
+	var base, key string
+	if opts.RequireProvider {
+		base, err = readRequired(br, out, basePrompt+": ")
+		if err != nil {
+			return err
+		}
+		key, err = readRequired(br, out, "API key: ")
+		if err != nil {
+			return err
+		}
+	} else {
+		var baseSkipped bool
+		base, baseSkipped, err = readRequiredOrSkip(br, out, basePrompt+" (skip to skip provider setup): ")
+		if err != nil {
+			return err
+		}
+		if baseSkipped {
+			PrintConfigSkipHint(out, "provider")
+			return errOnboardProviderSkipped
+		}
+		key, baseSkipped, err = readRequiredOrSkip(br, out, "API key (skip to skip provider setup): ")
+		if err != nil {
+			return err
+		}
+		if baseSkipped {
+			PrintConfigSkipHint(out, "provider")
+			return errOnboardProviderSkipped
+		}
+	}
+	p := Provider{Name: provNameLine, APIKey: key, AuthKind: AuthKindAPIKey}
+	if apiKind == onboardAPIAnthropic {
+		p.APIProtocol = APIProtocolAnthropic
+		norm, normErr := NormalizeAnthropicBase(base)
+		if normErr != nil {
+			return normErr
+		}
+		p.BaseURL = norm
+	} else {
+		p.APIProtocol = APIProtocolOpenAI
+		norm, normErr := NormalizeAPIBase(base)
+		if normErr != nil {
+			return normErr
+		}
+		p.BaseURL = norm
+	}
+	if apiKind == onboardAPIAnthropic {
+		fmt.Fprint(out, "Using curated Anthropic model list…\n")
+	} else {
+		fmt.Fprint(out, "Fetching models…\n")
+	}
+	ids, err := onboardListModels(&p)
+	if err != nil {
+		return err
+	}
+	res.NewProvider = &p
+	hadExisting := existing != nil && len(existing.Providers) > 0 && strings.TrimSpace(existing.Current.Model) != ""
+	if hadExisting {
+		choice, err := PickModelAfterAdd(stdin, out, existing.Current.Provider, existing.Current.Model, p.Name, ids, !opts.RequireProvider)
+		if err != nil {
+			return err
+		}
+		if choice.Changed {
+			res.SwitchCurrent = true
+			res.CurrentProvider = choice.ProviderName
+			res.CurrentModel = choice.ModelID
+		}
+	} else {
+		mid, err := PickModelInteractive(stdin, out, &p, p.Name, ids, !opts.RequireProvider)
+		if err != nil {
+			return err
+		}
+		res.SwitchCurrent = true
+		res.CurrentProvider = p.Name
+		res.CurrentModel = mid
+	}
+	return nil
+}
 
 func EmptyRoot() *Root {
 	return &Root{
@@ -129,6 +291,7 @@ func PrintConfigSkipHint(out io.Writer, topic string) {
 		fmt.Fprintln(out, "  [providers.my-provider]")
 		fmt.Fprintln(out, "  base_url = \"https://...\"")
 		fmt.Fprintln(out, "  api_key = \"...\"")
+		fmt.Fprintln(out, "  api_protocol = \"openai\"  # or \"anthropic\"")
 		fmt.Fprintln(out, "  [current]")
 		fmt.Fprintln(out, "  provider = \"...\"")
 		fmt.Fprintln(out, "  model = \"...\"")
@@ -240,93 +403,11 @@ func RunOnboardWizard(stdin io.Reader, out io.Writer, existing *Root, opts Onboa
 	} else {
 		res.UserName = nameLine
 	}
-	fmt.Fprint(out, "Solomon setup: OpenAI-compatible API\n")
-	var provNameLine string
-	if opts.RequireProvider {
-		var err error
-		provNameLine, err = readRequired(br, out, "Display name for this provider: ")
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		var err error
-		provNameLine, err = readOnboardLine(br, out, "Display name for this provider (skip to skip provider setup): ")
-		if err != nil {
-			return nil, err
-		}
-		if isSkipInput(provNameLine) {
-			PrintConfigSkipHint(out, "provider")
+	if err := runOnboardProviderSetup(br, stdin, out, existing, opts, res); err != nil {
+		if err == errOnboardProviderSkipped {
 			goto language
 		}
-		if provNameLine == "" {
-			return nil, fmt.Errorf("provider display name cannot be empty (type skip to skip provider setup)")
-		}
-	}
-	{
-		var base, key string
-		var err error
-		if opts.RequireProvider {
-			base, err = readRequired(br, out, "Base URL e.g. https://api.openai.com: ")
-			if err != nil {
-				return nil, err
-			}
-			key, err = readRequired(br, out, "API key: ")
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			var skipped bool
-			base, skipped, err = readRequiredOrSkip(br, out, "Base URL e.g. https://api.openai.com (skip to skip provider setup): ")
-			if err != nil {
-				return nil, err
-			}
-			if skipped {
-				PrintConfigSkipHint(out, "provider")
-				goto language
-			}
-			key, skipped, err = readRequiredOrSkip(br, out, "API key (skip to skip provider setup): ")
-			if err != nil {
-				return nil, err
-			}
-			if skipped {
-				PrintConfigSkipHint(out, "provider")
-				goto language
-			}
-		}
-		norm, err := NormalizeAPIBase(base)
-		if err != nil {
-			return nil, err
-		}
-		p := Provider{Name: provNameLine, BaseURL: norm, APIKey: key}
-		fmt.Fprint(out, "Fetching models…\n")
-		ids, err := modelsapi.List(p.BaseURL, p.APIKey)
-		if err != nil {
-			return nil, fmt.Errorf("list models: %w", err)
-		}
-		if len(ids) == 0 {
-			return nil, fmt.Errorf("no models returned by API")
-		}
-		res.NewProvider = &p
-		hadExisting := existing != nil && len(existing.Providers) > 0 && strings.TrimSpace(existing.Current.Model) != ""
-		if hadExisting {
-			choice, err := PickModelAfterAdd(stdin, out, existing.Current.Provider, existing.Current.Model, p.Name, ids, !opts.RequireProvider)
-			if err != nil {
-				return nil, err
-			}
-			if choice.Changed {
-				res.SwitchCurrent = true
-				res.CurrentProvider = choice.ProviderName
-				res.CurrentModel = choice.ModelID
-			}
-		} else {
-			mid, err := PickModelInteractive(stdin, out, &p, p.Name, ids, !opts.RequireProvider)
-			if err != nil {
-				return nil, err
-			}
-			res.SwitchCurrent = true
-			res.CurrentProvider = p.Name
-			res.CurrentModel = mid
-		}
+		return nil, err
 	}
 language:
 	langLine, err := readOnboardLine(br, out, fmt.Sprintf("Assistant response language [%s] (skip for default): ", DefaultResponseLanguage))

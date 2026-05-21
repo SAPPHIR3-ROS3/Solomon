@@ -8,6 +8,8 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+
 	"github.com/openai/openai-go/v2"
 )
 
@@ -36,7 +38,8 @@ type Deps struct {
 	CompactionThresholdTokens    func() int64
 	SetCompactionThresholdTokens func(int64)
 
-	Client openai.Client
+	Client  openai.Client
+	Backend llm.CompletionBackend
 
 	ResetReadlineHistory  func()
 	AppendReadlineHistory func(line string) error
