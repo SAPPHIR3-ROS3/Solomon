@@ -27,7 +27,7 @@ func tomlExecReady(cfg *Root) (*Provider, bool) {
 	if err != nil {
 		return nil, false
 	}
-	if strings.TrimSpace(p.APIKey) == "" || strings.TrimSpace(p.BaseURL) == "" {
+	if strings.TrimSpace(p.BaseURL) == "" || !ProviderCredentialsReady(p) {
 		return nil, false
 	}
 	return p, true

@@ -27,9 +27,14 @@ const DefaultSkillSearchMinNormalizedScore = 0.05
 const DefaultWebSearchEngine = "duckduckgo"
 
 type Provider struct {
-	Name    string `toml:"name"`
-	BaseURL string `toml:"base_url"`
-	APIKey  string `toml:"api_key"`
+	Name              string `toml:"name"`
+	BaseURL           string `toml:"base_url"`
+	APIKey            string `toml:"api_key"`
+	AuthKind          string `toml:"auth_kind,omitempty"`
+	OAuthAccessToken  string `toml:"oauth_access_token,omitempty"`
+	OAuthRefreshToken string `toml:"oauth_refresh_token,omitempty"`
+	OAuthExpiresAt    string `toml:"oauth_expires_at,omitempty"`
+	OAuthAccountID    string `toml:"oauth_account_id,omitempty"`
 }
 
 type Current struct {

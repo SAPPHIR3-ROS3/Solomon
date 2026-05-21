@@ -17,13 +17,28 @@ type listResp struct {
 	Data []ListEntry `json:"data"`
 }
 
-func List(baseURL, apiKey string) ([]string, error) {
+type ListOpts struct {
+	ChatGPTAccountID string
+	UserAgent        string
+}
+
+func List(baseURL, bearer string) ([]string, error) {
+	return ListWithOpts(baseURL, bearer, ListOpts{})
+}
+
+func ListWithOpts(baseURL, bearer string, opts ListOpts) ([]string, error) {
 	u := strings.TrimSuffix(baseURL, "/") + "/models"
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	if s := strings.TrimSpace(opts.UserAgent); s != "" {
+		req.Header.Set("User-Agent", s)
+	}
+	if s := strings.TrimSpace(opts.ChatGPTAccountID); s != "" {
+		req.Header.Set("ChatGPT-Account-Id", s)
+	}
 	cli := &http.Client{Timeout: 60 * time.Second}
 	resp, err := cli.Do(req)
 	if err != nil {

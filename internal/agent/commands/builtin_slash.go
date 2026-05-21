@@ -52,7 +52,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"max_response"}, "/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)", func(d Deps, parts []string) error { return MaxResponse(d, parts) }},
 		{[]string{"threshold"}, "/threshold", "/threshold | /threshold <n> auto /summarize when prompt_tokens >= n (n>=32768; default 131072; needs API usage)", func(d Deps, parts []string) error { return Threshold(d, parts) }},
 		{[]string{"models"}, "/models", "list models and switch current model", func(d Deps, parts []string) error { return SlashModels(d) }},
-		{[]string{"connect"}, "/connect", "add provider (checks /models), pick model (0 current, 1-20 listed, truncated: 21=id, paste id)", func(d Deps, parts []string) error { return Connect(d) }},
+		{[]string{"connect"}, "/connect", "connect ChatGPT Sub (OAuth) or OpenAI-compatible API (upsert by name); then pick model", func(d Deps, parts []string) error { return Connect(d) }},
 		{[]string{"new"}, "/new", "start a new chat session (empty transcript; prior chat stays saved on disk)", func(d Deps, parts []string) error { return NewChat(d) }},
 		{[]string{"temp"}, "/temp", "/temp — empty chat only: in-memory session (not saved; like solomon temp exec)", func(d Deps, parts []string) error { return TempChat(d) }},
 		{[]string{"resume"}, "/resume", "/resume | /resume last | /resume <id|title>", func(d Deps, parts []string) error { return Resume(d, parts[1:]) }},
