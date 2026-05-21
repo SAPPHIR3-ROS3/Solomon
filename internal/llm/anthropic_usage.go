@@ -1,13 +1,13 @@
 package llm
 
-type anthropicUsagePayload struct {
+type AnthropicUsagePayload struct {
 	InputTokens              int64 `json:"input_tokens"`
 	OutputTokens             int64 `json:"output_tokens"`
 	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
 	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
 }
 
-func normalizeAnthropicUsage(u anthropicUsagePayload) UsageStats {
+func NormalizeAnthropicUsage(u AnthropicUsagePayload) UsageStats {
 	prompt := u.InputTokens + u.CacheReadInputTokens
 	total := prompt + u.OutputTokens
 	return UsageStats{

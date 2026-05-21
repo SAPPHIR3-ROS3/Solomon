@@ -17,6 +17,8 @@ func Connect(d Deps) error {
 		return connectCompatibleAPI(d, sc)
 	case 3:
 		return connectAnthropicCompatibleAPI(d, sc)
+	case 4:
+		return connectClaudeSubComingSoon(d)
 	default:
 		return fmt.Errorf("internal error: unknown connect choice %d", choice)
 	}

@@ -1,4 +1,4 @@
-package llm
+package test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 )
 
 func anthropicSSEBody(events ...map[string]any) string {
@@ -43,8 +44,8 @@ func newAnthropicMockServer(t *testing.T, wantPath string, check func(*http.Requ
 		if got := r.Header.Get("x-api-key"); got != "test-key" {
 			t.Errorf("x-api-key: got %q want test-key", got)
 		}
-		if got := r.Header.Get("anthropic-version"); got != anthropicAPIVersion {
-			t.Errorf("anthropic-version: got %q want %s", got, anthropicAPIVersion)
+		if got := r.Header.Get("anthropic-version"); got != llm.AnthropicAPIVersion {
+			t.Errorf("anthropic-version: got %q want %s", got, llm.AnthropicAPIVersion)
 		}
 		if check != nil {
 			check(r)
@@ -103,13 +104,13 @@ func TestAnthropicBackend_StreamText_MockHTTP(t *testing.T) {
 	}, sse, 0)
 	defer srv.Close()
 
-	backend := NewAnthropicBackend(srv.URL, "test-key")
+	backend := llm.NewAnthropicBackend(srv.URL, llm.AnthropicAuthFromAPIKey("test-key"))
 	var visible bytes.Buffer
-	text, usage, err := backend.StreamText(context.Background(), SimpleCompletionRequest{
+	text, usage, err := backend.StreamText(context.Background(), llm.SimpleCompletionRequest{
 		Model:  "claude-test",
 		System: "sys",
 		User:   "ping",
-	}, &visible, StreamOpts{})
+	}, &visible, llm.StreamOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,13 +178,13 @@ func TestAnthropicBackend_StreamTurn_MockHTTP_TextAndTool(t *testing.T) {
 	}, sse, 0)
 	defer srv.Close()
 
-	backend := NewAnthropicBackend(srv.URL, "test-key")
-	turn, err := backend.StreamTurn(context.Background(), TurnRequest{
+	backend := llm.NewAnthropicBackend(srv.URL, llm.AnthropicAuthFromAPIKey("test-key"))
+	turn, err := backend.StreamTurn(context.Background(), llm.TurnRequest{
 		Model: "claude-test",
 		Messages: []chatstore.Message{
 			{Role: "user", Content: "run ls"},
 		},
-	}, io.Discard, StreamOpts{})
+	}, io.Discard, llm.StreamOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,8 +225,8 @@ func TestAnthropicBackend_CompleteText_MockHTTP(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	backend := NewAnthropicBackend(srv.URL, "test-key")
-	out, err := backend.CompleteText(context.Background(), SimpleCompletionRequest{
+	backend := llm.NewAnthropicBackend(srv.URL, llm.AnthropicAuthFromAPIKey("test-key"))
+	out, err := backend.CompleteText(context.Background(), llm.SimpleCompletionRequest{
 		Model:  "claude-test",
 		User:   "name this chat",
 		System: "title bot",
@@ -242,11 +243,11 @@ func TestAnthropicBackend_StreamTurn_MockHTTP_Error(t *testing.T) {
 	srv := newAnthropicMockServer(t, "/v1/messages", nil, `{"error":"invalid"}`, http.StatusUnauthorized)
 	defer srv.Close()
 
-	backend := NewAnthropicBackend(srv.URL, "test-key")
-	_, err := backend.StreamTurn(context.Background(), TurnRequest{
+	backend := llm.NewAnthropicBackend(srv.URL, llm.AnthropicAuthFromAPIKey("test-key"))
+	_, err := backend.StreamTurn(context.Background(), llm.TurnRequest{
 		Model:    "claude-test",
 		Messages: []chatstore.Message{{Role: "user", Content: "x"}},
-	}, io.Discard, StreamOpts{})
+	}, io.Discard, llm.StreamOpts{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -256,7 +257,6 @@ func TestAnthropicBackend_StreamTurn_MockHTTP_Error(t *testing.T) {
 }
 
 func TestAnthropicBackend_StreamText_ProxyBaseURL_MockHTTP(t *testing.T) {
-	const full = "http://proxy.example/v1/messages"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/messages" {
 			t.Fatalf("path: %s", r.URL.Path)
@@ -269,12 +269,41 @@ func TestAnthropicBackend_StreamText_ProxyBaseURL_MockHTTP(t *testing.T) {
 		))
 	}))
 	defer srv.Close()
-	backend := NewAnthropicBackend(srv.URL+"/v1/messages", "test-key")
-	text, _, err := backend.StreamText(context.Background(), SimpleCompletionRequest{Model: "m", User: "u"}, io.Discard, StreamOpts{})
+	backend := llm.NewAnthropicBackend(srv.URL+"/v1/messages", llm.AnthropicAuthFromAPIKey("test-key"))
+	text, _, err := backend.StreamText(context.Background(), llm.SimpleCompletionRequest{Model: "m", User: "u"}, io.Discard, llm.StreamOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if text != "x" {
+		t.Fatalf("got %q", text)
+	}
+}
+
+func TestAnthropicBackend_StreamText_OAuthBearer_MockHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer oat-test" {
+			t.Fatalf("Authorization: got %q", got)
+		}
+		if got := r.Header.Get("anthropic-beta"); got != llm.AnthropicOAuthBeta {
+			t.Fatalf("anthropic-beta: got %q want %q", got, llm.AnthropicOAuthBeta)
+		}
+		if got := r.Header.Get("x-api-key"); got != "" {
+			t.Fatalf("x-api-key should be empty, got %q", got)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, anthropicSSEBody(
+			map[string]any{"type": "message_start", "message": map[string]any{"usage": map[string]any{"input_tokens": 1}}},
+			map[string]any{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": "ok"}},
+			map[string]any{"type": "message_delta", "usage": map[string]any{"output_tokens": 1}, "delta": map[string]any{"stop_reason": "end_turn"}},
+		))
+	}))
+	defer srv.Close()
+	backend := llm.NewAnthropicBackend(srv.URL, llm.AnthropicAuthFromOAuthBearer("oat-test"))
+	text, _, err := backend.StreamText(context.Background(), llm.SimpleCompletionRequest{Model: "m", User: "u"}, io.Discard, llm.StreamOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "ok" {
 		t.Fatalf("got %q", text)
 	}
 }

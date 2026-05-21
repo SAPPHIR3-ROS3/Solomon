@@ -42,9 +42,64 @@ func TestProviderCredentialsReady(t *testing.T) {
 	if !config.ProviderCredentialsReady(&oauth) {
 		t.Fatal("oauth provider with refresh should be ready")
 	}
+	claudeOAuth := config.Provider{
+		BaseURL:           "https://api.anthropic.com",
+		AuthKind:          config.AuthKindOAuthClaude,
+		APIProtocol:       config.APIProtocolAnthropic,
+		OAuthAccessToken:  "at",
+	}
+	if !config.ProviderCredentialsReady(&claudeOAuth) {
+		t.Fatal("claude oauth provider with access token should be ready")
+	}
 	empty := config.Provider{BaseURL: "https://api.openai.com/v1/", AuthKind: config.AuthKindOAuthChatGPT}
 	if config.ProviderCredentialsReady(&empty) {
 		t.Fatal("oauth without tokens should not be ready")
+	}
+}
+
+func TestModelPassesClaudeSubFilter(t *testing.T) {
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{"claude-sonnet-4-20250514", true},
+		{"claude-3-5-haiku-20241022", true},
+		{"gpt-4o", false},
+		{"", false},
+	}
+	for _, tc := range tests {
+		got := config.ModelPassesClaudeSubFilter(tc.id)
+		if got != tc.want {
+			t.Errorf("ModelPassesClaudeSubFilter(%q) = %v, want %v", tc.id, got, tc.want)
+		}
+	}
+}
+
+func TestIsClaudeSub(t *testing.T) {
+	p := config.Provider{Name: config.ProviderNameClaudeSub, AuthKind: config.AuthKindOAuthClaude, APIProtocol: config.APIProtocolAnthropic}
+	if !p.IsClaudeSub() {
+		t.Fatal("expected Claude Sub provider")
+	}
+	if !p.UsesAnthropicOAuthBearer() {
+		t.Fatal("expected anthropic oauth bearer")
+	}
+	wrongName := config.Provider{Name: "Claude", AuthKind: config.AuthKindOAuthClaude}
+	if wrongName.IsClaudeSub() {
+		t.Fatal("wrong name should not be Claude Sub")
+	}
+}
+
+func TestResolveProviderBearer_ClaudeSubNotAvailable(t *testing.T) {
+	p := config.Provider{
+		Name:        config.ProviderNameClaudeSub,
+		BaseURL:     "https://api.anthropic.com",
+		AuthKind:    config.AuthKindOAuthClaude,
+		APIProtocol: config.APIProtocolAnthropic,
+		OAuthAccessToken: "at",
+	}
+	_, err := config.ResolveProviderBearer(t.Context(), nil, &p)
+	if err == nil {
+		t.Fatal("expected error for Claude Sub bearer resolution")
 	}
 }
 

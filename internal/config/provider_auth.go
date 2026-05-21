@@ -12,16 +12,37 @@ import (
 
 const (
 	ProviderNameChatGPTSub = "ChatGPT Sub"
+	ProviderNameClaudeSub  = "Claude Sub"
 	OpenAIPlatformBase     = "https://api.openai.com"
+	AnthropicPlatformBase  = "https://api.anthropic.com"
 
 	AuthKindAPIKey       = "api_key"
 	AuthKindOAuthChatGPT = "oauth_chatgpt"
+	AuthKindOAuthClaude  = "oauth_claude"
+
+	ClaudeSubExpectedDate = "2026-06-15"
 )
 
 var chatGPTSubModelDenylistPrefixes = []string{
 	"gpt-image",
 	"gpt-realtime",
 	"gpt-audio",
+}
+
+type OAuthTokenSet struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresAt    time.Time
+	AccountID    string
+}
+
+func IsOAuthAuthKind(kind string) bool {
+	switch strings.TrimSpace(kind) {
+	case AuthKindOAuthChatGPT, AuthKindOAuthClaude:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Provider) EffectiveAuthKind() string {
@@ -31,28 +52,47 @@ func (p *Provider) EffectiveAuthKind() string {
 	switch strings.TrimSpace(p.AuthKind) {
 	case AuthKindOAuthChatGPT:
 		return AuthKindOAuthChatGPT
+	case AuthKindOAuthClaude:
+		return AuthKindOAuthClaude
 	default:
 		return AuthKindAPIKey
 	}
+}
+
+func (p *Provider) IsOAuthProvider() bool {
+	return p != nil && IsOAuthAuthKind(p.EffectiveAuthKind())
 }
 
 func (p *Provider) IsChatGPTSub() bool {
 	return p != nil && p.Name == ProviderNameChatGPTSub && p.EffectiveAuthKind() == AuthKindOAuthChatGPT
 }
 
+func (p *Provider) IsClaudeSub() bool {
+	return p != nil && p.Name == ProviderNameClaudeSub && p.EffectiveAuthKind() == AuthKindOAuthClaude
+}
+
+func (p *Provider) UsesAnthropicOAuthBearer() bool {
+	return p != nil && p.IsAnthropic() && p.EffectiveAuthKind() == AuthKindOAuthClaude
+}
+
+func oauthCredentialsReady(p *Provider) bool {
+	if p == nil {
+		return false
+	}
+	if strings.TrimSpace(p.OAuthAccessToken) != "" {
+		return true
+	}
+	return strings.TrimSpace(p.OAuthRefreshToken) != ""
+}
+
 func ProviderCredentialsReady(p *Provider) bool {
 	if p == nil || strings.TrimSpace(p.BaseURL) == "" {
 		return false
 	}
-	switch p.EffectiveAuthKind() {
-	case AuthKindOAuthChatGPT:
-		if strings.TrimSpace(p.OAuthAccessToken) != "" {
-			return true
-		}
-		return strings.TrimSpace(p.OAuthRefreshToken) != ""
-	default:
-		return strings.TrimSpace(p.APIKey) != ""
+	if p.IsOAuthProvider() {
+		return oauthCredentialsReady(p)
 	}
+	return strings.TrimSpace(p.APIKey) != ""
 }
 
 func AppendOrUpdateProvider(r *Root, p Provider) {
@@ -74,6 +114,11 @@ func ModelPassesChatGPTSubFilter(modelID string) bool {
 		}
 	}
 	return true
+}
+
+func ModelPassesClaudeSubFilter(modelID string) bool {
+	m := strings.ToLower(strings.TrimSpace(modelID))
+	return strings.HasPrefix(m, "claude-")
 }
 
 func (p *Provider) oauthExpiresAt() (time.Time, bool) {
@@ -99,16 +144,29 @@ func (p *Provider) oauthAccessExpired(now time.Time) bool {
 	return now.Add(3 * time.Minute).After(exp)
 }
 
-func ApplyOAuthTokens(p *Provider, t codex.TokenSet) {
+func applyOAuthTokens(p *Provider, kind string, t OAuthTokenSet) {
 	if p == nil {
 		return
 	}
-	p.AuthKind = AuthKindOAuthChatGPT
+	p.AuthKind = kind
 	p.APIKey = ""
 	p.OAuthAccessToken = t.AccessToken
 	p.OAuthRefreshToken = t.RefreshToken
-	p.OAuthExpiresAt = t.ExpiresAt.UTC().Format(time.RFC3339)
+	if !t.ExpiresAt.IsZero() {
+		p.OAuthExpiresAt = t.ExpiresAt.UTC().Format(time.RFC3339)
+	} else {
+		p.OAuthExpiresAt = ""
+	}
 	p.OAuthAccountID = t.AccountID
+}
+
+func ApplyOAuthTokens(p *Provider, t codex.TokenSet) {
+	applyOAuthTokens(p, AuthKindOAuthChatGPT, OAuthTokenSet{
+		AccessToken:  t.AccessToken,
+		RefreshToken: t.RefreshToken,
+		ExpiresAt:    t.ExpiresAt,
+		AccountID:    t.AccountID,
+	})
 }
 
 func ResolveProviderBearer(ctx context.Context, r *Root, p *Provider) (string, error) {
@@ -117,7 +175,9 @@ func ResolveProviderBearer(ctx context.Context, r *Root, p *Provider) (string, e
 	}
 	switch p.EffectiveAuthKind() {
 	case AuthKindOAuthChatGPT:
-		return resolveOAuthBearer(ctx, r, p)
+		return resolveChatGPTOAuthBearer(ctx, r, p)
+	case AuthKindOAuthClaude:
+		return "", fmt.Errorf("Claude Sub is not available yet (expected %s)", ClaudeSubExpectedDate)
 	default:
 		key := strings.TrimSpace(p.APIKey)
 		if key == "" {
@@ -127,7 +187,7 @@ func ResolveProviderBearer(ctx context.Context, r *Root, p *Provider) (string, e
 	}
 }
 
-func resolveOAuthBearer(ctx context.Context, r *Root, p *Provider) (string, error) {
+func resolveChatGPTOAuthBearer(ctx context.Context, r *Root, p *Provider) (string, error) {
 	now := time.Now()
 	if !p.oauthAccessExpired(now) {
 		tok := strings.TrimSpace(p.OAuthAccessToken)
@@ -163,6 +223,15 @@ func EnsureChatGPTSubBaseURL(p *Provider) {
 	}
 }
 
+func EnsureClaudeSubBaseURL(p *Provider) {
+	if p == nil || !p.IsClaudeSub() {
+		return
+	}
+	if norm, err := NormalizeAnthropicBase(AnthropicPlatformBase); err == nil {
+		p.BaseURL = norm
+	}
+}
+
 func NewChatGPTSubProvider(baseURL string, tokens codex.TokenSet) (Provider, error) {
 	if strings.TrimSpace(baseURL) == "" {
 		baseURL = codex.ChatGPTSubAPIBase
@@ -172,8 +241,9 @@ func NewChatGPTSubProvider(baseURL string, tokens codex.TokenSet) (Provider, err
 		return Provider{}, err
 	}
 	p := Provider{
-		Name:    ProviderNameChatGPTSub,
-		BaseURL: norm,
+		Name:        ProviderNameChatGPTSub,
+		BaseURL:     norm,
+		APIProtocol: APIProtocolOpenAI,
 	}
 	ApplyOAuthTokens(&p, tokens)
 	return p, nil
