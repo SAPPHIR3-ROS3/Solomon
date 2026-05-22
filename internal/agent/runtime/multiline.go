@@ -147,10 +147,6 @@ func isTerminalModeReportBytes(b []byte) bool {
 
 func (s *seqTranslator) mouseFilterStep(c byte) (emit []byte, consumed bool) {
 	if len(s.mouseAcc) == 0 {
-		if c == '[' || (c >= '0' && c <= '9') {
-			s.mouseAcc = append(s.mouseAcc, c)
-			return nil, true
-		}
 		return nil, false
 	}
 	if c == 'M' || c == 'm' {
