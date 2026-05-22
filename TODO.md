@@ -143,6 +143,8 @@ Ordine suggerito: dal più **facile** al più **difficile** (code review interno
 
 ## LOW PRIORITY
 
+- **`chzyer/readline` su Windows — sequenze ANSI estese nel prompt:** il parser ANSI di readline v1.5.1 (`ansi_windows.go`) tratta erroneamente i codici SGR `38`/`48` (true color / 256 color) come indici colore base 30–37 e va in panic (`index out of range [8]`). Workaround attuale: `termcolor.WrapUserReadline` usa solo sequenze basic (`\033[96m`) nei prompt passati a readline su Windows. **Cosa manca (opzionale):** patch upstream o fork di readline con supporto `38;2;…` / `38;5;…`, oppure sostituire readline con una libreria TTY cross-platform che gestisca il true color; finché resta readline, evitare lipgloss/true color su qualsiasi stringa che passa da `SetPrompt` / `Readline` su Windows.
+
 - **Anthropic / extended thinking (dopo adapter Messages API v1):** oggi il piano Anthropic nativo prevede extended thinking **disattivato** e reasoning in API solo sull’ultimo messaggio `assistant`; in sessione resta `ReasoningText` per display. **Cosa manca:** abilitare `thinking` in request (`budget_tokens` / adaptive da config); persistere **`ThinkingBlocks`** (blocchi `thinking` + `signature` immutabile) su messaggi assistant in `chatstore`; mapper Anthropic che reinserisce i blocchi in history; rivalutare se la policy “solo ultimo assistant” basta per tool/multi-turn o serve history thinking completa; stream/usage per thinking tokens; documentare impatto token (prompt gonfio se si reinvia tutta la history). Dipende da: layer `CompletionBackend` + provider `api_protocol = anthropic`.
 
 ---

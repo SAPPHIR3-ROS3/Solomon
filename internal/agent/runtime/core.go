@@ -164,7 +164,7 @@ func (r *Runtime) refreshReadlinePrompt() {
 	}
 	var prefix string
 	r.mutateSession(func(s *chatstore.Session) {
-		prefix = checkpoint.FormatReplPromptPrefix(s) + termcolor.WrapUser("You: ")
+		prefix = checkpoint.FormatReplPromptPrefix(s) + termcolor.WrapUserReadline("You: ")
 	})
 	r.RL.SetPrompt(prefix)
 }
@@ -175,7 +175,7 @@ func (r *Runtime) refreshReadlinePromptContinue() {
 	}
 	var prefix string
 	r.mutateSession(func(s *chatstore.Session) {
-		prefix = checkpoint.FormatReplPromptPrefix(s) + termcolor.WrapUser(".... ")
+		prefix = checkpoint.FormatReplPromptPrefix(s) + termcolor.WrapUserReadline(".... ")
 	})
 	r.RL.SetPrompt(prefix)
 }
