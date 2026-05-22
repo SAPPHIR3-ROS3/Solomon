@@ -187,7 +187,6 @@ func (r *Runtime) Run(ctx context.Context) error {
 					logging.Log(logging.INFO_LOG_LEVEL, "user requested exit from chat")
 					return nil
 				}
-				logging.Log(logging.WARNING_LOG_LEVEL, "slash command failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 				commands.PrintSystemValue(r.Out, err)
 			}
 			continue

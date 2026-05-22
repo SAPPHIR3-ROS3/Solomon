@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
@@ -32,9 +33,11 @@ func RegisterInstance(pid int) error {
 	}
 	dir, err := instancesDir()
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "tool output instances dir resolve failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "tool output instances mkdir failed", logging.LogOptions{Params: map[string]any{"dir": dir, "err": err.Error()}})
 		return err
 	}
 	_ = pruneStaleInstances(dir)
@@ -181,7 +184,9 @@ func flushDeferredTempCleanups(currentHex string, currentSpilled bool) error {
 		hexes = appendUniqueHex(hexes, currentHex)
 	}
 	for _, h := range hexes {
-		_ = CleanupProjectTemp(h)
+		if err := CleanupProjectTemp(h); err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "deferred tool temp cleanup failed", logging.LogOptions{Params: map[string]any{"project": h, "err": err.Error()}})
+		}
 	}
 	return clearDeferredTempFile()
 }

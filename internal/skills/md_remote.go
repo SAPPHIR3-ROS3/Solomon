@@ -200,7 +200,12 @@ func EnrichFrontMatterInteractive(in io.Reader, out io.Writer, fm map[string]any
 	return nil
 }
 
-func runRemoteMDInstall(opts InstallOpts, p *parsedAdd) error {
+func runRemoteMDInstall(opts InstallOpts, p *parsedAdd) (err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "skill remote md install failed", logging.LogOptions{Params: map[string]any{"url": p.RemoteMDURL, "err": err.Error()}})
+		}
+	}()
 	ctx := opts.Ctx
 	if ctx == nil {
 		ctx = context.Background()

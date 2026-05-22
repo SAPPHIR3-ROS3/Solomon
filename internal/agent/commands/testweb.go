@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/search"
 )
 
@@ -43,5 +44,8 @@ func TestWeb(d Deps) error {
 		return nil
 	}
 	PrintSystem(d.Out, "NOT OK")
-	return nil
+	logging.Log(logging.ERROR_LOG_LEVEL, "/testweb search failed", logging.LogOptions{Params: map[string]any{
+		"engine": engine, "err": err.Error(), "fallback_engine": "duckduckgo", "fallback_err": errDDG.Error(),
+	}})
+	return fmt.Errorf("web search test failed: %v; fallback: %w", err, errDDG)
 }

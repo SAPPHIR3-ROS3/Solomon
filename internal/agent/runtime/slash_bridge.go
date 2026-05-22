@@ -9,6 +9,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 
 	readline "github.com/chzyer/readline"
 )
@@ -97,7 +98,9 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		SetCompactionThresholdTokens: func(n int64) {
 			r.CompactionThresholdTokens = n
 			r.Cfg.CompactionThresholdTokens = n
-			_ = config.Save(r.Cfg)
+			if err := config.Save(r.Cfg); err != nil {
+				logging.Log(logging.WARNING_LOG_LEVEL, "save config after compaction threshold change failed", logging.LogOptions{Params: map[string]any{"err": err.Error(), "threshold": n}})
+			}
 		},
 
 		Client:  r.Client,

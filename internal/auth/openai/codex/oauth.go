@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 type TokenSet struct {
@@ -65,6 +67,7 @@ func exchangeAuthorizationCode(ctx context.Context, code, verifier string) (Toke
 func postToken(ctx context.Context, form url.Values) (TokenSet, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, TokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token request build failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -72,28 +75,38 @@ func postToken(ctx context.Context, form url.Values) (TokenSet, error) {
 	req.Header.Set("User-Agent", UserAgent)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token request failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token response read failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		var te tokenError
 		if json.Unmarshal(body, &te) == nil && te.Error != "" {
 			if te.ErrorDescription != "" {
-				return TokenSet{}, fmt.Errorf("%s: %s", te.Error, te.ErrorDescription)
+				err := fmt.Errorf("%s: %s", te.Error, te.ErrorDescription)
+				logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
+				return TokenSet{}, err
 			}
-			return TokenSet{}, fmt.Errorf("%s", te.Error)
+			err := fmt.Errorf("%s", te.Error)
+			logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
+			return TokenSet{}, err
 		}
-		return TokenSet{}, fmt.Errorf("token endpoint: %s: %s", resp.Status, string(body))
+		err := fmt.Errorf("token endpoint: %s: %s", resp.Status, string(body))
+		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
+		return TokenSet{}, err
 	}
 	var tr tokenResponse
 	if err := json.Unmarshal(body, &tr); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token response unmarshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	if strings.TrimSpace(tr.AccessToken) == "" {
+		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token response missing access_token", logging.LogOptions{Params: nil})
 		return TokenSet{}, errors.New("token response missing access_token")
 	}
 	expires := time.Now().Add(time.Hour)

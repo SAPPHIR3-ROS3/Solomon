@@ -30,7 +30,12 @@ func ParseRemoveArgs(parts []string) (string, error) {
 	return name, nil
 }
 
-func RunRemove(opts RemoveOpts) error {
+func RunRemove(opts RemoveOpts) (err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "skill remove failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
+	}()
 	name, err := ParseRemoveArgs(opts.Args)
 	if err != nil {
 		return err

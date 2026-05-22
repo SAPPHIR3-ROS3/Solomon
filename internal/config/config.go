@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/openai/openai-go/v2/shared"
 )
 
@@ -396,7 +397,14 @@ func ResolveProvider(r *Root) (*Provider, error) {
 	}
 	if first := FirstProviderName(r); first != "" {
 		r.Current.Provider = first
-		return ProviderByName(r, first), Save(r)
+		p := ProviderByName(r, first)
+		if err := Save(r); err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "save config after auto-select provider failed", logging.LogOptions{Params: map[string]any{"provider": first, "err": err.Error()}})
+			return p, err
+		}
+		logging.Log(logging.INFO_LOG_LEVEL, "auto-selected provider", logging.LogOptions{Params: map[string]any{"provider": first}})
+		return p, nil
 	}
+	logging.Log(logging.ERROR_LOG_LEVEL, "no providers in config", logging.LogOptions{Params: nil})
 	return nil, errors.New("no providers in config")
 }

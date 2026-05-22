@@ -122,7 +122,16 @@ func SessionPath(projectHex, chatIDHex string) (string, error) {
 	return filepath.Join(d, chatIDHex+".json"), nil
 }
 
-func WriteSession(projectHex string, s *Session) error {
+func WriteSession(projectHex string, s *Session) (err error) {
+	defer func() {
+		if err != nil {
+			id := ""
+			if s != nil {
+				id = s.ID
+			}
+			logging.Log(logging.ERROR_LOG_LEVEL, "chatstore write session failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "chat_id": id, "err": err.Error()}})
+		}
+	}()
 	p, err := SessionPath(projectHex, s.ID)
 	if err != nil {
 		return err
@@ -132,22 +141,24 @@ func WriteSession(projectHex string, s *Session) error {
 	}
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "chatstore marshal session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
 	tmp := p + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "chatstore write session temp failed", logging.LogOptions{Params: map[string]any{"path": tmp, "err": err.Error()}})
 		return err
 	}
 	if err := os.Rename(tmp, p); err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "chatstore finalize session rename failed", logging.LogOptions{Params: map[string]any{"path": p, "err": err.Error()}})
 		return err
 	}
 	return nil
 }
 
-func RenameSessionFile(projectHex, oldID, newID string) error {
+func RenameSessionFile(projectHex, oldID, newID string) (err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "chatstore rename session file failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "old_id": oldID, "new_id": newID, "err": err.Error()}})
+		}
+	}()
 	oldPath, err := SessionPath(projectHex, oldID)
 	if err != nil {
 		return err
@@ -171,7 +182,12 @@ func RemoveSessionPath(projectHex, chatID string) error {
 	return err
 }
 
-func ReadSession(projectHex, chatIDHex string) (*Session, error) {
+func ReadSession(projectHex, chatIDHex string) (sess *Session, err error) {
+	defer func() {
+		if err != nil && !os.IsNotExist(err) {
+			logging.Log(logging.WARNING_LOG_LEVEL, "chatstore read session failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "chat_id": chatIDHex, "err": err.Error()}})
+		}
+	}()
 	p, err := SessionPath(projectHex, chatIDHex)
 	if err != nil {
 		return nil, err
@@ -185,7 +201,8 @@ func ReadSession(projectHex, chatIDHex string) (*Session, error) {
 		return nil, err
 	}
 	FinishSessionLoad(&s)
-	return &s, nil
+	sess = &s
+	return sess, nil
 }
 
 func loadAllSessions(projectHex string) ([]*Session, error) {

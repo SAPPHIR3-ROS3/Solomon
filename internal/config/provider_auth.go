@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 const (
@@ -197,15 +198,18 @@ func resolveChatGPTOAuthBearer(ctx context.Context, r *Root, p *Provider) (strin
 	}
 	refresh := strings.TrimSpace(p.OAuthRefreshToken)
 	if refresh == "" {
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT Sub OAuth refresh token missing", logging.LogOptions{Params: map[string]any{"provider": p.Name}})
 		return "", errors.New("ChatGPT Sub: missing OAuth tokens; run /connect")
 	}
 	tokens, err := codex.Refresh(ctx, refresh)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT Sub OAuth token refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
 		return "", fmt.Errorf("ChatGPT Sub token refresh: %w", err)
 	}
 	ApplyOAuthTokens(p, tokens)
 	if r != nil {
 		if err := Save(r); err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "save config after OAuth refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
 			return "", err
 		}
 	}

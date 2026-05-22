@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 type ListEntry struct {
@@ -33,7 +35,12 @@ func ListForProvider(baseURL, bearer string, apiProtocol string) ([]string, erro
 	return List(baseURL, bearer)
 }
 
-func ListWithOpts(baseURL, bearer string, opts ListOpts) ([]string, error) {
+func ListWithOpts(baseURL, bearer string, opts ListOpts) (out []string, err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "models API list failed", logging.LogOptions{Params: map[string]any{"base_url": baseURL, "err": err.Error()}})
+		}
+	}()
 	u := strings.TrimSuffix(baseURL, "/") + "/models"
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
@@ -63,7 +70,6 @@ func ListWithOpts(baseURL, bearer string, opts ListOpts) ([]string, error) {
 	if err := json.Unmarshal(b, &lr); err != nil {
 		return nil, err
 	}
-	var out []string
 	for _, e := range lr.Data {
 		if e.ID != "" {
 			out = append(out, e.ID)

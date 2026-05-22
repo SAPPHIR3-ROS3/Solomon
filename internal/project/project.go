@@ -47,16 +47,17 @@ func IDHexFromRoot(root string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func LoadMap(homeProjMap string) (MapFile, error) {
+func LoadMap(homeProjMap string) (m MapFile, err error) {
 	b, err := os.ReadFile(homeProjMap)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return MapFile{}, nil
 		}
+		logging.Log(logging.ERROR_LOG_LEVEL, "project map read failed", logging.LogOptions{Params: map[string]any{"path": homeProjMap, "err": err.Error()}})
 		return nil, err
 	}
-	var m MapFile
 	if err := json.Unmarshal(b, &m); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "project map unmarshal failed", logging.LogOptions{Params: map[string]any{"path": homeProjMap, "err": err.Error()}})
 		return nil, err
 	}
 	if runtime.GOOS == "windows" && len(m) > 0 {
@@ -72,17 +73,24 @@ func LoadMap(homeProjMap string) (MapFile, error) {
 func SaveMap(homeProjMap string, m MapFile) error {
 	dir := filepath.Dir(homeProjMap)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "project map mkdir failed", logging.LogOptions{Params: map[string]any{"dir": dir, "err": err.Error()}})
 		return err
 	}
 	tmp := homeProjMap + ".tmp"
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "project map marshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "project map write temp failed", logging.LogOptions{Params: map[string]any{"path": tmp, "err": err.Error()}})
 		return err
 	}
-	return os.Rename(tmp, homeProjMap)
+	if err := os.Rename(tmp, homeProjMap); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "project map rename failed", logging.LogOptions{Params: map[string]any{"path": homeProjMap, "err": err.Error()}})
+		return err
+	}
+	return nil
 }
 
 func EnsureDirs(projectHex string) error {
@@ -111,6 +119,11 @@ func EnsureDirs(projectHex string) error {
 }
 
 func Resolve(absCwd string) (rootPath string, idHex string, err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "project resolve failed", logging.LogOptions{Params: map[string]any{"cwd": absCwd, "err": err.Error()}})
+		}
+	}()
 	root, err := CanonicalRoot(absCwd)
 	if err != nil {
 		return "", "", err

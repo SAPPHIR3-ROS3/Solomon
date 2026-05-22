@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
@@ -91,7 +92,12 @@ func ruleFileName(n int) string {
 	return fmt.Sprintf("rule_%02d.txt", n)
 }
 
-func AddRule(scope, projHex, text string) (int, error) {
+func AddRule(scope, projHex, text string) (n int, err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "add rule failed", logging.LogOptions{Params: map[string]any{"scope": scope, "err": err.Error()}})
+		}
+	}()
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return 0, fmt.Errorf("rule text is empty")
@@ -112,7 +118,12 @@ func AddRule(scope, projHex, text string) (int, error) {
 	return next, nil
 }
 
-func RemoveRule(scope, projHex string, number int) error {
+func RemoveRule(scope, projHex string, number int) (err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "remove rule failed", logging.LogOptions{Params: map[string]any{"scope": scope, "number": number, "err": err.Error()}})
+		}
+	}()
 	if number <= 0 {
 		return fmt.Errorf("invalid rule number %d", number)
 	}
@@ -167,7 +178,12 @@ func renumberRules(dir string) error {
 	return nil
 }
 
-func ListRules(scope, projHex string) ([]RuleEntry, error) {
+func ListRules(scope, projHex string) (out []RuleEntry, err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "list rules failed", logging.LogOptions{Params: map[string]any{"scope": scope, "err": err.Error()}})
+		}
+	}()
 	dir, err := rulesDir(scope, projHex)
 	if err != nil {
 		return nil, err
@@ -176,7 +192,7 @@ func ListRules(scope, projHex string) ([]RuleEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]RuleEntry, 0, len(files))
+	out = make([]RuleEntry, 0, len(files))
 	for _, name := range files {
 		n, err := ruleNumberFromName(name)
 		if err != nil {

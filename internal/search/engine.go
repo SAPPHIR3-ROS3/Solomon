@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 var ErrUnknownEngine = errors.New("unknown search engine")
@@ -50,7 +52,9 @@ func Lookup(name string) (Engine, error) {
 	e, ok := reg[k]
 	regMu.RUnlock()
 	if !ok || e == nil {
-		return nil, fmt.Errorf("%w: %q", ErrUnknownEngine, name)
+		err := fmt.Errorf("%w: %q", ErrUnknownEngine, name)
+		logging.Log(logging.WARNING_LOG_LEVEL, "search engine lookup failed", logging.LogOptions{Params: map[string]any{"engine": name, "err": err.Error()}})
+		return nil, err
 	}
 	return e, nil
 }
@@ -62,6 +66,7 @@ func Run(ctx context.Context, engineKey string, req Request) (Response, error) {
 	}
 	out, err := e.Search(ctx, req)
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "search engine request failed", logging.LogOptions{Params: map[string]any{"engine": engineKey, "query": req.Query, "err": err.Error()}})
 		return Response{}, err
 	}
 	out.Engine = strings.TrimSpace(strings.ToLower(engineKey))

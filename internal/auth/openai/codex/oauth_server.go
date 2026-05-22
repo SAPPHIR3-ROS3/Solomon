@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 var (
@@ -34,7 +36,9 @@ func ensureCallbackServer() error {
 	}
 	ln, err := net.Listen("tcp", CallbackAddr)
 	if err != nil {
-		return fmt.Errorf("oauth callback listen %s: %w", CallbackAddr, err)
+		err = fmt.Errorf("oauth callback listen %s: %w", CallbackAddr, err)
+		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth callback server listen failed", logging.LogOptions{Params: map[string]any{"addr": CallbackAddr, "err": err.Error()}})
+		return err
 	}
 	srv := &http.Server{Handler: http.HandlerFunc(oauthCallbackHandler)}
 	callbackLn = ln
@@ -111,7 +115,12 @@ func writeOAuthHTML(w http.ResponseWriter, title, body string, ok bool) {
 	fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><title>%s</title></head><body style="font-family:system-ui;background:#131010;color:#f1ecec;padding:2rem"><h1 style="color:%s">%s</h1><p>%s</p></body></html>`, title, color, title, body)
 }
 
-func Login(ctx context.Context, out io.Writer) (TokenSet, error) {
+func Login(ctx context.Context, out io.Writer) (ts TokenSet, err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "OAuth login failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
+	}()
 	if err := ensureCallbackServer(); err != nil {
 		return TokenSet{}, err
 	}
@@ -159,6 +168,7 @@ func Login(ctx context.Context, out io.Writer) (TokenSet, error) {
 	case code := <-wait.codeCh:
 		return exchangeAuthorizationCode(ctx, code, wait.verifier)
 	case <-time.After(10 * time.Minute):
+		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth login timed out", logging.LogOptions{Params: map[string]any{"timeout": "10m"}})
 		return TokenSet{}, errors.New("oauth login timed out")
 	}
 }

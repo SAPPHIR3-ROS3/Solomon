@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
 )
 
@@ -35,10 +36,12 @@ func (b *AnthropicBackend) CompleteText(ctx context.Context, req SimpleCompletio
 	body := b.buildSimpleBody(req, false)
 	raw, err := json.Marshal(body)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "anthropic complete marshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
 	httpReq, err := anthropicHTTPNew(ctx, AnthropicMessagesURL(b.baseURL), raw, b.auth)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "anthropic complete request build failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
 	resp, err := b.httpClient.Do(httpReq)

@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 // AgentsSkillsRoot is ~/.agents/skills, where the npm "skills" CLI installs. That package does not allow choosing another directory, so Solomon runs installs there and copies the resulting folder into ~/.solomon/skills (or project/local paths) for the registry.
@@ -24,7 +26,12 @@ func AgentsSkillsRoot() (string, error) {
 	return filepath.Join(h, ".agents", "skills"), nil
 }
 
-func RequireNpm(ctx context.Context) error {
+func RequireNpm(ctx context.Context) (err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "npm requirement check failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
+	}()
 	path, err := exec.LookPath("npm")
 	if err != nil || path == "" {
 		return npmInstallError("npm not found", nil)
@@ -202,7 +209,12 @@ func pickImportedSkillDir(before, after map[string]int64, preferred string) (str
 	}
 }
 
-func runInstallShellCommand(ctx context.Context, cmd string, stdout, stderr io.Writer) error {
+func runInstallShellCommand(ctx context.Context, cmd string, stdout, stderr io.Writer) (err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "skill install shell command failed", logging.LogOptions{Params: map[string]any{"command": cmd, "err": err.Error()}})
+		}
+	}()
 	cmd = strings.TrimSpace(cmd)
 	if cmd == "" {
 		return fmt.Errorf("empty install command")
