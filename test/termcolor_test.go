@@ -81,3 +81,10 @@ func TestTermcolorColorizeImgTagsPlainWhenDisabled(t *testing.T) {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
+
+func TestWrapUserReadlinePlainWhenDisabled(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
+	if got := termcolor.WrapUserReadline("You: "); got != "You: " {
+		t.Fatalf("WrapUserReadline: got %q", got)
+	}
+}

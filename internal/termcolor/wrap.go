@@ -21,6 +21,16 @@ func WrapUser(s string) string {
 	return renderStyle(dark.user, s)
 }
 
+func WrapUserReadline(s string) string {
+	if runtime.GOOS == "windows" {
+		if !colorOn {
+			return s
+		}
+		return "\033[96m" + s + resetANSI
+	}
+	return WrapUser(s)
+}
+
 func WrapRed(s string) string {
 	return renderStyle(dark.red, s)
 }

@@ -163,7 +163,7 @@ func main() {
 		logging.Log(logging.ERROR_LOG_LEVEL, "config path check failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
-	rl, readLine, rlErr := agentruntime.NewREPLReadline(termcolor.WrapUser("You: "))
+	rl, readLine, rlErr := agentruntime.NewREPLReadline(termcolor.WrapUserReadline("You: "))
 	if rlErr != nil {
 		fmt.Fprintln(os.Stderr, rlErr)
 		logging.Log(logging.ERROR_LOG_LEVEL, "readline init failed", logging.LogOptions{Params: map[string]any{"err": rlErr.Error()}})
@@ -207,7 +207,7 @@ func main() {
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: sessParams})
 	if rl == nil {
 		var err2 error
-		rl, _, err2 = agentruntime.NewREPLReadline(termcolor.WrapUser("You: "))
+		rl, _, err2 = agentruntime.NewREPLReadline(termcolor.WrapUserReadline("You: "))
 		if err2 != nil {
 			fmt.Fprintln(os.Stderr, err2)
 			logging.Log(logging.ERROR_LOG_LEVEL, "readline init failed", logging.LogOptions{Params: map[string]any{"err": err2.Error()}})

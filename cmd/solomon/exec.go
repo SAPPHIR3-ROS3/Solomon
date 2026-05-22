@@ -151,7 +151,7 @@ func runExecCLI(ctx context.Context, kind execKind, argRest []string) {
 	var rl *readline.Instance
 	if !machine {
 		var err2 error
-		rl, _, err2 = agentruntime.NewREPLReadline(termcolor.WrapUser("You: "))
+		rl, _, err2 = agentruntime.NewREPLReadline(termcolor.WrapUserReadline("You: "))
 		if err2 != nil {
 			fmt.Fprintln(os.Stderr, err2)
 			exitExec(cievents.ExitGeneric, "error")
