@@ -2,11 +2,20 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
 )
 
 func Remove(d Deps, parts []string) error {
+	if len(parts) >= 1 {
+		switch strings.ToLower(strings.TrimSpace(parts[0])) {
+		case "rule":
+			return RemoveRule(d, parts)
+		case "projectrule":
+			return RemoveProjectRule(d, parts)
+		}
+	}
 	if d.ProjRoot == "" {
 		return fmt.Errorf("remove: missing project root")
 	}

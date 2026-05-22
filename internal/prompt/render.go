@@ -31,6 +31,9 @@ type Data struct {
 	Syntax                string
 	LegacySyntax          string
 	ExtraRules            string
+	CustomRules           string
+	GlobalInstructions    string
+	RepoInstructions      string
 	Language              string
 	UserName              string
 	DisableThinking       bool

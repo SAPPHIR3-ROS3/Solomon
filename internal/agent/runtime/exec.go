@@ -18,6 +18,13 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 		SetMode:                func(m string) { r.Mode = m },
 		CurrentMode:            func() string { return r.Mode },
 		CheckpointStageProjAbs: r.checkpointStageProjAbs,
+		ActivateInstructionsFromAbsPath: func(absPath string) {
+			r.activateInstructionsFromAbsPath(absPath)
+		},
+		ActivateInstructionsFromShellCommand: func(command string) {
+			r.activateInstructionsFromShellCommand(command)
+		},
+		MergeInstructionBlock: r.mergeSystemWithInstructions,
 	}
 }
 

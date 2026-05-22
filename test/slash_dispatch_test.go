@@ -402,3 +402,41 @@ func TestSlashDispatch_exitQuit(t *testing.T) {
 		}
 	}
 }
+
+func TestSlashDispatch_rulesAndInstructions(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	if err := os.WriteFile(filepath.Join(home, "AGENTS.md"), []byte("hello global agents"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	buf := bytes.NewBuffer(nil)
+	d := testDeps(nil)
+	d.Out = buf
+	if err := agent.SlashDispatch(d, "/add rule always use gofmt"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "global rule 1 saved") {
+		t.Fatalf("add rule: %q", buf.String())
+	}
+	buf.Reset()
+	if err := agent.SlashDispatch(d, "/rules"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "always use gofmt") {
+		t.Fatalf("rules list: %q", buf.String())
+	}
+	buf.Reset()
+	if err := agent.SlashDispatch(d, "/instructions"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "hello global agents") {
+		t.Fatalf("instructions: %q", buf.String())
+	}
+	buf.Reset()
+	if err := agent.SlashDispatch(d, "/remove rule 1"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "removed") {
+		t.Fatalf("remove: %q", buf.String())
+	}
+}

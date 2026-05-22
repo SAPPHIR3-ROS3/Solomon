@@ -44,6 +44,13 @@ func execSubagent(ctx context.Context, env *Env, raw json.RawMessage) (any, erro
 		return nil, err
 	}
 	sys := string(b)
+	if env.MergeInstructionBlock != nil {
+		merged, err := env.MergeInstructionBlock(sys)
+		if err != nil {
+			return nil, err
+		}
+		sys = merged
+	}
 	prev := env.CurrentMode()
 	env.SetMode("build")
 	out, err := env.RunNestedWithSystem(ctx, sys, a.Task)

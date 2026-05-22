@@ -64,6 +64,9 @@ func execShell(ctx context.Context, env *Env, raw json.RawMessage) (any, error) 
 	if strings.TrimSpace(intent) == "" {
 		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
 	}
+	if env.ActivateInstructionsFromShellCommand != nil {
+		env.ActivateInstructionsFromShellCommand(command)
+	}
 	sec := parseOptionalTimeoutSecs(rawMap)
 	timeout := time.Minute
 	if sec != nil {

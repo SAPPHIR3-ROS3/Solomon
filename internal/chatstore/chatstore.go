@@ -73,6 +73,7 @@ type Session struct {
 	LastCommitOID          string              `json:"last_commit_oid,omitempty"`
 	ImageSeq               int                 `json:"image_seq,omitempty"`
 	ImageFiles             map[int]string      `json:"image_files,omitempty"`
+	ActivatedInstructionDirs []string          `json:"activated_instruction_dirs,omitempty"`
 }
 
 func ChatIDHex(title string, ts time.Time) string {

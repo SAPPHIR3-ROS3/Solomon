@@ -15,6 +15,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/instructions"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
@@ -70,6 +71,8 @@ type Runtime struct {
 	ciFinalContent  string
 
 	ToolOut *tooloutput.Service
+
+	Instructions *instructions.Loader
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
@@ -85,6 +88,7 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
 		Out:                       os.Stdout,
 		ToolOut:                   tooloutput.NewService(projHex, tooloutput.LimitsFromConfig(cfg)),
+		Instructions:              instructions.NewLoader(),
 	}
 	if err := tooloutput.Startup(os.Getpid()); err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "tool output instance register failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -209,11 +213,19 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		Tools:                 dump,
 		Syntax:                syntax,
 		LegacySyntax:          legacySyntax,
-		ExtraRules:            "",
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
 		DisableThinking:       disableThinking,
 		WorkspaceAbsolutePath: absWorkspace,
+	}
+	if r.Instructions != nil && r.Session != nil {
+		sections, err := r.Instructions.BuildPromptSections(r.ProjRoot, r.ProjHex, r.Session.ActivatedInstructionDirs)
+		if err != nil {
+			return "", err
+		}
+		d.CustomRules = sections.CustomRules
+		d.GlobalInstructions = sections.GlobalInstructions
+		d.RepoInstructions = sections.RepoInstructions
 	}
 	if r.Mode == "plan" {
 		return prompt.RenderPlan(d)

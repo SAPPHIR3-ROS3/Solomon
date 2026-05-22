@@ -47,6 +47,9 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
 	}
 	p := resolveProjectPath(env.ProjRoot, a.Path)
+	if env.ActivateInstructionsFromAbsPath != nil {
+		env.ActivateInstructionsFromAbsPath(p)
+	}
 	if a.OldString == "" {
 		if err := os.WriteFile(p, []byte(a.NewString), 0o600); err != nil {
 			return nil, err
