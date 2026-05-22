@@ -105,6 +105,14 @@ func PlansDir(projectHex string) (string, error) {
 	return filepath.Join(proot, "plans"), nil
 }
 
+func TempDir(projectHex string) (string, error) {
+	proot, err := paths.ProjectRoot(projectHex)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(proot, "temp"), nil
+}
+
 func SessionPath(projectHex, chatIDHex string) (string, error) {
 	d, err := ChatsDir(projectHex)
 	if err != nil {

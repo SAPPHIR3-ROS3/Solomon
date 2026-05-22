@@ -23,6 +23,10 @@ const DefaultSkillSearchMinNormalizedScore = 0.05
 
 const DefaultWebSearchEngine = "duckduckgo"
 
+const DefaultToolOutputMaxBytes = 65536
+
+const DefaultToolOutputMaxLines = 2048
+
 const APIProtocolOpenAI = "openai"
 
 const APIProtocolAnthropic = "anthropic"
@@ -49,6 +53,11 @@ type RecentModelUse struct {
 	Model    string `toml:"model"`
 }
 
+type ToolOutput struct {
+	MaxBytes int `toml:"max_bytes,omitempty"`
+	MaxLines int `toml:"max_lines,omitempty"`
+}
+
 type Root struct {
 	UserName                  string                `toml:"user_name"`
 	Providers                 map[string]*Provider    `toml:"-"`
@@ -67,6 +76,7 @@ type Root struct {
 	WebSearchAPIKey           string     `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string     `toml:"web_search_base_url,omitempty"`
 	WebSearchCX               string     `toml:"web_search_cx,omitempty"`
+	ToolOutput                ToolOutput `toml:"tool_output,omitempty"`
 }
 
 func (r *Root) EffectiveWebSearchEngine() string {

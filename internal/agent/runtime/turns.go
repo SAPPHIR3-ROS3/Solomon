@@ -316,6 +316,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				logging.Log(logging.WARNING_LOG_LEVEL, "tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
 				res = map[string]any{"error": err.Error()}
 			}
+			res = r.applyToolOutput(res, inv.Name, toolIDs[i])
 			payload := toolingResultJSON(res)
 			if r.machineMode() {
 				r.noteCIToolResult(res)

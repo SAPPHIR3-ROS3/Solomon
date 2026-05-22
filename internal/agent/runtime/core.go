@@ -20,6 +20,7 @@ import (
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooloutput"
 
 	readline "github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
@@ -67,6 +68,8 @@ type Runtime struct {
 	ciTurn          int
 	ciToolErr       bool
 	ciFinalContent  string
+
+	ToolOut *tooloutput.Service
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
@@ -81,11 +84,35 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		Session:                   sess,
 		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
 		Out:                       os.Stdout,
+		ToolOut:                   tooloutput.NewService(projHex, tooloutput.LimitsFromConfig(cfg)),
+	}
+	if err := tooloutput.Startup(os.Getpid()); err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "tool output instance register failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 	}
 	if prov != nil {
 		rt.applyProviderClient(context.Background(), prov)
 	}
 	return rt
+}
+
+func (r *Runtime) currentSessionID() string {
+	r.chatPersistMu.Lock()
+	defer r.chatPersistMu.Unlock()
+	if r.Session == nil {
+		return ""
+	}
+	return r.Session.ID
+}
+
+func (r *Runtime) applyToolOutput(res any, toolName, toolCallID string) any {
+	if r == nil || r.ToolOut == nil {
+		return res
+	}
+	return r.ToolOut.Apply(res, tooloutput.Meta{
+		SessionID:  r.currentSessionID(),
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+	})
 }
 
 func (r *Runtime) applyProviderClient(ctx context.Context, p *config.Provider) {
