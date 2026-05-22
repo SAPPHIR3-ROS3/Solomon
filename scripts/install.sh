@@ -82,6 +82,137 @@ ensure_go() {
   echo "Go ${ver} ready"
 }
 
+node_lts_major() {
+  local major=""
+  if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+    major="$(curl -fsSL https://nodejs.org/dist/index.json 2>/dev/null | python3 -c "
+import json,sys
+for e in json.load(sys.stdin):
+    if e.get('lts'):
+        print(e['version'].lstrip('v').split('.')[0])
+        break
+" 2>/dev/null || true)"
+  fi
+  if [[ -z "$major" ]]; then
+    major="22"
+  fi
+  echo "$major"
+}
+
+install_node_darwin() {
+  local major formula brew_prefix
+  major="$(node_lts_major)"
+  if command -v brew >/dev/null 2>&1; then
+    formula="node@${major}"
+    echo "Installing Node.js LTS (${formula}) via Homebrew..."
+    if ! brew install "$formula"; then
+      echo "${formula} unavailable; trying brew install node..."
+      brew install node
+    else
+      brew link --overwrite --force "$formula" 2>/dev/null || true
+    fi
+    if ! command -v node >/dev/null 2>&1; then
+      brew_prefix="$(brew --prefix "$formula" 2>/dev/null || brew --prefix node 2>/dev/null || true)"
+      if [[ -n "$brew_prefix" && -d "${brew_prefix}/bin" ]]; then
+        export PATH="${brew_prefix}/bin:${PATH}"
+      fi
+    fi
+    return 0
+  fi
+  if command -v port >/dev/null 2>&1; then
+    echo "Installing Node.js LTS (nodejs${major}) via MacPorts..."
+    if sudo port install "nodejs${major}"; then
+      return 0
+    fi
+    for fallback in 22 20 18; do
+      if [[ "$fallback" != "$major" ]] && sudo port install "nodejs${fallback}"; then
+        return 0
+      fi
+    done
+    echo "MacPorts Node.js install failed" >&2
+    exit 1
+  fi
+  echo "Neither Homebrew nor MacPorts found; install Node.js LTS from https://nodejs.org/" >&2
+  exit 1
+}
+
+install_node_linux() {
+  local id="" id_like=""
+  if [[ -f /etc/os-release ]]; then
+    id="$(grep -E '^ID=' /etc/os-release | cut -d= -f2- | tr -d '"')"
+    id_like="$(grep -E '^ID_LIKE=' /etc/os-release | cut -d= -f2- | tr -d '"' || true)"
+  fi
+  id="$(echo "$id" | tr '[:upper:]' '[:lower:]')"
+  id_like="$(echo "$id_like" | tr '[:upper:]' '[:lower:]')"
+
+  case "$id" in
+    alpine)
+      sudo apk add nodejs npm
+      ;;
+    arch | manjaro | endeavouros)
+      sudo pacman -S --needed --noconfirm nodejs npm
+      ;;
+    fedora | rhel | centos | rocky | almalinux)
+      sudo dnf install -y nodejs npm
+      ;;
+    opensuse-tumbleweed | opensuse-leap)
+      sudo zypper install -y nodejs npm
+      ;;
+    ubuntu | debian | linuxmint | pop)
+      sudo apt-get update && sudo apt-get install -y nodejs npm
+      ;;
+    *)
+      if [[ "$id" == opensuse* ]]; then
+        sudo zypper install -y nodejs npm
+      elif [[ "$id_like" == *fedora* || "$id_like" == *rhel* ]]; then
+        sudo dnf install -y nodejs npm
+      elif [[ "$id_like" == *debian* || "$id_like" == *ubuntu* ]]; then
+        sudo apt-get update && sudo apt-get install -y nodejs npm
+      elif command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get update && sudo apt-get install -y nodejs npm
+      elif command -v apt >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y nodejs npm
+      elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y nodejs npm
+      elif command -v yum >/dev/null 2>&1; then
+        sudo yum install -y nodejs npm
+      elif command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S --needed --noconfirm nodejs npm
+      elif command -v zypper >/dev/null 2>&1; then
+        sudo zypper install -y nodejs npm
+      elif command -v apk >/dev/null 2>&1; then
+        sudo apk add nodejs npm
+      else
+        echo "Unsupported Linux distro; install Node.js LTS from https://nodejs.org/" >&2
+        exit 1
+      fi
+      ;;
+  esac
+}
+
+ensure_node() {
+  if command -v node >/dev/null 2>&1; then
+    echo "Node $(node --version 2>/dev/null | tr -d '\r') OK"
+    return 0
+  fi
+  echo "Node not found; installing LTS..."
+  local os
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  case "$os" in
+    darwin) install_node_darwin ;;
+    linux) install_node_linux ;;
+    *)
+      echo "unsupported OS for Node install: $os (use scripts/install.ps1 on Windows)" >&2
+      exit 1
+      ;;
+  esac
+  if ! command -v node >/dev/null 2>&1; then
+    echo "Node install failed; node not in PATH" >&2
+    exit 1
+  fi
+  echo "Node $(node --version 2>/dev/null | tr -d '\r') ready"
+}
+
 rc_file() {
   local shell_name="${SHELL:-}"
   shell_name="${shell_name##*/}"
@@ -188,6 +319,7 @@ install_solomon() {
 
 main() {
   ensure_go
+  ensure_node
   setup_shell
   install_solomon
   echo "Done."

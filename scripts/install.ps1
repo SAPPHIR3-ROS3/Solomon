@@ -74,6 +74,50 @@ function Ensure-Go {
     Write-Host "Go $ver ready"
 }
 
+function Ensure-Node {
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($nodeCmd) {
+        $ver = (node --version 2>$null).Trim()
+        Write-Host "Node $ver OK"
+        return
+    }
+
+    Write-Host 'Node not found; installing LTS via winget...'
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        throw 'winget not found; install Node.js LTS from https://nodejs.org/en/download/'
+    }
+
+    & winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
+
+    $nodeDirs = @(
+        (Join-Path $env:ProgramFiles 'nodejs')
+        (Join-Path ${env:ProgramFiles(x86)} 'nodejs')
+    )
+    foreach ($dir in $nodeDirs) {
+        if (Test-Path $dir) {
+            Add-UserPathEntry $dir
+            break
+        }
+    }
+
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        foreach ($dir in $nodeDirs) {
+            $nodeExe = Join-Path $dir 'node.exe'
+            if (Test-Path $nodeExe) {
+                $env:Path = "$dir;$env:Path"
+                break
+            }
+        }
+    }
+
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        throw 'Node install failed; restart the terminal or install manually from https://nodejs.org/'
+    }
+
+    Write-Host "Node $((node --version).Trim()) ready"
+}
+
 function Add-UserPathEntry {
     param([string]$Entry)
     if ([string]::IsNullOrWhiteSpace($Entry)) { return }
@@ -142,6 +186,7 @@ function Install-Solomon {
 }
 
 Ensure-Go
+Ensure-Node
 Setup-Shell
 Install-Solomon
 Write-Host 'Done.'
