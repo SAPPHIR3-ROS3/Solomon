@@ -8,8 +8,10 @@ $SolmonPkg = 'github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest'
 $Marker = '# solomon-installer'
 
 function Get-GoSemVer {
-    $raw = (go version 2>$null) -replace '^go version go', '' -replace '-.*$', ''
-    return $raw.Trim()
+    if ((go version 2>$null) -match 'go version go(\S+)') {
+        return ($Matches[1] -replace '-.*$', '')
+    }
+    return ''
 }
 
 function Test-VersionGe {
