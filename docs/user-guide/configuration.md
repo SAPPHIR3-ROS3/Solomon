@@ -18,6 +18,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `show_thinking`, `show_usage_stats` | Streams / footer |
 | `response_language` | Default reply language |
 | `compaction_threshold_tokens` | Auto compaction threshold |
+| `tool_output.max_bytes`, `tool_output.max_lines` | Tool result truncation before LLM (defaults 65536 / 2048) |
 | `web_search_engine` | Default engine for the **`webSearch`** tool (omit for `duckduckgo`) |
 
 You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic Compatible API), or manage providers and models in the REPL with `/connect` and `/models`.

@@ -30,7 +30,7 @@ Persist chat transcripts as JSON per project, resolve storage paths from project
 | `NewPlaceholderChatID` | Temporary id until title finalize |
 | `ChatIDHex` | Stable id from title slug + timestamp |
 | `ListRecent` / `SessionWithLatestUserMessage` | `/resume` helpers |
-| `ChatsDir`, `SubchatsDir`, `PlansDir` | Path helpers per project |
+| `ChatsDir`, `SubchatsDir`, `PlansDir`, `TempDir` | Path helpers per project |
 | `project.Resolve` | Canonical root + 64-char hex |
 
 ## Persistence rules (runtime)

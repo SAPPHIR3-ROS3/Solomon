@@ -21,6 +21,8 @@ flowchart LR
   subchatFile["*.json"]
   plans["plans/<br/><small>plan markdown</small>"]
   planFile["*.md"]
+  temp["temp/<br/><small>tool output spill (until last process exits)</small>"]
+  tempQueue["temp.txt<br/><small>deferred temp cleanup queue</small>"]
   projectSkills["skills/"]
 
   workspaceRoot["&lt;workspace&gt;/.solomon/"]
@@ -32,6 +34,7 @@ flowchart LR
   home --> mcpConfig
   home --> projectMap
   home --> logs
+  home --> tempQueue
   home --> globalSkillsDir
   home --> skillsRegistry
   home --> projects
@@ -42,6 +45,7 @@ flowchart LR
   subchats --> subchatFile
   projectNode --> plans
   plans --> planFile
+  projectNode --> temp
   projectNode --> projectSkills
 
   workspaceRoot --> workspaceSkills
@@ -50,8 +54,8 @@ flowchart LR
 
   classDef folder fill:#eef6ff,stroke:#5b8def,color:#102a43
   classDef file fill:#fff7e6,stroke:#d9822b,color:#3d2b1f
-  class home,logs,globalSkillsDir,projects,projectNode,chats,subchats,plans,projectSkills,workspaceRoot,workspaceSkills folder
-  class config,mcpConfig,projectMap,skillsRegistry,chatFile,subchatFile,planFile,localMirror,localFiles file
+  class home,logs,globalSkillsDir,projects,projectNode,chats,subchats,plans,temp,projectSkills,workspaceRoot,workspaceSkills folder
+  class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,planFile,localMirror,localFiles file
 ```
 
 ## Session files
@@ -61,6 +65,10 @@ Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds s
 ## Plans
 
 Plan documents created through plan-mode tools are stored under `projects/<project-id>/plans/*.md`.
+
+## Tool output spill (`temp/`)
+
+When a tool result exceeds `[tool_output]` limits (defaults in config), Solomon writes the full payload under `projects/<project-id>/temp/` and returns a `---TRUNCATED---` block with `full output at <path>` in the tool result. Files in `temp/` are deleted when the **last** Solomon process exits; if other instances are still running, the project id is queued in `~/.solomon/temp.txt` until then. After a restart with no spill files left, use `readFile` with line ranges or re-run the tool. See [Agent turn pipeline](../architecture/agent-turn-pipeline.md#tool-output-limits).
 
 ## Skills
 

@@ -28,6 +28,7 @@ type rootLegacyFile struct {
 	WebSearchAPIKey           string           `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string           `toml:"web_search_base_url,omitempty"`
 	WebSearchCX               string           `toml:"web_search_cx,omitempty"`
+	ToolOutput                ToolOutput       `toml:"tool_output,omitempty"`
 }
 
 type rootFile struct {
@@ -48,6 +49,7 @@ type rootFile struct {
 	WebSearchAPIKey           string              `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string              `toml:"web_search_base_url,omitempty"`
 	WebSearchCX               string              `toml:"web_search_cx,omitempty"`
+	ToolOutput                ToolOutput          `toml:"tool_output,omitempty"`
 }
 
 func rootFromFile(f *rootFile) *Root {
@@ -71,6 +73,7 @@ func rootFromFile(f *rootFile) *Root {
 		WebSearchAPIKey:           f.WebSearchAPIKey,
 		WebSearchBaseURL:          f.WebSearchBaseURL,
 		WebSearchCX:               f.WebSearchCX,
+		ToolOutput:                f.ToolOutput,
 	}
 	for name, p := range f.Providers {
 		setProviderOnRoot(r, name, p)
@@ -99,6 +102,7 @@ func rootToFile(r *Root) *rootFile {
 		WebSearchAPIKey:           r.WebSearchAPIKey,
 		WebSearchBaseURL:          r.WebSearchBaseURL,
 		WebSearchCX:               r.WebSearchCX,
+		ToolOutput:                r.ToolOutput,
 	}
 	if len(r.Providers) > 0 {
 		f.Providers = make(map[string]Provider, len(r.Providers))
@@ -147,6 +151,7 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		WebSearchAPIKey:           f.WebSearchAPIKey,
 		WebSearchBaseURL:          f.WebSearchBaseURL,
 		WebSearchCX:               f.WebSearchCX,
+		ToolOutput:                f.ToolOutput,
 	}
 	for _, p := range f.Providers {
 		name := strings.TrimSpace(p.Name)
