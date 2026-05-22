@@ -13,6 +13,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `recent_models.<name>` | Recent model ids per provider |
 | `user_name` | Shown / used in-session |
 | `subagent_timeout_minutes` | Subagent slices (wizard default 20) |
+| `[api_resilience]` | LLM HTTP retry, backoff, circuit breaker, timeouts (optional; defaults in code) |
 | `reasoning_effort` | Main chat reasoning profile |
 | `log_level`, `max_response_tokens` | Verbosity and cap |
 | `show_thinking`, `show_usage_stats` | Streams / footer |
@@ -32,6 +33,29 @@ You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic
 | `/connect` → ChatGPT Sub | `openai` | OAuth; Codex middleware |
 
 Provider block fields: `base_url`, `api_key`, optional `api_protocol` (`openai` | `anthropic`). Anthropic official base: `https://api.anthropic.com` (normalized on save).
+
+### `[api_resilience]` (optional)
+
+Overrides defaults from [`EffectiveAPIResilience`](../../internal/config/api_resilience.go). Omitted keys keep built-in defaults.
+
+| Key | Default | Role |
+|-----|---------|------|
+| `max_retries` | `3` | Maximum stream/turn attempts per provider host (clamped to 10) |
+| `base_delay_ms` | `1000` | Initial backoff before retry |
+| `max_delay_ms` | `30000` | Cap on wait between retries |
+| `jitter` | `true` | Randomize delay up to half the computed wait |
+| `connect_timeout_sec` | `30` | TCP connect and response-header timeout |
+| `read_timeout_sec` | `0` (off) | Whole-request timeout for non-stream calls only |
+| `circuit_open_sec` | `60` | After exhausting retries, block the host for this duration |
+
+Example:
+
+```toml
+[api_resilience]
+max_retries = 3
+base_delay_ms = 1000
+circuit_open_sec = 60
+```
 
 ## Logs
 

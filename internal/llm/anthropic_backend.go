@@ -3,8 +3,8 @@ package llm
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
+	"net/http"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
@@ -13,12 +13,20 @@ import (
 const AnthropicAPIVersion = "2023-06-01"
 
 type AnthropicBackend struct {
-	baseURL string
-	auth    AnthropicAuth
+	baseURL    string
+	auth       AnthropicAuth
+	httpClient *http.Client
 }
 
 func NewAnthropicBackend(baseURL string, auth AnthropicAuth) *AnthropicBackend {
-	return &AnthropicBackend{baseURL: strings.TrimSpace(baseURL), auth: auth}
+	return NewAnthropicBackendWithClient(baseURL, auth, nil)
+}
+
+func NewAnthropicBackendWithClient(baseURL string, auth AnthropicAuth, client *http.Client) *AnthropicBackend {
+	if client == nil {
+		client = anthropicHTTPDefault()
+	}
+	return &AnthropicBackend{baseURL: strings.TrimSpace(baseURL), auth: auth, httpClient: client}
 }
 
 func (b *AnthropicBackend) Protocol() Protocol { return ProtocolAnthropic }
@@ -33,14 +41,14 @@ func (b *AnthropicBackend) CompleteText(ctx context.Context, req SimpleCompletio
 	if err != nil {
 		return "", err
 	}
-	resp, err := anthropicHTTPDefault().Do(httpReq)
+	resp, err := b.httpClient.Do(httpReq)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return "", fmt.Errorf("anthropic API: %s: %s", resp.Status, strings.TrimSpace(string(bb)))
+		return "", anthropicHTTPError(resp, bb)
 	}
 	var msg struct {
 		Content []struct {

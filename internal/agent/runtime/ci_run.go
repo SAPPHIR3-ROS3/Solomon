@@ -122,6 +122,7 @@ func (r *Runtime) streamOptsCI(turn int) llm.StreamOpts {
 		}
 		r.ciEmit(cievents.AssistantDelta(turnCopy, channel, text))
 	}
+	r.bindAPIRetry(&opts)
 	return opts
 }
 

@@ -77,6 +77,7 @@ type Root struct {
 	WebSearchBaseURL          string     `toml:"web_search_base_url,omitempty"`
 	WebSearchCX               string     `toml:"web_search_cx,omitempty"`
 	ToolOutput                ToolOutput `toml:"tool_output,omitempty"`
+	APIResilience             APIResilienceConfig `toml:"api_resilience,omitempty"`
 }
 
 func (r *Root) EffectiveWebSearchEngine() string {
