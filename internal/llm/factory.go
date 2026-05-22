@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
@@ -14,6 +15,10 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 	if p == nil {
 		return nil, fmt.Errorf("nil provider")
 	}
+	policy := config.EffectiveAPIResilience(cfg)
+	hostKey := HostKeyFromBaseURL(p.BaseURL)
+	httpClient := NewResilientHTTPClient(policy)
+	var inner CompletionBackend
 	switch p.EffectiveAPIProtocol() {
 	case config.APIProtocolAnthropic:
 		bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
@@ -24,17 +29,18 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 		if p.UsesAnthropicOAuthBearer() {
 			auth = AnthropicAuthFromOAuthBearer(bearer)
 		}
-		return NewAnthropicBackend(p.BaseURL, auth), nil
+		inner = NewAnthropicBackendWithClient(p.BaseURL, auth, httpClient)
 	default:
-		client, err := newOpenAIClient(ctx, cfg, p)
+		client, err := newOpenAIClient(ctx, cfg, p, httpClient)
 		if err != nil {
 			return nil, err
 		}
-		return &OpenAIBackend{Client: client}, nil
+		inner = &OpenAIBackend{Client: client}
 	}
+	return NewResilientBackend(inner, hostKey, policy, defaultCircuits), nil
 }
 
-func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider) (openai.Client, error) {
+func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider, httpClient *http.Client) (openai.Client, error) {
 	config.EnsureChatGPTSubBaseURL(p)
 	if p.IsChatGPTSub() && cfg != nil {
 		if ep := config.ProviderByName(cfg, p.Name); ep != nil {
@@ -49,6 +55,8 @@ func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider) 
 	opts := []option.RequestOption{
 		option.WithAPIKey(bearer),
 		option.WithBaseURL(p.BaseURL),
+		option.WithHTTPClient(httpClient),
+		option.WithMaxRetries(0),
 	}
 	if p.IsChatGPTSub() {
 		opts = append(opts, codex.WithChatGPTSubMiddleware(p.OAuthAccountID))
@@ -57,6 +65,9 @@ func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider) 
 }
 
 func OpenAIClientFromBackend(b CompletionBackend) (openai.Client, bool) {
+	if rb, ok := b.(*ResilientBackend); ok && rb != nil {
+		return OpenAIClientFromBackend(rb.Inner)
+	}
 	ob, ok := b.(*OpenAIBackend)
 	if !ok || ob == nil {
 		return openai.Client{}, false

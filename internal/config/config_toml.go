@@ -28,7 +28,8 @@ type rootLegacyFile struct {
 	WebSearchAPIKey           string           `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string           `toml:"web_search_base_url,omitempty"`
 	WebSearchCX               string           `toml:"web_search_cx,omitempty"`
-	ToolOutput                ToolOutput       `toml:"tool_output,omitempty"`
+	ToolOutput                ToolOutput            `toml:"tool_output,omitempty"`
+	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
 }
 
 type rootFile struct {
@@ -49,7 +50,8 @@ type rootFile struct {
 	WebSearchAPIKey           string              `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string              `toml:"web_search_base_url,omitempty"`
 	WebSearchCX               string              `toml:"web_search_cx,omitempty"`
-	ToolOutput                ToolOutput          `toml:"tool_output,omitempty"`
+	ToolOutput                ToolOutput            `toml:"tool_output,omitempty"`
+	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
 }
 
 func rootFromFile(f *rootFile) *Root {
@@ -74,6 +76,7 @@ func rootFromFile(f *rootFile) *Root {
 		WebSearchBaseURL:          f.WebSearchBaseURL,
 		WebSearchCX:               f.WebSearchCX,
 		ToolOutput:                f.ToolOutput,
+		APIResilience:             f.APIResilience,
 	}
 	for name, p := range f.Providers {
 		setProviderOnRoot(r, name, p)
@@ -103,6 +106,7 @@ func rootToFile(r *Root) *rootFile {
 		WebSearchBaseURL:          r.WebSearchBaseURL,
 		WebSearchCX:               r.WebSearchCX,
 		ToolOutput:                r.ToolOutput,
+		APIResilience:             r.APIResilience,
 	}
 	if len(r.Providers) > 0 {
 		f.Providers = make(map[string]Provider, len(r.Providers))
@@ -152,6 +156,7 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		WebSearchBaseURL:          f.WebSearchBaseURL,
 		WebSearchCX:               f.WebSearchCX,
 		ToolOutput:                f.ToolOutput,
+		APIResilience:             f.APIResilience,
 	}
 	for _, p := range f.Providers {
 		name := strings.TrimSpace(p.Name)

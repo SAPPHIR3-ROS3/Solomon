@@ -99,6 +99,7 @@ type StreamOpts struct {
 	ShowThinking  bool
 	ReasoningSink io.Writer
 	OnDelta       func(channel, text string)
+	OnRetry       func(attempt int, max int, err error, wait time.Duration)
 }
 
 func StreamText(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {

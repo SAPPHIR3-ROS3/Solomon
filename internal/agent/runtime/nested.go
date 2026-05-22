@@ -150,7 +150,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 	if r.Backend == nil {
 		return llm.AssistantTurnResult{}, fmt.Errorf("LLM backend not configured")
 	}
-	turn, err := r.Backend.StreamTurn(ctx, turnReq, termcolor.NewToolLineWriter(r.Out), llm.StreamOpts{ShowThinking: r.Cfg.ShowThinking, ReasoningSink: r.Out})
+	turn, err := r.Backend.StreamTurn(ctx, turnReq, termcolor.NewToolLineWriter(r.Out), r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out))
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "nested subagent stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return turn, err

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -34,7 +33,10 @@ func (b *AnthropicBackend) postStream(ctx context.Context, body map[string]any) 
 		return nil, err
 	}
 	req.Header.Set("Accept", "text/event-stream")
-	cli := &http.Client{Timeout: 0}
+	cli := b.httpClient
+	if cli == nil {
+		cli = anthropicHTTPDefault()
+	}
 	return cli.Do(req)
 }
 
@@ -84,7 +86,7 @@ func (b *AnthropicBackend) StreamTurn(ctx context.Context, req TurnRequest, cont
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return AssistantTurnResult{}, fmt.Errorf("anthropic API: %s: %s", resp.Status, strings.TrimSpace(string(bb)))
+		return AssistantTurnResult{}, anthropicHTTPError(resp, bb)
 	}
 	return readAnthropicStreamTurn(resp.Body, contentOut, opts)
 }
@@ -97,7 +99,7 @@ func (b *AnthropicBackend) StreamText(ctx context.Context, req SimpleCompletionR
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return "", UsageStats{}, fmt.Errorf("anthropic API: %s: %s", resp.Status, strings.TrimSpace(string(bb)))
+		return "", UsageStats{}, anthropicHTTPError(resp, bb)
 	}
 	turn, err := readAnthropicStreamTurn(resp.Body, contentOut, opts)
 	if err != nil {

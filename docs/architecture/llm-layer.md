@@ -23,6 +23,20 @@ Runtime holds `CompletionBackend` (`NewCompletionBackend` in [`internal/llm/fact
 | `internal/llm/stream.go` | Shared types, OpenAI stream helpers |
 | `internal/llm/params.go` | `MessageParams`, images `[img-N]`, token display |
 | `internal/llm/reasoning.go` | `MessagesForAPI` (reasoning only on last assistant) |
+| `internal/llm/httpresilience.go` | Error classification, backoff, circuit breaker, HTTP client |
+| `internal/llm/resilient_backend.go` | `ResilientBackend` decorator (retry full turn) |
+
+Runtime wraps every `CompletionBackend` from `NewCompletionBackend` in `ResilientBackend`. OpenAI SDK retries are disabled (`WithMaxRetries(0)`); Solomon handles retries at turn level.
+
+## API resilience
+
+- **Retry:** Configurable attempts (default 3) for retryable HTTP codes (429, 5xx, 408) and transient network errors. Full stream turn is retried; the REPL prints an explicit line via `StreamOpts.OnRetry` before each wait.
+- **Backoff:** Exponential delay from `base_delay_ms` to `max_delay_ms`, optional jitter, honors `Retry-After` when present.
+- **Circuit breaker:** After all retries fail for a request, the provider host (`base_url` host) is opened for `circuit_open_sec` (default 60s). The next turn still probes the API (half-open); a successful turn clears the open state immediately. Failed probes while open keep the circuit tripped until expiry or success.
+- **Timeouts:** `connect_timeout_sec` on dial and response headers; `read_timeout_sec` optional for non-stream calls (`CompleteText`, `ListModels`). Streams keep body read unlimited.
+- **Not retried:** `ErrStreamAccumulatorRejected`, 401/403/404/422, and other permanent errors.
+
+Tests: [`test/api_resilience_test.go`](../../test/api_resilience_test.go), [`test/resilient_backend_test.go`](../../test/resilient_backend_test.go), [`test/api_resilience_anthropic_test.go`](../../test/api_resilience_anthropic_test.go), [`test/api_resilience_openai_test.go`](../../test/api_resilience_openai_test.go).
 
 ## Key functions
 
@@ -61,16 +75,19 @@ Tests: [`test/stream_integrity_test.go`](../../test/stream_integrity_test.go).
 ```mermaid
 sequenceDiagram
   participant RT as Runtime
-  participant BE as CompletionBackend
+  participant RB as ResilientBackend
+  participant BE as OpenAI_or_Anthropic
   participant API as Provider_API
 
-  RT->>BE: StreamTurn TurnRequest
+  RT->>RB: StreamTurn TurnRequest
+  RB->>BE: StreamTurn
   BE->>API: stream request
   loop chunks
     API-->>BE: delta
     BE-->>RT: print reasoning/content
   end
-  BE-->>RT: AssistantTurnResult
+  BE-->>RB: AssistantTurnResult
+  RB-->>RT: AssistantTurnResult
 ```
 
 ## See also
