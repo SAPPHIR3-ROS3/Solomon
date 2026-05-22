@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"strings"
@@ -14,16 +15,18 @@ func SlashMCP(d Deps) error {
 		return err
 	}
 	if len(p.Servers) == 0 {
-		fmt.Fprintln(d.Out, "(no MCP servers in config)")
+		PrintSystem(d.Out, "(no MCP servers in config)")
 		return nil
 	}
+	var buf bytes.Buffer
 	for _, s := range p.Servers {
 		col3 := s.Command
 		if strings.TrimSpace(s.URL) != "" {
 			col3 = redactMCPURL(s.URL)
 		}
-		fmt.Fprintf(d.Out, "%s\t%s\t%s\n", s.Name, s.Type, col3)
+		fmt.Fprintf(&buf, "%s\t%s\t%s\n", s.Name, s.Type, col3)
 	}
+	PrintSystem(d.Out, buf.String())
 	return nil
 }
 

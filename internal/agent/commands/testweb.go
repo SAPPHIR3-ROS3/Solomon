@@ -25,11 +25,11 @@ func TestWeb(d Deps) error {
 		Extras:     extras,
 	})
 	if err == nil {
-		fmt.Fprintln(d.Out, "OK")
+		PrintSystem(d.Out, "OK")
 		return nil
 	}
 
-	fmt.Fprintf(d.Out, "NOT OK\nattempting fallback\n")
+	PrintSystem(d.Out, "NOT OK\nattempting fallback")
 
 	fbCtx, fbCancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer fbCancel()
@@ -39,9 +39,9 @@ func TestWeb(d Deps) error {
 		Extras:     nil,
 	})
 	if errDDG == nil {
-		fmt.Fprintln(d.Out, "OK")
+		PrintSystem(d.Out, "OK")
 		return nil
 	}
-	fmt.Fprintln(d.Out, "NOT OK")
+	PrintSystem(d.Out, "NOT OK")
 	return nil
 }

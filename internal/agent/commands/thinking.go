@@ -17,7 +17,7 @@ func Thinking(d Deps, parts []string) error {
 		if d.Cfg.ShowThinking {
 			onOff = "on"
 		}
-		fmt.Fprintf(d.Out, "streaming reasoning preview: %s\n", onOff)
+		PrintSystemf(d.Out, "streaming reasoning preview: %s", onOff)
 		return nil
 	}
 	sw := strings.ToLower(parts[1])
@@ -36,7 +36,7 @@ func Thinking(d Deps, parts []string) error {
 	if d.Cfg.ShowThinking {
 		onOff = "on"
 	}
-	fmt.Fprintf(d.Out, "streaming reasoning preview: %s\n", onOff)
+	PrintSystemf(d.Out, "streaming reasoning preview: %s", onOff)
 	return nil
 }
 
@@ -78,6 +78,6 @@ func LegacyTools(d Deps, parts []string) error {
 	if legacy {
 		state = "on"
 	}
-	fmt.Fprintf(d.Out, "legacy Tool: line parsing: %s (system prompt includes legacy syntax on next assistant turn)\n", state)
+	PrintSystemf(d.Out, "legacy Tool: line parsing: %s (system prompt includes legacy syntax on next assistant turn)", state)
 	return nil
 }

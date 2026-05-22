@@ -21,7 +21,7 @@ func Onboard(d Deps) error {
 			return err
 		}
 		if !ok {
-			fmt.Fprintln(d.Out, "Onboard cancelled.")
+			PrintSystem(d.Out, "Onboard cancelled.")
 			return nil
 		}
 	}
@@ -54,9 +54,9 @@ func finishOnboard(d Deps, res *config.OnboardResult) error {
 		d.SetCompactionThresholdTokens(config.EffectiveCompactionThresholdTokens(d.Cfg))
 	}
 	if config.NeedsOnboard(d.Cfg) {
-		fmt.Fprintln(d.Out, "Onboard complete (no provider configured; use /onboard to add one)")
+		PrintSystem(d.Out, "Onboard complete (no provider configured; use /onboard to add one)")
 	} else {
-		fmt.Fprintf(d.Out, "Onboard complete: %s[%s]\n", d.Cfg.Current.Model, d.Cfg.Current.Provider)
+		PrintSystemf(d.Out, "Onboard complete: %s[%s]", d.Cfg.Current.Model, d.Cfg.Current.Provider)
 	}
 	if d.PrintWelcomeBanner != nil {
 		d.PrintWelcomeBanner()

@@ -12,9 +12,9 @@ func Language(d Deps, parts []string) error {
 		stored := strings.TrimSpace(d.Cfg.ResponseLanguage)
 		eff := d.Cfg.EffectiveResponseLanguage()
 		if stored == "" {
-			fmt.Fprintf(d.Out, "response_language=%s (default)\n", eff)
+			PrintSystemf(d.Out, "response_language=%s (default)", eff)
 		} else {
-			fmt.Fprintf(d.Out, "response_language=%s\n", eff)
+			PrintSystemf(d.Out, "response_language=%s", eff)
 		}
 		return nil
 	}
@@ -33,9 +33,9 @@ func Language(d Deps, parts []string) error {
 		return err
 	}
 	if strings.TrimSpace(d.Cfg.ResponseLanguage) != "" {
-		fmt.Fprintf(d.Out, "response_language=%s (saved; injected into system prompt)\n", strings.TrimSpace(d.Cfg.ResponseLanguage))
+		PrintSystemf(d.Out, "response_language=%s (saved; injected into system prompt)", strings.TrimSpace(d.Cfg.ResponseLanguage))
 	} else {
-		fmt.Fprintf(d.Out, "response_language reset to default %s (saved)\n", config.DefaultResponseLanguage)
+		PrintSystemf(d.Out, "response_language reset to default %s (saved)", config.DefaultResponseLanguage)
 	}
 	return nil
 }

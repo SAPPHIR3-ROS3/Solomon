@@ -1,7 +1,5 @@
 package commands
 
-import "fmt"
-
 func Stats(d Deps) error {
 	next := !d.Cfg.UsageStatsEnabled()
 	d.Cfg.ShowUsageStats = &next
@@ -12,6 +10,6 @@ func Stats(d Deps) error {
 	if next {
 		onOff = "on"
 	}
-	fmt.Fprintf(d.Out, "token stats: %s\n", onOff)
+	PrintSystemf(d.Out, "token stats: %s", onOff)
 	return nil
 }

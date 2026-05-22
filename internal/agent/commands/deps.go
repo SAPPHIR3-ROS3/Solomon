@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 
 	"github.com/openai/openai-go/v2"
 )
@@ -60,6 +63,21 @@ type Deps struct {
 
 	GetEphemeralSession func() bool
 	SetEphemeralSession func(bool)
+}
+
+func PrintSystem(out io.Writer, msg string) {
+	if out == nil {
+		out = os.Stdout
+	}
+	termcolor.WriteSystem(out, msg)
+}
+
+func PrintSystemf(out io.Writer, format string, args ...any) {
+	PrintSystem(out, fmt.Sprintf(format, args...))
+}
+
+func PrintSystemValue(out io.Writer, v any) {
+	PrintSystem(out, termcolor.SystemMessageText(v))
 }
 
 func PromptIO(d Deps) config.PromptIO {

@@ -108,7 +108,7 @@ func Terminal(d Deps, parts []string) error {
 		if next {
 			state = "on"
 		}
-		fmt.Fprintf(d.Out, "shell-first REPL: %s (plain line → shell; !… → AI)\n", state)
+		PrintSystemf(d.Out, "shell-first REPL: %s (plain line → shell; !… → AI)", state)
 		if d.PrintWelcomeBanner != nil {
 			d.PrintWelcomeBanner()
 		}
@@ -127,7 +127,7 @@ func Terminal(d Deps, parts []string) error {
 	if d.GetReplShellFirst() {
 		state = "on"
 	}
-	fmt.Fprintf(d.Out, "shell-first REPL: %s (plain line → shell; !… → AI)\n", state)
+	PrintSystemf(d.Out, "shell-first REPL: %s (plain line → shell; !… → AI)", state)
 	if d.PrintWelcomeBanner != nil {
 		d.PrintWelcomeBanner()
 	}

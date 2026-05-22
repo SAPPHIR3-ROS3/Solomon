@@ -2,7 +2,6 @@ package agentruntime
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
@@ -48,6 +47,6 @@ func (r *Runtime) ApplyGotoCheckpoint(id *checkpoint.FullCheckpointID) error {
 	})
 	commands.WriteLabeledTranscript(r.Out, msgs, r.Model)
 	tag := checkpoint.FormatCheckpointTag(id.Seq, id.Suffix)
-	fmt.Fprintf(r.Out, "goto %s: transcript truncated (%d messages moved to orphan main).\n", tag, truncLen)
+	commands.PrintSystemf(r.Out, "goto %s: transcript truncated (%d messages moved to orphan main).", tag, truncLen)
 	return r.persistSession()
 }

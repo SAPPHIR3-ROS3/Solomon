@@ -1,11 +1,13 @@
 package commands
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sort"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 func Registry() [][]string {
@@ -27,8 +29,10 @@ func WriteHelp(w io.Writer, projHex, projRoot string) {
 			maxCmd = n
 		}
 	}
+	var buf bytes.Buffer
 	for _, row := range rows {
-		fmt.Fprintf(w, "%-*s\t%s\n", maxCmd, row[0], row[1])
+		fmt.Fprintf(&buf, "%-*s\t%s\n", maxCmd, row[0], row[1])
 	}
-	_ = skills.WriteSkillsHelpSection(w, maxCmd, projHex, projRoot)
+	_ = skills.WriteSkillsHelpSection(&buf, maxCmd, projHex, projRoot)
+	termcolor.WriteSystem(w, buf.String())
 }

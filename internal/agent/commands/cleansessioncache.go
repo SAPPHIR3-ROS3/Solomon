@@ -22,7 +22,7 @@ func CleanSessionCache(d Deps) error {
 			return err
 		}
 	}
-	fmt.Fprintf(d.Out, "[cleansessioncache] dropped %d bad image attachments; sanitized %d user prompt(s); %d bare-image stubs replaced with \"(image omitted)\"\n",
+	PrintSystemf(d.Out, "[cleansessioncache] dropped %d bad image attachments; sanitized %d user prompt(s); %d bare-image stubs replaced with \"(image omitted)\"",
 		broken, patched, emptied)
 	return nil
 }

@@ -33,6 +33,6 @@ func Add(d Deps, parts []string) error {
 	if err := skills.RunInstall(opts); err != nil {
 		return err
 	}
-	fmt.Fprintln(d.Out, "Skill installed and registry updated.")
+	PrintSystem(d.Out, "Skill installed and registry updated.")
 	return nil
 }

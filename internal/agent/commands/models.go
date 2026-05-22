@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	readline "github.com/chzyer/readline"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 type ListedModel struct {
@@ -194,7 +196,7 @@ func readInputLine(d Deps, bannerOneLine string, rlPrompt string) (string, error
 		p = "> "
 	}
 	if s := strings.TrimSpace(bannerOneLine); s != "" {
-		fmt.Fprintln(d.Out, s)
+		PrintSystem(d.Out, s)
 	}
 	return config.ReadPromptLine(PromptIO(d), p)
 }
@@ -209,7 +211,7 @@ func SlashModels(d Deps) error {
 		pp := p
 		ids, err := listModelsForProvider(ctx, d.Cfg, &pp)
 		if err != nil {
-			fmt.Fprintf(d.Out, "provider %s: error: %v\n", p.Name, err)
+			PrintSystemf(d.Out, "provider %s: error: %v", p.Name, err)
 			continue
 		}
 		for _, mid := range ids {
@@ -220,7 +222,9 @@ func SlashModels(d Deps) error {
 		return fmt.Errorf("no models available")
 	}
 	pickerRows, shownKeys := buildSlashPicker(d, catalog)
-	printSlashModelPicker(d.Out, pickerRows)
+	var pickerBuf bytes.Buffer
+	printSlashModelPicker(&pickerBuf, pickerRows)
+	termcolor.WriteSystem(d.Out, pickerBuf.String())
 	hasUnlisted := false
 	for i := range catalog {
 		if !shownKeys[lmKey(catalog[i])] {
@@ -229,7 +233,7 @@ func SlashModels(d Deps) error {
 		}
 	}
 	if hasUnlisted {
-		fmt.Fprintln(d.Out, "...")
+		PrintSystem(d.Out, "...")
 	}
 	for {
 		banner := fmt.Sprintf("Select: index 0-%d", len(pickerRows)-1)
@@ -237,26 +241,26 @@ func SlashModels(d Deps) error {
 		line, err := readInputLine(d, banner, "> ")
 		if err != nil {
 			if errors.Is(err, readline.ErrInterrupt) {
-				fmt.Fprintln(d.Out, "^C")
+				PrintSystem(d.Out, "^C")
 			}
 			return err
 		}
 		if line == "" {
-			fmt.Fprintln(d.Out, "Invalid: empty input.")
+			PrintSystem(d.Out, "Invalid: empty input.")
 			continue
 		}
 		ok, msg, ferr := trySlashModelPick(d, pickerRows, catalog, line)
 		if ferr != nil {
 			if errors.Is(ferr, readline.ErrInterrupt) {
-				fmt.Fprintln(d.Out, "^C")
+				PrintSystem(d.Out, "^C")
 			}
 			return ferr
 		}
 		if ok {
-			fmt.Fprintf(d.Out, "Using %s[%s]\n", d.Model(), d.Provider().Name)
+			PrintSystemf(d.Out, "Using %s[%s]", d.Model(), d.Provider().Name)
 			return nil
 		}
-		fmt.Fprintf(d.Out, "Invalid: %s\n", msg)
+		PrintSystemf(d.Out, "Invalid: %s", msg)
 	}
 }
 

@@ -1,8 +1,6 @@
 package commands
 
 import (
-	"fmt"
-
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 )
 
@@ -14,6 +12,6 @@ func connectPickModel(d Deps, prevProv, prevModel, newProvName string, newIDs []
 	if err := d.ApplyCurrentModel(choice.ProviderName, choice.ModelID); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "Using %s[%s]\n", d.Model(), d.Provider().Name)
+	PrintSystemf(d.Out, "Using %s[%s]", d.Model(), d.Provider().Name)
 	return nil
 }

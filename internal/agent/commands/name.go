@@ -9,9 +9,9 @@ func Name(d Deps, parts []string) error {
 	if len(parts) < 2 {
 		stored := strings.TrimSpace(d.Cfg.UserName)
 		if stored == "" {
-			fmt.Fprintln(d.Out, "user_name=(empty)")
+			PrintSystem(d.Out, "user_name=(empty)")
 		} else {
-			fmt.Fprintf(d.Out, "user_name=%s\n", stored)
+			PrintSystemf(d.Out, "user_name=%s", stored)
 		}
 		return nil
 	}
@@ -30,9 +30,9 @@ func Name(d Deps, parts []string) error {
 		return err
 	}
 	if strings.TrimSpace(d.Cfg.UserName) != "" {
-		fmt.Fprintf(d.Out, "user_name=%s (saved; injected into system prompt)\n", strings.TrimSpace(d.Cfg.UserName))
+		PrintSystemf(d.Out, "user_name=%s (saved; injected into system prompt)", strings.TrimSpace(d.Cfg.UserName))
 	} else {
-		fmt.Fprintln(d.Out, "user_name cleared (saved)")
+		PrintSystem(d.Out, "user_name cleared (saved)")
 	}
 	return nil
 }

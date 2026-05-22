@@ -15,6 +15,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 func NormalizeMarkdownSourceURL(raw string) (string, error) {
@@ -273,7 +274,7 @@ func runRemoteMDInstall(opts InstallOpts, p *parsedAdd) error {
 	if err := WithRegistryLock(lockPath, regPath, func(r *Registry) error {
 		final := UniqueDisplayName(r, normalized, display, p.Scope, opts.ProjHex, skillKey)
 		if final != strings.TrimSpace(display) && opts.Out != nil {
-			fmt.Fprintf(opts.Out, "Display name %q already in use; using %q.\n", strings.TrimSpace(display), final)
+			termcolor.WriteSystem(opts.Out, fmt.Sprintf("Display name %q already in use; using %q.", strings.TrimSpace(display), final))
 		}
 		entry := SkillEntry{
 			Name:         final,
@@ -295,7 +296,7 @@ func runRemoteMDInstall(opts InstallOpts, p *parsedAdd) error {
 	}
 	logging.Log(logging.INFO_LOG_LEVEL, "skill remote md install complete", logging.LogOptions{Params: map[string]any{"scope": p.Scope, "url": normalized}})
 	if opts.Out != nil {
-		fmt.Fprintf(opts.Out, "Skill installed from %s.\n", normalized)
+		termcolor.WriteSystem(opts.Out, fmt.Sprintf("Skill installed from %s.", normalized))
 	}
 	return nil
 }

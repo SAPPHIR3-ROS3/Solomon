@@ -16,7 +16,7 @@ func AddRule(d Deps, parts []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "global rule %d saved\n", n)
+	PrintSystemf(d.Out, "global rule %d saved", n)
 	return nil
 }
 
@@ -32,7 +32,7 @@ func AddProjectRule(d Deps, parts []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "project rule %d saved\n", n)
+	PrintSystemf(d.Out, "project rule %d saved", n)
 	return nil
 }
 
@@ -47,7 +47,7 @@ func RemoveRule(d Deps, parts []string) error {
 	if err := instructions.RemoveRule(instructions.ScopeGlobal, "", n); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "global rule %d removed (rules renumbered)\n", n)
+	PrintSystemf(d.Out, "global rule %d removed (rules renumbered)", n)
 	return nil
 }
 
@@ -65,7 +65,7 @@ func RemoveProjectRule(d Deps, parts []string) error {
 	if err := instructions.RemoveRule(instructions.ScopeProject, d.ProjHex, n); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "project rule %d removed (rules renumbered)\n", n)
+	PrintSystemf(d.Out, "project rule %d removed (rules renumbered)", n)
 	return nil
 }
 
