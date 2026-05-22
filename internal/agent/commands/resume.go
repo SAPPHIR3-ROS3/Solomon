@@ -180,9 +180,9 @@ func TempChat(d Deps) error {
 		d.ResetReadlineHistory()
 	}
 	fmt.Fprint(d.Out, "\033[2J\033[H")
-	PrintSystem(d.Out, "temp session (in memory only; not saved to disk)")
 	if d.PrintWelcomeBanner != nil {
 		d.PrintWelcomeBanner()
 	}
+	PrintSystem(d.Out, "temp session (in memory only; not saved to disk)")
 	return nil
 }
