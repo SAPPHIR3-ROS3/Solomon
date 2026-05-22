@@ -122,6 +122,11 @@ func (r *Runtime) applyToolOutput(res any, toolName, toolCallID string) any {
 func (r *Runtime) applyProviderClient(ctx context.Context, p *config.Provider) {
 	backend, err := llm.NewCompletionBackend(ctx, r.Cfg, p)
 	if err != nil {
+		params := map[string]any{"err": err.Error()}
+		if p != nil {
+			params["provider"] = p.Name
+		}
+		logging.Log(logging.ERROR_LOG_LEVEL, "apply provider client failed", logging.LogOptions{Params: params})
 		return
 	}
 	r.Backend = backend

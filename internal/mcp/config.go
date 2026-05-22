@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
@@ -42,6 +43,7 @@ type ServerConfig struct {
 func LoadConfig() (*Config, error) {
 	p, err := paths.MCPConfigPath()
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "MCP config path resolve failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	b, err := os.ReadFile(p)
@@ -49,11 +51,15 @@ func LoadConfig() (*Config, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return &Config{Path: p}, nil
 		}
-		return nil, fmt.Errorf("read mcp config %q: %w", p, err)
+		err = fmt.Errorf("read mcp config %q: %w", p, err)
+		logging.Log(logging.ERROR_LOG_LEVEL, "MCP config read failed", logging.LogOptions{Params: map[string]any{"path": p, "err": err.Error()}})
+		return nil, err
 	}
 	cfg, err := ParseConfig(b)
 	if err != nil {
-		return nil, fmt.Errorf("parse mcp config %q: %w", p, err)
+		err = fmt.Errorf("parse mcp config %q: %w", p, err)
+		logging.Log(logging.ERROR_LOG_LEVEL, "MCP config parse failed", logging.LogOptions{Params: map[string]any{"path": p, "err": err.Error()}})
+		return nil, err
 	}
 	cfg.Path = p
 	return cfg, nil

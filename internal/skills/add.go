@@ -97,7 +97,12 @@ func ParseAddArgs(parts []string) (*parsedAdd, error) {
 	return nil, fmt.Errorf(`expected npx/npm line, skills.sh URL, or skill <.md>`)
 }
 
-func RunInstall(opts InstallOpts) error {
+func RunInstall(opts InstallOpts) (err error) {
+	defer func() {
+		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "skill install failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
+	}()
 	p, err := ParseAddArgs(opts.Args)
 	if err != nil {
 		return err

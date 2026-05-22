@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
@@ -64,7 +65,9 @@ func RemoveBrokenSessionImageFiles(s *Session) int {
 		delete(s.ImageFiles, seq)
 		p := strings.TrimSpace(path)
 		if p != "" {
-			_ = os.Remove(p)
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				logging.Log(logging.WARNING_LOG_LEVEL, "remove broken session image file failed", logging.LogOptions{Params: map[string]any{"path": p, "err": err.Error()}})
+			}
 		}
 		n++
 	}
@@ -195,7 +198,9 @@ func MigrateImagePathsAfterChatRename(projectHex string, s *Session, oldChatID, 
 		dest := newPathFor(seq)
 		if source != dest {
 			if err := os.Rename(source, dest); err != nil {
-				return fmt.Errorf("rename pasted image seq %d: %w", seq, err)
+				err = fmt.Errorf("rename pasted image seq %d: %w", seq, err)
+				logging.Log(logging.WARNING_LOG_LEVEL, "migrate session image rename failed", logging.LogOptions{Params: map[string]any{"seq": seq, "source": source, "dest": dest, "err": err.Error()}})
+				return err
 			}
 		}
 		s.ImageFiles[seq] = dest
@@ -246,7 +251,9 @@ func PruneUnreferencedSessionImages(s *Session) {
 		}
 		delete(s.ImageFiles, seq)
 		if path != "" {
-			_ = os.Remove(path)
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				logging.Log(logging.WARNING_LOG_LEVEL, "prune unreferenced session image failed", logging.LogOptions{Params: map[string]any{"path": path, "seq": seq, "err": err.Error()}})
+			}
 		}
 	}
 	if len(s.ImageFiles) == 0 {

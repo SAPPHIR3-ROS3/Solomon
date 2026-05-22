@@ -72,14 +72,24 @@ func SlashDispatch(d commands.Deps, line string) error {
 		if errors.Is(err, commands.ErrBuiltinExitChat) {
 			return ErrExitChat
 		}
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "slash command failed", logging.LogOptions{Params: map[string]any{"command": name, "err": err.Error()}})
+		}
 		return err
 	}
 	e, skillErr := skills.LookupSkillBySlashCommand(name, d.ProjHex, d.ProjRoot)
 	if skillErr != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "slash skill lookup failed", logging.LogOptions{Params: map[string]any{"command": name, "err": skillErr.Error()}})
 		return skillErr
 	}
 	if e != nil {
-		return commands.RunSkillSlash(d, *e)
+		if err := commands.RunSkillSlash(d, *e); err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "slash skill command failed", logging.LogOptions{Params: map[string]any{"command": name, "skill": e.Name, "err": err.Error()}})
+			return err
+		}
+		return nil
 	}
-	return fmt.Errorf("unknown command /%s (try /help)", name)
+	err = fmt.Errorf("unknown command /%s (try /help)", name)
+	logging.Log(logging.WARNING_LOG_LEVEL, "unknown slash command", logging.LogOptions{Params: map[string]any{"command": name}})
+	return err
 }

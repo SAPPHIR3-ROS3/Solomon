@@ -7,12 +7,14 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 )
 
 func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provider) (CompletionBackend, error) {
 	if p == nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "completion backend nil provider", logging.LogOptions{Params: nil})
 		return nil, fmt.Errorf("nil provider")
 	}
 	policy := config.EffectiveAPIResilience(cfg)
@@ -23,6 +25,7 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 	case config.APIProtocolAnthropic:
 		bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
 		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "completion backend resolve bearer failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
 			return nil, err
 		}
 		auth := AnthropicAuthFromAPIKey(bearer)
@@ -33,6 +36,7 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 	default:
 		client, err := newOpenAIClient(ctx, cfg, p, httpClient)
 		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "completion backend openai client failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
 			return nil, err
 		}
 		inner = &OpenAIBackend{Client: client}
@@ -45,7 +49,9 @@ func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider, 
 	if p.IsChatGPTSub() && cfg != nil {
 		if ep := config.ProviderByName(cfg, p.Name); ep != nil {
 			ep.BaseURL = p.BaseURL
-			_ = config.Save(cfg)
+			if err := config.Save(cfg); err != nil {
+				logging.Log(logging.WARNING_LOG_LEVEL, "save config after ChatGPT Sub base URL update failed", logging.LogOptions{Params: map[string]any{"err": err.Error(), "provider": p.Name}})
+			}
 		}
 	}
 	bearer, err := config.ResolveProviderBearer(ctx, cfg, p)

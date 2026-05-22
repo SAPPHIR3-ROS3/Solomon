@@ -8,6 +8,8 @@ import (
 	"os/exec"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 type commandTransport struct {
@@ -29,20 +31,24 @@ func (t *commandTransport) Connect(ctx context.Context) (sdkmcp.Connection, erro
 	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "MCP stdio stdin pipe failed", logging.LogOptions{Params: map[string]any{"command": t.command, "err": err.Error()}})
 		return nil, err
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "MCP stdio stdout pipe failed", logging.LogOptions{Params: map[string]any{"command": t.command, "err": err.Error()}})
 		return nil, err
 	}
 	if t.stderr != nil {
 		cmd.Stderr = t.stderr
 	}
 	if err := cmd.Start(); err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "MCP stdio process start failed", logging.LogOptions{Params: map[string]any{"command": t.command, "err": err.Error()}})
 		return nil, err
 	}
 	conn, err := (&sdkmcp.IOTransport{Reader: stdout, Writer: stdin}).Connect(ctx)
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "MCP stdio IO transport connect failed", logging.LogOptions{Params: map[string]any{"command": t.command, "err": err.Error()}})
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		return nil, err

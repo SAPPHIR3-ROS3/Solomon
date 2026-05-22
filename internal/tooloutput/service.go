@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"sync"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 )
 
 type Meta struct {
@@ -61,6 +63,7 @@ func (s *Service) Apply(v any, meta Meta) any {
 	}
 	b, err := json.Marshal(v)
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "tool output marshal failed", logging.LogOptions{Params: map[string]any{"tool": meta.ToolName, "err": err.Error()}})
 		return v
 	}
 	text := string(b)
@@ -69,6 +72,7 @@ func (s *Service) Apply(v any, meta Meta) any {
 	}
 	spillPath, err := writeSpill(s.projectHex, meta.SessionID, meta.ToolCallID, meta.ToolName, b)
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "tool output spill failed", logging.LogOptions{Params: map[string]any{"tool": meta.ToolName, "session": meta.SessionID, "err": err.Error()}})
 		return truncatedResult("", err)
 	}
 	s.MarkSpillGenerated()
@@ -82,9 +86,13 @@ func Startup(pid int) error {
 func Shutdown(pid int, projectHex string, svc *Service) error {
 	others := ActiveOtherInstances(pid)
 	if svc != nil {
-		_ = svc.Close(others > 0)
+		if err := svc.Close(others > 0); err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "tool output service close failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "err": err.Error()}})
+		}
 	} else if projectHex != "" {
-		_ = CloseProjectTemp(projectHex, others > 0, false)
+		if err := CloseProjectTemp(projectHex, others > 0, false); err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "tool output temp cleanup failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "err": err.Error()}})
+		}
 	}
 	return UnregisterInstance(pid)
 }
