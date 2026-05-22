@@ -7,6 +7,7 @@
 - First-run or incomplete LLM setup via [`RunInitialSetup`](../../internal/config/onboard_setup.go); re-run with `/onboard` ([`RunOnboardWizard`](../../internal/config/onboard.go))
 - **Working directory ↔ project**: stable id from cwd; chats and skills partitioned per tree ([`project.Resolve`](../../internal/project/project.go))
 - **Skills**: `solomon add` / `solomon remove`; `/skills`, `/add`, … in-session (authoritative list: `/help`)
+- **Project instructions**: `AGENTS.md` (and fallbacks) plus numbered custom rules injected into the system prompt — see [Project instructions](project-instructions.md)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools
 
 ## CLI usage modes
@@ -59,12 +60,19 @@ Highlights:
 | `/resume`, `/new`, `/temp` | Session switching (`/temp` = ephemeral, empty chat only) |
 | `/summarize`, `/compact` | Long-context hygiene |
 | `/connect` | Add provider and models |
+| `/add rule`, `/add projectrule` | Add a short custom rule (global or project scope) |
+| `/remove rule`, `/remove projectrule` | Remove a rule by number (remaining rules renumbered) |
+| `/rules` | List custom rules (global + project) |
+| `/instructions` | Show global `~/.solomon/AGENTS.md` loaded into the system prompt |
+
+Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Project instructions](project-instructions.md).
 
 Implementation: [Skills and slash](../architecture/skills-and-slash.md).
 
 ## See also
 
 - [Configuration](configuration.md)
+- [Project instructions](project-instructions.md)
 - [Terminal setup](terminal-setup.md)
 - [Data layout](data-layout.md)
 - [Runtime and REPL](../architecture/runtime-and-repl.md)

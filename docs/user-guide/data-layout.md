@@ -11,6 +11,8 @@ flowchart LR
   projectMap["projectsId.json<br/><small>canonical root -> 64-char id</small>"]
   logs["logs/<br/><small>file logs, 7-day retention</small>"]
   globalSkillsDir["skills/<br/><small>global skill files</small>"]
+  globalAgents["AGENTS.md<br/><small>global agent instructions</small>"]
+  globalRules["rules/<br/><small>rule_NN.txt custom rules</small>"]
   skillsRegistry["skills.json<br/><small>global + per-project registry</small>"]
 
   projects["projects/<br/><small>per-project partitions</small>"]
@@ -24,6 +26,10 @@ flowchart LR
   temp["temp/<br/><small>tool output spill (until last process exits)</small>"]
   tempQueue["temp.txt<br/><small>deferred temp cleanup queue</small>"]
   projectSkills["skills/"]
+  projectRules["rules/<br/><small>project rule_NN.txt</small>"]
+
+  repoAgents["&lt;workspace&gt;/AGENTS.md<br/><small>repo instructions (optional)</small>"]
+  repoSubAgents["&lt;workspace&gt;/.../AGENTS.md<br/><small>subdir instructions (on activation)</small>"]
 
   workspaceRoot["&lt;workspace&gt;/.solomon/"]
   workspaceSkills["skills/"]
@@ -36,6 +42,8 @@ flowchart LR
   home --> logs
   home --> tempQueue
   home --> globalSkillsDir
+  home --> globalAgents
+  home --> globalRules
   home --> skillsRegistry
   home --> projects
   projects --> projectNode
@@ -47,6 +55,7 @@ flowchart LR
   plans --> planFile
   projectNode --> temp
   projectNode --> projectSkills
+  projectNode --> projectRules
 
   workspaceRoot --> workspaceSkills
   workspaceSkills --> localMirror
@@ -54,13 +63,25 @@ flowchart LR
 
   classDef folder fill:#eef6ff,stroke:#5b8def,color:#102a43
   classDef file fill:#fff7e6,stroke:#d9822b,color:#3d2b1f
-  class home,logs,globalSkillsDir,projects,projectNode,chats,subchats,plans,temp,projectSkills,workspaceRoot,workspaceSkills folder
-  class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,planFile,localMirror,localFiles file
+  class home,logs,globalSkillsDir,globalRules,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
+  class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,planFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
 ```
 
 ## Session files
 
-Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds session id, title, timestamps, messages, tool calls, checkpoint fields, token usage, and image references. See [Sessions and storage](../architecture/sessions-and-storage.md).
+Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds session id, title, timestamps, messages, tool calls, checkpoint fields, token usage, image references, and `activated_instruction_dirs` (subdirectory instruction paths active for that chat). See [Sessions and storage](../architecture/sessions-and-storage.md).
+
+## Project instructions and custom rules
+
+| What | Where |
+|------|--------|
+| Global instructions | `~/.solomon/AGENTS.md` |
+| Global custom rules | `~/.solomon/rules/rule_NN.txt` |
+| Project custom rules | `~/.solomon/projects/<project-id>/rules/rule_NN.txt` |
+| Repository instructions | `<workspace>/AGENTS.md` (or `CLAUDE.md` / `GEMINI.md` fallback in the same directory) |
+| Subdirectory instructions | `<workspace>/<subdir>/AGENTS.md` (loaded into the prompt only after tool-driven activation in that session) |
+
+Rules vs architectural instruction files: [Project instructions](project-instructions.md).
 
 ## Plans
 
@@ -81,5 +102,6 @@ Registry and install paths: [Skills and slash](../architecture/skills-and-slash.
 ## See also
 
 - [Configuration](configuration.md)
+- [Project instructions](project-instructions.md)
 - [Sessions and storage](../architecture/sessions-and-storage.md)
 - [Checkpoints](../architecture/checkpoints.md)

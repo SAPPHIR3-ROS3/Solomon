@@ -45,4 +45,16 @@ Tools are separated by a line containing only three dashes (---).
 
 {{.Tools}}
 
-{{.ExtraRules}}
+{{if .CustomRules}}
+## Custom rules
+
+{{.CustomRules}}
+{{end}}{{if .GlobalInstructions}}
+## Global instructions
+
+{{.GlobalInstructions}}
+{{end}}{{if .RepoInstructions}}
+## Repository instructions
+
+{{.RepoInstructions}}
+{{end}}

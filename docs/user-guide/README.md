@@ -10,10 +10,11 @@ Practical guides for running Solomon, configuring providers, and understanding w
 | [usage-and-commands.md](usage-and-commands.md) | CLI modes, features, slash commands |
 | [terminal-setup.md](terminal-setup.md) | Monospace font, ligatures, colors, pipes |
 | [data-layout.md](data-layout.md) | `~/.solomon` and workspace `.solomon` trees |
+| [project-instructions.md](project-instructions.md) | `AGENTS.md`, custom rules, system prompt injection |
 
 ## Suggested order
 
-Read **configuration** first if you are setting up a provider or web search. Then **usage and commands** for REPL and CLI modes. Use **terminal setup** if output looks misaligned or you need plain/colorless logs. Finish with **data layout** when you need to find chats, plans, or skills on disk.
+Read **configuration** first if you are setting up a provider or web search. Then **usage and commands** for REPL and CLI modes. Use **project instructions** if you rely on `AGENTS.md` or custom rules. Use **terminal setup** if output looks misaligned or you need plain/colorless logs. Finish with **data layout** when you need to find chats, plans, skills, or rules on disk.
 
 ## See also
 

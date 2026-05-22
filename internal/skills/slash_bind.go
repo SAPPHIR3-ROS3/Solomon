@@ -26,6 +26,7 @@ func ReservedSlashCommandNames() map[string]struct{} {
 		"new": {}, "temp": {}, "resume": {}, "summarize": {}, "compact": {}, "cleansessioncache": {},
 		"exit": {}, "quit": {}, "language": {}, "legacytools": {}, "legacy": {},
 		"add": {}, "skills": {}, "remove": {}, "help": {}, "skill": {},
+		"rules": {}, "instructions": {},
 	}
 }
 

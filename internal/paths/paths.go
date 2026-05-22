@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const ImagesDirName = "images"
 
 func SolomonHome() (string, error) {
+	if p := strings.TrimSpace(os.Getenv("SOLOMON_HOME")); p != "" {
+		return p, nil
+	}
 	h, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -82,6 +86,30 @@ func GlobalSkillsDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(root, "skills"), nil
+}
+
+func GlobalAgentsPath() (string, error) {
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "AGENTS.md"), nil
+}
+
+func GlobalRulesDir() (string, error) {
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "rules"), nil
+}
+
+func ProjectRulesDir(projectHexID string) (string, error) {
+	proot, err := ProjectRoot(projectHexID)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(proot, "rules"), nil
 }
 
 func ProjectSkillsDir(projectHexID string) (string, error) {

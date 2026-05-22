@@ -40,7 +40,12 @@ MCP tools append to both modes when connected ([`toolParams`](../../internal/age
 - `Tools` — concatenated native + MCP tool documentation dump
 - `Syntax` — native invocation syntax; legacy append if `Session.LegacyTools`
 - `WorkspaceAbsolutePath` — canonical project root
-- `Language`, `UserName`, `DisableThinking`, `ExtraRules`
+- `Language`, `UserName`, `DisableThinking`
+- `CustomRules`, `GlobalInstructions`, `RepoInstructions` — optional sections from [`internal/instructions`](../../internal/instructions/) (empty sections omitted from the rendered prompt)
+
+Both plan and build templates include the same instruction sections when present. Subdirectory repo instructions appear only after session activation (build-mode tools: `readFile`, `editFile`, `shell`). Plan mode does not read arbitrary project files, so subdirectory activation typically happens after switching to `/build`.
+
+See [Project instructions](../user-guide/project-instructions.md).
 
 ## Flow
 

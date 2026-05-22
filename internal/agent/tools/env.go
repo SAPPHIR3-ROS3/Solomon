@@ -17,4 +17,7 @@ type Env struct {
 	SetMode                func(string)
 	CurrentMode            func() string
 	CheckpointStageProjAbs func(path string)
+	ActivateInstructionsFromAbsPath func(absPath string)
+	ActivateInstructionsFromShellCommand func(command string)
+	MergeInstructionBlock func(customSys string) (string, error)
 }

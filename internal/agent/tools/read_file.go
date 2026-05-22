@@ -51,6 +51,9 @@ func execReadFile(env *Env, raw json.RawMessage) (any, error) {
 		return nil, err
 	}
 	p := resolveProjectPath(env.ProjRoot, a.Path)
+	if env.ActivateInstructionsFromAbsPath != nil {
+		env.ActivateInstructionsFromAbsPath(p)
+	}
 	b, err := os.ReadFile(p)
 	if err != nil {
 		return nil, err

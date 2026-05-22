@@ -64,16 +64,18 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"name"}, "/name", "/name | /name <name> | /name clear — user name (saved; system prompt)", func(d Deps, parts []string) error { return Name(d, parts) }},
 		{[]string{"language"}, "/language", "/language | /language <language> | /language clear — reply language (default English; saved; system prompt)", func(d Deps, parts []string) error { return Language(d, parts) }},
 		{[]string{"legacytools", "legacy"}, "/legacytools", "/legacytools | /legacy | /legacytools on|off — parse Tool: lines from assistant text + inject syntax into system prompt", func(d Deps, parts []string) error { return LegacyTools(d, parts) }},
-		{[]string{"add"}, "/add", "/add npx skills add ... | https://skills.sh/... | skill <path/to/.md> [name] [global|project|local], default global", func(d Deps, parts []string) error {
+		{[]string{"add"}, "/add", "/add rule <phrase> | /add projectrule <phrase> | npx skills add ... | https://skills.sh/... | skill <path/to/.md> [name] [global|project|local]", func(d Deps, parts []string) error {
 			if len(parts) < 2 {
-				return fmt.Errorf(`usage: /add npx ... | skills.sh | skill <.md> [name] [scope]`)
+				return fmt.Errorf(`usage: /add rule <phrase> | /add projectrule <phrase> | npx ... | skills.sh | skill <.md> [name] [scope]`)
 			}
 			return Add(d, parts[1:])
 		}},
 		{[]string{"skills"}, "/skills", "/skills — list installed skills (Local → Project → Global; empty sections omitted)", func(d Deps, parts []string) error { return Skills(d) }},
-		{[]string{"remove"}, "/remove skill", "/remove skill <name>", func(d Deps, parts []string) error {
+		{[]string{"rules"}, "/rules", "/rules — list custom global and project rules", func(d Deps, parts []string) error { return Rules(d) }},
+		{[]string{"instructions"}, "/instructions", "/instructions — show global AGENTS.md loaded for the system prompt", func(d Deps, parts []string) error { return Instructions(d) }},
+		{[]string{"remove"}, "/remove", "/remove rule <N> | /remove projectrule <N> | /remove skill <name>", func(d Deps, parts []string) error {
 			if len(parts) < 2 {
-				return fmt.Errorf(`usage: /remove skill <name>`)
+				return fmt.Errorf(`usage: /remove rule <N> | /remove projectrule <N> | /remove skill <name>`)
 			}
 			return Remove(d, parts[1:])
 		}},
