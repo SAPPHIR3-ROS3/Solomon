@@ -25,12 +25,12 @@ func SlashGoto(d Deps, parts []string) error {
 func SlashCheckpointAck(d Deps) {
 	s := d.Session()
 	if s == nil {
-		fmt.Fprintln(d.Out, "(no session)")
+		PrintSystem(d.Out, "(no session)")
 		return
 	}
 	if s.CheckpointLast >= 0 {
-		fmt.Fprintf(d.Out, "checkpoint acknowledgment %s\n", checkpoint.FormatCheckpointTag(s.CheckpointLast, s.CheckpointBranchSuffix))
+		PrintSystemf(d.Out, "checkpoint acknowledgment %s", checkpoint.FormatCheckpointTag(s.CheckpointLast, s.CheckpointBranchSuffix))
 	} else {
-		fmt.Fprintln(d.Out, "checkpoint acknowledgment (none yet)")
+		PrintSystem(d.Out, "checkpoint acknowledgment (none yet)")
 	}
 }

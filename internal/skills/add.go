@@ -11,6 +11,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 type InstallOpts struct {
@@ -121,7 +122,7 @@ func RunInstall(opts InstallOpts) error {
 			p.DisplayName = meta.DisplayName
 		}
 		shCmd := EnsureSkillsAddGlobalYes(meta.InstallShellCommand())
-		fmt.Fprintf(opts.Out, "Command: %s\n", shCmd)
+		termcolor.WriteSystem(opts.Out, fmt.Sprintf("Command: %s", shCmd))
 		ok, err := ConfirmInstall(opts.In, opts.Out, meta)
 		if err != nil {
 			return err
@@ -214,7 +215,7 @@ func RunInstall(opts InstallOpts) error {
 	if err := WithRegistryLock(lockPath, regPath, func(r *Registry) error {
 		final := UniqueDisplayName(r, canonical, display, p.Scope, opts.ProjHex, skillKey)
 		if final != strings.TrimSpace(display) && opts.Out != nil {
-			fmt.Fprintf(opts.Out, "Display name %q already in use; using %q.\n", strings.TrimSpace(display), final)
+			termcolor.WriteSystem(opts.Out, fmt.Sprintf("Display name %q already in use; using %q.", strings.TrimSpace(display), final))
 		}
 		entry := SkillEntry{
 			Name:         final,
@@ -238,7 +239,7 @@ func RunInstall(opts InstallOpts) error {
 	}
 	logging.Log(logging.INFO_LOG_LEVEL, "skill install complete", logging.LogOptions{Params: map[string]any{"scope": p.Scope, "repo": canonical, "folder": picked}})
 	if opts.Out != nil {
-		fmt.Fprintf(opts.Out, "Skill copied from ~/.agents/skills/%s into Solomon registry.\n", picked)
+		termcolor.WriteSystem(opts.Out, fmt.Sprintf("Skill copied from ~/.agents/skills/%s into Solomon registry.", picked))
 	}
 	return nil
 }

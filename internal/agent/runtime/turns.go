@@ -30,7 +30,7 @@ func flushWriter(w io.Writer) {
 }
 
 func showGenerationStopped(out io.Writer) {
-	fmt.Fprintf(out, "%s\n", termcolor.WrapRed("["+cliMsgGenerationStopped+"]"))
+	termcolor.WriteSystem(out, "["+cliMsgGenerationStopped+"]")
 	flushWriter(out)
 }
 
@@ -260,7 +260,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 					body, err := commands.SummarizeBody(deps)
 					if err != nil {
 						logging.Log(logging.WARNING_LOG_LEVEL, "ephemeral auto-summarize failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-						fmt.Fprintf(r.Out, "auto-compact: %v\n", err)
+						commands.PrintSystemf(r.Out, "auto-compact: %v", err)
 						return nil
 					}
 					r.mutateSession(func(s *chatstore.Session) {
@@ -274,12 +274,12 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 						chatstore.RepairSessionMalformedImages(s)
 					})
 					_ = r.persistSession()
-					fmt.Fprintln(r.Out, "context summarized")
+					commands.PrintSystem(r.Out, "context summarized")
 					continue
 				}
 				if err := commands.Summarize(deps); err != nil {
 					logging.Log(logging.WARNING_LOG_LEVEL, "auto-compact failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-					fmt.Fprintf(r.Out, "auto-compact: %v\n", err)
+					commands.PrintSystemf(r.Out, "auto-compact: %v", err)
 				}
 			}
 			return nil

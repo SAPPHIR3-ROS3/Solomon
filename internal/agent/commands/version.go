@@ -1,9 +1,10 @@
 package commands
 
 import (
-	"fmt"
 	"io"
 	"runtime/debug"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 func VersionString() string {
@@ -19,7 +20,7 @@ func VersionString() string {
 }
 
 func WriteVersion(w io.Writer) {
-	fmt.Fprintln(w, VersionString())
+	termcolor.WriteSystem(w, VersionString())
 }
 
 func Version(d Deps) error {

@@ -17,7 +17,7 @@ import (
 
 func Threshold(d Deps, parts []string) error {
 	if len(parts) < 2 {
-		fmt.Fprintf(d.Out, "compaction_threshold_tokens=%d (auto /summarize when prompt_tokens >= this after an assistant reply; usage must be reported by the API)\n", d.CompactionThresholdTokens())
+		PrintSystemf(d.Out, "compaction_threshold_tokens=%d (auto /summarize when prompt_tokens >= this after an assistant reply; usage must be reported by the API)", d.CompactionThresholdTokens())
 		return nil
 	}
 	n, err := strconv.ParseInt(parts[1], 10, 64)
@@ -28,7 +28,7 @@ func Threshold(d Deps, parts []string) error {
 		return fmt.Errorf("threshold must be >= %d", config.MinCompactionThresholdTokens)
 	}
 	d.SetCompactionThresholdTokens(n)
-	fmt.Fprintf(d.Out, "compaction_threshold_tokens=%d\n", n)
+	PrintSystemf(d.Out, "compaction_threshold_tokens=%d", n)
 	return nil
 }
 
@@ -279,6 +279,6 @@ func Summarize(d Deps) error {
 	}
 	fmt.Fprint(d.Out, "\033[2J\033[H")
 	fmt.Fprintln(d.Out, RenderCompactSummaryBody(body))
-	fmt.Fprintln(d.Out, "History compacted: summary saved; previous messages have been replaced.")
+	PrintSystem(d.Out, "History compacted: summary saved; previous messages have been replaced.")
 	return nil
 }

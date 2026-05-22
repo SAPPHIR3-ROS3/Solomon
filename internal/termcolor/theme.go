@@ -11,6 +11,7 @@ const (
 	colorThinking  = "#808080"
 	colorWhite     = "#FFFFFF"
 	colorContext   = "#5555FF"
+	colorSystem    = "#AA55FF"
 	colorRed       = "#FF5555"
 	colorGold      = "#FFD700"
 	colorImgBG     = "#00D1F0"
@@ -24,6 +25,7 @@ var dark struct {
 	thinking  lipgloss.Style
 	white     lipgloss.Style
 	context   lipgloss.Style
+	system    lipgloss.Style
 	red       lipgloss.Style
 	boldGold  lipgloss.Style
 	imgTag    lipgloss.Style
@@ -37,6 +39,7 @@ func rebuildTheme() {
 	dark.thinking = lipgloss.NewStyle().Foreground(lipgloss.Color(colorThinking))
 	dark.white = lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite))
 	dark.context = lipgloss.NewStyle().Foreground(lipgloss.Color(colorContext))
+	dark.system = lipgloss.NewStyle().Foreground(lipgloss.Color(colorSystem))
 	dark.red = lipgloss.NewStyle().Foreground(lipgloss.Color(colorRed))
 	dark.boldGold = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGold)).Bold(true)
 	dark.imgTag = lipgloss.NewStyle().

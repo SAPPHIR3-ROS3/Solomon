@@ -17,6 +17,6 @@ func SlashLog(d Deps, parts []string) error {
 	if err := logging.SetGlobalLevel(lvl); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "Log level: %s\n", logging.LevelLabel(lvl))
+	PrintSystemf(d.Out, "Log level: %s", logging.LevelLabel(lvl))
 	return nil
 }

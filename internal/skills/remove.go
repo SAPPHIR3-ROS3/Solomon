@@ -9,6 +9,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 type RemoveOpts struct {
@@ -96,7 +97,7 @@ func RunRemove(opts RemoveOpts) error {
 		}
 	}
 	if opts.Out != nil {
-		fmt.Fprintf(opts.Out, "Removed skill %q (%d clone dir(s)).\n", name, len(toDelete))
+		termcolor.WriteSystem(opts.Out, fmt.Sprintf("Removed skill %q (%d clone dir(s)).", name, len(toDelete)))
 	}
 	return nil
 }

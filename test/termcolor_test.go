@@ -82,6 +82,25 @@ func TestTermcolorColorizeImgTagsPlainWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestFormatSystemBlockPlain(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
+	got := termcolor.FormatSystemBlock("loaded chat abc")
+	want := "===SYSTEM===\nloaded chat abc\n===SYSTEM===\n"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestSystemMessageTextFromJSON(t *testing.T) {
+	got := termcolor.SystemMessageText(`{"error":"timeout","code":42}`)
+	if strings.Contains(got, "{") || strings.Contains(got, "}") {
+		t.Fatalf("expected plain text, got %q", got)
+	}
+	if !strings.Contains(got, "error: timeout") || !strings.Contains(got, "code: 42") {
+		t.Fatalf("unexpected plain text: %q", got)
+	}
+}
+
 func TestWrapUserReadlinePlainWhenDisabled(t *testing.T) {
 	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
 	if got := termcolor.WrapUserReadline("You: "); got != "You: " {

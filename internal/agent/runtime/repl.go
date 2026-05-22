@@ -188,13 +188,13 @@ func (r *Runtime) Run(ctx context.Context) error {
 					return nil
 				}
 				logging.Log(logging.WARNING_LOG_LEVEL, "slash command failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-				fmt.Fprintf(r.Out, "%v\n", err)
+				commands.PrintSystemValue(r.Out, err)
 			}
 			continue
 		}
 		if err := r.onUserMessage(ctx, line, true); err != nil {
 			logging.Log(logging.ERROR_LOG_LEVEL, "onUserMessage failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			fmt.Fprintf(r.Out, "error: %v\n", err)
+			commands.PrintSystemf(r.Out, "error: %v", err)
 		}
 	}
 }

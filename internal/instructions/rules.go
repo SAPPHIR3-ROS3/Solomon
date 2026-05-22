@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 const (
@@ -216,21 +218,23 @@ func WriteRulesList(w io.Writer, projHex string) error {
 		return err
 	}
 	if len(global) == 0 && len(project) == 0 {
-		fmt.Fprintln(w, "No custom rules.")
+		termcolor.WriteSystem(w, "No custom rules.")
 		return nil
 	}
+	var buf bytes.Buffer
 	if len(global) > 0 {
-		fmt.Fprintln(w, "Global rules:")
+		fmt.Fprintln(&buf, "Global rules:")
 		for _, r := range global {
-			fmt.Fprintf(w, "  %d. %s\n", r.Number, previewRule(r.Text))
+			fmt.Fprintf(&buf, "  %d. %s\n", r.Number, previewRule(r.Text))
 		}
 	}
 	if len(project) > 0 {
-		fmt.Fprintln(w, "Project rules:")
+		fmt.Fprintln(&buf, "Project rules:")
 		for _, r := range project {
-			fmt.Fprintf(w, "  %d. %s\n", r.Number, previewRule(r.Text))
+			fmt.Fprintf(&buf, "  %d. %s\n", r.Number, previewRule(r.Text))
 		}
 	}
+	termcolor.WriteSystem(w, buf.String())
 	return nil
 }
 

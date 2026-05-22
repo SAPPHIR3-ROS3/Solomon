@@ -41,6 +41,9 @@ func WriteLabeledTranscript(out io.Writer, msgs []chatstore.Message, model strin
 			} else {
 				fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapThinking("[tool]"), truncateRunes(m.Content, 240))
 			}
+		case "system":
+			fmt.Fprint(out, prefix)
+			termcolor.WriteSystem(out, m.Content)
 		default:
 		}
 	}

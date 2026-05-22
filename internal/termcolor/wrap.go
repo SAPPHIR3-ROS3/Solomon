@@ -1,12 +1,18 @@
 package termcolor
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"regexp"
 	"runtime"
+	"sort"
+	"strings"
 )
 
 const resetANSI = "\x1b[0m"
+
+const SystemBorder = "===SYSTEM==="
 
 var imgTagRe = regexp.MustCompile(`\[img-\d+\]`)
 
@@ -86,6 +92,92 @@ func WrapBoldGold(s string) string {
 
 func WrapContext(s string) string {
 	return renderStyle(dark.context, s)
+}
+
+func WrapSystem(s string) string {
+	return renderStyle(dark.system, s)
+}
+
+func FormatSystemBlock(message string) string {
+	message = strings.TrimRight(message, "\n")
+	if strings.TrimSpace(message) == "" {
+		return ""
+	}
+	body := SystemBorder + "\n" + message + "\n" + SystemBorder + "\n"
+	return WrapSystem(body)
+}
+
+func WriteSystem(w io.Writer, message string) {
+	if s := FormatSystemBlock(message); s != "" {
+		_, _ = io.WriteString(w, s)
+	}
+}
+
+func SystemMessageText(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return formatSystemString(x)
+	case error:
+		return x.Error()
+	case fmt.Stringer:
+		return x.String()
+	default:
+		return formatSystemValue(x)
+	}
+}
+
+func formatSystemString(s string) string {
+	trim := strings.TrimSpace(s)
+	if trim == "" {
+		return s
+	}
+	if trim[0] == '{' || trim[0] == '[' {
+		var parsed any
+		if json.Unmarshal([]byte(trim), &parsed) == nil {
+			return formatSystemValue(parsed)
+		}
+	}
+	return s
+}
+
+func formatSystemValue(v any) string {
+	switch x := v.(type) {
+	case map[string]any:
+		if len(x) == 0 {
+			return ""
+		}
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		var b strings.Builder
+		for i, k := range keys {
+			if i > 0 {
+				b.WriteByte('\n')
+			}
+			b.WriteString(k)
+			b.WriteString(": ")
+			b.WriteString(formatSystemValue(x[k]))
+		}
+		return b.String()
+	case []any:
+		if len(x) == 0 {
+			return ""
+		}
+		var b strings.Builder
+		for i, item := range x {
+			if i > 0 {
+				b.WriteByte('\n')
+			}
+			b.WriteString(formatSystemValue(item))
+		}
+		return b.String()
+	default:
+		return fmt.Sprint(v)
+	}
 }
 
 func ForegroundRGB(r, g, b uint8) string {

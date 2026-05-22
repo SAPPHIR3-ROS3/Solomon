@@ -22,6 +22,6 @@ func Timeout(d Deps, parts []string) error {
 	if err := d.SaveCfg(); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "subagent_timeout_minutes=%d\n", n)
+	PrintSystemf(d.Out, "subagent_timeout_minutes=%d", n)
 	return nil
 }

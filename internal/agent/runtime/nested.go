@@ -57,7 +57,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 				return transcript.String(), cievents.TimeoutError(err)
 			}
 			sum, _ := r.summarizeNested(ctx, msgs)
-			fmt.Fprintf(r.Out, "\n%s\nSubagent paused (timeout).\n", sum)
+			termcolor.WriteSystem(r.Out, sum+"\nSubagent paused (timeout).")
 			line, _ := config.ReadPromptLine(r.promptIO(), "Continue? [y/N]: ")
 			if strings.TrimSpace(strings.ToLower(line)) != "y" {
 				return transcript.String(), nil

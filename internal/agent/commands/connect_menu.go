@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
@@ -14,11 +15,13 @@ func connectReadLine(d Deps, prompt string) (string, error) {
 }
 
 func connectChooseKind(d Deps) (int, error) {
-	fmt.Fprintln(d.Out, "Connect provider type:")
-	fmt.Fprintln(d.Out, "  1) ChatGPT Sub (browser sign-in)")
-	fmt.Fprintln(d.Out, "  2) OpenAI Compatible API (base URL + API key)")
-	fmt.Fprintln(d.Out, "  3) Anthropic Compatible API (base URL + API key)")
-	fmt.Fprintln(d.Out, "  4) Claude Sub (OAuth, coming soon)")
+	PrintSystem(d.Out, strings.Join([]string{
+		"Connect provider type:",
+		"  1) ChatGPT Sub (browser sign-in)",
+		"  2) OpenAI Compatible API (base URL + API key)",
+		"  3) Anthropic Compatible API (base URL + API key)",
+		"  4) Claude Sub (OAuth, coming soon)",
+	}, "\n"))
 	line, err := connectReadLine(d, "Select [1-4]: ")
 	if err != nil {
 		return 0, err
@@ -64,9 +67,11 @@ func connectChatGPTSub(d Deps) error {
 }
 
 func connectClaudeSubComingSoon(d Deps) error {
-	fmt.Fprintf(d.Out, "Claude Sub (OAuth via Agent SDK) is not available yet.\n")
-	fmt.Fprintf(d.Out, "Expected after %s when Anthropic enables subscription auth for third-party apps.\n", config.ClaudeSubExpectedDate)
-	fmt.Fprintln(d.Out, "Use option 3 (Anthropic API key) until then.")
+	PrintSystem(d.Out, strings.Join([]string{
+		"Claude Sub (OAuth via Agent SDK) is not available yet.",
+		fmt.Sprintf("Expected after %s when Anthropic enables subscription auth for third-party apps.", config.ClaudeSubExpectedDate),
+		"Use option 3 (Anthropic API key) until then.",
+	}, "\n"))
 	return nil
 }
 

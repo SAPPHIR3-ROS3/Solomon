@@ -26,10 +26,12 @@ func Resume(d Deps, args []string) error {
 		if err != nil {
 			return err
 		}
+		var buf bytes.Buffer
 		for i, s := range list {
-			fmt.Fprintf(d.Out, "%d\t%s\t%s\n", i, s.ID, s.Title)
+			fmt.Fprintf(&buf, "%d\t%s\t%s\n", i, s.ID, s.Title)
 		}
-		fmt.Fprint(d.Out, "pick number or /resume <id|title> or /resume last\n")
+		buf.WriteString("pick number or /resume <id|title> or /resume last")
+		PrintSystem(d.Out, buf.String())
 		return nil
 	}
 	arg := strings.TrimSpace(args[0])
@@ -42,7 +44,7 @@ func Resume(d Deps, args []string) error {
 			return err
 		}
 		d.SetSession(sess)
-		fmt.Fprintf(d.Out, "loaded chat %s (latest user message)\n", sess.ID)
+		PrintSystemf(d.Out, "loaded chat %s (latest user message)", sess.ID)
 		afterResumeLoaded(d, sess)
 		return nil
 	}
@@ -54,7 +56,7 @@ func Resume(d Deps, args []string) error {
 		return err
 	}
 	d.SetSession(sess)
-	fmt.Fprintf(d.Out, "loaded chat %s\n", sess.ID)
+	PrintSystemf(d.Out, "loaded chat %s", sess.ID)
 	afterResumeLoaded(d, sess)
 	return nil
 }
@@ -178,7 +180,7 @@ func TempChat(d Deps) error {
 		d.ResetReadlineHistory()
 	}
 	fmt.Fprint(d.Out, "\033[2J\033[H")
-	fmt.Fprintln(d.Out, "temp session (in memory only; not saved to disk)")
+	PrintSystem(d.Out, "temp session (in memory only; not saved to disk)")
 	if d.PrintWelcomeBanner != nil {
 		d.PrintWelcomeBanner()
 	}

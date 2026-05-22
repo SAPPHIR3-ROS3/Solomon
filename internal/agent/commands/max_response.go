@@ -8,9 +8,9 @@ import (
 func MaxResponse(d Deps, parts []string) error {
 	if len(parts) < 2 {
 		if d.Cfg.MaxResponseTokens > 0 {
-			fmt.Fprintf(d.Out, "max_response_tokens=%d (max_completion_tokens)\n", d.Cfg.MaxResponseTokens)
+			PrintSystemf(d.Out, "max_response_tokens=%d (max_completion_tokens)", d.Cfg.MaxResponseTokens)
 		} else {
-			fmt.Fprintln(d.Out, "max_response_tokens unset (provider/model default)")
+			PrintSystem(d.Out, "max_response_tokens unset (provider/model default)")
 		}
 		return nil
 	}
@@ -25,6 +25,6 @@ func MaxResponse(d Deps, parts []string) error {
 	if err := d.SaveCfg(); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "max_response_tokens=%d\n", n)
+	PrintSystemf(d.Out, "max_response_tokens=%d", n)
 	return nil
 }
