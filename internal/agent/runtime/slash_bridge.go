@@ -68,17 +68,17 @@ func (r *Runtime) handleSlash(ctx context.Context, line string) error {
 func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 	pio := r.promptIO()
 	return commands.Deps{
-		Ctx:   ctx,
-		Out:   pio.Out,
-		Stdin: pio.Stdin,
+		Ctx:      ctx,
+		Out:      pio.Out,
+		Stdin:    pio.Stdin,
 		ReadLine: pio.ReadLine,
-		Cfg: r.Cfg,
-		SaveCfg: func() error { return config.Save(r.Cfg) },
+		Cfg:      r.Cfg,
+		SaveCfg:  func() error { return config.Save(r.Cfg) },
 
 		ProjHex:  r.ProjHex,
 		ProjRoot: r.ProjRoot,
 
-		Session:    func() *chatstore.Session { return r.Session },
+		Session: func() *chatstore.Session { return r.Session },
 		SetSession: func(s *chatstore.Session) {
 			r.chatPersistMu.Lock()
 			r.Session = s
@@ -122,7 +122,8 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 				r.RL.Operation.SetBuffer(s)
 			}
 		},
-		SubmitUserMessage: func(s string) error { return r.onUserMessage(ctx, s, false) },
+		SubmitUserMessage:        func(s string) error { return r.onUserMessage(ctx, s, false) },
+		SubmitVisibleUserMessage: func(visible, api string) error { return r.onUserMessageWithAPIContent(ctx, visible, api, false) },
 
 		PrintWelcomeBanner: func() {
 			printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)

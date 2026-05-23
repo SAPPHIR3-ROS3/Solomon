@@ -6,7 +6,7 @@
 - Configuration and state under `~/.solomon`: [`config.toml`](../../internal/paths/paths.go), `mcp.json`, `projects/`, `logs/`, `skills.json`, project-scoped dirs
 - First-run or incomplete LLM setup via [`RunInitialSetup`](../../internal/config/onboard_setup.go); re-run with `/onboard` ([`RunOnboardWizard`](../../internal/config/onboard.go))
 - **Working directory ↔ project**: stable id from cwd; chats and skills partitioned per tree ([`project.Resolve`](../../internal/project/project.go))
-- **Skills**: `solomon add` / `solomon remove`; `/skills`, `/add`, … in-session (authoritative list: `/help`)
+- **Skills**: `solomon add` / `solomon remove`; `/skills`, `/add`, dynamic skill slashes, and forced `/skill:<name> [request]` in-session (authoritative list: `/help`)
 - **Project instructions**: `AGENTS.md` (and fallbacks) plus numbered custom rules injected into the system prompt — see [Project instructions](project-instructions.md)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools
 
@@ -24,6 +24,8 @@
 | Skill remove | `solomon remove skill <name>` |
 
 Exact usage strings: [`cmd/solomon/main.go`](../../cmd/solomon/main.go).
+
+Skill installation commands are intentionally restricted: Solomon accepts only install commands that resolve to the `skills` package and its `add` subcommand (`npx ... skills add ...` or `npm exec ... skills add ...`). Shell chaining, redirects, unrelated packages, and unsupported flags are rejected.
 
 `exec` and `temp exec` use **shell tokenization**: quotes group words for the shell; they are not smart quotes passed into Solomon.
 
@@ -62,11 +64,46 @@ Highlights:
 | `/connect` | Add provider and models |
 | `/legacytools` | Legacy XML tool calling — see below |
 | `/add rule`, `/add projectrule` | Add a short custom rule (global or project scope) |
+| `/skill:<name> [request]` | Force one installed skill into the next LLM turn while keeping `/skill:...` visible in the chat transcript |
 | `/remove rule`, `/remove projectrule` | Remove a rule by number (remaining rules renumbered) |
 | `/rules` | List custom rules (global + project) |
 | `/instructions` | Show global `~/.solomon/AGENTS.md` loaded into the system prompt |
 
 Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Project instructions](project-instructions.md).
+
+### Skill install safety checks
+
+For `/add npx ...` (and the equivalent `npm exec ...`) Solomon validates the resulting install command before execution.
+
+Allowed shape:
+
+- `npx ... skills add <owner/repo|https://github.com/...> [--skill <pkg>] [--global|-g] [--yes|-y]`
+- `npm exec ... skills add <owner/repo|https://github.com/...> [--skill <pkg>] [--global|-g] [--yes|-y]`
+
+Rejected examples include:
+
+- other packages instead of `skills`
+- subcommands other than `add`
+- extra unsupported flags
+- shell metacharacters such as `&&`, `;`, pipes, redirects, backticks, or `$()`
+
+If validation fails, `/add` returns the original error plus a hint telling you to use only `npx ... skills add ...` or `npm exec ... skills add ...`.
+
+### Forced skill syntax: `/skill:<name> [request]`
+
+Use `/skill:<name>` to force one installed skill into the next model turn without relying on the model to call `loadSkill` itself.
+
+| Example | Effect |
+| ------- | ------ |
+| `/skill:PRD Review` | Sends a structured prompt that embeds the resolved `PRD Review` skill body and asks the model to apply it now |
+| `/skill:PRD Review analyze this diff` | Embeds the resolved skill body and appends `analyze this diff` as the user request for the same turn |
+
+Notes:
+
+- Skill names may contain spaces and do **not** require quotes.
+- If multiple installed skills share a prefix, Solomon picks the longest matching name.
+- The chat transcript keeps the visible user message as `/skill:<name> ...`, while the API request uses the expanded skill body internally.
+- If no installed skill matches, Solomon returns `skill not found: "..." (try /skills)`.
 
 ### `/legacytools`
 

@@ -209,22 +209,151 @@ func pickImportedSkillDir(before, after map[string]int64, preferred string) (str
 	}
 }
 
+type validatedSkillsInstall struct {
+	Display string
+	Argv    []string
+	Target  string
+}
+
+func rejectShellMeta(cmdLine string) error {
+	for _, bad := range []string{"&&", "||", "|", ";", "`", "$(", ")", ">", "<"} {
+		if strings.Contains(cmdLine, bad) {
+			return fmt.Errorf("install command contains unsupported shell syntax: %q", bad)
+		}
+	}
+	return nil
+}
+
+func parseSkillsInstallCommand(cmdLine string) (*validatedSkillsInstall, error) {
+	cmdLine = strings.TrimSpace(cmdLine)
+	if cmdLine == "" {
+		return nil, fmt.Errorf("empty install command")
+	}
+	if err := rejectShellMeta(cmdLine); err != nil {
+		return nil, err
+	}
+	fields := strings.Fields(cmdLine)
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("empty install command")
+	}
+	var argv []string
+	var i int
+	switch strings.ToLower(fields[0]) {
+	case "npx":
+		argv = append(argv, "npx")
+		i = 1
+		for i < len(fields) && isYesFlag(fields[i]) {
+			argv = append(argv, fields[i])
+			i++
+		}
+	case "npm":
+		argv = append(argv, "npm")
+		i = 1
+		if i >= len(fields) || !strings.EqualFold(fields[i], "exec") {
+			return nil, fmt.Errorf("only npm exec skills add ... is allowed")
+		}
+		argv = append(argv, fields[i])
+		i++
+		for i < len(fields) && isYesFlag(fields[i]) {
+			argv = append(argv, fields[i])
+			i++
+		}
+	default:
+		return nil, fmt.Errorf("install command must start with npx or npm exec")
+	}
+	if i >= len(fields) || !strings.EqualFold(fields[i], "skills") {
+		return nil, fmt.Errorf("install command must invoke the skills package")
+	}
+	argv = append(argv, "skills")
+	i++
+	if i >= len(fields) || !strings.EqualFold(fields[i], "add") {
+		return nil, fmt.Errorf("install command must use skills add")
+	}
+	argv = append(argv, "add")
+	i++
+	if i >= len(fields) {
+		return nil, fmt.Errorf("install command missing repository target")
+	}
+	target := strings.TrimSpace(fields[i])
+	if target == "" {
+		return nil, fmt.Errorf("install command missing repository target")
+	}
+	if _, err := NormalizeRepoURL(target); err != nil {
+		return nil, fmt.Errorf("invalid skills install target %q: %w", target, err)
+	}
+	argv = append(argv, target)
+	i++
+	seenSkill := false
+	seenGlobal := false
+	seenYes := false
+	for _, a := range argv {
+		if isYesFlag(a) {
+			seenYes = true
+		}
+	}
+	for i < len(fields) {
+		tok := fields[i]
+		switch {
+		case isGlobalFlag(tok):
+			if seenGlobal {
+				return nil, fmt.Errorf("duplicate global flag in install command")
+			}
+			seenGlobal = true
+			argv = append(argv, tok)
+			i++
+		case isYesFlag(tok):
+			if seenYes {
+				return nil, fmt.Errorf("duplicate yes flag in install command")
+			}
+			seenYes = true
+			argv = append(argv, tok)
+			i++
+		case tok == "--skill":
+			if seenSkill {
+				return nil, fmt.Errorf("duplicate --skill in install command")
+			}
+			if i+1 >= len(fields) {
+				return nil, fmt.Errorf("--skill requires a value")
+			}
+			name := strings.TrimSpace(fields[i+1])
+			if name == "" || strings.HasPrefix(name, "-") {
+				return nil, fmt.Errorf("invalid --skill value")
+			}
+			seenSkill = true
+			argv = append(argv, "--skill", name)
+			i += 2
+		default:
+			return nil, fmt.Errorf("unsupported install command token: %q", tok)
+		}
+	}
+	if !seenGlobal {
+		argv = append(argv, "-g")
+	}
+	if !seenYes {
+		argv = append(argv, "-y")
+	}
+	return &validatedSkillsInstall{Display: strings.Join(argv, " "), Argv: argv, Target: target}, nil
+}
+
+func isYesFlag(s string) bool {
+	return s == "-y" || s == "--yes"
+}
+
+func isGlobalFlag(s string) bool {
+	return s == "-g" || s == "--global"
+}
+
 func runInstallShellCommand(ctx context.Context, cmd string, stdout, stderr io.Writer) (err error) {
 	defer func() {
 		if err != nil {
 			logging.Log(logging.ERROR_LOG_LEVEL, "skill install shell command failed", logging.LogOptions{Params: map[string]any{"command": cmd, "err": err.Error()}})
 		}
 	}()
-	cmd = strings.TrimSpace(cmd)
-	if cmd == "" {
-		return fmt.Errorf("empty install command")
+	validated, err := parseSkillsInstallCommand(cmd)
+	if err != nil {
+		return err
 	}
-	var c *exec.Cmd
-	if runtime.GOOS == "windows" {
-		c = exec.CommandContext(ctx, "cmd", "/c", cmd)
-	} else {
-		c = exec.CommandContext(ctx, "sh", "-c", cmd)
-	}
+	c := exec.CommandContext(ctx, validated.Argv[0], validated.Argv[1:]...)
 	c.Stdout = stdout
 	c.Stderr = stderr
 	c.Stdin = nil
@@ -297,29 +426,11 @@ var reSkillsSuffixGlobal = regexp.MustCompile(`(^|\s)(-g|--global)(\s|$)`)
 var reSkillsSuffixYes = regexp.MustCompile(`(^|\s)(-y|--yes)(\s|$)`)
 
 func EnsureSkillsAddGlobalYes(cmdLine string) string {
-	s := strings.TrimSpace(cmdLine)
-	if s == "" || !reSkillsAddSplit.MatchString(s) {
-		return s
+	validated, err := parseSkillsInstallCommand(cmdLine)
+	if err != nil {
+		return strings.TrimSpace(cmdLine)
 	}
-	parts := reSkillsAddSplit.Split(s, 2)
-	if len(parts) < 2 {
-		return s
-	}
-	suffix := parts[1]
-	needG := !reSkillsSuffixGlobal.MatchString(suffix)
-	needY := !reSkillsSuffixYes.MatchString(suffix)
-	if !needG && !needY {
-		return s
-	}
-	var b strings.Builder
-	b.WriteString(s)
-	if needG {
-		b.WriteString(" -g")
-	}
-	if needY {
-		b.WriteString(" -y")
-	}
-	return b.String()
+	return validated.Display
 }
 
 var reHTTPSGitHubCmd = regexp.MustCompile(`https://github\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+`)

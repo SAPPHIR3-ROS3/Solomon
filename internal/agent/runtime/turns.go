@@ -35,8 +35,13 @@ func showGenerationStopped(out io.Writer) {
 }
 
 func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline bool) error {
+	return r.onUserMessageWithAPIContent(ctx, line, "", fromReadline)
+}
+
+func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, apiContent string, fromReadline bool) error {
 	clean, _ := parseMultilineControlRunes(line)
 	line = trimMessageEdges(clean)
+	apiContent = trimMessageEdges(apiContent)
 	if config.NeedsOnboard(r.Cfg) || r.Prov == nil {
 		return fmt.Errorf("config not set up; use /onboard")
 	}
@@ -75,7 +80,7 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 			firstUserLine = strings.TrimSpace(line)
 		}
 		seq := checkpoint.Bump(s)
-		um = chatstore.Message{Role: "user", Content: line}
+		um = chatstore.Message{Role: "user", Content: line, APIContent: apiContent}
 		checkpoint.StampMsg(&um, s, seq)
 		s.Messages = append(s.Messages, um)
 		chatstore.RepairSessionMalformedImages(s)

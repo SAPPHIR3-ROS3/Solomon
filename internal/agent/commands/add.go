@@ -31,6 +31,9 @@ func Add(d Deps, parts []string) error {
 		Args:     parts,
 	}
 	if err := skills.RunInstall(opts); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "install command") || strings.Contains(strings.ToLower(err.Error()), "skills add") || strings.Contains(strings.ToLower(err.Error()), "skills package") || strings.Contains(strings.ToLower(err.Error()), "unsupported shell syntax") {
+			return fmt.Errorf("%w\n\nhint: use only 'npx ... skills add ...' or 'npm exec ... skills add ...' with the skills package", err)
+		}
 		return err
 	}
 	PrintSystem(d.Out, "Skill installed and registry updated.")

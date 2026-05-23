@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
@@ -237,17 +238,28 @@ func ResolveSkillForLoad(raw string, projHex, projRoot string) (*SkillEntry, str
 	if raw == "" {
 		return nil, "", fmt.Errorf("empty skill name")
 	}
-	regPath, err := paths.SkillsRegistryPath()
+	binds, err := loadSkillBindings(projHex, projRoot)
 	if err != nil {
 		return nil, "", err
+	}
+	return resolveSkillFromBindings(binds, raw)
+}
+
+func loadSkillBindings(projHex, projRoot string) ([]SkillSlashBinding, error) {
+	regPath, err := paths.SkillsRegistryPath()
+	if err != nil {
+		return nil, err
 	}
 	reg, err := LoadRegistry(regPath)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	refs := OrderedSkillRefs(reg, projHex, projRoot)
-	binds := AssignSkillSlashCommands(refs)
-	slashKey := strings.ToLower(strings.TrimPrefix(raw, "/"))
+	return AssignSkillSlashCommands(refs), nil
+}
+
+func resolveSkillFromBindings(binds []SkillSlashBinding, raw string) (*SkillEntry, string, error) {
+	slashKey := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(raw), "/"))
 	for i := range binds {
 		if binds[i].Slash == slashKey {
 			e := binds[i].Entry
@@ -261,4 +273,53 @@ func ResolveSkillForLoad(raw string, projHex, projRoot string) (*SkillEntry, str
 		}
 	}
 	return nil, "", fmt.Errorf("skill not found: %q", raw)
+}
+
+func ResolveForcedSkillCommand(raw, projHex, projRoot string) (*SkillEntry, string, string, error) {
+	raw = strings.TrimSpace(raw)
+	if !strings.HasPrefix(strings.ToLower(raw), "/skill:") {
+		return nil, "", "", fmt.Errorf("invalid forced skill command")
+	}
+	rest := strings.TrimSpace(raw[len("/skill:"):])
+	if rest == "" {
+		return nil, "", "", fmt.Errorf("empty skill name")
+	}
+	binds, err := loadSkillBindings(projHex, projRoot)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if e, slash, err := resolveSkillFromBindings(binds, rest); err == nil {
+		return e, slash, "", nil
+	}
+	bestIdx := -1
+	bestLen := -1
+	bestRemainder := ""
+	restLower := strings.ToLower(rest)
+	for i := range binds {
+		name := strings.TrimSpace(binds[i].Entry.Name)
+		if name == "" {
+			continue
+		}
+		nameLower := strings.ToLower(name)
+		if !strings.HasPrefix(restLower, nameLower) {
+			continue
+		}
+		if len(restLower) > len(nameLower) {
+			r, _ := utf8.DecodeRuneInString(rest[len(name):])
+			if !unicode.IsSpace(r) {
+				continue
+			}
+		}
+		remainder := strings.TrimSpace(rest[len(name):])
+		if len(name) > bestLen {
+			bestIdx = i
+			bestLen = len(name)
+			bestRemainder = remainder
+		}
+	}
+	if bestIdx >= 0 {
+		e := binds[bestIdx].Entry
+		return &e, binds[bestIdx].Slash, bestRemainder, nil
+	}
+	return nil, "", "", fmt.Errorf("skill not found: %q (try /skills)", rest)
 }

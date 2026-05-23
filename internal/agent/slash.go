@@ -67,6 +67,13 @@ func SlashDispatch(d commands.Deps, line string) error {
 	if name != "" {
 		logging.Log(logging.INFO_LOG_LEVEL, "slash dispatch", logging.LogOptions{Params: map[string]any{"command": name}})
 	}
+	if strings.HasPrefix(name, "skill:") {
+		if err := commands.RunForcedSkillSlash(d, strings.TrimSpace(line)); err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "forced skill command failed", logging.LogOptions{Params: map[string]any{"command": name, "err": err.Error()}})
+			return err
+		}
+		return nil
+	}
 	ok, err := commands.DispatchBuiltinSlash(d, parts, name)
 	if ok {
 		if errors.Is(err, commands.ErrBuiltinExitChat) {

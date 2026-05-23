@@ -256,7 +256,7 @@ func TestSlashDispatch_help(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "/goto") || !strings.Contains(out, "/checkpoint") || !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/temp") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/remove skill") || !strings.Contains(out, "/mcp") || !strings.Contains(out, "/cleansessioncache") {
+	if !strings.Contains(out, "/goto") || !strings.Contains(out, "/checkpoint") || !strings.Contains(out, "/plan") || !strings.Contains(out, "/resume") || !strings.Contains(out, "/name") || !strings.Contains(out, "/new") || !strings.Contains(out, "/temp") || !strings.Contains(out, "/exec") || !strings.Contains(out, "/legacytools") || !strings.Contains(out, "/add") || !strings.Contains(out, "/skills") || !strings.Contains(out, "/skill:<name>") || !strings.Contains(out, "/remove skill") || !strings.Contains(out, "/mcp") || !strings.Contains(out, "/cleansessioncache") {
 		t.Fatalf("/help unexpected: %.200s", out)
 	}
 }
@@ -369,6 +369,45 @@ func TestSlashDispatch_exec_escapeQuote(t *testing.T) {
 func TestSlashDispatch_exec_noDeps(t *testing.T) {
 	err := agent.SlashDispatch(testDeps(nil), `/exec "x"`)
 	if err == nil || err.Error() != "/exec unavailable" {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestSlashDispatch_forcedSkillVisibleAndAPIContent(t *testing.T) {
+	home := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", home)
+	}
+	t.Setenv("HOME", home)
+	regPath := filepath.Join(home, ".solomon", "skills.json")
+	if err := os.MkdirAll(filepath.Dir(regPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(home, "skill.md")
+	if err := os.WriteFile(p, []byte("---\nname: PRD Review\ndescription: d\n---\n\nchecklist body"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(regPath, []byte(`{"global":{"k":{"name":"PRD Review","skill_md_path":"`+p+`"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var visible, api string
+	d := testDeps(nil)
+	d.SubmitVisibleUserMessage = func(v, a string) error { visible, api = v, a; return nil }
+	if err := agent.SlashDispatch(d, "/skill:PRD Review analizza questo file"); err != nil {
+		t.Fatal(err)
+	}
+	if visible != "/skill:PRD Review analizza questo file" {
+		t.Fatalf("visible=%q", visible)
+	}
+	if !strings.Contains(api, `Skill: "PRD Review"`) || !strings.Contains(api, "checklist body") || !strings.Contains(api, "analizza questo file") {
+		t.Fatalf("api=%q", api)
+	}
+}
+
+func TestSlashDispatch_forcedSkillNotFound(t *testing.T) {
+	d := testDeps(nil)
+	err := agent.SlashDispatch(d, "/skill:missing")
+	if err == nil || !strings.Contains(err.Error(), "try /skills") {
 		t.Fatalf("got %v", err)
 	}
 }

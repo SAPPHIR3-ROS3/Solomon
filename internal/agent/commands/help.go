@@ -12,11 +12,12 @@ import (
 
 func Registry() [][]string {
 	tab := getSlashBuiltins()
-	rows := make([][]string, len(tab))
+	rows := make([][]string, 0, len(tab)+1)
 	for i := range tab {
 		b := &tab[i]
-		rows[i] = []string{b.helpCol, b.detail}
+		rows = append(rows, []string{b.helpCol, b.detail})
 	}
+	rows = append(rows, []string{"/skill:<name>", "/skill:<name> [request] — force one installed skill into this turn; names may contain spaces; keeps /skill:... visible in chat"})
 	return rows
 }
 

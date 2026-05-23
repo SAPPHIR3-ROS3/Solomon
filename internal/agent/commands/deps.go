@@ -20,8 +20,8 @@ import (
 type Deps struct {
 	Ctx context.Context
 
-	Out   io.Writer
-	Stdin io.Reader
+	Out      io.Writer
+	Stdin    io.Reader
 	ReadLine func(prompt string) (string, error)
 
 	Cfg     *config.Root
@@ -48,8 +48,9 @@ type Deps struct {
 	ResetReadlineHistory  func()
 	AppendReadlineHistory func(line string) error
 
-	PrefillInput      func(string)
-	SubmitUserMessage func(string) error
+	PrefillInput             func(string)
+	SubmitUserMessage        func(string) error
+	SubmitVisibleUserMessage func(visible, api string) error
 
 	PrintWelcomeBanner func()
 

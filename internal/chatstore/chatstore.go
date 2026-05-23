@@ -36,6 +36,7 @@ type ToolCall struct {
 type Message struct {
 	Role          string     `json:"role"`
 	Content       string     `json:"content"`
+	APIContent    string     `json:"api_content,omitempty"`
 	ToolCallID    string     `json:"tool_call_id,omitempty"`
 	ToolCalls     []ToolCall `json:"tool_calls,omitempty"`
 	ReasoningText string     `json:"reasoning_text,omitempty"`
@@ -64,15 +65,15 @@ type Session struct {
 	LastUserMessageAt time.Time `json:"last_user_message_at,omitempty"`
 	Messages          []Message `json:"messages"`
 
-	CheckpointLast         int                 `json:"checkpoint_last"`
-	CheckpointCP0          bool                `json:"cp0,omitempty"`
-	CheckpointBranchSuffix string              `json:"cp_branch_suffix,omitempty"`
-	ForkChildCount         map[int]int         `json:"fork_child_count,omitempty"`
-	MainOrphans            []MainOrphanSegment `json:"main_orphans,omitempty"`
-	LastCommitOID          string              `json:"last_commit_oid,omitempty"`
-	ImageSeq               int                 `json:"image_seq,omitempty"`
-	ImageFiles             map[int]string      `json:"image_files,omitempty"`
-	ActivatedInstructionDirs []string          `json:"activated_instruction_dirs,omitempty"`
+	CheckpointLast           int                 `json:"checkpoint_last"`
+	CheckpointCP0            bool                `json:"cp0,omitempty"`
+	CheckpointBranchSuffix   string              `json:"cp_branch_suffix,omitempty"`
+	ForkChildCount           map[int]int         `json:"fork_child_count,omitempty"`
+	MainOrphans              []MainOrphanSegment `json:"main_orphans,omitempty"`
+	LastCommitOID            string              `json:"last_commit_oid,omitempty"`
+	ImageSeq                 int                 `json:"image_seq,omitempty"`
+	ImageFiles               map[int]string      `json:"image_files,omitempty"`
+	ActivatedInstructionDirs []string            `json:"activated_instruction_dirs,omitempty"`
 }
 
 func ChatIDHex(title string, ts time.Time) string {
