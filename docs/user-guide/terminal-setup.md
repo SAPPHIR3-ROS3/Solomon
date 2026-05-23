@@ -49,6 +49,28 @@ With `solomon exec --json` or `--jsonl`, stdout is JSON. Use a pipe or `--no-col
 
 The Braille welcome logo uses the same color policy as the rest of the UI (including downgrade on limited terminals). On Windows, `[img-n]` tags in the readline buffer use a reduced ANSI palette so readline’s translator does not choke on truecolor background sequences.
 
+## Tab completion (interactive REPL)
+
+While the REPL prompt is active, Solomon runs its own line editor in **raw mode**. The **Tab** key is handled inside Solomon (not by bash, zsh, or PowerShell tab completion on the host shell). This applies in Terminal.app, Ghostty, GNOME Terminal, Konsole, Windows Terminal, and other VT-style emulators.
+
+| Key / action | Behavior |
+| ------------ | -------- |
+| **Tab** | Complete `/` slash command names, installed skill slash tokens, some command arguments (e.g. `/reasoning`, `/log`, `/resume`, `/goto`), and **paths** on shell lines (`!…` or shell-first lines without `!`). |
+| **Tab** again | Cycle or list candidates when more than one match remains. |
+| **Ctrl+C** | Cancel an open completion menu (same as canceling other readline modes). |
+
+Set `SOLOMON_NO_COMPLETE=1` to disable REPL tab completion (Tab then does nothing useful beyond readline’s default bell).
+
+On **Windows**, prefer **Windows Terminal** (`WT_SESSION`) for reliable input; legacy `conhost` may still work but Quick Edit and mouse selection can interfere with the line editor.
+
+### Manual QA checklist (after changes to completion)
+
+1. `/mo` + Tab → completes toward `/models`.
+2. Double Tab on a partial `/` command shows a candidate list.
+3. `/reasoning l` + Tab → completes toward `low`.
+4. Buffer containing `[img-1]` + Tab does not corrupt the tag display.
+5. Smoke-test on at least: macOS Terminal or Ghostty, one Linux terminal, Windows Terminal.
+
 ## See also
 
 - [Usage and commands](usage-and-commands.md) — `--no-color` and exec flags

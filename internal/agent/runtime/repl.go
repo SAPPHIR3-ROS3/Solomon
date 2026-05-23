@@ -106,6 +106,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	defer restoreInput()
 	var pendingMultiline []string
 	cfg := r.RL.Config.Clone()
+	cfg.AutoComplete = NewReplCompleter(r.replCompleteEnv())
 	cfg.Painter = imgReplDisplayPainter{}
 	cfg.Listener = readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
 		if key == readline.CharBackward && len(line) > 0 {

@@ -53,6 +53,8 @@ Stdout is JSON-only in machine mode; diagnostics go to stderr. Example workflow:
 
 In the REPL, type `/help` for the authoritative sorted catalogue ([`commands.Registry`](../../internal/agent/commands/help.go)).
 
+**Tab completion:** press Tab after `/` to complete command names (built-ins and installed skills). Some commands also complete their first argument (e.g. `/log`, `/reasoning`, `/resume`, `/goto`). On shell input (`!command` or plain lines when shell-first is on), Tab completes file paths under the project workspace. There is no completion for `!/…` (treated as shell text, not slash). Details: [Terminal setup — Tab completion](terminal-setup.md). Disable with `SOLOMON_NO_COMPLETE=1`.
+
 Highlights:
 
 | Command | Role |

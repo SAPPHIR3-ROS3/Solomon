@@ -14,8 +14,12 @@ Ordine suggerito: dal più **facile** al più **difficile** (code review interno
 
 ## 1 — Tab completion
 
-- **Stato:** readline senza completamento strutturato su comandi slash, path workspace, nomi sessione, modelli, skill o altri elenchi noti all’ harness.
-- **Cosa manca:** completion contestuale (tab) per ridurre errori e accelerare `/comandi`, percorsi file, dove applicabile provider/modello.
+- **Stato:** **parziale** — implementato in [`internal/agent/runtime/repl_complete.go`](internal/agent/runtime/repl_complete.go) (`SOLOMON_NO_COMPLETE=1` per disabilitare). Funziona oggi:
+  - nomi comando **slash** (`/…`) + token skill installate;
+  - alcuni **argomenti** del primo token (`/reasoning`, `/log`, `/resume`, `/goto`, …);
+  - **path** sotto il workspace sull’ultimo token delle righe shell (`!…` o righe plain con shell-first); **no** `!/…` (non trattato come slash).
+- **Non è completa:** manca soprattutto la completion sui **comandi shell effettivi** (binari, sotto-comandi, flag — stile bash/zsh/PowerShell); Tab nel REPL non delega alla shell host. Restano inoltre, tra gli altri: path con spazi/virgolette, modelli/provider da config o recenti, completamento più ricco su altri slash, eventuale Shift+Tab (limite libreria readline).
+- **Cosa manca (priorità):** completion dei **comandi shell** su input `!` / shell-first; poi estensioni file/path e modelli come sopra.
 
 ---
 

@@ -1,0 +1,152 @@
+package test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
+)
+
+func TestReplComplete_slashCommandPrefix(t *testing.T) {
+	env := agentruntime.ReplCompleteEnv{}
+	line := []rune("/mo")
+	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	if off != 1 {
+		t.Fatalf("offset=%d want 1", off)
+	}
+	if len(suffixes) != 1 || string(suffixes[0]) != "dels" {
+		t.Fatalf("suffixes=%v want [dels]", suffixes)
+	}
+}
+
+func TestReplComplete_caseInsensitive(t *testing.T) {
+	env := agentruntime.ReplCompleteEnv{}
+	line := []rune("/MODELS")
+	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	if off != 1 {
+		t.Fatalf("offset=%d want 1", off)
+	}
+	if len(suffixes) != 1 || string(suffixes[0]) != "" {
+		t.Fatalf("suffixes=%v want empty suffix for full match", suffixes)
+	}
+}
+
+func TestReplComplete_unknownSlashToken(t *testing.T) {
+	env := agentruntime.ReplCompleteEnv{}
+	suffixes, off := agentruntime.ReplCompleteDo(env, []rune("/foo"), 4)
+	if suffixes != nil || off != 0 {
+		t.Fatalf("got suffixes=%v off=%d want nil,0", suffixes, off)
+	}
+}
+
+func TestReplComplete_nonSlashLine(t *testing.T) {
+	env := agentruntime.ReplCompleteEnv{}
+	suffixes, off := agentruntime.ReplCompleteDo(env, []rune("hello"), 5)
+	if suffixes != nil || off != 0 {
+		t.Fatalf("got suffixes=%v off=%d want nil,0", suffixes, off)
+	}
+}
+
+func TestReplComplete_commandOnlyNoArgComplete(t *testing.T) {
+	env := agentruntime.ReplCompleteEnv{}
+	suffixes, off := agentruntime.ReplCompleteDo(env, []rune("/plan arg"), len("/plan arg"))
+	if suffixes != nil || off != 0 {
+		t.Fatalf("got suffixes=%v off=%d want nil,0", suffixes, off)
+	}
+}
+
+func TestReplComplete_reasoningArg(t *testing.T) {
+	env := agentruntime.ReplCompleteEnv{}
+	line := []rune("/reasoning l")
+	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	if off != len("/reasoning ") {
+		t.Fatalf("offset=%d want %d", off, len("/reasoning "))
+	}
+	found := false
+	for _, s := range suffixes {
+		if string(s) == "ow" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("suffixes=%v want low completion", suffixes)
+	}
+}
+
+func TestReplComplete_bangShellPath(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "main.go"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := agentruntime.ReplCompleteEnv{ProjRoot: root}
+	line := []rune("!cat src/m")
+	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	if off != len("!cat ") {
+		t.Fatalf("offset=%d want %d", off, len("!cat "))
+	}
+	found := false
+	for _, s := range suffixes {
+		if string(s) == "ain.go" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("suffixes=%v want main.go completion", suffixes)
+	}
+}
+
+func TestReplComplete_shellFirstPath(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pkg", "lib.go"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := agentruntime.ReplCompleteEnv{ProjRoot: root, ReplShellFirst: true}
+	line := []rune("cat pkg/l")
+	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	if off != len("cat ") {
+		t.Fatalf("offset=%d want %d", off, len("cat "))
+	}
+	if len(suffixes) != 1 || string(suffixes[0]) != "ib.go" {
+		t.Fatalf("suffixes=%v", suffixes)
+	}
+}
+
+func TestReplComplete_chatLineNoPathWithoutShellFirst(t *testing.T) {
+	root := t.TempDir()
+	env := agentruntime.ReplCompleteEnv{ProjRoot: root, ReplShellFirst: false}
+	line := []rune("cat pkg/l")
+	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	if suffixes != nil || off != 0 {
+		t.Fatalf("got suffixes=%v off=%d want nil,0", suffixes, off)
+	}
+}
+
+func TestReplComplete_bangSlashNotSlashCommand(t *testing.T) {
+	env := agentruntime.ReplCompleteEnv{}
+	line := []rune("!/mo")
+	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	if suffixes != nil || off != 0 {
+		t.Fatalf("got suffixes=%v off=%d want nil,0 for !/ (no slash completion)", suffixes, off)
+	}
+}
+
+func TestReplComplete_logArg(t *testing.T) {
+	env := agentruntime.ReplCompleteEnv{}
+	line := []rune("/log wa")
+	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	if off != len("/log ") {
+		t.Fatalf("offset=%d", off)
+	}
+	if len(suffixes) != 1 || string(suffixes[0]) != "rning" {
+		t.Fatalf("suffixes=%v", suffixes)
+	}
+}
