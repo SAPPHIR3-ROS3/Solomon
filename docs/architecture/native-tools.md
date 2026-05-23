@@ -39,6 +39,14 @@ Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (
 
 ## Router flow
 
+Legacy XML invocations (when `[tools].legacy` is enabled) are parsed by [`internal/tooling/legacy_xml.go`](../../internal/tooling/legacy_xml.go) and [`legacy_stream.go`](../../internal/tooling/legacy_stream.go); tool names are validated against the active native + MCP tool set before execution.
+
+| Config | Request carries API tool schemas | Parser accepts |
+|--------|----------------------------------|----------------|
+| default | yes | native `tool_calls` |
+| `legacy` | yes | native or `<tool_calls>` XML |
+| `legacy_force` | no | `<tool_calls>` XML only |
+
 ```mermaid
 flowchart TD
   inv[tooling.Invocation]
@@ -72,5 +80,7 @@ Passed into every tool: project hex/root, session reference, MCP manager, mode, 
 ## See also
 
 - [Plan vs build](plan-vs-build.md)
+- [Agent turn pipeline](agent-turn-pipeline.md)
 - [MCP integration](mcp-integration.md)
 - [Skills and slash](skills-and-slash.md)
+- [Configuration — `[tools]`](../user-guide/configuration.md#tools-legacy-xml-tool-calling)

@@ -27,9 +27,13 @@ Behaviors:
 - Use createPlan for new documents and editPlan for targeted revisions; editPlan requires a short intent string describing the purpose of the change.
 - Do not claim that code was changed or commands were run unless that happened in a future BUILD session after buildPlan.
 
-{{.Syntax}}{{if .LegacySyntax}}
+{{if .LegacyToolsForced}}
+{{.Syntax}}
+{{else}}
+{{.Syntax}}{{if .LegacyToolsEnabled}}
 
 {{.LegacySyntax}}{{end}}
+{{end}}
 
 ## Available tools
 

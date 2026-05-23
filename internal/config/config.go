@@ -59,6 +59,11 @@ type ToolOutput struct {
 	MaxLines int `toml:"max_lines,omitempty"`
 }
 
+type Tools struct {
+	Legacy      bool `toml:"legacy,omitempty"`
+	LegacyForce bool `toml:"legacy_force,omitempty"`
+}
+
 type Root struct {
 	UserName                  string                `toml:"user_name"`
 	Providers                 map[string]*Provider    `toml:"-"`
@@ -69,6 +74,7 @@ type Root struct {
 	LogLevel                  string     `toml:"log_level"`
 	MaxResponseTokens         int        `toml:"max_response_tokens"`
 	ShowThinking              bool       `toml:"show_thinking"`
+	Tools                     Tools      `toml:"tools,omitempty"`
 	ShowUsageStats            *bool      `toml:"show_usage_stats"`
 	ResponseLanguage          string     `toml:"response_language"`
 	CompactionThresholdTokens int64      `toml:"compaction_threshold_tokens"`
@@ -79,6 +85,14 @@ type Root struct {
 	WebSearchCX               string     `toml:"web_search_cx,omitempty"`
 	ToolOutput                ToolOutput `toml:"tool_output,omitempty"`
 	APIResilience             APIResilienceConfig `toml:"api_resilience,omitempty"`
+}
+
+func (r *Root) LegacyToolsEnabled() bool {
+	return r != nil && r.Tools.Legacy
+}
+
+func (r *Root) LegacyToolsForceEnabled() bool {
+	return r.LegacyToolsEnabled() && r.Tools.LegacyForce
 }
 
 func (r *Root) EffectiveWebSearchEngine() string {

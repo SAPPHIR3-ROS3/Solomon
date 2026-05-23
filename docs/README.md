@@ -20,6 +20,12 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 4. [Terminal setup](user-guide/terminal-setup.md) — monospace font and colors
 5. [Data layout](user-guide/data-layout.md)
 
+**Backends without native tool calling**
+
+1. [Configuration — `[tools]`](user-guide/configuration.md#tools-legacy-xml-tool-calling)
+2. [Usage and commands — `/legacytools`](user-guide/usage-and-commands.md#legacytools)
+3. [Agent turn pipeline — Legacy XML](architecture/agent-turn-pipeline.md#legacy-xml-tool-calling)
+
 **Contributor or debugger**
 
 1. [Overview](architecture/overview.md)
@@ -45,14 +51,15 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 | **Session** | `chatstore.Session` — messages, checkpoints, images, persisted as JSON under `~/.solomon/projects/<id>/chats/` |
 | **Project id** | 64-char hex from canonical workspace root (`project.Resolve`) |
 | **Plan / build mode** | `Runtime.Mode` — restricts native tools and system prompt (`plan` vs `build`) |
+| **Legacy tools** | Optional `[tools].legacy` / `legacy_force` in config — text `<tool_calls>` XML when native function calling is missing or unreliable |
 | **Slash command** | REPL line starting with `/` — handled by `agent.SlashDispatch` → `commands` package |
 
 ## Featured articles
 
-- [Configuration](user-guide/configuration.md) — `config.toml`, web search, logs
+- [Configuration](user-guide/configuration.md) — `config.toml`, web search, logs, legacy XML tools
 - [Terminal setup](user-guide/terminal-setup.md) — monospace font, ligatures, ANSI colors
 - [Overview](architecture/overview.md) — package map and design tenets
-- [Agent turn pipeline](architecture/agent-turn-pipeline.md) — LLM stream and tool loop
+- [Agent turn pipeline](architecture/agent-turn-pipeline.md) — LLM stream, tool loop, legacy XML
 
 ## See also
 

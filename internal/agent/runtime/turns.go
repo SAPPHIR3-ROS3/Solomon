@@ -142,12 +142,16 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		tools, err := r.toolParams()
-		if err != nil {
-			return err
+		legacyTools := r.legacyToolsEnabled()
+		var toolDefs []llm.ToolDef
+		if !r.legacyToolsForced() {
+			tools, err := r.toolParams()
+			if err != nil {
+				return err
+			}
+			toolDefs = llm.ToolDefsFromOpenAI(tools)
 		}
 		msgs, imageFiles := r.sessionMessagesSnapshot()
-		toolDefs := llm.ToolDefsFromOpenAI(tools)
 		turnReq := llm.TurnRequest{
 			Cfg:                   r.Cfg,
 			Model:                 r.Model,
@@ -177,10 +181,24 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			}
 			fmt.Fprintf(r.Out, "%s%s (%s): ", checkpoint.FormatLinePrefix(astSeq, branchKey), termcolor.WrapAssistant(r.Model), termcolor.WrapThinking(reasoningEff))
 		}
-		var contentOut io.Writer = termcolor.NewToolLineWriter(r.Out)
-		streamOpts := r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out)
+		var legacySW *tooling.LegacyStreamWriter
+		legacyOut := r.Out
 		if r.machineMode() {
+			legacyOut = io.Discard
+		}
+		var contentOut io.Writer = legacyOut
+		if legacyTools {
+			allowed, err := r.allowedToolNames()
+			if err != nil {
+				return err
+			}
+			legacySW, contentOut = newLegacyStreamWriter(legacyOut, true, allowed)
+		}
+		streamOpts := r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out)
+		if r.machineMode() && !legacyTools {
 			contentOut = io.Discard
+			streamOpts = r.streamOptsCI(turnIdx)
+		} else if r.machineMode() {
 			streamOpts = r.streamOptsCI(turnIdx)
 		}
 		if r.Backend == nil {
@@ -198,6 +216,13 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 					showGenerationStopped(r.Out)
 				}
 				return nil
+			}
+			if isMalformedLegacyToolErr(err) {
+				flushUsageStats()
+				if err2 := r.handleMalformedLegacyTool(err); err2 != nil {
+					return err2
+				}
+				continue
 			}
 			flushUsageStats()
 			logging.Log(logging.ERROR_LOG_LEVEL, "assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -232,22 +257,18 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		_ = r.persistSession()
 		var invs []tooling.Invocation
 		var toolIDs []string
-		if len(turn.ToolCalls) > 0 {
-			for _, tc := range turn.ToolCalls {
-				invs = append(invs, tooling.Invocation{Name: tc.Name, Args: json.RawMessage(tc.Arguments)})
-				toolIDs = append(toolIDs, tc.ID)
+		invs, toolIDs, rejectNative, malformed := r.ResolveTurnInvocations(turn, legacySW)
+		if rejectNative {
+			if err2 := r.handleRejectedNativeToolCall(); err2 != nil {
+				return err2
 			}
-		} else {
-			var legacyTools bool
-			r.mutateSession(func(s *chatstore.Session) {
-				legacyTools = s.LegacyTools
-			})
-			if legacyTools {
-				for _, inv := range tooling.ExtractToolInvocations(turn.Content) {
-					invs = append(invs, inv)
-					toolIDs = append(toolIDs, "")
-				}
+			continue
+		}
+		if malformed != nil {
+			if err2 := r.handleMalformedLegacyTool(malformed); err2 != nil {
+				return err2
 			}
+			continue
 		}
 		if len(invs) == 0 {
 			flushUsageStats()
@@ -300,7 +321,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			}
 			if r.machineMode() {
 				r.ciEmit(cievents.ToolStart(turnIdx, toolID, inv.Name, inv.Args))
-			} else {
+			} else if legacySW == nil || !legacySW.DisplayRendered() {
 				r.printToolLine(astSeq, branchKey, inv.Name, inv.Args)
 			}
 			res, err := r.execTool(runCtx, inv)

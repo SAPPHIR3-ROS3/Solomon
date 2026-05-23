@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -27,7 +28,49 @@ func (r *Runtime) runNested(ctx context.Context, task string) (string, error) {
 	return r.runNestedWithSystem(ctx, sys, task)
 }
 
+const nestedFullSystemMarker = "## Available tools"
+
+func (r *Runtime) buildNestedToolDump() (string, error) {
+	dump, err := agenttools.BuildBuildToolDump()
+	if err != nil {
+		return "", err
+	}
+	if r.MCP != nil {
+		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
+			dump = strings.TrimSpace(dump + "\n---\n" + mcpDump)
+		}
+	}
+	return dump, nil
+}
+
+func (r *Runtime) AugmentNestedCustomSystem(system string) (string, error) {
+	if strings.Contains(system, nestedFullSystemMarker) {
+		return system, nil
+	}
+	system = strings.TrimSpace(system)
+	if !r.legacyToolsEnabled() {
+		return system, nil
+	}
+	blocks := []string{system}
+	if section := prompt.ToolInvocationSyntaxSection(r.legacyToolsEnabled(), r.legacyToolsForced()); section != "" {
+		blocks = append(blocks, section)
+	}
+	if r.legacyToolsForced() {
+		dump, err := r.buildNestedToolDump()
+		if err != nil {
+			return "", err
+		}
+		blocks = append(blocks, "## Available tools\n\n"+dump)
+	}
+	return strings.Join(blocks, "\n\n"), nil
+}
+
 func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) (string, error) {
+	var err error
+	system, err = r.AugmentNestedCustomSystem(system)
+	if err != nil {
+		return "", err
+	}
 	msgs := []chatstore.Message{{Role: "user", Content: task}}
 	var transcript strings.Builder
 	var usageTurns []llm.UsageStats
@@ -47,7 +90,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 	for iteration := 0; iteration < 512; iteration++ {
 		dur := time.Duration(config.SubagentTimeout(r.Cfg)) * time.Minute
 		roundCtx, cancel := context.WithDeadline(ctx, time.Now().Add(dur))
-		turn, err := r.streamNestedAssistant(roundCtx, system, msgs)
+		turn, legacySW, err := r.streamNestedAssistant(roundCtx, system, msgs)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
 			flushUsageStats()
@@ -66,6 +109,14 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 		}
 		if err != nil {
 			flushUsageStats()
+			if isMalformedLegacyToolErr(err) {
+				if !r.machineMode() {
+					termcolor.WriteSystem(r.Out, legacyToolScreenMessage(err))
+					fmt.Fprintln(r.Out)
+				}
+				msgs = append(msgs, chatstore.Message{Role: "user", Content: legacyToolJSONCorrectionUserMsg})
+				continue
+			}
 			logging.Log(logging.ERROR_LOG_LEVEL, "subagent assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			return transcript.String(), err
 		}
@@ -86,23 +137,31 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 		msgs = append(msgs, ast)
 		var invs []tooling.Invocation
 		var toolIDs []string
-		if len(turn.ToolCalls) > 0 {
-			for _, tc := range turn.ToolCalls {
-				invs = append(invs, tooling.Invocation{Name: tc.Name, Args: json.RawMessage(tc.Arguments)})
-				toolIDs = append(toolIDs, tc.ID)
+		invs, toolIDs, rejectNative, malformed := r.ResolveTurnInvocations(turn, legacySW)
+		if rejectNative {
+			if !r.machineMode() {
+				termcolor.WriteSystem(r.Out, "Legacy tools force: native API tool_calls were ignored. Use <tool_calls> XML in assistant text.")
+				fmt.Fprintln(r.Out)
 			}
-		} else if r.Session.LegacyTools {
-			for _, inv := range tooling.ExtractToolInvocations(turn.Content) {
-				invs = append(invs, inv)
-				toolIDs = append(toolIDs, "")
+			msgs = append(msgs, chatstore.Message{Role: "user", Content: legacyNativeToolRejectedUserMsg})
+			continue
+		}
+		if malformed != nil {
+			if !r.machineMode() {
+				termcolor.WriteSystem(r.Out, legacyToolScreenMessage(malformed))
+				fmt.Fprintln(r.Out)
 			}
+			msgs = append(msgs, chatstore.Message{Role: "user", Content: legacyToolJSONCorrectionUserMsg})
+			continue
 		}
 		if len(invs) == 0 {
 			flushUsageStats()
 			return transcript.String(), nil
 		}
 		for i, inv := range invs {
-			r.printToolLine(0, "", inv.Name, inv.Args)
+			if legacySW == nil || !legacySW.DisplayRendered() {
+				r.printToolLine(0, "", inv.Name, inv.Args)
+			}
 			for _, line := range formatToolPlainLines(inv.Name, inv.Args) {
 				transcript.WriteString(line + "\n")
 			}
@@ -128,13 +187,17 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 	return transcript.String(), nil
 }
 
-func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs []chatstore.Message) (llm.AssistantTurnResult, error) {
-	toolParams, err := agenttools.NativeToolParams("build")
-	if err != nil {
-		return llm.AssistantTurnResult{}, err
-	}
-	if r.MCP != nil {
-		toolParams = append(toolParams, r.MCP.OpenAITools()...)
+func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs []chatstore.Message) (llm.AssistantTurnResult, *tooling.LegacyStreamWriter, error) {
+	var toolDefs []llm.ToolDef
+	if !r.legacyToolsForced() {
+		toolParams, err := agenttools.NativeToolParams("build")
+		if err != nil {
+			return llm.AssistantTurnResult{}, nil, err
+		}
+		if r.MCP != nil {
+			toolParams = append(toolParams, r.MCP.OpenAITools()...)
+		}
+		toolDefs = llm.ToolDefsFromOpenAI(toolParams)
 	}
 	turnReq := llm.TurnRequest{
 		Cfg:                   r.Cfg,
@@ -142,21 +205,41 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 		System:                system,
 		Messages:              msgs,
 		ImageFiles:            r.Session.ImageFiles,
-		Tools:                 llm.ToolDefsFromOpenAI(toolParams),
+		Tools:                 toolDefs,
 		ParallelToolCalls:     true,
 		ForceDisableReasoning: true,
 	}
 	fmt.Fprintf(r.Out, "%s ", termcolor.WrapAssistant(r.Model+"(subagent):"))
 	if r.Backend == nil {
-		return llm.AssistantTurnResult{}, fmt.Errorf("LLM backend not configured")
+		return llm.AssistantTurnResult{}, nil, fmt.Errorf("LLM backend not configured")
 	}
-	turn, err := r.Backend.StreamTurn(ctx, turnReq, termcolor.NewToolLineWriter(r.Out), r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out))
+	var legacySW *tooling.LegacyStreamWriter
+	var contentOut io.Writer = r.Out
+	if r.legacyToolsEnabled() {
+		allowed, err := r.allowedToolNamesForMode("build")
+		if err != nil {
+			return llm.AssistantTurnResult{}, nil, err
+		}
+		if r.MCP != nil {
+			for _, t := range r.MCP.OpenAITools() {
+				if t.OfFunction == nil {
+					continue
+				}
+				name := t.OfFunction.Function.Name
+				if name != "" {
+					allowed[name] = struct{}{}
+				}
+			}
+		}
+		legacySW, contentOut = newLegacyStreamWriter(r.Out, true, allowed)
+	}
+	turn, err := r.Backend.StreamTurn(ctx, turnReq, contentOut, r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out))
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "nested subagent stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		return turn, err
+		return turn, legacySW, err
 	}
 	fmt.Fprintln(r.Out)
-	return turn, nil
+	return turn, legacySW, nil
 }
 
 func (r *Runtime) summarizeNested(ctx context.Context, msgs []chatstore.Message) (string, error) {

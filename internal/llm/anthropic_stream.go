@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -116,6 +117,7 @@ func readAnthropicStreamTurn(body io.Reader, contentOut io.Writer, opts StreamOp
 	tStart := time.Now()
 	st := &anthropicStreamState{toolNames: map[int]string{}, toolArgs: map[int]*strings.Builder{}, toolIDs: map[int]string{}}
 	var tTTFT, tFirstVisible time.Time
+	var legacyStopped bool
 	sc := bufio.NewScanner(body)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	var dataBuf string
@@ -141,26 +143,39 @@ func readAnthropicStreamTurn(body io.Reader, contentOut io.Writer, opts StreamOp
 		}
 		if line == "" {
 			if err := flushEvent(); err != nil {
+				if errors.Is(err, errLegacyStreamEarlyStop) {
+					legacyStopped = true
+					goto legacyDone
+				}
 				return AssistantTurnResult{}, err
 			}
 		}
 	}
-	_ = flushEvent()
+	if err := flushEvent(); err != nil {
+		if errors.Is(err, errLegacyStreamEarlyStop) {
+			legacyStopped = true
+		} else {
+			return AssistantTurnResult{}, err
+		}
+	}
+legacyDone:
 	var out AssistantTurnResult
-	out.Content = strings.TrimSpace(st.content.String())
+	out.Content = streamTruncatedContent(contentOut, strings.TrimSpace(st.content.String()))
 	out.ReasoningText = strings.TrimSpace(st.reasoning.String())
 	out.Usage = NormalizeAnthropicUsage(st.usage)
 	fillAnthropicTiming(&out.Usage, tStart, tTTFT, tFirstVisible, time.Now())
-	for idx, name := range st.toolNames {
-		args := ""
-		if argB := st.toolArgs[idx]; argB != nil {
-			args = argB.String()
+	if !legacyStopped {
+		for idx, name := range st.toolNames {
+			args := ""
+			if argB := st.toolArgs[idx]; argB != nil {
+				args = argB.String()
+			}
+			out.ToolCalls = append(out.ToolCalls, AssistantToolCall{
+				ID:        st.toolIDs[idx],
+				Name:      name,
+				Arguments: args,
+			})
 		}
-		out.ToolCalls = append(out.ToolCalls, AssistantToolCall{
-			ID:        st.toolIDs[idx],
-			Name:      name,
-			Arguments: args,
-		})
 	}
 	return out, nil
 }
@@ -239,7 +254,11 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 					opts.OnDelta("content", wrap.Delta.Text)
 				}
 				st.content.WriteString(wrap.Delta.Text)
-				_, _ = io.WriteString(contentOut, wrap.Delta.Text)
+				if stopped, err := writeStreamContentLegacy(contentOut, wrap.Delta.Text); err != nil {
+					return err
+				} else if stopped {
+					return errLegacyStreamEarlyStop
+				}
 			}
 		case "input_json_delta":
 			if argB := st.toolArgs[wrap.Index]; argB != nil {

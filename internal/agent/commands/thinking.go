@@ -3,8 +3,6 @@ package commands
 import (
 	"fmt"
 	"strings"
-
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 )
 
 func Thinking(d Deps, parts []string) error {
@@ -41,43 +39,52 @@ func Thinking(d Deps, parts []string) error {
 }
 
 func LegacyTools(d Deps, parts []string) error {
-	if d.MutateSession == nil {
-		return fmt.Errorf("no active session")
+	if d.Cfg == nil {
+		return fmt.Errorf("config not loaded")
 	}
-	var legacy bool
-	var usageErr error
-	d.MutateSession(func(sess *chatstore.Session) {
-		if sess == nil {
-			return
+	if len(parts) < 2 {
+		d.Cfg.Tools.Legacy = !d.Cfg.Tools.Legacy
+		if !d.Cfg.Tools.Legacy {
+			d.Cfg.Tools.LegacyForce = false
 		}
-		if len(parts) < 2 {
-			sess.LegacyTools = !sess.LegacyTools
+	} else if strings.EqualFold(parts[1], "force") {
+		if len(parts) < 3 {
+			d.Cfg.Tools.LegacyForce = !d.Cfg.Tools.LegacyForce
 		} else {
-			sw := strings.ToLower(parts[1])
-			switch sw {
+			switch strings.ToLower(parts[2]) {
 			case "on", "yes", "true", "1":
-				sess.LegacyTools = true
+				d.Cfg.Tools.LegacyForce = true
 			case "off", "no", "false", "0":
-				sess.LegacyTools = false
+				d.Cfg.Tools.LegacyForce = false
 			default:
-				usageErr = fmt.Errorf("usage: /legacytools | /legacytools on|off")
-				return
+				return fmt.Errorf("usage: /legacytools force | /legacytools force on|off")
 			}
 		}
-		legacy = sess.LegacyTools
-	})
-	if usageErr != nil {
-		return usageErr
-	}
-	if d.PersistSession != nil {
-		if err := d.PersistSession(); err != nil {
-			return err
+		if d.Cfg.Tools.LegacyForce {
+			d.Cfg.Tools.Legacy = true
+		}
+	} else {
+		switch strings.ToLower(parts[1]) {
+		case "on", "yes", "true", "1":
+			d.Cfg.Tools.Legacy = true
+		case "off", "no", "false", "0":
+			d.Cfg.Tools.Legacy = false
+			d.Cfg.Tools.LegacyForce = false
+		default:
+			return fmt.Errorf("usage: /legacytools | /legacytools on|off | /legacytools force | /legacytools force on|off")
 		}
 	}
-	state := "off"
-	if legacy {
-		state = "on"
+	if err := d.SaveCfg(); err != nil {
+		return err
 	}
-	PrintSystemf(d.Out, "legacy Tool: line parsing: %s (system prompt includes legacy syntax on next assistant turn)", state)
+	legacyState := "OFF"
+	if d.Cfg.Tools.Legacy {
+		legacyState = "ON"
+	}
+	forceState := "OFF"
+	if d.Cfg.Tools.LegacyForce {
+		forceState = "ON"
+	}
+	PrintSystemf(d.Out, "legacy tools: %s, force: %s", legacyState, forceState)
 	return nil
 }

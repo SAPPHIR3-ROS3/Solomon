@@ -209,15 +209,24 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	if p, err := filepath.Abs(r.ProjRoot); err == nil {
 		absWorkspace = p
 	}
-	syntax := prompt.NativeToolInvocationSyntax(r.Session.LegacyTools)
-	legacySyntax := ""
-	if r.Session.LegacyTools {
-		legacySyntax = prompt.LegacyToolInvocationSyntaxAppend()
+	legacyEnabled := r.legacyToolsEnabled()
+	legacyForced := r.legacyToolsForced()
+	var syntax string
+	var legacySyntax string
+	if legacyForced {
+		syntax = prompt.LegacyOnlyToolInvocationSyntax()
+	} else {
+		syntax = prompt.NativeToolInvocationSyntax(legacyEnabled)
+		if legacyEnabled {
+			legacySyntax = prompt.LegacyToolInvocationSyntaxAppend()
+		}
 	}
 	d := prompt.Data{
 		Tools:                 dump,
 		Syntax:                syntax,
 		LegacySyntax:          legacySyntax,
+		LegacyToolsEnabled:    legacyEnabled,
+		LegacyToolsForced:     legacyForced,
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
 		DisableThinking:       disableThinking,

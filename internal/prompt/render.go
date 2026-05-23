@@ -30,6 +30,8 @@ type Data struct {
 	Tools                 string
 	Syntax                string
 	LegacySyntax          string
+	LegacyToolsEnabled    bool
+	LegacyToolsForced     bool
 	ExtraRules            string
 	CustomRules           string
 	GlobalInstructions    string
@@ -71,24 +73,94 @@ for readability after execution; those echoes are not a substitute for native to
 `)
 }
 
+func LegacyOnlyToolInvocationSyntax() string {
+	return strings.TrimSpace(`
+Legacy text tools force is ON. Native API tool_calls are disabled; you must invoke every tool via XML (no function calling):
+` + legacyToolInvocationSyntaxBody())
+}
+
 func LegacyToolInvocationSyntaxAppend() string {
 	return strings.TrimSpace(`
-Legacy text fallback is enabled for this chat: when native tool_calls are unavailable from the API, output exactly one invocation per line:
+Optional legacy text tools are enabled: you may invoke tools with native API tool_calls (preferred) or wrap invocations in XML when helpful:
+` + legacyToolInvocationSyntaxBody())
+}
 
-Tool: TOOL_NAME({JSON_OBJECT})
+func ToolInvocationSyntaxSection(legacyEnabled, legacyForced bool) string {
+	if legacyForced {
+		return LegacyOnlyToolInvocationSyntax()
+	}
+	if legacyEnabled {
+		return strings.TrimSpace(NativeToolInvocationSyntax(true) + "\n\n" + LegacyToolInvocationSyntaxAppend())
+	}
+	return ""
+}
 
-Use valid JSON objects with keys matching each tool's schema. Multiple tools: one Tool: line per tool, each on its own line.
+func legacyToolInvocationSyntaxBody() string {
+	return `
 
-Examples (PLAN): Tool: createPlan({"name": "feature.md", "planText": "# Goal\n\n## Steps\n1. ..."})
-Examples (PLAN): Tool: editPlan({"name": "feature.md", "old": "## Steps\n1. A", "new": "## Steps\n1. B", "intent": "Reorder first step"})
-Examples (BUILD): Tool: readFile({"path": "cmd/app/main.go"})
-Examples (BUILD): Tool: shell({"command": "go test ./...", "intent": "Run full test suite"})
-Examples (BUILD): Tool: editFile({"path": "cmd/app/main.go", "oldString": "foo", "newString": "bar", "intent": "Fix variable name"})
-Examples (BUILD): Tool: searchSkill({"query": "documentation"})
-Examples (BUILD): Tool: fetchWeb({"url": "https://example.com/docs"})
-Examples (BUILD): Tool: webSearch({"query": "golang context cancel"})
-Examples (BUILD): Tool: loadSkill({"name": "my-skill"})
-`)
+<tool_calls>
+<tool name="TOOL_NAME">
+<intent>brief purpose when the tool supports intent</intent>
+<args>{"key":"value"}</args>
+</tool>
+</tool_calls>
+
+Rules:
+- Use exactly one <tool_calls> block per assistant reply that invokes tools.
+- Put optional prose before the block; do not emit text after </tool_calls>.
+- Each <args> must be a valid JSON object matching the tool schema.
+- Multiple tools: include multiple <tool> entries in order of execution.
+
+Examples (PLAN):
+<tool_calls>
+<tool name="createPlan">
+<args>{"name": "feature.md", "planText": "# Goal\n\n## Steps\n1. ..."}</args>
+</tool>
+</tool_calls>
+
+Examples (PLAN):
+<tool_calls>
+<tool name="editPlan">
+<intent>Reorder first step</intent>
+<args>{"name": "feature.md", "old": "## Steps\n1. A", "new": "## Steps\n1. B"}</args>
+</tool>
+</tool_calls>
+
+Examples (BUILD):
+<tool_calls>
+<tool name="readFile">
+<args>{"path": "cmd/app/main.go"}</args>
+</tool>
+</tool_calls>
+
+Examples (BUILD):
+<tool_calls>
+<tool name="shell">
+<intent>Run full test suite</intent>
+<args>{"command": "go test ./..."}</args>
+</tool>
+</tool_calls>
+
+Examples (BUILD):
+<tool_calls>
+<tool name="editFile">
+<intent>Fix variable name</intent>
+<args>{"path": "cmd/app/main.go", "oldString": "foo", "newString": "bar"}</args>
+</tool>
+</tool_calls>
+
+Examples (BUILD, multiple tools):
+<tool_calls>
+<tool name="shell">
+<intent>Run unit tests</intent>
+<args>{"command": "go test ./internal/..."}</args>
+</tool>
+<tool name="readFile">
+<intent>Inspect config</intent>
+<args>{"path": "config.toml"}</args>
+</tool>
+</tool_calls>
+`
 }
 
 func RenderPlan(d Data) (string, error) {

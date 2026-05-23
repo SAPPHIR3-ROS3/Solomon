@@ -62,7 +62,6 @@ type Session struct {
 	CreatedAt         time.Time `json:"created_at"`
 	LastMessageAt     time.Time `json:"last_message_at"`
 	LastUserMessageAt time.Time `json:"last_user_message_at,omitempty"`
-	LegacyTools       bool      `json:"legacy_tools,omitempty"`
 	Messages          []Message `json:"messages"`
 
 	CheckpointLast         int                 `json:"checkpoint_last"`

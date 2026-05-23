@@ -53,6 +53,7 @@ flowchart TD
 |-------|------|
 | `RL` | readline instance; prompt includes checkpoint prefix |
 | `Mode` | `plan` or `build` — affects tools and system prompt |
+| `Cfg.Tools` | Global `[tools].legacy` / `legacy_force` (also `/legacytools`); affects API tool schemas and prompt syntax |
 | `ReplShellFirst` | Non-`!` lines run as shell when set |
 | `EphemeralSession` | In-memory transcript only; see [Ephemeral session](#ephemeral-session) |
 | `Out` | Assistant and tool output stream |
