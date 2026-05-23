@@ -37,30 +37,34 @@ func toolIntentLine(intent string) string {
 	return termcolor.WrapThinking(intent)
 }
 
+func prependIntentLine(m map[string]json.RawMessage, lines []string) []string {
+	intent := strings.TrimSpace(jsonString(m["intent"]))
+	if intent == "" {
+		return lines
+	}
+	return append([]string{toolIntentLine(intent)}, lines...)
+}
+
 func formatShellToolLines(m map[string]json.RawMessage) []string {
 	body := jsonString(m["command"])
 	if t := jsonIntPtr(m["timeoutSeconds"]); t != nil {
 		body += fmt.Sprintf(" • %ds", *t)
 	}
-	return []string{
-		termcolor.ToolLine("shell", body),
-		toolIntentLine(jsonString(m["intent"])),
-	}
+	return prependIntentLine(m, []string{termcolor.ToolHeaderLine("shell", body)})
 }
 
 func formatEditFileToolLines(m map[string]json.RawMessage) []string {
-	return []string{
-		termcolor.ToolLine("editFile", jsonString(m["path"])),
+	return prependIntentLine(m, []string{
+		termcolor.ToolHeaderLine("editFile", jsonString(m["path"])),
 		termcolor.WrapTool(jsonString(m["oldString"])),
 		termcolor.WrapTool(jsonString(m["newString"])),
-		toolIntentLine(jsonString(m["intent"])),
-	}
+	})
 }
 
 func formatSubagentToolLines(m map[string]json.RawMessage) []string {
 	return []string{
 		termcolor.ToolHeaderLine("subagent", "• "+jsonString(m["sysPromptPath"])),
-		termcolor.ToolLine("subagent", jsonString(m["task"])),
+		termcolor.ToolHeaderLine("subagent", jsonString(m["task"])),
 	}
 }
 
@@ -85,7 +89,7 @@ func formatWebSearchToolLines(m map[string]json.RawMessage) []string {
 	}
 	lines := []string{termcolor.ToolHeaderLine("webSearch", body)}
 	if ex := formatExtrasLine(m["extras"]); ex != "" {
-		lines = append(lines, termcolor.ToolLine("webSearch", ex))
+		lines = append(lines, termcolor.ToolHeaderLine("webSearch", ex))
 	}
 	return lines
 }
