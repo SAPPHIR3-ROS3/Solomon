@@ -52,6 +52,8 @@ Each instruction file is capped at **32 KB** in the system prompt. Larger files 
 
 Nested agents inherit the same custom rules and instruction files as the parent session. If a subagent uses a custom system prompt file (`sysPromptPath`), Solomon **appends** that file after the inherited instruction block — it does not replace it.
 
+When `[tools].legacy` is enabled and the custom file is not the full build template, Solomon also appends the legacy tool-invocation syntax to that nested system prompt. With `[tools].legacy_force`, it also appends the build-mode tool dump (API tool schemas are not sent in force mode).
+
 ## Custom rules
 
 Short rules (single phrases or sentences) for **minor but recurring preferences**. They live outside markdown instruction files and are managed with slash commands.

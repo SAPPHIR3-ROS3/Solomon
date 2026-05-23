@@ -13,6 +13,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 )
 
 func anthropicSSEBody(events ...map[string]any) string {
@@ -200,6 +201,45 @@ func TestAnthropicBackend_StreamTurn_MockHTTP_TextAndTool(t *testing.T) {
 	}
 	if turn.Usage.ResponseTokens != 7 {
 		t.Fatalf("response tokens: got %d want 7", turn.Usage.ResponseTokens)
+	}
+}
+
+func TestAnthropicBackend_StreamTurn_LegacyEarlyStopIgnoresToolUse(t *testing.T) {
+	block := `<tool_calls><tool name="shell"><args>{"command":"go test"}</args></tool></tool_calls>`
+	sse := anthropicSSEBody(
+		map[string]any{
+			"type":  "content_block_delta",
+			"index": 0,
+			"delta": map[string]any{"type": "text_delta", "text": "pre " + block},
+		},
+		map[string]any{
+			"type":  "content_block_start",
+			"index": 1,
+			"content_block": map[string]any{
+				"type": "tool_use",
+				"id":   "toolu_abc",
+				"name": "shell",
+			},
+		},
+	)
+	srv := newAnthropicMockServer(t, "/v1/messages", nil, sse, 0)
+	defer srv.Close()
+
+	var contentOut io.Writer = tooling.NewLegacyStreamWriter(io.Discard, nil, map[string]struct{}{"shell": {}})
+
+	backend := llm.NewAnthropicBackend(srv.URL, llm.AnthropicAuthFromAPIKey("test-key"))
+	turn, err := backend.StreamTurn(context.Background(), llm.TurnRequest{
+		Model:    "claude-test",
+		Messages: []chatstore.Message{{Role: "user", Content: "run tests"}},
+	}, contentOut, llm.StreamOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(turn.ToolCalls) != 0 {
+		t.Fatalf("tool calls: got %+v want none after legacy early stop", turn.ToolCalls)
+	}
+	if !strings.Contains(turn.Content, "<tool_calls>") {
+		t.Fatalf("content=%q", turn.Content)
 	}
 }
 

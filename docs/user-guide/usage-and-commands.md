@@ -60,12 +60,26 @@ Highlights:
 | `/resume`, `/new`, `/temp` | Session switching (`/temp` = ephemeral, empty chat only) |
 | `/summarize`, `/compact` | Long-context hygiene |
 | `/connect` | Add provider and models |
+| `/legacytools` | Legacy XML tool calling — see below |
 | `/add rule`, `/add projectrule` | Add a short custom rule (global or project scope) |
 | `/remove rule`, `/remove projectrule` | Remove a rule by number (remaining rules renumbered) |
 | `/rules` | List custom rules (global + project) |
 | `/instructions` | Show global `~/.solomon/AGENTS.md` loaded into the system prompt |
 
 Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Project instructions](project-instructions.md).
+
+### `/legacytools`
+
+Persists to `[tools]` in `config.toml` (global, not per session).
+
+| Invocation | Result |
+|------------|--------|
+| `/legacytools on` | `legacy tools: ON, force: OFF` — model may use `<tool_calls>` XML; native API tools stay available |
+| `/legacytools off` | Both legacy and force off |
+| `/legacytools force on` | `legacy tools: ON, force: ON` — native API tools disabled; model must use XML |
+| `/legacytools force off` | Legacy stays on; force off |
+
+Useful for text-only or unreliable native function-calling backends. Details: [Configuration — `[tools]`](configuration.md#tools-legacy-xml-tool-calling), [Agent turn pipeline](../architecture/agent-turn-pipeline.md#legacy-xml-tool-calling).
 
 Implementation: [Skills and slash](../architecture/skills-and-slash.md).
 

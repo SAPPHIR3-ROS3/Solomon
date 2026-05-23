@@ -41,7 +41,7 @@ func (w *ToolLineWriter) Flush() error {
 func (w *ToolLineWriter) writeLine(line []byte) error {
 	trim := bytes.TrimSpace(line)
 	if bytes.HasPrefix(trim, []byte("Tool:")) {
-		_, err := io.WriteString(w.W, WrapTool(string(line)))
+		_, err := io.WriteString(w.W, WrapTool(string(trim))+"\n")
 		return err
 	}
 	_, err := w.W.Write(line)

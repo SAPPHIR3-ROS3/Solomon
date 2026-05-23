@@ -6,7 +6,7 @@ Solomon stores user data outside the repository under `~/.solomon`. Project-scop
 flowchart LR
   home["~/.solomon/<br/><small>Solomon user data root</small>"]
 
-  config["config.toml<br/><small>providers, model, user name,<br/>reasoning, language, logging,<br/>token caps, compaction</small>"]
+  config["config.toml<br/><small>providers, model, user name,<br/>reasoning, language, logging,<br/>token caps, compaction,<br/>[tools] legacy XML</small>"]
   mcpConfig["mcp.json<br/><small>optional MCP servers</small>"]
   projectMap["projectsId.json<br/><small>canonical root -> 64-char id</small>"]
   logs["logs/<br/><small>file logs, 7-day retention</small>"]
@@ -69,7 +69,7 @@ flowchart LR
 
 ## Session files
 
-Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds session id, title, timestamps, messages, tool calls, checkpoint fields, token usage, image references, and `activated_instruction_dirs` (subdirectory instruction paths active for that chat). See [Sessions and storage](../architecture/sessions-and-storage.md).
+Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds session id, title, timestamps, messages, tool calls, checkpoint fields, token usage, image references, and `activated_instruction_dirs` (subdirectory instruction paths active for that chat). Legacy tool settings are **not** stored per session — they live in global `config.toml` under `[tools]`. Old session JSON may still contain a deprecated `legacy_tools` field; it is ignored on load. See [Sessions and storage](../architecture/sessions-and-storage.md).
 
 ## Project instructions and custom rules
 

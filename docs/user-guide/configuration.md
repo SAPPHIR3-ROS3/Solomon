@@ -17,10 +17,53 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `reasoning_effort` | Main chat reasoning profile |
 | `log_level`, `max_response_tokens` | Verbosity and cap |
 | `show_thinking`, `show_usage_stats` | Streams / footer |
+| `[tools].legacy`, `[tools].legacy_force` | Legacy XML tool calling (global); see below |
 | `response_language` | Default reply language |
 | `compaction_threshold_tokens` | Auto compaction threshold |
 | `tool_output.max_bytes`, `tool_output.max_lines` | Tool result truncation before LLM (defaults 65536 / 2048) |
 | `web_search_engine` | Default engine for the **`webSearch`** tool (omit for `duckduckgo`) |
+
+### `[tools]` (legacy XML tool calling)
+
+Optional text-based tool protocol for models/backends without reliable native function calling. Persisted globally in `config.toml` (also toggled in-session with `/legacytools`).
+
+| Key | Role |
+|-----|------|
+| `legacy` | When `true`, the model **may** use legacy `<tool_calls>` XML in assistant text (native API tools remain available unless force is on). |
+| `legacy_force` | When `true`, native API tool_calls are disabled and the model **must** use legacy XML for tool invocations. Implies `legacy = true`. |
+
+Example:
+
+```toml
+[tools]
+legacy = true
+legacy_force = false
+```
+
+Legacy root keys `legacy_tools` / `legacy_tools_force` are still read once for migration, then rewritten under `[tools]` on save.
+
+| Combination | Effect |
+|-------------|--------|
+| both off | Native API tool_calls only |
+| `legacy = true`, `force` off | Native preferred; model may also use `<tool_calls>` XML |
+| `legacy_force = true` | Native API tools omitted from requests; model must use XML |
+
+On-screen tool lines show intent on its own line, then `Tool: name …` (same for native and legacy). Syntax or JSON errors trigger an automatic retry turn with a correction message.
+
+Wire format (assistant text):
+
+```xml
+<tool_calls>
+<tool name="shell">
+<intent>Run unit tests</intent>
+<args>{"command":"go test ./..."}</args>
+</tool>
+</tool_calls>
+```
+
+Rules: one `<tool_calls>` block per reply that invokes tools; optional prose before the block; no text after `</tool_calls>`; each `<args>` must be valid JSON matching the tool schema. Unknown tool names are rejected like malformed XML.
+
+Architecture: [Agent turn pipeline](../architecture/agent-turn-pipeline.md#legacy-xml-tool-calling), [Native tools](../architecture/native-tools.md).
 
 You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic Compatible API), or manage providers and models in the REPL with `/connect` and `/models`.
 

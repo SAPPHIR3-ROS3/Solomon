@@ -29,7 +29,9 @@ Slash handlers live in `commands` package; the runtime bridge constructs `Deps` 
 
 `/help` prints the authoritative sorted list from [`commands.Registry`](../../internal/agent/commands/help.go).
 
-Common commands: `/plan`, `/build`, `/resume`, `/new`, `/temp`, `/summarize`, `/connect`, `/models`, `/skills`, MCP-related slashes in `mcp_slash.go`.
+Common commands: `/plan`, `/build`, `/resume`, `/new`, `/temp`, `/summarize`, `/connect`, `/models`, `/legacytools`, `/skills`, MCP-related slashes in `mcp_slash.go`.
+
+`/legacytools` persists `[tools].legacy` and `[tools].legacy_force` to `config.toml` (global). Implementation: [`thinking.go`](../../internal/agent/commands/thinking.go). User guide: [Usage and commands — `/legacytools`](../user-guide/usage-and-commands.md#legacytools).
 
 ## Skills registry
 

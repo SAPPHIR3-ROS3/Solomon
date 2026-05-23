@@ -6,8 +6,8 @@ Practical guides for running Solomon, configuring providers, and understanding w
 
 | Article | Summary |
 |---------|---------|
-| [configuration.md](configuration.md) | `~/.solomon/config.toml`, web search engines, logs |
-| [usage-and-commands.md](usage-and-commands.md) | CLI modes, features, slash commands |
+| [configuration.md](configuration.md) | `~/.solomon/config.toml`, web search engines, logs, `[tools]` legacy XML |
+| [usage-and-commands.md](usage-and-commands.md) | CLI modes, features, slash commands (incl. `/legacytools`) |
 | [terminal-setup.md](terminal-setup.md) | Monospace font, ligatures, colors, pipes |
 | [data-layout.md](data-layout.md) | `~/.solomon` and workspace `.solomon` trees |
 | [project-instructions.md](project-instructions.md) | `AGENTS.md`, custom rules, system prompt injection |

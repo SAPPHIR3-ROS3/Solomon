@@ -12,14 +12,52 @@ import (
 	"github.com/openai/openai-go/v2"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 )
 
 var ErrStreamAccumulatorRejected = errors.New("chat completion stream accumulator rejected chunk")
 
+var errLegacyStreamEarlyStop = errors.New("legacy stream early stop")
+
 func flushStreamOut(w io.Writer) {
+	_ = flushStreamOutErr(w)
+}
+
+func flushStreamOutErr(w io.Writer) error {
 	if f, ok := w.(interface{ Flush() error }); ok {
-		_ = f.Flush()
+		return f.Flush()
 	}
+	return nil
+}
+
+func writeStreamContent(w io.Writer, s string) error {
+	if s == "" {
+		return nil
+	}
+	_, err := io.WriteString(w, s)
+	return err
+}
+
+type legacyStreamTruncator interface {
+	TruncatedContent() string
+}
+
+func writeStreamContentLegacy(w io.Writer, s string) (legacyStopped bool, err error) {
+	err = writeStreamContent(w, s)
+	if errors.Is(err, tooling.ErrLegacyToolBlockComplete) {
+		_ = flushStreamOutErr(w)
+		return true, nil
+	}
+	return false, err
+}
+
+func streamTruncatedContent(w io.Writer, fallback string) string {
+	if t, ok := w.(legacyStreamTruncator); ok {
+		if c := t.TruncatedContent(); c != "" {
+			return c
+		}
+	}
+	return fallback
 }
 
 func streamAccumulatorRejectErr(stream interface{ Err() error }) error {
@@ -119,6 +157,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 	var tFirstVisible time.Time
 	var sawReasoning bool
 	var printedThought bool
+	var legacyStopped bool
 	for stream.Next() {
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
@@ -165,20 +204,36 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 			}
 			skipLeadingNL = false
 			full = t
-			_, _ = io.WriteString(contentOut, t)
+			if stopped, err := writeStreamContentLegacy(contentOut, t); err != nil {
+				flushStreamOut(contentOut)
+				return full, UsageStats{}, err
+			} else if stopped {
+				legacyStopped = true
+				full = streamTruncatedContent(contentOut, full)
+				break
+			}
 			continue
 		}
 		full += d
-		_, _ = io.WriteString(contentOut, d)
-	}
-	if err := stream.Err(); err != nil {
-		if f, ok := contentOut.(interface{ Flush() error }); ok {
-			_ = f.Flush()
+		if stopped, err := writeStreamContentLegacy(contentOut, d); err != nil {
+			flushStreamOut(contentOut)
+			return full, UsageStats{}, err
+		} else if stopped {
+			legacyStopped = true
+			full = streamTruncatedContent(contentOut, full)
+			break
 		}
-		return full, UsageStats{}, err
 	}
-	if f, ok := contentOut.(interface{ Flush() error }); ok {
-		_ = f.Flush()
+	if !legacyStopped {
+		if err := stream.Err(); err != nil {
+			if f, ok := contentOut.(interface{ Flush() error }); ok {
+				_ = f.Flush()
+			}
+			return full, UsageStats{}, err
+		}
+		if err := flushStreamOutErr(contentOut); err != nil {
+			return full, UsageStats{}, err
+		}
 	}
 	tEnd := time.Now()
 	u := buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)
@@ -204,6 +259,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	var tTTFT time.Time
 	var tFirstVisible time.Time
 	var printedThought bool
+	var legacyStopped bool
 	for stream.Next() {
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
@@ -255,27 +311,43 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			if opts.OnDelta != nil {
 				opts.OnDelta("content", t)
 			}
-			_, _ = io.WriteString(contentOut, t)
+			if stopped, err := writeStreamContentLegacy(contentOut, t); err != nil {
+				flushStreamOut(contentOut)
+				return AssistantTurnResult{}, err
+			} else if stopped {
+				legacyStopped = true
+				break
+			}
 			continue
 		}
 		if opts.OnDelta != nil {
 			opts.OnDelta("content", d)
 		}
-		_, _ = io.WriteString(contentOut, d)
-	}
-	if err := stream.Err(); err != nil {
-		if f, ok := contentOut.(interface{ Flush() error }); ok {
-			_ = f.Flush()
+		if stopped, err := writeStreamContentLegacy(contentOut, d); err != nil {
+			flushStreamOut(contentOut)
+			return AssistantTurnResult{}, err
+		} else if stopped {
+			legacyStopped = true
+			break
 		}
-		return AssistantTurnResult{}, err
 	}
-	if f, ok := contentOut.(interface{ Flush() error }); ok {
-		_ = f.Flush()
+	if !legacyStopped {
+		if err := stream.Err(); err != nil {
+			if f, ok := contentOut.(interface{ Flush() error }); ok {
+				_ = f.Flush()
+			}
+			return AssistantTurnResult{}, err
+		}
+		if err := flushStreamOutErr(contentOut); err != nil {
+			return AssistantTurnResult{}, err
+		}
 	}
 	tEnd := time.Now()
 	var out AssistantTurnResult
 	out.ReasoningText = strings.TrimSpace(reasoningBuf.String())
-	if len(acc.Choices) > 0 {
+	if legacyStopped {
+		out.Content = streamTruncatedContent(contentOut, "")
+	} else if len(acc.Choices) > 0 {
 		msg := acc.Choices[0].Message
 		out.Content = msg.Content
 		for _, tc := range msg.ToolCalls {

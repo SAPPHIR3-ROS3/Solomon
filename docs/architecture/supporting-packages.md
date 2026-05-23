@@ -8,6 +8,7 @@ Brief map of smaller `internal/` packages that support the REPL, tools, and UX b
 
 | Package | Path | Role |
 |---------|------|------|
+| `tooling` | `internal/tooling/` | `Invocation` type; legacy `<tool_calls>` XML parse (`legacy_xml.go`) and stream writer (`legacy_stream.go`); tool name validation |
 | `search` | `internal/search/` | DuckDuckGo, SearxNG, Google PSE, Brave, Bing backends for `webSearch` |
 | `logging` | `internal/logging/` | Level parsing, file rotation under `~/.solomon/logs` |
 | `termcolor` | `internal/termcolor/` | Terminal styling via lipgloss/termenv: dark palette, usage line, image tag colorization, `NO_COLOR` / pipe policy |
@@ -21,6 +22,7 @@ Brief map of smaller `internal/` packages that support the REPL, tools, and UX b
 
 | Symbol | Package | Use |
 |--------|---------|-----|
+| `tooling.ExtractToolInvocations`, `LegacyStreamWriter` | `tooling` | Legacy XML tool blocks; early stop at `</tool_calls>` |
 | `search.Engine` implementations | `search` | Called from `web_search.go` |
 | `logging.Log`, `Configure` | `logging` | Startup in `main`, tool errors |
 | `termcolor.Init`, `WrapUser`, `UsageTokensLine` | `termcolor` | Startup in `main` / `exec`; REPL prompt and footers |

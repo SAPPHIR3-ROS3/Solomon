@@ -9,10 +9,10 @@ How Solomon is structured in Go: entry points, runtime loop, LLM layer, tools, p
 | [overview.md](overview.md) | Design tenets, top-level package dependency graph |
 | [startup-and-cli.md](startup-and-cli.md) | `cmd/solomon/main.go`, wizard, project resolve |
 | [runtime-and-repl.md](runtime-and-repl.md) | Readline loop, multiline, shell-first, slash bridge |
-| [agent-turn-pipeline.md](agent-turn-pipeline.md) | `runAgentTurns`, stream, tool execution, compaction |
-| [plan-vs-build.md](plan-vs-build.md) | Modes, prompts, native tool sets |
-| [llm-layer.md](llm-layer.md) | Streaming, params, images, stream integrity |
-| [native-tools.md](native-tools.md) | Tool router, plan/build tools, `tooling` parse |
+| [agent-turn-pipeline.md](agent-turn-pipeline.md) | `runAgentTurns`, stream, tool execution, legacy XML, compaction |
+| [plan-vs-build.md](plan-vs-build.md) | Modes, prompts, native tool sets, legacy syntax in templates |
+| [llm-layer.md](llm-layer.md) | Streaming, params, images, stream integrity, legacy early stop |
+| [native-tools.md](native-tools.md) | Tool router, plan/build tools, legacy XML parse and validation |
 | [mcp-integration.md](mcp-integration.md) | MCP config, manager, adapter, runtime wiring |
 | [sessions-and-storage.md](sessions-and-storage.md) | `chatstore`, `project`, `paths` |
 | [checkpoints.md](checkpoints.md) | Branching, goto, git OID sync |

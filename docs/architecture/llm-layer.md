@@ -70,6 +70,12 @@ User messages may contain `[img-N]` placeholders. OpenAI uses `image_url` data U
 
 Tests: [`test/stream_integrity_test.go`](../../test/stream_integrity_test.go).
 
+## Legacy XML streaming
+
+When `[tools].legacy` is enabled, runtime wraps the terminal `contentOut` writer with [`LegacyStreamWriter`](../../internal/tooling/legacy_stream.go). The writer passes through normal prose, buffers `<tool_calls>…</tool_calls>`, renders tool lines like native calls, and returns `ErrLegacyToolBlockComplete` at the closing tag so the stream loop stops before trailing text. OpenAI and Anthropic backends treat that error as a successful early stop; Anthropic ignores native `tool_use` blocks that arrive after a legacy stop.
+
+Malformed blocks and unknown tool names surface as stream errors with model retry (see [Agent turn pipeline — Legacy XML](agent-turn-pipeline.md#legacy-xml-tool-calling)).
+
 ## Flow
 
 ```mermaid
