@@ -38,8 +38,9 @@ func NewREPLReadline(defaultPrompt string) (*readline.Instance, func(string) (st
 		return nil, nil, nil
 	}
 	rl, err := readline.NewEx(&readline.Config{
-		Prompt: defaultPrompt,
-		Stdin:  NewMultilineStdin(PlatformStdin()),
+		Prompt:       defaultPrompt,
+		Stdin:        NewMultilineStdin(PlatformStdin()),
+		AutoComplete: NewReplCompleter(ReplCompleteEnv{}),
 	})
 	if err != nil {
 		return nil, nil, err
