@@ -138,6 +138,36 @@ func TestEnsureSkillsAddGlobalYes(t *testing.T) {
 	}
 }
 
+func TestValidateSkillsInstallCommand(t *testing.T) {
+	cases := []struct {
+		name    string
+		cmd     string
+		wantErr bool
+	}{
+		{name: "npx ok", cmd: "npx skills add a/b", wantErr: false},
+		{name: "npm exec ok", cmd: "npm exec skills add a/b --skill prd", wantErr: false},
+		{name: "wrong package", cmd: "npx cowsay hi", wantErr: true},
+		{name: "wrong subcommand", cmd: "npx skills remove a/b", wantErr: true},
+		{name: "shell chain", cmd: "npx skills add a/b && rm -rf /", wantErr: true},
+		{name: "unknown flag", cmd: "npx skills add a/b --registry x", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := skills.EnsureSkillsAddGlobalYes(tc.cmd)
+			bad := got == tc.cmd && !strings.Contains(got, "-g") && !strings.Contains(got, "-y")
+			if tc.wantErr {
+				if !bad {
+					t.Fatalf("expected invalid command to remain unnormalized, got %q", got)
+				}
+				return
+			}
+			if !strings.Contains(got, "skills add") || !strings.Contains(got, "-g") || !strings.Contains(got, "-y") {
+				t.Fatalf("unexpected normalized command %q", got)
+			}
+		})
+	}
+}
+
 func TestPartitionInstalledSkills_localAndProject(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

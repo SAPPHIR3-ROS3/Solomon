@@ -155,6 +155,11 @@ func RunInstall(opts InstallOpts) (err error) {
 		return err
 	}
 	installCmd := EnsureSkillsAddGlobalYes(strings.TrimSpace(p.NpmCommand))
+	validatedCmd, err := parseSkillsInstallCommand(installCmd)
+	if err != nil {
+		return err
+	}
+	installCmd = validatedCmd.Display
 	logging.Log(logging.INFO_LOG_LEVEL, "skill npm install", logging.LogOptions{Params: map[string]any{"command": installCmd}})
 	if err := runInstallShellCommand(ctx, installCmd, opts.Out, opts.Out); err != nil {
 		return fmt.Errorf("npm/skills install failed: %w", err)

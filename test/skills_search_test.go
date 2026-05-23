@@ -209,3 +209,43 @@ func TestResolveSkillForLoad_slashAndName(t *testing.T) {
 		t.Fatalf("%v %q %+v", err, s2, e2)
 	}
 }
+
+func TestResolveForcedSkillCommand_longestNameWithRemainder(t *testing.T) {
+	home := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", home)
+	}
+	t.Setenv("HOME", home)
+	regPath := filepath.Join(home, ".solomon", "skills.json")
+	if err := os.MkdirAll(filepath.Dir(regPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	p1 := filepath.Join(home, "s1.md")
+	if err := skills.WriteSkillMarkdown(p1, map[string]any{"name": "PRD", "description": "d1"}, []byte("body1")); err != nil {
+		t.Fatal(err)
+	}
+	p2 := filepath.Join(home, "s2.md")
+	if err := skills.WriteSkillMarkdown(p2, map[string]any{"name": "PRD Review", "description": "d2"}, []byte("body2")); err != nil {
+		t.Fatal(err)
+	}
+	reg := skills.NewRegistry()
+	reg.Global["k1"] = skills.SkillEntry{Name: "PRD", SkillMdPath: p1}
+	reg.Global["k2"] = skills.SkillEntry{Name: "PRD Review", SkillMdPath: p2}
+	raw, err := json.MarshalIndent(reg, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(regPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e, _, remainder, err := skills.ResolveForcedSkillCommand("/skill:PRD Review analizza questo file", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e == nil || e.Name != "PRD Review" {
+		t.Fatalf("skill=%+v", e)
+	}
+	if remainder != "analizza questo file" {
+		t.Fatalf("remainder=%q", remainder)
+	}
+}

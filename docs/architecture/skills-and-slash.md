@@ -29,7 +29,7 @@ Slash handlers live in `commands` package; the runtime bridge constructs `Deps` 
 
 `/help` prints the authoritative sorted list from [`commands.Registry`](../../internal/agent/commands/help.go).
 
-Common commands: `/plan`, `/build`, `/resume`, `/new`, `/temp`, `/summarize`, `/connect`, `/models`, `/legacytools`, `/skills`, MCP-related slashes in `mcp_slash.go`.
+Common commands: `/plan`, `/build`, `/resume`, `/new`, `/temp`, `/summarize`, `/connect`, `/models`, `/legacytools`, `/skills`, forced `/skill:<name> [request]`, and MCP-related slashes in `mcp_slash.go`.
 
 `/legacytools` persists `[tools].legacy` and `[tools].legacy_force` to `config.toml` (global). Implementation: [`thinking.go`](../../internal/agent/commands/thinking.go). User guide: [Usage and commands — `/legacytools`](../user-guide/usage-and-commands.md#legacytools).
 
@@ -42,6 +42,30 @@ Common commands: `/plan`, `/build`, `/resume`, `/new`, `/temp`, `/summarize`, `/
 | `commands.Add` / `commands.Remove` | CLI and slash-driven install paths |
 
 Scopes: global, project (`projects/<id>/skills/`), local workspace (`.solomon/skills/`). See [Data layout](../user-guide/data-layout.md).
+
+## Install command validation
+
+Skill installation commands coming from `/add npx ...`, `npm exec ...`, or a generated `skills.sh` install line are validated against an allowlist before execution.
+
+Behavior:
+
+- Only the `skills` package with subcommand `add` is accepted.
+- Only the repository target plus `--skill`, `-g`/`--global`, and `-y`/`--yes` are accepted after `skills add`.
+- Shell syntax is rejected instead of passed to `sh -c` / `cmd /c`.
+- Execution uses direct argv dispatch (`exec.CommandContext`) after validation, not a general-purpose shell string.
+
+## Forced skill slash
+
+`/skill:<name> [request]` is a special slash path handled before builtin slash dispatch and before dynamic skill slash lookup.
+
+Behavior:
+
+- Resolve `<name>` against installed skills using the same registry ordering as `loadSkill` resolution.
+- Support names with spaces without quoting; when names overlap, prefer the longest matching installed skill name.
+- Build a structured user payload that embeds the chosen skill body plus the optional trailing request.
+- Preserve the visible transcript line as `/skill:<name> ...` while sending the expanded payload to the model via `chatstore.Message.APIContent`.
+
+This path is distinct from dynamic skill slash bindings (such as `/dup` or `/skill-dup`), which still prefill or submit the skill body directly.
 
 ## Flow
 

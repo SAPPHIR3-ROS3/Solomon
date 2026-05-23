@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
 )
@@ -27,4 +28,23 @@ func RunSkillSlash(d Deps, e skills.SkillEntry) error {
 		return err
 	}
 	return d.SubmitUserMessage(msg)
+}
+
+func RunForcedSkillSlash(d Deps, line string) error {
+	e, _, remainder, err := skills.ResolveForcedSkillCommand(line, d.ProjHex, d.ProjRoot)
+	if err != nil {
+		return err
+	}
+	apiMsg, err := skills.ForcedSkillUserMessagePayload(*e, remainder)
+	if err != nil {
+		return err
+	}
+	visible := strings.TrimSpace(line)
+	if d.SubmitVisibleUserMessage != nil {
+		return d.SubmitVisibleUserMessage(visible, apiMsg)
+	}
+	if d.SubmitUserMessage == nil {
+		return fmt.Errorf("skill command unavailable in this context")
+	}
+	return d.SubmitUserMessage(apiMsg)
 }

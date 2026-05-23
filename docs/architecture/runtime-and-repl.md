@@ -13,7 +13,7 @@ The interactive readline loop: input handling, slash commands, multiline paste, 
 | `internal/agent/runtime/multiline.go` | Multiline accumulation, control runes |
 | `internal/agent/runtime/shell.go` | `!command` local shell execution |
 | `internal/agent/runtime/welcome_banner.go` | Startup banner and git branch hint |
-| `internal/agent/slash.go` | Parse `/cmd args`, dispatch registry |
+| `internal/agent/slash.go` | Parse `/cmd args`, intercept forced `/skill:<name>`, dispatch registry |
 | `internal/agent/commands/*` | Slash implementations |
 
 ## Key types and functions
@@ -22,9 +22,9 @@ The interactive readline loop: input handling, slash commands, multiline paste, 
 |--------|----------|
 | `Runtime.Run` | Finish session load, banner, bracketed paste, readline loop |
 | `Runtime.handleSlash` (via bridge) | Slash lines do not enter LLM until command completes |
-| `solomonagent.SlashDispatch` | Tokenize slash line, lookup `commands.Registry` |
+| `solomonagent.SlashDispatch` | Tokenize slash line, handle forced `/skill:<name>` path, then lookup `commands.Registry` |
 | `splitSlashArgs` | Quote-aware slash argument split |
-| `onUserMessage` | Append user msg, persist, `runAgentTurns` |
+| `onUserMessage` / `onUserMessageWithAPIContent` | Append user msg, optionally keep visible text distinct from API payload, persist, `runAgentTurns` |
 | `runUserShellLine` | Run `!` prefixed shell in project root |
 | readline key `22` (Ctrl+V) | Paste clipboard image → `[img-N]` tag + file under chat images dir |
 
@@ -46,6 +46,8 @@ flowchart TD
   shell -->|chat line| multi
   multi --> userMsg --> loop
 ```
+
+`SlashDispatch` includes a dedicated early branch for `/skill:<name> [request]`: the visible line stays unchanged in the transcript, while the expanded prompt with the resolved skill body is stored separately and used for the API call.
 
 ## `Runtime` fields (REPL-relevant)
 

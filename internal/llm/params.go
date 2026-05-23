@@ -180,7 +180,11 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 		case "tool":
 			out = append(out, openai.ToolMessage(m.Content, m.ToolCallID))
 		case "user":
-			parts := BuildUserContentParts(m.Content, imageFiles)
+			content := m.Content
+			if strings.TrimSpace(m.APIContent) != "" {
+				content = m.APIContent
+			}
+			parts := BuildUserContentParts(content, imageFiles)
 			if len(parts) == 0 {
 				out = append(out, openai.UserMessage(""))
 				continue
