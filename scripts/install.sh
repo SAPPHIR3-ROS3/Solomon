@@ -45,7 +45,7 @@ detect_platform() {
 }
 
 install_go() {
-  local platform tarball url parent
+  local platform tarball url parent tmp
   platform="$(detect_platform)"
   tarball="go${GO_REQUIRED}.${platform}.tar.gz"
   url="https://go.dev/dl/${tarball}"
@@ -53,10 +53,10 @@ install_go() {
   mkdir -p "$parent"
   echo "Downloading Go ${GO_REQUIRED} (${platform})..."
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
   curl -fsSL "$url" -o "${tmp}/${tarball}"
   rm -rf "$GO_INSTALL_ROOT"
   tar -C "$parent" -xzf "${tmp}/${tarball}"
+  rm -rf "$tmp"
   export PATH="${GO_INSTALL_ROOT}/bin:${PATH}"
   INSTALLED_LOCAL_GO=1
 }
