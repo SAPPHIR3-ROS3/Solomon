@@ -23,7 +23,9 @@ Interactive terminal harness for LLMs over OpenAI-compatible APIs — project-aw
 
 ### 1. Install script (one command)
 
-Installs Go **1.25.0+** if needed, configures your shell `PATH`, and runs `go install` for `solomon`.
+Installs Go **1.25.0+** if needed, ensures `make` is available, configures your shell `PATH`, and runs `go install` for `solomon`.
+
+> Note: the standard installer does **not** require Node.js. Node/npm are only needed later if you use the optional Cursor integration.
 
 **macOS / Linux:**
 
@@ -175,6 +177,8 @@ solomon .
 ```
 
 On first run, Solomon starts an **interactive setup** (provider URL, API key, model). Name and language are optional; provider credentials are required.
+
+If you later enable the optional Cursor integration, Solomon may install its Node-based sidecar automatically at that time.
 
 Then chat at the `You:` prompt, or send one message:
 

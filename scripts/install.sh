@@ -82,6 +82,28 @@ ensure_go() {
   echo "Go ${ver} ready"
 }
 
+ensure_make() {
+  if command -v make > /dev/null 2>&1; then
+    echo "make OK ($(command -v make))"
+    return 0
+  fi
+  echo "make not found; please install it and rerun this script." >&2
+  local os
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  case "$os" in
+    darwin)
+      echo "macOS: install Xcode Command Line Tools with 'xcode-select --install', or install make via Homebrew/MacPorts." >&2
+      ;;
+    linux)
+      echo "Linux: install make with your package manager (e.g. 'sudo apt-get install -y make', 'sudo dnf install -y make', 'sudo pacman -S make')." >&2
+      ;;
+    *)
+      echo "make is optional by itself; install it with your system package manager or manually if you want build tooling on $os." >&2
+      ;;
+  esac
+  exit 1
+}
+
 node_lts_major() {
   local major=""
   if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
@@ -319,7 +341,7 @@ install_solomon() {
 
 main() {
   ensure_go
-  ensure_node
+  ensure_make
   setup_shell
   install_solomon
   echo "Done."
