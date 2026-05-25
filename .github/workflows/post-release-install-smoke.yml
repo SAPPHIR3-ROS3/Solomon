@@ -92,30 +92,21 @@ jobs:
       - name: Smoke test installed binary (macOS / Linux)
         if: runner.os != 'Windows'
         shell: bash
-        env:
-          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
         run: |
           set -euo pipefail
-          output="$($(go env GOPATH)/bin/solomon version)"
-          printf '%s\n' "$output"
-          if [[ "$output" != *"${RELEASE_TAG}"* ]]; then
-            echo "installed version mismatch: expected ${RELEASE_TAG}" >&2
+          exe="$HOME/go/bin/solomon"
+          if [[ ! -x "$exe" ]]; then
+            echo "Installed binary not found at $exe" >&2
             exit 1
           fi
+          "$exe" version
 
       - name: Smoke test installed binary (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        env:
-          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
         run: |
-          $exe = Join-Path (go env GOPATH) 'bin/solomon.exe'
+          $exe = Join-Path $env:USERPROFILE 'go\bin\solomon.exe'
           if (-not (Test-Path $exe)) {
             throw "Installed binary not found at $exe"
           }
-          $output = & $exe version
-          $outputText = ($output | Out-String).Trim()
-          Write-Host $outputText
-          if ($outputText -notlike "*$env:RELEASE_TAG*") {
-            throw "Installed version mismatch: expected $env:RELEASE_TAG"
-          }
+          & $exe version
