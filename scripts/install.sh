@@ -4,7 +4,8 @@ set -euo pipefail
 GO_REQUIRED="1.25.0"
 GO_INSTALL_ROOT="${HOME}/.local/go"
 INSTALLED_LOCAL_GO=0
-SOLMON_PKG="github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest"
+INSTALL_VERSION="${SOLOMON_VERSION:-${1:-latest}}"
+SOLMON_PKG="github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@${INSTALL_VERSION}"
 MARKER="# solomon-installer"
 
 version_ge() {
@@ -329,7 +330,7 @@ setup_shell() {
 }
 
 install_solomon() {
-  echo "Installing solomon..."
+  echo "Installing solomon (${INSTALL_VERSION})..."
   go install "$SOLMON_PKG"
   if command -v solomon >/dev/null 2>&1; then
     echo "solomon installed: $(command -v solomon)"

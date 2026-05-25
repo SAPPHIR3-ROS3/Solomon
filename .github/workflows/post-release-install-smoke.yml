@@ -1,0 +1,121 @@
+name: Post-release install smoke
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  install-smoke:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_dispatch' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - id: metadata
+        name: Download release metadata artifact
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const runId = context.payload.workflow_run.id;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const artifactName = 'release-metadata';
+
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner,
+              repo,
+              run_id: runId,
+              per_page: 100,
+            });
+            const artifact = artifacts.find(a => a.name === artifactName && !a.expired);
+            if (!artifact) {
+              core.setFailed(`Artifact ${artifactName} not found for workflow run ${runId}`);
+              return;
+            }
+
+            const download = await github.rest.actions.downloadArtifact({
+              owner,
+              repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+            });
+
+            const outDir = process.env.GITHUB_WORKSPACE;
+            const zipPath = path.join(outDir, 'release-metadata.zip');
+            fs.writeFileSync(zipPath, Buffer.from(download.data));
+            core.setOutput('zip_path', zipPath);
+
+      - name: Extract release metadata artifact
+        shell: pwsh
+        run: |
+          Expand-Archive -Path "${{ steps.metadata.outputs.zip_path }}" -DestinationPath release-metadata -Force
+
+      - id: release_tag
+        name: Read release tag
+        shell: pwsh
+        run: |
+          $tag = (Get-Content "release-metadata/release-tag.txt" -Raw).Trim()
+          if (-not $tag) {
+            throw 'Release tag metadata is empty'
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Run README install command (macOS / Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/${RELEASE_TAG}/scripts/install.sh" | bash -s -- "${RELEASE_TAG}"
+
+      - name: Run README install command (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          $script = irm "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/$env:RELEASE_TAG/scripts/install.ps1"
+          $block = [scriptblock]::Create($script)
+          & $block -Version $env:RELEASE_TAG
+
+      - name: Smoke test installed binary (macOS / Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          output="$($(go env GOPATH)/bin/solomon version)"
+          printf '%s\n' "$output"
+          if [[ "$output" != *"${RELEASE_TAG}"* ]]; then
+            echo "installed version mismatch: expected ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+
+      - name: Smoke test installed binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          $exe = Join-Path (go env GOPATH) 'bin/solomon.exe'
+          if (-not (Test-Path $exe)) {
+            throw "Installed binary not found at $exe"
+          }
+          $output = & $exe version
+          $outputText = ($output | Out-String).Trim()
+          Write-Host $outputText
+          if ($outputText -notlike "*$env:RELEASE_TAG*") {
+            throw "Installed version mismatch: expected $env:RELEASE_TAG"
+          }

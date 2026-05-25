@@ -127,3 +127,16 @@ jobs:
           gh release create "$VER" dist/* \
             --title "$VER" \
             --notes "Calendar release $VER. Assets are native executables per platform (linux, windows, macOS; amd64 and arm64)."
+
+      - name: Persist release metadata
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          printf '%s\n' "$VER" > release-tag.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata
+          path: release-tag.txt
+          if-no-files-found: error
+
