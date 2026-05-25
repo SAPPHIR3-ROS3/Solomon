@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -39,13 +40,15 @@ func ParseToolCallsBlock(block string) ([]Invocation, error) {
 	for {
 		loc := reToolOpen.FindStringSubmatchIndex(rest)
 		if loc == nil {
-			if strings.TrimSpace(rest) != "" {
-				return nil, fmt.Errorf("%w: unexpected content outside tool tags", ErrMalformedLegacyTool)
+			if junk := strings.TrimSpace(rest); junk != "" {
+				return nil, fmt.Errorf("%w: unexpected content outside tool tags: %s", ErrMalformedLegacyTool, legacyErrorSnippet(junk))
 			}
 			break
 		}
-		if loc[0] > 0 && strings.TrimSpace(rest[:loc[0]]) != "" {
-			return nil, fmt.Errorf("%w: unexpected content outside tool tags", ErrMalformedLegacyTool)
+		if loc[0] > 0 {
+			if junk := strings.TrimSpace(rest[:loc[0]]); junk != "" {
+				return nil, fmt.Errorf("%w: unexpected content outside tool tags: %s", ErrMalformedLegacyTool, legacyErrorSnippet(junk))
+			}
 		}
 		name := rest[loc[2]:loc[3]]
 		if name == "" {
@@ -102,6 +105,63 @@ func parseToolBody(name, body string) (Invocation, error) {
 		return Invocation{}, err
 	}
 	return Invocation{Name: name, Args: merged}, nil
+}
+
+func StripLegacyToolBlocks(text string) string {
+	for {
+		open := strings.Index(text, tagToolCallsOpen)
+		if open < 0 {
+			break
+		}
+		closeRel := strings.Index(text[open:], tagToolCallsClose)
+		if closeRel < 0 {
+			return strings.TrimSpace(text[:open])
+		}
+		close := open + closeRel + len(tagToolCallsClose)
+		before := strings.TrimSpace(text[:open])
+		after := strings.TrimSpace(text[close:])
+		switch {
+		case before != "" && after != "":
+			text = before + "\n" + after
+		case before != "":
+			text = before
+		default:
+			text = after
+		}
+	}
+	return strings.TrimSpace(text)
+}
+
+func LegacyProseOutsideToolCalls(text string) string {
+	open := strings.Index(text, tagToolCallsOpen)
+	if open < 0 {
+		return strings.TrimSpace(text)
+	}
+	closeRel := strings.Index(text[open:], tagToolCallsClose)
+	if closeRel < 0 {
+		return strings.TrimSpace(text[:open])
+	}
+	close := open + closeRel + len(tagToolCallsClose)
+	before := strings.TrimSpace(text[:open])
+	after := strings.TrimSpace(text[close:])
+	switch {
+	case before != "" && after != "":
+		return before + "\n" + after
+	case before != "":
+		return before
+	default:
+		return after
+	}
+}
+
+func legacyErrorSnippet(s string) string {
+	const max = 80
+	s = strings.ReplaceAll(s, "\n", `\n`)
+	s = strings.ReplaceAll(s, "\r", "")
+	if len(s) <= max {
+		return strconv.Quote(s)
+	}
+	return strconv.Quote(s[:max] + "…")
 }
 
 func extractToolCallsBlock(text string) (string, bool, error) {

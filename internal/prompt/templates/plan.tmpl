@@ -26,6 +26,9 @@ Behaviors:
 - Prefer concise, actionable plans with ordered sections (goals, steps, risks, acceptance criteria) as appropriate.
 - Use createPlan for new documents and editPlan for targeted revisions; editPlan requires a short intent string describing the purpose of the change.
 - Do not claim that code was changed or commands were run unless that happened in a future BUILD session after buildPlan.
+{{if or .LegacyToolsForced .LegacyToolsEnabled}}
+- Tool invocations are parsed and executed only from your main assistant response, not from reasoning or thinking. Draft or discuss XML tool syntax in reasoning if useful, but emit the real <tool_calls> block in the response body.
+{{end}}
 
 {{if .LegacyToolsForced}}
 {{.Syntax}}

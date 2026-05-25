@@ -172,9 +172,9 @@ func PickModelAfterAdd(pio PromptIO, prevProv, prevModel, newProvName string, ne
 		fmt.Fprintln(out, "...")
 	}
 	pasteIdx := 21
+	printPickAfterAddHelp(out, nShownNew, newProvName, truncated, pasteIdx, allowSkip)
 	for {
-		prompt := pickAfterAddPrompt(nShownNew, newProvName, truncated, pasteIdx, allowSkip)
-		line, err := readModelPickLine(pio, prompt)
+		line, err := readModelPickLine(pio, pickAfterAddReadPrompt())
 		if err != nil {
 			return ModelPickChoice{}, err
 		}
@@ -232,7 +232,7 @@ func PickModelAfterAdd(pio PromptIO, prevProv, prevModel, newProvName string, ne
 	}
 }
 
-func pickAfterAddPrompt(nShownNew int, newProvName string, truncated bool, pasteIdx int, allowSkip bool) string {
+func printPickAfterAddHelp(out io.Writer, nShownNew int, newProvName string, truncated bool, pasteIdx int, allowSkip bool) {
 	var b strings.Builder
 	b.WriteString("Select: 0 = keep current provider/model")
 	if nShownNew > 0 {
@@ -245,8 +245,11 @@ func pickAfterAddPrompt(nShownNew int, newProvName string, truncated bool, paste
 	if allowSkip {
 		b.WriteString(", or skip to keep current")
 	}
-	b.WriteString("\n> ")
-	return b.String()
+	fmt.Fprintln(out, b.String())
+}
+
+func pickAfterAddReadPrompt() string {
+	return "> "
 }
 
 func resolvePasteNewProvider(newProvName string, newIDs []string, id string) error {

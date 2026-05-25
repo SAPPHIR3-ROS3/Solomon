@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 )
@@ -85,4 +86,32 @@ func (r *Runtime) legacyInvocationsFromTurn(turn llm.AssistantTurnResult, legacy
 		toolIDs = append(toolIDs, "")
 	}
 	return invs, toolIDs, false, nil
+}
+
+func (r *Runtime) syncLegacyToolCallsToLastAssistant(invs []tooling.Invocation) {
+	if r == nil || len(invs) == 0 {
+		return
+	}
+	r.mutateSession(func(s *chatstore.Session) {
+		if s == nil || len(s.Messages) == 0 {
+			return
+		}
+		for i := len(s.Messages) - 1; i >= 0; i-- {
+			if s.Messages[i].Role != "assistant" {
+				continue
+			}
+			m := &s.Messages[i]
+			if len(m.ToolCalls) > 0 {
+				return
+			}
+			for _, inv := range invs {
+				m.ToolCalls = append(m.ToolCalls, chatstore.ToolCall{
+					Name:      inv.Name,
+					Arguments: string(inv.Args),
+				})
+			}
+			m.Content = tooling.LegacyProseOutsideToolCalls(m.Content)
+			return
+		}
+	})
 }

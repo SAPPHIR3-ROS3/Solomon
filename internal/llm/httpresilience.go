@@ -117,6 +117,7 @@ func isRetryableNetErr(err error) bool {
 	for _, sub := range []string{
 		"connection reset",
 		"connection refused",
+		"forcibly closed",
 		"broken pipe",
 		"unexpected eof",
 		"eof",

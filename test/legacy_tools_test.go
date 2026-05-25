@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 )
@@ -246,6 +248,47 @@ oops
 			_, err := tooling.ParseToolCallsBlock(tc.block)
 			assertMalformedLegacyTool(t, err)
 		})
+	}
+}
+
+func TestWriteLabeledTranscriptRendersToolsNotXML(t *testing.T) {
+	var buf bytes.Buffer
+	msgs := []chatstore.Message{
+		{Role: "user", Content: "hi"},
+		{Role: "assistant", Content: sampleMultiLegacyToolCalls},
+	}
+	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
+	out := buf.String()
+	if strings.Contains(out, "<tool_calls>") {
+		t.Fatalf("transcript should not show raw XML: %s", out)
+	}
+	if !strings.Contains(out, "Tool: shell") || !strings.Contains(out, "Tool: readFile") {
+		t.Fatalf("expected Tool: lines: %s", out)
+	}
+	if strings.Contains(out, `readFile({"path"`) {
+		t.Fatalf("transcript should use friendly tool lines, not raw JSON args: %s", out)
+	}
+}
+
+func TestStripLegacyToolBlocks_removesFromReasoning(t *testing.T) {
+	text := "planning.\n" + sampleMultiLegacyToolCalls + "\nmore thought"
+	got := tooling.StripLegacyToolBlocks(text)
+	if strings.Contains(got, "<tool_calls>") || strings.Contains(got, "readFile") {
+		t.Fatalf("tool block must be removed from reasoning: %q", got)
+	}
+	if !strings.Contains(got, "planning.") || !strings.Contains(got, "more thought") {
+		t.Fatalf("prose around block should remain: %q", got)
+	}
+}
+
+func TestLegacyProseOutsideToolCalls(t *testing.T) {
+	text := "Here is the plan.\n" + sampleMultiLegacyToolCalls + "\nDone."
+	got := tooling.LegacyProseOutsideToolCalls(text)
+	if strings.Contains(got, "<tool_calls>") {
+		t.Fatalf("prose should not contain XML: %q", got)
+	}
+	if !strings.Contains(got, "Here is the plan.") {
+		t.Fatalf("missing prefix: %q", got)
 	}
 }
 
@@ -500,6 +543,30 @@ func TestLegacyStreamWriter_unknownToolName(t *testing.T) {
 	_, err := w.Write([]byte(block))
 	if !errors.Is(err, tooling.ErrUnknownLegacyTool) {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestUserFacingLegacyToolError_specificMessages(t *testing.T) {
+	block := `<tool_calls>
+oops
+<tool name="shell">
+<args>{"command":"x"}</args>
+</tool>
+</tool_calls>`
+	_, err := tooling.ParseToolCallsBlock(block)
+	assertMalformedLegacyTool(t, err)
+	msg := tooling.UserFacingLegacyToolError(err)
+	if strings.Contains(msg, "Use <tool_calls> with") {
+		t.Fatalf("generic suffix leaked: %q", msg)
+	}
+	if !strings.Contains(msg, "stray text") && !strings.Contains(msg, "only <tool>") {
+		t.Fatalf("want specific outside-tags message, got %q", msg)
+	}
+
+	wrapped := fmt.Errorf("after 1 attempt(s): %w", err)
+	msg2 := tooling.UserFacingLegacyToolError(wrapped)
+	if strings.Contains(msg2, "after 1 attempt") {
+		t.Fatalf("unwrap failed: %q", msg2)
 	}
 }
 
