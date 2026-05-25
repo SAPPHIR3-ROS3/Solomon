@@ -16,6 +16,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/instructions"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
@@ -120,6 +121,17 @@ func (r *Runtime) applyToolOutput(res any, toolName, toolCallID string) any {
 }
 
 func (r *Runtime) applyProviderClient(ctx context.Context, p *config.Provider) {
+	if p != nil && p.IsCursorAPI() {
+		cwd := r.ProjRoot
+		if cwd == "" {
+			cwd, _ = os.Getwd()
+		}
+		bo := runtimeBootstrapOut{out: r.Out}
+		if _, err := cursorint.DefaultManager().Ensure(ctx, p.APIKey, cwd, bo); err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "cursor API proxy ensure failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			return
+		}
+	}
 	backend, err := llm.NewCompletionBackend(ctx, r.Cfg, p)
 	if err != nil {
 		params := map[string]any{"err": err.Error()}
@@ -139,6 +151,13 @@ func (r *Runtime) applyProviderClient(ctx context.Context, p *config.Provider) {
 
 func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 	prevP, prevM := r.Cfg.Current.Provider, r.Cfg.Current.Model
+	if prevP != "" {
+		if old := config.ProviderByName(r.Cfg, prevP); old != nil && old.IsCursorAPI() && providerName != prevP {
+			if np := config.ProviderByName(r.Cfg, providerName); np == nil || !np.IsCursorAPI() {
+				cursorint.DefaultManager().Stop()
+			}
+		}
+	}
 	changed := prevP != providerName || prevM != modelID
 	r.Cfg.Current.Provider = providerName
 	r.Cfg.Current.Model = modelID
@@ -152,6 +171,10 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 	if p := config.ProviderByName(r.Cfg, providerName); p != nil {
 		r.Prov = p
 		r.Model = modelID
+		if p.IsCursorAPI() {
+			r.applyProviderClient(context.Background(), p)
+			return nil
+		}
 		backend, err := llm.NewCompletionBackend(context.Background(), r.Cfg, p)
 		if err != nil {
 			return err

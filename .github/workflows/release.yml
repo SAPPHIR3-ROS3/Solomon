@@ -22,6 +22,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          check-latest: true
+      - name: Build cursor integration bundle
+        run: |
+          go run scripts/cursor_bundler.go build
+          go run scripts/cursor_bundler.go bundle
       - run: go vet ./...
       - run: go test ./... -count=1
       - run: go build ./cmd/solomon
@@ -40,6 +48,16 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          check-latest: true
+
+      - name: Build cursor integration bundle
+        run: |
+          go run scripts/cursor_bundler.go build
+          go run scripts/cursor_bundler.go bundle
 
       - id: version
         name: Resolve calendar version tag

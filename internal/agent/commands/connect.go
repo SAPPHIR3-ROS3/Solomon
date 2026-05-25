@@ -1,24 +1,23 @@
 package commands
 
 import (
-	"fmt"
+	connectcmd "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands/connect"
 )
 
 func Connect(d Deps) error {
-	choice, err := connectChooseKind(d)
-	if err != nil {
-		return err
-	}
-	switch choice {
-	case 1:
-		return connectChatGPTSub(d)
-	case 2:
-		return connectCompatibleAPI(d)
-	case 3:
-		return connectAnthropicCompatibleAPI(d)
-	case 4:
-		return connectClaudeSubComingSoon(d)
-	default:
-		return fmt.Errorf("internal error: unknown connect choice %d", choice)
+	return connectcmd.Run(connectDeps(d))
+}
+
+func connectDeps(d Deps) connectcmd.Deps {
+	return connectcmd.Deps{
+		Ctx:               d.Ctx,
+		Out:               d.Out,
+		Stdin:             d.Stdin,
+		ReadLine:          d.ReadLine,
+		Cfg:               d.Cfg,
+		SaveCfg:           d.SaveCfg,
+		ApplyCurrentModel: d.ApplyCurrentModel,
+		Model:             d.Model,
+		Provider:          d.Provider,
 	}
 }

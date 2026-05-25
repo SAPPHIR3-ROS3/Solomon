@@ -11,6 +11,7 @@ import (
 
 	readline "github.com/chzyer/readline"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands/connect"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
@@ -209,7 +210,7 @@ func SlashModels(d Deps) error {
 	var catalog []ListedModel
 	for _, p := range config.ProviderList(d.Cfg) {
 		pp := p
-		ids, err := listModelsForProvider(ctx, d.Cfg, &pp)
+		ids, err := connect.ListModelsForProvider(ctx, d.Cfg, &pp)
 		if err != nil {
 			PrintSystemf(d.Out, "provider %s: error: %v", p.Name, err)
 			continue
