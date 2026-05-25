@@ -83,7 +83,7 @@ func sdkInstalled(dir string) bool {
 }
 
 func extractBundle(dir string) error {
-	return fs.WalkDir(bundleFS, "bundle", func(path string, d fs.DirEntry, err error) error {
+	if err := fs.WalkDir(bundleFS, "bundle", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,16 @@ func extractBundle(dir string) error {
 			return err
 		}
 		return os.WriteFile(target, data, 0o644)
-	})
+	}); err != nil {
+		return err
+	}
+	npmrc := filepath.Join(dir, ".npmrc")
+	if _, err := os.Stat(npmrc); os.IsNotExist(err) {
+		if err := os.WriteFile(npmrc, []byte("loglevel=error\n"), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func npmEnsureProdDeps(dir string) error {
