@@ -30,6 +30,36 @@ func TestResolveTurnInvocations_nativePreferredWhenOptional(t *testing.T) {
 	}
 }
 
+func TestResolveTurnInvocations_cursorProviderForcesLegacyWithoutConfig(t *testing.T) {
+	r := &agentruntime.Runtime{
+		Mode: "build",
+		Cfg:  &config.Root{},
+		Prov: &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI},
+	}
+	turn := llm.AssistantTurnResult{
+		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{}`}},
+	}
+	_, _, reject, malformed := r.ResolveTurnInvocations(turn, nil)
+	if !reject || malformed != nil {
+		t.Fatalf("reject=%v malformed=%v", reject, malformed)
+	}
+}
+
+func TestResolveTurnInvocations_nonCursorCleanConfigUsesNative(t *testing.T) {
+	r := &agentruntime.Runtime{
+		Mode: "build",
+		Cfg:  &config.Root{},
+		Prov: &config.Provider{Name: "openai", AuthKind: config.AuthKindAPIKey},
+	}
+	turn := llm.AssistantTurnResult{
+		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{"command":"go test"}`}},
+	}
+	invs, ids, reject, malformed := r.ResolveTurnInvocations(turn, nil)
+	if reject || malformed != nil || len(invs) != 1 || ids[0] != "c1" {
+		t.Fatalf("reject=%v malformed=%v invs=%+v ids=%v", reject, malformed, invs, ids)
+	}
+}
+
 func TestResolveTurnInvocations_forceRejectsNative(t *testing.T) {
 	r := &agentruntime.Runtime{
 		Mode: "build",

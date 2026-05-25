@@ -61,8 +61,6 @@ func cursorAPI(d Deps) error {
 	if len(ids) == 0 {
 		ids = []string{"composer-2.5", "auto"}
 	}
-	d.Cfg.Tools.Legacy = true
-	d.Cfg.Tools.LegacyForce = true
 	prevProv := d.Cfg.Current.Provider
 	prevModel := d.Cfg.Current.Model
 	config.AppendOrUpdateProvider(d.Cfg, prov)
