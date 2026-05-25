@@ -77,14 +77,17 @@ func TestResolveTurnInvocations_unknownToolName(t *testing.T) {
 }
 
 func TestToolInvocationSyntaxSection(t *testing.T) {
-	if got := prompt.ToolInvocationSyntaxSection(false, false); got != "" {
+	if got := prompt.ToolInvocationSyntaxSection(false, false, false); got != "" {
 		t.Fatalf("want empty, got %q", got)
 	}
-	forced := prompt.ToolInvocationSyntaxSection(true, true)
+	forced := prompt.ToolInvocationSyntaxSection(true, true, false)
 	if !strings.Contains(forced, "<tool_calls>") || !strings.Contains(forced, "force is ON") {
 		t.Fatalf("forced: %q", forced)
 	}
-	optional := prompt.ToolInvocationSyntaxSection(true, false)
+	if strings.Contains(forced, "createPlan") {
+		t.Fatalf("build forced must not include plan examples: %q", forced)
+	}
+	optional := prompt.ToolInvocationSyntaxSection(true, false, false)
 	if !strings.Contains(optional, "Optional legacy") || !strings.Contains(optional, "native API tool_calls") {
 		t.Fatalf("optional: %q", optional)
 	}

@@ -37,8 +37,8 @@ type Runtime struct {
 	Client  openai.Client
 	Backend llm.CompletionBackend
 	Model   string
-	Cfg    *config.Root
-	Prov   *config.Provider
+	Cfg     *config.Root
+	Prov    *config.Provider
 
 	ProjHex  string
 	ProjRoot string
@@ -65,10 +65,10 @@ type Runtime struct {
 	EventSink       cievents.Sink
 	FailOnToolError bool
 
-	ciPrompt        string
-	ciTurn          int
-	ciToolErr       bool
-	ciFinalContent  string
+	ciPrompt       string
+	ciTurn         int
+	ciToolErr      bool
+	ciFinalContent string
 
 	ToolOut *tooloutput.Service
 
@@ -211,14 +211,15 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	}
 	legacyEnabled := r.legacyToolsEnabled()
 	legacyForced := r.legacyToolsForced()
+	planMode := r.Mode == "plan"
 	var syntax string
 	var legacySyntax string
 	if legacyForced {
-		syntax = prompt.LegacyOnlyToolInvocationSyntax()
+		syntax = prompt.LegacyOnlyToolInvocationSyntax(planMode)
 	} else {
 		syntax = prompt.NativeToolInvocationSyntax(legacyEnabled)
 		if legacyEnabled {
-			legacySyntax = prompt.LegacyToolInvocationSyntaxAppend()
+			legacySyntax = prompt.LegacyToolInvocationSyntaxAppend(planMode)
 		}
 	}
 	d := prompt.Data{

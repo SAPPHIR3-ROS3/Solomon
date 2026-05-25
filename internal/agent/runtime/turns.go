@@ -140,6 +140,10 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		agg := llm.AggregateConsecutiveTurnUsage(usageTurns)
 		ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(usageSys, usageMsgs, agg, len(usageTurns))
 		fmt.Fprintln(r.Out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, ctxEst, agg.TurnWallSecs))
+		r.mutateSession(func(s *chatstore.Session) {
+			chatstore.ApplyTurnUsageDisplayToLastAssistant(s, ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, agg.TurnWallSecs)
+		})
+		_ = r.persistSession()
 		usageTurns = nil
 	}
 	for {
@@ -197,7 +201,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			legacySW, contentOut = newLegacyStreamWriter(legacyOut, true, allowed)
+			legacySW, contentOut = newLegacyStreamWriter(legacyOut, true, allowed, checkpoint.FormatLinePrefix(astSeq, branchKey))
 		}
 		streamOpts := r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out)
 		if r.machineMode() && !legacyTools {
@@ -248,7 +252,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			usageTurns = append(usageTurns, turn.Usage)
 			usageSys, usageMsgs = sys, msgs
 		}
-		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: strings.TrimSpace(turn.ReasoningText)}
+		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
@@ -275,6 +279,8 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			}
 			continue
 		}
+		r.syncLegacyToolCallsToLastAssistant(invs)
+		_ = r.persistSession()
 		if len(invs) == 0 {
 			flushUsageStats()
 			if r.machineMode() {

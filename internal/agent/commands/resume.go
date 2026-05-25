@@ -63,7 +63,7 @@ func Resume(d Deps, args []string) error {
 
 func afterResumeLoaded(d Deps, sess *chatstore.Session) {
 	chatstore.FinishSessionLoad(sess)
-	printResumedTranscript(d.Out, sess, d.Model())
+	printResumedTranscript(d.Out, sess, d.Model(), usageStatsEnabled(d))
 	syncReadlineHistoryFromSession(d, sess)
 }
 
@@ -112,13 +112,17 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max]) + "…"
 }
 
-func printResumedTranscript(out io.Writer, sess *chatstore.Session, model string) {
+func printResumedTranscript(out io.Writer, sess *chatstore.Session, model string, showUsage bool) {
 	if len(sess.Messages) == 0 {
 		return
 	}
 	fmt.Fprintln(out)
-	WriteLabeledTranscript(out, sess.Messages, model)
+	WriteLabeledTranscript(out, sess.Messages, model, showUsage)
 	fmt.Fprintln(out)
+}
+
+func usageStatsEnabled(d Deps) bool {
+	return d.Cfg != nil && d.Cfg.UsageStatsEnabled()
 }
 
 func NewChat(d Deps) error {

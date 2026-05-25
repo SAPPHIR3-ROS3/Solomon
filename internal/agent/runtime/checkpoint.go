@@ -45,7 +45,7 @@ func (r *Runtime) ApplyGotoCheckpoint(id *checkpoint.FullCheckpointID) error {
 	r.mutateSession(func(s *chatstore.Session) {
 		msgs = append([]chatstore.Message(nil), s.Messages...)
 	})
-	commands.WriteLabeledTranscript(r.Out, msgs, r.Model)
+	commands.WriteLabeledTranscript(r.Out, msgs, r.Model, r.Cfg != nil && r.Cfg.UsageStatsEnabled())
 	tag := checkpoint.FormatCheckpointTag(id.Seq, id.Suffix)
 	commands.PrintSystemf(r.Out, "goto %s: transcript truncated (%d messages moved to orphan main).", tag, truncLen)
 	return r.persistSession()

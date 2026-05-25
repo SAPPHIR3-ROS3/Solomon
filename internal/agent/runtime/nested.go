@@ -52,7 +52,7 @@ func (r *Runtime) AugmentNestedCustomSystem(system string) (string, error) {
 		return system, nil
 	}
 	blocks := []string{system}
-	if section := prompt.ToolInvocationSyntaxSection(r.legacyToolsEnabled(), r.legacyToolsForced()); section != "" {
+	if section := prompt.ToolInvocationSyntaxSection(r.legacyToolsEnabled(), r.legacyToolsForced(), false); section != "" {
 		blocks = append(blocks, section)
 	}
 	if r.legacyToolsForced() {
@@ -130,7 +130,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 		}
 		transcript.WriteString(turn.Content)
 		transcript.WriteByte('\n')
-		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: strings.TrimSpace(turn.ReasoningText)}
+		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
@@ -231,7 +231,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 				}
 			}
 		}
-		legacySW, contentOut = newLegacyStreamWriter(r.Out, true, allowed)
+		legacySW, contentOut = newLegacyStreamWriter(r.Out, true, allowed, "")
 	}
 	turn, err := r.Backend.StreamTurn(ctx, turnReq, contentOut, r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out))
 	if err != nil {

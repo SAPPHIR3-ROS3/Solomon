@@ -65,6 +65,9 @@ func (b *ResilientBackend) runWithRetry(ctx context.Context, opts StreamOpts, op
 				logCircuitTrip(b.HostKey, b.Policy.CircuitOpen)
 			}
 			logAPIFailure(b.HostKey, string(b.Protocol()), attempt, max, status, lastErr)
+			if attempt <= 1 {
+				return lastErr
+			}
 			return fmt.Errorf("after %d attempt(s): %w", attempt, lastErr)
 		}
 		wait := BackoffDelay(b.Policy, attempt, retryAfter, b.rng)

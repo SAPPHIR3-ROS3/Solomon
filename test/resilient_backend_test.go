@@ -3,7 +3,9 @@ package test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 )
 
 type mockCompletionBackend struct {
@@ -83,6 +86,41 @@ func TestResilientBackend_StreamTurn_NoRetryOn401(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
+}
+
+func TestResilientBackend_StreamTurn_singleAttemptNoAfterPrefix(t *testing.T) {
+	policy := config.APIResiliencePolicy{MaxRetries: 1, BaseDelay: time.Millisecond, MaxDelay: time.Millisecond, Jitter: false, CircuitOpen: time.Minute}
+	rb := llm.NewResilientBackend(&failingMalformedLegacyBackend{}, "mock.test", policy, llm.NewCircuitRegistry())
+	_, err := rb.StreamTurn(context.Background(), llm.TurnRequest{Model: "m"}, io.Discard, llm.StreamOpts{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if strings.Contains(err.Error(), "after 1 attempt(s)") {
+		t.Fatalf("single permanent failure should not add retry prefix: %q", err.Error())
+	}
+	if !errors.Is(err, tooling.ErrMalformedLegacyTool) {
+		t.Fatalf("want malformed legacy, got %v", err)
+	}
+}
+
+type failingMalformedLegacyBackend struct{}
+
+func (f *failingMalformedLegacyBackend) Protocol() llm.Protocol { return llm.ProtocolOpenAI }
+
+func (f *failingMalformedLegacyBackend) StreamTurn(ctx context.Context, req llm.TurnRequest, contentOut io.Writer, opts llm.StreamOpts) (llm.AssistantTurnResult, error) {
+	return llm.AssistantTurnResult{}, fmt.Errorf("%w: unexpected content outside tool tags: %q", tooling.ErrMalformedLegacyTool, "oops")
+}
+
+func (f *failingMalformedLegacyBackend) StreamText(ctx context.Context, req llm.SimpleCompletionRequest, contentOut io.Writer, opts llm.StreamOpts) (string, llm.UsageStats, error) {
+	return "", llm.UsageStats{}, errors.New("not implemented")
+}
+
+func (f *failingMalformedLegacyBackend) CompleteText(ctx context.Context, req llm.SimpleCompletionRequest) (string, error) {
+	return "", errors.New("not implemented")
+}
+
+func (f *failingMalformedLegacyBackend) ListModels(ctx context.Context) ([]string, error) {
+	return nil, errors.New("not implemented")
 }
 
 type failing401Backend struct{}

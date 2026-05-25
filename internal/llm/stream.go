@@ -60,6 +60,33 @@ func streamTruncatedContent(w io.Writer, fallback string) string {
 	return fallback
 }
 
+func closeCompletionStream(stream any) {
+	if c, ok := stream.(interface{ Close() error }); ok {
+		_ = c.Close()
+	}
+}
+
+func legacyStreamStopErrOK(err error) bool {
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, sub := range []string{
+		"forcibly closed",
+		"unexpected eof",
+		"context canceled",
+		"operation was canceled",
+	} {
+		if strings.Contains(msg, sub) {
+			return true
+		}
+	}
+	return false
+}
+
 func streamAccumulatorRejectErr(stream interface{ Err() error }) error {
 	if err := stream.Err(); err != nil {
 		return err
@@ -159,6 +186,9 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 	var printedThought bool
 	var legacyStopped bool
 	for stream.Next() {
+		if legacyStopped {
+			break
+		}
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
 			rt := ch.Usage.CompletionTokensDetails.ReasoningTokens
@@ -224,13 +254,16 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 			break
 		}
 	}
-	if !legacyStopped {
-		if err := stream.Err(); err != nil {
-			if f, ok := contentOut.(interface{ Flush() error }); ok {
-				_ = f.Flush()
-			}
-			return full, UsageStats{}, err
+	if legacyStopped {
+		closeCompletionStream(stream)
+	}
+	if err := stream.Err(); err != nil && !(legacyStopped && legacyStreamStopErrOK(err)) {
+		if f, ok := contentOut.(interface{ Flush() error }); ok {
+			_ = f.Flush()
 		}
+		return full, UsageStats{}, err
+	}
+	if !legacyStopped {
 		if err := flushStreamOutErr(contentOut); err != nil {
 			return full, UsageStats{}, err
 		}
@@ -261,6 +294,9 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	var printedThought bool
 	var legacyStopped bool
 	for stream.Next() {
+		if legacyStopped {
+			break
+		}
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
 			rt := ch.Usage.CompletionTokensDetails.ReasoningTokens
@@ -331,20 +367,23 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			break
 		}
 	}
-	if !legacyStopped {
-		if err := stream.Err(); err != nil {
-			if f, ok := contentOut.(interface{ Flush() error }); ok {
-				_ = f.Flush()
-			}
-			return AssistantTurnResult{}, err
+	if legacyStopped {
+		closeCompletionStream(stream)
+	}
+	if err := stream.Err(); err != nil && !(legacyStopped && legacyStreamStopErrOK(err)) {
+		if f, ok := contentOut.(interface{ Flush() error }); ok {
+			_ = f.Flush()
 		}
+		return AssistantTurnResult{}, err
+	}
+	if !legacyStopped {
 		if err := flushStreamOutErr(contentOut); err != nil {
 			return AssistantTurnResult{}, err
 		}
 	}
 	tEnd := time.Now()
 	var out AssistantTurnResult
-	out.ReasoningText = strings.TrimSpace(reasoningBuf.String())
+	out.ReasoningText = tooling.StripLegacyToolBlocks(strings.TrimSpace(reasoningBuf.String()))
 	if legacyStopped {
 		out.Content = streamTruncatedContent(contentOut, "")
 	} else if len(acc.Choices) > 0 {

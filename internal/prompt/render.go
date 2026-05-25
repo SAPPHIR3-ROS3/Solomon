@@ -73,29 +73,29 @@ for readability after execution; those echoes are not a substitute for native to
 `)
 }
 
-func LegacyOnlyToolInvocationSyntax() string {
+func LegacyOnlyToolInvocationSyntax(planMode bool) string {
 	return strings.TrimSpace(`
 Legacy text tools force is ON. Native API tool_calls are disabled; you must invoke every tool via XML (no function calling):
-` + legacyToolInvocationSyntaxBody())
+` + legacyToolInvocationSyntaxBody(planMode))
 }
 
-func LegacyToolInvocationSyntaxAppend() string {
+func LegacyToolInvocationSyntaxAppend(planMode bool) string {
 	return strings.TrimSpace(`
 Optional legacy text tools are enabled: you may invoke tools with native API tool_calls (preferred) or wrap invocations in XML when helpful:
-` + legacyToolInvocationSyntaxBody())
+` + legacyToolInvocationSyntaxBody(planMode))
 }
 
-func ToolInvocationSyntaxSection(legacyEnabled, legacyForced bool) string {
+func ToolInvocationSyntaxSection(legacyEnabled, legacyForced, planMode bool) string {
 	if legacyForced {
-		return LegacyOnlyToolInvocationSyntax()
+		return LegacyOnlyToolInvocationSyntax(planMode)
 	}
 	if legacyEnabled {
-		return strings.TrimSpace(NativeToolInvocationSyntax(true) + "\n\n" + LegacyToolInvocationSyntaxAppend())
+		return strings.TrimSpace(NativeToolInvocationSyntax(true) + "\n\n" + LegacyToolInvocationSyntaxAppend(planMode))
 	}
 	return ""
 }
 
-func legacyToolInvocationSyntaxBody() string {
+func legacyToolInvocationSyntaxCommon() string {
 	return `
 
 <tool_calls>
@@ -106,11 +106,17 @@ func legacyToolInvocationSyntaxBody() string {
 </tool_calls>
 
 Rules:
+- In the skeleton above, TOOL_NAME is syntax only, not a callable tool; substitute an exact name from ## Available tools below (never emit the literal string TOOL_NAME).
+- Solomon parses <tool_calls> only from your main assistant response text, not from reasoning or thinking. You may plan tool use there, but only XML in the response body is executed.
 - Use exactly one <tool_calls> block per assistant reply that invokes tools.
 - Put optional prose before the block; do not emit text after </tool_calls>.
 - Each <args> must be a valid JSON object matching the tool schema.
 - Multiple tools: include multiple <tool> entries in order of execution.
+`
+}
 
+func legacyToolInvocationSyntaxExamplesPlan() string {
+	return `
 Examples (PLAN):
 <tool_calls>
 <tool name="createPlan">
@@ -125,7 +131,11 @@ Examples (PLAN):
 <args>{"name": "feature.md", "old": "## Steps\n1. A", "new": "## Steps\n1. B"}</args>
 </tool>
 </tool_calls>
+`
+}
 
+func legacyToolInvocationSyntaxExamplesBuild() string {
+	return `
 Examples (BUILD):
 <tool_calls>
 <tool name="readFile">
@@ -161,6 +171,13 @@ Examples (BUILD, multiple tools):
 </tool>
 </tool_calls>
 `
+}
+
+func legacyToolInvocationSyntaxBody(planMode bool) string {
+	if planMode {
+		return legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesPlan()
+	}
+	return legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesBuild()
 }
 
 func RenderPlan(d Data) (string, error) {
