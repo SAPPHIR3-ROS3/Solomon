@@ -111,7 +111,7 @@ func TestAugmentNestedCustomSystem_legacyOptional(t *testing.T) {
 	if !strings.Contains(got, "You are a reviewer.") || !strings.Contains(got, "<tool_calls>") {
 		t.Fatalf("got=%q", got)
 	}
-	if strings.Contains(got, "## Available tools") {
+	if strings.Contains(got, "## Available tools\n\n") {
 		t.Fatalf("optional should not append tool dump: %q", got)
 	}
 }

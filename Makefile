@@ -1,4 +1,4 @@
-.PHONY: solomon build install cursor-stop cursor-build cursor-bundle clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install test cursor-stop cursor-build cursor-bundle clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -31,6 +31,9 @@ cursor-bundle: cursor-build
 
 solomon build: cursor-bundle
 	go build $(BUILD_FLAGS) -o $(OUT) ./cmd/solomon
+
+test: cursor-bundle
+	go test ./... -count=1
 
 # Full reinstall: stop sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
 install: cursor-stop
