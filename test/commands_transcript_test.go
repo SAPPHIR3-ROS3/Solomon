@@ -1,9 +1,10 @@
-package commands
+package test
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 )
 
@@ -11,7 +12,7 @@ func TestFormatChatTranscript_OmitsReasoning(t *testing.T) {
 	msgs := []chatstore.Message{
 		{Role: "assistant", Content: "visible", ReasoningText: "secret chain"},
 	}
-	out := formatChatTranscript(msgs)
+	out := commands.FormatChatTranscript(msgs)
 	if strings.Contains(strings.ToLower(out), "reasoning") || strings.Contains(out, "secret chain") {
 		t.Fatalf("transcript should omit reasoning, got:\n%s", out)
 	}
@@ -24,7 +25,7 @@ func TestFormatRetainedMessages_OmitsReasoning(t *testing.T) {
 	msgs := []chatstore.Message{
 		{Role: "assistant", Content: "done", ReasoningText: "hidden"},
 	}
-	out := formatRetainedMessages(msgs)
+	out := commands.FormatRetainedMessages(msgs)
 	if strings.Contains(out, "Reasoning:") || strings.Contains(out, "hidden") {
 		t.Fatalf("retained should omit reasoning, got:\n%s", out)
 	}

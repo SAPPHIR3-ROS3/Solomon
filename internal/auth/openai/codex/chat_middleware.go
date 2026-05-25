@@ -36,7 +36,7 @@ func chatGPTSubMiddleware(accountID string) option.Middleware {
 		if !clientStream {
 			chat["stream"] = true
 		}
-		codexBody, err := chatCompletionToCodexBody(chat)
+		codexBody, err := ChatCompletionToCodexBody(chat)
 		if err != nil {
 			return nil, err
 		}

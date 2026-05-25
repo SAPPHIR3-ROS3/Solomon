@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -387,7 +388,18 @@ func TestSlashDispatch_forcedSkillVisibleAndAPIContent(t *testing.T) {
 	if err := os.WriteFile(p, []byte("---\nname: PRD Review\ndescription: d\n---\n\nchecklist body"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(regPath, []byte(`{"global":{"k":{"name":"PRD Review","skill_md_path":"`+p+`"}}}`), 0o600); err != nil {
+	regBody, err := json.Marshal(map[string]any{
+		"global": map[string]any{
+			"k": map[string]any{
+				"name":          "PRD Review",
+				"skill_md_path": p,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(regPath, regBody, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var visible, api string
