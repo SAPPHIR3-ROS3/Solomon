@@ -134,6 +134,38 @@ function Add-UserPathEntry {
     Write-Host "Added to user PATH: $Entry"
 }
 
+function Ensure-Make {
+    $makeCmd = Get-Command make -ErrorAction SilentlyContinue
+    if ($makeCmd) {
+        Write-Host "make OK ($($makeCmd.Source))"
+        return
+    }
+
+    Write-Host 'make not found; installing ezwinports.make via winget...'
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        throw 'winget not found; install GNU Make manually or install App Installer from the Microsoft Store'
+    }
+
+    & winget install --id ezwinports.make -e --accept-source-agreements --accept-package-agreements
+
+    $wingetLinks = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links'
+    if (Test-Path $wingetLinks) {
+        Add-UserPathEntry $wingetLinks
+    }
+
+    if (-not (Get-Command make -ErrorAction SilentlyContinue) -and (Test-Path $wingetLinks)) {
+        $env:Path = "$wingetLinks;$env:Path"
+    }
+
+    $makeCmd = Get-Command make -ErrorAction SilentlyContinue
+    if (-not $makeCmd) {
+        throw 'make install failed; restart the terminal or verify ezwinports.make is available in PATH'
+    }
+
+    Write-Host "make ready ($($makeCmd.Source))"
+}
+
 function Setup-Shell {
     if ($script:InstalledLocalGo) {
         Add-UserPathEntry (Join-Path $GoRoot 'bin')
@@ -188,7 +220,7 @@ function Install-Solomon {
 }
 
 Ensure-Go
-Ensure-Node
+Ensure-Make
 Setup-Shell
 Install-Solomon
 Write-Host 'Done.'
