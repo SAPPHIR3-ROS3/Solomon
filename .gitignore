@@ -1,4 +1,22 @@
 /solomon*
+/cursor-bundler*
+/cursor_bundler*
 /bin/
 /solomon.exe~
 /*.exe~
+/scripts/cursor-bundler.exe
+/scripts/cursor_bundler.exe
+
+# Cursor API integration (TypeScript / Node)
+integrations/cursor/node_modules/
+integrations/cursor/dist/
+integrations/cursor/*.tsbuildinfo
+integrations/cursor/.env
+integrations/cursor/.env.*
+integrations/cursor/npm-debug.log*
+integrations/cursor/yarn-debug.log*
+integrations/cursor/yarn-error.log*
+integrations/cursor/pnpm-debug.log*
+
+# Go embed bundle (generated: go run scripts/cursor_bundler.go bundle)
+internal/integrations/cursor/bundle/
