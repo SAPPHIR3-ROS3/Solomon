@@ -1,10 +1,14 @@
 #Requires -Version 5.1
+param(
+    [string]$Version = $(if ($env:SOLOMON_VERSION) { $env:SOLOMON_VERSION } else { 'latest' })
+)
+
 $ErrorActionPreference = 'Stop'
 
 $GoRequired = '1.25.0'
 $GoRoot = Join-Path $env:USERPROFILE '.local\go'
 $script:InstalledLocalGo = $false
-$SolmonPkg = 'github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest'
+$SolmonPkg = "github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@$Version"
 $Marker = '# solomon-installer'
 
 function Get-GoSemVer {
@@ -207,7 +211,7 @@ if ((Test-Path `$gopathBin) -and (`$env:Path -notlike "*`$gopathBin*")) { `$env:
 }
 
 function Install-Solomon {
-    Write-Host 'Installing solomon...'
+    Write-Host "Installing solomon ($Version)..."
     go install $SolmonPkg
     $bin = Join-Path (go env GOPATH) 'bin\solomon.exe'
     if (Test-Path $bin) {
