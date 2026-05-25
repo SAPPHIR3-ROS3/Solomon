@@ -10,10 +10,16 @@ import (
 )
 
 func (r *Runtime) legacyToolsEnabled() bool {
+	if r != nil && r.Prov != nil && r.Prov.IsCursorAPI() {
+		return true
+	}
 	return r != nil && r.Cfg != nil && r.Cfg.LegacyToolsEnabled()
 }
 
 func (r *Runtime) legacyToolsForced() bool {
+	if r != nil && r.Prov != nil && r.Prov.IsCursorAPI() {
+		return true
+	}
 	return r != nil && r.Cfg != nil && r.Cfg.LegacyToolsForceEnabled()
 }
 

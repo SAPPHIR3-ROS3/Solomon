@@ -14,12 +14,14 @@ import (
 const (
 	ProviderNameChatGPTSub = "ChatGPT Sub"
 	ProviderNameClaudeSub  = "Claude Sub"
+	ProviderNameCursorAPI  = "Cursor API"
 	OpenAIPlatformBase     = "https://api.openai.com"
 	AnthropicPlatformBase  = "https://api.anthropic.com"
 
 	AuthKindAPIKey       = "api_key"
 	AuthKindOAuthChatGPT = "oauth_chatgpt"
 	AuthKindOAuthClaude  = "oauth_claude"
+	AuthKindCursorAPI    = "cursor_api"
 
 	ClaudeSubExpectedDate = "2026-06-15"
 )
@@ -55,9 +57,21 @@ func (p *Provider) EffectiveAuthKind() string {
 		return AuthKindOAuthChatGPT
 	case AuthKindOAuthClaude:
 		return AuthKindOAuthClaude
+	case AuthKindCursorAPI:
+		return AuthKindCursorAPI
 	default:
 		return AuthKindAPIKey
 	}
+}
+
+func (p *Provider) IsCursorAPI() bool {
+	if p == nil {
+		return false
+	}
+	if p.Name == ProviderNameCursorAPI {
+		return true
+	}
+	return p.EffectiveAuthKind() == AuthKindCursorAPI
 }
 
 func (p *Provider) IsOAuthProvider() bool {
@@ -92,6 +106,9 @@ func ProviderCredentialsReady(p *Provider) bool {
 	}
 	if p.IsOAuthProvider() {
 		return oauthCredentialsReady(p)
+	}
+	if p.IsCursorAPI() {
+		return strings.TrimSpace(p.APIKey) != ""
 	}
 	return strings.TrimSpace(p.APIKey) != ""
 }

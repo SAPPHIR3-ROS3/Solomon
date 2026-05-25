@@ -52,7 +52,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"max_response"}, "/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)", func(d Deps, parts []string) error { return MaxResponse(d, parts) }},
 		{[]string{"threshold"}, "/threshold", "/threshold | /threshold <n> auto /summarize when prompt_tokens >= n (n>=32768; default 131072; needs API usage)", func(d Deps, parts []string) error { return Threshold(d, parts) }},
 		{[]string{"models"}, "/models", "list models and switch current model", func(d Deps, parts []string) error { return SlashModels(d) }},
-		{[]string{"connect"}, "/connect", "connect ChatGPT Sub, OpenAI-compatible API, Anthropic API key, or Claude Sub (coming soon); then pick model", func(d Deps, parts []string) error { return Connect(d) }},
+		{[]string{"connect"}, "/connect", "connect ChatGPT Sub, OpenAI-compatible API, Anthropic API key, Claude Sub (coming soon), or Cursor API; then pick model", func(d Deps, parts []string) error { return Connect(d) }},
 		{[]string{"new"}, "/new", "start a new chat session (empty transcript; prior chat stays saved on disk)", func(d Deps, parts []string) error { return NewChat(d) }},
 		{[]string{"temp"}, "/temp", "/temp — empty chat only: in-memory session (not saved; like solomon temp exec)", func(d Deps, parts []string) error { return TempChat(d) }},
 		{[]string{"resume"}, "/resume", "/resume | /resume last | /resume <id|title>", func(d Deps, parts []string) error { return Resume(d, parts[1:]) }},
@@ -92,6 +92,7 @@ func getSlashBuiltins() []slashBuiltin {
 			return nil
 		}},
 		{[]string{"mcp"}, "/mcp", "list MCP servers from config (URLs redacted)", func(d Deps, parts []string) error { return SlashMCP(d) }},
+		{[]string{"integrations"}, "/integrations", "Cursor API sidecar URL, health, and install path", func(d Deps, parts []string) error { return SlashIntegrations(d) }},
 		{[]string{"testweb"}, "/testweb", "test web search config; OK or NOT OK then duckduckgo fallback", func(d Deps, parts []string) error { return TestWeb(d) }},
 	}
 	return slashBuiltins

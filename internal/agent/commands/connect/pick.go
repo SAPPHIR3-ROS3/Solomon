@@ -1,10 +1,10 @@
-package commands
+package connect
 
 import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 )
 
-func connectPickModel(d Deps, prevProv, prevModel, newProvName string, newIDs []string) error {
+func pickModel(d Deps, prevProv, prevModel, newProvName string, newIDs []string) error {
 	choice, err := config.PickModelAfterAdd(PromptIO(d), prevProv, prevModel, newProvName, newIDs, false)
 	if err != nil {
 		return err
@@ -12,6 +12,6 @@ func connectPickModel(d Deps, prevProv, prevModel, newProvName string, newIDs []
 	if err := d.ApplyCurrentModel(choice.ProviderName, choice.ModelID); err != nil {
 		return err
 	}
-	PrintSystemf(d.Out, "Using %s[%s]", d.Model(), d.Provider().Name)
+	printSystemf(d, "Using %s[%s]", d.Model(), d.Provider().Name)
 	return nil
 }

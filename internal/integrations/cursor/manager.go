@@ -1,0 +1,178 @@
+package cursor
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+)
+
+var (
+	mu       sync.Mutex
+	running  *processState
+)
+
+type processState struct {
+	cmd    *exec.Cmd
+	port   int
+	dir    string
+	apiKey string
+}
+
+type Manager struct {
+	Port int
+}
+
+func DefaultManager() *Manager {
+	return &Manager{Port: DefaultPort}
+}
+
+func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, out BootstrapIO) (baseURL string, err error) {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return "", fmt.Errorf("missing Cursor API key")
+	}
+	dir, err := ResolveInstallDir()
+	if err != nil {
+		return "", err
+	}
+	if !InstallDirReady(dir) {
+		if err := Bootstrap(out, dir); err != nil {
+			return "", err
+		}
+	} else if _, err := os.Stat(filepath.Join(NodeModulesDir(dir), "@cursor", "sdk")); err != nil {
+		if err := Bootstrap(out, dir); err != nil {
+			return "", err
+		}
+	}
+	port := m.Port
+	if port <= 0 {
+		port = DefaultPort
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if running != nil && running.apiKey == apiKey && running.dir == dir && running.port == port {
+		if healthOK(ctx, port) {
+			return DefaultBaseURL(port), nil
+		}
+		stopLocked()
+	}
+	if healthOK(ctx, port) && running == nil {
+		running = &processState{port: port, dir: dir, apiKey: apiKey}
+		return DefaultBaseURL(port), nil
+	}
+	if err := startLocked(ctx, dir, apiKey, cwd, port); err != nil {
+		return "", err
+	}
+	deadline := time.Now().Add(45 * time.Second)
+	for time.Now().Before(deadline) {
+		if healthOK(ctx, port) {
+			return DefaultBaseURL(port), nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	stopLocked()
+	return "", fmt.Errorf("cursor API proxy failed health check on port %d", port)
+}
+
+func (m *Manager) Stop() {
+	mu.Lock()
+	defer mu.Unlock()
+	stopLocked()
+}
+
+// ProxyStatus is a snapshot of the local Cursor API sidecar.
+type ProxyStatus struct {
+	Port       int
+	BaseURL    string
+	InstallDir string
+	Managed    bool
+	Healthy    bool
+}
+
+func (m *Manager) ProxyStatus(ctx context.Context) ProxyStatus {
+	port := m.Port
+	if port <= 0 {
+		port = DefaultPort
+	}
+	dir, _ := ResolveInstallDir()
+	st := ProxyStatus{
+		Port:       port,
+		BaseURL:    DefaultBaseURL(port),
+		InstallDir: dir,
+		Healthy:    healthOK(ctx, port),
+	}
+	mu.Lock()
+	st.Managed = running != nil && running.port == port
+	mu.Unlock()
+	return st
+}
+
+func nodeExecutable() (string, error) {
+	if p := strings.TrimSpace(os.Getenv("SOLOMON_NODE")); p != "" {
+		return p, nil
+	}
+	return exec.LookPath("node")
+}
+
+func startLocked(ctx context.Context, dir, apiKey, cwd string, port int) error {
+	stopLocked()
+	node, err := nodeExecutable()
+	if err != nil {
+		return err
+	}
+	entry := EntryScript(dir)
+	cmd := exec.Command(node, entry)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"CURSOR_API_KEY="+apiKey,
+		fmt.Sprintf("CURSOR_API_PORT=%d", port),
+		"CURSOR_API_CWD="+cwd,
+	)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start cursor proxy: %w", err)
+	}
+	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey}
+	go func() {
+		_ = cmd.Wait()
+		mu.Lock()
+		if running != nil && running.cmd == cmd {
+			running = nil
+		}
+		mu.Unlock()
+	}()
+	return nil
+}
+
+func stopLocked() {
+	if running == nil || running.cmd == nil || running.cmd.Process == nil {
+		running = nil
+		return
+	}
+	_ = running.cmd.Process.Kill()
+	_ = running.cmd.Wait()
+	running = nil
+}
+
+func healthOK(ctx context.Context, port int) bool {
+	u := fmt.Sprintf("http://127.0.0.1:%d/health", port)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode == http.StatusOK
+}
