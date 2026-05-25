@@ -66,7 +66,7 @@ go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest
 Pin a [GitHub tag](https://github.com/SAPPHIR3-ROS3/Solomon/tags):
 
 ```bash
-go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest
+go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@v2026.525.3
 ```
 
 
