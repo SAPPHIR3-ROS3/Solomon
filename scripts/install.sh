@@ -45,6 +45,23 @@ detect_platform() {
   esac
 }
 
+install_release_asset() {
+  local platform goos goarch asset url bin_dir target tmp
+  platform="$(detect_platform)"
+  goos="${platform%-*}"
+  goarch="${platform#*-}"
+  asset="solomon-${INSTALL_VERSION}-${goos}-${goarch}"
+  url="https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/${INSTALL_VERSION}/${asset}"
+  bin_dir="$(go env GOPATH)/bin"
+  target="${bin_dir}/solomon"
+  tmp="$(mktemp)"
+  mkdir -p "$bin_dir"
+  echo "Downloading Solomon release asset ${asset}..."
+  curl -fsSL "$url" -o "$tmp"
+  mv "$tmp" "$target"
+  chmod +x "$target"
+}
+
 install_go() {
   local platform tarball url parent tmp
   platform="$(detect_platform)"
@@ -331,7 +348,11 @@ setup_shell() {
 
 install_solomon() {
   echo "Installing solomon (${INSTALL_VERSION})..."
-  go install "$SOLMON_PKG"
+  if [[ "$INSTALL_VERSION" == latest ]]; then
+    go install "$SOLMON_PKG"
+  else
+    install_release_asset
+  fi
   if command -v solomon >/dev/null 2>&1; then
     echo "solomon installed: $(command -v solomon)"
     solomon version 2>/dev/null || true

@@ -59,6 +59,17 @@ function Install-GoWindows {
     $script:InstalledLocalGo = $true
 }
 
+function Install-ReleaseAsset {
+    $arch = Get-GoArch
+    $asset = "solomon-$Version-windows-$arch.exe"
+    $url = "https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/$Version/$asset"
+    $binDir = Join-Path (go env GOPATH) 'bin'
+    $target = Join-Path $binDir 'solomon.exe'
+    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+    Write-Host "Downloading Solomon release asset $asset..."
+    Invoke-WebRequest -Uri $url -OutFile $target -UseBasicParsing
+}
+
 function Ensure-Go {
     $goCmd = Get-Command go -ErrorAction SilentlyContinue
     if ($goCmd) {
@@ -212,7 +223,12 @@ if ((Test-Path `$gopathBin) -and (`$env:Path -notlike "*`$gopathBin*")) { `$env:
 
 function Install-Solomon {
     Write-Host "Installing solomon ($Version)..."
-    go install $SolmonPkg
+    if ($Version -eq 'latest') {
+        go install $SolmonPkg
+    }
+    else {
+        Install-ReleaseAsset
+    }
     $bin = Join-Path (go env GOPATH) 'bin\solomon.exe'
     if (Test-Path $bin) {
         Write-Host "solomon installed: $bin"
