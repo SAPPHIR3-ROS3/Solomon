@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func chatCompletionToCodexBody(chat map[string]any) ([]byte, error) {
+func ChatCompletionToCodexBody(chat map[string]any) ([]byte, error) {
 	model, _ := chat["model"].(string)
 	model = strings.TrimSpace(model)
 	if model == "" {
@@ -13,7 +13,7 @@ func chatCompletionToCodexBody(chat map[string]any) ([]byte, error) {
 	}
 	stream, _ := chat["stream"].(bool)
 	instructions := extractSystemInstructions(chat)
-	input := buildCodexInput(chat)
+	input := BuildCodexInput(chat)
 	body := map[string]any{
 		"model":        model,
 		"instructions": instructions,
@@ -74,7 +74,7 @@ func extractSystemInstructions(chat map[string]any) string {
 	return strings.TrimSpace(strings.Join(parts, "\n\n"))
 }
 
-func buildCodexInput(chat map[string]any) []any {
+func BuildCodexInput(chat map[string]any) []any {
 	msgs, _ := chat["messages"].([]any)
 	var input []any
 	for _, m := range msgs {
@@ -174,8 +174,8 @@ func collectCodexUserContentParts(content any) []any {
 			}
 			if url := chatPartImageURL(m); url != "" {
 				parts = append(parts, map[string]any{
-					"type":       "input_image",
-					"image_url":  url,
+					"type":      "input_image",
+					"image_url": url,
 				})
 				continue
 			}

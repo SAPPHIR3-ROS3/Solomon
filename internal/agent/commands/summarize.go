@@ -32,7 +32,7 @@ func Threshold(d Deps, parts []string) error {
 	return nil
 }
 
-func formatChatTranscript(msgs []chatstore.Message) string {
+func FormatChatTranscript(msgs []chatstore.Message) string {
 	var b strings.Builder
 	for _, m := range msgs {
 		switch m.Role {
@@ -95,7 +95,7 @@ func appendRetainedEntry(entries *[]chatstore.Message, role, content string) {
 	*entries = append(*entries, chatstore.Message{Role: role, Content: content})
 }
 
-func formatRetainedMessages(msgs []chatstore.Message) string {
+func FormatRetainedMessages(msgs []chatstore.Message) string {
 	var entries []chatstore.Message
 	for _, m := range msgs {
 		switch m.Role {
@@ -214,7 +214,7 @@ func SummarizeBody(d Deps) (string, error) {
 		return "", fmt.Errorf("no messages to summarize")
 	}
 	progress := NewSummarizeProgress(d.Out)
-	transcript := formatChatTranscript(msgs)
+	transcript := FormatChatTranscript(msgs)
 	sys, userPrompt := summarizePromptFromTemplate(transcript, d.Cfg.ReasoningEffortIsNone())
 	const sep = "================================================================================"
 	if d.Backend == nil {
@@ -244,9 +244,9 @@ func SummarizeBody(d Deps) (string, error) {
 	}
 	var retainedBlock string
 	if len(msgs) > 8 {
-		retainedBlock = formatRetainedMessages(msgs[len(msgs)-8:])
+		retainedBlock = FormatRetainedMessages(msgs[len(msgs)-8:])
 	} else {
-		retainedBlock = formatRetainedMessages(msgs)
+		retainedBlock = FormatRetainedMessages(msgs)
 	}
 	return CompactSummaryBody(sep, summary, retainedBlock), nil
 }

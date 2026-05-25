@@ -80,3 +80,53 @@ func ToolPolicyError() error {
 func TimeoutError(err error) error {
 	return NewRunError(ExitTimeout, "timeout", err)
 }
+
+type ExecCLIOpts struct {
+	JSON            bool
+	JSONL           bool
+	NoColor         bool
+	FailOnToolError bool
+	EnvFile         string
+	Prompt          string
+}
+
+func ParseExecCLIArgs(args []string) (ExecCLIOpts, error) {
+	var o ExecCLIOpts
+	posStart := -1
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch a {
+		case "--json":
+			o.JSON = true
+		case "--jsonl":
+			o.JSONL = true
+		case "--no-color":
+			o.NoColor = true
+		case "--fail-on-tool-error":
+			o.FailOnToolError = true
+		case "--env-file":
+			if i+1 >= len(args) {
+				return o, UsageError("missing value for --env-file")
+			}
+			i++
+			o.EnvFile = args[i]
+		default:
+			if strings.HasPrefix(a, "-") {
+				return o, UsageError("unknown flag: " + a)
+			}
+			if posStart < 0 {
+				posStart = i
+			}
+		}
+	}
+	if posStart < 0 {
+		return o, nil
+	}
+	for _, t := range args[posStart:] {
+		if strings.HasPrefix(t, "-") {
+			return o, UsageError("prompt must be last (no flags after positional text)")
+		}
+	}
+	o.Prompt = strings.TrimSpace(strings.Join(args[posStart:], " "))
+	return o, nil
+}

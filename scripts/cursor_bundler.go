@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 type lineIO struct{}
@@ -112,8 +112,14 @@ func cmdBundle() error {
 			return err
 		}
 	}
-	if err := copyFileOptional(filepath.Join(src, ".npmrc"), filepath.Join(bundle, ".npmrc")); err != nil {
+	npmrcDst := filepath.Join(bundle, ".npmrc")
+	if err := copyFileOptional(filepath.Join(src, ".npmrc"), npmrcDst); err != nil {
 		return err
+	}
+	if _, err := os.Stat(npmrcDst); os.IsNotExist(err) {
+		if err := os.WriteFile(npmrcDst, []byte("loglevel=error\n"), 0o644); err != nil {
+			return err
+		}
 	}
 	distSrc := filepath.Join(src, "dist")
 	distDst := filepath.Join(bundle, "dist")
@@ -128,14 +134,59 @@ func cmdInstall() error {
 	if err := cmdStop(); err != nil {
 		return err
 	}
-	dir, err := cursorint.InstallDir()
+	root, err := findRepoRoot()
 	if err != nil {
 		return err
 	}
-	if err := cursorint.InstallRuntimeClean(lineIO{}, dir); err != nil {
+	bundle := filepath.Join(root, "internal", "integrations", "cursor", "bundle")
+	if _, err := os.Stat(filepath.Join(bundle, "dist", "index.js")); err != nil {
+		return fmt.Errorf("bundle missing (run: go run scripts/cursor_bundler.go build && go run scripts/cursor_bundler.go bundle): %w", err)
+	}
+	dir, err := cursorInstallDir()
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	if err := copyDir(bundle, dir); err != nil {
+		return err
+	}
+	fmt.Println("installing Cursor integration with Cursor SDK")
+	if err := npmInstallProd(dir); err != nil {
 		return err
 	}
 	fmt.Println("cursor integration installed at", dir)
+	return nil
+}
+
+func cursorInstallDir() (string, error) {
+	if p := strings.TrimSpace(os.Getenv("SOLOMON_CURSOR_API_ROOT")); p != "" {
+		return p, nil
+	}
+	root, err := paths.SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "integrations", "cursor"), nil
+}
+
+func npmInstallProd(dir string) error {
+	sdk := filepath.Join(dir, "node_modules", "@cursor", "sdk")
+	if _, err := os.Stat(sdk); err == nil {
+		return nil
+	}
+	npm, err := exec.LookPath("npm")
+	if err != nil {
+		return fmt.Errorf("npm not found in PATH: %w", err)
+	}
+	cmd := exec.Command(npm, "install", "--omit=dev")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("npm install failed in %s: %w", dir, err)
+	}
 	return nil
 }
 

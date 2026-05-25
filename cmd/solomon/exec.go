@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
+	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
@@ -26,15 +26,6 @@ const (
 	execTemp
 )
 
-type execCLIOpts struct {
-	JSON            bool
-	JSONL           bool
-	NoColor         bool
-	FailOnToolError bool
-	EnvFile         string
-	Prompt          string
-}
-
 func detectExecSubcommand(args []string) (execKind, []string) {
 	if len(args) >= 2 && args[1] == "exec" {
 		return execNormal, args[2:]
@@ -45,49 +36,8 @@ func detectExecSubcommand(args []string) (execKind, []string) {
 	return execNone, nil
 }
 
-func parseExecArgs(args []string) (execCLIOpts, error) {
-	var o execCLIOpts
-	posStart := -1
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch a {
-		case "--json":
-			o.JSON = true
-		case "--jsonl":
-			o.JSONL = true
-		case "--no-color":
-			o.NoColor = true
-		case "--fail-on-tool-error":
-			o.FailOnToolError = true
-		case "--env-file":
-			if i+1 >= len(args) {
-				return o, cievents.UsageError("missing value for --env-file")
-			}
-			i++
-			o.EnvFile = args[i]
-		default:
-			if strings.HasPrefix(a, "-") {
-				return o, cievents.UsageError("unknown flag: " + a)
-			}
-			if posStart < 0 {
-				posStart = i
-			}
-		}
-	}
-	if posStart < 0 {
-		return o, nil
-	}
-	for _, t := range args[posStart:] {
-		if strings.HasPrefix(t, "-") {
-			return o, cievents.UsageError("prompt must be last (no flags after positional text)")
-		}
-	}
-	o.Prompt = strings.TrimSpace(strings.Join(args[posStart:], " "))
-	return o, nil
-}
-
 func runExecCLI(ctx context.Context, kind execKind, argRest []string) {
-	opts, err := parseExecArgs(argRest)
+	opts, err := cievents.ParseExecCLIArgs(argRest)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		exitExec(cievents.ClassifyExit(err))
@@ -163,10 +113,10 @@ func runExecCLI(ctx context.Context, kind execKind, argRest []string) {
 		defer rl.Close()
 	}
 	sess := &chatstore.Session{
-		CreatedAt:              time.Now(),
-		LastMessageAt:          time.Now(),
-		CheckpointLast:         -1,
-		CheckpointCP0:          true,
+		CreatedAt:      time.Now(),
+		LastMessageAt:  time.Now(),
+		CheckpointLast: -1,
+		CheckpointCP0:  true,
 	}
 	rt := agentruntime.NewRuntime(rl, cfg, prov, hex, root, sess)
 	if kind == execTemp {
