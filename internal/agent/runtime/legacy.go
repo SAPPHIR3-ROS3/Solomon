@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"encoding/json"
+	"strings"
 
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
@@ -9,15 +10,19 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 )
 
+func (r *Runtime) cursorLegacyToolsActive() bool {
+	return r != nil && r.Prov != nil && r.Prov.IsCursorAPI()
+}
+
 func (r *Runtime) legacyToolsEnabled() bool {
-	if r != nil && r.Prov != nil && r.Prov.IsCursorAPI() {
+	if r.cursorLegacyToolsActive() {
 		return true
 	}
 	return r != nil && r.Cfg != nil && r.Cfg.LegacyToolsEnabled()
 }
 
 func (r *Runtime) legacyToolsForced() bool {
-	if r != nil && r.Prov != nil && r.Prov.IsCursorAPI() {
+	if r.cursorLegacyToolsActive() {
 		return true
 	}
 	return r != nil && r.Cfg != nil && r.Cfg.LegacyToolsForceEnabled()
@@ -92,6 +97,35 @@ func (r *Runtime) legacyInvocationsFromTurn(turn llm.AssistantTurnResult, legacy
 		toolIDs = append(toolIDs, "")
 	}
 	return invs, toolIDs, false, nil
+}
+
+func (r *Runtime) stripCursorLegacyToolCallsFromSession() {
+	if r == nil {
+		return
+	}
+	r.mutateSession(func(s *chatstore.Session) {
+		if s == nil {
+			return
+		}
+		for i := range s.Messages {
+			m := &s.Messages[i]
+			if m.Role != "assistant" || len(m.ToolCalls) == 0 {
+				continue
+			}
+			var kept []chatstore.ToolCall
+			for _, tc := range m.ToolCalls {
+				if strings.TrimSpace(tc.ID) != "" {
+					kept = append(kept, tc)
+				}
+			}
+			if len(kept) == 0 {
+				m.ToolCalls = nil
+			} else {
+				m.ToolCalls = kept
+			}
+		}
+	})
+	_ = r.persistSession()
 }
 
 func (r *Runtime) syncLegacyToolCallsToLastAssistant(invs []tooling.Invocation) {

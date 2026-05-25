@@ -112,6 +112,9 @@ func BuildCodexInput(chat map[string]any) []any {
 						continue
 					}
 					callID, _ := tcm["id"].(string)
+					if strings.TrimSpace(callID) == "" {
+						continue
+					}
 					funcMap, _ := tcm["function"].(map[string]any)
 					name, _ := funcMap["name"].(string)
 					input = append(input, map[string]any{

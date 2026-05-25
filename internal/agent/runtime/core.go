@@ -155,6 +155,7 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 		if old := config.ProviderByName(r.Cfg, prevP); old != nil && old.IsCursorAPI() && providerName != prevP {
 			if np := config.ProviderByName(r.Cfg, providerName); np == nil || !np.IsCursorAPI() {
 				cursorint.DefaultManager().Stop()
+				r.stripCursorLegacyToolCallsFromSession()
 			}
 		}
 	}

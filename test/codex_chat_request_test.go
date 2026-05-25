@@ -47,6 +47,34 @@ func TestBuildCodexInputUserImages(t *testing.T) {
 	}
 }
 
+func TestBuildCodexInputSkipsAssistantToolCallsWithEmptyID(t *testing.T) {
+	chat := map[string]any{
+		"messages": []any{
+			map[string]any{"role": "user", "content": "hi"},
+			map[string]any{
+				"role": "assistant",
+				"tool_calls": []any{
+					map[string]any{
+						"id": "",
+						"type": "function",
+						"function": map[string]any{"name": "shell", "arguments": "{}"},
+					},
+				},
+			},
+		},
+	}
+	input := codex.BuildCodexInput(chat)
+	for _, item := range input {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if m["type"] == "function_call" {
+			t.Fatalf("unexpected function_call with empty id: %#v", m)
+		}
+	}
+}
+
 func TestBuildCodexInputImageOnlyUserMessage(t *testing.T) {
 	imgURL := "data:image/jpeg;base64,xyz"
 	chat := map[string]any{
