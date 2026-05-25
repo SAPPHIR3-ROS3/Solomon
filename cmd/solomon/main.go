@@ -65,13 +65,12 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	initLogLevel := logging.INFO_LOG_LEVEL
+	logging.LogInit(logging.INFO_LOG_LEVEL)
 	if cfg0, err := config.Load(); err == nil && cfg0.LogLevel != "" {
 		if lvl, err := logging.ParseLevel(cfg0.LogLevel); err == nil {
-			initLogLevel = lvl
+			_ = logging.SetGlobalLevel(lvl)
 		}
 	}
-	logging.LogInit(initLogLevel)
 	termcolor.Init(termcolor.InitOptions{Out: os.Stdout})
 	if err := logging.Configure(logging.Config{
 		Dir: filepath.Join(lroot, "logs"), WriteConsole: false, WriteFile: true, Retention: 7,
