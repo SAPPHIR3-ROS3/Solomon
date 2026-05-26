@@ -3,7 +3,6 @@ package agentruntime
 import (
 	"fmt"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -18,19 +17,6 @@ import (
 )
 
 var reStripANSI = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
-
-func gitBranch(dir string) string {
-	c := exec.Command("git", "-C", dir, "rev-parse", "--is-inside-work-tree")
-	if out, err := c.Output(); err != nil || strings.TrimSpace(string(out)) != "true" {
-		return ""
-	}
-	c2 := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD")
-	out, err := c2.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
 
 func displayCells(s string) int {
 	n := 0
@@ -207,7 +193,7 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	if a, err := filepath.Abs(projRoot); err == nil {
 		abs = a
 	}
-	br := gitBranch(abs)
+	br := cachedGitBranch(abs)
 	pathLine := abs
 	if br != "" {
 		pathLine = fmt.Sprintf("%s (%s)", abs, br)

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
@@ -197,6 +198,7 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 		logging.Log(logging.ERROR_LOG_LEVEL, "save config failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
+	commands.InvalidateAndPrefetchSlashModelCatalog(context.Background(), r.Cfg, r.Out)
 	if p := config.ProviderByName(r.Cfg, providerName); p != nil {
 		r.Prov = p
 		r.Model = modelID

@@ -74,7 +74,13 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		Stdin:    pio.Stdin,
 		ReadLine: pio.ReadLine,
 		Cfg:      r.Cfg,
-		SaveCfg:  func() error { return config.Save(r.Cfg) },
+		SaveCfg: func() error {
+			if err := config.Save(r.Cfg); err != nil {
+				return err
+			}
+			commands.InvalidateAndPrefetchSlashModelCatalog(ctx, r.Cfg, r.Out)
+			return nil
+		},
 
 		ProjHex:  r.ProjHex,
 		ProjRoot: r.ProjRoot,

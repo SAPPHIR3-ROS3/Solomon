@@ -168,6 +168,9 @@ func WriteSession(projectHex string, s *Session) (err error) {
 	if err := os.Rename(tmp, p); err != nil {
 		return err
 	}
+	if err := touchProjectStatsAfterWrite(projectHex, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -185,7 +188,11 @@ func RenameSessionFile(projectHex, oldID, newID string) (err error) {
 	if err != nil {
 		return err
 	}
-	return os.Rename(oldPath, newPath)
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return err
+	}
+	_ = TouchProjectStatsAfterRename(projectHex, oldID, newID)
+	return nil
 }
 
 func RemoveSessionPath(projectHex, chatID string) error {
@@ -197,7 +204,10 @@ func RemoveSessionPath(projectHex, chatID string) error {
 	if err != nil && os.IsNotExist(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	return TouchProjectStatsAfterRemove(projectHex, chatID)
 }
 
 func ReadSession(projectHex, chatIDHex string) (sess *Session, err error) {
@@ -397,28 +407,3 @@ func BackfillAssistantUsageFromTextIfEmpty(m *Message, prior []Message) {
 	m.TurnTotalTokens = eu + er + es
 }
 
-func ProjectWelcomeStats(projectHex string) (chatCount int, userSum, reasonSum, respSum int64, err error) {
-	sessions, err := loadAllSessions(projectHex)
-	if err != nil {
-		return 0, 0, 0, 0, err
-	}
-	chatCount = len(sessions)
-	for _, s := range sessions {
-		for j, m := range s.Messages {
-			if m.Role != "assistant" {
-				continue
-			}
-			if assistantMessageHasStoredUsage(m) {
-				userSum += m.UserPromptTokens
-				reasonSum += m.ReasoningTokens
-				respSum += m.ResponseTokens
-				continue
-			}
-			eu, er, es := estimateAssistantTurnTokens(s.Messages, j)
-			userSum += eu
-			reasonSum += er
-			respSum += es
-		}
-	}
-	return chatCount, userSum, reasonSum, respSum, nil
-}

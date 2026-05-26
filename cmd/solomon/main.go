@@ -157,7 +157,6 @@ func main() {
 		logging.Log(logging.ERROR_LOG_LEVEL, "config load failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
-	cursorint.KickSidecarIfConfigured(ctx, cfg, "", cursorint.DiscardBootstrap{})
 	configExists, err := config.ConfigExists()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
