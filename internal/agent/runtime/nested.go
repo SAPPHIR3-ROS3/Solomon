@@ -48,6 +48,9 @@ func (r *Runtime) AugmentNestedCustomSystem(system string) (string, error) {
 		return system, nil
 	}
 	system = strings.TrimSpace(system)
+	if r.externalToolBridge() {
+		return system, nil
+	}
 	if !r.legacyToolsEnabled() {
 		return system, nil
 	}

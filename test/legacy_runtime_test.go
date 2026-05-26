@@ -106,6 +106,41 @@ func TestResolveTurnInvocations_unknownToolName(t *testing.T) {
 	}
 }
 
+func TestRenderBuild_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
+	got, err := prompt.RenderBuild(prompt.Data{
+		Tools:              "name: readFile",
+		ExternalToolBridge: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "Legacy text tools force is ON") {
+		t.Fatalf("bridge prompt must not include legacy_force section: %q", got)
+	}
+	if strings.Contains(got, "[Harness]") || strings.Contains(got, "host harness") {
+		t.Fatalf("bridge prompt must not reference external transport: %q", got)
+	}
+	if !strings.Contains(got, "## Available tools") {
+		t.Fatalf("want tool dump: %q", got)
+	}
+}
+
+func TestAugmentNestedCustomSystem_externalToolBridge(t *testing.T) {
+	r := &agentruntime.Runtime{
+		Prov: &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI},
+	}
+	got, err := r.AugmentNestedCustomSystem("Custom subagent.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "Custom subagent." {
+		t.Fatalf("bridge nested must not augment system: got=%q", got)
+	}
+	if strings.Contains(got, "Legacy text tools force is ON") {
+		t.Fatalf("bridge nested must not append legacy_force block: %q", got)
+	}
+}
+
 func TestToolInvocationSyntaxSection(t *testing.T) {
 	if got := prompt.ToolInvocationSyntaxSection(false, false, false); got != "" {
 		t.Fatalf("want empty, got %q", got)

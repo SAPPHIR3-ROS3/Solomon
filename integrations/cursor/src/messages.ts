@@ -95,22 +95,32 @@ export function roughTokFromMessages(messages: ChatMessage[]): number {
   return sum;
 }
 
-const SOLOMON_HARNESS_PREFIX =
-  "[Solomon harness] Do not use Cursor built-in tools (Read, Shell, Grep, Write, etc.). " +
-  "You cannot access the filesystem from this agent. " +
-  "When you need an action, emit exactly one <tool_calls> XML block with Solomon tools only " +
-  "(readFile, shell, editFile) in the visible assistant response, not in reasoning or thinking. " +
-  "Reasoning may discuss tool format; only response-body XML is parsed and executed. " +
-  "Do not summarize or quote file contents unless they appear in a prior [tool result] line from Solomon.\n\n";
+const HARNESS_MARKER = "[Harness]";
 
-export function withSolomonHarnessPrefix(
+const HARNESS_CLAUSES: string[] = [
+  `${HARNESS_MARKER} Interaction mode: this is not a normal Cursor IDE agent session. You are behind a remote host harness proxy. Cursor built-in tools are unavailable (Read, Write, Edit, Shell, Grep, Glob, rg, SemanticSearch, Task, browser tools, etc.). You cannot access the workspace except through the harness.`,
+  `${HARNESS_MARKER} Results: the host executes tools and returns output as [tool result …] lines in later turns. Do not invent or quote file contents unless they appeared in a prior tool result or the user's message.`,
+  `${HARNESS_MARKER} Invocation transport: emit exactly one <tool_calls> XML block in the visible assistant response body when you need an action (not in reasoning/thinking). SDK-native tool_use / tool_call events from this stack are bridged when mappable; prefer explicit XML with harness tool names.`,
+  `${HARNESS_MARKER} Tool names: use only names listed under ## Available tools in the system message (e.g. readFile, shell, editFile). Map inspection → readFile, terminal commands → shell, file edits → editFile.`,
+  `${HARNESS_MARKER} XML shape: <tool_calls><tool name="TOOL"><intent>brief purpose when supported</intent><args>{"key":"value"}</args></tool></tool_calls> — one block per reply that invokes tools; valid JSON in each <args>; optional prose before the block; no text after </tool_calls>.`,
+];
+
+export function harnessPreamble(): string {
+  return HARNESS_CLAUSES.join("\n\n") + "\n\n";
+}
+
+export function withHarnessPreamble(
   prompt: string | SDKUserMessage,
 ): string | SDKUserMessage {
+  const prefix = harnessPreamble();
   if (typeof prompt === "string") {
-    return SOLOMON_HARNESS_PREFIX + prompt;
+    return prefix + prompt;
   }
-  return { ...prompt, text: SOLOMON_HARNESS_PREFIX + prompt.text };
+  return { ...prompt, text: prefix + prompt.text };
 }
+
+/** @deprecated use withHarnessPreamble */
+export const withSolomonHarnessPrefix = withHarnessPreamble;
 
 export function formatDeltaMessage(m: ChatMessage): string {
   switch (m.role) {

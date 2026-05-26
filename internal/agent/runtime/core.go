@@ -263,14 +263,15 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	if p, err := filepath.Abs(r.ProjRoot); err == nil {
 		absWorkspace = p
 	}
-	legacyEnabled := r.legacyToolsEnabled()
-	legacyForced := r.legacyToolsForced()
+	bridge := r.externalToolBridge()
+	legacyEnabled := r.legacyToolsEnabledInPrompt()
+	legacyForced := r.legacyToolsForcedInPrompt()
 	planMode := r.Mode == "plan"
 	var syntax string
 	var legacySyntax string
 	if legacyForced {
 		syntax = prompt.LegacyOnlyToolInvocationSyntax(planMode)
-	} else {
+	} else if !bridge {
 		syntax = prompt.NativeToolInvocationSyntax(legacyEnabled)
 		if legacyEnabled {
 			legacySyntax = prompt.LegacyToolInvocationSyntaxAppend(planMode)
@@ -282,6 +283,7 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		LegacySyntax:          legacySyntax,
 		LegacyToolsEnabled:    legacyEnabled,
 		LegacyToolsForced:     legacyForced,
+		ExternalToolBridge:    bridge,
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
 		DisableThinking:       disableThinking,
