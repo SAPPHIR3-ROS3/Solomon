@@ -14,8 +14,13 @@ INSTALL_BIN := $(BIN_DIR)/$(INSTALL_NAME)
 
 export CGO_ENABLED := 0
 
-VERSION ?= $(shell git describe --tags --abbrev=0 --match "v*" 2>NUL || git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev)
-COMMIT ?= $(shell git rev-parse --short HEAD 2>NUL || git rev-parse --short HEAD 2>/dev/null || echo unknown)
+ifeq ($(GOOS),windows)
+VERSION ?= $(shell git describe --tags --abbrev=0 --match "v*" 2>NUL || git describe --tags --abbrev=0 --match 'v*' 2>NUL || echo dev)
+COMMIT ?= $(shell git rev-parse --short HEAD 2>NUL || echo unknown)
+else
+VERSION ?= $(shell git describe --tags --abbrev=0 --match "v*" 2>/dev/null || git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev)
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+endif
 LDFLAGS := -s -w -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.commit=$(COMMIT)
 
 BUILD_FLAGS := -trimpath -ldflags="$(LDFLAGS)"

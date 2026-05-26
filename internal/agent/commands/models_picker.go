@@ -7,8 +7,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"sync"
-
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands/connect"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
@@ -64,6 +62,10 @@ func (c *slashModelPickerCtx) ensureProviderCatalog(ctx context.Context, cfg *co
 		c.providerCatalog = map[string][]ListedModel{}
 	}
 	if _, ok := c.providerCatalog[prov]; ok {
+		return nil
+	}
+	if cat, ok := cachedProviderCatalogSlice(cfg, prov); ok {
+		c.providerCatalog[prov] = cat
 		return nil
 	}
 	p := config.ProviderByName(cfg, prov)
@@ -263,47 +265,6 @@ func (c *slashModelPickerCtx) stickyDisplayRows() []slashPickerDisplayRow {
 	return disp
 }
 
-func fetchSlashModelCatalog(ctx context.Context, d Deps) ([]ListedModel, error) {
-	providers := config.ProviderList(d.Cfg)
-	if len(providers) == 0 {
-		return nil, nil
-	}
-	type providerModels struct {
-		lms []ListedModel
-		err error
-	}
-	results := make([]providerModels, len(providers))
-	var wg sync.WaitGroup
-	wg.Add(len(providers))
-	for i := range providers {
-		i := i
-		pp := providers[i]
-		go func() {
-			defer wg.Done()
-			ids, err := connect.ListModelsForProvider(ctx, d.Cfg, &pp)
-			if err != nil {
-				results[i].err = err
-				return
-			}
-			lms := make([]ListedModel, len(ids))
-			for j, mid := range ids {
-				lms[j] = ListedModel{Prov: pp.Name, Model: mid}
-			}
-			results[i].lms = lms
-		}()
-	}
-	wg.Wait()
-	var catalog []ListedModel
-	for i := range results {
-		if results[i].err != nil {
-			PrintSystemf(d.Out, "provider %s: error: %v", providers[i].Name, results[i].err)
-			continue
-		}
-		catalog = append(catalog, results[i].lms...)
-	}
-	return catalog, nil
-}
-
 func fillProviderPicksFiltered(catalog []ListedModel, skip map[string]bool, need int, onlyProv string, firstPage bool) []ListedModel {
 	if need <= 0 {
 		return nil
@@ -342,7 +303,7 @@ func SlashModels(d Deps) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	catalog, err := fetchSlashModelCatalog(ctx, d)
+	catalog, byProv, err := fetchSlashModelCatalogCached(ctx, d)
 	if err != nil {
 		return err
 	}
@@ -350,7 +311,16 @@ func SlashModels(d Deps) error {
 		return fmt.Errorf("no models available")
 	}
 
-	pick := &slashModelPickerCtx{d: d, fullCatalog: catalog, displayedKeys: map[string]bool{}, indexTable: map[int]pickerRow{}}
+	pick := &slashModelPickerCtx{
+		d:               d,
+		fullCatalog:     catalog,
+		providerCatalog: byProv,
+		displayedKeys:   map[string]bool{},
+		indexTable:      map[int]pickerRow{},
+	}
+	if pick.providerCatalog == nil {
+		pick.providerCatalog = map[string][]ListedModel{}
+	}
 	for {
 		display, hasMore := pick.buildDisplay()
 		var pickerBuf bytes.Buffer

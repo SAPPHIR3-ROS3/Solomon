@@ -10,6 +10,7 @@ import (
 
 	solomonagent "github.com/SAPPHIR3-ROS3/Solomon/internal/agent"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/clipboard"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
@@ -94,6 +95,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 	})
 	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
 	go func() { r.InitMCP(ctx) }()
+	if !config.NeedsOnboard(r.Cfg) {
+		go commands.PrefetchSlashModelCatalog(ctx, r.Cfg, r.Out)
+	}
 	SetReplImagePaste(func() (string, bool) {
 		seq, _, err := r.saveReplClipboardImage()
 		if err != nil {

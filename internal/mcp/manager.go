@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
@@ -24,6 +25,13 @@ type Manager struct {
 	registry    map[string]*remoteBinding
 	tools       []RemoteTool
 	callTimeout time.Duration
+
+	cfg       *Config
+	stderr    io.Writer
+	connectMu sync.Mutex
+	connected bool
+	ready     chan struct{}
+	connectErr error
 }
 
 type serverSession struct {
@@ -37,29 +45,101 @@ type remoteBinding struct {
 	tool   RemoteTool
 }
 
-func Start(ctx context.Context, stderr io.Writer) (*Manager, error) {
+func StartLazy(stderr io.Writer) (*Manager, error) {
 	cfg, err := LoadConfig()
 	if err != nil {
 		return nil, err
 	}
-	return NewManager(ctx, cfg, stderr), nil
+	return &Manager{
+		registry:    map[string]*remoteBinding{},
+		callTimeout: defaultCallTimeout,
+		cfg:         cfg,
+		stderr:      stderr,
+		ready:       make(chan struct{}),
+	}, nil
+}
+
+func Start(ctx context.Context, stderr io.Writer) (*Manager, error) {
+	m, err := StartLazy(stderr)
+	if err != nil {
+		return nil, err
+	}
+	_, _, err = m.Connect(ctx)
+	return m, err
 }
 
 func NewManager(ctx context.Context, cfg *Config, stderr io.Writer) *Manager {
 	m := &Manager{
 		registry:    map[string]*remoteBinding{},
 		callTimeout: defaultCallTimeout,
+		cfg:         cfg,
+		stderr:      stderr,
+		ready:       make(chan struct{}),
 	}
 	if cfg == nil || len(cfg.Servers) == 0 {
 		logging.Log(logging.INFO_LOG_LEVEL, "MCP config loaded without servers")
+		close(m.ready)
+		m.connected = true
 		return m
 	}
 	usedNames := map[string]bool{}
 	for _, sc := range cfg.Servers {
 		m.connectServer(ctx, sc, stderr, usedNames)
 	}
+	close(m.ready)
+	m.connected = true
 	logging.Log(logging.INFO_LOG_LEVEL, "MCP manager initialized", logging.LogOptions{Params: map[string]any{"servers": len(m.servers), "tools": len(m.tools)}})
 	return m
+}
+
+func (m *Manager) Connect(ctx context.Context) (servers int, tools int, err error) {
+	if m == nil {
+		return 0, 0, nil
+	}
+	m.connectMu.Lock()
+	defer m.connectMu.Unlock()
+	if m.connected {
+		return len(m.servers), len(m.tools), m.connectErr
+	}
+	defer func() {
+		close(m.ready)
+		m.connected = true
+		m.connectErr = err
+	}()
+	if m.cfg == nil || len(m.cfg.Servers) == 0 {
+		logging.Log(logging.INFO_LOG_LEVEL, "MCP config loaded without servers")
+		return 0, 0, nil
+	}
+	usedNames := map[string]bool{}
+	for _, sc := range m.cfg.Servers {
+		m.connectServer(ctx, sc, m.stderr, usedNames)
+	}
+	logging.Log(logging.INFO_LOG_LEVEL, "MCP manager initialized", logging.LogOptions{Params: map[string]any{"servers": len(m.servers), "tools": len(m.tools)}})
+	return len(m.servers), len(m.tools), nil
+}
+
+func (m *Manager) WaitReady(ctx context.Context) error {
+	if m == nil || m.ready == nil {
+		return nil
+	}
+	select {
+	case <-m.ready:
+		return m.connectErr
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (m *Manager) IsReady() bool {
+	if m == nil || m.ready == nil {
+		return true
+	}
+	select {
+	case <-m.ready:
+		return true
+	default:
+		return false
+	}
 }
 
 func NewManagerWithRemoteTools(tools []RemoteTool) *Manager {
@@ -177,6 +257,9 @@ func (m *Manager) HasTool(name string) bool {
 func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage) (any, error) {
 	if m == nil {
 		return nil, fmt.Errorf("MCP manager unavailable")
+	}
+	if err := m.WaitReady(ctx); err != nil {
+		return nil, err
 	}
 	binding, ok := m.registry[name]
 	if !ok {
