@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const MaxModelPickerEntries = 25
+
 func readModelPickLine(pio PromptIO, prompt string) (string, error) {
 	line, err := ReadPromptLine(pio, prompt)
 	if err != nil {
@@ -50,29 +52,36 @@ func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids [
 	if len(ids) == 0 {
 		return "", fmt.Errorf("no models returned by API")
 	}
-	_ = p
-	if len(ids) <= 20 {
+	cursorPick := p != nil && p.IsCursorAPI()
+	maxList := MaxModelPickerEntries
+	lastIdx := maxList - 1
+	pasteEntryIdx := maxList
+	if len(ids) <= maxList {
 		for i, id := range ids {
 			fmt.Fprintf(out, "%d\t%s[%s]\n", i, id, providerLabel)
 		}
 	} else {
-		for i := 0; i < 20; i++ {
+		for i := 0; i < maxList; i++ {
 			fmt.Fprintf(out, "%d\t%s[%s]\n", i, ids[i], providerLabel)
 		}
 		fmt.Fprintln(out, "...")
 	}
 	for {
 		var prompt string
-		if len(ids) <= 20 {
-			if allowSkip {
+		if len(ids) <= maxList {
+			if allowSkip && cursorPick {
+				prompt = fmt.Sprintf("Select model number (0-%d), paste exact model id, or skip to use %s: ", len(ids)-1, CursorAPIDefaultModelID)
+			} else if allowSkip {
 				prompt = fmt.Sprintf("Select model number (0-%d), paste exact model id, or skip for default [%s]: ", len(ids)-1, ids[0])
 			} else {
 				prompt = fmt.Sprintf("Select model number (0-%d) or paste exact model id: ", len(ids)-1)
 			}
+		} else if allowSkip && cursorPick {
+			prompt = fmt.Sprintf("Enter index 0–%d, %d to type a model id, paste exact model id, or skip to use %s: ", lastIdx, pasteEntryIdx, CursorAPIDefaultModelID)
 		} else if allowSkip {
-			prompt = fmt.Sprintf("Enter index 0–19, 20 to type a model id, paste exact model id, or skip for default [%s]: ", ids[0])
+			prompt = fmt.Sprintf("Enter index 0–%d, %d to type a model id, paste exact model id, or skip for default [%s]: ", lastIdx, pasteEntryIdx, ids[0])
 		} else {
-			prompt = "Enter index 0–19, 20 to type a model id, or paste exact model id: "
+			prompt = fmt.Sprintf("Enter index 0–%d, %d to type a model id, or paste exact model id: ", lastIdx, pasteEntryIdx)
 		}
 		line, err := readModelPickLine(pio, prompt)
 		if err != nil {
@@ -80,6 +89,9 @@ func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids [
 		}
 		if allowSkip && isSkipInput(line) {
 			PrintConfigSkipHint(out, "current_model")
+			if cursorPick {
+				return CursorAPIDefaultModelID, nil
+			}
 			return ids[0], nil
 		}
 		if line == "" {
@@ -90,17 +102,17 @@ func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids [
 			}
 			continue
 		}
-		if len(ids) > 20 {
+		if len(ids) > maxList {
 			if AllDigits(line) {
 				n, err := strconv.Atoi(line)
 				if err != nil {
 					fmt.Fprintln(out, "Invalid: not a valid number.")
 					continue
 				}
-				if n >= 0 && n < 20 {
+				if n >= 0 && n < maxList {
 					return ids[n], nil
 				}
-				if n == 20 {
+				if n == pasteEntryIdx {
 					for {
 						s, err := readModelPickLine(pio, "Model id: ")
 						if err != nil {
@@ -124,7 +136,7 @@ func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids [
 						fmt.Fprintf(out, "Invalid: model id %q is not in the API model list.\n", s)
 					}
 				}
-				fmt.Fprintln(out, "Invalid: index must be 0–19 or 20 to enter an id.")
+				fmt.Fprintf(out, "Invalid: index must be 0–%d or %d to enter an id.\n", lastIdx, pasteEntryIdx)
 				continue
 			}
 			if idInSlice(ids, line) {
@@ -157,7 +169,7 @@ func PickModelAfterAdd(pio PromptIO, prevProv, prevModel, newProvName string, ne
 	if len(newIDs) == 0 {
 		return ModelPickChoice{}, fmt.Errorf("no models returned by API")
 	}
-	const maxShown = 20
+	maxShown := MaxModelPickerEntries
 	nShownNew := len(newIDs)
 	truncated := false
 	if nShownNew > maxShown {
@@ -171,7 +183,7 @@ func PickModelAfterAdd(pio PromptIO, prevProv, prevModel, newProvName string, ne
 	if truncated {
 		fmt.Fprintln(out, "...")
 	}
-	pasteIdx := 21
+	pasteIdx := maxShown + 1
 	printPickAfterAddHelp(out, nShownNew, newProvName, truncated, pasteIdx, allowSkip)
 	for {
 		line, err := readModelPickLine(pio, pickAfterAddReadPrompt())

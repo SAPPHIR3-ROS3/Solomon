@@ -58,9 +58,7 @@ func cursorAPI(d Deps) error {
 	if err != nil {
 		return fmt.Errorf("connection check failed: %w", err)
 	}
-	if len(ids) == 0 {
-		ids = []string{"composer-2.5", "auto"}
-	}
+	ids = cursorint.FilterModelIDs(ids)
 	prevProv := d.Cfg.Current.Provider
 	prevModel := d.Cfg.Current.Model
 	config.AppendOrUpdateProvider(d.Cfg, prov)

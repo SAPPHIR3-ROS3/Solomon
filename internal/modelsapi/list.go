@@ -22,6 +22,7 @@ type listResp struct {
 type ListOpts struct {
 	ChatGPTAccountID string
 	UserAgent        string
+	AllModels        bool
 }
 
 func List(baseURL, bearer string) ([]string, error) {
@@ -42,6 +43,9 @@ func ListWithOpts(baseURL, bearer string, opts ListOpts) (out []string, err erro
 		}
 	}()
 	u := strings.TrimSuffix(baseURL, "/") + "/models"
+	if opts.AllModels {
+		u += "?all=1"
+	}
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err

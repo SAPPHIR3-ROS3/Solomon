@@ -20,6 +20,7 @@ import {
   writeSSE,
   type OpenAIUsagePayload,
 } from "./openai-sse.js";
+import { filterFlagshipModelIDs, orderModelIDs } from "./model-filter.js";
 import {
   type AgentRun,
   forceStopRun,
@@ -40,7 +41,7 @@ export type ProxyConfig = {
   cwd: string;
 };
 
-export async function listModels(apiKey: string): Promise<string[]> {
+async function cursorModelIDs(apiKey: string): Promise<string[]> {
   const models = await Cursor.models.list({ apiKey });
   const ids: string[] = [];
   for (const m of models) {
@@ -48,10 +49,15 @@ export async function listModels(apiKey: string): Promise<string[]> {
       ids.push(m.id);
     }
   }
-  if (ids.length === 0) {
-    return ["composer-2.5", "auto"];
-  }
   return ids;
+}
+
+export async function listModels(apiKey: string): Promise<string[]> {
+  return filterFlagshipModelIDs(await cursorModelIDs(apiKey));
+}
+
+export async function listAllModels(apiKey: string): Promise<string[]> {
+  return orderModelIDs(await cursorModelIDs(apiKey));
 }
 
 export async function handleChatCompletions(

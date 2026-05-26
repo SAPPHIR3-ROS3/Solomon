@@ -12,6 +12,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/project"
@@ -156,6 +157,7 @@ func main() {
 		logging.Log(logging.ERROR_LOG_LEVEL, "config load failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
+	cursorint.KickSidecarIfConfigured(ctx, cfg, "", cursorint.DiscardBootstrap{})
 	configExists, err := config.ConfigExists()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -204,6 +206,7 @@ func main() {
 		sessParams["provider"] = prov.Name
 	}
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive session", logging.LogOptions{Params: sessParams})
+	cursorint.KickSidecarIfConfigured(ctx, cfg, root, cursorint.DiscardBootstrap{})
 	if rl == nil {
 		var err2 error
 		rl, _, err2 = agentruntime.NewREPLReadline(termcolor.WrapUserReadline("You: "))
@@ -233,7 +236,6 @@ func main() {
 		LastCommitOID:          "",
 	}
 	rt := agentruntime.NewRuntime(rl, cfg, prov, hex, root, sess)
-	rt.InitMCP(ctx)
 	defer rt.Close()
 	if err := rt.Run(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
