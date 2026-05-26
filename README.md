@@ -194,6 +194,8 @@ You need network access and credentials for an **OpenAI-compatible** HTTPS API (
 
 Full guides (configuration, commands, architecture, development): **[docs/](docs/README.md)**.
 
+Feature catalog (ranked list with short descriptions): **[docs/features.md](docs/features.md)**.
+
 Startup flow diagram: [Startup and CLI](docs/architecture/startup-and-cli.md#startup-flow).
 
 ## License

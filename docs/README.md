@@ -56,6 +56,7 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 
 ## Featured articles
 
+- [Feature catalog](features.md) — capabilities ranked by cross-agent fame, plus Solomon-only and distinctive features
 - [Configuration](user-guide/configuration.md) — `config.toml`, web search, logs, legacy XML tools
 - [Terminal setup](user-guide/terminal-setup.md) — monospace font, ligatures, ANSI colors
 - [Overview](architecture/overview.md) — package map and design tenets
