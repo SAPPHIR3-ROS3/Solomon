@@ -32,7 +32,9 @@ jobs:
           go run scripts/cursor_bundler.go bundle
       - run: go vet ./...
       - run: go test ./... -count=1
-      - run: go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.version=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev) -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.commit=$(git rev-parse --short HEAD)" ./cmd/solomon
+      - name: Build solomon with embedded version metadata
+        shell: bash
+        run: go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.version=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev) -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.commit=$(git rev-parse --short HEAD)" ./cmd/solomon
 
   release:
     if: github.event_name == 'workflow_dispatch'
