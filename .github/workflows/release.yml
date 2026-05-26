@@ -32,7 +32,7 @@ jobs:
           go run scripts/cursor_bundler.go bundle
       - run: go vet ./...
       - run: go test ./... -count=1
-      - run: go build ./cmd/solomon
+      - run: go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.version=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev) -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.commit=$(git rev-parse --short HEAD)" ./cmd/solomon
 
   release:
     if: github.event_name == 'workflow_dispatch'
@@ -115,7 +115,7 @@ jobs:
             if [ "$goos" = "windows" ]; then
               out="${out}.exe"
             fi
-            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/solomon
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.version=$VER -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.commit=$(git rev-parse --short HEAD)" -o "$out" ./cmd/solomon
           done
 
       - name: Create GitHub release
