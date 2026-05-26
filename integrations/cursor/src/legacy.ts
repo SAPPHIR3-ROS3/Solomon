@@ -60,6 +60,16 @@ export function collectLegacyTool(
   }
 }
 
+export function tryCollectLegacyTool(
+  pending: LegacyToolInvocation[],
+  name: string,
+  rawArgs: unknown,
+): boolean {
+  const before = pending.length;
+  collectLegacyTool(pending, name, rawArgs);
+  return pending.length > before;
+}
+
 const SOLOMON_TOOL_NAMES = new Set(["readFile", "shell", "editFile"]);
 
 export function mapCursorToolToSolomon(
