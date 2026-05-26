@@ -16,22 +16,42 @@ import (
 
 const legacyToolJSONCorrectionUserMsg = "Your previous reply contained a malformed <tool_calls> block. Use exactly this shape with valid JSON in each <args> tag:\n<tool_calls>\n<tool name=\"TOOL_NAME\">\n<intent>brief purpose</intent>\n<args>{\"key\":\"value\"}</args>\n</tool>\n</tool_calls>\nSend a corrected block only, or continue without tools if you meant plain text."
 
-func newLegacyStreamWriter(out io.Writer, enabled bool, allowed map[string]struct{}, linePrefix string) (*tooling.LegacyStreamWriter, io.Writer) {
+func newLegacyStreamWriter(out io.Writer, enabled bool, allowed map[string]struct{}) (*tooling.LegacyStreamWriter, io.Writer) {
 	if !enabled {
 		return nil, out
 	}
-	format := tooling.FormatToolDisplayLines
-	if linePrefix != "" {
-		format = func(name string, args json.RawMessage) []string {
-			lines := tooling.FormatToolDisplayLines(name, args)
-			for i := range lines {
-				lines[i] = linePrefix + lines[i]
-			}
-			return lines
-		}
-	}
-	lsw := tooling.NewLegacyStreamWriter(out, format, allowed)
+	lsw := tooling.NewLegacyStreamWriter(out, nil, allowed)
 	return lsw, lsw
+}
+
+func (r *Runtime) stampAssistantToolCallCheckpoint(toolIdx, cpSeq int, branchKey string) {
+	r.mutateSession(func(s *chatstore.Session) {
+		for i := len(s.Messages) - 1; i >= 0; i-- {
+			if s.Messages[i].Role != "assistant" {
+				continue
+			}
+			if toolIdx >= len(s.Messages[i].ToolCalls) {
+				return
+			}
+			tc := &s.Messages[i].ToolCalls[toolIdx]
+			tc.CheckpointSeq = cpSeq
+			tc.CpSeqSet = true
+			tc.CheckpointBranchKey = branchKey
+			return
+		}
+	})
+}
+
+func (r *Runtime) printToolInvocation(toolIdx int, name string, rawArgs json.RawMessage) int {
+	var cpSeq int
+	var branchKey string
+	r.mutateSession(func(s *chatstore.Session) {
+		cpSeq = checkpoint.Bump(s)
+		branchKey = s.CheckpointBranchSuffix
+	})
+	r.stampAssistantToolCallCheckpoint(toolIdx, cpSeq, branchKey)
+	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, formatToolDisplayLines(name, rawArgs))
+	return cpSeq
 }
 
 const legacyNativeToolRejectedUserMsg = "Native API tool_calls are disabled because legacy tools force is ON. Do not use function calling. Emit tool invocations only inside a <tool_calls> XML block as described in the system prompt."

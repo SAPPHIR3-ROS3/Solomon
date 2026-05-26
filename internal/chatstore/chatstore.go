@@ -31,6 +31,10 @@ type ToolCall struct {
 	ID        string `json:"id,omitempty"`
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
+
+	CheckpointSeq       int    `json:"cp_seq,omitempty"`
+	CpSeqSet            bool   `json:"cp_set,omitempty"`
+	CheckpointBranchKey string `json:"cp_branch,omitempty"`
 }
 
 type Message struct {

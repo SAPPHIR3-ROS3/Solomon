@@ -4,10 +4,29 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
+
+func WriteToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []string) {
+	first := true
+	cp := checkpoint.FormatLinePrefix(cpSeq, branchKey)
+	cont := cp + termcolor.WrapUserReadline(".... ")
+	for _, line := range lines {
+		parts := strings.Split(line, "\n")
+		for _, part := range parts {
+			prefix := cp
+			if !first {
+				prefix = cont
+			}
+			fmt.Fprintf(out, "%s%s\n", prefix, part)
+			first = false
+		}
+	}
+}
 
 func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 	m := parseToolDisplayArgs(rawArgs)

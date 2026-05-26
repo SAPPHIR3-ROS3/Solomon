@@ -72,9 +72,11 @@ func writeTranscriptMessage(out io.Writer, m chatstore.Message, model string) {
 			}
 		}
 		for _, tc := range toolCalls {
-			for _, line := range tooling.FormatToolDisplayLines(tc.Name, json.RawMessage(tc.Arguments)) {
-				fmt.Fprintf(out, "%s%s\n", prefix, line)
+			cpSeq, branch := m.CheckpointSeq, m.CheckpointBranchKey
+			if tc.CpSeqSet {
+				cpSeq, branch = tc.CheckpointSeq, tc.CheckpointBranchKey
 			}
+			tooling.WriteToolDisplayLines(out, cpSeq, branch, tooling.FormatToolDisplayLines(tc.Name, json.RawMessage(tc.Arguments)))
 		}
 	case "tool":
 		id := m.ToolCallID
