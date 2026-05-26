@@ -8,8 +8,8 @@ import {
   withHarnessPreamble,
 } from "./messages.js";
 import {
-  collectLegacyTool,
   formatLegacyToolCallsBlock,
+  tryCollectLegacyTool,
   type LegacyToolInvocation,
 } from "./legacy.js";
 import type { ChatCompletionRequest, ChatMessage } from "./openai-types.js";
@@ -358,9 +358,10 @@ function processStreamEvent(
     let afterTool = false;
     for (const block of event.message.content) {
       if (block.type === "tool_use") {
-        collectLegacyTool(pendingLegacy, block.name, block.input);
-        afterTool = true;
-        onToolDetected();
+        if (tryCollectLegacyTool(pendingLegacy, block.name, block.input)) {
+          afterTool = true;
+          onToolDetected();
+        }
         continue;
       }
       if (block.type === "text" && block.text && !afterTool) {
@@ -377,8 +378,7 @@ function processStreamEvent(
     if (event.status === "completed" || event.status === "error") {
       return;
     }
-    if (event.args !== undefined) {
-      collectLegacyTool(pendingLegacy, event.name, event.args);
+    if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args)) {
       onToolDetected();
     }
   }
@@ -425,9 +425,10 @@ async function handleNonStream(
         let afterTool = false;
         for (const block of event.message.content) {
           if (block.type === "tool_use") {
-            collectLegacyTool(pendingLegacy, block.name, block.input);
-            afterTool = true;
-            toolDetected = true;
+            if (tryCollectLegacyTool(pendingLegacy, block.name, block.input)) {
+              afterTool = true;
+              toolDetected = true;
+            }
             continue;
           }
           if (block.type === "text" && block.text && !afterTool) {
@@ -444,8 +445,7 @@ async function handleNonStream(
         if (event.status === "completed" || event.status === "error") {
           continue;
         }
-        if (event.args !== undefined) {
-          collectLegacyTool(pendingLegacy, event.name, event.args);
+        if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args)) {
           toolDetected = true;
           await forceStopRun(run);
           break;
