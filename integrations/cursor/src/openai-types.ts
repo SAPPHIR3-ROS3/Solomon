@@ -14,6 +14,8 @@ export type ChatCompletionRequest = {
   messages: ChatMessage[];
   stream?: boolean;
   temperature?: number;
+  reasoning_effort?: string;
+  solomon_fast_mode?: boolean;
 };
 
 export type ModelListResponse = {

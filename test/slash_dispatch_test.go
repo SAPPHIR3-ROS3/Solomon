@@ -103,6 +103,22 @@ func TestSlashDispatch_reasoning(t *testing.T) {
 	}
 }
 
+func TestSlashDispatch_fast(t *testing.T) {
+	d := testDeps(nil)
+	if err := agent.SlashDispatch(d, "/fast off"); err != nil {
+		t.Fatal(err)
+	}
+	if d.Cfg.EffectiveFastMode() {
+		t.Fatal("want fast mode off")
+	}
+	if err := agent.SlashDispatch(d, "/fast"); err != nil {
+		t.Fatal(err)
+	}
+	if !d.Cfg.EffectiveFastMode() {
+		t.Fatal("want fast mode toggled on")
+	}
+}
+
 func TestSlashDispatch_threshold(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	d := testDeps(nil)

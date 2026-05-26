@@ -18,6 +18,7 @@ type rootLegacyFile struct {
 	RecentModelUses           []RecentModelUse `toml:"recent_model_uses,omitempty"`
 	SubagentTimeoutMinutes    int              `toml:"subagent_timeout_minutes"`
 	ReasoningEffort           string           `toml:"reasoning_effort"`
+	FastMode                  *bool            `toml:"fast_mode,omitempty"`
 	LogLevel                  string           `toml:"log_level"`
 	MaxResponseTokens         int              `toml:"max_response_tokens"`
 	ShowThinking              bool             `toml:"show_thinking"`
@@ -43,6 +44,7 @@ type rootFile struct {
 	RecentModels              map[string][]string `toml:"recent_models,omitempty"`
 	SubagentTimeoutMinutes    int                 `toml:"subagent_timeout_minutes"`
 	ReasoningEffort           string              `toml:"reasoning_effort"`
+	FastMode                  *bool               `toml:"fast_mode,omitempty"`
 	LogLevel                  string              `toml:"log_level"`
 	MaxResponseTokens         int                 `toml:"max_response_tokens"`
 	ShowThinking              bool                `toml:"show_thinking"`
@@ -81,6 +83,7 @@ func rootFromFile(f *rootFile) *Root {
 		RecentModels:              f.RecentModels,
 		SubagentTimeoutMinutes:    f.SubagentTimeoutMinutes,
 		ReasoningEffort:           f.ReasoningEffort,
+		FastMode:                  f.FastMode,
 		LogLevel:                  f.LogLevel,
 		MaxResponseTokens:         f.MaxResponseTokens,
 		ShowThinking:              f.ShowThinking,
@@ -112,6 +115,7 @@ func rootToFile(r *Root) *rootFile {
 		RecentModels:              r.RecentModels,
 		SubagentTimeoutMinutes:    r.SubagentTimeoutMinutes,
 		ReasoningEffort:           r.ReasoningEffort,
+		FastMode:                  r.FastMode,
 		LogLevel:                  r.LogLevel,
 		MaxResponseTokens:         r.MaxResponseTokens,
 		ShowThinking:              r.ShowThinking,
@@ -163,6 +167,7 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		Current:                   f.Current,
 		SubagentTimeoutMinutes:    f.SubagentTimeoutMinutes,
 		ReasoningEffort:           f.ReasoningEffort,
+		FastMode:                  f.FastMode,
 		LogLevel:                  f.LogLevel,
 		MaxResponseTokens:         f.MaxResponseTokens,
 		ShowThinking:              f.ShowThinking,

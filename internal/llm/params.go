@@ -94,35 +94,75 @@ func ApplyReasoningDisable(p *openai.ChatCompletionNewParams) {
 		return
 	}
 	p.ReasoningEffort = shared.ReasoningEffort("none")
-	applyReasoningDisableExtras(p)
+	p.SetExtraFields(reasoningDisableExtras())
 }
 
 func ApplyChatReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, forceDisable bool) {
 	if p == nil {
 		return
 	}
+	extras := map[string]any{}
+	applyCursorFastModeExtra(cfg, extras)
 	if forceDisable {
-		ApplyReasoningDisable(p)
+		p.ReasoningEffort = shared.ReasoningEffort("none")
+		addReasoningDisableExtras(extras)
+		applyChatExtraFields(p, extras)
 		return
 	}
 	if cfg == nil {
+		applyChatExtraFields(p, extras)
 		return
 	}
 	if eff := cfg.GlobalReasoningEffort(); eff != "" {
 		p.ReasoningEffort = eff
 	}
 	if cfg.ReasoningEffortIsNone() {
-		applyReasoningDisableExtras(p)
+		addReasoningDisableExtras(extras)
+	}
+	applyChatExtraFields(p, extras)
+}
+
+func ApplySimpleReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, forceDisable bool) {
+	if p == nil {
+		return
+	}
+	extras := map[string]any{}
+	applyCursorFastModeExtra(cfg, extras)
+	if forceDisable {
+		p.ReasoningEffort = shared.ReasoningEffort("none")
+		addReasoningDisableExtras(extras)
+	}
+	applyChatExtraFields(p, extras)
+}
+
+func reasoningDisableExtras() map[string]any {
+	extras := map[string]any{}
+	addReasoningDisableExtras(extras)
+	return extras
+}
+
+func addReasoningDisableExtras(extras map[string]any) {
+	extras["enable_thinking"] = false
+	extras["chat_template_kwargs"] = map[string]any{
+		"enable_thinking": false,
 	}
 }
 
-func applyReasoningDisableExtras(p *openai.ChatCompletionNewParams) {
-	p.SetExtraFields(map[string]any{
-		"enable_thinking": false,
-		"chat_template_kwargs": map[string]any{
-			"enable_thinking": false,
-		},
-	})
+func applyCursorFastModeExtra(cfg *config.Root, extras map[string]any) {
+	if cfg == nil {
+		return
+	}
+	if p := config.ProviderByName(cfg, cfg.Current.Provider); !config.FastModeSupportedByProvider(p) {
+		return
+	}
+	extras["solomon_fast_mode"] = cfg.EffectiveFastMode()
+}
+
+func applyChatExtraFields(p *openai.ChatCompletionNewParams, extras map[string]any) {
+	if len(extras) == 0 {
+		return
+	}
+	p.SetExtraFields(extras)
 }
 
 var imgPlaceholderRe = regexp.MustCompile(`\[img-(\d+)\]`)

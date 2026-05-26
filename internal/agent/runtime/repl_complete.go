@@ -244,7 +244,7 @@ func (c *replCompleter) completeArg(cmd string, line []rune, pos, argStart int, 
 	switch cmd {
 	case "reasoning":
 		candidates = []string{"none", "low", "med", "medium", "high"}
-	case "thinking", "terminal":
+	case "thinking", "terminal", "fast":
 		candidates = []string{"on", "off", "yes", "no", "true", "false", "1", "0"}
 	case "legacytools", "legacy":
 		candidates = []string{"on", "off", "force", "yes", "no", "true", "false", "1", "0"}
