@@ -30,6 +30,10 @@ func flushStreamOutErr(w io.Writer) error {
 	return nil
 }
 
+func writeThoughtForLine(sink io.Writer, secs float64) {
+	_, _ = fmt.Fprintf(sink, "\n%s\n", termcolor.ThoughtForSuffix(secs))
+}
+
 func writeStreamContent(w io.Writer, s string) error {
 	if s == "" {
 		return nil
@@ -218,7 +222,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		if tFirstVisible.IsZero() && firstVisibleAssistDelta(delta) {
 			tFirstVisible = time.Now()
 			if sawReasoning && !printedThought {
-				_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(time.Since(tStart).Seconds()))
+				writeThoughtForLine(reasonSink, time.Since(tStart).Seconds())
 				printedThought = true
 			}
 		}
@@ -271,7 +275,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 	tEnd := time.Now()
 	u := buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)
 	if sawReasoning && !printedThought && u.ThoughtSecs > 0 {
-		_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(u.ThoughtSecs))
+		writeThoughtForLine(reasonSink, u.ThoughtSecs)
 	}
 	return full, u, nil
 }
@@ -329,7 +333,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		if tFirstVisible.IsZero() && firstVisibleAssistDelta(delta) {
 			tFirstVisible = time.Now()
 			if reasoningBuf.Len() > 0 && !printedThought {
-				_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(time.Since(tStart).Seconds()))
+				writeThoughtForLine(reasonSink, time.Since(tStart).Seconds())
 				printedThought = true
 			}
 		}
@@ -402,7 +406,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	}
 	out.Usage = buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)
 	if !printedThought && strings.TrimSpace(out.ReasoningText) != "" {
-		_, _ = fmt.Fprintf(reasonSink, "%s\n", termcolor.ThoughtForSuffix(out.Usage.ThoughtSecs))
+		writeThoughtForLine(reasonSink, out.Usage.ThoughtSecs)
 	}
 	return out, nil
 }
