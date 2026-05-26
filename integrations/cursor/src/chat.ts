@@ -21,6 +21,7 @@ import {
   type OpenAIUsagePayload,
 } from "./openai-sse.js";
 import { filterFlagshipModelIDs, orderModelIDs } from "./model-filter.js";
+import { resolveModelSelection, type ModelInfo } from "./model-selection.js";
 import {
   type AgentRun,
   forceStopRun,
@@ -41,8 +42,20 @@ export type ProxyConfig = {
   cwd: string;
 };
 
-async function cursorModelIDs(apiKey: string): Promise<string[]> {
+let cachedModels: { apiKey: string; models: ModelInfo[]; expiresAt: number } | undefined;
+
+async function cursorModels(apiKey: string): Promise<ModelInfo[]> {
+  const now = Date.now();
+  if (cachedModels?.apiKey === apiKey && cachedModels.expiresAt > now) {
+    return cachedModels.models;
+  }
   const models = await Cursor.models.list({ apiKey });
+  cachedModels = { apiKey, models: models as ModelInfo[], expiresAt: now + 60_000 };
+  return cachedModels.models;
+}
+
+async function cursorModelIDs(apiKey: string): Promise<string[]> {
+  const models = await cursorModels(apiKey);
   const ids: string[] = [];
   for (const m of models) {
     if (m.id) {
@@ -71,8 +84,15 @@ export async function handleChatCompletions(
   const messages = req.messages ?? [];
   const stream = req.stream !== false;
   const key = sessionKey(messages, cfg.cwd);
+  const modelSelection = resolveModelSelection(
+    await cursorModels(cfg.apiKey),
+    model,
+    req.reasoning_effort,
+    req.solomon_fast_mode ?? true,
+  );
+  const modelKey = JSON.stringify(modelSelection);
   let state = getSession(key);
-  if (!state || state.model !== model) {
+  if (!state || state.modelKey !== modelKey) {
     if (state?.agent) {
       try {
         await state.agent.close();
@@ -82,11 +102,13 @@ export async function handleChatCompletions(
     }
     const agent = await Agent.create({
       apiKey: cfg.apiKey,
-      model: { id: model },
+      model: modelSelection,
       local: { cwd: cfg.cwd, settingSources: [] },
     });
-    state = { agent, syncedMessages: 0, model };
+    state = { agent, syncedMessages: 0, model, modelKey, modelSelection };
     setSession(key, state);
+  } else {
+    state.modelSelection = modelSelection;
   }
   const delta = messages.slice(state.syncedMessages);
   if (delta.length === 0 && messages.length > 0) {
@@ -203,6 +225,7 @@ async function streamCompletion(
   try {
     try {
       run = await state.agent.send(prompt, {
+        model: state.modelSelection,
         onDelta: async ({ update }) => {
           if (update.type !== "turn-ended" || !update.usage) {
             return;
@@ -378,6 +401,7 @@ async function handleNonStream(
   });
   try {
     run = await state.agent.send(prompt, {
+      model: state.modelSelection,
       onDelta: async ({ update }) => {
         if (update.type !== "turn-ended" || !update.usage) {
           return;

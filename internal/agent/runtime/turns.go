@@ -196,11 +196,12 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		if r.machineMode() {
 			r.ciEmit(cievents.AssistantStart(turnIdx, astSeq))
 		} else {
-			reasoningEff := "none"
-			if lbl := r.Cfg.ReasoningEffortLabel(); lbl != "" {
-				reasoningEff = lbl
+			reasoningEff := r.Cfg.ReasoningEffortDisplayLabel()
+			fastTag := ""
+			if r.Cfg.FastModeEnabledForProvider(r.Prov) {
+				fastTag = " " + termcolor.WrapThinking("(fast)")
 			}
-			fmt.Fprintf(r.Out, "%s%s (%s): ", checkpoint.FormatLinePrefix(astSeq, branchKey), termcolor.WrapAssistant(r.Model), termcolor.WrapThinking(reasoningEff))
+			fmt.Fprintf(r.Out, "%s%s (%s)%s: ", checkpoint.FormatLinePrefix(astSeq, branchKey), termcolor.WrapAssistant(r.Model), termcolor.WrapThinking(reasoningEff), fastTag)
 		}
 		var legacySW *tooling.LegacyStreamWriter
 		legacyOut := r.Out

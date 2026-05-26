@@ -63,7 +63,11 @@ func Resume(d Deps, args []string) error {
 
 func afterResumeLoaded(d Deps, sess *chatstore.Session) {
 	chatstore.FinishSessionLoad(sess)
-	printResumedTranscript(d.Out, sess, d.Model(), usageStatsEnabled(d))
+	model := d.Model()
+	if d.Cfg != nil {
+		model = d.Cfg.ModelDisplayName(d.Provider(), model)
+	}
+	printResumedTranscript(d.Out, sess, model, usageStatsEnabled(d))
 	syncReadlineHistoryFromSession(d, sess)
 }
 

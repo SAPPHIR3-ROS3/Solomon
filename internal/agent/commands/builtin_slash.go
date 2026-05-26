@@ -49,6 +49,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"timeout"}, "/timeout", "/timeout <minutes> subagent segment (1–180)", func(d Deps, parts []string) error { return Timeout(d, parts) }},
 		{[]string{"stats"}, "/stats", "toggle token usage line after assistant turns (saved)", func(d Deps, parts []string) error { return Stats(d) }},
 		{[]string{"thinking"}, "/thinking", "/thinking toggles preview; /thinking on|off streamed reasoning (dim gray); tool echoes (yellow)", func(d Deps, parts []string) error { return Thinking(d, parts) }},
+		{[]string{"fast"}, "/fast", "/fast | /fast on|off Cursor fast mode (saved)", func(d Deps, parts []string) error { return Fast(d, parts) }},
 		{[]string{"max_response"}, "/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)", func(d Deps, parts []string) error { return MaxResponse(d, parts) }},
 		{[]string{"threshold"}, "/threshold", "/threshold | /threshold <n> auto /summarize when prompt_tokens >= n (n>=32768; default 131072; needs API usage)", func(d Deps, parts []string) error { return Threshold(d, parts) }},
 		{[]string{"models"}, "/models", "list models and switch current model", func(d Deps, parts []string) error { return SlashModels(d) }},

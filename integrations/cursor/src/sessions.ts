@@ -1,10 +1,13 @@
 import type { SDKAgent } from "@cursor/sdk";
+import type { ModelSelection } from "./model-selection.js";
 import type { ChatMessage } from "./openai-types.js";
 
 export type SessionState = {
   agent: SDKAgent;
   syncedMessages: number;
   model: string;
+  modelKey: string;
+  modelSelection: ModelSelection;
 };
 
 const sessions = new Map<string, SessionState>();

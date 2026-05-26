@@ -2,6 +2,9 @@ type Lab = "composer" | "openai" | "anthropic" | "xai" | "kimi" | "auto";
 
 const labOrder: Lab[] = ["composer", "openai", "anthropic", "xai", "kimi", "auto"];
 
+export type { ModelInfo, ModelParamValue, ModelSelection } from "./model-selection.js";
+export { resolveModelSelection } from "./model-selection.js";
+
 export function filterFlagshipModelIDs(ids: string[]): string[] {
   if (ids.length === 0) {
     return ["composer-2.5", "auto"];

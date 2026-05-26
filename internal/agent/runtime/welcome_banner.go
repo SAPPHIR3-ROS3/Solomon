@@ -177,17 +177,18 @@ func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 		}
 		fmt.Fprintf(out, "%s%s%s%s%s%s%s\n", borderPaint("│"), left, strings.Repeat(" ", lpad), borderPaint("│"), rpart, strings.Repeat(" ", rpad), borderPaint("│"))
 	}
-	eff := "none"
-	if cfg != nil {
-		if s := strings.TrimSpace(cfg.ReasoningEffort); s != "" {
-			eff = s
-		} else if lbl := cfg.ReasoningEffortLabel(); lbl != "" {
-			eff = lbl
-		}
-	}
 	modelLine := termcolor.WrapAssistant("(not configured — run /onboard)")
 	if strings.TrimSpace(model) != "" {
+		eff := "none"
+		fast := false
+		if cfg != nil {
+			eff = cfg.ReasoningEffortDisplayLabel()
+			fast = cfg.FastModeEnabledForProvider(config.ProviderByName(cfg, cfg.Current.Provider))
+		}
 		modelLine = fmt.Sprintf("%s (%s)", termcolor.WrapAssistant(model), termcolor.WrapThinking(eff))
+		if fast {
+			modelLine += " " + termcolor.WrapThinking("(fast)")
+		}
 	}
 	abs := projRoot
 	if a, err := filepath.Abs(projRoot); err == nil {

@@ -38,6 +38,33 @@ func Thinking(d Deps, parts []string) error {
 	return nil
 }
 
+func Fast(d Deps, parts []string) error {
+	if d.Cfg == nil {
+		return fmt.Errorf("config not loaded")
+	}
+	next := !d.Cfg.EffectiveFastMode()
+	if len(parts) >= 2 {
+		switch strings.ToLower(parts[1]) {
+		case "on", "yes", "true", "1":
+			next = true
+		case "off", "no", "false", "0":
+			next = false
+		default:
+			return fmt.Errorf("usage: /fast | /fast on|off")
+		}
+	}
+	d.Cfg.FastMode = &next
+	if err := d.SaveCfg(); err != nil {
+		return err
+	}
+	onOff := "off"
+	if next {
+		onOff = "on"
+	}
+	PrintSystemf(d.Out, "fast mode: %s", onOff)
+	return nil
+}
+
 func LegacyTools(d Deps, parts []string) error {
 	if d.Cfg == nil {
 		return fmt.Errorf("config not loaded")

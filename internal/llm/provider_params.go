@@ -26,9 +26,7 @@ func ApplyProviderSimpleParams(proto Protocol, cfg *config.Root, openaiParams *o
 	case ProtocolAnthropic:
 		return
 	default:
-		if forceDisable {
-			ApplyReasoningDisable(openaiParams)
-		}
+		ApplySimpleReasoning(cfg, openaiParams, forceDisable)
 		ApplyMaxResponseTokens(cfg, openaiParams)
 	}
 }

@@ -65,26 +65,27 @@ type Tools struct {
 }
 
 type Root struct {
-	UserName                  string                `toml:"user_name"`
-	Providers                 map[string]*Provider    `toml:"-"`
-	Current                   Current               `toml:"current"`
-	RecentModels              map[string][]string   `toml:"recent_models,omitempty"`
-	SubagentTimeoutMinutes    int              `toml:"subagent_timeout_minutes"`
-	ReasoningEffort           string     `toml:"reasoning_effort"`
-	LogLevel                  string     `toml:"log_level"`
-	MaxResponseTokens         int        `toml:"max_response_tokens"`
-	ShowThinking              bool       `toml:"show_thinking"`
-	Tools                     Tools      `toml:"tools,omitempty"`
-	ShowUsageStats            *bool      `toml:"show_usage_stats"`
-	ResponseLanguage          string     `toml:"response_language"`
-	CompactionThresholdTokens int64      `toml:"compaction_threshold_tokens"`
-	SkillSearchMinNorm        *float64   `toml:"skill_search_min_normalized_score,omitempty"`
-	WebSearchEngine           string     `toml:"web_search_engine,omitempty"`
-	WebSearchAPIKey           string     `toml:"web_search_api_key,omitempty"`
-	WebSearchBaseURL          string     `toml:"web_search_base_url,omitempty"`
-	WebSearchCX               string     `toml:"web_search_cx,omitempty"`
-	ToolOutput                ToolOutput `toml:"tool_output,omitempty"`
-	APIResilience             APIResilienceConfig `toml:"api_resilience,omitempty"`
+	UserName                  string               `toml:"user_name"`
+	Providers                 map[string]*Provider `toml:"-"`
+	Current                   Current              `toml:"current"`
+	RecentModels              map[string][]string  `toml:"recent_models,omitempty"`
+	SubagentTimeoutMinutes    int                  `toml:"subagent_timeout_minutes"`
+	ReasoningEffort           string               `toml:"reasoning_effort"`
+	FastMode                  *bool                `toml:"fast_mode,omitempty"`
+	LogLevel                  string               `toml:"log_level"`
+	MaxResponseTokens         int                  `toml:"max_response_tokens"`
+	ShowThinking              bool                 `toml:"show_thinking"`
+	Tools                     Tools                `toml:"tools,omitempty"`
+	ShowUsageStats            *bool                `toml:"show_usage_stats"`
+	ResponseLanguage          string               `toml:"response_language"`
+	CompactionThresholdTokens int64                `toml:"compaction_threshold_tokens"`
+	SkillSearchMinNorm        *float64             `toml:"skill_search_min_normalized_score,omitempty"`
+	WebSearchEngine           string               `toml:"web_search_engine,omitempty"`
+	WebSearchAPIKey           string               `toml:"web_search_api_key,omitempty"`
+	WebSearchBaseURL          string               `toml:"web_search_base_url,omitempty"`
+	WebSearchCX               string               `toml:"web_search_cx,omitempty"`
+	ToolOutput                ToolOutput           `toml:"tool_output,omitempty"`
+	APIResilience             APIResilienceConfig  `toml:"api_resilience,omitempty"`
 }
 
 func (r *Root) LegacyToolsEnabled() bool {
@@ -216,6 +217,37 @@ func (r *Root) ReasoningEffortLabel() string {
 		return ""
 	}
 	return c
+}
+
+func (r *Root) ReasoningEffortDisplayLabel() string {
+	if lbl := r.ReasoningEffortLabel(); lbl != "" {
+		return lbl
+	}
+	return "none"
+}
+
+func (r *Root) EffectiveFastMode() bool {
+	return r == nil || r.FastMode == nil || *r.FastMode
+}
+
+func FastModeSupportedByProvider(p *Provider) bool {
+	return p != nil && p.IsCursorAPI()
+}
+
+func (r *Root) FastModeEnabledForProvider(p *Provider) bool {
+	return FastModeSupportedByProvider(p) && r.EffectiveFastMode()
+}
+
+func (r *Root) ModelDisplayName(p *Provider, model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return ""
+	}
+	out := fmt.Sprintf("%s (%s)", model, r.ReasoningEffortDisplayLabel())
+	if r.FastModeEnabledForProvider(p) {
+		out += " (fast)"
+	}
+	return out
 }
 
 func (p *Provider) EffectiveAPIProtocol() string {
