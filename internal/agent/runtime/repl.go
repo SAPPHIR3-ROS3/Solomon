@@ -193,13 +193,13 @@ func (r *Runtime) Run(ctx context.Context) error {
 					logging.Log(logging.INFO_LOG_LEVEL, "user requested exit from chat")
 					return nil
 				}
-				commands.PrintSystemValue(r.Out, err)
+				commands.PrintSystemErr(r.Out, err)
 			}
 			continue
 		}
 		if err := r.onUserMessage(ctx, line, true); err != nil {
 			logging.Log(logging.ERROR_LOG_LEVEL, "onUserMessage failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			commands.PrintSystemf(r.Out, "error: %v", err)
+			commands.PrintSystemErr(r.Out, err)
 		}
 	}
 }

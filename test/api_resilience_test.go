@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,37 @@ func TestBackoffDelay_CappedAndRetryAfter(t *testing.T) {
 	wait = llm.BackoffDelay(policy, 1, 10*time.Second, rng)
 	if wait != 5*time.Second {
 		t.Fatalf("retry-after cap: got %v want 5s", wait)
+	}
+}
+
+func TestUserFacingAPIError_usageLimitReached(t *testing.T) {
+	t.Parallel()
+	raw := `after 3 attempt(s): POST "https://chatgpt.com/backend-api/codex/v1/chat/completions": 429 Too Many Requests {"type":"usage_limit_reached","message":"The usage limit has been reached","plan_type":"free","resets_at":1779966197,"eligible_promo":null,"resets_in_seconds":133272}`
+	got := llm.UserFacingAPIError(errors.New(raw))
+	for _, want := range []string{
+		"attempts: 3",
+		"HTTP: 429",
+		"type: usage_limit_reached",
+		"message: The usage limit has been reached",
+		"plan: free",
+		"reset:",
+		"(in 133272 seconds)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "{") {
+		t.Fatalf("expected no raw JSON, got:\n%s", got)
+	}
+}
+
+func TestUserFacingAPIError_providerHTTPError(t *testing.T) {
+	t.Parallel()
+	err := llm.NewProviderHTTPError(429, `{"type":"usage_limit_reached","message":"limit"}`, 0)
+	got := llm.UserFacingAPIError(err)
+	if !strings.Contains(got, "type: usage_limit_reached") || !strings.Contains(got, "HTTP: 429") {
+		t.Fatalf("got:\n%s", got)
 	}
 }
 

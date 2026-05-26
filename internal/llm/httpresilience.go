@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -279,6 +280,154 @@ func logAPIFailure(hostKey, protocol string, attempt, max int, status int, err e
 		"retryable":     false,
 		"err":           err.Error(),
 	}})
+}
+
+type codexAPIErrorBody struct {
+	Type            string `json:"type"`
+	Message         string `json:"message"`
+	PlanType        string `json:"plan_type"`
+	ResetsAt        int64  `json:"resets_at"`
+	ResetsInSeconds int64  `json:"resets_in_seconds"`
+}
+
+func UserFacingAPIError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var phe *ProviderHTTPError
+	if errors.As(err, &phe) {
+		return formatAPIErrorLines(0, phe.StatusCode, phe.Message)
+	}
+	msg := err.Error()
+	attempts := 0
+	if rest, n, ok := parseAfterAttemptsPrefix(msg); ok {
+		attempts = n
+		msg = rest
+	}
+	if body, ok := extractAPIErrorJSON(msg); ok {
+		return formatAPIErrorLines(attempts, statusCodeFromMessage(msg), body)
+	}
+	if attempts > 0 {
+		return fmt.Sprintf("attempts: %d\n%s", attempts, msg)
+	}
+	return msg
+}
+
+func parseAfterAttemptsPrefix(msg string) (rest string, attempts int, ok bool) {
+	const prefix = "after "
+	if !strings.HasPrefix(msg, prefix) {
+		return msg, 0, false
+	}
+	rest = msg[len(prefix):]
+	i := strings.Index(rest, " attempt(s): ")
+	if i < 0 {
+		return msg, 0, false
+	}
+	n, err := strconv.Atoi(rest[:i])
+	if err != nil || n < 1 {
+		return msg, 0, false
+	}
+	return rest[i+len(" attempt(s): "):], n, true
+}
+
+func extractAPIErrorJSON(msg string) (codexAPIErrorBody, bool) {
+	idx := strings.Index(msg, "{")
+	if idx < 0 {
+		return codexAPIErrorBody{}, false
+	}
+	raw := strings.TrimSpace(msg[idx:])
+	var body codexAPIErrorBody
+	if err := json.Unmarshal([]byte(raw), &body); err != nil {
+		return codexAPIErrorBody{}, false
+	}
+	if body.Type == "" && body.Message == "" && body.ResetsAt == 0 && body.ResetsInSeconds == 0 {
+		return codexAPIErrorBody{}, false
+	}
+	return body, true
+}
+
+func formatAPIErrorLines(attempts, statusCode int, payload any) string {
+	var body codexAPIErrorBody
+	switch p := payload.(type) {
+	case codexAPIErrorBody:
+		body = p
+	case string:
+		if b, ok := extractAPIErrorJSON(p); ok {
+			body = b
+		} else {
+			body.Message = strings.TrimSpace(p)
+		}
+	default:
+		return fmt.Sprint(payload)
+	}
+	var lines []string
+	if attempts > 0 {
+		lines = append(lines, fmt.Sprintf("attempts: %d", attempts))
+	}
+	if statusCode > 0 {
+		lines = append(lines, fmt.Sprintf("HTTP: %d", statusCode))
+	} else if s, ok := payload.(string); ok {
+		if statusLine := extractHTTPStatusLine(s); statusLine != "" {
+			lines = append(lines, "HTTP: "+statusLine)
+		}
+	}
+	if body.Type != "" {
+		lines = append(lines, "type: "+body.Type)
+	}
+	if body.Message != "" {
+		lines = append(lines, "message: "+body.Message)
+	}
+	if body.PlanType != "" {
+		lines = append(lines, "plan: "+body.PlanType)
+	}
+	if reset := formatAPIResetLine(body); reset != "" {
+		lines = append(lines, reset)
+	}
+	if len(lines) == 0 {
+		return fmt.Sprint(payload)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func extractHTTPStatusLine(msg string) string {
+	before := msg
+	if i := strings.Index(msg, "{"); i >= 0 {
+		before = strings.TrimSpace(msg[:i])
+	}
+	if li := strings.LastIndex(before, ": "); li >= 0 {
+		tail := strings.TrimSpace(before[li+2:])
+		if len(tail) >= 3 && tail[0] >= '0' && tail[0] <= '9' {
+			return tail
+		}
+	}
+	return ""
+}
+
+func formatAPIResetLine(body codexAPIErrorBody) string {
+	if body.ResetsAt <= 0 && body.ResetsInSeconds <= 0 {
+		return ""
+	}
+	var when string
+	if body.ResetsAt > 0 {
+		when = time.Unix(body.ResetsAt, 0).Local().Format("2006-01-02 15:04:05")
+	}
+	sec := body.ResetsInSeconds
+	if sec <= 0 && body.ResetsAt > 0 {
+		sec = int64(time.Until(time.Unix(body.ResetsAt, 0)).Seconds())
+		if sec < 0 {
+			sec = 0
+		}
+	}
+	switch {
+	case when != "" && sec > 0:
+		return fmt.Sprintf("reset: %s (in %d seconds)", when, sec)
+	case when != "":
+		return "reset: " + when
+	case sec > 0:
+		return fmt.Sprintf("reset: in %d seconds", sec)
+	default:
+		return ""
+	}
 }
 
 func RetryMessage(attempt, max int, err error, wait time.Duration) string {

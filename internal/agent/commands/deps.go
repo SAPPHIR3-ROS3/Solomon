@@ -81,6 +81,13 @@ func PrintSystemValue(out io.Writer, v any) {
 	PrintSystem(out, termcolor.SystemMessageText(v))
 }
 
+func PrintSystemErr(out io.Writer, err error) {
+	if err == nil {
+		return
+	}
+	PrintSystem(out, llm.UserFacingAPIError(err))
+}
+
 func PromptIO(d Deps) config.PromptIO {
 	stdin := d.Stdin
 	if stdin == nil {
