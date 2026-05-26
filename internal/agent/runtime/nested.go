@@ -162,9 +162,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 			return transcript.String(), nil
 		}
 		for i, inv := range invs {
-			if legacySW == nil || !legacySW.DisplayRendered() {
-				r.printToolLine(0, "", inv.Name, inv.Args)
-			}
+			r.printToolLine(0, "", inv.Name, inv.Args)
 			for _, line := range formatToolPlainLines(inv.Name, inv.Args) {
 				transcript.WriteString(line + "\n")
 			}
@@ -234,7 +232,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 				}
 			}
 		}
-		legacySW, contentOut = newLegacyStreamWriter(r.Out, true, allowed, "")
+		legacySW, contentOut = newLegacyStreamWriter(r.Out, true, allowed)
 	}
 	turn, err := r.Backend.StreamTurn(ctx, turnReq, contentOut, r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out))
 	if err != nil {

@@ -90,11 +90,17 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 	if firstUserLine != "" {
 		go r.refineEphemeralTitle(ctx, firstUserLine)
 	}
-	if !fromReadline && !r.machineMode() {
-		echoLine := termcolor.ColorizeImgTags(line)
-		cpPref := checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey)
-		youLbl := termcolor.WrapUser("You:")
-		fmt.Fprintf(r.Out, "%s%s %s\n", cpPref, youLbl, echoLine)
+	if !r.machineMode() {
+		if fromReadline {
+			fmt.Fprintln(r.Out)
+		} else {
+			fmt.Fprintln(r.Out)
+			echoLine := termcolor.ColorizeImgTags(line)
+			cpPref := checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey)
+			youLbl := termcolor.WrapUser("You:")
+			fmt.Fprintf(r.Out, "%s%s %s\n", cpPref, youLbl, echoLine)
+			fmt.Fprintln(r.Out)
+		}
 	}
 	if err := r.persistSession(); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "persist session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -102,6 +108,9 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 	}
 	if err := r.runAgentTurns(ctx); err != nil {
 		return err
+	}
+	if !r.machineMode() {
+		fmt.Fprintln(r.Out)
 	}
 	var deferTitle bool
 	r.mutateSession(func(s *chatstore.Session) {
@@ -204,7 +213,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			legacySW, contentOut = newLegacyStreamWriter(legacyOut, true, allowed, checkpoint.FormatLinePrefix(astSeq, branchKey))
+			legacySW, contentOut = newLegacyStreamWriter(legacyOut, true, allowed)
 		}
 		streamOpts := r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out)
 		if r.machineMode() && !legacyTools {
@@ -333,10 +342,12 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			if i < len(toolIDs) {
 				toolID = toolIDs[i]
 			}
+			var toolCpSeq int
 			if r.machineMode() {
+				toolCpSeq = astSeq
 				r.ciEmit(cievents.ToolStart(turnIdx, toolID, inv.Name, inv.Args))
-			} else if legacySW == nil || !legacySW.DisplayRendered() {
-				r.printToolLine(astSeq, branchKey, inv.Name, inv.Args)
+			} else {
+				toolCpSeq = r.printToolInvocation(i, inv.Name, inv.Args)
 			}
 			res, err := r.execTool(runCtx, inv)
 			if interruptedDuringGeneration(ctx, runCtx, err) {
@@ -370,7 +381,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 				tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
 			}
 			r.mutateSession(func(s *chatstore.Session) {
-				checkpoint.StampMsg(&tm, s, astSeq)
+				checkpoint.StampMsg(&tm, s, toolCpSeq)
 				s.Messages = append(s.Messages, tm)
 				s.LastMessageAt = time.Now()
 			})
@@ -408,10 +419,7 @@ func (r *Runtime) appendSyntheticToolResults(astSeq int, invs []tooling.Invocati
 }
 
 func (r *Runtime) printToolLine(cpSeq int, branchKey, name string, rawArgs json.RawMessage) {
-	prefix := checkpoint.FormatLinePrefix(cpSeq, branchKey)
-	for _, line := range formatToolDisplayLines(name, rawArgs) {
-		fmt.Fprintf(r.Out, "%s%s\n", prefix, line)
-	}
+	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, formatToolDisplayLines(name, rawArgs))
 }
 
 func toolingResultJSON(v any) string {
