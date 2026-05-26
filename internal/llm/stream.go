@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -32,6 +33,22 @@ func flushStreamOutErr(w io.Writer) error {
 
 func writeThoughtForLine(sink io.Writer, secs float64) {
 	_, _ = fmt.Fprintf(sink, "\n%s\n", termcolor.ThoughtForSuffix(secs))
+}
+
+var oversizedInlineSpaceRe = regexp.MustCompile(`([^\s]) {3,}([^\s])`)
+
+func normalizeReasoningWhitespace(s string) string {
+	if s == "" {
+		return ""
+	}
+	return oversizedInlineSpaceRe.ReplaceAllString(s, `$1 $2`)
+}
+
+func writeReasoningDelta(sink io.Writer, s string) {
+	if s == "" {
+		return
+	}
+	_, _ = io.WriteString(sink, termcolor.WrapThinking(normalizeReasoningWhitespace(s)))
 }
 
 func writeStreamContent(w io.Writer, s string) error {
@@ -213,7 +230,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		if rs != "" {
 			sawReasoning = true
 			if opts.ShowThinking {
-				_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(rs))
+				writeReasoningDelta(reasonSink, rs)
 			}
 		}
 		if tTTFT.IsZero() && firstAssistDelta(delta, opts) {
@@ -324,7 +341,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 				opts.OnDelta("reasoning", rs)
 			}
 			if opts.ShowThinking {
-				_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(rs))
+				writeReasoningDelta(reasonSink, rs)
 			}
 		}
 		if tTTFT.IsZero() && firstAssistDelta(delta, opts) {
@@ -387,7 +404,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	}
 	tEnd := time.Now()
 	var out AssistantTurnResult
-	out.ReasoningText = tooling.StripLegacyToolBlocks(strings.TrimSpace(reasoningBuf.String()))
+	out.ReasoningText = tooling.StripLegacyToolBlocks(strings.TrimSpace(normalizeReasoningWhitespace(reasoningBuf.String())))
 	if legacyStopped {
 		out.Content = streamTruncatedContent(contentOut, "")
 	} else if len(acc.Choices) > 0 {

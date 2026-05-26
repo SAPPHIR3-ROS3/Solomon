@@ -79,3 +79,21 @@ func TestStreamAssistantTurnRejectsIncoherentStreamID(t *testing.T) {
 		t.Fatal("forged chunk content must not be in turn result")
 	}
 }
+
+func TestStreamAssistantTurnNormalizesOversizedInlineReasoningSpaces(t *testing.T) {
+	chunk := `{"id":"chatcmpl-aaa","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":{"reasoning_content":"**Gathering authoritative sources**\n\nI                                   need to collect...","content":"done"},"finish_reason":null}]}`
+	client := mockStreamClient(t, "data: "+chunk+"\n\ndata: [DONE]\n\n")
+	turn, err := llm.StreamAssistantTurn(context.Background(), client, openai.ChatCompletionNewParams{
+		Model: "test",
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.UserMessage("hi"),
+		},
+	}, io.Discard, llm.StreamOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "**Gathering authoritative sources**\n\nI need to collect..."
+	if turn.ReasoningText != want {
+		t.Fatalf("normalized reasoning mismatch:\n got: %q\nwant: %q", turn.ReasoningText, want)
+	}
+}

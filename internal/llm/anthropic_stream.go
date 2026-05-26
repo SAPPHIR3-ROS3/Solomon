@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 type anthropicStreamState struct {
@@ -161,7 +160,7 @@ func readAnthropicStreamTurn(body io.Reader, contentOut io.Writer, opts StreamOp
 legacyDone:
 	var out AssistantTurnResult
 	out.Content = streamTruncatedContent(contentOut, strings.TrimSpace(st.content.String()))
-	out.ReasoningText = strings.TrimSpace(st.reasoning.String())
+	out.ReasoningText = strings.TrimSpace(normalizeReasoningWhitespace(st.reasoning.String()))
 	out.Usage = NormalizeAnthropicUsage(st.usage)
 	fillAnthropicTiming(&out.Usage, tStart, tTTFT, tFirstVisible, time.Now())
 	if !legacyStopped {
@@ -268,7 +267,7 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 			if wrap.Delta.Thinking != "" {
 				st.reasoning.WriteString(wrap.Delta.Thinking)
 				if opts.ShowThinking {
-					_, _ = io.WriteString(reasonSink, termcolor.WrapThinking(wrap.Delta.Thinking))
+					writeReasoningDelta(reasonSink, wrap.Delta.Thinking)
 				}
 			}
 		}
