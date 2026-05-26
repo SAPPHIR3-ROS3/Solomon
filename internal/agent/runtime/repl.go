@@ -93,6 +93,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 		chatstore.FinishSessionLoad(s)
 	})
 	printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
+	go func() { r.InitMCP(ctx) }()
 	SetReplImagePaste(func() (string, bool) {
 		seq, _, err := r.saveReplClipboardImage()
 		if err != nil {

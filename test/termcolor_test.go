@@ -91,6 +91,16 @@ func TestFormatSystemBlockPlain(t *testing.T) {
 	}
 }
 
+func TestFormatSystemBlockMultilineBordersUnpadded(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
+	got := termcolor.FormatSystemBlock("short\n4\tgpt-4o[ChatGPT Sub]\n5\tgpt-4o-mini with a very long model id")
+	for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n") {
+		if strings.TrimSpace(line) == "===SYSTEM===" && line != "===SYSTEM===" {
+			t.Fatalf("border line padded: %q", line)
+		}
+	}
+}
+
 func TestSystemMessageTextFromJSON(t *testing.T) {
 	got := termcolor.SystemMessageText(`{"error":"timeout","code":42}`)
 	if strings.Contains(got, "{") || strings.Contains(got, "}") {

@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleChatCompletions, listModels, type ProxyConfig } from "./chat.js";
+import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } from "./chat.js";
 import type { ChatCompletionRequest } from "./openai-types.js";
 
 export function createServer(cfg: ProxyConfig): http.Server {
@@ -24,7 +24,9 @@ async function route(
     return;
   }
   if (req.method === "GET" && (path === "/v1/models" || path === "/models")) {
-    const ids = await listModels(cfg.apiKey);
+    const all =
+      url.searchParams.get("all") === "1" || url.searchParams.get("full") === "1";
+    const ids = all ? await listAllModels(cfg.apiKey) : await listModels(cfg.apiKey);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({

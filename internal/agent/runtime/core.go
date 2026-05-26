@@ -74,6 +74,8 @@ type Runtime struct {
 	ToolOut *tooloutput.Service
 
 	Instructions *instructions.Loader
+
+	providerReady chan struct{}
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
@@ -90,14 +92,52 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		Out:                       os.Stdout,
 		ToolOut:                   tooloutput.NewService(projHex, tooloutput.LimitsFromConfig(cfg)),
 		Instructions:              instructions.NewLoader(),
+		providerReady:             make(chan struct{}),
 	}
 	if err := tooloutput.Startup(os.Getpid()); err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "tool output instance register failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 	}
+	rt.ensureCursorAPISidecar(context.Background())
 	if prov != nil {
-		rt.applyProviderClient(context.Background(), prov)
+		p := prov
+		go func() {
+			rt.applyProviderClient(context.Background(), p)
+			close(rt.providerReady)
+		}()
+	} else {
+		close(rt.providerReady)
 	}
 	return rt
+}
+
+func (r *Runtime) waitProviderReady(ctx context.Context) error {
+	if r == nil || r.providerReady == nil {
+		return nil
+	}
+	select {
+	case <-r.providerReady:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (r *Runtime) ensureCursorAPISidecar(ctx context.Context) {
+	if r == nil || r.Cfg == nil {
+		return
+	}
+	cwd := r.ProjRoot
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	bo := runtimeBootstrapOut{out: r.Out}
+	cursorint.KickSidecarIfConfigured(ctx, r.Cfg, cwd, bo)
+	go func() {
+		if err := cursorint.WaitSidecarIfConfigured(context.Background(), r.Cfg, cwd, bo); err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "cursor API sidecar ensure failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			termcolor.WriteSystem(r.Out, "Cursor API sidecar failed to start: "+err.Error())
+		}
+	}()
 }
 
 func (r *Runtime) currentSessionID() string {
@@ -121,17 +161,6 @@ func (r *Runtime) applyToolOutput(res any, toolName, toolCallID string) any {
 }
 
 func (r *Runtime) applyProviderClient(ctx context.Context, p *config.Provider) {
-	if p != nil && p.IsCursorAPI() {
-		cwd := r.ProjRoot
-		if cwd == "" {
-			cwd, _ = os.Getwd()
-		}
-		bo := runtimeBootstrapOut{out: r.Out}
-		if _, err := cursorint.DefaultManager().Ensure(ctx, p.APIKey, cwd, bo); err != nil {
-			logging.Log(logging.ERROR_LOG_LEVEL, "cursor API proxy ensure failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			return
-		}
-	}
 	backend, err := llm.NewCompletionBackend(ctx, r.Cfg, p)
 	if err != nil {
 		params := map[string]any{"err": err.Error()}
@@ -154,7 +183,6 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 	if prevP != "" {
 		if old := config.ProviderByName(r.Cfg, prevP); old != nil && old.IsCursorAPI() && providerName != prevP {
 			if np := config.ProviderByName(r.Cfg, providerName); np == nil || !np.IsCursorAPI() {
-				cursorint.DefaultManager().Stop()
 				r.stripCursorLegacyToolCallsFromSession()
 			}
 		}

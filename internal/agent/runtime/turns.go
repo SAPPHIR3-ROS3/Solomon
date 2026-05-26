@@ -114,6 +114,9 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 }
 
 func (r *Runtime) runAgentTurns(ctx context.Context) error {
+	if err := r.waitProviderReady(ctx); err != nil {
+		return err
+	}
 	runCtx, stopRun := context.WithCancelCause(ctx)
 	defer stopRun(nil)
 	sigCh := make(chan os.Signal, 1)

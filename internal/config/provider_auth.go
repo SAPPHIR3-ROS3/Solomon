@@ -14,7 +14,8 @@ import (
 const (
 	ProviderNameChatGPTSub = "ChatGPT Sub"
 	ProviderNameClaudeSub  = "Claude Sub"
-	ProviderNameCursorAPI  = "Cursor API"
+	ProviderNameCursorAPI     = "Cursor API"
+	CursorAPIDefaultModelID   = "composer-2.5"
 	OpenAIPlatformBase     = "https://api.openai.com"
 	AnthropicPlatformBase  = "https://api.anthropic.com"
 
@@ -128,6 +129,19 @@ func ModelPassesChatGPTSubFilter(modelID string) bool {
 	}
 	for _, prefix := range chatGPTSubModelDenylistPrefixes {
 		if strings.HasPrefix(m, prefix) {
+			return false
+		}
+	}
+	return true
+}
+
+func ModelPassesChatGPTSubPickerFilter(modelID string) bool {
+	if !ModelPassesChatGPTSubFilter(modelID) {
+		return false
+	}
+	rest := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "gpt-")
+	for _, seg := range strings.Split(rest, "-") {
+		if seg == "pro" {
 			return false
 		}
 	}

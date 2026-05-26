@@ -103,8 +103,17 @@ func FormatSystemBlock(message string) string {
 	if strings.TrimSpace(message) == "" {
 		return ""
 	}
-	body := SystemBorder + "\n" + message + "\n" + SystemBorder + "\n"
-	return WrapSystem(body)
+	lines := append([]string{SystemBorder}, strings.Split(message, "\n")...)
+	lines = append(lines, SystemBorder)
+	var b strings.Builder
+	for i, line := range lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(WrapSystem(line))
+	}
+	b.WriteByte('\n')
+	return b.String()
 }
 
 func WriteSystem(w io.Writer, message string) {

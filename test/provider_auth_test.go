@@ -29,6 +29,25 @@ func TestModelPassesChatGPTSubFilter(t *testing.T) {
 	}
 }
 
+func TestModelPassesChatGPTSubPickerFilter(t *testing.T) {
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{"gpt-5.4", true},
+		{"gpt-5.4-mini", true},
+		{"gpt-5-pro", false},
+		{"gpt-5.4-pro", false},
+		{"gpt-image-1", false},
+	}
+	for _, tc := range tests {
+		got := config.ModelPassesChatGPTSubPickerFilter(tc.id)
+		if got != tc.want {
+			t.Errorf("ModelPassesChatGPTSubPickerFilter(%q) = %v, want %v", tc.id, got, tc.want)
+		}
+	}
+}
+
 func TestProviderCredentialsReady(t *testing.T) {
 	api := config.Provider{BaseURL: "https://api.openai.com/v1/", APIKey: "sk-x", AuthKind: config.AuthKindAPIKey}
 	if !config.ProviderCredentialsReady(&api) {
