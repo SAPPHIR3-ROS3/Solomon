@@ -110,3 +110,84 @@ jobs:
             throw "Installed binary not found at $exe"
           }
           & $exe version
+
+      - id: asset_meta_unix
+        name: Resolve release asset name (macOS / Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          case "$(uname -s)" in
+            Linux) goos="linux" ;;
+            Darwin) goos="darwin" ;;
+            *)
+              echo "Unsupported runner OS: $(uname -s)" >&2
+              exit 1
+              ;;
+          esac
+          case "$(uname -m)" in
+            x86_64) goarch="amd64" ;;
+            arm64|aarch64) goarch="arm64" ;;
+            *)
+              echo "Unsupported runner arch: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+          asset="solomon-${RELEASE_TAG}-${goos}-${goarch}"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+      - name: Download and smoke test release asset (macOS / Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+          ASSET_NAME: ${{ steps.asset_meta_unix.outputs.asset }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ASSET_NAME}" ]]; then
+            echo "Release asset name was not resolved" >&2
+            exit 1
+          fi
+          exe="$RUNNER_TEMP/$ASSET_NAME"
+          curl -fL "https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${ASSET_NAME}" -o "$exe"
+          chmod +x "$exe"
+          if [[ ! -x "$exe" ]]; then
+            echo "Downloaded asset is not executable: $exe" >&2
+            exit 1
+          fi
+          "$exe" version
+
+      - id: asset_meta_windows
+        name: Resolve release asset name (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          switch ($env:PROCESSOR_ARCHITECTURE.ToUpperInvariant()) {
+            'AMD64' { $arch = 'amd64' }
+            'ARM64' { $arch = 'arm64' }
+            default { throw "Unsupported runner arch: $env:PROCESSOR_ARCHITECTURE" }
+          }
+          $asset = "solomon-$env:RELEASE_TAG-windows-$arch.exe"
+          "asset=$asset" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Download and smoke test release asset (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+          ASSET_NAME: ${{ steps.asset_meta_windows.outputs.asset }}
+        run: |
+          if (-not $env:ASSET_NAME) {
+            throw 'Release asset name was not resolved'
+          }
+          $exe = Join-Path $env:RUNNER_TEMP $env:ASSET_NAME
+          $url = "https://github.com/${{ github.repository }}/releases/download/$env:RELEASE_TAG/$env:ASSET_NAME"
+          Invoke-WebRequest -Uri $url -OutFile $exe
+          if (-not (Test-Path $exe)) {
+            throw "Downloaded asset not found at $exe"
+          }
+          & $exe version
