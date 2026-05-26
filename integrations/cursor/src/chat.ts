@@ -5,7 +5,7 @@ import {
   messageToUserPayload,
   roughTokFromMessages,
   roughTokFromString,
-  withSolomonHarnessPrefix,
+  withHarnessPreamble,
 } from "./messages.js";
 import {
   collectLegacyTool,
@@ -95,7 +95,7 @@ export async function handleChatCompletions(
       delta.push(last);
     }
   }
-  const prompt = withSolomonHarnessPrefix(buildPromptFromDelta(delta, messages));
+  const prompt = withHarnessPreamble(buildPromptFromDelta(delta, messages));
   state.syncedMessages = messages.length;
   const completionId = "chatcmpl-" + key;
   if (!stream) {

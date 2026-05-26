@@ -60,13 +60,22 @@ export function collectLegacyTool(
   }
 }
 
+const SOLOMON_TOOL_NAMES = new Set(["readFile", "shell", "editFile"]);
+
 export function mapCursorToolToSolomon(
   name: string,
   rawArgs: unknown,
 ): LegacyToolInvocation | null {
-  const solomonName = CURSOR_TO_SOLOMON[name] ?? name;
+  const mapped = CURSOR_TO_SOLOMON[name];
+  if (!mapped) {
+    return null;
+  }
+  const solomonName = mapped;
   const args = normalizeArgs(solomonName, rawArgs);
   if (!args) {
+    return null;
+  }
+  if (!SOLOMON_TOOL_NAMES.has(solomonName)) {
     return null;
   }
   const intent =

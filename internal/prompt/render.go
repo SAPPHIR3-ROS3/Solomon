@@ -32,6 +32,7 @@ type Data struct {
 	LegacySyntax          string
 	LegacyToolsEnabled    bool
 	LegacyToolsForced     bool
+	ExternalToolBridge    bool
 	ExtraRules            string
 	CustomRules           string
 	GlobalInstructions    string
@@ -181,14 +182,14 @@ func legacyToolInvocationSyntaxBody(planMode bool) string {
 }
 
 func RenderPlan(d Data) (string, error) {
-	if d.Syntax == "" {
+	if d.Syntax == "" && !d.ExternalToolBridge {
 		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
 	return render(planRaw, d)
 }
 
 func RenderBuild(d Data) (string, error) {
-	if d.Syntax == "" {
+	if d.Syntax == "" && !d.ExternalToolBridge {
 		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
 	return render(buildRaw, d)

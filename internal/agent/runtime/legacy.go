@@ -14,6 +14,24 @@ func (r *Runtime) cursorLegacyToolsActive() bool {
 	return r != nil && r.Prov != nil && r.Prov.IsCursorAPI()
 }
 
+func (r *Runtime) externalToolBridge() bool {
+	return r.cursorLegacyToolsActive()
+}
+
+func (r *Runtime) legacyToolsForcedInPrompt() bool {
+	if r.externalToolBridge() {
+		return r != nil && r.Cfg != nil && r.Cfg.LegacyToolsForceEnabled()
+	}
+	return r.legacyToolsForced()
+}
+
+func (r *Runtime) legacyToolsEnabledInPrompt() bool {
+	if r.externalToolBridge() {
+		return r != nil && r.Cfg != nil && r.Cfg.LegacyToolsEnabled()
+	}
+	return r.legacyToolsEnabled()
+}
+
 func (r *Runtime) legacyToolsEnabled() bool {
 	if r.cursorLegacyToolsActive() {
 		return true
