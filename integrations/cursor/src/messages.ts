@@ -1,5 +1,5 @@
 import type { SDKImage, SDKUserMessage } from "@cursor/sdk";
-import type { ChatMessage, ContentPart } from "./openai-types.js";
+import type { ChatMessage, ChatToolCall, ContentPart } from "./openai-types.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -122,15 +122,59 @@ export function withHarnessPreamble(
 /** @deprecated use withHarnessPreamble */
 export const withSolomonHarnessPrefix = withHarnessPreamble;
 
-export function formatDeltaMessage(m: ChatMessage): string {
+function escapeXmlAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function formatAssistantToolCalls(toolCalls: ChatToolCall[]): string {
+  const parts: string[] = ["<tool_calls>"];
+  for (const tc of toolCalls) {
+    const name = tc.function?.name?.trim() ?? "";
+    if (!name) {
+      continue;
+    }
+    const args = tc.function?.arguments?.trim() || "{}";
+    parts.push(`<tool name="${escapeXmlAttr(name)}">`);
+    parts.push(`<args>${args}</args>`);
+    parts.push("</tool>");
+  }
+  parts.push("</tool_calls>");
+  return parts.join("\n");
+}
+
+export function formatChatMessage(m: ChatMessage): string {
   switch (m.role) {
     case "tool":
       return `[tool result ${m.tool_call_id ?? ""}]\n${messageToPromptText(m)}`;
-    case "assistant":
-      return `[assistant]\n${messageToPromptText(m)}`;
+    case "assistant": {
+      const text = messageToPromptText(m).trim();
+      const tools =
+        m.tool_calls && m.tool_calls.length > 0 ? formatAssistantToolCalls(m.tool_calls) : "";
+      if (text && tools) {
+        return `[assistant]\n${text}\n\n${tools}`;
+      }
+      if (tools) {
+        return `[assistant]\n${tools}`;
+      }
+      return `[assistant]\n${text}`;
+    }
     case "user":
-      return messageToPromptText(m);
+      return `[user]\n${messageToPromptText(m)}`;
     default:
       return `[${m.role}]\n${messageToPromptText(m)}`;
   }
+}
+
+/** @deprecated use formatChatMessage */
+export const formatDeltaMessage = formatChatMessage;
+
+export function buildPromptFromMessages(messages: ChatMessage[]): string | SDKUserMessage {
+  if (messages.length === 1 && messages[0].role === "user") {
+    return withHarnessPreamble(messageToUserPayload(messages[0]));
+  }
+  const lines: string[] = [];
+  for (const m of messages) {
+    lines.push(formatChatMessage(m));
+  }
+  return withHarnessPreamble(lines.join("\n\n"));
 }
