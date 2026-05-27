@@ -27,6 +27,19 @@ func FormatLinePrefix(cpSeq int, branch string) string {
 	return t + " "
 }
 
+// FormatCheckpointPrefix restituisce il checkpoint con due punti finali (es. "[#001]: ").
+// Usato per la prima riga di una tool call (l'intent).
+func FormatCheckpointPrefix(cpSeq int, branch string) string {
+	if cpSeq < 0 {
+		return ""
+	}
+	t := FormatCheckpointTag(cpSeq, branch)
+	if t == "" {
+		return ""
+	}
+	return t + ": "
+}
+
 func FormatReplPromptPrefix(s *chatstore.Session) string {
 	if s == nil {
 		return FormatLinePrefix(0, "")

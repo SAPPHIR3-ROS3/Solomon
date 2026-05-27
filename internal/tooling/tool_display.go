@@ -7,22 +7,20 @@ import (
 	"io"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
 )
 
 func WriteToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []string) {
 	first := true
-	cp := checkpoint.FormatLinePrefix(cpSeq, branchKey)
-	cont := cp + termcolor.WrapUserReadline(".... ")
+	cont := termcolor.WrapUserReadline("..... ")
 	for _, line := range lines {
 		parts := strings.Split(line, "\n")
 		for _, part := range parts {
-			prefix := cp
-			if !first {
-				prefix = cont
+			if first {
+				fmt.Fprintf(out, "%s\n", part)
+			} else {
+				fmt.Fprintf(out, "%s%s\n", cont, part)
 			}
-			fmt.Fprintf(out, "%s%s\n", prefix, part)
 			first = false
 		}
 	}
@@ -52,16 +50,9 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 	}
 }
 
-func toolDisplayIntentLine(intent string) string {
-	return termcolor.WrapThinking(intent)
-}
-
-func prependToolDisplayIntent(m map[string]json.RawMessage, lines []string) []string {
-	intent := strings.TrimSpace(jsonDisplayString(m["intent"]))
-	if intent == "" {
-		return lines
-	}
-	return append([]string{toolDisplayIntentLine(intent)}, lines...)
+func ExtractToolIntent(rawArgs json.RawMessage) string {
+	m := parseToolDisplayArgs(rawArgs)
+	return strings.TrimSpace(jsonDisplayString(m["intent"]))
 }
 
 func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
@@ -69,15 +60,15 @@ func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
 	if t := jsonDisplayIntPtr(m["timeoutSeconds"]); t != nil {
 		body += fmt.Sprintf(" • %ds", *t)
 	}
-	return prependToolDisplayIntent(m, []string{termcolor.ToolHeaderLine("shell", body)})
+	return []string{termcolor.ToolHeaderLine("shell", body)}
 }
 
 func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
-	return prependToolDisplayIntent(m, []string{
+	return []string{
 		termcolor.ToolHeaderLine("editFile", jsonDisplayString(m["path"])),
 		termcolor.WrapTool(jsonDisplayString(m["oldString"])),
 		termcolor.WrapTool(jsonDisplayString(m["newString"])),
-	})
+	}
 }
 
 func formatSubagentToolDisplayLines(m map[string]json.RawMessage) []string {
