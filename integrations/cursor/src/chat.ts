@@ -1,11 +1,9 @@
-import { Agent, Cursor, type SDKMessage, type SDKUserMessage } from "@cursor/sdk";
+import { Agent, Cursor, type SDKAgent, type SDKMessage } from "@cursor/sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
-  formatDeltaMessage,
-  messageToUserPayload,
+  buildPromptFromMessages,
   roughTokFromMessages,
   roughTokFromString,
-  withHarnessPreamble,
 } from "./messages.js";
 import {
   formatLegacyToolCallsBlock,
@@ -27,20 +25,10 @@ import {
   forceStopRun,
   finalizeAgentRun,
   finishStreamWithUsage,
-  isStaleAgentError,
   wireClientAbort,
   type CursorTurnUsage,
 } from "./run-control.js";
-import {
-  clearForceNextSend,
-  getSession,
-  markForceNextSend,
-  shouldForceNextSend,
-  resetSessionAgent,
-  sessionKey,
-  setSession,
-  type SessionState,
-} from "./sessions.js";
+import { newCompletionId } from "./sessions.js";
 import type { ModelSelection } from "./model-selection.js";
 
 export type ProxyConfig = {
@@ -79,91 +67,47 @@ export async function listAllModels(apiKey: string): Promise<string[]> {
   return orderModelIDs(await cursorModelIDs(apiKey));
 }
 
-async function createSessionState(
-  cfg: ProxyConfig,
-  modelSelection: ModelSelection,
-  modelKey: string,
-  model: string,
-): Promise<SessionState> {
-  const agent = await Agent.create({
-    apiKey: cfg.apiKey,
-    model: modelSelection,
-    local: { cwd: cfg.cwd, settingSources: [] },
-  });
-  return { agent, syncedMessages: 0, model, modelKey, modelSelection };
-}
-
 type AgentSendOpts = {
   model: ModelSelection;
-  local?: { force?: boolean };
   onDelta: (arg: {
     update: { type: string; usage?: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number } };
   }) => Promise<void>;
 };
 
-function computeDelta(messages: ChatMessage[], syncedFrom: number): ChatMessage[] {
-  const delta = messages.slice(syncedFrom);
-  if (delta.length > 0 || messages.length === 0) {
-    return delta;
+async function createAgent(cfg: ProxyConfig, modelSelection: ModelSelection): Promise<SDKAgent> {
+  return Agent.create({
+    apiKey: cfg.apiKey,
+    model: modelSelection,
+    local: { cwd: cfg.cwd, settingSources: [] },
+  });
+}
+
+async function disposeAgent(agent: SDKAgent | undefined): Promise<void> {
+  if (!agent) {
+    return;
   }
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user") {
-      return [messages[i]];
-    }
+  try {
+    await agent[Symbol.asyncDispose]();
+  } catch {
+    /* ignore */
   }
-  return [messages[messages.length - 1]];
 }
 
-function buildSendPrompt(messages: ChatMessage[], syncedFrom: number): string | SDKUserMessage {
-  const delta = computeDelta(messages, syncedFrom);
-  return withHarnessPreamble(buildPromptFromDelta(delta, messages));
-}
-
-function commitSessionSync(sessionKey: string, state: SessionState, messageCount: number): void {
-  state.syncedMessages = messageCount;
-  setSession(sessionKey, state);
-}
-
-async function agentSendWithRecovery(
-  sessionKey: string,
-  state: SessionState,
+async function sendStateless(
   cfg: ProxyConfig,
   modelSelection: ModelSelection,
-  modelKey: string,
-  model: string,
   messages: ChatMessage[],
-  syncedFrom: number,
   sendOpts: AgentSendOpts,
-  forceSend: boolean,
-): Promise<{ state: SessionState; run: AgentRun }> {
-  let active = state;
-  let force = forceSend;
-  let promptFrom = syncedFrom;
-  let prompt = buildSendPrompt(messages, promptFrom);
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const run = await active.agent.send(prompt, {
-        ...sendOpts,
-        local: { force },
-      });
-      if (force) {
-        clearForceNextSend(sessionKey);
-      }
-      return { state: active, run };
-    } catch (err) {
-      if (!isStaleAgentError(err) || attempt >= 2) {
-        throw err;
-      }
-      resetSessionAgent(sessionKey);
-      markForceNextSend(sessionKey);
-      active = await createSessionState(cfg, modelSelection, modelKey, model);
-      setSession(sessionKey, active);
-      promptFrom = 0;
-      prompt = buildSendPrompt(messages, promptFrom);
-      force = true;
-    }
+): Promise<{ agent: SDKAgent; run: AgentRun }> {
+  const agent = await createAgent(cfg, modelSelection);
+  const prompt = buildPromptFromMessages(messages);
+  try {
+    const run = await agent.send(prompt, sendOpts);
+    return { agent, run };
+  } catch (err) {
+    await disposeAgent(agent);
+    throw err;
   }
-  throw new Error("agent send recovery exhausted");
 }
 
 export async function handleChatCompletions(
@@ -176,54 +120,18 @@ export async function handleChatCompletions(
   const model = (req.model ?? "composer-2.5").trim() || "composer-2.5";
   const messages = req.messages ?? [];
   const stream = req.stream !== false;
-  const key = sessionKey(messages, cfg.cwd);
   const modelSelection = resolveModelSelection(
     await cursorModels(cfg.apiKey),
     model,
     req.reasoning_effort,
     req.solomon_fast_mode ?? true,
   );
-  const modelKey = JSON.stringify(modelSelection);
-  let state = getSession(key);
-  if (!state || state.modelKey !== modelKey) {
-    resetSessionAgent(key);
-    state = await createSessionState(cfg, modelSelection, modelKey, model);
-    setSession(key, state);
-  } else {
-    state.modelSelection = modelSelection;
-  }
-  const syncedFrom = state.syncedMessages;
-  const completionId = "chatcmpl-" + key;
-  const forceSend = shouldForceNextSend(key);
+  const completionId = newCompletionId();
   if (!stream) {
-    await handleNonStream(
-      key,
-      state,
-      cfg,
-      messages,
-      syncedFrom,
-      messages.length,
-      completionId,
-      model,
-      httpReq,
-      res,
-      forceSend,
-    );
+    await handleNonStream(cfg, messages, completionId, model, modelSelection, httpReq, res);
     return;
   }
-  await streamCompletion(
-    key,
-    state,
-    cfg,
-    messages,
-    syncedFrom,
-    messages.length,
-    completionId,
-    model,
-    httpReq,
-    res,
-    forceSend,
-  );
+  await streamCompletion(cfg, messages, completionId, model, modelSelection, httpReq, res);
 }
 
 function buildOpenAIUsage(
@@ -266,57 +174,19 @@ function buildOpenAIUsage(
   return out;
 }
 
-function emitStreamUsage(
-  res: ServerResponse,
-  completionId: string,
-  model: string,
-  messages: ChatMessage[],
-  sdkUsage: CursorTurnUsage | undefined,
-  textBuf: string,
-  thinkingBuf: string,
-): void {
-  writeSSE(
-    res,
-    usageChunk(
-      completionId,
-      model,
-      buildOpenAIUsage(messages, sdkUsage, textBuf, thinkingBuf),
-    ),
-  );
-}
-
-function buildPromptFromDelta(
-  delta: ChatMessage[],
-  all: ChatMessage[],
-): string | SDKUserMessage {
-  if (delta.length === 1 && delta[0].role === "user") {
-    return messageToUserPayload(delta[0]);
-  }
-  const lines: string[] = [];
-  for (const m of delta) {
-    lines.push(formatDeltaMessage(m));
-  }
-  return lines.join("\n\n");
-}
-
 async function streamCompletion(
-  sessionKey: string,
-  state: SessionState,
   cfg: ProxyConfig,
   messages: ChatMessage[],
-  syncedFrom: number,
-  syncMessageCount: number,
   completionId: string,
   model: string,
+  modelSelection: ModelSelection,
   httpReq: IncomingMessage,
   res: ServerResponse,
-  forceSend: boolean,
 ): Promise<void> {
   let sdkUsage: CursorTurnUsage | undefined;
   let run: AgentRun | undefined;
+  let agent: SDKAgent | undefined;
   let clientAborted = false;
-  const modelKey = state.modelKey;
-  const modelSelection = state.modelSelection;
   const sendOpts: AgentSendOpts = {
     model: modelSelection,
     onDelta: async ({ update }) => {
@@ -335,19 +205,8 @@ async function streamCompletion(
   });
   try {
     try {
-      const sent = await agentSendWithRecovery(
-        sessionKey,
-        state,
-        cfg,
-        modelSelection,
-        modelKey,
-        model,
-        messages,
-        syncedFrom,
-        sendOpts,
-        forceSend,
-      );
-      state = sent.state;
+      const sent = await sendStateless(cfg, modelSelection, messages, sendOpts);
+      agent = sent.agent;
       run = sent.run;
     } catch (err) {
       sendStreamStartError(res, completionId, model, err);
@@ -408,10 +267,7 @@ async function streamCompletion(
           break;
         }
       }
-      const finishStream = (sync: boolean) => {
-        if (sync) {
-          commitSessionSync(sessionKey, state, syncMessageCount);
-        }
+      const finishStream = () => {
         finishStreamWithUsage(res, completionId, model, {
           messages,
           sdkUsage,
@@ -421,24 +277,21 @@ async function streamCompletion(
         });
       };
       if (clientAborted) {
-        finishStream(false);
+        finishStream();
         return;
       }
       if (pendingLegacy.length > 0) {
         const block = formatLegacyToolCallsBlock(pendingLegacy);
         writeSSE(res, chunkDelta(completionId, model, { content: block }));
         proseBuf += block;
-        finishStream(true);
+        finishStream();
         return;
       }
       if (!legacyEmitted) {
-        finishStream(true);
+        finishStream();
       }
     } catch (err) {
-      const finishStream = (sync: boolean) => {
-        if (sync) {
-          commitSessionSync(sessionKey, state, syncMessageCount);
-        }
+      if (clientAborted) {
         finishStreamWithUsage(res, completionId, model, {
           messages,
           sdkUsage,
@@ -446,19 +299,23 @@ async function streamCompletion(
           thinkingBuf,
           buildUsage: buildOpenAIUsage,
         });
-      };
-      if (clientAborted) {
-        finishStream(false);
         return;
       }
       const msg = err instanceof Error ? err.message : String(err);
       proseBuf += `\n[error] ${msg}`;
       writeSSE(res, chunkDelta(completionId, model, { content: `\n[error] ${msg}` }));
-      finishStream(false);
+      finishStreamWithUsage(res, completionId, model, {
+        messages,
+        sdkUsage,
+        textBuf: proseBuf,
+        thinkingBuf,
+        buildUsage: buildOpenAIUsage,
+      });
     }
   } finally {
     unwireAbort();
-    await finalizeAgentRun(sessionKey, run, clientAborted);
+    await finalizeAgentRun(run);
+    await disposeAgent(agent);
   }
 }
 
@@ -517,23 +374,18 @@ function processStreamEvent(
 }
 
 async function handleNonStream(
-  sessionKey: string,
-  state: SessionState,
   cfg: ProxyConfig,
   messages: ChatMessage[],
-  syncedFrom: number,
-  syncMessageCount: number,
   completionId: string,
   model: string,
+  modelSelection: ModelSelection,
   httpReq: IncomingMessage,
   res: ServerResponse,
-  forceSend: boolean,
 ): Promise<void> {
   let sdkUsage: CursorTurnUsage | undefined;
   let run: AgentRun | undefined;
+  let agent: SDKAgent | undefined;
   let clientAborted = false;
-  const modelKey = state.modelKey;
-  const modelSelection = state.modelSelection;
   const sendOpts: AgentSendOpts = {
     model: modelSelection,
     onDelta: async ({ update }) => {
@@ -551,19 +403,8 @@ async function handleNonStream(
     clientAborted = true;
   });
   try {
-    const sent = await agentSendWithRecovery(
-      sessionKey,
-      state,
-      cfg,
-      modelSelection,
-      modelKey,
-      model,
-      messages,
-      syncedFrom,
-      sendOpts,
-      forceSend,
-    );
-    state = sent.state;
+    const sent = await sendStateless(cfg, modelSelection, messages, sendOpts);
+    agent = sent.agent;
     run = sent.run;
     let content = "";
     let reasoning = "";
@@ -616,7 +457,6 @@ async function handleNonStream(
     if (res.writableEnded || res.destroyed) {
       return;
     }
-    commitSessionSync(sessionKey, state, syncMessageCount);
     const body = {
       id: completionId,
       object: "chat.completion",
@@ -639,6 +479,7 @@ async function handleNonStream(
     res.end(JSON.stringify(body));
   } finally {
     unwireAbort();
-    await finalizeAgentRun(sessionKey, run, clientAborted);
+    await finalizeAgentRun(run);
+    await disposeAgent(agent);
   }
 }

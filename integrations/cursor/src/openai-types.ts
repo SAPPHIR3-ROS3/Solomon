@@ -1,8 +1,15 @@
+export type ChatToolCall = {
+  id?: string;
+  type?: string;
+  function?: { name?: string; arguments?: string };
+};
+
 export type ChatMessage = {
   role: string;
   content?: string | ContentPart[];
   name?: string;
   tool_call_id?: string;
+  tool_calls?: ChatToolCall[];
 };
 
 export type ContentPart =
