@@ -160,16 +160,16 @@ func (c *slashModelPickerCtx) buildFirstPage() ([]slashPickerDisplayRow, bool) {
 	cur := c.cur()
 	claimed := map[string]bool{lmKey(cur): true}
 
+	recents := pickRecentListed(c.d, catalog, cur, claimed, 5)
+
 	var chatgptSlots []ListedModel
 	{
-		chatgptSlots = pickChatGPTSubFamilySlots(catalog, cur, 5)
+		chatgptSlots = pickChatGPTSubFamilySlots(catalog, cur, claimed, 5)
 		for i := range chatgptSlots {
 			claimed[lmKey(chatgptSlots[i])] = true
 		}
 		claimOtherChatGPTSubCatalog(catalog, cur, claimed)
 	}
-
-	recents := pickRecentListed(c.d, catalog, cur, claimed, 5)
 	claudeSub := pickClaudeSubListed(c.d, catalog, cur, claimed, 5)
 	c.stickyRecents = recents
 	c.firstPageRecents = len(recents)
