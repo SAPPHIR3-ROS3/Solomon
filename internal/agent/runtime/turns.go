@@ -126,6 +126,9 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 	if err := r.waitProviderReady(ctx); err != nil {
 		return err
 	}
+	if err := r.ensureCursorSidecar(ctx); err != nil {
+		return err
+	}
 	runCtx, stopRun := context.WithCancelCause(ctx)
 	defer stopRun(nil)
 	sigCh := make(chan os.Signal, 1)

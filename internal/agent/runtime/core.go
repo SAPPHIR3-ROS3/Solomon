@@ -103,6 +103,17 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		p := prov
 		go func() {
 			rt.applyProviderClient(context.Background(), p)
+			if p.IsCursorAPI() {
+				cwd := rt.ProjRoot
+				if cwd == "" {
+					cwd, _ = os.Getwd()
+				}
+				bo := runtimeBootstrapOut{out: rt.Out}
+				if err := cursorint.WaitSidecarIfConfigured(context.Background(), rt.Cfg, cwd, bo); err != nil {
+					logging.Log(logging.ERROR_LOG_LEVEL, "cursor API sidecar ensure failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+					termcolor.WriteSystem(rt.Out, "Cursor API sidecar failed to start: "+err.Error())
+				}
+			}
 			close(rt.providerReady)
 		}()
 	} else {
@@ -131,14 +142,7 @@ func (r *Runtime) ensureCursorAPISidecar(ctx context.Context) {
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
-	bo := runtimeBootstrapOut{out: r.Out}
-	cursorint.KickSidecarIfConfigured(ctx, r.Cfg, cwd, bo)
-	go func() {
-		if err := cursorint.WaitSidecarIfConfigured(context.Background(), r.Cfg, cwd, bo); err != nil {
-			logging.Log(logging.ERROR_LOG_LEVEL, "cursor API sidecar ensure failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			termcolor.WriteSystem(r.Out, "Cursor API sidecar failed to start: "+err.Error())
-		}
-	}()
+	cursorint.KickSidecarIfConfigured(ctx, r.Cfg, cwd, runtimeBootstrapOut{out: r.Out})
 }
 
 func (r *Runtime) currentSessionID() string {

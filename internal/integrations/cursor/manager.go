@@ -11,11 +11,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 )
 
 var (
-	mu       sync.Mutex
-	running  *processState
+	mu      sync.Mutex
+	running *processState
 )
 
 type processState struct {
@@ -23,6 +26,7 @@ type processState struct {
 	port   int
 	dir    string
 	apiKey string
+	cwd    string
 }
 
 type Manager struct {
@@ -55,27 +59,32 @@ func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, out BootstrapI
 	if port <= 0 {
 		port = DefaultPort
 	}
+	cwd = sidecarCWD(cwd)
 	mu.Lock()
 	defer mu.Unlock()
 	if running != nil && running.apiKey == apiKey && running.dir == dir && running.port == port {
 		if healthOK(ctx, port) {
 			return DefaultBaseURL(port), nil
 		}
-		stopLocked()
-	}
-	if healthOK(ctx, port) && running == nil {
-		running = &processState{port: port, dir: dir, apiKey: apiKey}
-		return DefaultBaseURL(port), nil
-	}
-	if err := startLocked(ctx, dir, apiKey, cwd, port); err != nil {
-		return "", err
-	}
-	deadline := time.Now().Add(45 * time.Second)
-	for time.Now().Before(deadline) {
-		if healthOK(ctx, port) {
+		if processAlive(running) {
+			if waitHealth(ctx, port, 15*time.Second) {
+				return DefaultBaseURL(port), nil
+			}
 			return DefaultBaseURL(port), nil
 		}
-		time.Sleep(200 * time.Millisecond)
+		running = nil
+	}
+	if healthOK(ctx, port) {
+		if running == nil {
+			running = &processState{port: port, dir: dir, apiKey: apiKey, cwd: cwd}
+		}
+		return DefaultBaseURL(port), nil
+	}
+	if err := startLocked(dir, apiKey, cwd, port); err != nil {
+		return "", err
+	}
+	if waitHealth(ctx, port, 45*time.Second) {
+		return DefaultBaseURL(port), nil
 	}
 	stopLocked()
 	return "", fmt.Errorf("cursor API proxy failed health check on port %d", port)
@@ -87,7 +96,6 @@ func (m *Manager) Stop() {
 	stopLocked()
 }
 
-// ProxyStatus is a snapshot of the local Cursor API sidecar.
 type ProxyStatus struct {
 	Port       int
 	BaseURL    string
@@ -109,7 +117,7 @@ func (m *Manager) ProxyStatus(ctx context.Context) ProxyStatus {
 		Healthy:    healthOK(ctx, port),
 	}
 	mu.Lock()
-	st.Managed = running != nil && running.port == port
+	st.Managed = running != nil && running.port == port && processAlive(running)
 	mu.Unlock()
 	return st
 }
@@ -121,7 +129,19 @@ func nodeExecutable() (string, error) {
 	return exec.LookPath("node")
 }
 
-func startLocked(ctx context.Context, dir, apiKey, cwd string, port int) error {
+func sidecarLogFile() (*os.File, error) {
+	root, err := paths.SolomonHome()
+	if err != nil {
+		return nil, err
+	}
+	logDir := filepath.Join(root, "logs")
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		return nil, err
+	}
+	return os.OpenFile(filepath.Join(logDir, "cursor-sidecar.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+}
+
+func startLocked(dir, apiKey, cwd string, port int) error {
 	stopLocked()
 	node, err := nodeExecutable()
 	if err != nil {
@@ -135,21 +155,42 @@ func startLocked(ctx context.Context, dir, apiKey, cwd string, port int) error {
 		fmt.Sprintf("CURSOR_API_PORT=%d", port),
 		"CURSOR_API_CWD="+cwd,
 	)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
+	if logFile, err := sidecarLogFile(); err == nil {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	} else {
+		cmd.Stdout = io.Discard
+		cmd.Stderr = io.Discard
+	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start cursor proxy: %w", err)
 	}
-	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey}
-	go func() {
-		_ = cmd.Wait()
-		mu.Lock()
-		if running != nil && running.cmd == cmd {
-			running = nil
-		}
-		mu.Unlock()
-	}()
+	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey, cwd: cwd}
+	go watchSidecarProcess(cmd, dir, apiKey, cwd, port)
 	return nil
+}
+
+func watchSidecarProcess(cmd *exec.Cmd, dir, apiKey, cwd string, port int) {
+	_ = cmd.Wait()
+	mu.Lock()
+	shouldRestart := running != nil && running.cmd == cmd
+	if shouldRestart {
+		running = nil
+	}
+	mu.Unlock()
+	if !shouldRestart {
+		return
+	}
+	logging.Log(logging.WARNING_LOG_LEVEL, "cursor API sidecar exited; restarting", logging.LogOptions{Params: map[string]any{"port": port}})
+	time.Sleep(300 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	if running != nil {
+		return
+	}
+	if err := startLocked(dir, apiKey, cwd, port); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "cursor API sidecar restart failed", logging.LogOptions{Params: map[string]any{"err": err.Error(), "port": port}})
+	}
 }
 
 func stopLocked() {
@@ -162,13 +203,32 @@ func stopLocked() {
 	running = nil
 }
 
+func processAlive(ps *processState) bool {
+	if ps == nil || ps.cmd == nil || ps.cmd.Process == nil {
+		return false
+	}
+	return ps.cmd.ProcessState == nil
+}
+
+func waitHealth(ctx context.Context, port int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if healthOK(ctx, port) {
+			return true
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return false
+}
+
 func healthOK(ctx context.Context, port int) bool {
 	u := fmt.Sprintf("http://127.0.0.1:%d/health", port)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return false
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return false
 	}

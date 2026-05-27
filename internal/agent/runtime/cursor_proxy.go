@@ -1,7 +1,9 @@
 package agentruntime
 
 import (
+	"context"
 	"io"
+	"os"
 
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
@@ -19,3 +21,14 @@ func (r runtimeBootstrapOut) Print(msg string) {
 }
 
 var _ cursorint.BootstrapIO = runtimeBootstrapOut{}
+
+func (r *Runtime) ensureCursorSidecar(ctx context.Context) error {
+	if r == nil || r.Cfg == nil || r.Prov == nil || !r.Prov.IsCursorAPI() {
+		return nil
+	}
+	cwd := r.ProjRoot
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	return cursorint.WaitSidecarIfConfigured(ctx, r.Cfg, cwd, nil)
+}

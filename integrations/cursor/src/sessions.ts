@@ -11,6 +11,19 @@ export type SessionState = {
 };
 
 const sessions = new Map<string, SessionState>();
+const forceNextSendKeys = new Set<string>();
+
+export function markForceNextSend(key: string): void {
+  forceNextSendKeys.add(key);
+}
+
+export function shouldForceNextSend(key: string): boolean {
+  return forceNextSendKeys.has(key);
+}
+
+export function clearForceNextSend(key: string): void {
+  forceNextSendKeys.delete(key);
+}
 
 export function sessionKey(messages: ChatMessage[], cwd: string): string {
   const firstUser = messages.find((m) => m.role === "user");

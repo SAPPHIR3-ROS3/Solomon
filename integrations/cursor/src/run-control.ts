@@ -2,7 +2,7 @@ import type { SDKAgent } from "@cursor/sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChatMessage } from "./openai-types.js";
 import { chunkDelta, finishSSE, usageChunk, writeSSE, type OpenAIUsagePayload } from "./openai-sse.js";
-import { resetSessionAgent } from "./sessions.js";
+import { markForceNextSend, resetSessionAgent } from "./sessions.js";
 
 export type AgentRun = Awaited<ReturnType<SDKAgent["send"]>>;
 
@@ -47,13 +47,26 @@ export async function releaseRun(run: AgentRun | undefined, timeoutMs = runRelea
   return released;
 }
 
+export function isStaleAgentError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("agent busy") ||
+    lower.includes("active run") ||
+    lower.includes("already has an active run") ||
+    /agent agent-[0-9a-f-]+/i.test(msg)
+  );
+}
+
 export async function finalizeAgentRun(
   sessionKey: string,
   run: AgentRun | undefined,
+  invalidateSession = false,
 ): Promise<void> {
   const released = await releaseRun(run);
-  if (!released) {
+  if (invalidateSession || !released) {
     resetSessionAgent(sessionKey);
+    markForceNextSend(sessionKey);
   }
 }
 

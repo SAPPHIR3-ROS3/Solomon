@@ -27,15 +27,21 @@ import {
   forceStopRun,
   finalizeAgentRun,
   finishStreamWithUsage,
+  isStaleAgentError,
   wireClientAbort,
   type CursorTurnUsage,
 } from "./run-control.js";
 import {
+  clearForceNextSend,
   getSession,
+  markForceNextSend,
+  shouldForceNextSend,
+  resetSessionAgent,
   sessionKey,
   setSession,
   type SessionState,
 } from "./sessions.js";
+import type { ModelSelection } from "./model-selection.js";
 
 export type ProxyConfig = {
   apiKey: string;
@@ -73,6 +79,65 @@ export async function listAllModels(apiKey: string): Promise<string[]> {
   return orderModelIDs(await cursorModelIDs(apiKey));
 }
 
+async function createSessionState(
+  cfg: ProxyConfig,
+  modelSelection: ModelSelection,
+  modelKey: string,
+  model: string,
+): Promise<SessionState> {
+  const agent = await Agent.create({
+    apiKey: cfg.apiKey,
+    model: modelSelection,
+    local: { cwd: cfg.cwd, settingSources: [] },
+  });
+  return { agent, syncedMessages: 0, model, modelKey, modelSelection };
+}
+
+type AgentSendOpts = {
+  model: ModelSelection;
+  local?: { force?: boolean };
+  onDelta: (arg: {
+    update: { type: string; usage?: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number } };
+  }) => Promise<void>;
+};
+
+async function agentSendWithRecovery(
+  sessionKey: string,
+  state: SessionState,
+  cfg: ProxyConfig,
+  modelSelection: ModelSelection,
+  modelKey: string,
+  model: string,
+  prompt: string | SDKUserMessage,
+  sendOpts: AgentSendOpts,
+  forceSend: boolean,
+): Promise<{ state: SessionState; run: AgentRun }> {
+  let active = state;
+  let force = forceSend;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const run = await active.agent.send(prompt, {
+        ...sendOpts,
+        local: { force },
+      });
+      if (force) {
+        clearForceNextSend(sessionKey);
+      }
+      return { state: active, run };
+    } catch (err) {
+      if (!isStaleAgentError(err) || attempt >= 2) {
+        throw err;
+      }
+      resetSessionAgent(sessionKey);
+      markForceNextSend(sessionKey);
+      active = await createSessionState(cfg, modelSelection, modelKey, model);
+      setSession(sessionKey, active);
+      force = true;
+    }
+  }
+  throw new Error("agent send recovery exhausted");
+}
+
 export async function handleChatCompletions(
   body: ChatCompletionRequest,
   httpReq: IncomingMessage,
@@ -93,19 +158,8 @@ export async function handleChatCompletions(
   const modelKey = JSON.stringify(modelSelection);
   let state = getSession(key);
   if (!state || state.modelKey !== modelKey) {
-    if (state?.agent) {
-      try {
-        await state.agent.close();
-      } catch {
-        /* ignore */
-      }
-    }
-    const agent = await Agent.create({
-      apiKey: cfg.apiKey,
-      model: modelSelection,
-      local: { cwd: cfg.cwd, settingSources: [] },
-    });
-    state = { agent, syncedMessages: 0, model, modelKey, modelSelection };
+    resetSessionAgent(key);
+    state = await createSessionState(cfg, modelSelection, modelKey, model);
     setSession(key, state);
   } else {
     state.modelSelection = modelSelection;
@@ -120,11 +174,12 @@ export async function handleChatCompletions(
   const prompt = withHarnessPreamble(buildPromptFromDelta(delta, messages));
   state.syncedMessages = messages.length;
   const completionId = "chatcmpl-" + key;
+  const forceSend = shouldForceNextSend(key);
   if (!stream) {
-    await handleNonStream(key, state, prompt, messages, completionId, model, httpReq, res);
+    await handleNonStream(key, state, cfg, prompt, messages, completionId, model, httpReq, res, forceSend);
     return;
   }
-  await streamCompletion(key, state, prompt, messages, completionId, model, httpReq, res);
+  await streamCompletion(key, state, cfg, prompt, messages, completionId, model, httpReq, res, forceSend);
 }
 
 function buildOpenAIUsage(
@@ -210,34 +265,51 @@ function buildPromptFromDelta(
 async function streamCompletion(
   sessionKey: string,
   state: SessionState,
+  cfg: ProxyConfig,
   prompt: string | SDKUserMessage,
   messages: ChatMessage[],
   completionId: string,
   model: string,
   httpReq: IncomingMessage,
   res: ServerResponse,
+  forceSend: boolean,
 ): Promise<void> {
   let sdkUsage: CursorTurnUsage | undefined;
   let run: AgentRun | undefined;
   let clientAborted = false;
+  const modelKey = state.modelKey;
+  const modelSelection = state.modelSelection;
+  const sendOpts: AgentSendOpts = {
+    model: modelSelection,
+    onDelta: async ({ update }) => {
+      if (update.type !== "turn-ended" || !update.usage) {
+        return;
+      }
+      sdkUsage = {
+        inputTokens: update.usage.inputTokens ?? 0,
+        outputTokens: update.usage.outputTokens ?? 0,
+        cacheReadTokens: update.usage.cacheReadTokens,
+      };
+    },
+  };
   const unwireAbort = wireClientAbort(httpReq, res, () => run, () => {
     clientAborted = true;
   });
   try {
     try {
-      run = await state.agent.send(prompt, {
-        model: state.modelSelection,
-        onDelta: async ({ update }) => {
-          if (update.type !== "turn-ended" || !update.usage) {
-            return;
-          }
-          sdkUsage = {
-            inputTokens: update.usage.inputTokens ?? 0,
-            outputTokens: update.usage.outputTokens ?? 0,
-            cacheReadTokens: update.usage.cacheReadTokens,
-          };
-        },
-      });
+      const sent = await agentSendWithRecovery(
+        sessionKey,
+        state,
+        cfg,
+        modelSelection,
+        modelKey,
+        model,
+        prompt,
+        sendOpts,
+        forceSend,
+      );
+      state = sent.state;
+      run = sent.run;
     } catch (err) {
       sendStreamStartError(res, completionId, model, err);
       return;
@@ -339,7 +411,7 @@ async function streamCompletion(
     }
   } finally {
     unwireAbort();
-    await finalizeAgentRun(sessionKey, run);
+    await finalizeAgentRun(sessionKey, run, clientAborted);
   }
 }
 
@@ -400,33 +472,50 @@ function processStreamEvent(
 async function handleNonStream(
   sessionKey: string,
   state: SessionState,
+  cfg: ProxyConfig,
   prompt: string | SDKUserMessage,
   messages: ChatMessage[],
   completionId: string,
   model: string,
   httpReq: IncomingMessage,
   res: ServerResponse,
+  forceSend: boolean,
 ): Promise<void> {
   let sdkUsage: CursorTurnUsage | undefined;
   let run: AgentRun | undefined;
   let clientAborted = false;
+  const modelKey = state.modelKey;
+  const modelSelection = state.modelSelection;
+  const sendOpts: AgentSendOpts = {
+    model: modelSelection,
+    onDelta: async ({ update }) => {
+      if (update.type !== "turn-ended" || !update.usage) {
+        return;
+      }
+      sdkUsage = {
+        inputTokens: update.usage.inputTokens ?? 0,
+        outputTokens: update.usage.outputTokens ?? 0,
+        cacheReadTokens: update.usage.cacheReadTokens,
+      };
+    },
+  };
   const unwireAbort = wireClientAbort(httpReq, res, () => run, () => {
     clientAborted = true;
   });
   try {
-    run = await state.agent.send(prompt, {
-      model: state.modelSelection,
-      onDelta: async ({ update }) => {
-        if (update.type !== "turn-ended" || !update.usage) {
-          return;
-        }
-        sdkUsage = {
-          inputTokens: update.usage.inputTokens ?? 0,
-          outputTokens: update.usage.outputTokens ?? 0,
-          cacheReadTokens: update.usage.cacheReadTokens,
-        };
-      },
-    });
+    const sent = await agentSendWithRecovery(
+      sessionKey,
+      state,
+      cfg,
+      modelSelection,
+      modelKey,
+      model,
+      prompt,
+      sendOpts,
+      forceSend,
+    );
+    state = sent.state;
+    run = sent.run;
     let content = "";
     let reasoning = "";
     const pendingLegacy: LegacyToolInvocation[] = [];
@@ -500,6 +589,6 @@ async function handleNonStream(
     res.end(JSON.stringify(body));
   } finally {
     unwireAbort();
-    await finalizeAgentRun(sessionKey, run);
+    await finalizeAgentRun(sessionKey, run, clientAborted);
   }
 }
