@@ -113,9 +113,6 @@ func pickRecentListed(d Deps, all []ListedModel, cur ListedModel, claimed map[st
 		if lm.Prov == "" || lm.Model == "" {
 			continue
 		}
-		if lm.Prov == config.ProviderNameChatGPTSub {
-			continue
-		}
 		if lmKey(lm) == lmKey(cur) {
 			continue
 		}
@@ -219,7 +216,7 @@ func gptVariantSuffix(model string) string {
 func preferredGPTVariants(family []int) []string {
 	switch {
 	case len(family) == 2 && family[0] == 5 && family[1] == 4:
-		return []string{"mini", ""}
+		return []string{"", "mini"}
 	case len(family) == 2 && family[0] == 5 && family[1] == 3:
 		return []string{"codex", ""}
 	case len(family) == 2 && family[0] == 5 && family[1] == 2:
@@ -283,7 +280,7 @@ func bestChatGPTSubForFamily(family []int, cands []ListedModel) (ListedModel, bo
 	return chosen, found
 }
 
-func pickChatGPTSubFamilySlots(all []ListedModel, cur ListedModel, max int) []ListedModel {
+func pickChatGPTSubFamilySlots(all []ListedModel, cur ListedModel, skip map[string]bool, max int) []ListedModel {
 	if max <= 0 {
 		return nil
 	}
@@ -295,6 +292,9 @@ func pickChatGPTSubFamilySlots(all []ListedModel, cur ListedModel, max int) []Li
 			continue
 		}
 		if lmKey(lm) == lmKey(cur) {
+			continue
+		}
+		if skip != nil && skip[lmKey(lm)] {
 			continue
 		}
 		family, ok := gptFamilyKeyFromModel(lm.Model)
