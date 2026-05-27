@@ -4,14 +4,6 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ---
 
-## Bugs da risolvere
-
-Ordine suggerito: dal più **facile** al più **difficile** (code review interno).
-
-- **`internal/agent/runtime/repl.go` — paste clipboard:** errori (directory immagini, `PasteImage`, ecc.) assorbiti in silenzio e UX incerta (es. carattere stray nel buffer); feedback esplicito su stdout/stderr.
-
----
-
 ## 1 — Tab completion
 
 - **Stato:** **parziale** — implementato in [`internal/agent/runtime/repl_complete.go`](internal/agent/runtime/repl_complete.go) (`SOLOMON_NO_COMPLETE=1` per disabilitare). Funziona oggi:
@@ -48,6 +40,10 @@ Ordine suggerito: dal più **facile** al più **difficile** (code review interno
 
 - **Stato:** placeholder visibili tipo `[img-n]` nel testo utente; rischio collisione o stripping ambiguo.
 - **Cosa manca:** **delimitazione robusta** con sequenze Unicode invisibili (es. ZWJ/ZWSP o marker dedicati) attorno ai token immagine, parser lato harness che riconosce solo quel pattern, migrazione/dual-read per sessioni vecchie se necessario.
+
+### Bug — paste clipboard (`repl.go`)
+
+- **`internal/agent/runtime/repl.go` — paste clipboard:** errori (directory immagini, `PasteImage`, ecc.) assorbiti in silenzio e UX incerta (es. carattere stray nel buffer); feedback esplicito su stdout/stderr.
 
 ---
 
