@@ -101,6 +101,29 @@ type AgentSendOpts = {
   }) => Promise<void>;
 };
 
+function computeDelta(messages: ChatMessage[], syncedFrom: number): ChatMessage[] {
+  const delta = messages.slice(syncedFrom);
+  if (delta.length > 0 || messages.length === 0) {
+    return delta;
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      return [messages[i]];
+    }
+  }
+  return [messages[messages.length - 1]];
+}
+
+function buildSendPrompt(messages: ChatMessage[], syncedFrom: number): string | SDKUserMessage {
+  const delta = computeDelta(messages, syncedFrom);
+  return withHarnessPreamble(buildPromptFromDelta(delta, messages));
+}
+
+function commitSessionSync(sessionKey: string, state: SessionState, messageCount: number): void {
+  state.syncedMessages = messageCount;
+  setSession(sessionKey, state);
+}
+
 async function agentSendWithRecovery(
   sessionKey: string,
   state: SessionState,
@@ -108,12 +131,15 @@ async function agentSendWithRecovery(
   modelSelection: ModelSelection,
   modelKey: string,
   model: string,
-  prompt: string | SDKUserMessage,
+  messages: ChatMessage[],
+  syncedFrom: number,
   sendOpts: AgentSendOpts,
   forceSend: boolean,
 ): Promise<{ state: SessionState; run: AgentRun }> {
   let active = state;
   let force = forceSend;
+  let promptFrom = syncedFrom;
+  let prompt = buildSendPrompt(messages, promptFrom);
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const run = await active.agent.send(prompt, {
@@ -132,6 +158,8 @@ async function agentSendWithRecovery(
       markForceNextSend(sessionKey);
       active = await createSessionState(cfg, modelSelection, modelKey, model);
       setSession(sessionKey, active);
+      promptFrom = 0;
+      prompt = buildSendPrompt(messages, promptFrom);
       force = true;
     }
   }
@@ -164,22 +192,38 @@ export async function handleChatCompletions(
   } else {
     state.modelSelection = modelSelection;
   }
-  const delta = messages.slice(state.syncedMessages);
-  if (delta.length === 0 && messages.length > 0) {
-    const last = messages[messages.length - 1];
-    if (last.role === "user") {
-      delta.push(last);
-    }
-  }
-  const prompt = withHarnessPreamble(buildPromptFromDelta(delta, messages));
-  state.syncedMessages = messages.length;
+  const syncedFrom = state.syncedMessages;
   const completionId = "chatcmpl-" + key;
   const forceSend = shouldForceNextSend(key);
   if (!stream) {
-    await handleNonStream(key, state, cfg, prompt, messages, completionId, model, httpReq, res, forceSend);
+    await handleNonStream(
+      key,
+      state,
+      cfg,
+      messages,
+      syncedFrom,
+      messages.length,
+      completionId,
+      model,
+      httpReq,
+      res,
+      forceSend,
+    );
     return;
   }
-  await streamCompletion(key, state, cfg, prompt, messages, completionId, model, httpReq, res, forceSend);
+  await streamCompletion(
+    key,
+    state,
+    cfg,
+    messages,
+    syncedFrom,
+    messages.length,
+    completionId,
+    model,
+    httpReq,
+    res,
+    forceSend,
+  );
 }
 
 function buildOpenAIUsage(
@@ -252,13 +296,6 @@ function buildPromptFromDelta(
   for (const m of delta) {
     lines.push(formatDeltaMessage(m));
   }
-  if (lines.length === 0 && all.length > 0) {
-    const last = all[all.length - 1];
-    if (last.role === "user") {
-      return messageToUserPayload(last);
-    }
-    return formatDeltaMessage(last);
-  }
   return lines.join("\n\n");
 }
 
@@ -266,8 +303,9 @@ async function streamCompletion(
   sessionKey: string,
   state: SessionState,
   cfg: ProxyConfig,
-  prompt: string | SDKUserMessage,
   messages: ChatMessage[],
+  syncedFrom: number,
+  syncMessageCount: number,
   completionId: string,
   model: string,
   httpReq: IncomingMessage,
@@ -304,7 +342,8 @@ async function streamCompletion(
         modelSelection,
         modelKey,
         model,
-        prompt,
+        messages,
+        syncedFrom,
         sendOpts,
         forceSend,
       );
@@ -369,7 +408,10 @@ async function streamCompletion(
           break;
         }
       }
-      const finishStream = () =>
+      const finishStream = (sync: boolean) => {
+        if (sync) {
+          commitSessionSync(sessionKey, state, syncMessageCount);
+        }
         finishStreamWithUsage(res, completionId, model, {
           messages,
           sdkUsage,
@@ -377,22 +419,26 @@ async function streamCompletion(
           thinkingBuf,
           buildUsage: buildOpenAIUsage,
         });
+      };
       if (clientAborted) {
-        finishStream();
+        finishStream(false);
         return;
       }
       if (pendingLegacy.length > 0) {
         const block = formatLegacyToolCallsBlock(pendingLegacy);
         writeSSE(res, chunkDelta(completionId, model, { content: block }));
         proseBuf += block;
-        finishStream();
+        finishStream(true);
         return;
       }
       if (!legacyEmitted) {
-        finishStream();
+        finishStream(true);
       }
     } catch (err) {
-      const finishStream = () =>
+      const finishStream = (sync: boolean) => {
+        if (sync) {
+          commitSessionSync(sessionKey, state, syncMessageCount);
+        }
         finishStreamWithUsage(res, completionId, model, {
           messages,
           sdkUsage,
@@ -400,14 +446,15 @@ async function streamCompletion(
           thinkingBuf,
           buildUsage: buildOpenAIUsage,
         });
+      };
       if (clientAborted) {
-        finishStream();
+        finishStream(false);
         return;
       }
       const msg = err instanceof Error ? err.message : String(err);
       proseBuf += `\n[error] ${msg}`;
       writeSSE(res, chunkDelta(completionId, model, { content: `\n[error] ${msg}` }));
-      finishStream();
+      finishStream(false);
     }
   } finally {
     unwireAbort();
@@ -473,8 +520,9 @@ async function handleNonStream(
   sessionKey: string,
   state: SessionState,
   cfg: ProxyConfig,
-  prompt: string | SDKUserMessage,
   messages: ChatMessage[],
+  syncedFrom: number,
+  syncMessageCount: number,
   completionId: string,
   model: string,
   httpReq: IncomingMessage,
@@ -510,7 +558,8 @@ async function handleNonStream(
       modelSelection,
       modelKey,
       model,
-      prompt,
+      messages,
+      syncedFrom,
       sendOpts,
       forceSend,
     );
@@ -567,6 +616,7 @@ async function handleNonStream(
     if (res.writableEnded || res.destroyed) {
       return;
     }
+    commitSessionSync(sessionKey, state, syncMessageCount);
     const body = {
       id: completionId,
       object: "chat.completion",
