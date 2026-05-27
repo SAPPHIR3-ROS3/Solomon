@@ -420,6 +420,11 @@ func (r *Runtime) appendSyntheticToolResults(astSeq int, invs []tooling.Invocati
 }
 
 func (r *Runtime) printToolLine(cpSeq int, branchKey, name string, rawArgs json.RawMessage) {
+	if cpSeq > 0 {
+		if intent := tooling.ExtractToolIntent(rawArgs); intent != "" {
+			fmt.Fprintf(r.Out, "%s%s\n", checkpoint.FormatCheckpointPrefix(cpSeq, branchKey), termcolor.WrapThinking(intent))
+		}
+	}
 	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, formatToolDisplayLines(name, rawArgs))
 }
 
