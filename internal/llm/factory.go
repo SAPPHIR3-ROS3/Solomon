@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
@@ -41,7 +43,15 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 		}
 		inner = &OpenAIBackend{Client: client}
 	}
-	return NewResilientBackend(inner, hostKey, policy, defaultCircuits), nil
+	rb := NewResilientBackend(inner, hostKey, policy, defaultCircuits)
+	if p.IsCursorAPI() {
+		cfgCopy := cfg
+		rb.SidecarRevive = func(ctx context.Context, err error) {
+			cwd, _ := os.Getwd()
+			cursorint.ReviveSidecarIfConfigured(ctx, cfgCopy, cwd, err)
+		}
+	}
+	return rb, nil
 }
 
 func newOpenAIClient(ctx context.Context, cfg *config.Root, p *config.Provider, httpClient *http.Client) (openai.Client, error) {

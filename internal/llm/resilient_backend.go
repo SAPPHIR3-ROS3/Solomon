@@ -11,11 +11,12 @@ import (
 )
 
 type ResilientBackend struct {
-	Inner    CompletionBackend
-	HostKey  string
-	Policy   config.APIResiliencePolicy
-	Circuits *CircuitRegistry
-	rng      *rand.Rand
+	Inner         CompletionBackend
+	HostKey       string
+	Policy        config.APIResiliencePolicy
+	Circuits      *CircuitRegistry
+	SidecarRevive func(context.Context, error)
+	rng           *rand.Rand
 }
 
 func NewResilientBackend(inner CompletionBackend, hostKey string, policy config.APIResiliencePolicy, circuits *CircuitRegistry) *ResilientBackend {
@@ -69,6 +70,9 @@ func (b *ResilientBackend) runWithRetry(ctx context.Context, opts StreamOpts, op
 				return lastErr
 			}
 			return fmt.Errorf("after %d attempt(s): %w", attempt, lastErr)
+		}
+		if b.SidecarRevive != nil {
+			b.SidecarRevive(ctx, lastErr)
 		}
 		wait := BackoffDelay(b.Policy, attempt, retryAfter, b.rng)
 		if opts.OnRetry != nil {

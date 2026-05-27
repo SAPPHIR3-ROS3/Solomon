@@ -2,8 +2,11 @@ import type { SDKAgent } from "@cursor/sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChatMessage } from "./openai-types.js";
 import { chunkDelta, finishSSE, usageChunk, writeSSE, type OpenAIUsagePayload } from "./openai-sse.js";
+import { resetSessionAgent } from "./sessions.js";
 
 export type AgentRun = Awaited<ReturnType<SDKAgent["send"]>>;
+
+const runReleaseTimeoutMs = 15_000;
 
 export async function forceStopRun(run: AgentRun | undefined): Promise<void> {
   if (!run?.supports("cancel")) {
@@ -24,6 +27,33 @@ export async function waitRun(run: AgentRun | undefined): Promise<void> {
     await run.wait();
   } catch {
     /* ignore */
+  }
+}
+
+export async function releaseRun(run: AgentRun | undefined, timeoutMs = runReleaseTimeoutMs): Promise<boolean> {
+  if (!run) {
+    return true;
+  }
+  await forceStopRun(run);
+  let released = false;
+  await Promise.race([
+    waitRun(run).then(() => {
+      released = true;
+    }),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  return released;
+}
+
+export async function finalizeAgentRun(
+  sessionKey: string,
+  run: AgentRun | undefined,
+): Promise<void> {
+  const released = await releaseRun(run);
+  if (!released) {
+    resetSessionAgent(sessionKey);
   }
 }
 

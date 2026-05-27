@@ -25,8 +25,8 @@ import { resolveModelSelection, type ModelInfo } from "./model-selection.js";
 import {
   type AgentRun,
   forceStopRun,
+  finalizeAgentRun,
   finishStreamWithUsage,
-  waitRun,
   wireClientAbort,
   type CursorTurnUsage,
 } from "./run-control.js";
@@ -121,10 +121,10 @@ export async function handleChatCompletions(
   state.syncedMessages = messages.length;
   const completionId = "chatcmpl-" + key;
   if (!stream) {
-    await handleNonStream(state, prompt, messages, completionId, model, httpReq, res);
+    await handleNonStream(key, state, prompt, messages, completionId, model, httpReq, res);
     return;
   }
-  await streamCompletion(state, prompt, messages, completionId, model, httpReq, res);
+  await streamCompletion(key, state, prompt, messages, completionId, model, httpReq, res);
 }
 
 function buildOpenAIUsage(
@@ -208,6 +208,7 @@ function buildPromptFromDelta(
 }
 
 async function streamCompletion(
+  sessionKey: string,
   state: SessionState,
   prompt: string | SDKUserMessage,
   messages: ChatMessage[],
@@ -239,6 +240,18 @@ async function streamCompletion(
       });
     } catch (err) {
       sendStreamStartError(res, completionId, model, err);
+      return;
+    }
+    if (clientAborted) {
+      if (res.headersSent) {
+        finishStreamWithUsage(res, completionId, model, {
+          messages,
+          sdkUsage,
+          textBuf: "",
+          thinkingBuf: "",
+          buildUsage: buildOpenAIUsage,
+        });
+      }
       return;
     }
     res.writeHead(200, {
@@ -284,7 +297,6 @@ async function streamCompletion(
           break;
         }
       }
-      await waitRun(run);
       const finishStream = () =>
         finishStreamWithUsage(res, completionId, model, {
           messages,
@@ -327,6 +339,7 @@ async function streamCompletion(
     }
   } finally {
     unwireAbort();
+    await finalizeAgentRun(sessionKey, run);
   }
 }
 
@@ -385,6 +398,7 @@ function processStreamEvent(
 }
 
 async function handleNonStream(
+  sessionKey: string,
   state: SessionState,
   prompt: string | SDKUserMessage,
   messages: ChatMessage[],
@@ -458,7 +472,6 @@ async function handleNonStream(
     if (toolDetected) {
       await forceStopRun(run);
     }
-    await waitRun(run);
     if (pendingLegacy.length > 0) {
       content = (toolDetected ? "" : content) + formatLegacyToolCallsBlock(pendingLegacy);
     }
@@ -487,5 +500,6 @@ async function handleNonStream(
     res.end(JSON.stringify(body));
   } finally {
     unwireAbort();
+    await finalizeAgentRun(sessionKey, run);
   }
 }
