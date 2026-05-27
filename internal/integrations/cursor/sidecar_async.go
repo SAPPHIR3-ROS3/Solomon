@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 )
@@ -12,13 +11,6 @@ import (
 type DiscardBootstrap struct{}
 
 func (DiscardBootstrap) Print(string) {}
-
-var sidecarAsync struct {
-	mu   sync.Mutex
-	once sync.Once
-	done chan struct{}
-	err  error
-}
 
 func sidecarConfigured(cfg *config.Root) (*config.Provider, string, bool) {
 	if cfg == nil {
@@ -31,28 +23,29 @@ func sidecarConfigured(cfg *config.Root) (*config.Provider, string, bool) {
 	return p, strings.TrimSpace(p.APIKey), true
 }
 
+func sidecarCWD(cwd string) string {
+	if strings.TrimSpace(cwd) == "" {
+		cwd, _ = os.Getwd()
+	}
+	return cwd
+}
+
 func KickSidecarIfConfigured(ctx context.Context, cfg *config.Root, cwd string, out BootstrapIO) {
-	if _, _, ok := sidecarConfigured(cfg); !ok {
+	_, apiKey, ok := sidecarConfigured(cfg)
+	if !ok {
 		return
 	}
 	if out == nil {
 		out = DiscardBootstrap{}
 	}
-	if strings.TrimSpace(cwd) == "" {
-		cwd, _ = os.Getwd()
-	}
 	mgr := DefaultManager()
 	if mgr.ProxyStatus(ctx).Healthy {
 		return
 	}
-	_, apiKey, _ := sidecarConfigured(cfg)
-	sidecarAsync.once.Do(func() {
-		sidecarAsync.done = make(chan struct{})
-		go func() {
-			defer close(sidecarAsync.done)
-			_, sidecarAsync.err = mgr.Ensure(ctx, apiKey, cwd, out)
-		}()
-	})
+	cwd = sidecarCWD(cwd)
+	go func() {
+		_, _ = mgr.Ensure(ctx, apiKey, cwd, out)
+	}()
 }
 
 func WaitSidecarIfConfigured(ctx context.Context, cfg *config.Root, cwd string, out BootstrapIO) error {
@@ -63,25 +56,39 @@ func WaitSidecarIfConfigured(ctx context.Context, cfg *config.Root, cwd string, 
 	if out == nil {
 		out = DiscardBootstrap{}
 	}
-	if strings.TrimSpace(cwd) == "" {
-		cwd, _ = os.Getwd()
-	}
 	mgr := DefaultManager()
 	if mgr.ProxyStatus(ctx).Healthy {
 		return nil
 	}
-	KickSidecarIfConfigured(ctx, cfg, cwd, out)
-	sidecarAsync.mu.Lock()
-	ch := sidecarAsync.done
-	sidecarAsync.mu.Unlock()
-	if ch == nil {
-		_, err := mgr.Ensure(ctx, apiKey, cwd, out)
-		return err
+	_, err := mgr.Ensure(ctx, apiKey, sidecarCWD(cwd), out)
+	return err
+}
+
+func isSidecarNetFailure(err error) bool {
+	if err == nil {
+		return false
 	}
-	select {
-	case <-ch:
-		return sidecarAsync.err
-	case <-ctx.Done():
-		return ctx.Err()
+	msg := strings.ToLower(err.Error())
+	for _, sub := range []string{
+		"connection refused",
+		"connection reset",
+		"forcibly closed",
+		"broken pipe",
+	} {
+		if strings.Contains(msg, sub) {
+			return true
+		}
 	}
+	return false
+}
+
+func ReviveSidecarIfConfigured(ctx context.Context, cfg *config.Root, cwd string, err error) {
+	if !isSidecarNetFailure(err) {
+		return
+	}
+	_, apiKey, ok := sidecarConfigured(cfg)
+	if !ok {
+		return
+	}
+	_, _ = DefaultManager().Ensure(ctx, apiKey, sidecarCWD(cwd), DiscardBootstrap{})
 }

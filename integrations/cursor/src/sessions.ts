@@ -38,3 +38,7 @@ export function setSession(key: string, state: SessionState): void {
 export function deleteSession(key: string): void {
   sessions.delete(key);
 }
+
+export function resetSessionAgent(key: string): void {
+  deleteSession(key);
+}
