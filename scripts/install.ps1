@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 $GoRequired = '1.25.0'
 $GoRoot = Join-Path $env:USERPROFILE '.local\go'
 $script:InstalledLocalGo = $false
-$SolmonPkg = "github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@$Version"
+$GithubReleasesLatest = 'https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest'
 $Marker = '# solomon-installer'
 
 function Get-GoSemVer {
@@ -57,6 +57,24 @@ function Install-GoWindows {
     }
     $env:Path = "$(Join-Path $GoRoot 'bin');$env:Path"
     $script:InstalledLocalGo = $true
+}
+
+function Get-LatestReleaseTag {
+    $headers = @{ 'User-Agent' = 'solomon-installer' }
+    $resp = Invoke-RestMethod -Uri $GithubReleasesLatest -Headers $headers -UseBasicParsing
+    $tag = [string]$resp.tag_name
+    if ([string]::IsNullOrWhiteSpace($tag)) {
+        throw 'failed to resolve latest GitHub release tag'
+    }
+    return $tag.Trim()
+}
+
+function Resolve-InstallVersion {
+    if ($Version -ne 'latest') {
+        return
+    }
+    $script:Version = Get-LatestReleaseTag
+    Write-Host "Latest release: $Version"
 }
 
 function Install-ReleaseAsset {
@@ -222,13 +240,9 @@ if ((Test-Path `$gopathBin) -and (`$env:Path -notlike "*`$gopathBin*")) { `$env:
 }
 
 function Install-Solomon {
+    Resolve-InstallVersion
     Write-Host "Installing solomon ($Version)..."
-    if ($Version -eq 'latest') {
-        go install $SolmonPkg
-    }
-    else {
-        Install-ReleaseAsset
-    }
+    Install-ReleaseAsset
     $bin = Join-Path (go env GOPATH) 'bin\solomon.exe'
     if (Test-Path $bin) {
         Write-Host "solomon installed: $bin"
