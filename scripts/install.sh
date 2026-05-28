@@ -5,7 +5,7 @@ GO_REQUIRED="1.25.0"
 GO_INSTALL_ROOT="${HOME}/.local/go"
 INSTALLED_LOCAL_GO=0
 INSTALL_VERSION="${SOLOMON_VERSION:-${1:-latest}}"
-SOLMON_PKG="github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@${INSTALL_VERSION}"
+GITHUB_RELEASES_API="https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest"
 MARKER="# solomon-installer"
 
 version_ge() {
@@ -43,6 +43,30 @@ detect_platform() {
       exit 1
       ;;
   esac
+}
+
+resolve_latest_release_tag() {
+  local tag api="$GITHUB_RELEASES_API"
+  if command -v python3 >/dev/null 2>&1; then
+    tag="$(curl -fsSL "$api" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")"
+  else
+    tag="$(curl -fsSL "$api" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+  fi
+  tag="${tag//$'\r'/}"
+  tag="${tag//$'\n'/}"
+  if [[ -z "$tag" ]]; then
+    echo "failed to resolve latest GitHub release tag" >&2
+    exit 1
+  fi
+  echo "$tag"
+}
+
+resolve_install_version() {
+  if [[ "$INSTALL_VERSION" != latest ]]; then
+    return 0
+  fi
+  INSTALL_VERSION="$(resolve_latest_release_tag)"
+  echo "Latest release: ${INSTALL_VERSION}"
 }
 
 install_release_asset() {
@@ -347,12 +371,9 @@ setup_shell() {
 }
 
 install_solomon() {
+  resolve_install_version
   echo "Installing solomon (${INSTALL_VERSION})..."
-  if [[ "$INSTALL_VERSION" == latest ]]; then
-    go install "$SOLMON_PKG"
-  else
-    install_release_asset
-  fi
+  install_release_asset
   if command -v solomon >/dev/null 2>&1; then
     echo "solomon installed: $(command -v solomon)"
     solomon version 2>/dev/null || true
