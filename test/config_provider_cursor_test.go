@@ -1,10 +1,49 @@
 package test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
 )
+
+func TestCursorModelOrderOpusAboveSonnet(t *testing.T) {
+	ids := []string{
+		"claude-sonnet-4-20250514",
+		"claude-opus-4-20250514",
+		"claude-sonnet-4-6",
+		"claude-opus-4-5",
+	}
+	ordered := cursorint.OrderModelIDs(ids)
+	firstSonnet := -1
+	firstOpus := -1
+	for i, id := range ordered {
+		m := strings.ToLower(id)
+		if firstSonnet < 0 && strings.Contains(m, "sonnet") {
+			firstSonnet = i
+		}
+		if firstOpus < 0 && strings.Contains(m, "opus") {
+			firstOpus = i
+		}
+	}
+	if firstOpus < 0 || firstSonnet < 0 {
+		t.Fatalf("missing opus/sonnet in %v", ordered)
+	}
+	if firstOpus > firstSonnet {
+		t.Fatalf("opus should sort above sonnet, got %v", ordered)
+	}
+	flagship := cursorint.FilterModelIDs(ids)
+	for _, id := range flagship {
+		if strings.Contains(strings.ToLower(id), "sonnet") && !strings.Contains(strings.ToLower(id), "opus") {
+			for _, other := range ids {
+				if strings.Contains(strings.ToLower(other), "opus") {
+					t.Fatalf("filter picked sonnet %q over opus candidates %v", id, ids)
+				}
+			}
+		}
+	}
+}
 
 func TestProviderIsCursorAPI(t *testing.T) {
 	p := config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI}

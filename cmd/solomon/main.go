@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/providersetup"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/project"
@@ -173,7 +174,7 @@ func main() {
 		defer rl.Close()
 	}
 	setupIO := config.PromptIO{Stdin: os.Stdin, Out: os.Stdout, ReadLine: readLine}
-	if err := config.RunInitialSetup(setupIO, os.Stderr, cfg, configExists); err != nil {
+	if err := providersetup.RunInitialSetup(setupIO, os.Stderr, cfg, configExists); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "initial setup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
