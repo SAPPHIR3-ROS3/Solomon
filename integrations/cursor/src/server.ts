@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } from "./chat.js";
 import { sanitizeReflectedText, stripUnsafeControlChars, sanitizeModelId, isSafeToolName } from "./messages.js";
 import { clientAbortFromRequest } from "./run-control.js";
-import { JSON_RESPONSE_HEADERS } from "./openai-sse.js";
+import { sendJsonResponse } from "./openai-sse.js";
 import type {
   ChatCompletionRequest,
   ChatCompletionTool,
@@ -37,26 +37,22 @@ async function route(
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const path = url.pathname.replace(/\/+$/, "") || "/";
   if (req.method === "GET" && (path === "/health" || path === "/v1/health")) {
-    res.writeHead(200, JSON_RESPONSE_HEADERS);
-    res.end(JSON.stringify({ ok: true }));
+    sendJsonResponse(res, 200, { ok: true });
     return;
   }
   if (req.method === "GET" && (path === "/v1/models" || path === "/models")) {
     const all =
       url.searchParams.get("all") === "1" || url.searchParams.get("full") === "1";
     const ids = all ? await listAllModels(cfg.apiKey) : await listModels(cfg.apiKey);
-    res.writeHead(200, JSON_RESPONSE_HEADERS);
-    res.end(
-      JSON.stringify({
-        object: "list",
-        data: ids.map((id) => ({
-          id,
-          object: "model",
-          created: 0,
-          owned_by: "cursor",
-        })),
-      }),
-    );
+    sendJsonResponse(res, 200, {
+      object: "list",
+      data: ids.map((id) => ({
+        id,
+        object: "model",
+        created: 0,
+        owned_by: "cursor",
+      })),
+    });
     return;
   }
   if (
@@ -338,9 +334,7 @@ function parseChatCompletionRequest(body: string): ChatCompletionRequest {
 }
 
 function sendError(res: ServerResponse, code: number, message: string): void {
-  if (res.headersSent) {
-    return;
-  }
-  res.writeHead(code, JSON_RESPONSE_HEADERS);
-  res.end(JSON.stringify({ error: { message: sanitizeReflectedText(message), type: "proxy_error" } }));
+  sendJsonResponse(res, code, {
+    error: { message: sanitizeReflectedText(message), type: "proxy_error" },
+  });
 }

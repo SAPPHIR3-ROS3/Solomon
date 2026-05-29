@@ -12,10 +12,25 @@ export const SSE_RESPONSE_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
 };
 
+export function sendJsonResponse(res: ServerResponse, statusCode: number, payload: unknown): void {
+  if (res.headersSent || res.writableEnded || res.destroyed) {
+    return;
+  }
+  res.writeHead(statusCode, JSON_RESPONSE_HEADERS);
+  res.end(JSON.stringify(payload));
+}
+
+function ensureSSEHeaders(res: ServerResponse): void {
+  if (!res.headersSent && !res.writableEnded && !res.destroyed) {
+    res.writeHead(200, SSE_RESPONSE_HEADERS);
+  }
+}
+
 export function writeSSE(res: ServerResponse, payload: unknown): boolean {
   if (res.writableEnded || res.destroyed) {
     return false;
   }
+  ensureSSEHeaders(res);
   try {
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
     return true;
@@ -28,6 +43,7 @@ export function finishSSE(res: ServerResponse): void {
   if (res.writableEnded || res.destroyed) {
     return;
   }
+  ensureSSEHeaders(res);
   try {
     res.write("data: [DONE]\n\n");
     res.end();
