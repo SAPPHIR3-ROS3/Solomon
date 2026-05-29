@@ -2,6 +2,7 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } from "./chat.js";
 import { sanitizeReflectedText, stripUnsafeControlChars } from "./messages.js";
+import { clientAbortFromRequest } from "./run-control.js";
 import type {
   ChatCompletionRequest,
   ChatCompletionTool,
@@ -84,7 +85,7 @@ async function route(
       sendError(res, 400, "invalid request body");
       return;
     }
-    await handleChatCompletions(parsed, req, res, cfg);
+    await handleChatCompletions(parsed, clientAbortFromRequest(req), res, cfg);
     return;
   }
   sendError(res, 404, "not found");

@@ -61,8 +61,24 @@ export async function finalizeAgentRun(run: AgentRun | undefined): Promise<void>
   await releaseRun(run);
 }
 
+export type ClientAbortHandle = {
+  onAborted(listener: () => void): void;
+  offAborted(listener: () => void): void;
+};
+
+export function clientAbortFromRequest(req: IncomingMessage): ClientAbortHandle {
+  return {
+    onAborted: (listener) => {
+      req.on("aborted", listener);
+    },
+    offAborted: (listener) => {
+      req.off("aborted", listener);
+    },
+  };
+}
+
 export function wireClientAbort(
-  httpReq: IncomingMessage,
+  clientAbort: ClientAbortHandle,
   res: ServerResponse,
   getRun: () => AgentRun | undefined,
   onAbort: () => void,
@@ -76,7 +92,7 @@ export function wireClientAbort(
     onAbort();
     void forceStopRun(getRun());
   };
-  httpReq.on("aborted", fire);
+  clientAbort.onAborted(fire);
   const onResClose = () => {
     if (!res.writableFinished) {
       fire();
@@ -84,7 +100,7 @@ export function wireClientAbort(
   };
   res.on("close", onResClose);
   return () => {
-    httpReq.off("aborted", fire);
+    clientAbort.offAborted(fire);
     res.off("close", onResClose);
   };
 }

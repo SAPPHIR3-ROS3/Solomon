@@ -1,5 +1,5 @@
 import { Agent, Cursor, type SDKAgent, type SDKMessage } from "@cursor/sdk";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ServerResponse } from "node:http";
 import {
   buildPromptFromMessages,
   roughTokFromMessages,
@@ -30,6 +30,7 @@ import { filterFlagshipModelIDs, orderModelIDs } from "./model-filter.js";
 import { resolveModelSelection, type ModelInfo } from "./model-selection.js";
 import {
   type AgentRun,
+  type ClientAbortHandle,
   forceStopRun,
   finalizeAgentRun,
   finishStreamWithUsage,
@@ -136,7 +137,7 @@ async function sendStateless(
 
 export async function handleChatCompletions(
   body: ChatCompletionRequest,
-  httpReq: IncomingMessage,
+  clientAbort: ClientAbortHandle,
   res: ServerResponse,
   cfg: ProxyConfig,
 ): Promise<void> {
@@ -153,10 +154,10 @@ export async function handleChatCompletions(
   const completionId = newCompletionId();
   const turnOpts = turnOptsFromRequest(req);
   if (!stream) {
-    await handleNonStream(cfg, messages, completionId, model, modelSelection, httpReq, res, turnOpts);
+    await handleNonStream(cfg, messages, completionId, model, modelSelection, clientAbort, res, turnOpts);
     return;
   }
-  await streamCompletion(cfg, messages, completionId, model, modelSelection, httpReq, res, turnOpts);
+  await streamCompletion(cfg, messages, completionId, model, modelSelection, clientAbort, res, turnOpts);
 }
 
 function finishReasonForTools(bridgedCount: number, nativeTools: boolean): OpenAIFinishReason {
@@ -231,7 +232,7 @@ async function streamCompletion(
   completionId: string,
   model: string,
   modelSelection: ModelSelection,
-  httpReq: IncomingMessage,
+  clientAbort: ClientAbortHandle,
   res: ServerResponse,
   turnOpts: TurnOpts,
 ): Promise<void> {
@@ -252,7 +253,7 @@ async function streamCompletion(
       };
     },
   };
-  const unwireAbort = wireClientAbort(httpReq, res, () => run, () => {
+  const unwireAbort = wireClientAbort(clientAbort, res, () => run, () => {
     clientAborted = true;
   });
   try {
@@ -438,7 +439,7 @@ async function handleNonStream(
   completionId: string,
   model: string,
   modelSelection: ModelSelection,
-  httpReq: IncomingMessage,
+  clientAbort: ClientAbortHandle,
   res: ServerResponse,
   turnOpts: TurnOpts,
 ): Promise<void> {
@@ -459,7 +460,7 @@ async function handleNonStream(
       };
     },
   };
-  const unwireAbort = wireClientAbort(httpReq, res, () => run, () => {
+  const unwireAbort = wireClientAbort(clientAbort, res, () => run, () => {
     clientAborted = true;
   });
   try {
