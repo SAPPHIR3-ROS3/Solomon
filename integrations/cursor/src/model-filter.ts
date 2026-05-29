@@ -135,7 +135,7 @@ function pickLabFlagship(lab: Lab, ids: string[]): string {
   return best;
 }
 
-type FlagshipScore = { ver: number[]; tier: number; ok: boolean };
+type FlagshipScore = { ver: number[]; lineTier: number; tier: number; ok: boolean };
 
 function scoreLabModel(lab: Lab, id: string): FlagshipScore {
   switch (lab) {
@@ -150,11 +150,14 @@ function scoreLabModel(lab: Lab, id: string): FlagshipScore {
     case "kimi":
       return scoreKimi(id);
     default:
-      return { ver: [], tier: 0, ok: false };
+      return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
 }
 
 function flagshipBetter(a: FlagshipScore, b: FlagshipScore): boolean {
+  if (a.lineTier !== b.lineTier) {
+    return a.lineTier > b.lineTier;
+  }
   const c = compareVersionKeys(a.ver, b.ver);
   if (c !== 0) {
     return c > 0;
@@ -165,55 +168,49 @@ function flagshipBetter(a: FlagshipScore, b: FlagshipScore): boolean {
 function scoreComposer(id: string): FlagshipScore {
   const m = id.toLowerCase().trim();
   if (!m.startsWith("composer")) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
   const rest = m.slice("composer".length).replace(/^-/, "");
   if (!rest) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
   const parts = rest.split("-");
   const ver = parseVersionSegment(parts[0] ?? "");
   if (ver.length === 0) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
-  return { ver, tier: composerVariantTier(parts.slice(1)), ok: true };
+  return { ver, lineTier: 0, tier: composerVariantTier(parts.slice(1)), ok: true };
 }
 
 function scoreGPT(id: string): FlagshipScore {
   const m = id.toLowerCase().trim();
   if (!m.startsWith("gpt")) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
   for (const p of ["gpt-image", "gpt-realtime", "gpt-audio"]) {
     if (m.startsWith(p)) {
-      return { ver: [], tier: 0, ok: false };
+      return { ver: [], lineTier: 0, tier: 0, ok: false };
     }
   }
   const rest = m.slice("gpt-".length);
   const parts = rest.split("-");
   const ver = parseVersionSegment(parts[0] ?? "");
   if (ver.length === 0) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
-  return { ver, tier: gptVariantTier(parts.slice(1)), ok: true };
+  return { ver, lineTier: 0, tier: gptVariantTier(parts.slice(1)), ok: true };
 }
 
 function scoreAnthropic(id: string): FlagshipScore {
   const m = id.toLowerCase().trim();
   if (!m.includes("claude")) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
   let rest = m.replace(/^claude-?/, "");
   const parts = rest.split("-");
   const ver = versionKeyFromParts(parts);
-  let tier = anthropicModelLineTier(m);
-  if (m.includes("opus")) {
-    const t = anthropicVariantTier(parts);
-    if (t > 0) {
-      tier = t;
-    }
-  }
-  return { ver, tier, ok: true };
+  const lineTier = anthropicModelLineTier(m);
+  return { ver, lineTier, tier: anthropicVariantTier(parts), ok: true };
 }
 
 function anthropicModelLineTier(m: string): number {
@@ -232,21 +229,21 @@ function anthropicModelLineTier(m: string): number {
 function scoreGrok(id: string): FlagshipScore {
   const m = id.toLowerCase().trim();
   if (!m.includes("grok") || m.includes("build")) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
   const rest = m.replace(/^grok-/, "");
   const parts = rest.split("-");
   const ver = parseVersionSegment(parts[0] ?? "");
   if (ver.length === 0) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
-  return { ver, tier: grokVariantTier(parts.slice(1)), ok: true };
+  return { ver, lineTier: 0, tier: grokVariantTier(parts.slice(1)), ok: true };
 }
 
 function scoreKimi(id: string): FlagshipScore {
   const m = id.toLowerCase().trim();
   if (!m.includes("kimi")) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
   const idx = m.indexOf("kimi");
   let rest = m.slice(idx + 4).replace(/^-/, "").replace(/^k/, "");
@@ -262,9 +259,9 @@ function scoreKimi(id: string): FlagshipScore {
     }
   }
   if (ver.length === 0) {
-    return { ver: [], tier: 0, ok: false };
+    return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
-  return { ver, tier: 100, ok: true };
+  return { ver, lineTier: 0, tier: 100, ok: true };
 }
 
 function composerVariantTier(suffix: string[]): number {

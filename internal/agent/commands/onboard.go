@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/internal/providersetup"
 )
 
 func Onboard(d Deps) error {
@@ -26,7 +27,7 @@ func Onboard(d Deps) error {
 		}
 	}
 	existing := cloneRootSnapshot(d.Cfg)
-	res, err := config.RunOnboardWizard(pio, existing, config.OnboardOpts{})
+	res, err := providersetup.RunOnboardWizard(pio, existing, config.OnboardOpts{})
 	if err != nil {
 		return err
 	}

@@ -171,9 +171,10 @@ func pickLabFlagship(lab cursorLab, ids []string) string {
 }
 
 type flagshipScore struct {
-	ver  []int
-	tier int
-	ok   bool
+	ver      []int
+	lineTier int
+	tier     int
+	ok       bool
 }
 
 func scoreLabModel(lab cursorLab, id string) flagshipScore {
@@ -194,6 +195,9 @@ func scoreLabModel(lab cursorLab, id string) flagshipScore {
 }
 
 func flagshipBetter(a, b flagshipScore) bool {
+	if a.lineTier != b.lineTier {
+		return a.lineTier > b.lineTier
+	}
 	if c := compareVersionKeys(a.ver, b.ver); c != 0 {
 		return c > 0
 	}
@@ -217,6 +221,7 @@ func scoreComposer(id string) flagshipScore {
 	}
 	return flagshipScore{ver: ver, tier: composerVariantTier(parts[1:]), ok: true}
 }
+
 
 func scoreGPT(id string) flagshipScore {
 	m := strings.ToLower(strings.TrimSpace(id))
@@ -246,13 +251,8 @@ func scoreAnthropic(id string) flagshipScore {
 	rest = strings.TrimPrefix(rest, "-")
 	parts := strings.Split(rest, "-")
 	ver := versionKeyFromParts(parts)
-	tier := anthropicModelLineTier(m)
-	if strings.Contains(m, "opus") {
-		if t := anthropicVariantTier(parts); t > 0 {
-			tier = t
-		}
-	}
-	return flagshipScore{ver: ver, tier: tier, ok: true}
+	lineTier := anthropicModelLineTier(m)
+	return flagshipScore{ver: ver, lineTier: lineTier, tier: anthropicVariantTier(parts), ok: true}
 }
 
 func anthropicModelLineTier(m string) int {
