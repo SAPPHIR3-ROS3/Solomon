@@ -4,6 +4,7 @@ import {
   buildPromptFromMessages,
   roughTokFromMessages,
   roughTokFromString,
+  sanitizeModelId,
   sanitizeReflectedText,
 } from "./messages.js";
 import {
@@ -22,6 +23,8 @@ import {
 import {
   chunkDelta,
   finishSSE,
+  JSON_RESPONSE_HEADERS,
+  SSE_RESPONSE_HEADERS,
   usageChunk,
   writeSSE,
   type OpenAIUsagePayload,
@@ -142,7 +145,7 @@ export async function handleChatCompletions(
   cfg: ProxyConfig,
 ): Promise<void> {
   const req = body;
-  const model = (req.model ?? "composer-2.5").trim() || "composer-2.5";
+  const model = sanitizeModelId(req.model);
   const messages = req.messages ?? [];
   const stream = req.stream !== false;
   const modelSelection = resolveModelSelection(
@@ -277,11 +280,7 @@ async function streamCompletion(
       }
       return;
     }
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    });
+    res.writeHead(200, SSE_RESPONSE_HEADERS);
     res.on("error", () => {});
     let proseBuf = "";
     let thinkingBuf = "";
@@ -387,7 +386,7 @@ function sendStreamStartError(
 ): void {
   const msg = sanitizeReflectedText(err instanceof Error ? err.message : String(err));
   if (!res.headersSent) {
-    res.writeHead(500, { "Content-Type": "application/json" });
+    res.writeHead(500, JSON_RESPONSE_HEADERS);
     res.end(JSON.stringify({ error: { message: msg, type: "proxy_error" } }));
     return;
   }
@@ -547,7 +546,7 @@ async function handleNonStream(
       ],
       usage: buildOpenAIUsage(messages, sdkUsage, content, reasoning),
     };
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, JSON_RESPONSE_HEADERS);
     res.end(JSON.stringify(body));
   } finally {
     unwireAbort();
