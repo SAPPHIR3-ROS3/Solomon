@@ -23,7 +23,7 @@ import {
 import {
   chunkDelta,
   finishSSE,
-  JSON_RESPONSE_HEADERS,
+  sendJsonResponse,
   SSE_RESPONSE_HEADERS,
   usageChunk,
   writeSSE,
@@ -386,8 +386,7 @@ function sendStreamStartError(
 ): void {
   const msg = sanitizeReflectedText(err instanceof Error ? err.message : String(err));
   if (!res.headersSent) {
-    res.writeHead(500, JSON_RESPONSE_HEADERS);
-    res.end(JSON.stringify({ error: { message: msg, type: "proxy_error" } }));
+    sendJsonResponse(res, 500, { error: { message: msg, type: "proxy_error" } });
     return;
   }
   writeSSE(res, chunkDelta(completionId, model, { content: `\n[error] ${msg}` }));
@@ -546,8 +545,7 @@ async function handleNonStream(
       ],
       usage: buildOpenAIUsage(messages, sdkUsage, content, reasoning),
     };
-    res.writeHead(200, JSON_RESPONSE_HEADERS);
-    res.end(JSON.stringify(body));
+    sendJsonResponse(res, 200, body);
   } finally {
     unwireAbort();
     await finalizeAgentRun(run);
