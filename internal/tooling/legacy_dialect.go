@@ -29,6 +29,7 @@ func normalizeLegacyToolBlock(block string) string {
 
 func normalizeLegacyToolInner(inner string) string {
 	s := strings.TrimSpace(inner)
+	s = stripStrayToolCallBeforeNamedTool(s)
 	s = convertJSONToolCallTags(s)
 	s = reFunctionCallJSON.ReplaceAllStringFunc(s, func(m string) string {
 		sub := reFunctionCallJSON.FindStringSubmatch(m)
@@ -41,9 +42,7 @@ func normalizeLegacyToolInner(inner string) string {
 		return m
 	})
 	s = strings.ReplaceAll(s, "</tool_call>", "</tool>")
-	s = stripStrayToolCallBeforeNamedTool(s)
-	s = strings.ReplaceAll(s, "<tool_call>", "<tool>")
-	open := strings.Count(strings.ToLower(s), "<tool>")
+	open := strings.Count(strings.ToLower(s), "<tool name=")
 	close := strings.Count(s, "</tool>")
 	for close < open {
 		s += "</tool>"
@@ -80,7 +79,7 @@ func convertJSONToolCallTags(s string) string {
 		if conv := solomonToolFromJSONObject(inner); conv != "" {
 			b.WriteString(conv)
 		} else {
-			b.WriteString(normalizeLegacyToolInner(inner))
+			b.WriteString(normalizeLegacyToolInner(inner + "</tool_call>"))
 		}
 		s = rest
 		lower = strings.ToLower(s)
