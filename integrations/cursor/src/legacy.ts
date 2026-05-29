@@ -11,7 +11,7 @@ export function formatLegacyToolCallsBlock(tools: LegacyToolInvocation[]): strin
     if (t.intent && String(t.intent).trim() !== "") {
       parts.push(`<intent>${escapeXmlText(String(t.intent))}</intent>`);
     }
-    parts.push(`<args>${JSON.stringify(t.args ?? {})}</args>`);
+    parts.push(`<args>${escapeXmlText(JSON.stringify(t.args ?? {}))}</args>`);
     parts.push("</tool>");
   }
   parts.push("</tool_calls>");

@@ -4,6 +4,7 @@ import {
   buildPromptFromMessages,
   roughTokFromMessages,
   roughTokFromString,
+  sanitizeReflectedText,
 } from "./messages.js";
 import {
   formatLegacyToolCallsBlock,
@@ -359,7 +360,7 @@ async function streamCompletion(
         });
         return;
       }
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = sanitizeReflectedText(err instanceof Error ? err.message : String(err));
       proseBuf += `\n[error] ${msg}`;
       writeSSE(res, chunkDelta(completionId, model, { content: `\n[error] ${msg}` }));
       finishStreamWithUsage(res, completionId, model, {
@@ -383,7 +384,7 @@ function sendStreamStartError(
   model: string,
   err: unknown,
 ): void {
-  const msg = err instanceof Error ? err.message : String(err);
+  const msg = sanitizeReflectedText(err instanceof Error ? err.message : String(err));
   if (!res.headersSent) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { message: msg, type: "proxy_error" } }));
