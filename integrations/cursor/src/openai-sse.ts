@@ -1,5 +1,17 @@
 import type { ServerResponse } from "node:http";
 
+export const JSON_RESPONSE_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+  "X-Content-Type-Options": "nosniff",
+};
+
+export const SSE_RESPONSE_HEADERS: Record<string, string> = {
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache",
+  Connection: "keep-alive",
+  "X-Content-Type-Options": "nosniff",
+};
+
 export function writeSSE(res: ServerResponse, payload: unknown): boolean {
   if (res.writableEnded || res.destroyed) {
     return false;

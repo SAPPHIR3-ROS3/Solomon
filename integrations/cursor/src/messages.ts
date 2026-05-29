@@ -152,6 +152,23 @@ export function stripUnsafeControlChars(s: string): string {
   return out;
 }
 
+const DEFAULT_MODEL_ID = "composer-2.5";
+const MODEL_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+const TOOL_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
+
+export function sanitizeModelId(v: string | undefined): string {
+  const s = (v ?? DEFAULT_MODEL_ID).trim();
+  if (!s || s.length > 256 || !MODEL_ID_RE.test(s)) {
+    return DEFAULT_MODEL_ID;
+  }
+  return s;
+}
+
+export function isSafeToolName(name: string): boolean {
+  const s = name.trim();
+  return s.length > 0 && s.length <= 128 && TOOL_NAME_RE.test(s);
+}
+
 function formatAssistantToolCalls(toolCalls: ChatToolCall[]): string {
   const parts: string[] = ["<tool_calls>"];
   for (const tc of toolCalls) {

@@ -1,8 +1,9 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } from "./chat.js";
-import { sanitizeReflectedText, stripUnsafeControlChars } from "./messages.js";
+import { sanitizeReflectedText, stripUnsafeControlChars, sanitizeModelId, isSafeToolName } from "./messages.js";
 import { clientAbortFromRequest } from "./run-control.js";
+import { JSON_RESPONSE_HEADERS } from "./openai-sse.js";
 import type {
   ChatCompletionRequest,
   ChatCompletionTool,
@@ -36,7 +37,7 @@ async function route(
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const path = url.pathname.replace(/\/+$/, "") || "/";
   if (req.method === "GET" && (path === "/health" || path === "/v1/health")) {
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, JSON_RESPONSE_HEADERS);
     res.end(JSON.stringify({ ok: true }));
     return;
   }
@@ -44,7 +45,7 @@ async function route(
     const all =
       url.searchParams.get("all") === "1" || url.searchParams.get("full") === "1";
     const ids = all ? await listAllModels(cfg.apiKey) : await listModels(cfg.apiKey);
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, JSON_RESPONSE_HEADERS);
     res.end(
       JSON.stringify({
         object: "list",
@@ -85,7 +86,15 @@ async function route(
       sendError(res, 400, "invalid request body");
       return;
     }
-    await handleChatCompletions(parsed, clientAbortFromRequest(req), res, cfg);
+    try {
+      await handleChatCompletions(parsed, clientAbortFromRequest(req), res, cfg);
+    } catch (err) {
+      if (res.headersSent) {
+        throw err;
+      }
+      sendError(res, 500, err instanceof Error ? err.message : String(err));
+      return;
+    }
     return;
   }
   sendError(res, 404, "not found");
@@ -202,7 +211,7 @@ function sanitizeToolCalls(v: unknown): ChatToolCall[] | undefined {
     }
     const f = fn as Record<string, unknown>;
     const name = boundedString(f.name, MAX_TOOL_NAME_CHARS)?.trim();
-    if (!name) {
+    if (!name || !isSafeToolName(name)) {
       continue;
     }
     const args = boundedString(f.arguments, MAX_CONTENT_CHARS) ?? "{}";
@@ -261,7 +270,7 @@ function sanitizeTools(v: unknown): ChatCompletionTool[] | undefined {
     }
     const f = fn as Record<string, unknown>;
     const name = boundedString(f.name, MAX_TOOL_NAME_CHARS)?.trim();
-    if (!name) {
+    if (!name || !isSafeToolName(name)) {
       continue;
     }
     const description = optionalBoundedString(f.description, MAX_CONTENT_CHARS);
@@ -303,15 +312,15 @@ function parseChatCompletionRequest(body: string): ChatCompletionRequest {
     }
     messages.push(sm);
   }
-  const model = optionalBoundedString(o.model, MAX_MODEL_CHARS);
+  const modelRaw = optionalBoundedString(o.model, MAX_MODEL_CHARS);
   const stream = o.stream === undefined ? undefined : o.stream === true;
   const reasoningEffort = optionalBoundedString(o.reasoning_effort, 32);
   const solomonFastMode =
     o.solomon_fast_mode === undefined ? undefined : o.solomon_fast_mode !== false;
   const tools = sanitizeTools(o.tools);
   const req: ChatCompletionRequest = { messages };
-  if (model) {
-    req.model = model;
+  if (modelRaw) {
+    req.model = sanitizeModelId(modelRaw);
   }
   if (stream !== undefined) {
     req.stream = stream;
@@ -329,6 +338,9 @@ function parseChatCompletionRequest(body: string): ChatCompletionRequest {
 }
 
 function sendError(res: ServerResponse, code: number, message: string): void {
-  res.writeHead(code, { "Content-Type": "application/json" });
+  if (res.headersSent) {
+    return;
+  }
+  res.writeHead(code, JSON_RESPONSE_HEADERS);
   res.end(JSON.stringify({ error: { message: sanitizeReflectedText(message), type: "proxy_error" } }));
 }
