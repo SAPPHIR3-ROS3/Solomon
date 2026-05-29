@@ -10,7 +10,14 @@ import {
   tryCollectLegacyTool,
   type LegacyToolInvocation,
 } from "./legacy.js";
-import type { ChatCompletionRequest, ChatMessage } from "./openai-types.js";
+import type { ChatCompletionRequest, ChatCompletionTool, ChatMessage } from "./openai-types.js";
+import {
+  allowedToolNamesFromRequest,
+  filterInvocations,
+  openAIToolCallsFromInvocations,
+  requestUsesNativeTools,
+  writeSSEToolCalls,
+} from "./openai-tools.js";
 import {
   chunkDelta,
   finishSSE,
@@ -27,6 +34,7 @@ import {
   finishStreamWithUsage,
   wireClientAbort,
   type CursorTurnUsage,
+  type OpenAIFinishReason,
 } from "./run-control.js";
 import { newCompletionId } from "./sessions.js";
 import type { ModelSelection } from "./model-selection.js";
@@ -93,14 +101,29 @@ async function disposeAgent(agent: SDKAgent | undefined): Promise<void> {
   }
 }
 
+type TurnOpts = {
+  tools?: ChatCompletionTool[];
+  nativeTools: boolean;
+  allowedNames: Set<string> | null;
+};
+
+function turnOptsFromRequest(req: ChatCompletionRequest): TurnOpts {
+  return {
+    tools: req.tools,
+    nativeTools: requestUsesNativeTools(req.tools),
+    allowedNames: allowedToolNamesFromRequest(req.tools),
+  };
+}
+
 async function sendStateless(
   cfg: ProxyConfig,
   modelSelection: ModelSelection,
   messages: ChatMessage[],
   sendOpts: AgentSendOpts,
+  tools?: ChatCompletionTool[],
 ): Promise<{ agent: SDKAgent; run: AgentRun }> {
   const agent = await createAgent(cfg, modelSelection);
-  const prompt = buildPromptFromMessages(messages);
+  const prompt = buildPromptFromMessages(messages, tools);
   try {
     const run = await agent.send(prompt, sendOpts);
     return { agent, run };
@@ -127,11 +150,38 @@ export async function handleChatCompletions(
     req.solomon_fast_mode ?? true,
   );
   const completionId = newCompletionId();
+  const turnOpts = turnOptsFromRequest(req);
   if (!stream) {
-    await handleNonStream(cfg, messages, completionId, model, modelSelection, httpReq, res);
+    await handleNonStream(cfg, messages, completionId, model, modelSelection, httpReq, res, turnOpts);
     return;
   }
-  await streamCompletion(cfg, messages, completionId, model, modelSelection, httpReq, res);
+  await streamCompletion(cfg, messages, completionId, model, modelSelection, httpReq, res, turnOpts);
+}
+
+function finishReasonForTools(bridgedCount: number, nativeTools: boolean): OpenAIFinishReason {
+  if (bridgedCount > 0 && nativeTools) {
+    return "tool_calls";
+  }
+  return "stop";
+}
+
+function emitBridgedTools(
+  res: ServerResponse,
+  completionId: string,
+  model: string,
+  pending: LegacyToolInvocation[],
+  turnOpts: TurnOpts,
+): LegacyToolInvocation[] {
+  const bridged = filterInvocations(pending, turnOpts.allowedNames);
+  if (bridged.length === 0) {
+    return bridged;
+  }
+  if (turnOpts.nativeTools) {
+    writeSSEToolCalls(res, completionId, model, bridged);
+  } else {
+    writeSSE(res, chunkDelta(completionId, model, { content: formatLegacyToolCallsBlock(bridged) }));
+  }
+  return bridged;
 }
 
 function buildOpenAIUsage(
@@ -182,6 +232,7 @@ async function streamCompletion(
   modelSelection: ModelSelection,
   httpReq: IncomingMessage,
   res: ServerResponse,
+  turnOpts: TurnOpts,
 ): Promise<void> {
   let sdkUsage: CursorTurnUsage | undefined;
   let run: AgentRun | undefined;
@@ -205,7 +256,7 @@ async function streamCompletion(
   });
   try {
     try {
-      const sent = await sendStateless(cfg, modelSelection, messages, sendOpts);
+      const sent = await sendStateless(cfg, modelSelection, messages, sendOpts, turnOpts.tools);
       agent = sent.agent;
       run = sent.run;
     } catch (err) {
@@ -267,24 +318,31 @@ async function streamCompletion(
           break;
         }
       }
-      const finishStream = () => {
-        finishStreamWithUsage(res, completionId, model, {
-          messages,
-          sdkUsage,
-          textBuf: proseBuf,
-          thinkingBuf,
-          buildUsage: buildOpenAIUsage,
-        });
+      const finishStream = (finishReason: OpenAIFinishReason = "stop") => {
+        finishStreamWithUsage(
+          res,
+          completionId,
+          model,
+          {
+            messages,
+            sdkUsage,
+            textBuf: proseBuf,
+            thinkingBuf,
+            buildUsage: buildOpenAIUsage,
+          },
+          finishReason,
+        );
       };
       if (clientAborted) {
         finishStream();
         return;
       }
       if (pendingLegacy.length > 0) {
-        const block = formatLegacyToolCallsBlock(pendingLegacy);
-        writeSSE(res, chunkDelta(completionId, model, { content: block }));
-        proseBuf += block;
-        finishStream();
+        const bridged = emitBridgedTools(res, completionId, model, pendingLegacy, turnOpts);
+        if (!turnOpts.nativeTools) {
+          proseBuf += formatLegacyToolCallsBlock(bridged);
+        }
+        finishStream(finishReasonForTools(bridged.length, turnOpts.nativeTools));
         return;
       }
       if (!legacyEmitted) {
@@ -381,6 +439,7 @@ async function handleNonStream(
   modelSelection: ModelSelection,
   httpReq: IncomingMessage,
   res: ServerResponse,
+  turnOpts: TurnOpts,
 ): Promise<void> {
   let sdkUsage: CursorTurnUsage | undefined;
   let run: AgentRun | undefined;
@@ -403,7 +462,7 @@ async function handleNonStream(
     clientAborted = true;
   });
   try {
-    const sent = await sendStateless(cfg, modelSelection, messages, sendOpts);
+    const sent = await sendStateless(cfg, modelSelection, messages, sendOpts, turnOpts.tools);
     agent = sent.agent;
     run = sent.run;
     let content = "";
@@ -451,11 +510,26 @@ async function handleNonStream(
     if (toolDetected) {
       await forceStopRun(run);
     }
-    if (pendingLegacy.length > 0) {
-      content = (toolDetected ? "" : content) + formatLegacyToolCallsBlock(pendingLegacy);
+    const bridged = filterInvocations(pendingLegacy, turnOpts.allowedNames);
+    const toolCalls = openAIToolCallsFromInvocations(bridged);
+    if (bridged.length > 0 && !turnOpts.nativeTools) {
+      content = (toolDetected ? "" : content) + formatLegacyToolCallsBlock(bridged);
     }
     if (res.writableEnded || res.destroyed) {
       return;
+    }
+    const finishReason = finishReasonForTools(bridged.length, turnOpts.nativeTools);
+    let messageContent: string | null = content;
+    if (turnOpts.nativeTools && toolCalls.length > 0) {
+      messageContent = toolDetected ? content.trim() || null : content || null;
+    }
+    const message: Record<string, unknown> = {
+      role: "assistant",
+      content: messageContent,
+      ...(reasoning ? { reasoning_content: reasoning } : {}),
+    };
+    if (turnOpts.nativeTools && toolCalls.length > 0) {
+      message.tool_calls = toolCalls;
     }
     const body = {
       id: completionId,
@@ -465,12 +539,8 @@ async function handleNonStream(
       choices: [
         {
           index: 0,
-          message: {
-            role: "assistant",
-            content,
-            ...(reasoning ? { reasoning_content: reasoning } : {}),
-          },
-          finish_reason: "stop",
+          message,
+          finish_reason: finishReason,
         },
       ],
       usage: buildOpenAIUsage(messages, sdkUsage, content, reasoning),

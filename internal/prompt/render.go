@@ -99,6 +99,8 @@ func ToolInvocationSyntaxSection(legacyEnabled, legacyForced, planMode bool) str
 func legacyToolInvocationSyntaxCommon() string {
 	return `
 
+Preferred wrapper (Solomon canonical):
+
 <tool_calls>
 <tool name="TOOL_NAME">
 <intent>brief purpose when the tool supports intent</intent>
@@ -106,13 +108,18 @@ func legacyToolInvocationSyntaxCommon() string {
 </tool>
 </tool_calls>
 
+Also accepted (normalized automatically before execution):
+- Qwen-style JSON in tags: <tool_call>{"name":"TOOL_NAME","arguments":{...}}</tool_call>
+- Glaive-style: <functioncall>{"name":"TOOL_NAME","arguments":{...}}</functioncall>
+- Mixed Solomon + misspelled closers: use <tool name="..."> with <args>{...}</args> and close with </tool> (not </tool_call>); do not nest <tool_call> around <tool name="...">.
+
 Rules:
 - In the skeleton above, TOOL_NAME is syntax only, not a callable tool; substitute an exact name from ## Available tools below (never emit the literal string TOOL_NAME).
-- Solomon parses <tool_calls> only from your main assistant response text, not from reasoning or thinking. You may plan tool use there, but only XML in the response body is executed.
-- Use exactly one <tool_calls> block per assistant reply that invokes tools.
-- Put optional prose before the block; do not emit text after </tool_calls>.
-- Each <args> must be a valid JSON object matching the tool schema.
-- Multiple tools: include multiple <tool> entries in order of execution.
+- Solomon parses tool XML only from your main assistant response text, not from reasoning or thinking. You may plan tool use there, but only XML in the response body is executed.
+- Use exactly one tool-invocation region per assistant reply that calls tools (prefer one <tool_calls> wrapper).
+- Put optional prose before the block; do not emit text after the closing tag (</tool_calls> or last </tool> / </tool_call>).
+- Each <args> must be a valid JSON object matching the tool schema (for JSON-in-<tool_call>, put arguments in the "arguments" or "args" field).
+- Multiple tools: include multiple <tool> entries (or multiple <tool_call> JSON objects) in order of execution.
 `
 }
 

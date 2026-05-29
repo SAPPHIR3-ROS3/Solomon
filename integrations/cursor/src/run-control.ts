@@ -89,17 +89,20 @@ export function wireClientAbort(
   };
 }
 
+export type OpenAIFinishReason = "stop" | "tool_calls" | null;
+
 export function endOpenAIStream(
   res: ServerResponse,
   completionId: string,
   model: string,
   usage: OpenAIUsagePayload,
+  finishReason: OpenAIFinishReason = "stop",
 ): void {
   if (res.writableEnded || res.destroyed) {
     return;
   }
   writeSSE(res, usageChunk(completionId, model, usage));
-  writeSSE(res, chunkDelta(completionId, model, {}, "stop"));
+  writeSSE(res, chunkDelta(completionId, model, {}, finishReason));
   finishSSE(res);
 }
 
@@ -127,11 +130,13 @@ export function finishStreamWithUsage(
   completionId: string,
   model: string,
   input: StreamUsageInput,
+  finishReason: OpenAIFinishReason = "stop",
 ): void {
   endOpenAIStream(
     res,
     completionId,
     model,
     input.buildUsage(input.messages, input.sdkUsage, input.textBuf, input.thinkingBuf),
+    finishReason,
   );
 }

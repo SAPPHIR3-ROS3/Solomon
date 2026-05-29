@@ -50,7 +50,14 @@ func (w *LegacyStreamWriter) TruncatedContent() string {
 
 func (w *LegacyStreamWriter) HasOpenToolCalls() bool {
 	combined := w.prefix.String() + w.block.String() + string(w.held)
-	return strings.Contains(combined, tagToolCallsOpen) && !strings.Contains(combined, tagToolCallsClose)
+	lower := strings.ToLower(combined)
+	if strings.Contains(lower, strings.ToLower(tagToolCallsOpen)) {
+		return strings.Count(lower, strings.ToLower(tagToolCallsOpen)) > strings.Count(lower, strings.ToLower(tagToolCallsClose))
+	}
+	if strings.Contains(lower, "<tool_call>") {
+		return strings.Count(lower, "<tool_call>") > strings.Count(lower, "</tool_call>")
+	}
+	return false
 }
 
 func (w *LegacyStreamWriter) Write(p []byte) (int, error) {
@@ -139,7 +146,7 @@ func (w *LegacyStreamWriter) writeBuffering(data []byte) ([]byte, error) {
 	w.block.Reset()
 	w.block.WriteString(fullBlock)
 	w.state = streamDone
-	invs, err := ParseToolCallsBlock(fullBlock)
+	invs, err := ParseToolCallsBlock(normalizeLegacyToolBlock(fullBlock))
 	if err != nil {
 		return nil, err
 	}

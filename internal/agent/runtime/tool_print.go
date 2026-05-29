@@ -14,7 +14,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
 )
 
-const legacyToolJSONCorrectionUserMsg = "Your previous reply contained a malformed <tool_calls> block. Use exactly this shape with valid JSON in each <args> tag:\n<tool_calls>\n<tool name=\"TOOL_NAME\">\n<intent>brief purpose</intent>\n<args>{\"key\":\"value\"}</args>\n</tool>\n</tool_calls>\nSend a corrected block only, or continue without tools if you meant plain text."
+const legacyToolJSONCorrectionUserMsg = "Your previous reply contained a malformed tool-invocation block. Preferred shape:\n<tool_calls>\n<tool name=\"TOOL_NAME\">\n<intent>brief purpose</intent>\n<args>{\"key\":\"value\"}</args>\n</tool>\n</tool_calls>\nAlso accepted: <tool_call>{\"name\":\"TOOL_NAME\",\"arguments\":{...}}</tool_call> or <functioncall>{\"name\":\"TOOL_NAME\",\"arguments\":{...}}</functioncall> with valid JSON. Close <tool name=\"...\"> with </tool>, not </tool_call>. Send a corrected block only, or continue without tools if you meant plain text."
 
 func newLegacyStreamWriter(out io.Writer, enabled bool, allowed map[string]struct{}) (*tooling.LegacyStreamWriter, io.Writer) {
 	if !enabled {

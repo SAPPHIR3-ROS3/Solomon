@@ -1,5 +1,6 @@
 import type { SDKImage, SDKUserMessage } from "@cursor/sdk";
-import type { ChatMessage, ChatToolCall, ContentPart } from "./openai-types.js";
+import type { ChatCompletionTool, ChatMessage, ChatToolCall, ContentPart } from "./openai-types.js";
+import { harnessToolsClause } from "./openai-tools.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -100,19 +101,25 @@ const HARNESS_MARKER = "[Harness]";
 const HARNESS_CLAUSES: string[] = [
   `${HARNESS_MARKER} Interaction mode: this is not a normal Cursor IDE agent session. You are behind a remote host harness proxy. Cursor built-in tools are unavailable (Read, Write, Edit, Shell, Grep, Glob, rg, SemanticSearch, Task, browser tools, etc.). You cannot access the workspace except through the harness.`,
   `${HARNESS_MARKER} Results: the host executes tools and returns output as [tool result …] lines in later turns. Do not invent or quote file contents unless they appeared in a prior tool result or the user's message.`,
-  `${HARNESS_MARKER} Invocation transport: emit exactly one <tool_calls> XML block in the visible assistant response body when you need an action (not in reasoning/thinking). SDK-native tool_use / tool_call events from this stack are bridged when mappable; prefer explicit XML with harness tool names.`,
+  `${HARNESS_MARKER} Invocation transport: emit exactly one tool-invocation region in the visible assistant response body when you need an action (not in reasoning/thinking). SDK-native tool_use / tool_call events from this stack are bridged when mappable; prefer explicit XML with harness tool names.`,
   `${HARNESS_MARKER} Tool names: use only names listed under ## Available tools in the system message (e.g. readFile, shell, editFile). Map inspection → readFile, terminal commands → shell, file edits → editFile.`,
-  `${HARNESS_MARKER} XML shape: <tool_calls><tool name="TOOL"><intent>brief purpose when supported</intent><args>{"key":"value"}</args></tool></tool_calls> — one block per reply that invokes tools; valid JSON in each <args>; optional prose before the block; no text after </tool_calls>.`,
+  `${HARNESS_MARKER} Preferred XML: <tool_calls><tool name="TOOL"><intent>brief purpose when supported</intent><args>{"key":"value"}</args></tool></tool_calls>. Also accepted: <tool_call>{"name":"TOOL","arguments":{...}}</tool_call> (Qwen-style) and <functioncall>{"name":"TOOL","arguments":{...}}</functioncall> (Glaive-style). Use </tool> to close <tool name="...">, not </tool_call>; do not wrap <tool name="..."> inside <tool_call>. Valid JSON in each <args> or in arguments; optional prose before the block; no text after the closing tag.`,
 ];
 
-export function harnessPreamble(): string {
-  return HARNESS_CLAUSES.join("\n\n") + "\n\n";
+export function harnessPreamble(tools?: ChatCompletionTool[]): string {
+  const parts = [...HARNESS_CLAUSES];
+  const toolsClause = harnessToolsClause(tools);
+  if (toolsClause) {
+    parts.push(toolsClause);
+  }
+  return parts.join("\n\n") + "\n\n";
 }
 
 export function withHarnessPreamble(
   prompt: string | SDKUserMessage,
+  tools?: ChatCompletionTool[],
 ): string | SDKUserMessage {
-  const prefix = harnessPreamble();
+  const prefix = harnessPreamble(tools);
   if (typeof prompt === "string") {
     return prefix + prompt;
   }
@@ -168,13 +175,16 @@ export function formatChatMessage(m: ChatMessage): string {
 /** @deprecated use formatChatMessage */
 export const formatDeltaMessage = formatChatMessage;
 
-export function buildPromptFromMessages(messages: ChatMessage[]): string | SDKUserMessage {
+export function buildPromptFromMessages(
+  messages: ChatMessage[],
+  tools?: ChatCompletionTool[],
+): string | SDKUserMessage {
   if (messages.length === 1 && messages[0].role === "user") {
-    return withHarnessPreamble(messageToUserPayload(messages[0]));
+    return withHarnessPreamble(messageToUserPayload(messages[0]), tools);
   }
   const lines: string[] = [];
   for (const m of messages) {
     lines.push(formatChatMessage(m));
   }
-  return withHarnessPreamble(lines.join("\n\n"));
+  return withHarnessPreamble(lines.join("\n\n"), tools);
 }

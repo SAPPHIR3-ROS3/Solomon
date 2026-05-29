@@ -16,6 +16,18 @@ export type ContentPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string; detail?: string } };
 
+export type ChatCompletionFunctionTool = {
+  type?: "function";
+  function: {
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+    strict?: boolean;
+  };
+};
+
+export type ChatCompletionTool = ChatCompletionFunctionTool;
+
 export type ChatCompletionRequest = {
   model?: string;
   messages: ChatMessage[];
@@ -23,6 +35,9 @@ export type ChatCompletionRequest = {
   temperature?: number;
   reasoning_effort?: string;
   solomon_fast_mode?: boolean;
+  tools?: ChatCompletionTool[];
+  tool_choice?: "none" | "auto" | "required" | { type: "function"; function: { name: string } };
+  parallel_tool_calls?: boolean;
 };
 
 export type ModelListResponse = {
