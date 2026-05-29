@@ -81,6 +81,65 @@ func TestParseToolCallsBlock_single(t *testing.T) {
 	}
 }
 
+func TestParseToolCallsBlock_qwenJSONToolCall(t *testing.T) {
+	block := `<tool_call>{"name":"readFile","arguments":{"path":"main.go"}}</tool_call>`
+	invs, err := tooling.ParseToolCallsBlock(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(invs) != 1 || invs[0].Name != "readFile" {
+		t.Fatalf("got %+v", invs)
+	}
+	var m map[string]string
+	if err := json.Unmarshal(invs[0].Args, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["path"] != "main.go" {
+		t.Fatalf("args=%v", m)
+	}
+}
+
+func TestParseToolCallsBlock_glaiveFunctionCall(t *testing.T) {
+	block := `<functioncall>{"name":"shell","arguments":{"command":"echo hi","intent":"test"}}</functioncall>`
+	invs, err := tooling.ParseToolCallsBlock(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(invs) != 1 || invs[0].Name != "shell" {
+		t.Fatalf("got %+v", invs)
+	}
+}
+
+func TestParseToolCallsBlock_mixedToolCallCloseTags(t *testing.T) {
+	block := `<tool_calls>
+<tool name="shell">
+<args>{"command":"rg onboard"}</args>
+</tool>
+<tool_call>
+<tool name="readFile">
+<args>{"path":"onboard.go"}</args>
+</tool_call>
+</tool_calls>`
+	invs, err := tooling.ParseToolCallsBlock(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(invs) != 2 || invs[0].Name != "shell" || invs[1].Name != "readFile" {
+		t.Fatalf("got %+v", invs)
+	}
+}
+
+func TestExtractToolInvocations_qwenWithoutWrapper(t *testing.T) {
+	text := "I'll read the file.\n\n<tool_call>{\"name\":\"readFile\",\"arguments\":{\"path\":\"a.go\"}}</tool_call>"
+	invs, err := tooling.ExtractToolInvocations(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(invs) != 1 || invs[0].Name != "readFile" {
+		t.Fatalf("got %+v", invs)
+	}
+}
+
 func TestParseToolCallsBlock_multiple(t *testing.T) {
 	invs, err := tooling.ParseToolCallsBlock(sampleMultiLegacyToolCalls)
 	if err != nil {

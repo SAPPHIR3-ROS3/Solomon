@@ -21,7 +21,7 @@ var (
 )
 
 func ParseToolCallsBlock(block string) ([]Invocation, error) {
-	block = strings.TrimSpace(block)
+	block = strings.TrimSpace(normalizeLegacyToolBlock(block))
 	if block == "" {
 		return nil, fmt.Errorf("%w: empty tool_calls block", ErrMalformedLegacyTool)
 	}
@@ -108,50 +108,11 @@ func parseToolBody(name, body string) (Invocation, error) {
 }
 
 func StripLegacyToolBlocks(text string) string {
-	for {
-		open := strings.Index(text, tagToolCallsOpen)
-		if open < 0 {
-			break
-		}
-		closeRel := strings.Index(text[open:], tagToolCallsClose)
-		if closeRel < 0 {
-			return strings.TrimSpace(text[:open])
-		}
-		close := open + closeRel + len(tagToolCallsClose)
-		before := strings.TrimSpace(text[:open])
-		after := strings.TrimSpace(text[close:])
-		switch {
-		case before != "" && after != "":
-			text = before + "\n" + after
-		case before != "":
-			text = before
-		default:
-			text = after
-		}
-	}
-	return strings.TrimSpace(text)
+	return stripLegacyToolRegions(text)
 }
 
 func LegacyProseOutsideToolCalls(text string) string {
-	open := strings.Index(text, tagToolCallsOpen)
-	if open < 0 {
-		return strings.TrimSpace(text)
-	}
-	closeRel := strings.Index(text[open:], tagToolCallsClose)
-	if closeRel < 0 {
-		return strings.TrimSpace(text[:open])
-	}
-	close := open + closeRel + len(tagToolCallsClose)
-	before := strings.TrimSpace(text[:open])
-	after := strings.TrimSpace(text[close:])
-	switch {
-	case before != "" && after != "":
-		return before + "\n" + after
-	case before != "":
-		return before
-	default:
-		return after
-	}
+	return stripLegacyToolRegions(text)
 }
 
 func legacyErrorSnippet(s string) string {
@@ -165,14 +126,17 @@ func legacyErrorSnippet(s string) string {
 }
 
 func extractToolCallsBlock(text string) (string, bool, error) {
-	open := strings.Index(text, tagToolCallsOpen)
-	if open < 0 {
-		return "", false, nil
+	open := strings.Index(strings.ToLower(text), strings.ToLower(tagToolCallsOpen))
+	if open >= 0 {
+		closeRel := strings.Index(strings.ToLower(text[open:]), strings.ToLower(tagToolCallsClose))
+		if closeRel < 0 {
+			return "", true, fmt.Errorf("%w: unclosed tool_calls block", ErrMalformedLegacyTool)
+		}
+		close := open + closeRel + len(tagToolCallsClose)
+		return text[open:close], true, nil
 	}
-	close := strings.Index(text[open:], tagToolCallsClose)
-	if close < 0 {
-		return "", true, fmt.Errorf("%w: unclosed tool_calls block", ErrMalformedLegacyTool)
+	if alt, ok := extractAlternateToolBlock(text); ok {
+		return alt, true, nil
 	}
-	close += open
-	return text[open : close+len(tagToolCallsClose)], false, nil
+	return "", false, nil
 }
