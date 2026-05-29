@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 )

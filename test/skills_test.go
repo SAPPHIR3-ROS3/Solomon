@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 )
 
 func TestNormalizeRepoURL(t *testing.T) {

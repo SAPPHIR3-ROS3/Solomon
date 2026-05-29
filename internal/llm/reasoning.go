@@ -1,6 +1,6 @@
 package llm
 
-import "github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+import "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 
 func LastAssistantIndex(msgs []chatstore.Message) int {
 	for i := len(msgs) - 1; i >= 0; i-- {

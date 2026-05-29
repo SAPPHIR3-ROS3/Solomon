@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Solomon
-        run: go install ./cmd/solomon
+        run: go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
       - name: Stream JSONL events
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Solomon
-        run: go install ./cmd/solomon
+        run: go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
       - name: Write final JSON report
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

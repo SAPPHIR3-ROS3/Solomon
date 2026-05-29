@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
+	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
 )
 
 func TestReplComplete_slashCommandPrefix(t *testing.T) {

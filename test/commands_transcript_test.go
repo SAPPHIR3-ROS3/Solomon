@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 )
 
 func TestFormatChatTranscript_OmitsReasoning(t *testing.T) {

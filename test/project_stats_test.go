@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
 func TestProjectWelcomeStatsIncremental(t *testing.T) {

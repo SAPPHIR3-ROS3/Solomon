@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 )
 
 func TestSearchSkill_fallsBackToFullFileWhenDescriptionMiss(t *testing.T) {

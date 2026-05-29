@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
 )

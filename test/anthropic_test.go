@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
 
 func TestMessagesForAPI_OnlyLastAssistantKeepsReasoning(t *testing.T) {

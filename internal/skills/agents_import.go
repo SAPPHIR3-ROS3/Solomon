@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 // AgentsSkillsRoot is ~/.agents/skills, where the npm "skills" CLI installs. That package does not allow choosing another directory, so Solomon runs installs there and copies the resulting folder into ~/.solomon/skills (or project/local paths) for the registry.

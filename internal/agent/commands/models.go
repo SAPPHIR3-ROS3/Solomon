@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 )
 
 type ListedModel struct {

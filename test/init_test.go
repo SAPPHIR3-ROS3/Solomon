@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 func TestMain(m *testing.M) {

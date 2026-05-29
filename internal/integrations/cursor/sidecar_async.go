@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 )
 
 type DiscardBootstrap struct{}

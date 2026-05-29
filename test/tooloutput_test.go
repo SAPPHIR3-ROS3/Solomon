@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooloutput"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
 )
 
 const testProjectHex = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/instructions"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
 )
 
 func (r *Runtime) activateInstructionsFromAbsPath(absPath string) {

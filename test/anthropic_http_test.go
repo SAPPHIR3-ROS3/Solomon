@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
 func anthropicSSEBody(events ...map[string]any) string {

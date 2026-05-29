@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 )
 
 func TestJSONLEmitterOneLinePerEvent(t *testing.T) {

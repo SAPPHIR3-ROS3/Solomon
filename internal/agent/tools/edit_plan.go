@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/project"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
 )

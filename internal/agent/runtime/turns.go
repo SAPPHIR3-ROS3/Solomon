@@ -11,16 +11,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/title"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/title"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
 func flushWriter(w io.Writer) {

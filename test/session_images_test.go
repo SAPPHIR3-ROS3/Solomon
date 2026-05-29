@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 )
 
 func TestRemoveBrokenSessionImageFiles_regressionPanicFree(t *testing.T) {

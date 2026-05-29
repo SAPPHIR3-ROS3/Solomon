@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 type InstallOpts struct {

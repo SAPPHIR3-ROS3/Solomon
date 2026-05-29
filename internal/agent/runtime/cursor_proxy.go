@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 type runtimeBootstrapOut struct {

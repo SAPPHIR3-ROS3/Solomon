@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 const (

@@ -7,9 +7,9 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands/connect"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 const slashModelMoreCmd = ">"

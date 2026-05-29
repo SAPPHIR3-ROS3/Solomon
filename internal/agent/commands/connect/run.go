@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/providersetup"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/providersetup"
 )
 
 func Run(d Deps) error {

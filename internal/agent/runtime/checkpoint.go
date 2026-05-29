@@ -3,9 +3,9 @@ package agentruntime
 import (
 	"context"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 )
 
 func (r *Runtime) checkpointStageProjAbs(absResolved string) {

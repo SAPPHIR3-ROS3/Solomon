@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
-	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/project"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
+	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 
 	readline "github.com/chzyer/readline"
 )

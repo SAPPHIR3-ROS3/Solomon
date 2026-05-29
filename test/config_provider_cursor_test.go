@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 )
 
 func TestCursorModelOrderOpusAboveSonnet(t *testing.T) {

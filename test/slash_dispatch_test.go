@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 )
 
 func TestSlashDispatch_emptyWhitespace(t *testing.T) {

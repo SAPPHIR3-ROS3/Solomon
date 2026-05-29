@@ -1,7 +1,7 @@
 package commands
 
 import (
-	connectcmd "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands/connect"
+	connectcmd "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 )
 
 func Connect(d Deps) error {

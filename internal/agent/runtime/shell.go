@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 )
 
 func (r *Runtime) releaseTTYForSubprocess() func() {

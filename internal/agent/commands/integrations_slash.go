@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 )
 
 func SlashIntegrations(d Deps) error {

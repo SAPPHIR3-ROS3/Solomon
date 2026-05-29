@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
 
 func RunProviderSetupByKind(ctx context.Context, pio config.PromptIO, cfg *config.Root, existing *config.Root, kind int, opts config.ProviderSetupOpts) (*config.ProviderSetupResult, error) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/instructions"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
 )
 
 func AddRule(d Deps, parts []string) error {

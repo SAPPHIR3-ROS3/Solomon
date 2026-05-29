@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands/connect"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
 type slashCatalogPrefetch struct {

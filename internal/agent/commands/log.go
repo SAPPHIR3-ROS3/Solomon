@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 func SlashLog(d Deps, parts []string) error {
