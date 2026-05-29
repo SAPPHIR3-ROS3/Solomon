@@ -69,11 +69,11 @@ func pathFromFileURL(u *url.URL) (string, error) {
 	if u.Scheme != "file" {
 		return "", fmt.Errorf("not a file URL")
 	}
-	p := u.Path
+	p := filepath.Clean(filepath.FromSlash(u.Path))
 	if runtime.GOOS == "windows" {
 		p = strings.TrimPrefix(p, "/")
 	}
-	return filepath.FromSlash(p), nil
+	return p, nil
 }
 
 func NormalizeSkillMarkdownSource(raw string) (string, error) {
@@ -134,7 +134,7 @@ func downloadMarkdown(ctx context.Context, pageURL string) ([]byte, error) {
 }
 
 func readLocalMarkdownFile(path string) ([]byte, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}
