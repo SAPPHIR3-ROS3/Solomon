@@ -148,7 +148,7 @@ jobs:
           RELEASE_TAG: ${{ needs.release.outputs.ver }}
         run: |
           set -euo pipefail
-          curl -fsSL "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/${RELEASE_TAG}/scripts/install.sh" | bash -s -- "${RELEASE_TAG}"
+          curl -fsSL "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh" | bash -s -- "${RELEASE_TAG}"
 
       - name: Run README install command (Windows)
         if: runner.os == 'Windows'
@@ -156,7 +156,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.release.outputs.ver }}
         run: |
-          $script = irm "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/$env:RELEASE_TAG/scripts/install.ps1"
+          $script = irm "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1"
           $block = [scriptblock]::Create($script)
           & $block -Version $env:RELEASE_TAG
 

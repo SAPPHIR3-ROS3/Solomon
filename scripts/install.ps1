@@ -80,7 +80,7 @@ function Resolve-InstallVersion {
 function Install-ReleaseAsset {
     $arch = Get-GoArch
     $asset = "solomon-$Version-windows-$arch.exe"
-    $url = "https://github.com/SAPPHIR3-ROS3/Solomon/v2026/releases/download/$Version/$asset"
+    $url = "https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/$Version/$asset"
     $binDir = Join-Path (go env GOPATH) 'bin'
     $target = Join-Path $binDir 'solomon.exe'
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
