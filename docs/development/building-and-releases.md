@@ -22,36 +22,28 @@ Produces `solomon` (Unix/macOS) or `solomon.exe` (Windows). `CGO_ENABLED=0` per 
 
 ## Install from module path
 
+Module path: `github.com/SAPPHIR3-ROS3/Solomon/v2026`
+
 ```bash
-go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest
+go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
+go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@v2026.527.2
 ```
 
-Ensure the remote tag you want exists.
+Release tags use calendar semver `vYYYY.MDD.N` (month×100+day in the middle component, e.g. `v2026.527.2` = 2026, May 27, revision 2).
+
+## Yearly module path updates
+
+When the calendar year advances, create a new major module path (e.g. `.../Solomon/v2027`) and update imports. Older paths remain installable via their existing tags (`@v2026.527.2` on `/v2026`, etc.).
 
 ## Releases
-
-### Manual GitHub release (current process)
-
-1. Create and push a semver tag on `main`, e.g. `v0.1.0`.
-2. On GitHub: **Releases → Draft a new release** → pick the tag → write notes → **Publish release**.
-
-You can leave **Set as a pre-release** unchecked in the UI: for tags matching `v0.*`, [.github/workflows/release-prerelease.yml](../../.github/workflows/release-prerelease.yml) sets `prerelease: true` automatically after publish.
-
-When you ship a stable **v1+** release, that workflow does not run (remove or extend it if your policy changes).
-
-`go install` picks up the tag:
-
-```bash
-go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@v0.1.0
-```
-
-There are no prebuilt release binaries yet; install is via Go module proxy + tag.
 
 ### CI and calendar tags
 
 Push and pull requests run vet, test, and build ([release.yml](../../.github/workflows/release.yml)).
 
-Optional: **Actions → Release → Run workflow** creates an automated calendar tag (`vYYYY.MMDD.N`) via `workflow_dispatch` — separate from semver early releases.
+**Actions → Release → Run workflow** creates tag `vYYYY.MDD.N`, GitHub release assets, and a GitHub release.
+
+Prebuilt binaries are attached per platform; the install scripts download those assets by default.
 
 ## See also
 

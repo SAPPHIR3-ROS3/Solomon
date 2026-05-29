@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/cievents"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 )
 
 func TestParseExecCLIArgsFlagsAnyOrderPromptLast(t *testing.T) {

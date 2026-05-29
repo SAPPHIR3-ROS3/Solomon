@@ -8,12 +8,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logo"
-	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logo"
+	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 var reStripANSI = regexp.MustCompile(`\x1b\[[0-9;:]*m`)

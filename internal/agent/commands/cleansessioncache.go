@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 )
 
 func CleanSessionCache(d Deps) error {

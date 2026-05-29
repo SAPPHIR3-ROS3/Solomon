@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/instructions"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 )
 
 func TestInstructionsPromptSectionsConditional(t *testing.T) {

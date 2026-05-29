@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 )
 
 func TestBuildCodexInputUserImages(t *testing.T) {

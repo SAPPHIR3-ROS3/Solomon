@@ -75,7 +75,7 @@ install_release_asset() {
   goos="${platform%-*}"
   goarch="${platform#*-}"
   asset="solomon-${INSTALL_VERSION}-${goos}-${goarch}"
-  url="https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/${INSTALL_VERSION}/${asset}"
+  url="https://github.com/SAPPHIR3-ROS3/Solomon/v2026/releases/download/${INSTALL_VERSION}/${asset}"
   bin_dir="$(go env GOPATH)/bin"
   target="${bin_dir}/solomon"
   tmp="$(mktemp)"

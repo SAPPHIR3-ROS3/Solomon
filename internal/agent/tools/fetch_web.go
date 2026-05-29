@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 

@@ -3,8 +3,8 @@ package test
 import (
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
 
 func TestAggregateConsecutiveTurnUsage_TwoTurns(t *testing.T) {

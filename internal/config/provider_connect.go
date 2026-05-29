@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
 
 const (

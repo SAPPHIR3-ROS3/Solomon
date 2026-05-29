@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	solomonagent "github.com/SAPPHIR3-ROS3/Solomon/internal/agent"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	solomonagent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 
 	readline "github.com/chzyer/readline"
 )

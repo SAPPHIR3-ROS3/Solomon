@@ -60,13 +60,13 @@ Requires [Go](https://go.dev/) **1.25.0+** ([`go.mod`](go.mod)).
 Latest:
 
 ```bash
-go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest
+go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
 ```
 
-Pin a [GitHub tag](https://github.com/SAPPHIR3-ROS3/Solomon/tags):
+Pin a [release tag](https://github.com/SAPPHIR3-ROS3/Solomon/tags):
 
 ```bash
-go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@v2026.525.3
+go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@v2026.527.2
 ```
 
 
@@ -164,7 +164,7 @@ If you already have a directory on your PATH (e.g. `~/.local/bin` on macOS/Linux
 
 ```bash
 go env -w GOBIN="$HOME/.local/bin"
-go install github.com/SAPPHIR3-ROS3/Solomon/cmd/solomon@latest
+go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
 ```
 
 On Windows, use a path already on your PATH (e.g. `%USERPROFILE%\.local\bin`) and set `GOBIN` accordingly before re-running `go install`.

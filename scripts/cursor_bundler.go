@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
 type lineIO struct{}

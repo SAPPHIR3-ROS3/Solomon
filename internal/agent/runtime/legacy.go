@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"strings"
 
-	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
 func (r *Runtime) cursorLegacyToolsActive() bool {

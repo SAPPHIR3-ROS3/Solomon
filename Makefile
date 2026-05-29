@@ -21,7 +21,7 @@ else
 VERSION ?= $(shell git describe --tags --abbrev=0 --match "v*" 2>/dev/null || git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 endif
-LDFLAGS := -s -w -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/internal/agent/commands.commit=$(COMMIT)
+LDFLAGS := -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT)
 
 BUILD_FLAGS := -trimpath -ldflags="$(LDFLAGS)"
 

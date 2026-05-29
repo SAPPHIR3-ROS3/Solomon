@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/runtime"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooloutput"
+	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
 )
 
 func TestCleanupProjectTempRemovesDirectory(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

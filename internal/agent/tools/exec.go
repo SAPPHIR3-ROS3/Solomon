@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
 func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (any, error) {

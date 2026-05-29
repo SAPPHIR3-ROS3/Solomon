@@ -3,7 +3,7 @@ package checkpoint
 import (
 	"fmt"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 )
 
 func FormatCheckpointTag(cpSeq int, branch string) string {

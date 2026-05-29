@@ -3,7 +3,7 @@ package skills
 import (
 	"sort"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
 func InstalledSlashCommandNames(projHex, projRoot string) ([]string, error) {

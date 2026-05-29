@@ -4,10 +4,10 @@ import (
 	"context"
 	"os"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/auth/openai/codex"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/modelsapi"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
 
 func ListModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {

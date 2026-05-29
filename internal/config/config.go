@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/openai/openai-go/v2/shared"
 )
 

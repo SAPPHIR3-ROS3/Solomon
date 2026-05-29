@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 )
 
 func SlashGoto(d Deps, parts []string) error {

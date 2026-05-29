@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
+	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 )
 
 func SlashMCP(d Deps) error {

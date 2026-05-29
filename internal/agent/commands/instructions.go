@@ -3,8 +3,8 @@ package commands
 import (
 	"os"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/instructions"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 func Instructions(d Deps) error {
 	path, err := paths.GlobalAgentsPath()

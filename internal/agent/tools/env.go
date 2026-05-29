@@ -3,8 +3,8 @@ package tools
 import (
 	"context"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/config"
-	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 )
 
 type Env struct {

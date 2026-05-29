@@ -1,4 +1,4 @@
-module github.com/SAPPHIR3-ROS3/Solomon
+module github.com/SAPPHIR3-ROS3/Solomon/v2026
 
 go 1.25.0
 

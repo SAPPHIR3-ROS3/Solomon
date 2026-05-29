@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	agenttools "github.com/SAPPHIR3-ROS3/Solomon/internal/agent/tools"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/logging"
-	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/internal/mcp"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/tooloutput"
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
 	"github.com/openai/openai-go/v2"
 )
 

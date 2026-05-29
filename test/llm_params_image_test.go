@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
 
 func TestBuildUserContentPartsOmitsStaleImgTag(t *testing.T) {

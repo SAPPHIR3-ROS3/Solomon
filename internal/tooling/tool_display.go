@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 func WriteToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []string) {

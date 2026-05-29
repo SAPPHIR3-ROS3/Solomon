@@ -6,8 +6,8 @@ import (
 	"io"
 	"sort"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/skills"
-	"github.com/SAPPHIR3-ROS3/Solomon/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 func Registry() [][]string {

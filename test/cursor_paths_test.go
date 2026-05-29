@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	cursorint "github.com/SAPPHIR3-ROS3/Solomon/internal/integrations/cursor"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 )
 
 func TestDefaultBaseURL(t *testing.T) {
