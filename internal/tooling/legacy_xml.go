@@ -17,10 +17,20 @@ var (
 	reToolOpen  = regexp.MustCompile(`<tool\s+name="([^"]*)"\s*>`)
 	reIntent    = regexp.MustCompile(`(?s)<intent>(.*?)</intent>`)
 	reArgs      = regexp.MustCompile(`(?s)<args>(.*?)</args>`)
-	reToolClose = regexp.MustCompile(`</tool>`)
+	reToolClose      = regexp.MustCompile(`</tool>`)
+	reLegacyToolClose = regexp.MustCompile(`(?i)</tool_call>|</tool>`)
 )
 
 func ParseToolCallsBlock(block string) ([]Invocation, error) {
+	raw := strings.TrimSpace(block)
+	if strings.HasPrefix(strings.ToLower(raw), strings.ToLower(tagToolCallsOpen)) {
+		if !strings.HasSuffix(strings.ToLower(raw), strings.ToLower(tagToolCallsClose)) {
+			return nil, fmt.Errorf("%w: unclosed tool_calls block", ErrMalformedLegacyTool)
+		}
+	}
+	if err := validateLegacyToolCloses(raw); err != nil {
+		return nil, err
+	}
 	block = strings.TrimSpace(normalizeLegacyToolBlock(block))
 	if block == "" {
 		return nil, fmt.Errorf("%w: empty tool_calls block", ErrMalformedLegacyTool)
@@ -113,6 +123,24 @@ func StripLegacyToolBlocks(text string) string {
 
 func LegacyProseOutsideToolCalls(text string) string {
 	return stripLegacyToolRegions(text)
+}
+
+func validateLegacyToolCloses(block string) error {
+	inner := strings.TrimSpace(block)
+	if strings.HasPrefix(strings.ToLower(inner), strings.ToLower(tagToolCallsOpen)) {
+		if strings.HasSuffix(strings.ToLower(inner), strings.ToLower(tagToolCallsClose)) {
+			inner = strings.TrimSpace(inner[len(tagToolCallsOpen) : len(inner)-len(tagToolCallsClose)])
+		}
+	}
+	open := strings.Count(strings.ToLower(inner), "<tool name=")
+	if open == 0 {
+		return nil
+	}
+	close := len(reLegacyToolClose.FindAllString(inner, -1))
+	if open != close {
+		return fmt.Errorf("%w: unclosed tool tag", ErrMalformedLegacyTool)
+	}
+	return nil
 }
 
 func legacyErrorSnippet(s string) string {
