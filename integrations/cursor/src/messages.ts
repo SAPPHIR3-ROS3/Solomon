@@ -133,6 +133,25 @@ function escapeXmlAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
+function escapeXmlText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export function sanitizeReflectedText(s: string): string {
+  return escapeXmlText(stripUnsafeControlChars(s)).slice(0, 4096);
+}
+
+export function stripUnsafeControlChars(s: string): string {
+  let out = "";
+  for (const ch of s) {
+    const code = ch.charCodeAt(0);
+    if (code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127)) {
+      out += ch;
+    }
+  }
+  return out;
+}
+
 function formatAssistantToolCalls(toolCalls: ChatToolCall[]): string {
   const parts: string[] = ["<tool_calls>"];
   for (const tc of toolCalls) {
@@ -142,7 +161,7 @@ function formatAssistantToolCalls(toolCalls: ChatToolCall[]): string {
     }
     const args = tc.function?.arguments?.trim() || "{}";
     parts.push(`<tool name="${escapeXmlAttr(name)}">`);
-    parts.push(`<args>${args}</args>`);
+    parts.push(`<args>${escapeXmlText(args)}</args>`);
     parts.push("</tool>");
   }
   parts.push("</tool_calls>");
