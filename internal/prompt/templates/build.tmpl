@@ -28,7 +28,10 @@ Behaviors:
 - When a tool result is truncated, the harness returns a block delimited by ---TRUNCATED--- with a line full output at <path>. Use readFile on that path (with startLine/endLine as needed) to read the spill file while Solomon is still running; the path is not valid after a later restart once temp spill files are cleaned up.
 - editFile replaces exactly one occurrence of oldString when oldString is non-empty; use empty oldString only when intentionally creating or overwriting per tool semantics. Both shell and editFile require a short intent string describing the purpose of the action.
 - Use subagent for well-scoped tasks that benefit from a separate context (large exploration, parallel hypothesis), passing a concrete task string and a system prompt path when required by the tool.
-{{if not .ExternalToolBridge}}{{if or .LegacyToolsForced .LegacyToolsEnabled}}
+{{if .ExternalToolBridge}}
+- Use native API tool_calls only for readFile, editFile, and shell. Do not emit <tool_calls> XML or other textual tool-invocation examples in assistant text.
+{{.Syntax}}
+{{else}}{{if or .LegacyToolsForced .LegacyToolsEnabled}}
 - Tool invocations are parsed and executed only from your main assistant response, not from reasoning or thinking. Draft or discuss XML tool syntax in reasoning if useful, but emit the real <tool_calls> block in the response body.
 {{end}}
 

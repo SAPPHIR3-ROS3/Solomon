@@ -112,6 +112,7 @@ func TestResolveTurnInvocations_unknownToolName(t *testing.T) {
 func TestRenderBuild_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
 	got, err := prompt.RenderBuild(prompt.Data{
 		Tools:              "name: readFile",
+		Syntax:             prompt.NativeToolInvocationSyntax(false),
 		ExternalToolBridge: true,
 	})
 	if err != nil {
@@ -120,11 +121,56 @@ func TestRenderBuild_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
 	if strings.Contains(got, "Legacy text tools force is ON") {
 		t.Fatalf("bridge prompt must not include legacy_force section: %q", got)
 	}
+	if strings.Contains(got, "Preferred wrapper (Solomon canonical)") {
+		t.Fatalf("bridge prompt must not include legacy XML syntax section: %q", got)
+	}
+	if !strings.Contains(got, "native API tool_calls") {
+		t.Fatalf("bridge prompt must require native tool_calls: %q", got)
+	}
 	if strings.Contains(got, "[Harness]") || strings.Contains(got, "host harness") {
 		t.Fatalf("bridge prompt must not reference external transport: %q", got)
 	}
 	if !strings.Contains(got, "## Available tools") {
 		t.Fatalf("want tool dump: %q", got)
+	}
+}
+
+func TestRenderPlan_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
+	got, err := prompt.RenderPlan(prompt.Data{
+		Tools:              "name: createPlan",
+		Syntax:             prompt.NativeToolInvocationSyntax(false),
+		ExternalToolBridge: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "Legacy text tools force is ON") {
+		t.Fatalf("bridge plan prompt must not include legacy_force section: %q", got)
+	}
+	if strings.Contains(got, "Preferred wrapper (Solomon canonical)") {
+		t.Fatalf("bridge plan prompt must not include legacy XML syntax section: %q", got)
+	}
+	if !strings.Contains(got, "native API tool_calls") {
+		t.Fatalf("bridge plan prompt must require native tool_calls: %q", got)
+	}
+	if !strings.Contains(got, "createPlan, editPlan, and buildPlan") {
+		t.Fatalf("bridge plan prompt must name plan tools: %q", got)
+	}
+}
+
+func TestResolveTurnInvocations_externalToolBridgeIgnoresLegacyXML(t *testing.T) {
+	r := &agentruntime.Runtime{
+		Prov: &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI},
+		Cfg:  &config.Root{},
+	}
+	block := `<tool_calls><tool name="readFile"><args>{"path":"main.go"}</args></tool></tool_calls>`
+	turn := llm.AssistantTurnResult{Content: block}
+	invs, _, reject, malformed := r.ResolveTurnInvocations(turn, nil)
+	if reject || malformed != nil {
+		t.Fatalf("reject=%v malformed=%v", reject, malformed)
+	}
+	if len(invs) != 0 {
+		t.Fatalf("bridge must ignore legacy XML without native tool_calls: %v", invs)
 	}
 }
 
