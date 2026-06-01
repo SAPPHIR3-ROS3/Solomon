@@ -117,7 +117,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 					termcolor.WriteSystem(r.Out, legacyToolScreenMessage(err))
 					fmt.Fprintln(r.Out)
 				}
-				msgs = append(msgs, chatstore.Message{Role: "user", Content: legacyToolJSONCorrectionUserMsg})
+				msgs = append(msgs, chatstore.Message{Role: "user", Content: r.toolInvocationCorrectionUserMsg()})
 				continue
 			}
 			logging.Log(logging.ERROR_LOG_LEVEL, "subagent assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -154,7 +154,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 				termcolor.WriteSystem(r.Out, legacyToolScreenMessage(malformed))
 				fmt.Fprintln(r.Out)
 			}
-			msgs = append(msgs, chatstore.Message{Role: "user", Content: legacyToolJSONCorrectionUserMsg})
+			msgs = append(msgs, chatstore.Message{Role: "user", Content: r.toolInvocationCorrectionUserMsg()})
 			continue
 		}
 		if len(invs) == 0 {

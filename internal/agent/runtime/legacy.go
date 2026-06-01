@@ -34,7 +34,7 @@ func (r *Runtime) legacyToolsEnabledInPrompt() bool {
 
 func (r *Runtime) legacyToolsEnabled() bool {
 	if r.cursorLegacyToolsActive() {
-		return true
+		return r.legacyToolsForced()
 	}
 	return r != nil && r.Cfg != nil && r.Cfg.LegacyToolsEnabled()
 }
@@ -82,6 +82,9 @@ func (r *Runtime) ResolveTurnInvocations(turn llm.AssistantTurnResult, legacySW 
 			toolIDs = append(toolIDs, tc.ID)
 		}
 		return invs, toolIDs, false, nil
+	}
+	if r.externalToolBridge() && !r.legacyToolsForced() {
+		return nil, nil, false, nil
 	}
 	if r.legacyToolsEnabled() {
 		return r.legacyInvocationsFromTurn(turn, legacySW)

@@ -16,6 +16,8 @@ import (
 
 const legacyToolJSONCorrectionUserMsg = "Your previous reply contained a malformed tool-invocation block. Preferred shape:\n<tool_calls>\n<tool name=\"TOOL_NAME\">\n<intent>brief purpose</intent>\n<args>{\"key\":\"value\"}</args>\n</tool>\n</tool_calls>\nAlso accepted: <tool_call>{\"name\":\"TOOL_NAME\",\"arguments\":{...}}</tool_call> or <functioncall>{\"name\":\"TOOL_NAME\",\"arguments\":{...}}</functioncall> with valid JSON. Close <tool name=\"...\"> with </tool>, not </tool_call>. Send a corrected block only, or continue without tools if you meant plain text."
 
+const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Use readFile, editFile, and shell via function calling with JSON arguments that match each tool schema. Do not emit <tool_calls> XML or other textual tool-invocation examples in assistant text. Send a corrected native tool_call only, or continue without tools if you meant plain text."
+
 func newLegacyStreamWriter(out io.Writer, enabled bool, allowed map[string]struct{}) (*tooling.LegacyStreamWriter, io.Writer) {
 	if !enabled {
 		return nil, out
@@ -75,15 +77,26 @@ func (r *Runtime) handleRejectedNativeToolCall() error {
 	return r.persistSession()
 }
 
+func (r *Runtime) toolInvocationCorrectionUserMsg() string {
+	if r != nil && r.externalToolBridge() && !r.legacyToolsForced() {
+		return nativeBridgeToolCorrectionUserMsg
+	}
+	return legacyToolJSONCorrectionUserMsg
+}
+
 func (r *Runtime) handleMalformedLegacyTool(err error) error {
 	if !r.machineMode() {
 		termcolor.WriteSystem(r.Out, legacyToolScreenMessage(err))
 		fmt.Fprintln(r.Out)
 		flushWriter(r.Out)
 	}
+	correction := legacyToolJSONCorrectionUserMsg
+	if r != nil {
+		correction = r.toolInvocationCorrectionUserMsg()
+	}
 	r.mutateSession(func(s *chatstore.Session) {
 		seq := checkpoint.Bump(s)
-		um := chatstore.Message{Role: "user", Content: legacyToolJSONCorrectionUserMsg}
+		um := chatstore.Message{Role: "user", Content: correction}
 		checkpoint.StampMsg(&um, s, seq)
 		s.Messages = append(s.Messages, um)
 		s.LastMessageAt = time.Now()
