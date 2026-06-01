@@ -2,11 +2,17 @@ import { randomBytes } from "node:crypto";
 import type { ServerResponse } from "node:http";
 import type { LegacyToolInvocation } from "./legacy.js";
 import { chunkDelta, writeSSE } from "./openai-sse.js";
-import type { ChatCompletionTool, ChatToolCall } from "./openai-types.js";
+import type { ChatCompletionTool, ChatToolCall, ToolChoice } from "./openai-types.js";
 
-export function allowedToolNamesFromRequest(tools: ChatCompletionTool[] | undefined): Set<string> | null {
+export function allowedToolNamesFromRequest(
+  tools: ChatCompletionTool[] | undefined,
+  toolChoice?: ToolChoice,
+): Set<string> | null {
   if (!tools?.length) {
     return null;
+  }
+  if (toolChoice === "none") {
+    return new Set();
   }
   const names = new Set<string>();
   for (const t of tools) {
@@ -18,25 +24,63 @@ export function allowedToolNamesFromRequest(tools: ChatCompletionTool[] | undefi
   if (names.size === 0) {
     return null;
   }
+  if (typeof toolChoice === "object") {
+    const chosen = toolChoice.function.name.trim();
+    return names.has(chosen) ? new Set([chosen]) : new Set();
+  }
   return names;
 }
 
-export function requestUsesNativeTools(tools: ChatCompletionTool[] | undefined): boolean {
-  return (tools?.length ?? 0) > 0;
+export function requestUsesNativeTools(
+  tools: ChatCompletionTool[] | undefined,
+  toolChoice?: ToolChoice,
+): boolean {
+  return (tools?.length ?? 0) > 0 && toolChoice !== "none";
 }
 
 export function filterInvocations(
   invs: LegacyToolInvocation[],
   allowed: Set<string> | null,
 ): LegacyToolInvocation[] {
-  if (!allowed || allowed.size === 0) {
-    return invs;
+  const valid = invs.filter(isValidInvocation);
+  if (!allowed) {
+    return valid;
   }
-  return invs.filter((inv) => allowed.has(inv.name));
+  if (allowed.size === 0) {
+    return [];
+  }
+  return valid.filter((inv) => allowed.has(inv.name));
+}
+
+export function limitInvocations(
+  invs: LegacyToolInvocation[],
+  parallelToolCalls: boolean | undefined,
+): LegacyToolInvocation[] {
+  if (parallelToolCalls === false) {
+    return invs.slice(0, 1);
+  }
+  return invs;
 }
 
 export function newToolCallId(): string {
   return `call_${randomBytes(12).toString("hex")}`;
+}
+
+export function toolArgumentsJSON(inv: LegacyToolInvocation): string {
+  const args = { ...(inv.args ?? {}) };
+  if (inv.intent && String(inv.intent).trim() !== "") {
+    args.intent = String(inv.intent).trim();
+  }
+  return JSON.stringify(args);
+}
+
+export function isValidInvocation(inv: LegacyToolInvocation): boolean {
+  if (inv.name !== "editFile") {
+    return true;
+  }
+  const oldString = typeof inv.args?.oldString === "string" ? inv.args.oldString : "";
+  const newString = typeof inv.args?.newString === "string" ? inv.args.newString : "";
+  return oldString !== "" || newString !== "";
 }
 
 export function openAIToolCallsFromInvocations(invs: LegacyToolInvocation[]): ChatToolCall[] {
@@ -47,7 +91,7 @@ export function openAIToolCallsFromInvocations(invs: LegacyToolInvocation[]): Ch
       type: "function",
       function: {
         name: inv.name,
-        arguments: JSON.stringify(inv.args ?? {}),
+        arguments: toolArgumentsJSON(inv),
       },
     });
   }
@@ -69,7 +113,7 @@ export function writeSSEToolCalls(
     type: "function",
     function: {
       name: inv.name,
-      arguments: JSON.stringify(inv.args ?? {}),
+      arguments: toolArgumentsJSON(inv),
     },
   }));
   writeSSE(res, chunkDelta(completionId, model, { tool_calls: toolCalls }));
@@ -90,7 +134,134 @@ export function harnessToolsClause(tools: ChatCompletionTool[] | undefined): str
     return "";
   }
   return (
-    `[Harness] OpenAI function tools are enabled for this request. Use only these tool names via API tool_calls: ${names.join(", ")}. ` +
-    "Do not invoke Cursor built-in tools (Read, Shell, Grep, etc.). Do not emit <tool_calls> XML when native tools are active."
+    `[Harness] Host tools enabled for this request: ${names.join(", ")}. ` +
+    "These capabilities are provided as the 'solomon' tools (readFile, editFile, shell); call them directly. " +
+    "Cursor built-in tools are disabled, so do not attempt Read/Write/Edit/Shell/Grep/Glob/etc. " +
+    "Always use editFile to modify files and readFile to inspect them; never use shell to read or edit files (no sed, awk, echo redirection, or here-docs). " +
+    "Do not emit tool calls as XML or text."
   );
+}
+
+export type ParsedToolText = {
+  content: string;
+  invocations: LegacyToolInvocation[];
+};
+
+export function parseToolInvocationsFromText(text: string): ParsedToolText {
+  const invocations: LegacyToolInvocation[] = [];
+  let content = text;
+  content = content.replace(/<tool_calls\b[^>]*>([\s\S]*?)<\/tool_calls>/gi, (_m, inner) => {
+    invocations.push(...parseSolomonTools(String(inner)));
+    return "";
+  });
+  content = content.replace(/<tool_call\b[^>]*>([\s\S]*?)<\/tool_call>/gi, (_m, inner) => {
+    const inv = parseJSONToolCall(String(inner));
+    if (inv) {
+      invocations.push(inv);
+    }
+    return "";
+  });
+  content = content.replace(/<functioncall\b[^>]*>([\s\S]*?)<\/functioncall>/gi, (_m, inner) => {
+    const inv = parseJSONToolCall(String(inner));
+    if (inv) {
+      invocations.push(inv);
+    }
+    return "";
+  });
+  content = stripEmptyToolCodeFences(content);
+  return { content: content.trim(), invocations };
+}
+
+function stripEmptyToolCodeFences(text: string): string {
+  return text.replace(/```(?:xml|tool_calls|tool_call|functioncall)?[ \t]*\r?\n[\s\r\n]*```/gi, "");
+}
+
+function parseSolomonTools(inner: string): LegacyToolInvocation[] {
+  const out: LegacyToolInvocation[] = [];
+  const re = /<tool\b[^>]*\bname\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/tool>/gi;
+  for (let m: RegExpExecArray | null; (m = re.exec(inner)); ) {
+    const name = unescapeXML(m[2]).trim();
+    if (!name) {
+      continue;
+    }
+    const body = m[3];
+    const argsRaw = tagText(body, "args") ?? "{}";
+    const args = parseJSONObject(unescapeXML(argsRaw));
+    if (!args) {
+      continue;
+    }
+    const intent = tagText(body, "intent");
+    out.push({
+      name,
+      args,
+      ...(intent ? { intent: unescapeXML(intent).trim() } : {}),
+    });
+  }
+  return out;
+}
+
+function parseJSONToolCall(raw: string): LegacyToolInvocation | null {
+  const obj = parseJSONObject(unescapeXML(raw));
+  if (!obj) {
+    return null;
+  }
+  const name =
+    pickString(obj, "name") ??
+    pickString(obj, "tool") ??
+    pickString(obj, "tool_name") ??
+    pickString(obj, "function");
+  if (!name) {
+    return null;
+  }
+  const argsRaw = obj.arguments ?? obj.args ?? obj.parameters ?? {};
+  const args = normalizeArgsObject(argsRaw);
+  if (!args) {
+    return null;
+  }
+  return { name, args };
+}
+
+function tagText(body: string, tag: string): string | null {
+  const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+  const m = re.exec(body);
+  return m ? m[1] : null;
+}
+
+function parseJSONObject(raw: string): Record<string, unknown> | null {
+  try {
+    const v = JSON.parse(raw.trim());
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      return v as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function normalizeArgsObject(v: unknown): Record<string, unknown> | null {
+  if (v === undefined || v === null) {
+    return {};
+  }
+  if (typeof v === "string") {
+    return parseJSONObject(v);
+  }
+  if (typeof v === "object" && !Array.isArray(v)) {
+    return v as Record<string, unknown>;
+  }
+  return null;
+}
+
+function pickString(obj: Record<string, unknown>, key: string): string | undefined {
+  const v = obj[key];
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : undefined;
+}
+
+function unescapeXML(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
 }

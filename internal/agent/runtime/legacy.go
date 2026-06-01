@@ -40,9 +40,6 @@ func (r *Runtime) legacyToolsEnabled() bool {
 }
 
 func (r *Runtime) legacyToolsForced() bool {
-	if r.cursorLegacyToolsActive() {
-		return true
-	}
 	return r != nil && r.Cfg != nil && r.Cfg.LegacyToolsForceEnabled()
 }
 

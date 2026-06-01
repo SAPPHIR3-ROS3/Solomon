@@ -99,14 +99,16 @@ export function roughTokFromMessages(messages: ChatMessage[]): number {
 const HARNESS_MARKER = "[Harness]";
 
 const HARNESS_CLAUSES: string[] = [
-  `${HARNESS_MARKER} Interaction mode: this is not a normal Cursor IDE agent session. You are behind a remote host harness proxy. Cursor built-in tools are unavailable (Read, Write, Edit, Shell, Grep, Glob, rg, SemanticSearch, Task, browser tools, etc.). You cannot access the workspace except through the harness.`,
-  `${HARNESS_MARKER} Results: the host executes tools and returns output as [tool result …] lines in later turns. Do not invent or quote file contents unless they appeared in a prior tool result or the user's message.`,
-  `${HARNESS_MARKER} Invocation transport: emit exactly one tool-invocation region in the visible assistant response body when you need an action (not in reasoning/thinking). SDK-native tool_use / tool_call events from this stack are bridged when mappable; prefer explicit XML with harness tool names.`,
-  `${HARNESS_MARKER} Tool names: use only names listed under ## Available tools in the system message (e.g. readFile, shell, editFile). Map inspection → readFile, terminal commands → shell, file edits → editFile.`,
-  `${HARNESS_MARKER} Preferred XML: <tool_calls><tool name="TOOL"><intent>brief purpose when supported</intent><args>{"key":"value"}</args></tool></tool_calls>. Also accepted: <tool_call>{"name":"TOOL","arguments":{...}}</tool_call> (Qwen-style) and <functioncall>{"name":"TOOL","arguments":{...}}</functioncall> (Glaive-style). Use </tool> to close <tool name="...">, not </tool_call>; do not wrap <tool name="..."> inside <tool_call>. Valid JSON in each <args> or in arguments; optional prose before the block; no text after the closing tag.`,
+  `${HARNESS_MARKER} Interaction mode: you are running behind a remote host harness, not a normal Cursor IDE agent session. The workspace is real, but it is operated by the host on your behalf.`,
+  `${HARNESS_MARKER} Tools: to inspect or change the workspace, call your available tools normally (read a file, edit a file, run a shell/terminal command, search). The host intercepts each tool call, runs it on the real workspace, and returns the output as [tool result …] lines in a later turn.`,
+  `${HARNESS_MARKER} Results: do not invent or quote file contents unless they appeared in a prior [tool result …] or in the user's message. After you issue a tool call, stop and wait for its result; never assume it succeeded or narrate a result you did not receive.`,
+  `${HARNESS_MARKER} Format: issue real tool calls. Do not emit XML tool blocks, Markdown-fenced tool snippets, or textual tool-call examples in your reply. Optional brief prose may precede a tool call.`,
 ];
 
 export function harnessPreamble(tools?: ChatCompletionTool[]): string {
+  if (!tools?.length) {
+    return "";
+  }
   const parts = [...HARNESS_CLAUSES];
   const toolsClause = harnessToolsClause(tools);
   if (toolsClause) {

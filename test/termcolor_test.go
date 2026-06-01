@@ -117,3 +117,42 @@ func TestWrapUserReadlinePlainWhenDisabled(t *testing.T) {
 		t.Fatalf("WrapUserReadline: got %q", got)
 	}
 }
+
+func TestColorizeErrorLines(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
+	got := termcolor.ColorizeErrorLines("ok\n[error] boom\n  [error] spaced")
+	want := "ok\n[error] boom\n  [error] spaced"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestErrorLineWriterStreamsPlainText(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
+	var out bytes.Buffer
+	w := termcolor.NewErrorLineWriter(&out)
+	if _, err := w.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); got != "hello" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestErrorLineWriterRecognizesSplitMarker(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
+	var out bytes.Buffer
+	w := termcolor.NewErrorLineWriter(&out)
+	if _, err := w.Write([]byte("[err")); err != nil {
+		t.Fatal(err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("expected buffered marker prefix, got %q", out.String())
+	}
+	if _, err := w.Write([]byte("or] boom")); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); got != "[error] boom" {
+		t.Fatalf("got %q", got)
+	}
+}

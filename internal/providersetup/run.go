@@ -47,7 +47,7 @@ func setupCursorAPI(ctx context.Context, pio config.PromptIO, cfg *config.Root, 
 	if out == nil {
 		out = os.Stdout
 	}
-	rawURL, err := mgr.Ensure(ctx, k, cwd, bootstrapOut{out: out})
+	rawURL, err := mgr.Ensure(ctx, k, cwd, false, bootstrapOut{out: out})
 	if err != nil {
 		return nil, err
 	}

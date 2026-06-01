@@ -28,6 +28,12 @@ export type ChatCompletionFunctionTool = {
 
 export type ChatCompletionTool = ChatCompletionFunctionTool;
 
+export type ToolChoice =
+  | "none"
+  | "auto"
+  | "required"
+  | { type: "function"; function: { name: string } };
+
 export type ChatCompletionRequest = {
   model?: string;
   messages: ChatMessage[];
@@ -36,7 +42,7 @@ export type ChatCompletionRequest = {
   reasoning_effort?: string;
   solomon_fast_mode?: boolean;
   tools?: ChatCompletionTool[];
-  tool_choice?: "none" | "auto" | "required" | { type: "function"; function: { name: string } };
+  tool_choice?: ToolChoice;
   parallel_tool_calls?: boolean;
 };
 

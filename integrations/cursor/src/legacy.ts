@@ -4,6 +4,29 @@ export type LegacyToolInvocation = {
   intent?: string;
 };
 
+export const SOLOMON_MCP_PROVIDER = "solomon";
+
+export function unwrapSolomonMcpCall(
+  eventName: string,
+  rawArgs: unknown,
+): { toolName: string; args: unknown } | null {
+  if (eventName !== "mcp") {
+    return null;
+  }
+  if (!rawArgs || typeof rawArgs !== "object") {
+    return null;
+  }
+  const obj = rawArgs as Record<string, unknown>;
+  if (obj.providerIdentifier !== SOLOMON_MCP_PROVIDER) {
+    return null;
+  }
+  const toolName = typeof obj.toolName === "string" ? obj.toolName.trim() : "";
+  if (!toolName) {
+    return null;
+  }
+  return { toolName, args: obj.args ?? {} };
+}
+
 export function formatLegacyToolCallsBlock(tools: LegacyToolInvocation[]): string {
   const parts: string[] = ["<tool_calls>"];
   for (const t of tools) {
@@ -98,7 +121,7 @@ export function mapCursorToolToSolomon(
     delete args.intent;
     delete (args as { description?: string }).description;
   }
-  return { name: solomonName, args, intent };
+  return { name: solomonName, args, ...(intent ? { intent } : {}) };
 }
 
 function normalizeArgs(
@@ -158,7 +181,7 @@ function normalizeArgs(
     }
     const out: Record<string, unknown> = {
       command,
-      intent: pickString(obj, ["intent", "description", "explanation"]) ?? "cursor tool",
+      intent: pickString(obj, ["intent", "description", "explanation"]) ?? "run command",
     };
     if (typeof obj.timeoutSeconds === "number") {
       out.timeoutSeconds = obj.timeoutSeconds;
@@ -171,7 +194,7 @@ function normalizeArgs(
       pickString(obj, ["oldString", "old_string", "oldText"]) ?? "";
     const newString =
       pickString(obj, ["newString", "new_string", "newText", "content"]) ?? "";
-    if (!path) {
+    if (!path || (oldString === "" && newString === "")) {
       return null;
     }
     return {
@@ -179,7 +202,7 @@ function normalizeArgs(
       oldString,
       newString,
       intent:
-        pickString(obj, ["intent", "description", "explanation"]) ?? "cursor edit",
+        pickString(obj, ["intent", "description", "explanation"]) ?? "edit file",
     };
   }
   return obj;

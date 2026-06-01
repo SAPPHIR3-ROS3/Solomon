@@ -1,4 +1,4 @@
-.PHONY: solomon build install test cursor-stop cursor-build cursor-bundle clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install test cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -26,9 +26,32 @@ LDFLAGS := -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/comman
 BUILD_FLAGS := -trimpath -ldflags="$(LDFLAGS)"
 
 CURSOR_BUNDLER := go run scripts/cursor_bundler.go
+CURSOR_PROXY_DIR := integrations/cursor
 
 cursor-stop:
 	$(CURSOR_BUNDLER) stop
+
+# Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
+cursor-proxy-build:
+	npm --prefix $(CURSOR_PROXY_DIR) run build
+
+# Run the Cursor proxy TypeScript unit tests.
+cursor-proxy-test:
+	npm --prefix $(CURSOR_PROXY_DIR) test
+
+# Run the Cursor proxy tests and clean up generated artifacts afterwards.
+# Cleanup runs even if tests fail, while preserving the test exit code.
+cursor-proxy-test-clean:
+	@$(MAKE) cursor-proxy-test; status=$$?; $(MAKE) clean-cursor-proxy; exit $$status
+
+# Remove generated Cursor proxy artifacts (test bundle dir + runtime guard dir).
+clean-cursor-proxy:
+ifeq ($(GOOS),windows)
+	-cmd /C "if exist integrations\cursor\.test rmdir /S /Q integrations\cursor\.test"
+	-cmd /C "if exist integrations\cursor\.solomon-cursor-guard rmdir /S /Q integrations\cursor\.solomon-cursor-guard"
+else
+	-rm -rf $(CURSOR_PROXY_DIR)/.test $(CURSOR_PROXY_DIR)/.solomon-cursor-guard
+endif
 
 cursor-build: cursor-stop
 	$(CURSOR_BUNDLER) build

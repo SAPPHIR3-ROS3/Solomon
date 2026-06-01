@@ -8,6 +8,7 @@ if (!apiKey) {
 
 const port = parseInt(process.env.CURSOR_API_PORT ?? "8766", 10);
 const cwd = process.env.CURSOR_API_CWD?.trim() || process.cwd();
+const allowCursorInternalTools = process.env.CURSOR_API_ALLOW_INTERNAL_TOOLS === "true";
 
 process.on("uncaughtException", (err) => {
   console.error(err);
@@ -16,5 +17,5 @@ process.on("unhandledRejection", (err) => {
   console.error(err);
 });
 
-const server = createServer({ apiKey, cwd });
+const server = createServer({ apiKey, cwd, allowCursorInternalTools });
 server.listen(port, "127.0.0.1");

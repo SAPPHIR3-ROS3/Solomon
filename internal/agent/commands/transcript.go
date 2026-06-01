@@ -61,7 +61,7 @@ func writeTranscriptMessage(out io.Writer, m chatstore.Message, model string) {
 			fmt.Fprintf(out, "%s%s\n", prefix, termcolor.WrapThinking(rtxt))
 		}
 		if cshow != "" {
-			fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapAssistant(model+":"), cshow)
+			fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapAssistant(model+":"), termcolor.ColorizeErrorLines(cshow))
 		}
 		toolCalls := m.ToolCalls
 		if len(toolCalls) == 0 {

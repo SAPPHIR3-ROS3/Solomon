@@ -215,7 +215,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 		return llm.AssistantTurnResult{}, nil, fmt.Errorf("LLM backend not configured")
 	}
 	var legacySW *tooling.LegacyStreamWriter
-	var contentOut io.Writer = r.Out
+	var contentOut io.Writer = termcolor.NewErrorLineWriter(r.Out)
 	if r.legacyToolsEnabled() {
 		allowed, err := r.allowedToolNamesForMode("build")
 		if err != nil {
@@ -232,7 +232,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, system string, msgs
 				}
 			}
 		}
-		legacySW, contentOut = newLegacyStreamWriter(r.Out, true, allowed)
+		legacySW, contentOut = newLegacyStreamWriter(contentOut, true, allowed)
 	}
 	turn, err := r.Backend.StreamTurn(ctx, turnReq, contentOut, r.streamOptsWithRetry(r.Cfg.ShowThinking, r.Out))
 	if err != nil {

@@ -20,8 +20,8 @@ func TestWriteToolDisplayLines_multilineContinuation(t *testing.T) {
 	}
 	tooling.WriteToolDisplayLines(&buf, 3, "", lines)
 	out := buf.String()
-	if !strings.HasPrefix(out, "Tool: editFile path/to/file.go\n") {
-		t.Fatalf("first line should have no checkpoint prefix: %q", out)
+	if !strings.HasPrefix(out, "[#003]: Tool: editFile path/to/file.go\n") {
+		t.Fatalf("first line should have checkpoint prefix: %q", out)
 	}
 	if !strings.Contains(out, "..... old content\n") {
 		t.Fatalf("missing continuation prefix: %q", out)
@@ -35,8 +35,8 @@ func TestWriteToolDisplayLines_embeddedNewline(t *testing.T) {
 	var buf bytes.Buffer
 	tooling.WriteToolDisplayLines(&buf, 1, "", []string{"Tool: shell go test\n./foo"})
 	out := buf.String()
-	if !strings.HasPrefix(out, "Tool: shell go test\n") {
-		t.Fatalf("first part should have no checkpoint prefix: %q", out)
+	if !strings.HasPrefix(out, "[#001]: Tool: shell go test\n") {
+		t.Fatalf("first part should have checkpoint prefix: %q", out)
 	}
 	if !strings.Contains(out, "..... ./foo\n") {
 		t.Fatalf("embedded newline continuation: %q", out)
@@ -59,10 +59,10 @@ func TestWriteLabeledTranscript_toolCallsUseStoredCheckpoints(t *testing.T) {
 	}
 	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
 	out := buf.String()
-	if !strings.Contains(out, "Tool: readFile a.go") {
+	if !strings.Contains(out, "[#002]: Tool: readFile a.go") {
 		t.Fatalf("first tool display missing: %s", out)
 	}
-	if !strings.Contains(out, "Tool: readFile b.go") {
+	if !strings.Contains(out, "[#003]: Tool: readFile b.go") {
 		t.Fatalf("second tool display missing: %s", out)
 	}
 }
@@ -81,7 +81,7 @@ func TestWriteLabeledTranscript_editFileMultilineContinuation(t *testing.T) {
 	}
 	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
 	out := buf.String()
-	if !strings.Contains(out, "Tool: editFile x.go") {
+	if !strings.Contains(out, "[#002]: Tool: editFile x.go") {
 		t.Fatalf("header line missing: %s", out)
 	}
 	if !strings.Contains(out, "..... before") {
@@ -110,7 +110,7 @@ func TestWriteLabeledTranscript_intentLineHasCheckpoint(t *testing.T) {
 	if !strings.Contains(out, "[#002]: update test file") {
 		t.Fatalf("intent line should have checkpoint with colon: %s", out)
 	}
-	if !strings.Contains(out, "Tool: editFile x.go") {
+	if !strings.Contains(out, "[#002]: Tool: editFile x.go") {
 		t.Fatalf("tool header missing: %s", out)
 	}
 }

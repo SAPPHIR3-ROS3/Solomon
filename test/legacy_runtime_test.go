@@ -30,18 +30,21 @@ func TestResolveTurnInvocations_nativePreferredWhenOptional(t *testing.T) {
 	}
 }
 
-func TestResolveTurnInvocations_cursorProviderForcesLegacyWithoutConfig(t *testing.T) {
+func TestResolveTurnInvocations_cursorProviderUsesNativeWithoutForce(t *testing.T) {
 	r := &agentruntime.Runtime{
 		Mode: "build",
 		Cfg:  &config.Root{},
 		Prov: &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI},
 	}
 	turn := llm.AssistantTurnResult{
-		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{}`}},
+		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{"command":"go test"}`}},
 	}
-	_, _, reject, malformed := r.ResolveTurnInvocations(turn, nil)
-	if !reject || malformed != nil {
+	invs, ids, reject, malformed := r.ResolveTurnInvocations(turn, nil)
+	if reject || malformed != nil {
 		t.Fatalf("reject=%v malformed=%v", reject, malformed)
+	}
+	if len(invs) != 1 || invs[0].Name != "shell" || ids[0] != "c1" {
+		t.Fatalf("invs=%+v ids=%v", invs, ids)
 	}
 }
 

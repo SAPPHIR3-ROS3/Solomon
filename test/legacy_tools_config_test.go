@@ -25,6 +25,7 @@ legacy_tools_force = true
 
 [tools]
 legacy = false
+cursor_internal_tools = true
 
 [providers.p]
 base_url = "http://127.0.0.1:9"
@@ -44,6 +45,9 @@ model = "m"
 	if !r.Tools.LegacyForce {
 		t.Fatal("expected merged legacy_force=true from root")
 	}
+	if !r.Tools.CursorInternalTools {
+		t.Fatal("expected cursor_internal_tools=true from tools section")
+	}
 }
 
 func TestConfigToolsSectionSaveShape(t *testing.T) {
@@ -62,7 +66,7 @@ model = "m"
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.Tools = config.Tools{Legacy: true, LegacyForce: false}
+	r.Tools = config.Tools{Legacy: true, LegacyForce: false, CursorInternalTools: true}
 	if err := config.Save(r); err != nil {
 		t.Fatal(err)
 	}
@@ -76,5 +80,8 @@ model = "m"
 	}
 	if !strings.Contains(text, "[tools]") || !strings.Contains(text, "legacy = true") {
 		t.Fatalf("want [tools] legacy = true in %q", text)
+	}
+	if !strings.Contains(text, "cursor_internal_tools = true") {
+		t.Fatalf("want [tools] cursor_internal_tools = true in %q", text)
 	}
 }

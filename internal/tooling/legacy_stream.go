@@ -94,7 +94,12 @@ func (w *LegacyStreamWriter) Flush() error {
 		_, err := w.Out.Write(w.held)
 		w.prefix.Write(w.held)
 		w.held = nil
-		return err
+		if err != nil {
+			return err
+		}
+	}
+	if f, ok := w.Out.(interface{ Flush() error }); ok {
+		return f.Flush()
 	}
 	return nil
 }
