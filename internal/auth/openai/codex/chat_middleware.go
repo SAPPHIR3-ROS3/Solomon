@@ -50,7 +50,8 @@ func chatGPTSubMiddleware(accountID string) option.Middleware {
 			return nil, err
 		}
 		if upResp.StatusCode != http.StatusOK {
-			return upResp, nil
+			body, _ := drainUpstreamError(upResp)
+			return nil, chatGPTSubUpstreamError(upResp.StatusCode, body, model)
 		}
 		if clientStream {
 			pr, pw := io.Pipe()
