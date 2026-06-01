@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
@@ -17,7 +18,7 @@ func WriteToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []s
 		parts := strings.Split(line, "\n")
 		for _, part := range parts {
 			if first {
-				fmt.Fprintf(out, "%s\n", part)
+				fmt.Fprintf(out, "%s%s\n", checkpoint.FormatCheckpointPrefix(cpSeq, branchKey), part)
 			} else {
 				fmt.Fprintf(out, "%s%s\n", cont, part)
 			}

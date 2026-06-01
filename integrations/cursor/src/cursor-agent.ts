@@ -1,0 +1,238 @@
+import { Agent, type SDKAgent } from "@cursor/sdk";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { buildPromptFromMessages } from "./messages.js";
+import type { ChatCompletionTool, ChatMessage } from "./openai-types.js";
+import type { AgentRun } from "./run-control.js";
+import type { ModelSelection } from "./model-selection.js";
+import type { ProxyConfig } from "./chat.js";
+
+export type AgentSendOpts = {
+  model: ModelSelection;
+  onDelta: (arg: {
+    update: { type: string; usage?: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number } };
+  }) => Promise<void>;
+};
+
+function guardedWorkspaceDir(): string {
+  return path.join(process.cwd(), ".solomon-cursor-guard");
+}
+
+function writeDenyHooks(workspace: string): void {
+  const cursorDir = path.join(workspace, ".cursor");
+  const hooksDir = path.join(cursorDir, "hooks");
+  fs.mkdirSync(hooksDir, { recursive: true });
+  const denyScript = path.join(hooksDir, "deny-cursor-tools.cjs");
+  fs.writeFileSync(
+    denyScript,
+    [
+      "process.stdin.resume();",
+      "process.stdin.on('end', () => {",
+      "  process.stdout.write(JSON.stringify({ permission: 'deny', agentMessage: 'Cursor built-in tools are disabled by Solomon. Use the solomon tools (readFile, editFile, shell) instead.' }));",
+      "});",
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  const command = `node "${denyScript.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  const hook = { command, failClosed: true };
+  // The matcher and explicit hooks deny Cursor built-ins only. MCP execution is
+  // intentionally NOT denied so the bundled solomon MCP tools remain callable;
+  // the proxy intercepts those tool-call events and force-stops before the MCP
+  // server executes, routing real execution back to Solomon.
+  fs.writeFileSync(
+    path.join(cursorDir, "hooks.json"),
+    JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          preToolUse: [{ ...hook, matcher: "Shell|Read|Write|Edit|Grep|Glob|Delete|Task" }],
+          beforeShellExecution: [hook],
+          beforeReadFile: [hook],
+          afterFileEdit: [hook],
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+    "utf8",
+  );
+}
+
+const SOLOMON_MCP_SERVER_SOURCE = String.raw`'use strict';
+// Solomon MCP server (stdio). It only advertises tool schemas so the model can
+// call clean, host-owned tools. It never executes: the Solomon proxy intercepts
+// each tool-call event and force-stops the run before execution would happen.
+const SAFETY_TIMEOUT_MS = 30000;
+const tools = [
+  {
+    name: 'readFile',
+    description: 'Read a file from the workspace and return its contents. Use this to inspect files instead of shell cat/head/tail.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Absolute path or workspace-relative path to the file.' },
+        startLine: { type: 'integer', description: 'Optional 1-based start line.' },
+        endLine: { type: 'integer', description: 'Optional 1-based end line.' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'editFile',
+    description: 'Edit a file by replacing oldString with newString. ALWAYS use this to modify files; never edit files via shell (no sed, awk, echo redirection, or here-docs).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Path to the file to edit.' },
+        oldString: { type: 'string', description: 'Exact text to replace (empty only when creating a brand-new file).' },
+        newString: { type: 'string', description: 'Replacement text.' },
+        intent: { type: 'string', description: 'Brief description of the edit.' },
+      },
+      required: ['path', 'oldString', 'newString', 'intent'],
+    },
+  },
+  {
+    name: 'shell',
+    description: 'Run a shell command for inspection or system tasks. Do NOT use it to read or edit files (use readFile and editFile instead).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: 'The shell command to run.' },
+        intent: { type: 'string', description: 'Brief description of why the command is run.' },
+        timeoutSeconds: { type: 'integer', description: 'Optional timeout in seconds.' },
+      },
+      required: ['command', 'intent'],
+    },
+  },
+];
+function send(obj) {
+  process.stdout.write(JSON.stringify(obj) + '\n');
+}
+let buf = '';
+process.stdin.on('data', function (chunk) {
+  buf += chunk.toString('utf8');
+  let idx;
+  while ((idx = buf.indexOf('\n')) >= 0) {
+    const line = buf.slice(0, idx).trim();
+    buf = buf.slice(idx + 1);
+    if (!line) continue;
+    let msg;
+    try { msg = JSON.parse(line); } catch (e) { continue; }
+    handle(msg);
+  }
+});
+function handle(msg) {
+  const id = msg.id;
+  const method = msg.method;
+  const params = msg.params || {};
+  if (method === 'initialize') {
+    send({
+      jsonrpc: '2.0',
+      id: id,
+      result: {
+        protocolVersion: params.protocolVersion || '2024-11-05',
+        capabilities: { tools: {} },
+        serverInfo: { name: 'solomon', version: '1.0.0' },
+      },
+    });
+    return;
+  }
+  if (method === 'notifications/initialized') return;
+  if (method === 'tools/list') {
+    send({ jsonrpc: '2.0', id: id, result: { tools: tools } });
+    return;
+  }
+  if (method === 'tools/call') {
+    // The proxy force-stops the run before this resolves. As a safety net (in
+    // case the run is not stopped), respond with an error after a timeout so a
+    // stuck child never silently performs the action.
+    setTimeout(function () {
+      send({
+        jsonrpc: '2.0',
+        id: id,
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: 'Tool execution is owned by the Solomon host and was not stopped in time. Do not retry; wait for the host result.' }],
+        },
+      });
+    }, SAFETY_TIMEOUT_MS);
+    return;
+  }
+  if (typeof id !== 'undefined') {
+    send({ jsonrpc: '2.0', id: id, error: { code: -32601, message: 'method not found' } });
+  }
+}
+`;
+
+function writeSolomonMcpServer(workspace: string): string {
+  const cursorDir = path.join(workspace, ".cursor");
+  fs.mkdirSync(cursorDir, { recursive: true });
+  const serverPath = path.join(cursorDir, "solomon-mcp-server.cjs");
+  fs.writeFileSync(serverPath, SOLOMON_MCP_SERVER_SOURCE, "utf8");
+  return serverPath;
+}
+
+async function createAgentWithOptions(
+  cfg: ProxyConfig,
+  modelSelection: ModelSelection,
+  sandbox: boolean,
+): Promise<SDKAgent> {
+  if (cfg.allowCursorInternalTools) {
+    return Agent.create({
+      apiKey: cfg.apiKey,
+      model: modelSelection,
+      local: { cwd: cfg.cwd, settingSources: [] },
+    });
+  }
+  const workspace = guardedWorkspaceDir();
+  writeDenyHooks(workspace);
+  const mcpServerPath = writeSolomonMcpServer(workspace);
+  return Agent.create({
+    apiKey: cfg.apiKey,
+    model: modelSelection,
+    mcpServers: {
+      solomon: { type: "stdio", command: process.execPath, args: [mcpServerPath] },
+    },
+    local: { cwd: workspace, settingSources: ["project"], sandboxOptions: { enabled: sandbox } },
+  });
+}
+
+async function createAgent(cfg: ProxyConfig, modelSelection: ModelSelection): Promise<SDKAgent> {
+  try {
+    return await createAgentWithOptions(cfg, modelSelection, true);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    if (!cfg.allowCursorInternalTools && msg.includes("sandbox")) {
+      return createAgentWithOptions(cfg, modelSelection, false);
+    }
+    throw err;
+  }
+}
+
+export async function disposeAgent(agent: SDKAgent | undefined): Promise<void> {
+  if (!agent) {
+    return;
+  }
+  try {
+    await agent[Symbol.asyncDispose]();
+  } catch {
+  }
+}
+
+export async function sendStateless(
+  cfg: ProxyConfig,
+  modelSelection: ModelSelection,
+  messages: ChatMessage[],
+  sendOpts: AgentSendOpts,
+  tools?: ChatCompletionTool[],
+): Promise<{ agent: SDKAgent; run: AgentRun }> {
+  const agent = await createAgent(cfg, modelSelection);
+  const prompt = buildPromptFromMessages(messages, tools);
+  try {
+    const run = await agent.send(prompt, sendOpts);
+    return { agent, run };
+  } catch (err) {
+    await disposeAgent(agent);
+    throw err;
+  }
+}

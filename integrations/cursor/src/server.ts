@@ -10,6 +10,7 @@ import type {
   ChatMessage,
   ChatToolCall,
   ContentPart,
+  ToolChoice,
 } from "./openai-types.js";
 
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
@@ -221,6 +222,21 @@ function sanitizeToolCalls(v: unknown): ChatToolCall[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
+function sanitizeJSONObject(v: unknown): Record<string, unknown> | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) {
+    return undefined;
+  }
+  try {
+    const s = JSON.stringify(v);
+    if (s.length > MAX_CONTENT_CHARS) {
+      return undefined;
+    }
+    return JSON.parse(s) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
 function sanitizeMessage(v: unknown): ChatMessage | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) {
     return null;
@@ -270,17 +286,41 @@ function sanitizeTools(v: unknown): ChatCompletionTool[] | undefined {
       continue;
     }
     const description = optionalBoundedString(f.description, MAX_CONTENT_CHARS);
+    const parameters = sanitizeJSONObject(f.parameters);
     const strict = t.strict === true || f.strict === true ? true : undefined;
     out.push({
       type: "function",
       function: {
         name,
         ...(description ? { description } : {}),
+        ...(parameters ? { parameters } : {}),
         ...(strict ? { strict } : {}),
       },
     });
   }
   return out.length > 0 ? out : undefined;
+}
+
+function sanitizeToolChoice(v: unknown): ToolChoice | undefined {
+  if (v === undefined || v === null) {
+    return undefined;
+  }
+  if (v === "none" || v === "auto" || v === "required") {
+    return v;
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) {
+    return undefined;
+  }
+  const o = v as Record<string, unknown>;
+  if (o.type !== "function" || !o.function || typeof o.function !== "object") {
+    return undefined;
+  }
+  const fn = o.function as Record<string, unknown>;
+  const name = boundedString(fn.name, MAX_TOOL_NAME_CHARS)?.trim();
+  if (!name || !isSafeToolName(name)) {
+    return undefined;
+  }
+  return { type: "function", function: { name } };
 }
 
 function parseChatCompletionRequest(body: string): ChatCompletionRequest {
@@ -314,6 +354,9 @@ function parseChatCompletionRequest(body: string): ChatCompletionRequest {
   const solomonFastMode =
     o.solomon_fast_mode === undefined ? undefined : o.solomon_fast_mode !== false;
   const tools = sanitizeTools(o.tools);
+  const toolChoice = sanitizeToolChoice(o.tool_choice);
+  const parallelToolCalls =
+    o.parallel_tool_calls === undefined ? undefined : o.parallel_tool_calls !== false;
   const req: ChatCompletionRequest = { messages };
   if (modelRaw) {
     req.model = sanitizeModelId(modelRaw);
@@ -329,6 +372,12 @@ function parseChatCompletionRequest(body: string): ChatCompletionRequest {
   }
   if (tools) {
     req.tools = tools;
+  }
+  if (toolChoice !== undefined) {
+    req.tool_choice = toolChoice;
+  }
+  if (parallelToolCalls !== undefined) {
+    req.parallel_tool_calls = parallelToolCalls;
   }
   return req;
 }

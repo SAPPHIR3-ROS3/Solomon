@@ -1,9 +1,6 @@
-import { Agent, Cursor, type SDKAgent, type SDKMessage } from "@cursor/sdk";
+import { Cursor, type SDKAgent } from "@cursor/sdk";
 import type { ServerResponse } from "node:http";
 import {
-  buildPromptFromMessages,
-  roughTokFromMessages,
-  roughTokFromString,
   sanitizeModelId,
   sanitizeReflectedText,
 } from "./messages.js";
@@ -16,6 +13,7 @@ import type { ChatCompletionRequest, ChatCompletionTool, ChatMessage } from "./o
 import {
   allowedToolNamesFromRequest,
   filterInvocations,
+  limitInvocations,
   openAIToolCallsFromInvocations,
   requestUsesNativeTools,
   writeSSEToolCalls,
@@ -25,9 +23,7 @@ import {
   finishSSE,
   sendJsonResponse,
   SSE_RESPONSE_HEADERS,
-  usageChunk,
   writeSSE,
-  type OpenAIUsagePayload,
 } from "./openai-sse.js";
 import { filterFlagshipModelIDs, orderModelIDs } from "./model-filter.js";
 import { resolveModelSelection, type ModelInfo } from "./model-selection.js";
@@ -43,10 +39,13 @@ import {
 } from "./run-control.js";
 import { newCompletionId } from "./sessions.js";
 import type { ModelSelection } from "./model-selection.js";
+import { disposeAgent, sendStateless, type AgentSendOpts } from "./cursor-agent.js";
+import { buildOpenAIUsage, finishReasonForTools, nativeInvocationsFromText, nextTextChunk, processStreamEvent } from "./chat-helpers.js";
 
 export type ProxyConfig = {
   apiKey: string;
   cwd: string;
+  allowCursorInternalTools: boolean;
 };
 
 let cachedModels: { apiKey: string; models: ModelInfo[]; expiresAt: number } | undefined;
@@ -80,62 +79,31 @@ export async function listAllModels(apiKey: string): Promise<string[]> {
   return orderModelIDs(await cursorModelIDs(apiKey));
 }
 
-type AgentSendOpts = {
-  model: ModelSelection;
-  onDelta: (arg: {
-    update: { type: string; usage?: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number } };
-  }) => Promise<void>;
-};
-
-async function createAgent(cfg: ProxyConfig, modelSelection: ModelSelection): Promise<SDKAgent> {
-  return Agent.create({
-    apiKey: cfg.apiKey,
-    model: modelSelection,
-    local: { cwd: cfg.cwd, settingSources: [] },
-  });
-}
-
-async function disposeAgent(agent: SDKAgent | undefined): Promise<void> {
-  if (!agent) {
-    return;
-  }
-  try {
-    await agent[Symbol.asyncDispose]();
-  } catch {
-    /* ignore */
-  }
-}
-
 type TurnOpts = {
   tools?: ChatCompletionTool[];
   nativeTools: boolean;
   allowedNames: Set<string> | null;
+  parallelToolCalls?: boolean;
 };
+
+function promptToolsFromRequest(req: ChatCompletionRequest): ChatCompletionTool[] | undefined {
+  if (req.tool_choice === "none") {
+    return undefined;
+  }
+  if (typeof req.tool_choice === "object") {
+    const chosen = req.tool_choice.function.name;
+    return req.tools?.filter((t) => t.function.name === chosen);
+  }
+  return req.tools;
+}
 
 function turnOptsFromRequest(req: ChatCompletionRequest): TurnOpts {
   return {
-    tools: req.tools,
-    nativeTools: requestUsesNativeTools(req.tools),
-    allowedNames: allowedToolNamesFromRequest(req.tools),
+    tools: promptToolsFromRequest(req),
+    nativeTools: requestUsesNativeTools(req.tools, req.tool_choice),
+    allowedNames: allowedToolNamesFromRequest(req.tools, req.tool_choice),
+    parallelToolCalls: req.parallel_tool_calls,
   };
-}
-
-async function sendStateless(
-  cfg: ProxyConfig,
-  modelSelection: ModelSelection,
-  messages: ChatMessage[],
-  sendOpts: AgentSendOpts,
-  tools?: ChatCompletionTool[],
-): Promise<{ agent: SDKAgent; run: AgentRun }> {
-  const agent = await createAgent(cfg, modelSelection);
-  const prompt = buildPromptFromMessages(messages, tools);
-  try {
-    const run = await agent.send(prompt, sendOpts);
-    return { agent, run };
-  } catch (err) {
-    await disposeAgent(agent);
-    throw err;
-  }
 }
 
 export async function handleChatCompletions(
@@ -147,7 +115,7 @@ export async function handleChatCompletions(
   const req = body;
   const model = sanitizeModelId(req.model);
   const messages = req.messages ?? [];
-  const stream = req.stream !== false;
+  const stream = req.stream === true;
   const modelSelection = resolveModelSelection(
     await cursorModels(cfg.apiKey),
     model,
@@ -163,13 +131,6 @@ export async function handleChatCompletions(
   await streamCompletion(cfg, messages, completionId, model, modelSelection, clientAbort, res, turnOpts);
 }
 
-function finishReasonForTools(bridgedCount: number, nativeTools: boolean): OpenAIFinishReason {
-  if (bridgedCount > 0 && nativeTools) {
-    return "tool_calls";
-  }
-  return "stop";
-}
-
 function emitBridgedTools(
   res: ServerResponse,
   completionId: string,
@@ -177,7 +138,10 @@ function emitBridgedTools(
   pending: LegacyToolInvocation[],
   turnOpts: TurnOpts,
 ): LegacyToolInvocation[] {
-  const bridged = filterInvocations(pending, turnOpts.allowedNames);
+  const bridged = limitInvocations(
+    filterInvocations(pending, turnOpts.allowedNames),
+    turnOpts.parallelToolCalls,
+  );
   if (bridged.length === 0) {
     return bridged;
   }
@@ -189,44 +153,26 @@ function emitBridgedTools(
   return bridged;
 }
 
-function buildOpenAIUsage(
-  messages: ChatMessage[],
-  sdkUsage: CursorTurnUsage | undefined,
-  textBuf: string,
+function emitBufferedReasoning(
+  res: ServerResponse,
+  completionId: string,
+  model: string,
   thinkingBuf: string,
-): OpenAIUsagePayload {
-  const estPrompt = roughTokFromMessages(messages);
-  const estReason = roughTokFromString(thinkingBuf);
-  const estResp = roughTokFromString(textBuf);
-  let prompt = sdkUsage?.inputTokens ?? 0;
-  let completion = sdkUsage?.outputTokens ?? 0;
-  const cached = sdkUsage?.cacheReadTokens ?? 0;
-  if (prompt <= 0) {
-    prompt = estPrompt;
+): void {
+  if (thinkingBuf) {
+    writeSSE(res, chunkDelta(completionId, model, { reasoning_content: thinkingBuf }));
   }
-  if (completion <= 0) {
-    completion = estReason + estResp;
+}
+
+function emitBufferedContent(
+  res: ServerResponse,
+  completionId: string,
+  model: string,
+  content: string,
+): void {
+  if (content) {
+    writeSSE(res, chunkDelta(completionId, model, { content }));
   }
-  let reasoning = estReason;
-  if (reasoning > completion) {
-    reasoning = completion;
-  }
-  if (thinkingBuf.length === 0) {
-    reasoning = 0;
-  }
-  const total = prompt + completion;
-  const out: OpenAIUsagePayload = {
-    prompt_tokens: prompt,
-    completion_tokens: completion,
-    total_tokens: total > 0 ? total : prompt + completion,
-  };
-  if (cached > 0) {
-    out.prompt_tokens_details = { cached_tokens: cached };
-  }
-  if (reasoning > 0) {
-    out.completion_tokens_details = { reasoning_tokens: reasoning };
-  }
-  return out;
 }
 
 async function streamCompletion(
@@ -259,6 +205,8 @@ async function streamCompletion(
   const unwireAbort = wireClientAbort(clientAbort, res, () => run, () => {
     clientAborted = true;
   });
+  res.writeHead(200, SSE_RESPONSE_HEADERS);
+  res.on("error", () => {});
   try {
     try {
       const sent = await sendStateless(cfg, modelSelection, messages, sendOpts, turnOpts.tools);
@@ -280,10 +228,9 @@ async function streamCompletion(
       }
       return;
     }
-    res.writeHead(200, SSE_RESPONSE_HEADERS);
-    res.on("error", () => {});
     let proseBuf = "";
     let thinkingBuf = "";
+    let emittedThinkingLen = 0;
     let legacyEmitted = false;
     let toolDetected = false;
     const pendingLegacy: LegacyToolInvocation[] = [];
@@ -294,12 +241,12 @@ async function streamCompletion(
         }
         processStreamEvent(
           event,
+          cfg.allowCursorInternalTools,
           (t) => {
             if (toolDetected || clientAborted) {
               return;
             }
-            proseBuf += t;
-            writeSSE(res, chunkDelta(completionId, model, { content: t }));
+            proseBuf += nextTextChunk(proseBuf, t);
           },
           (t) => {
             if (clientAborted) {
@@ -307,6 +254,7 @@ async function streamCompletion(
             }
             thinkingBuf += t;
             writeSSE(res, chunkDelta(completionId, model, { reasoning_content: t }));
+            emittedThinkingLen += t.length;
           },
           pendingLegacy,
           () => {
@@ -338,6 +286,19 @@ async function streamCompletion(
         finishStream();
         return;
       }
+      emitBufferedReasoning(res, completionId, model, thinkingBuf.slice(emittedThinkingLen));
+      let nativeInvocations: LegacyToolInvocation[] = [];
+      if (turnOpts.nativeTools) {
+        const parsed = nativeInvocationsFromText(proseBuf, turnOpts);
+        proseBuf = parsed.content;
+        nativeInvocations = parsed.invocations;
+      }
+      emitBufferedContent(res, completionId, model, proseBuf);
+      if (turnOpts.nativeTools && nativeInvocations.length > 0) {
+        writeSSEToolCalls(res, completionId, model, nativeInvocations);
+        finishStream("tool_calls");
+        return;
+      }
       if (pendingLegacy.length > 0) {
         const bridged = emitBridgedTools(res, completionId, model, pendingLegacy, turnOpts);
         if (!turnOpts.nativeTools) {
@@ -362,7 +323,8 @@ async function streamCompletion(
       }
       const msg = sanitizeReflectedText(err instanceof Error ? err.message : String(err));
       proseBuf += `\n[error] ${msg}`;
-      writeSSE(res, chunkDelta(completionId, model, { content: `\n[error] ${msg}` }));
+      emitBufferedReasoning(res, completionId, model, thinkingBuf.slice(emittedThinkingLen));
+      emitBufferedContent(res, completionId, model, proseBuf);
       finishStreamWithUsage(res, completionId, model, {
         messages,
         sdkUsage,
@@ -392,43 +354,6 @@ function sendStreamStartError(
   writeSSE(res, chunkDelta(completionId, model, { content: `\n[error] ${msg}` }));
   writeSSE(res, chunkDelta(completionId, model, {}, "stop"));
   finishSSE(res);
-}
-
-function processStreamEvent(
-  event: SDKMessage,
-  onText: (s: string) => void,
-  onThinking: (s: string) => void,
-  pendingLegacy: LegacyToolInvocation[],
-  onToolDetected: () => void,
-): void {
-  if (event.type === "assistant") {
-    let afterTool = false;
-    for (const block of event.message.content) {
-      if (block.type === "tool_use") {
-        if (tryCollectLegacyTool(pendingLegacy, block.name, block.input)) {
-          afterTool = true;
-          onToolDetected();
-        }
-        continue;
-      }
-      if (block.type === "text" && block.text && !afterTool) {
-        onText(block.text);
-      }
-    }
-    return;
-  }
-  if (event.type === "thinking" && event.text) {
-    onThinking(event.text);
-    return;
-  }
-  if (event.type === "tool_call") {
-    if (event.status === "completed" || event.status === "error") {
-      return;
-    }
-    if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args)) {
-      onToolDetected();
-    }
-  }
 }
 
 async function handleNonStream(
@@ -473,35 +398,17 @@ async function handleNonStream(
       if (clientAborted) {
         break;
       }
-      if (event.type === "assistant") {
-        let afterTool = false;
-        for (const block of event.message.content) {
-          if (block.type === "tool_use") {
-            if (tryCollectLegacyTool(pendingLegacy, block.name, block.input)) {
-              afterTool = true;
-              toolDetected = true;
-            }
-            continue;
-          }
-          if (block.type === "text" && block.text && !afterTool) {
-            content += block.text;
-          }
-        }
-        if (toolDetected) {
-          await forceStopRun(run);
-          break;
-        }
-      } else if (event.type === "thinking") {
-        reasoning += event.text;
-      } else if (event.type === "tool_call") {
-        if (event.status === "completed" || event.status === "error") {
-          continue;
-        }
-        if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args)) {
-          toolDetected = true;
-          await forceStopRun(run);
-          break;
-        }
+      processStreamEvent(
+        event,
+        cfg.allowCursorInternalTools,
+        (t) => { content += nextTextChunk(content, t); },
+        (t) => { reasoning += t; },
+        pendingLegacy,
+        () => { toolDetected = true; },
+      );
+      if (toolDetected) {
+        await forceStopRun(run);
+        break;
       }
     }
     if (clientAborted) {
@@ -510,7 +417,16 @@ async function handleNonStream(
     if (toolDetected) {
       await forceStopRun(run);
     }
-    const bridged = filterInvocations(pendingLegacy, turnOpts.allowedNames);
+    const parsedNative = turnOpts.nativeTools
+      ? nativeInvocationsFromText(content, turnOpts)
+      : { content, invocations: [] };
+    if (turnOpts.nativeTools) {
+      content = parsedNative.content;
+    }
+    const bridged = limitInvocations(
+      filterInvocations([...parsedNative.invocations, ...pendingLegacy], turnOpts.allowedNames),
+      turnOpts.parallelToolCalls,
+    );
     const toolCalls = openAIToolCallsFromInvocations(bridged);
     if (bridged.length > 0 && !turnOpts.nativeTools) {
       content = (toolDetected ? "" : content) + formatLegacyToolCallsBlock(bridged);

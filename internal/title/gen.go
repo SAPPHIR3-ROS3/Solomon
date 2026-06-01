@@ -2,6 +2,7 @@ package title
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -14,6 +15,24 @@ import (
 )
 
 const maxCompletionTokens = 2048
+
+var (
+	titleFenceRe = regexp.MustCompile("(?s)```.*?```")
+	titleTagRe   = regexp.MustCompile(`(?s)<[^>]*>`)
+)
+
+func looksLikeToolMarkup(s string) bool {
+	l := strings.ToLower(s)
+	return strings.Contains(l, "<tool") ||
+		strings.Contains(l, "tool_calls") ||
+		strings.Contains(l, "</tool>")
+}
+
+func cleanTitleText(s string) string {
+	s = titleFenceRe.ReplaceAllString(s, " ")
+	s = titleTagRe.ReplaceAllString(s, " ")
+	return strings.Join(strings.Fields(s), " ")
+}
 
 func FromPrompt(ctx context.Context, backend llm.CompletionBackend, client openai.Client, cfg *config.Root, model string, userLine string) (string, error) {
 	sys, err := prompt.RenderTitle(prompt.TitleData{Language: cfg.EffectiveResponseLanguage(), DisableThinking: true})
@@ -35,6 +54,10 @@ func FromPrompt(ctx context.Context, backend llm.CompletionBackend, client opena
 			return "", err
 		}
 		t = strings.TrimSpace(t)
+		if t == "" || looksLikeToolMarkup(t) {
+			return "", nil
+		}
+		t = cleanTitleText(t)
 		if t == "" {
 			return "", nil
 		}
@@ -55,6 +78,10 @@ func FromPrompt(ctx context.Context, backend llm.CompletionBackend, client opena
 		return "", nil
 	}
 	t := strings.TrimSpace(resp.Choices[0].Message.Content)
+	if t == "" || looksLikeToolMarkup(t) {
+		return "", nil
+	}
+	t = cleanTitleText(t)
 	if t == "" {
 		return "", nil
 	}
@@ -82,8 +109,16 @@ func FallbackFromWords(userLine string) string {
 }
 
 func NormalizeSlug(s string) string {
-	s = strings.TrimSpace(s)
+	s = cleanTitleText(s)
 	s = strings.ToLower(s)
 	s = strings.ReplaceAll(s, " ", "-")
+	const maxRunes = 60
+	if r := []rune(s); len(r) > maxRunes {
+		s = string(r[:maxRunes])
+	}
+	s = strings.Trim(s, "-")
+	if s == "" {
+		return "untitled-chat"
+	}
 	return s
 }

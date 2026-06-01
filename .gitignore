@@ -10,6 +10,8 @@
 # Cursor API integration (TypeScript / Node)
 integrations/cursor/node_modules/
 integrations/cursor/dist/
+integrations/cursor/.test/
+integrations/cursor/.solomon-cursor-guard/
 integrations/cursor/*.tsbuildinfo
 integrations/cursor/.env
 integrations/cursor/.env.*

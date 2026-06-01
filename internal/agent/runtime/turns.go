@@ -210,6 +210,8 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		legacyOut := r.Out
 		if r.machineMode() {
 			legacyOut = io.Discard
+		} else {
+			legacyOut = termcolor.NewErrorLineWriter(r.Out)
 		}
 		var contentOut io.Writer = legacyOut
 		if legacyTools {

@@ -22,11 +22,12 @@ var (
 )
 
 type processState struct {
-	cmd    *exec.Cmd
-	port   int
-	dir    string
-	apiKey string
-	cwd    string
+	cmd                      *exec.Cmd
+	port                     int
+	dir                      string
+	apiKey                   string
+	cwd                      string
+	allowCursorInternalTools bool
 }
 
 type Manager struct {
@@ -37,7 +38,7 @@ func DefaultManager() *Manager {
 	return &Manager{Port: DefaultPort}
 }
 
-func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, out BootstrapIO) (baseURL string, err error) {
+func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, allowCursorInternalTools bool, out BootstrapIO) (baseURL string, err error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return "", fmt.Errorf("missing Cursor API key")
@@ -62,7 +63,7 @@ func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, out BootstrapI
 	cwd = sidecarCWD(cwd)
 	mu.Lock()
 	defer mu.Unlock()
-	if running != nil && running.apiKey == apiKey && running.dir == dir && running.port == port {
+	if running != nil && running.apiKey == apiKey && running.dir == dir && running.port == port && running.allowCursorInternalTools == allowCursorInternalTools {
 		if healthOK(ctx, port) {
 			return DefaultBaseURL(port), nil
 		}
@@ -74,13 +75,16 @@ func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, out BootstrapI
 		}
 		running = nil
 	}
+	if running != nil {
+		stopLocked()
+	}
 	if healthOK(ctx, port) {
 		if running == nil {
-			running = &processState{port: port, dir: dir, apiKey: apiKey, cwd: cwd}
+			running = &processState{port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools}
 		}
 		return DefaultBaseURL(port), nil
 	}
-	if err := startLocked(dir, apiKey, cwd, port); err != nil {
+	if err := startLocked(dir, apiKey, cwd, allowCursorInternalTools, port); err != nil {
 		return "", err
 	}
 	if waitHealth(ctx, port, 45*time.Second) {
@@ -141,7 +145,7 @@ func sidecarLogFile() (*os.File, error) {
 	return os.OpenFile(filepath.Join(logDir, "cursor-sidecar.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 }
 
-func startLocked(dir, apiKey, cwd string, port int) error {
+func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port int) error {
 	stopLocked()
 	node, err := nodeExecutable()
 	if err != nil {
@@ -154,6 +158,7 @@ func startLocked(dir, apiKey, cwd string, port int) error {
 		"CURSOR_API_KEY="+apiKey,
 		fmt.Sprintf("CURSOR_API_PORT=%d", port),
 		"CURSOR_API_CWD="+cwd,
+		fmt.Sprintf("CURSOR_API_ALLOW_INTERNAL_TOOLS=%t", allowCursorInternalTools),
 	)
 	if logFile, err := sidecarLogFile(); err == nil {
 		cmd.Stdout = logFile
@@ -165,12 +170,12 @@ func startLocked(dir, apiKey, cwd string, port int) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start cursor proxy: %w", err)
 	}
-	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey, cwd: cwd}
-	go watchSidecarProcess(cmd, dir, apiKey, cwd, port)
+	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools}
+	go watchSidecarProcess(cmd, dir, apiKey, cwd, allowCursorInternalTools, port)
 	return nil
 }
 
-func watchSidecarProcess(cmd *exec.Cmd, dir, apiKey, cwd string, port int) {
+func watchSidecarProcess(cmd *exec.Cmd, dir, apiKey, cwd string, allowCursorInternalTools bool, port int) {
 	_ = cmd.Wait()
 	mu.Lock()
 	shouldRestart := running != nil && running.cmd == cmd
@@ -188,7 +193,7 @@ func watchSidecarProcess(cmd *exec.Cmd, dir, apiKey, cwd string, port int) {
 	if running != nil {
 		return
 	}
-	if err := startLocked(dir, apiKey, cwd, port); err != nil {
+	if err := startLocked(dir, apiKey, cwd, allowCursorInternalTools, port); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "cursor API sidecar restart failed", logging.LogOptions{Params: map[string]any{"err": err.Error(), "port": port}})
 	}
 }

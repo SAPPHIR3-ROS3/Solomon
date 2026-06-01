@@ -46,6 +46,9 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 	if strings.TrimSpace(a.Intent) == "" {
 		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
 	}
+	if a.OldString == "" && a.NewString == "" {
+		return nil, fmt.Errorf("editFile refuses empty overwrite")
+	}
 	p := resolveProjectPath(env.ProjRoot, a.Path)
 	if env.ActivateInstructionsFromAbsPath != nil {
 		env.ActivateInstructionsFromAbsPath(p)

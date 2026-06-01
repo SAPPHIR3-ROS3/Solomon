@@ -60,8 +60,9 @@ type ToolOutput struct {
 }
 
 type Tools struct {
-	Legacy      bool `toml:"legacy,omitempty"`
-	LegacyForce bool `toml:"legacy_force,omitempty"`
+	Legacy              bool `toml:"legacy,omitempty"`
+	LegacyForce         bool `toml:"legacy_force,omitempty"`
+	CursorInternalTools bool `toml:"cursor_internal_tools,omitempty"`
 }
 
 type Root struct {
