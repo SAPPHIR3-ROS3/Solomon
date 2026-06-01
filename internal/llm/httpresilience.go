@@ -285,6 +285,7 @@ func logAPIFailure(hostKey, protocol string, attempt, max int, status int, err e
 type codexAPIErrorBody struct {
 	Type            string `json:"type"`
 	Message         string `json:"message"`
+	Detail          string `json:"detail"`
 	PlanType        string `json:"plan_type"`
 	ResetsAt        int64  `json:"resets_at"`
 	ResetsInSeconds int64  `json:"resets_in_seconds"`
@@ -293,6 +294,9 @@ type codexAPIErrorBody struct {
 func UserFacingAPIError(err error) string {
 	if err == nil {
 		return ""
+	}
+	if msg := chatGPTSubPrefixedError(err); msg != "" {
+		return msg
 	}
 	var phe *ProviderHTTPError
 	if errors.As(err, &phe) {
@@ -340,10 +344,25 @@ func extractAPIErrorJSON(msg string) (codexAPIErrorBody, bool) {
 	if err := json.Unmarshal([]byte(raw), &body); err != nil {
 		return codexAPIErrorBody{}, false
 	}
-	if body.Type == "" && body.Message == "" && body.ResetsAt == 0 && body.ResetsInSeconds == 0 {
+	if body.Type == "" && body.Message == "" && body.Detail == "" && body.ResetsAt == 0 && body.ResetsInSeconds == 0 {
 		return codexAPIErrorBody{}, false
 	}
 	return body, true
+}
+
+func chatGPTSubPrefixedError(err error) string {
+	const prefix = "ChatGPT Sub: "
+	msg := strings.TrimSpace(err.Error())
+	if strings.HasPrefix(msg, prefix) {
+		return strings.TrimSpace(msg[len(prefix):])
+	}
+	if rest, n, ok := parseAfterAttemptsPrefix(msg); ok && strings.HasPrefix(rest, prefix) {
+		if n > 1 {
+			return fmt.Sprintf("attempts: %d\n%s", n, strings.TrimSpace(rest[len(prefix):]))
+		}
+		return strings.TrimSpace(rest[len(prefix):])
+	}
+	return ""
 }
 
 func formatAPIErrorLines(attempts, statusCode int, payload any) string {
@@ -376,6 +395,8 @@ func formatAPIErrorLines(attempts, statusCode int, payload any) string {
 	}
 	if body.Message != "" {
 		lines = append(lines, "message: "+body.Message)
+	} else if body.Detail != "" {
+		lines = append(lines, "message: "+body.Detail)
 	}
 	if body.PlanType != "" {
 		lines = append(lines, "plan: "+body.PlanType)
