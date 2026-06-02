@@ -27,7 +27,7 @@ func resolveToolInvocation(ctx context.Context, env *Env, mode string, inv tooli
 func isInternalToolName(name string) bool {
 	switch name {
 	case "createPlan", "editPlan", "buildPlan",
-		"shell", "readFile", "editFile", "subagent", "fetchWeb", "webSearch":
+		"shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch":
 		return true
 	default:
 		return false
@@ -75,6 +75,13 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 			return nil, err
 		}
 		return execReadFile(env, inv.Args)
+	case "find":
+		if mode != "build" {
+			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
+			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
+			return nil, err
+		}
+		return execFind(ctx, env, inv.Args)
 	case "editFile":
 		if mode != "build" {
 			err := fmt.Errorf("tool %s only in /build mode", inv.Name)

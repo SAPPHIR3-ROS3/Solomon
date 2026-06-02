@@ -70,6 +70,14 @@ const CURSOR_TO_SOLOMON: Record<string, string> = {
   StrReplace: "editFile",
   strReplace: "editFile",
   search_replace: "editFile",
+  find: "find",
+  Find: "find",
+  Grep: "find",
+  grep: "find",
+  Glob: "find",
+  glob: "find",
+  ripgrep: "find",
+  rg: "find",
 };
 
 export function collectLegacyTool(
@@ -93,7 +101,7 @@ export function tryCollectLegacyTool(
   return pending.length > before;
 }
 
-const SOLOMON_TOOL_NAMES = new Set(["readFile", "shell", "editFile"]);
+const SOLOMON_TOOL_NAMES = new Set(["readFile", "shell", "editFile", "find"]);
 
 export function mapCursorToolToSolomon(
   name: string,
@@ -104,7 +112,10 @@ export function mapCursorToolToSolomon(
     return null;
   }
   const solomonName = mapped;
-  const args = normalizeArgs(solomonName, rawArgs);
+  const args =
+    solomonName === "find"
+      ? normalizeFindArgsFromRaw(name, rawArgs)
+      : normalizeArgs(solomonName, rawArgs);
   if (!args) {
     return null;
   }
@@ -206,6 +217,76 @@ function normalizeArgs(
     };
   }
   return obj;
+}
+
+function normalizeFindArgsFromRaw(
+  cursorName: string,
+  raw: unknown,
+): Record<string, unknown> | null {
+  const obj = parseArgsObject(raw);
+  if (!obj) {
+    return null;
+  }
+  return normalizeFindArgs(cursorName, obj);
+}
+
+function parseArgsObject(raw: unknown): Record<string, unknown> | null {
+  if (raw === null || raw === undefined) {
+    return {};
+  }
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object") {
+    return { ...(raw as Record<string, unknown>) };
+  }
+  return null;
+}
+
+function normalizeFindArgs(cursorName: string, obj: Record<string, unknown>): Record<string, unknown> | null {
+  const n = cursorName.toLowerCase();
+  let files = n === "glob";
+  if (typeof obj.files === "boolean") {
+    files = obj.files;
+  }
+  const pattern = files
+    ? pickString(obj, ["pattern", "glob_pattern", "globPattern"]) ?? ""
+    : pickString(obj, ["pattern", "query", "regex"]) ?? "";
+  if (!pattern) {
+    return null;
+  }
+  const out: Record<string, unknown> = { pattern, files };
+  const path = pickString(obj, ["path", "target_directory", "targetDirectory"]);
+  if (path) {
+    out.path = path;
+  }
+  if (!files) {
+    const pg = pickString(obj, ["pathGlob", "glob", "glob_pattern", "globPattern"]);
+    if (pg) {
+      out.pathGlob = pg;
+    }
+    const om = pickString(obj, ["outputMode", "output_mode"]);
+    if (om) {
+      out.outputMode = om;
+    }
+    if (obj.caseInsensitive === true || obj["-i"] === true) {
+      out.caseInsensitive = true;
+    }
+    const hl = pickNumber(obj, ["headLimit", "head_limit"]);
+    if (hl !== undefined) {
+      out.headLimit = hl;
+    }
+  } else {
+    const hl = pickNumber(obj, ["headLimit", "head_limit"]);
+    if (hl !== undefined) {
+      out.headLimit = hl;
+    }
+  }
+  return out;
 }
 
 function pickString(obj: Record<string, unknown>, keys: string[]): string | undefined {

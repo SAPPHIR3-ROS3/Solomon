@@ -19,6 +19,7 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 			shellOpenAI(),
 			readFileOpenAI(),
 			editFileOpenAI(),
+			findOpenAI(),
 			subagentOpenAI(),
 			loadSkillOpenAI(),
 			searchSkillOpenAI(),

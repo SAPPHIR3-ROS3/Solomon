@@ -9,7 +9,8 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | File area | Tools / role |
 |-----------|----------------|
 | `create_plan.go`, `edit_plan.go`, `build_plan.go` | Plan mode |
-| `shell.go`, `read_file.go`, `edit_file.go` | Build mode filesystem/shell |
+| `shell.go`, `read_file.go`, `edit_file.go`, `find.go`, `filewalk.go`, `search_pool.go` | Build mode filesystem/shell/search |
+| `internal/pathglob`, `internal/gitignore` | Glob `**` matching and `.gitignore` (vendored matcher) |
 | `subagent.go` | Nested agent run |
 | `load_skill.go`, `search_skill.go` | Skill tools |
 | `fetch_web.go`, `web_search.go` | Web fetch and search |
@@ -33,7 +34,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | Name | Mode |
 |------|------|
 | `createPlan`, `editPlan`, `buildPlan` | plan |
-| `shell`, `readFile`, `editFile`, `subagent`, `fetchWeb`, `webSearch` | build |
+| `shell`, `readFile`, `editFile`, `find`, `subagent`, `fetchWeb`, `webSearch` | build |
 
 Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
 
