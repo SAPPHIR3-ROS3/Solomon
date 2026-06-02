@@ -52,7 +52,7 @@ Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the
 
 ### Interactive terminal REPL
 
-Default `solomon` starts a readline loop with checkpoint-aware prompts, slash commands, and streaming assistant output. This is the core UX shared with `codex`, `claude`, and `copilot` TUIs. REPL behavior: [Runtime and REPL](architecture/runtime-and-repl.md).
+Default `solomon` starts an interactive REPL with a raw-mode multiline editor, checkpoint-aware prompts, slash commands, and streaming assistant output. This is the core UX shared with `codex`, `claude`, and `copilot` TUIs. REPL behavior: [Runtime and REPL](architecture/runtime-and-repl.md).
 
 ### Plan mode vs build mode
 
@@ -192,7 +192,7 @@ The following are listed in [`TODO.md`](../TODO.md) only. They are ordered by th
 
 ### Autosuggest from session history **(in the future)**
 
-Modern shells show ghost-text suggestions from local history; coding-agent REPLs rarely do. Solomon would suggest prior prompts from session or project history without breaking slash dispatch or multiline input. Depends on a stable multiline/readline story.
+Modern shells show ghost-text suggestions from local history; coding-agent REPLs rarely do. Solomon would suggest prior prompts from session or project history without breaking slash dispatch or multiline input in the REPL editor.
 
 ### Code mode and extended tool sets **(in the future)**
 
@@ -218,9 +218,9 @@ External memory (MemPalace or similar) plus Obsidian vault conventions would ext
 
 Automatic model choice by task type, cost, or fallback on rate limits goes beyond manual `/models` and `/connect`. Some cloud agents route internally; local harnesses would need explicit configurable rules.
 
-### Multiline REPL input **(in the future)**
+### Multiline REPL input
 
-Paste and author multi-line prompts without premature send—delimiters, paste mode, or external editor integration. Claude Code uses Shift+Enter; Solomon’s readline loop is still primarily single-line oriented.
+Paste and author multi-line prompts without premature send. Solomon owns the REPL input buffer in raw mode, supports vertical cursor movement within the draft, and enters history only from the first/last line. Modified Enter support remains terminal-dependent.
 
 ### Oracle consultative agent **(in the future)**
 

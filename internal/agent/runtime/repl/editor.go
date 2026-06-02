@@ -1,0 +1,489 @@
+package repl
+
+import (
+	"bufio"
+	"errors"
+	"io"
+	"os"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+
+	readline "github.com/chzyer/readline"
+	"golang.org/x/sys/unix"
+	"golang.org/x/term"
+)
+
+type inputHistory struct {
+	items []string
+	idx   int
+	draft string
+}
+
+func newInputHistory() *inputHistory {
+	return &inputHistory{idx: -1}
+}
+
+func (h *inputHistory) add(s string) {
+	if strings.TrimSpace(s) == "" {
+		return
+	}
+	if len(h.items) == 0 || h.items[len(h.items)-1] != s {
+		h.items = append(h.items, s)
+	}
+	h.idx = len(h.items)
+	h.draft = ""
+}
+
+func (h *inputHistory) prev(draft string) (string, bool) {
+	if len(h.items) == 0 {
+		return "", false
+	}
+	if h.idx < 0 || h.idx > len(h.items) {
+		h.idx = len(h.items)
+	}
+	if h.idx == len(h.items) {
+		h.draft = draft
+	}
+	if h.idx == 0 {
+		return h.items[0], true
+	}
+	h.idx--
+	return h.items[h.idx], true
+}
+
+func (h *inputHistory) next() (string, bool) {
+	if len(h.items) == 0 || h.idx < 0 || h.idx >= len(h.items) {
+		return "", false
+	}
+	h.idx++
+	if h.idx == len(h.items) {
+		return h.draft, true
+	}
+	return h.items[h.idx], true
+}
+
+func (h *inputHistory) resetNav() {
+	h.idx = len(h.items)
+	h.draft = ""
+}
+
+type multilineEditor struct {
+	loop       *Loop
+	history    *inputHistory
+	lines      [][]rune
+	row        int
+	col        int
+	width      int
+	rendered   int
+	cursorLine int
+	out        io.Writer
+}
+
+func readMultilineInput(loop *Loop, history *inputHistory) (string, error) {
+	fd := int(os.Stdin.Fd())
+	state, err := term.MakeRaw(fd)
+	if err != nil {
+		return "", err
+	}
+	defer term.Restore(fd, state)
+
+	width := 80
+	if loop.RL != nil && loop.RL.Config != nil && loop.RL.Config.FuncGetWidth != nil {
+		if w := loop.RL.Config.FuncGetWidth(); w > 8 {
+			width = w
+		}
+	} else if w, _, err := term.GetSize(fd); err == nil && w > 8 {
+		width = w
+	}
+	e := &multilineEditor{
+		loop:    loop,
+		history: history,
+		lines:   [][]rune{{}},
+		width:   width,
+		out:     loop.RL.Stdout(),
+	}
+	defer e.finish()
+	e.refresh()
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		key, err := readEditorKey(reader)
+		if err != nil {
+			if errors.Is(err, io.EOF) && e.empty() {
+				return "", io.EOF
+			}
+			return "", err
+		}
+		if done, line, err := e.handle(key); done || err != nil {
+			return line, err
+		}
+	}
+}
+
+type editorKey struct {
+	r     rune
+	seq   string
+	text  string
+	paste bool
+}
+
+func readEditorKey(r *bufio.Reader) (editorKey, error) {
+	ch, _, err := r.ReadRune()
+	if err != nil {
+		return editorKey{}, err
+	}
+	if ch != readline.CharEsc {
+		return editorKey{r: ch}, nil
+	}
+	var b strings.Builder
+	b.WriteRune(ch)
+	for r.Buffered() > 0 || stdinReady(20*time.Millisecond) {
+		next, _, err := r.ReadRune()
+		if err != nil {
+			return editorKey{}, err
+		}
+		b.WriteRune(next)
+		s := b.String()
+		if strings.HasPrefix(s, "\x1b[200~") {
+			return readBracketedPaste(r)
+		}
+		if isCompleteEscape(s) {
+			return editorKey{seq: s}, nil
+		}
+	}
+	s := b.String()
+	if strings.HasPrefix(s, "\x1b[200~") {
+		return readBracketedPaste(r)
+	}
+	return editorKey{seq: s}, nil
+}
+
+func isCompleteEscape(s string) bool {
+	if len(s) < 2 {
+		return false
+	}
+	last := s[len(s)-1]
+	return (last >= 'A' && last <= 'Z') || (last >= 'a' && last <= 'z') || last == '~' || last == 'u'
+}
+
+func readBracketedPaste(r *bufio.Reader) (editorKey, error) {
+	var b strings.Builder
+	for {
+		ch, _, err := r.ReadRune()
+		if err != nil {
+			return editorKey{}, err
+		}
+		b.WriteRune(ch)
+		s := b.String()
+		if strings.HasSuffix(s, "\x1b[201~") {
+			return editorKey{text: strings.TrimSuffix(s, "\x1b[201~"), paste: true}, nil
+		}
+	}
+}
+
+func stdinReady(d time.Duration) bool {
+	var fds unix.FdSet
+	fd := int(os.Stdin.Fd())
+	fds.Bits[fd/64] |= 1 << (fd % 64)
+	tv := unix.NsecToTimeval(d.Nanoseconds())
+	n, err := unix.Select(fd+1, &fds, nil, nil, &tv)
+	return err == nil && n > 0
+}
+
+func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
+	resetHistory := false
+	switch {
+	case key.paste:
+		e.insertPaste(key.text)
+		resetHistory = true
+	case key.seq != "":
+		return e.handleSeq(key.seq)
+	case key.r == readline.CharInterrupt:
+		return true, "", readline.ErrInterrupt
+	case key.r == 4:
+		if e.empty() {
+			return true, "", io.EOF
+		}
+	case key.r == '\r' || key.r == '\n':
+		return true, e.string(), nil
+	case key.r == readline.CharBackspace || key.r == readline.CharCtrlH:
+		e.backspace()
+		resetHistory = true
+	case key.r == readline.CharDelete:
+		e.deleteForward()
+		resetHistory = true
+	case key.r == readline.CharTab:
+		resetHistory = e.complete()
+	case key.r == readline.CharLineStart:
+		e.col = 0
+	case key.r == readline.CharLineEnd:
+		e.col = len(e.lines[e.row])
+	case key.r == readline.CharBackward:
+		e.left()
+	case key.r == readline.CharForward:
+		e.right()
+	case key.r == readline.CharPrev:
+		e.up()
+	case key.r == readline.CharNext:
+		e.down()
+	default:
+		if key.r >= 32 && key.r != utf8.RuneError {
+			e.insertRune(key.r)
+			resetHistory = true
+		}
+	}
+	if resetHistory {
+		e.history.resetNav()
+	}
+	e.refresh()
+	return false, "", nil
+}
+
+func (e *multilineEditor) handleSeq(seq string) (bool, string, error) {
+	resetHistory := false
+	switch seq {
+	case "\x1b[A", "\x1bOA":
+		e.up()
+	case "\x1b[B", "\x1bOB":
+		e.down()
+	case "\x1b[D", "\x1bOD":
+		e.left()
+	case "\x1b[C", "\x1bOC":
+		e.right()
+	case "\x1b[H", "\x1bOH":
+		e.col = 0
+	case "\x1b[F", "\x1bOF":
+		e.col = len(e.lines[e.row])
+	case "\x1b[3~":
+		e.deleteForward()
+		resetHistory = true
+	case "\x1b\r", "\x1b\n", "\x1b[13;2u", "\x1b[13;5u", "\x1b[27;5;13~":
+		e.insertNewline()
+		resetHistory = true
+	default:
+		return false, "", nil
+	}
+	if resetHistory {
+		e.history.resetNav()
+	}
+	e.refresh()
+	return false, "", nil
+}
+
+func (e *multilineEditor) insertPaste(s string) {
+	if s == "" {
+		if e.loop.ClipboardPasteForStdin != nil {
+			if tag, ok := e.loop.ClipboardPasteForStdin(); ok {
+				e.insertString(tag)
+			}
+		}
+		return
+	}
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	e.insertString(s)
+}
+
+func (e *multilineEditor) insertString(s string) {
+	for _, r := range s {
+		if r == '\n' {
+			e.insertNewline()
+		} else {
+			e.insertRune(r)
+		}
+	}
+}
+
+func (e *multilineEditor) insertRune(r rune) {
+	line := e.lines[e.row]
+	line = append(line[:e.col], append([]rune{r}, line[e.col:]...)...)
+	e.lines[e.row] = line
+	e.col++
+}
+
+func (e *multilineEditor) insertNewline() {
+	line := e.lines[e.row]
+	next := append([]rune(nil), line[e.col:]...)
+	e.lines[e.row] = append([]rune(nil), line[:e.col]...)
+	e.lines = append(e.lines[:e.row+1], append([][]rune{next}, e.lines[e.row+1:]...)...)
+	e.row++
+	e.col = 0
+}
+
+func (e *multilineEditor) backspace() {
+	line := e.lines[e.row]
+	if newLine, newPos, ok := llm.BackspaceOverImgTag(line, e.col); ok {
+		e.lines[e.row] = newLine
+		e.col = newPos
+		return
+	}
+	if e.col > 0 {
+		e.lines[e.row] = append(line[:e.col-1], line[e.col:]...)
+		e.col--
+		return
+	}
+	if e.row == 0 {
+		return
+	}
+	prevLen := len(e.lines[e.row-1])
+	e.lines[e.row-1] = append(e.lines[e.row-1], e.lines[e.row]...)
+	e.lines = append(e.lines[:e.row], e.lines[e.row+1:]...)
+	e.row--
+	e.col = prevLen
+}
+
+func (e *multilineEditor) deleteForward() {
+	line := e.lines[e.row]
+	if newLine, newPos, ok := llm.DeleteForwardOverImgTag(line, e.col); ok {
+		e.lines[e.row] = newLine
+		e.col = newPos
+		return
+	}
+	if e.col < len(line) {
+		e.lines[e.row] = append(line[:e.col], line[e.col+1:]...)
+		return
+	}
+	if e.row+1 < len(e.lines) {
+		e.lines[e.row] = append(e.lines[e.row], e.lines[e.row+1]...)
+		e.lines = append(e.lines[:e.row+1], e.lines[e.row+2:]...)
+	}
+}
+
+func (e *multilineEditor) left() {
+	if newPos := llm.JumpLeftOverImgTag(e.lines[e.row], e.col); newPos >= 0 {
+		e.col = newPos
+		return
+	}
+	if e.col > 0 {
+		e.col--
+		return
+	}
+	if e.row > 0 {
+		e.row--
+		e.col = len(e.lines[e.row])
+	}
+}
+
+func (e *multilineEditor) right() {
+	if newPos := llm.JumpRightOverImgTag(e.lines[e.row], e.col); newPos >= 0 {
+		e.col = newPos
+		return
+	}
+	if e.col < len(e.lines[e.row]) {
+		e.col++
+		return
+	}
+	if e.row+1 < len(e.lines) {
+		e.row++
+		e.col = 0
+	}
+}
+
+func (e *multilineEditor) up() {
+	if e.row == 0 {
+		e.loadHistoryPrev()
+		return
+	}
+	want := e.col
+	e.row--
+	if want > len(e.lines[e.row]) {
+		want = len(e.lines[e.row])
+	}
+	e.col = want
+}
+
+func (e *multilineEditor) down() {
+	if e.row+1 == len(e.lines) {
+		e.loadHistoryNext()
+		return
+	}
+	want := e.col
+	e.row++
+	if want > len(e.lines[e.row]) {
+		want = len(e.lines[e.row])
+	}
+	e.col = want
+}
+
+func (e *multilineEditor) loadHistoryPrev() {
+	if s, ok := e.history.prev(e.string()); ok {
+		e.setString(s, 0)
+	}
+}
+
+func (e *multilineEditor) loadHistoryNext() {
+	if s, ok := e.history.next(); ok {
+		e.setString(s, len(strings.Split(s, "\n"))-1)
+	}
+}
+
+func (e *multilineEditor) complete() bool {
+	line := e.lines[e.row]
+	candidates, _ := replcomplete.ReplCompleteDo(e.loop.CompleteEnv, line, e.col)
+	if len(candidates) == 0 {
+		return false
+	}
+	insert := candidates[0]
+	if len(candidates) > 1 {
+		insert = commonRunePrefix(candidates)
+	}
+	if len(insert) == 0 {
+		return false
+	}
+	for _, r := range insert {
+		e.insertRune(r)
+	}
+	return true
+}
+
+func commonRunePrefix(candidates [][]rune) []rune {
+	if len(candidates) == 0 {
+		return nil
+	}
+	prefix := append([]rune(nil), candidates[0]...)
+	for _, candidate := range candidates[1:] {
+		n := 0
+		for n < len(prefix) && n < len(candidate) && prefix[n] == candidate[n] {
+			n++
+		}
+		prefix = prefix[:n]
+		if len(prefix) == 0 {
+			break
+		}
+	}
+	return prefix
+}
+
+func (e *multilineEditor) setString(s string, row int) {
+	parts := strings.Split(s, "\n")
+	e.lines = make([][]rune, len(parts))
+	for i, p := range parts {
+		e.lines[i] = []rune(p)
+	}
+	if len(e.lines) == 0 {
+		e.lines = [][]rune{{}}
+	}
+	if row < 0 {
+		row = 0
+	}
+	if row >= len(e.lines) {
+		row = len(e.lines) - 1
+	}
+	e.row = row
+	e.col = len(e.lines[e.row])
+}
+
+func (e *multilineEditor) empty() bool {
+	return len(e.lines) == 1 && len(e.lines[0]) == 0
+}
+
+func (e *multilineEditor) string() string {
+	parts := make([]string, len(e.lines))
+	for i, line := range e.lines {
+		parts[i] = string(line)
+	}
+	return strings.Join(parts, "\n")
+}

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
@@ -232,26 +232,20 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 	return fmt.Errorf("provider %q not found", providerName)
 }
 
-func (r *Runtime) refreshReadlinePrompt() {
-	if r.RL == nil {
-		return
-	}
+func (r *Runtime) readlinePromptPrimary() string {
 	var prefix string
 	r.mutateSession(func(s *chatstore.Session) {
 		prefix = checkpoint.FormatReplPromptPrefix(s) + termcolor.WrapUserReadline("You: ")
 	})
-	r.RL.SetPrompt(prefix)
+	return prefix
 }
 
-func (r *Runtime) refreshReadlinePromptContinue() {
-	if r.RL == nil {
-		return
-	}
+func (r *Runtime) readlinePromptContinue() string {
 	var prefix string
 	r.mutateSession(func(s *chatstore.Session) {
 		prefix = checkpoint.FormatReplPromptPrefix(s) + termcolor.WrapUserReadline(".... ")
 	})
-	r.RL.SetPrompt(prefix)
+	return prefix
 }
 
 func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {

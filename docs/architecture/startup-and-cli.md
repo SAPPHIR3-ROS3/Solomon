@@ -34,7 +34,7 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 | `project.Resolve` | `internal/project/project.go` | Map cwd → `(root, hex)` |
 | `agentruntime.NewRuntime` | `runtime/core.go` | OpenAI client, default `Mode: "build"` |
 | `Runtime.InitMCP` | `runtime/mcp.go` | Start MCP manager from config |
-| `Runtime.Run` | `runtime/repl.go` | Interactive loop |
+| `Runtime.Run` | `runtime/repl_run.go` + `runtime/repl/` | Interactive loop |
 | `Runtime.RunPromptOnce` | `runtime/core.go` | Single user message + turns |
 
 ## Startup flow

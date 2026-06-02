@@ -4,7 +4,7 @@ Solomon is a terminal application: it writes text and ANSI styling to stdout. Yo
 
 ## Font (required)
 
-Use a **monospace** font in your terminal settings. Proportional fonts break alignment of the welcome banner, tool output, and readline prompt.
+Use a **monospace** font in your terminal settings. Proportional fonts break alignment of the welcome banner, tool output, and REPL prompt.
 
 **Turn off ligatures** in the terminal font settings (or pick a “Mono” variant without ligatures). Ligatures merge character sequences (e.g. `=>`, `!=`) into single glyphs and can make copied text and layout misleading in a CLI.
 
@@ -45,9 +45,23 @@ Interactive REPL on a real terminal uses colors when none of the disable rules a
 
 With `solomon exec --json` or `--jsonl`, stdout is JSON. Use a pipe or `--no-color` if you need to guarantee no escape sequences on stdout. Diagnostics go to stderr.
 
-### Logo and readline
+### Logo and REPL input
 
-The Braille welcome logo uses the same color policy as the rest of the UI (including downgrade on limited terminals). On Windows, `[img-n]` tags in the readline buffer use a reduced ANSI palette so readline’s translator does not choke on truecolor background sequences.
+The Braille welcome logo uses the same color policy as the rest of the UI (including downgrade on limited terminals). In the interactive REPL, Solomon owns the multiline editor and redraws the prompt block directly with ANSI cursor movement.
+
+## Multiline input (interactive REPL)
+
+The REPL prompt uses a Solomon-owned raw-mode editor instead of delegating the main input buffer to `readline`. This allows editing a message as a real multiline buffer.
+
+| Key / action | Behavior |
+| ------------ | -------- |
+| **Enter** | Submit the current message. |
+| **Alt+Enter / Ctrl+Enter** | Insert a newline when the terminal sends a distinguishable modified-Enter sequence. Some terminals send the same bytes as Enter, so this is terminal-dependent. |
+| **Arrow Up / Arrow Down** | Move between lines inside the current message. On the first line, Up loads previous history; on the last line, Down advances history. |
+| **Arrow Left / Arrow Right** | Move horizontally; image tags are treated as a single logical unit. |
+| **Backspace / Delete** | Edit the current buffer; Backspace at the start of a line joins it with the previous line. |
+| **Paste text** | Bracketed paste inserts multiline text into the current message without submitting it. |
+| **Paste image** | When the terminal exposes an image paste through the supported clipboard path, Solomon inserts an `[img-N]` tag. |
 
 ## Tab completion (interactive REPL)
 
