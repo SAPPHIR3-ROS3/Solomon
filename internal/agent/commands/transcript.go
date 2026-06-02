@@ -23,11 +23,11 @@ func WriteLabeledTranscript(out io.Writer, msgs []chatstore.Message, model strin
 			if showUsage && i > turnStart {
 				writeStoredUsageLine(out, msgs, turnStart, i)
 			}
-			writeTranscriptMessage(out, m, model)
+			writeTranscriptMessage(out, msgs, i, model)
 			turnStart = i + 1
 			continue
 		}
-		writeTranscriptMessage(out, m, model)
+		writeTranscriptMessage(out, msgs, i, model)
 	}
 	if showUsage && turnStart < len(msgs) {
 		writeStoredUsageLine(out, msgs, turnStart, len(msgs))
@@ -42,7 +42,8 @@ func writeStoredUsageLine(out io.Writer, msgs []chatstore.Message, start, end in
 	fmt.Fprintln(out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, outputTPS, ttftSecs, promptTPS, ctxEst, turnWallSecs))
 }
 
-func writeTranscriptMessage(out io.Writer, m chatstore.Message, model string) {
+func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, model string) {
+	m := msgs[idx]
 	prefix := ""
 	if chatstore.MessageCheckpointTagVisible(m) {
 		prefix = checkpoint.FormatLinePrefix(m.CheckpointSeq, m.CheckpointBranchKey)
@@ -54,9 +55,13 @@ func writeTranscriptMessage(out io.Writer, m chatstore.Message, model string) {
 		}
 		fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapUser("You:"), m.Content)
 	case "assistant":
+		if strings.Contains(m.Content, "[Conversation summary]") {
+			fmt.Fprintf(out, "%s%s\n", prefix, RenderCompactSummaryBody(m.Content))
+			break
+		}
 		rtxt, cshow := chatstore.AssistantDisplayParts(m)
-		rtxt = tooling.StripLegacyToolBlocks(rtxt)
-		cshow = tooling.LegacyProseOutsideToolCalls(cshow)
+		rtxt = chatstore.StripAllImgPlaceholderLiterals(tooling.StripLegacyToolBlocks(rtxt))
+		cshow = chatstore.StripAllImgPlaceholderLiterals(tooling.LegacyProseOutsideToolCalls(cshow))
 		if rtxt != "" {
 			fmt.Fprintf(out, "%s%s\n", prefix, termcolor.WrapThinking(rtxt))
 		}
@@ -82,15 +87,40 @@ func writeTranscriptMessage(out io.Writer, m chatstore.Message, model string) {
 			tooling.WriteToolDisplayLines(out, cpSeq, branch, tooling.FormatToolDisplayLines(tc.Name, json.RawMessage(tc.Arguments)))
 		}
 	case "tool":
-		id := m.ToolCallID
-		if id != "" {
-			fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapThinking(fmt.Sprintf("[tool %s]", id)), truncateRunes(m.Content, 240))
-		} else {
-			fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapThinking("[tool]"), truncateRunes(m.Content, 240))
+		toolName := toolNameForResult(msgs, idx)
+		lines := tooling.FormatToolResultDisplayLines(toolName, m.Content)
+		if len(lines) == 0 {
+			return
+		}
+		for _, line := range lines {
+			fmt.Fprintf(out, "%s%s\n", prefix, line)
 		}
 	case "system":
 		fmt.Fprint(out, prefix)
 		termcolor.WriteSystem(out, m.Content)
 	default:
 	}
+}
+
+func toolNameForResult(msgs []chatstore.Message, toolIdx int) string {
+	id := strings.TrimSpace(msgs[toolIdx].ToolCallID)
+	if id == "" {
+		return ""
+	}
+	for j := toolIdx - 1; j >= 0; j-- {
+		switch msgs[j].Role {
+		case "tool":
+			continue
+		case "assistant":
+			for _, tc := range msgs[j].ToolCalls {
+				if tc.ID == id {
+					return tc.Name
+				}
+			}
+			return ""
+		default:
+			return ""
+		}
+	}
+	return ""
 }

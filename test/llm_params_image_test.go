@@ -2,10 +2,118 @@ package test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
+
+func TestNeutralizeLiteralImgPlaceholders(t *testing.T) {
+	got := chatstore.NeutralizeLiteralImgPlaceholders("see [img-1] in docs")
+	want := "see `[img-1]` in docs"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestScrubLiteralImgPlaceholdersForAPI_reasoning(t *testing.T) {
+	got := chatstore.ScrubLiteralImgPlaceholdersForAPI("plan around [img-0] token")
+	if strings.Contains(got, "[img-") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestScrubLiteralImgPlaceholdersForAPI_danglingBracket(t *testing.T) {
+	got := chatstore.ScrubLiteralImgPlaceholdersForAPI("cerco `[img-` nel codice")
+	if strings.Contains(got, "[img-") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestScrubLiteralImgPlaceholdersForAPI_escapedRgPattern(t *testing.T) {
+	got := chatstore.ScrubLiteralImgPlaceholdersForAPI(`rg -n \"\[img-\"`)
+	if strings.Contains(got, "[img-") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestMessageParamsStripsAssistantToolCallImgLiterals(t *testing.T) {
+	msgs := []chatstore.Message{
+		{Role: "user", Content: "go"},
+		{Role: "assistant", ToolCalls: []chatstore.ToolCall{{
+			ID: "c1", Name: "editFile", Arguments: `{"newString":"tag [img-0] here"}`,
+		}}},
+	}
+	params := llm.MessageParams("", msgs, nil)
+	if len(params) < 3 {
+		t.Fatalf("params len %d", len(params))
+	}
+	ap := params[2].OfAssistant
+	if ap == nil || len(ap.ToolCalls) == 0 {
+		t.Fatal("expected assistant tool_calls")
+	}
+	args := ap.ToolCalls[0].OfFunction.Function.Arguments
+	if strings.Contains(args, "[img-") {
+		t.Fatalf("tool call args not stripped: %q", args)
+	}
+}
+
+func TestMessageParamsStripsAssistantImgLiterals(t *testing.T) {
+	msgs := []chatstore.Message{
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: "placeholder [img-0] is documented in TODO"},
+	}
+	params := llm.MessageParams("", msgs, nil)
+	if len(params) < 3 {
+		t.Fatalf("params len %d", len(params))
+	}
+	ap := params[2].OfAssistant
+	if ap == nil || ap.Content.OfString.Value == "" {
+		t.Fatal("expected assistant string content")
+	}
+	if strings.Contains(ap.Content.OfString.Value, "[img-") {
+		t.Fatalf("assistant content not stripped: %q", ap.Content.OfString.Value)
+	}
+}
+
+func TestStripFalseImgPlaceholdersFromNonUserSession_toolAndArgs(t *testing.T) {
+	s := &chatstore.Session{Messages: []chatstore.Message{
+		{Role: "tool", Content: `{"output":"see [img-n] in TODO"}`},
+		{Role: "assistant", ToolCalls: []chatstore.ToolCall{{
+			ID: "c1", Name: "shell", Arguments: `{"command":"rg '[img-0]'"}`,
+		}}},
+	}}
+	n := chatstore.StripFalseImgPlaceholdersFromNonUserSession(s)
+	if n == 0 {
+		t.Fatal("expected strip count > 0")
+	}
+	if strings.Contains(s.Messages[0].Content, "[img-") {
+		t.Fatalf("tool content: %q", s.Messages[0].Content)
+	}
+	if strings.Contains(s.Messages[1].ToolCalls[0].Arguments, "[img-") {
+		t.Fatalf("tool call args: %q", s.Messages[1].ToolCalls[0].Arguments)
+	}
+}
+
+func TestNormalizeSummaryWhitespace(t *testing.T) {
+	in := "a\n\n\n\nb\n\n"
+	got := chatstore.NormalizeSummaryWhitespace(in)
+	if strings.Contains(got, "\n\n\n") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestScrubSummaryImgWorkflowLines(t *testing.T) {
+	in := "Decisioni:\n- Tag immagine: saltati nel parsing\n- Percorsi: ok\n"
+	got := chatstore.ScrubSummaryImgWorkflowLines(in)
+	if strings.Contains(strings.ToLower(got), "tag immagine") {
+		t.Fatalf("got %q", got)
+	}
+	if !strings.Contains(got, "Percorsi") {
+		t.Fatalf("got %q", got)
+	}
+}
 
 func TestBuildUserContentPartsOmitsStaleImgTag(t *testing.T) {
 	parts := llm.BuildUserContentParts("[img-0]", nil)

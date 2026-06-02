@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
+
+const editFileDisplayMaxBodyRunes = 400
 
 func WriteToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []string) {
 	first := true
@@ -88,11 +91,65 @@ func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
 }
 
 func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
-	return []string{
-		termcolor.ToolHeaderLine("editFile", jsonDisplayString(m["path"])),
-		termcolor.WrapTool(jsonDisplayString(m["oldString"])),
-		termcolor.WrapTool(jsonDisplayString(m["newString"])),
+	path := jsonDisplayString(m["path"])
+	oldS := jsonDisplayString(m["oldString"])
+	newS := jsonDisplayString(m["newString"])
+	if utf8.RuneCountInString(oldS)+utf8.RuneCountInString(newS) > editFileDisplayMaxBodyRunes {
+		body := path
+		if intent := jsonDisplayString(m["intent"]); intent != "" {
+			body = intent + " • " + path
+		}
+		switch {
+		case oldS == "" && newS != "":
+			body += fmt.Sprintf(" (write ~%d lines)", editLineCount(newS))
+		case oldS != "" && newS != "":
+			body += fmt.Sprintf(" (~%d→~%d lines)", editLineCount(oldS), editLineCount(newS))
+		case newS == "":
+			body += " (delete)"
+		}
+		return []string{termcolor.ToolHeaderLine("editFile", body)}
 	}
+	out := []string{termcolor.ToolHeaderLine("editFile", path)}
+	out = append(out, formatEditFileContentLines(oldS, termcolor.WrapEditFileOldString)...)
+	out = append(out, formatEditFileContentLines(newS, termcolor.WrapEditFileNewString)...)
+	return out
+}
+
+func editLineCount(s string) int {
+	if s == "" {
+		return 0
+	}
+	return strings.Count(s, "\n") + 1
+}
+
+func formatEditFileContentLines(s string, wrap func(string) string) []string {
+	lines := splitEditContentLines(s)
+	if len(lines) == 0 {
+		return nil
+	}
+	out := make([]string, len(lines))
+	for i, ln := range lines {
+		out[i] = wrap(editDisplayLine(ln))
+	}
+	return out
+}
+
+func splitEditContentLines(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, "\n")
+	if n := len(parts); n > 0 && parts[n-1] == "" {
+		parts = parts[:n-1]
+	}
+	return parts
+}
+
+func editDisplayLine(ln string) string {
+	if ln == "" {
+		return " "
+	}
+	return ln
 }
 
 func formatSubagentToolDisplayLines(m map[string]json.RawMessage) []string {
@@ -156,10 +213,14 @@ func fallbackToolDisplayLine(name string, rawArgs json.RawMessage) string {
 
 func parseToolDisplayArgs(raw json.RawMessage) map[string]json.RawMessage {
 	var m map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &m); err == nil && len(m) > 0 {
+		return m
 	}
-	return m
+	var s string
+	if json.Unmarshal(raw, &s) == nil && json.Unmarshal([]byte(s), &m) == nil && len(m) > 0 {
+		return m
+	}
+	return map[string]json.RawMessage{}
 }
 
 func jsonDisplayString(raw json.RawMessage) string {
@@ -182,4 +243,136 @@ func jsonDisplayIntPtr(raw json.RawMessage) *int {
 		return &n
 	}
 	return nil
+}
+
+func FormatToolResultDisplayLines(toolName string, payload string) []string {
+	toolName = strings.TrimSpace(toolName)
+	label := toolName
+	if label == "" {
+		label = "tool"
+	}
+	payload = strings.TrimSpace(payload)
+	if payload == "" {
+		return nil
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(payload), &m); err != nil {
+		return []string{termcolor.WrapThinking(truncateDisplayRunes(payload, 200))}
+	}
+	if body := formatToolResultBody(toolName, m); body != "" {
+		return []string{termcolor.ToolHeaderLine(label, body)}
+	}
+	return []string{termcolor.WrapThinking(compactToolResultJSON(m, 200))}
+}
+
+func formatToolResultBody(toolName string, m map[string]json.RawMessage) string {
+	if errMsg := jsonDisplayString(m["error"]); errMsg != "" {
+		return "error: " + errMsg
+	}
+	switch toolName {
+	case "readFile":
+		path := jsonDisplayString(m["path"])
+		if path == "" {
+			path = "file"
+		}
+		body := "→ " + path
+		if n, ok := jsonDisplayInt(m["total_lines"]); ok && n > 0 {
+			body += fmt.Sprintf(" (%d lines)", n)
+		}
+		return body
+	case "shell":
+		exit := 0
+		if n, ok := jsonDisplayInt(m["exit"]); ok {
+			exit = n
+		}
+		body := fmt.Sprintf("→ exit %d", exit)
+		if out := strings.TrimSpace(jsonDisplayString(m["output"])); out != "" {
+			body += " • " + firstDisplayLine(out, 120)
+		}
+		return body
+	case "editFile", "editPlan":
+		if ok := jsonDisplayBool(m["ok"]); !ok {
+			if r := jsonDisplayString(m["reason"]); r != "" {
+				return "→ " + r
+			}
+			return "→ failed"
+		}
+		action := jsonDisplayString(m["action"])
+		if action == "" {
+			action = "ok"
+		}
+		if p := jsonDisplayString(m["path"]); p != "" {
+			return "→ " + action + " " + p
+		}
+		return "→ " + action
+	case "find":
+		if n, ok := jsonDisplayInt(m["matches"]); ok {
+			return fmt.Sprintf("→ %d matches", n)
+		}
+		return "→ done"
+	default:
+		return formatGenericToolResultBody(m)
+	}
+}
+
+func formatGenericToolResultBody(m map[string]json.RawMessage) string {
+	rawOK, hasOK := m["ok"]
+	if !hasOK || len(rawOK) == 0 {
+		return ""
+	}
+	if !jsonDisplayBool(rawOK) {
+		if r := jsonDisplayString(m["reason"]); r != "" {
+			return "→ " + r
+		}
+		return "→ failed"
+	}
+	if a := jsonDisplayString(m["action"]); a != "" {
+		return "→ " + a
+	}
+	return "→ ok"
+}
+
+func compactToolResultJSON(m map[string]json.RawMessage, maxRunes int) string {
+	omit := map[string]bool{"content": true, "output": true}
+	trimmed := make(map[string]json.RawMessage, len(m))
+	for k, v := range m {
+		if omit[k] {
+			continue
+		}
+		trimmed[k] = v
+	}
+	if len(trimmed) == 0 {
+		return "→ (large result omitted)"
+	}
+	b, err := json.Marshal(trimmed)
+	if err != nil {
+		return "→ (result)"
+	}
+	return "→ " + truncateDisplayRunes(string(b), maxRunes)
+}
+
+func jsonDisplayInt(raw json.RawMessage) (int, bool) {
+	if len(raw) == 0 {
+		return 0, false
+	}
+	var n int
+	if json.Unmarshal(raw, &n) == nil {
+		return n, true
+	}
+	return 0, false
+}
+
+func firstDisplayLine(s string, maxRunes int) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	return truncateDisplayRunes(strings.TrimSpace(s), maxRunes)
+}
+
+func truncateDisplayRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max]) + "…"
 }

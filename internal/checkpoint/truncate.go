@@ -63,20 +63,41 @@ func ParseFullCheckpointID(raw string) (*FullCheckpointID, error) {
 	return &FullCheckpointID{Seq: n, Suffix: suffix, Raw: raw}, nil
 }
 
+func messageMatchesCheckpointID(m chatstore.Message, id *FullCheckpointID) bool {
+	if m.CheckpointSeq != id.Seq {
+		return false
+	}
+	return m.CheckpointBranchKey == id.Suffix
+}
+
+func messageContainsToolCallCheckpoint(m chatstore.Message, id *FullCheckpointID) bool {
+	for _, tc := range m.ToolCalls {
+		if !tc.CpSeqSet {
+			continue
+		}
+		if tc.CheckpointSeq == id.Seq && tc.CheckpointBranchKey == id.Suffix {
+			return true
+		}
+	}
+	return false
+}
+
+func findCheckpointSplitIndex(msgs []chatstore.Message, id *FullCheckpointID) int {
+	for i, m := range msgs {
+		if messageMatchesCheckpointID(m, id) || messageContainsToolCallCheckpoint(m, id) {
+			return i
+		}
+	}
+	return -1
+}
+
 // SplitAtFullID splits messages at the first message whose CheckpointSeq and
 // CheckpointBranchKey match the given FullCheckpointID exactly.  An empty
 // suffix matches only messages on the main branch (CheckpointBranchKey == "").
+// Tags printed on tool invocations (separate Bump per tool) are stored on
+// ToolCalls; those match here via the parent assistant message index.
 func SplitAtFullID(msgs []chatstore.Message, id *FullCheckpointID) (keep, drop []chatstore.Message, err error) {
-	idx := -1
-	for i, m := range msgs {
-		if m.CheckpointSeq != id.Seq {
-			continue
-		}
-		if m.CheckpointBranchKey == id.Suffix {
-			idx = i
-			break
-		}
-	}
+	idx := findCheckpointSplitIndex(msgs, id)
 	if idx < 0 {
 		tag := FormatCheckpointTag(id.Seq, id.Suffix)
 		return nil, nil, fmt.Errorf("checkpoint %s not found in transcript", tag)

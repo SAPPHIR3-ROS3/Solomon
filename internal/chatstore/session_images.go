@@ -15,6 +15,11 @@ import (
 
 var imgPlaceholderRegexp = regexp.MustCompile(`\[img-(\d+)\]`)
 
+// Matches [img-0], [img-n], and dangling [img- (no closing ]) from docs/grep.
+var imgLiteralBracketRegexp = regexp.MustCompile(`\[img-[^\]]*\]?`)
+
+var summaryImgWorkflowLineRegexp = regexp.MustCompile(`(?i)(tag immagine|\[img-|imageplaceholder|jumpleftoverimgtag|paste.*immag|placeholder.*immag)`)
+
 var pngMagic = []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
 
 func imageFileHasRecognizedBinaryPayload(path string) bool {
@@ -79,6 +84,67 @@ func RemoveBrokenSessionImageFiles(s *Session) int {
 
 func StripImgPlaceholderTags(content string) string {
 	return imgPlaceholderRegexp.ReplaceAllString(content, "")
+}
+
+func StripAllImgPlaceholderLiterals(content string) string {
+	if content == "" {
+		return ""
+	}
+	next := imgLiteralBracketRegexp.ReplaceAllString(content, "")
+	next = strings.ReplaceAll(next, "``", "")
+	return next
+}
+
+func ScrubLiteralImgPlaceholdersForAPI(content string) string {
+	return StripAllImgPlaceholderLiterals(content)
+}
+
+func ScrubSummaryImgWorkflowLines(content string) string {
+	if content == "" {
+		return ""
+	}
+	lines := strings.Split(content, "\n")
+	out := lines[:0]
+	for _, line := range lines {
+		if summaryImgWorkflowLineRegexp.MatchString(line) {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+func NormalizeSummaryWhitespace(content string) string {
+	if content == "" {
+		return ""
+	}
+	var out []string
+	blankRun := 0
+	for _, line := range strings.Split(content, "\n") {
+		if strings.TrimSpace(line) == "" {
+			blankRun++
+			if blankRun > 1 {
+				continue
+			}
+		} else {
+			blankRun = 0
+		}
+		out = append(out, line)
+	}
+	return strings.TrimRight(strings.Join(out, "\n"), "\n")
+}
+
+func ScrubCompactSummaryContent(content string) string {
+	if !strings.Contains(content, "[Conversation summary]") {
+		return StripAllImgPlaceholderLiterals(content)
+	}
+	next := StripAllImgPlaceholderLiterals(content)
+	next = ScrubSummaryImgWorkflowLines(next)
+	return NormalizeSummaryWhitespace(next)
+}
+
+func NeutralizeLiteralImgPlaceholders(content string) string {
+	return imgPlaceholderRegexp.ReplaceAllString(content, "`[img-$1]`")
 }
 
 func StripAllImgPlaceholders(content string) string {
@@ -157,15 +223,90 @@ func RewriteEmptyUserMsgsAfterImageRepair(s *Session) int {
 	return n
 }
 
-func RepairSessionMalformedImages(s *Session) (brokenDropped int, userMsgsAdjusted int, emptyRewrites int) {
+func stripMessageImgLiterals(m *Message) int {
+	if m == nil || m.Role == "user" {
+		return 0
+	}
+	n := 0
+	if next := StripAllImgPlaceholderLiterals(m.Content); next != m.Content {
+		m.Content = next
+		n++
+	}
+	if strings.Contains(m.Content, "[Conversation summary]") {
+		if next := ScrubCompactSummaryContent(m.Content); next != m.Content {
+			m.Content = next
+			n++
+		}
+	}
+	if next := StripAllImgPlaceholderLiterals(m.ReasoningText); next != m.ReasoningText {
+		m.ReasoningText = next
+		n++
+	}
+	for i := range m.ToolCalls {
+		if next := StripAllImgPlaceholderLiterals(m.ToolCalls[i].Arguments); next != m.ToolCalls[i].Arguments {
+			m.ToolCalls[i].Arguments = next
+			n++
+		}
+	}
+	return n
+}
+
+func StripFalseImgPlaceholdersFromNonUserSession(s *Session) int {
 	if s == nil {
-		return 0, 0, 0
+		return 0
+	}
+	n := 0
+	patch := func(m *Message) {
+		n += stripMessageImgLiterals(m)
+	}
+	for i := range s.Messages {
+		patch(&s.Messages[i])
+	}
+	for si := range s.MainOrphans {
+		for mi := range s.MainOrphans[si].Messages {
+			patch(&s.MainOrphans[si].Messages[mi])
+		}
+	}
+	return n
+}
+
+func SessionImgFragmentCount(s *Session) int {
+	if s == nil {
+		return 0
+	}
+	n := 0
+	countMsg := func(m Message) {
+		n += strings.Count(m.Content, "[img-")
+		n += strings.Count(m.ReasoningText, "[img-")
+		for _, tc := range m.ToolCalls {
+			n += strings.Count(tc.Arguments, "[img-")
+		}
+	}
+	for _, m := range s.Messages {
+		countMsg(m)
+	}
+	for _, seg := range s.MainOrphans {
+		for _, m := range seg.Messages {
+			countMsg(m)
+		}
+	}
+	return n
+}
+
+func RepairSessionMalformedImages(s *Session) (brokenDropped int, userMsgsAdjusted int, emptyRewrites int, imgNeutralized int) {
+	if s == nil {
+		return 0, 0, 0, 0
 	}
 	brokenDropped = RemoveBrokenSessionImageFiles(s)
 	userMsgsAdjusted = StripStaleUserImgPlaceholdersFromSession(s)
 	emptyRewrites = RewriteEmptyUserMsgsAfterImageRepair(s)
+	imgNeutralized = StripFalseImgPlaceholdersFromNonUserSession(s)
 	PruneUnreferencedSessionImages(s)
-	return brokenDropped, userMsgsAdjusted, emptyRewrites
+	return brokenDropped, userMsgsAdjusted, emptyRewrites, imgNeutralized
+}
+
+func SessionRepairChanged(brokenDropped, userMsgsAdjusted, emptyRewrites, imgNeutralized int) bool {
+	return brokenDropped > 0 || userMsgsAdjusted > 0 || emptyRewrites > 0 || imgNeutralized > 0
 }
 
 func MigrateImagePathsAfterChatRename(projectHex string, s *Session, oldChatID, newChatID string) error {

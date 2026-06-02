@@ -232,7 +232,7 @@ func ReadSession(projectHex, chatIDHex string) (sess *Session, err error) {
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil, err
 	}
-	FinishSessionLoad(&s)
+	_ = FinishSessionLoad(&s)
 	sess = &s
 	return sess, nil
 }
@@ -267,7 +267,7 @@ func loadAllSessions(projectHex string) ([]*Session, error) {
 		if json.Unmarshal(b, &s) != nil {
 			continue
 		}
-		FinishSessionLoad(&s)
+		_ = FinishSessionLoad(&s)
 		out = append(out, &s)
 	}
 	return out, nil

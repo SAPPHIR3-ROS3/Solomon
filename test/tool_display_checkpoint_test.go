@@ -67,6 +67,26 @@ func TestWriteLabeledTranscript_toolCallsUseStoredCheckpoints(t *testing.T) {
 	}
 }
 
+func TestFormatToolDisplayLines_editFileLargePatchSummary(t *testing.T) {
+	body := strings.Repeat("line\n", 120)
+	args, _ := json.Marshal(map[string]string{
+		"path":      "big.go",
+		"oldString": "",
+		"newString": body,
+		"intent":    "create module",
+	})
+	lines := tooling.FormatToolDisplayLines("editFile", args)
+	if len(lines) != 1 {
+		t.Fatalf("want summary line, got %d: %v", len(lines), lines)
+	}
+	if strings.Contains(lines[0], `"newString"`) || strings.Count(lines[0], "line") > 2 {
+		t.Fatalf("want compact summary, got %q", lines[0])
+	}
+	if !strings.Contains(lines[0], "big.go") || !strings.Contains(lines[0], "write") {
+		t.Fatalf("want path and write hint: %q", lines[0])
+	}
+}
+
 func TestWriteLabeledTranscript_editFileMultilineContinuation(t *testing.T) {
 	var buf bytes.Buffer
 	args, _ := json.Marshal(map[string]string{
@@ -89,6 +109,68 @@ func TestWriteLabeledTranscript_editFileMultilineContinuation(t *testing.T) {
 	}
 	if !strings.Contains(out, "..... after") {
 		t.Fatalf("newString continuation missing: %s", out)
+	}
+}
+
+func TestFormatToolDisplayLines_editFileSplitsBeforeWrap(t *testing.T) {
+	args, _ := json.Marshal(map[string]string{
+		"path":      "x.go",
+		"oldString": "line1\nline2\n",
+		"newString": "line3\n",
+	})
+	lines := tooling.FormatToolDisplayLines("editFile", args)
+	if len(lines) != 4 {
+		t.Fatalf("want header + 2 old + 1 new lines, got %d: %#v", len(lines), lines)
+	}
+	var buf bytes.Buffer
+	tooling.WriteToolDisplayLines(&buf, 1, "", lines)
+	out := buf.String()
+	if strings.Count(out, "..... \n") > 0 {
+		t.Fatalf("spurious blank continuation lines: %q", out)
+	}
+}
+
+func TestFormatToolDisplayLines_editFileSkipsEmptyOldBlock(t *testing.T) {
+	args, _ := json.Marshal(map[string]string{
+		"path":      "x.go",
+		"oldString": "",
+		"newString": "package main\n",
+	})
+	lines := tooling.FormatToolDisplayLines("editFile", args)
+	if len(lines) != 2 {
+		t.Fatalf("want header + new only, got %d: %#v", len(lines), lines)
+	}
+}
+
+func TestFormatToolResultDisplayLines_readFileOmitsContent(t *testing.T) {
+	payload := `{"path":"TODO.md","total_lines":141,"content":"# TODO\n\nlong body"}`
+	lines := tooling.FormatToolResultDisplayLines("readFile", payload)
+	if len(lines) != 1 {
+		t.Fatalf("lines: %v", lines)
+	}
+	if strings.Contains(lines[0], "# TODO") || strings.Contains(lines[0], "long body") {
+		t.Fatalf("must not echo file body: %q", lines[0])
+	}
+	if !strings.Contains(lines[0], "TODO.md") || !strings.Contains(lines[0], "141") {
+		t.Fatalf("want path and line count: %q", lines[0])
+	}
+}
+
+func TestWriteLabeledTranscript_toolResultNotRawJSON(t *testing.T) {
+	var buf bytes.Buffer
+	msgs := []chatstore.Message{
+		{Role: "assistant", ToolCalls: []chatstore.ToolCall{
+			{ID: "call_1", Name: "readFile", Arguments: `{"path":"x.go"}`},
+		}},
+		{Role: "tool", ToolCallID: "call_1", Content: `{"path":"x.go","total_lines":3,"content":"package main"}`},
+	}
+	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
+	out := buf.String()
+	if strings.Contains(out, `"content":"package main"`) {
+		t.Fatalf("transcript should not dump tool result JSON: %s", out)
+	}
+	if !strings.Contains(out, "Tool: readFile") || !strings.Contains(out, "x.go") {
+		t.Fatalf("want formatted tool lines: %s", out)
 	}
 }
 

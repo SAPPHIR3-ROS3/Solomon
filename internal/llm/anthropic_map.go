@@ -56,7 +56,7 @@ func buildAnthropicMessages(msgs []chatstore.Message, imageFiles map[int]string)
 			i++
 		case "assistant":
 			var blocks []anthropicContentBlock
-			if c := strings.TrimSpace(m.Content); c != "" {
+			if c := strings.TrimSpace(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content)); c != "" {
 				blocks = append(blocks, anthropicContentBlock{"type": "text", "text": c})
 			}
 			for _, tc := range m.ToolCalls {
@@ -64,7 +64,7 @@ func buildAnthropicMessages(msgs []chatstore.Message, imageFiles map[int]string)
 					"type":  "tool_use",
 					"id":    tc.ID,
 					"name":  tc.Name,
-					"input": parseAnthropicToolInput(tc.Arguments),
+					"input": parseAnthropicToolInput(chatstore.ScrubLiteralImgPlaceholdersForAPI(tc.Arguments)),
 				})
 			}
 			if len(blocks) == 0 {
@@ -79,7 +79,7 @@ func buildAnthropicMessages(msgs []chatstore.Message, imageFiles map[int]string)
 				results = append(results, anthropicContentBlock{
 					"type":        "tool_result",
 					"tool_use_id": tm.ToolCallID,
-					"content":     tm.Content,
+					"content":     chatstore.ScrubLiteralImgPlaceholdersForAPI(tm.Content),
 				})
 				i++
 			}

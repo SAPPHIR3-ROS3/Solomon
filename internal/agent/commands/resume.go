@@ -62,7 +62,9 @@ func Resume(d Deps, args []string) error {
 }
 
 func afterResumeLoaded(d Deps, sess *chatstore.Session) {
-	chatstore.FinishSessionLoad(sess)
+	if chatstore.FinishSessionLoad(sess) && d.PersistSession != nil {
+		_ = d.PersistSession()
+	}
 	model := d.Model()
 	if d.Cfg != nil {
 		model = d.Cfg.ModelDisplayName(d.Provider(), model)
