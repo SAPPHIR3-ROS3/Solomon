@@ -48,6 +48,25 @@ func analyzeShellAtPos(shell []rune, cursor int) shellCompleteCtx {
 	return shellCompleteCtx{kind: shellCompleteNone, tokenStart: tokenStart, tokenPrefix: prefix}
 }
 
+func quoteStateAt(shell []rune, cursor int) (inQuote bool, quote rune) {
+	inQ := false
+	var q rune
+	for i := 0; i < cursor; i++ {
+		ch := shell[i]
+		if inQ {
+			if ch == q && !isEscapedAt(shell, i) {
+				inQ = false
+			}
+			continue
+		}
+		if ch == '"' || ch == '\'' {
+			inQ = true
+			q = ch
+		}
+	}
+	return inQ, q
+}
+
 func shellTokenBounds(shell []rune, cursor int) (start, end int) {
 	if cursor > 0 && (shell[cursor-1] == ' ' || shell[cursor-1] == '\t') {
 		start = cursor
@@ -63,31 +82,25 @@ func shellTokenBounds(shell []rune, cursor int) (start, end int) {
 	if end == 0 {
 		return 0, 0
 	}
+	if inQuote, q := quoteStateAt(shell, cursor); inQuote {
+		for i := cursor - 1; i >= 0; i-- {
+			if shell[i] == q && !isEscapedAt(shell, i) {
+				return i + 1, cursor
+			}
+		}
+		return 0, cursor
+	}
 	start = end - 1
-	inQuote := false
-	var quote rune
 	for start >= 0 {
 		ch := shell[start]
-		if inQuote {
-			if ch == quote && (start == 0 || shell[start-1] != '\\') {
-				inQuote = false
+		if ch == ' ' || ch == '\t' {
+			if isEscapedAt(shell, start) {
 				start--
 				continue
 			}
-			if ch == '\\' && start > 0 {
-				start -= 2
-				continue
-			}
-			start--
-			continue
+			break
 		}
-		if ch == '"' || ch == '\'' {
-			inQuote = true
-			quote = ch
-			start--
-			continue
-		}
-		if ch == ' ' || ch == '\t' || isShellOpAt(shell, start) {
+		if isShellOpAt(shell, start) {
 			break
 		}
 		start--
@@ -97,6 +110,10 @@ func shellTokenBounds(shell []rune, cursor int) (start, end int) {
 		start = 0
 	}
 	return start, cursor
+}
+
+func isEscapedAt(shell []rune, i int) bool {
+	return i > 0 && shell[i-1] == '\\'
 }
 
 type shellWord struct {
@@ -169,7 +186,14 @@ func scanWordEnd(shell []rune, i, limit int) int {
 			i++
 			continue
 		}
-		if ch == ' ' || ch == '\t' || isShellOpAt(shell, i) {
+		if ch == ' ' || ch == '\t' {
+			if isEscapedAt(shell, i) {
+				i++
+				continue
+			}
+			break
+		}
+		if isShellOpAt(shell, i) {
 			break
 		}
 		i++
@@ -218,6 +242,12 @@ func skipShellOp(shell []rune, i int) int {
 func looksLikePathToken(token string) bool {
 	if token == "" {
 		return false
+	}
+	if token[0] == '"' || token[0] == '\'' {
+		return true
+	}
+	if strings.HasPrefix(token, "~") || strings.Contains(token, "$") {
+		return true
 	}
 	if strings.HasPrefix(token, ".") {
 		return true

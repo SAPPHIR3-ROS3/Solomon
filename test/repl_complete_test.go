@@ -12,8 +12,8 @@ func TestReplComplete_slashCommandPrefix(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("/mo")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != 1 {
-		t.Fatalf("offset=%d want 1", off)
+	if off != 2 {
+		t.Fatalf("offset=%d want 2 (len of /mo)", off)
 	}
 	if len(suffixes) != 1 || string(suffixes[0]) != "dels" {
 		t.Fatalf("suffixes=%v want [dels]", suffixes)
@@ -24,8 +24,8 @@ func TestReplComplete_caseInsensitive(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("/MODELS")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != 1 {
-		t.Fatalf("offset=%d want 1", off)
+	if off != len("/MODELS")-1 {
+		t.Fatalf("offset=%d want %d", off, len("/MODELS")-1)
 	}
 	if len(suffixes) != 1 || string(suffixes[0]) != "" {
 		t.Fatalf("suffixes=%v want empty suffix for full match", suffixes)
@@ -60,8 +60,8 @@ func TestReplComplete_reasoningArg(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("/reasoning l")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != len("/reasoning ") {
-		t.Fatalf("offset=%d want %d", off, len("/reasoning "))
+	if off != len("l") {
+		t.Fatalf("offset=%d want 1 (typed arg prefix)", off)
 	}
 	found := false
 	for _, s := range suffixes {
@@ -86,8 +86,8 @@ func TestReplComplete_bangShellPath(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{ProjRoot: root}
 	line := []rune("!cat src/m")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != len("!cat ") {
-		t.Fatalf("offset=%d want %d", off, len("!cat "))
+	if off != len("m") {
+		t.Fatalf("offset=%d want 1 (last path segment prefix)", off)
 	}
 	found := false
 	for _, s := range suffixes {
@@ -112,8 +112,8 @@ func TestReplComplete_shellFirstPath(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{ProjRoot: root, ReplShellFirst: true}
 	line := []rune("cat pkg/l")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != len("cat ") {
-		t.Fatalf("offset=%d want %d", off, len("cat "))
+	if off != len("l") {
+		t.Fatalf("offset=%d want 1 (last path segment prefix)", off)
 	}
 	if len(suffixes) != 1 || string(suffixes[0]) != "ib.go" {
 		t.Fatalf("suffixes=%v", suffixes)
@@ -143,8 +143,8 @@ func TestReplComplete_logArg(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("/log wa")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != len("/log ") {
-		t.Fatalf("offset=%d", off)
+	if off != len("wa") {
+		t.Fatalf("offset=%d want 2", off)
 	}
 	if len(suffixes) != 1 || string(suffixes[0]) != "rning" {
 		t.Fatalf("suffixes=%v", suffixes)

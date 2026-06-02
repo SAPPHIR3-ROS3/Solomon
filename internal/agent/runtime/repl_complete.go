@@ -2,7 +2,6 @@ package agentruntime
 
 import (
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -88,109 +87,6 @@ func (c *replCompleter) completeSlash(line []rune, pos, trimLeft int) ([][]rune,
 	return c.completeArg(cmd, line, pos, argStart, argPrefix)
 }
 
-
-func (c *replCompleter) completePathToken(line []rune, pos, contentStart int) ([][]rune, int) {
-	shell := line[contentStart:pos]
-	tokenOff := lastShellTokenOffset(shell)
-	tokenStart := contentStart + tokenOff
-	prefix := string(line[tokenStart:pos])
-	searchDir, base, ok := resolvePathInsideRoot(c.env.ProjRoot, prefix)
-	if !ok {
-		return nil, 0
-	}
-	suffixes, err := pathEntrySuffixes(searchDir, base)
-	if err != nil || len(suffixes) == 0 {
-		return nil, 0
-	}
-	return completePathSuffixes(line, pos, tokenStart, suffixes)
-}
-
-func lastShellTokenOffset(shell []rune) int {
-	end := len(shell)
-	for end > 0 && (shell[end-1] == ' ' || shell[end-1] == '\t') {
-		end--
-	}
-	if end == 0 {
-		return 0
-	}
-	for i := end - 1; i >= 0; i-- {
-		if shell[i] == ' ' || shell[i] == '\t' {
-			return i + 1
-		}
-	}
-	return 0
-}
-
-func resolvePathInsideRoot(projRoot, token string) (searchDir, base string, ok bool) {
-	if strings.TrimSpace(projRoot) == "" {
-		return "", "", false
-	}
-	absRoot, err := filepath.Abs(projRoot)
-	if err != nil {
-		return "", "", false
-	}
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return absRoot, "", true
-	}
-	if filepath.IsAbs(token) {
-		return "", "", false
-	}
-	dir, base := filepath.Split(filepath.Clean(token))
-	joined := filepath.Clean(filepath.Join(absRoot, dir))
-	if joined != absRoot && !strings.HasPrefix(joined, absRoot+string(filepath.Separator)) {
-		return "", "", false
-	}
-	return joined, base, true
-}
-
-func pathEntrySuffixes(searchDir, base string) ([]string, error) {
-	entries, err := os.ReadDir(searchDir)
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, e := range entries {
-		name := e.Name()
-		if name == "." || name == ".." {
-			continue
-		}
-		n := matchNamePrefixLen(name, base)
-		if n < 0 {
-			continue
-		}
-		suf := name[n:]
-		if e.IsDir() {
-			suf += string(filepath.Separator)
-		}
-		out = append(out, suf)
-	}
-	return out, nil
-}
-
-func matchNamePrefixLen(name, prefix string) int {
-	if prefix == "" {
-		return 0
-	}
-	if strings.HasPrefix(name, prefix) {
-		return len(prefix)
-	}
-	if strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix)) {
-		return len(prefix)
-	}
-	return -1
-}
-
-func completePathSuffixes(line []rune, pos, startIdx int, suffixes []string) ([][]rune, int) {
-	if startIdx > pos || len(suffixes) == 0 {
-		return nil, 0
-	}
-	out := make([][]rune, 0, len(suffixes))
-	for _, s := range suffixes {
-		out = append(out, []rune(s))
-	}
-	return out, startIdx
-}
 
 func (c *replCompleter) slashCommandNames() []string {
 	seen := make(map[string]struct{})
@@ -339,5 +235,12 @@ func completeCandidates(line []rune, pos, startIdx int, prefix string, candidate
 	if len(suffixes) == 0 {
 		return nil, 0
 	}
-	return suffixes, startIdx
+	return suffixes, completeWordOffset(pos, startIdx)
+}
+
+func completeWordOffset(pos, wordStart int) int {
+	if wordStart > pos {
+		return 0
+	}
+	return pos - wordStart
 }

@@ -55,7 +55,7 @@ While the REPL prompt is active, Solomon runs its own line editor in **raw mode*
 
 | Key / action | Behavior |
 | ------------ | -------- |
-| **Tab** | Complete `/` slash names and skill tokens; slash arguments (e.g. `/reasoning`, `/log`, `/add`, `/remove`, `/resume`, `/goto`); on shell lines (`!…` or shell-first): **PATH binaries** on command tokens (including after `\|`, `\|\|`, `&&`, `;`), **`go` subcommands** (from `go help`) as the second token after `go`, and **workspace paths** on file-like tokens. |
+| **Tab** | Complete `/` slash names and skill tokens; slash arguments (e.g. `/reasoning`, `/log`, `/add`, `/remove`, `/resume`, `/goto`); on shell lines (`!…` or shell-first): **PATH binaries** on command tokens (including after `\|`, `\|\|`, `&&`, `;`), **`go` subcommands** (from `go help`) as the second token after `go`, and **workspace paths** (relative under the project, `~/…` home, or other absolute paths; quoted paths, `\ ` escapes, `\` or `/` separators) on file-like tokens. |
 | **Tab** again | Cycle or list candidates when more than one match remains. |
 | **Ctrl+C** | Cancel an open completion menu (same as canceling other readline modes). |
 
