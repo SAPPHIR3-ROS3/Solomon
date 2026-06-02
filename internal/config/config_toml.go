@@ -72,6 +72,8 @@ type rootLegacyFile struct {
 
 	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
 
+	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
+
 }
 
 
@@ -123,6 +125,8 @@ type rootFile struct {
 	ToolOutput                ToolOutput            `toml:"tool_output,omitempty"`
 
 	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
+
+	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
 
 }
 
@@ -198,6 +202,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		APIResilience:             f.APIResilience,
 
+		AutoUpdate:                f.AutoUpdate,
+
 	}
 
 	for name, p := range f.Providers {
@@ -261,6 +267,8 @@ func rootToFile(r *Root) *rootFile {
 		ToolOutput:                r.ToolOutput,
 
 		APIResilience:             r.APIResilience,
+
+		AutoUpdate:                r.AutoUpdate,
 
 	}
 
@@ -365,6 +373,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		ToolOutput:                f.ToolOutput,
 
 		APIResilience:             f.APIResilience,
+
+		AutoUpdate:                f.AutoUpdate,
 
 	}
 

@@ -87,6 +87,11 @@ type Root struct {
 	WebSearchCX               string               `toml:"web_search_cx,omitempty"`
 	ToolOutput                ToolOutput           `toml:"tool_output,omitempty"`
 	APIResilience             APIResilienceConfig  `toml:"api_resilience,omitempty"`
+	AutoUpdate                *bool                `toml:"autoupdate,omitempty"`
+}
+
+func (r *Root) AutoUpdateEnabled() bool {
+	return r != nil && r.AutoUpdate != nil && *r.AutoUpdate
 }
 
 func (r *Root) LegacyToolsEnabled() bool {

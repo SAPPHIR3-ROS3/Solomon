@@ -26,6 +26,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 
 	readline "github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
@@ -79,6 +80,11 @@ type Runtime struct {
 	Instructions *instructions.Loader
 
 	providerReady chan struct{}
+
+	updateMu       sync.Mutex
+	updateChecked  bool
+	updateNotice   *updater.Notice
+	updateCheckErr error
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
