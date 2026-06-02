@@ -1,4 +1,4 @@
-package codex
+package chat
 
 import (
 	"bufio"
@@ -24,7 +24,7 @@ type bufferedChatCompletion struct {
 	} `json:"choices"`
 }
 
-func bufferChatCompletionFromCodexSSE(body io.Reader, model string) ([]byte, error) {
+func BufferChatCompletionFromCodexSSE(body io.Reader, model string) ([]byte, error) {
 	transformer := newSSETransformer(model)
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)

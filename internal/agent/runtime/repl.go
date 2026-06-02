@@ -10,6 +10,8 @@ import (
 
 	solomonagent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/clipboard"
@@ -23,10 +25,8 @@ import (
 
 type imgReplDisplayPainter struct{}
 
-const replImagePasteKey = 22
-
 func stripReplPasteTrigger(line []rune, pos int, key rune) ([]rune, int) {
-	if pos <= 0 || key != replImagePasteKey || line[pos-1] != replImagePasteKey {
+	if pos <= 0 || key != rune(multiline.PasteImageKey) || line[pos-1] != rune(multiline.PasteImageKey) {
 		return line, pos
 	}
 	return append(append([]rune(nil), line[:pos-1]...), line[pos:]...), pos - 1
@@ -64,7 +64,7 @@ func (r *Runtime) saveReplClipboardImage() (seq int, path string, err error) {
 }
 
 func (r *Runtime) tryReplPasteImage(line []rune, pos int, key rune) ([]rune, int, bool) {
-	if key != replImagePasteKey {
+	if key != rune(multiline.PasteImageKey) {
 		return nil, 0, false
 	}
 	if !clipboard.HasImage() {
@@ -98,7 +98,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	if !config.NeedsOnboard(r.Cfg) {
 		go commands.PrefetchSlashModelCatalog(ctx, r.Cfg, r.Out)
 	}
-	SetReplImagePaste(func() (string, bool) {
+	multiline.SetReplImagePaste(func() (string, bool) {
 		seq, _, err := r.saveReplClipboardImage()
 		if err != nil {
 			fmt.Fprintf(r.RL.Stderr(), "clipboard image paste failed: %v\n", err)
@@ -106,12 +106,12 @@ func (r *Runtime) Run(ctx context.Context) error {
 		}
 		return llm.ImagePlaceholder(seq), true
 	})
-	defer SetReplImagePaste(nil)
-	restoreInput := enableReplInputModes(r.RL.Stdout())
+	defer multiline.SetReplImagePaste(nil)
+	restoreInput := multiline.EnableReplInputModes(r.RL.Stdout())
 	defer restoreInput()
 	var pendingMultiline []string
 	cfg := r.RL.Config.Clone()
-	cfg.AutoComplete = NewReplCompleter(r.replCompleteEnv())
+	cfg.AutoComplete = replcomplete.NewReplCompleter(r.replCompleteEnv())
 	cfg.Painter = imgReplDisplayPainter{}
 	cfg.Listener = readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
 		if key == readline.CharBackward && len(line) > 0 {
@@ -173,7 +173,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 			}
 			return err
 		}
-		line, isSoftBreak := parseMultilineControlRunes(line)
+		line, isSoftBreak := multiline.ParseMultilineControlRunes(line)
 		if isSoftBreak {
 			pendingMultiline = append(pendingMultiline, line)
 			continue
@@ -183,7 +183,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 			line = strings.Join(pendingMultiline, "\n")
 			pendingMultiline = nil
 		}
-		line = trimMessageEdges(line)
+		line = multiline.TrimMessageEdges(line)
 		if line == "" {
 			continue
 		}

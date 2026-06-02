@@ -1,4 +1,4 @@
-package agentruntime
+package replcomplete
 
 func slashStaticArgCandidates(cmd string) []string {
 	switch cmd {

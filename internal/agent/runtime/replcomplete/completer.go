@@ -1,4 +1,4 @@
-package agentruntime
+package replcomplete
 
 import (
 	"os"
@@ -196,27 +196,6 @@ func (c *replCompleter) gotoCandidates() []string {
 		add(i, sess.CheckpointBranchSuffix)
 	}
 	return out
-}
-
-func (r *Runtime) replCompleteEnv() ReplCompleteEnv {
-	return ReplCompleteEnv{
-		ProjHex:        r.ProjHex,
-		ProjRoot:       r.ProjRoot,
-		ReplShellFirst: r.ReplShellFirst,
-		Session:        r.snapshotSession,
-	}
-}
-
-func (r *Runtime) snapshotSession() *chatstore.Session {
-	var snap *chatstore.Session
-	r.mutateSession(func(s *chatstore.Session) {
-		if s == nil {
-			return
-		}
-		cp := *s
-		snap = &cp
-	})
-	return snap
 }
 
 func completeCandidates(line []rune, pos, startIdx int, prefix string, candidates []string) ([][]rune, int) {

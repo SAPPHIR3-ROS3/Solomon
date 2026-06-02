@@ -1,6 +1,6 @@
 //go:build windows
 
-package agentruntime
+package multiline
 
 import (
 	"io"
@@ -29,7 +29,7 @@ func platformStdin() stdinReadCloser {
 	return readline.NewRawReader()
 }
 
-func prepareConsoleInput() func() {
+func PrepareConsoleInput() func() {
 	kernel32 := syscall.NewLazyDLL("kernel32.dll")
 	getMode := kernel32.NewProc("GetConsoleMode")
 	setMode := kernel32.NewProc("SetConsoleMode")

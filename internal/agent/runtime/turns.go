@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
@@ -39,15 +40,15 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 }
 
 func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, apiContent string, fromReadline bool) error {
-	clean, _ := parseMultilineControlRunes(line)
-	line = trimMessageEdges(clean)
-	apiContent = trimMessageEdges(apiContent)
+	clean, _ := multiline.ParseMultilineControlRunes(line)
+	line = multiline.TrimMessageEdges(clean)
+	apiContent = multiline.TrimMessageEdges(apiContent)
 	if config.NeedsOnboard(r.Cfg) || r.Prov == nil {
 		return fmt.Errorf("config not set up; use /onboard")
 	}
 	if r.ReplShellFirst {
 		if strings.HasPrefix(line, "!") {
-			line = trimMessageEdges(strings.TrimPrefix(line, "!"))
+			line = multiline.TrimMessageEdges(strings.TrimPrefix(line, "!"))
 			if line == "" {
 				return nil
 			}
@@ -58,7 +59,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 			return r.runUserShellLine(ctx, line)
 		}
 	} else if strings.HasPrefix(line, "!") {
-		cmd := trimMessageEdges(strings.TrimPrefix(line, "!"))
+		cmd := multiline.TrimMessageEdges(strings.TrimPrefix(line, "!"))
 		if cmd == "" {
 			return nil
 		}

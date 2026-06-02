@@ -1,6 +1,6 @@
 //go:build !windows
 
-package agentruntime
+package multiline
 
 import (
 	"io"
@@ -15,6 +15,6 @@ func platformStdin() stdinReadCloser {
 	return nopCloseStdin{Reader: os.Stdin}
 }
 
-func prepareConsoleInput() func() {
+func PrepareConsoleInput() func() {
 	return func() {}
 }

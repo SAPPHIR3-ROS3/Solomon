@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
+	codexchat "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex/chat"
 )
 
 func TestBuildCodexInputUserImages(t *testing.T) {
@@ -21,7 +21,7 @@ func TestBuildCodexInputUserImages(t *testing.T) {
 			},
 		},
 	}
-	input := codex.BuildCodexInput(chat)
+	input := codexchat.BuildCodexInput(chat)
 	if len(input) != 1 {
 		t.Fatalf("want 1 input item, got %d", len(input))
 	}
@@ -63,7 +63,7 @@ func TestBuildCodexInputSkipsAssistantToolCallsWithEmptyID(t *testing.T) {
 			},
 		},
 	}
-	input := codex.BuildCodexInput(chat)
+	input := codexchat.BuildCodexInput(chat)
 	for _, item := range input {
 		m, ok := item.(map[string]any)
 		if !ok {
@@ -87,11 +87,11 @@ func TestBuildCodexInputImageOnlyUserMessage(t *testing.T) {
 			},
 		},
 	}
-	input := codex.BuildCodexInput(chat)
+	input := codexchat.BuildCodexInput(chat)
 	if len(input) != 1 {
 		t.Fatalf("want image-only user message preserved, got %d items", len(input))
 	}
-	body, err := codex.ChatCompletionToCodexBody(chat)
+	body, err := codexchat.ChatCompletionToCodexBody(chat)
 	if err != nil {
 		t.Fatal(err)
 	}

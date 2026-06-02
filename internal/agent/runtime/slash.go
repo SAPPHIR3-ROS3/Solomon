@@ -2,7 +2,6 @@ package agentruntime
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	solomonagent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent"
@@ -10,46 +9,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
-
-	readline "github.com/chzyer/readline"
 )
-
-func StdinIsTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return (fi.Mode() & os.ModeCharDevice) != 0
-}
-
-func ReadlinePrompt(rl *readline.Instance, prompt string) (string, error) {
-	if rl == nil {
-		return "", fmt.Errorf("readline unavailable")
-	}
-	prev := rl.Config.Prompt
-	rl.SetPrompt(prompt)
-	line, err := rl.Readline()
-	rl.SetPrompt(prev)
-	return line, err
-}
-
-func NewREPLReadline(defaultPrompt string) (*readline.Instance, func(string) (string, error), error) {
-	if !StdinIsTerminal() {
-		return nil, nil, nil
-	}
-	rl, err := readline.NewEx(&readline.Config{
-		Prompt:       defaultPrompt,
-		Stdin:        NewMultilineStdin(PlatformStdin()),
-		AutoComplete: NewReplCompleter(ReplCompleteEnv{}),
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	fn := func(prompt string) (string, error) {
-		return ReadlinePrompt(rl, prompt)
-	}
-	return rl, fn, nil
-}
 
 func (r *Runtime) promptIO() config.PromptIO {
 	pio := config.PromptIO{Stdin: os.Stdin, Out: r.Out}

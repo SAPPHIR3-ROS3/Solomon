@@ -1,4 +1,4 @@
-package agentruntime
+package multiline
 
 import (
 	"bytes"
@@ -12,18 +12,21 @@ import (
 )
 
 const softNewlineRune = '\u2063'
+
+const PasteImageKey byte = 22
 const bracketedPasteStart = "\x1b[200~"
 const bracketedPasteEnd = "\x1b[201~"
-const bracketedPasteEnable = "\x1b[?2004h"
-const bracketedPasteDisable = "\x1b[?2004l"
-const mouseReportDisable = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l"
+
+const BracketedPasteEnable = "\x1b[?2004h"
+const BracketedPasteDisable = "\x1b[?2004l"
+const MouseReportDisable = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l"
 
 type stdinReadCloser interface {
 	io.Reader
 	io.Closer
 }
 
-func trimMessageEdges(s string) string {
+func TrimMessageEdges(s string) string {
 	rs := []rune(s)
 	start := 0
 	end := len(rs)
@@ -36,7 +39,7 @@ func trimMessageEdges(s string) string {
 	return string(rs[start:end])
 }
 
-func parseMultilineControlRunes(s string) (clean string, softBreak bool) {
+func ParseMultilineControlRunes(s string) (clean string, softBreak bool) {
 	if s == "" {
 		return s, false
 	}
@@ -266,7 +269,7 @@ func (s *seqTranslator) finishBracketedPaste(b *bytes.Buffer) {
 		}
 	}
 	if clipboard.HasImage() {
-		b.WriteByte(replImagePasteKey)
+		b.WriteByte(PasteImageKey)
 	}
 }
 
@@ -411,7 +414,7 @@ func PlatformStdin() stdinReadCloser {
 	return platformStdin()
 }
 
-func writeTerminalModeSequences(seq string) {
+func WriteTerminalModeSequences(seq string) {
 	if seq == "" {
 		return
 	}
@@ -422,14 +425,14 @@ func writeTerminalModeSequences(seq string) {
 	_, _ = io.WriteString(os.Stdout, seq)
 }
 
-func enableReplInputModes(w io.Writer) func() {
+func EnableReplInputModes(w io.Writer) func() {
 	if w == nil {
 		return func() {}
 	}
-	restoreConsole := prepareConsoleInput()
-	writeTerminalModeSequences(mouseReportDisable + bracketedPasteEnable)
+	restoreConsole := PrepareConsoleInput()
+	WriteTerminalModeSequences(MouseReportDisable + BracketedPasteEnable)
 	return func() {
-		writeTerminalModeSequences(bracketedPasteDisable)
+		WriteTerminalModeSequences(BracketedPasteDisable)
 		restoreConsole()
 	}
 }
