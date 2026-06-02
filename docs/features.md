@@ -116,7 +116,7 @@ Each user message advances a checkpoint sequence; `/goto` rewinds or forks the t
 
 ### Partial tab completion
 
-Tab completes slash commands, skill names, some slash arguments, and workspace file paths on shell lines. Full shell-command completion (binaries, flags) is **(in the future)**. Disable with `SOLOMON_NO_COMPLETE=1`. See [Usage and commands](user-guide/usage-and-commands.md#slash-commands).
+Tab completes slash commands, skill names, slash arguments (including `/add` and `/remove` subcommands), PATH binaries and `go` subcommands on shell lines, and workspace file paths. Generic shell flags and full host-shell parity are **(in the future)**. Disable with `SOLOMON_NO_COMPLETE=1`. See [Usage and commands](user-guide/usage-and-commands.md#slash-commands).
 
 ### API resilience and retries
 
@@ -238,9 +238,9 @@ API keys and OAuth tokens would move from plain `config.toml` into OS keychains 
 
 Stronger workspace path jail, command allowlists, and optional confirmations would narrow today’s full-power `shell` and permissive path resolution. `intent` on tools remains display-only until policy enforces it.
 
-### Shell command tab completion **(in the future)**
+### Shell command tab completion **(partial)**
 
-Extends [Partial tab completion](#partial-tab-completion) to complete host shell binaries, subcommands, and flags on `!` and shell-first lines—bash/zsh/PowerShell parity inside the REPL.
+[Partial tab completion](#partial-tab-completion) already completes PATH binaries, `go` subcommands (`go help`), and workspace paths on `!` / shell-first lines. **(in the future):** generic flags, arbitrary subcommands, and optional delegation to the host shell (bash/zsh/PowerShell parity).
 
 ### Subagent session persistence **(in the future)**
 

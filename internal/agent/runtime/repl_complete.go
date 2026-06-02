@@ -88,25 +88,6 @@ func (c *replCompleter) completeSlash(line []rune, pos, trimLeft int) ([][]rune,
 	return c.completeArg(cmd, line, pos, argStart, argPrefix)
 }
 
-func (c *replCompleter) completeShellLine(line []rune, pos, trimLeft int) ([][]rune, int, bool) {
-	shellStart := trimLeft
-	if line[shellStart] == '!' {
-		shellStart++
-		for shellStart < pos && (line[shellStart] == ' ' || line[shellStart] == '\t') {
-			shellStart++
-		}
-	} else if !c.env.ReplShellFirst {
-		return nil, 0, false
-	}
-	if shellStart >= pos {
-		return nil, 0, false
-	}
-	suf, off := c.completePathToken(line, pos, shellStart)
-	if suf == nil {
-		return nil, 0, false
-	}
-	return suf, off, true
-}
 
 func (c *replCompleter) completePathToken(line []rune, pos, contentStart int) ([][]rune, int) {
 	shell := line[contentStart:pos]
@@ -240,22 +221,16 @@ func (c *replCompleter) slashCommandNames() []string {
 }
 
 func (c *replCompleter) completeArg(cmd string, line []rune, pos, argStart int, argPrefix string) ([][]rune, int) {
-	var candidates []string
-	switch cmd {
-	case "reasoning":
-		candidates = []string{"none", "low", "med", "medium", "high"}
-	case "thinking", "terminal", "fast":
-		candidates = []string{"on", "off", "yes", "no", "true", "false", "1", "0"}
-	case "legacytools", "legacy":
-		candidates = []string{"on", "off", "force", "yes", "no", "true", "false", "1", "0"}
-	case "log":
-		candidates = []string{"error", "warning", "info", "debug", "result"}
-	case "resume":
-		candidates = c.resumeCandidates()
-	case "goto":
-		candidates = c.gotoCandidates()
-	default:
-		return nil, 0
+	candidates := slashStaticArgCandidates(cmd)
+	if candidates == nil {
+		switch cmd {
+		case "resume":
+			candidates = c.resumeCandidates()
+		case "goto":
+			candidates = c.gotoCandidates()
+		default:
+			return nil, 0
+		}
 	}
 	return completeCandidates(line, pos, argStart, argPrefix, candidates)
 }

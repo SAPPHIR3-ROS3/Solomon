@@ -6,12 +6,14 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 1 — Tab completion
 
-- **Stato:** **parziale** — implementato in [`internal/agent/runtime/repl_complete.go`](internal/agent/runtime/repl_complete.go) (`SOLOMON_NO_COMPLETE=1` per disabilitare). Funziona oggi:
-  - nomi comando **slash** (`/…`) + token skill installate;
-  - alcuni **argomenti** del primo token (`/reasoning`, `/log`, `/resume`, `/goto`, …);
-  - **path** sotto il workspace sull’ultimo token delle righe shell (`!…` o righe plain con shell-first); **no** `!/…` (non trattato come slash).
-- **Non è completa:** manca soprattutto la completion sui **comandi shell effettivi** (binari, sotto-comandi, flag — stile bash/zsh/PowerShell); Tab nel REPL non delega alla shell host. Restano inoltre, tra gli altri: path con spazi/virgolette, modelli/provider da config o recenti, completamento più ricco su altri slash, eventuale Shift+Tab (limite libreria readline).
-- **Cosa manca (priorità):** completion dei **comandi shell** su input `!` / shell-first; poi estensioni file/path e modelli come sopra.
+- **Stato:** **parziale** — [`internal/agent/runtime/repl_complete.go`](internal/agent/runtime/repl_complete.go) e moduli `repl_complete_shell.go`, `repl_complete_go.go`, `repl_complete_slash.go` (`SOLOMON_NO_COMPLETE=1` per disabilitare). Funziona oggi:
+  - nomi comando **slash** (`/…`) + skill installate;
+  - argomenti statici slash (`/reasoning`, `/log`, `/add`, `/remove`, …) e dinamici (`/resume`, `/goto`);
+  - righe shell (`!…` o shell-first): **binari da PATH** (e builtin leggeri) sul token comando (inizio riga o dopo `|`, `||`, `&&`, `;`);
+  - **`go` sotto-comandi** dal toolchain (`go help`, cache per versione) sul secondo token;
+  - **path** sotto `ProjRoot` sugli altri token; **no** `!/…` (non slash).
+- **Non è completa:** flag e sotto-comandi shell generici (no delega bash/zsh/PowerShell); path con spazi/virgolette; modelli/provider da config; altri slash con argomenti dinamici; Shift+Tab (limite readline).
+- **Cosa manca (priorità):** flag/binari avanzati stile shell host; path quotati; Tab su modelli; eventuale delega opzionale alla shell.
 
 ---
 
