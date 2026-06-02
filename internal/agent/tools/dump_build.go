@@ -8,6 +8,9 @@ func BuildBuildToolDump() (string, error) {
 	if err := appendReadFileDump(b); err != nil {
 		return "", err
 	}
+	if err := appendFindDump(b); err != nil {
+		return "", err
+	}
 	if err := appendEditFileDump(b); err != nil {
 		return "", err
 	}

@@ -135,7 +135,7 @@ export function harnessToolsClause(tools: ChatCompletionTool[] | undefined): str
   }
   return (
     `[Harness] Host tools enabled for this request: ${names.join(", ")}. ` +
-    "These capabilities are provided as the 'solomon' tools (readFile, editFile, shell); call them directly. " +
+    "These capabilities are provided as the 'solomon' tools (readFile, editFile, find, shell); call them directly. " +
     "Cursor built-in tools are disabled, so do not attempt Read/Write/Edit/Shell/Grep/Glob/etc. " +
     "Always use editFile to modify files and readFile to inspect them; never use shell to read or edit files (no sed, awk, echo redirection, or here-docs). " +
     "Do not emit tool calls as XML or text."

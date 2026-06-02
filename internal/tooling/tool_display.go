@@ -34,6 +34,8 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 		return formatShellToolDisplayLines(m)
 	case "readFile":
 		return []string{termcolor.ToolHeaderLine("readFile", jsonDisplayString(m["path"]))}
+	case "find":
+		return formatFindToolDisplayLines(m)
 	case "editFile":
 		return formatEditFileToolDisplayLines(m)
 	case "subagent":
@@ -54,6 +56,27 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 func ExtractToolIntent(rawArgs json.RawMessage) string {
 	m := parseToolDisplayArgs(rawArgs)
 	return strings.TrimSpace(jsonDisplayString(m["intent"]))
+}
+
+func formatFindToolDisplayLines(m map[string]json.RawMessage) []string {
+	body := jsonDisplayString(m["pattern"])
+	if jsonDisplayBool(m["files"]) {
+		body = "files • " + body
+	} else {
+		body = "text • " + body
+	}
+	if p := jsonDisplayString(m["path"]); p != "" && p != "." {
+		body += " • " + p
+	}
+	return []string{termcolor.ToolHeaderLine("find", body)}
+}
+
+func jsonDisplayBool(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var b bool
+	return json.Unmarshal(raw, &b) == nil && b
 }
 
 func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
