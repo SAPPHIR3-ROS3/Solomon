@@ -1,4 +1,4 @@
-package llm
+package anthropic
 
 import (
 	"bufio"
@@ -11,65 +11,67 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/streamio"
 )
 
-type anthropicStreamState struct {
+type streamState struct {
 	content    strings.Builder
 	reasoning  strings.Builder
 	toolNames  map[int]string
 	toolArgs   map[int]*strings.Builder
 	toolIDs    map[int]string
-	usage      AnthropicUsagePayload
+	usage      UsagePayload
 	stopReason string
 }
 
-func (b *AnthropicBackend) postStream(ctx context.Context, body map[string]any) (*http.Response, error) {
+func (b *Backend) postStream(ctx context.Context, body map[string]any) (*http.Response, error) {
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
-	req, err := anthropicHTTPNew(ctx, AnthropicMessagesURL(b.baseURL), raw, b.auth)
+	req, err := httpNew(ctx, MessagesURL(b.baseURL), raw, b.auth)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "text/event-stream")
 	cli := b.httpClient
 	if cli == nil {
-		cli = anthropicHTTPDefault()
+		cli = httpDefault()
 	}
 	return cli.Do(req)
 }
 
-func anthropicMaxTokens(cfg *config.Root) int64 {
+func maxTokens(cfg *config.Root) int64 {
 	if cfg != nil && cfg.MaxResponseTokens > 0 {
 		return int64(cfg.MaxResponseTokens)
 	}
 	return 8192
 }
 
-func (b *AnthropicBackend) buildBody(req TurnRequest, stream bool) map[string]any {
+func (b *Backend) buildBody(req apitype.TurnRequest, stream bool) map[string]any {
 	body := map[string]any{
 		"model":      req.Model,
-		"max_tokens": anthropicMaxTokens(req.Cfg),
-		"messages":   buildAnthropicMessages(req.Messages, req.ImageFiles),
+		"max_tokens": maxTokens(req.Cfg),
+		"messages":   buildMessages(req.Messages, req.ImageFiles),
 		"stream":     stream,
 	}
 	if s := strings.TrimSpace(req.System); s != "" {
 		body["system"] = s
 	}
-	if tools := buildAnthropicTools(req.Tools); len(tools) > 0 {
+	if tools := buildTools(req.Tools); len(tools) > 0 {
 		body["tools"] = tools
 	}
 	return body
 }
 
-func (b *AnthropicBackend) buildSimpleBody(req SimpleCompletionRequest, stream bool) map[string]any {
+func (b *Backend) buildSimpleBody(req apitype.SimpleCompletionRequest, stream bool) map[string]any {
 	body := map[string]any{
 		"model":      req.Model,
-		"max_tokens": anthropicMaxTokens(req.Cfg),
+		"max_tokens": maxTokens(req.Cfg),
 		"stream":     stream,
-		"messages": []anthropicMessageParam{
-			{Role: "user", Content: []anthropicContentBlock{{"type": "text", "text": req.User}}},
+		"messages": []messageParam{
+			{Role: "user", Content: []contentBlock{{"type": "text", "text": req.User}}},
 		},
 	}
 	if s := strings.TrimSpace(req.System); s != "" {
@@ -78,43 +80,43 @@ func (b *AnthropicBackend) buildSimpleBody(req SimpleCompletionRequest, stream b
 	return body
 }
 
-func (b *AnthropicBackend) StreamTurn(ctx context.Context, req TurnRequest, contentOut io.Writer, opts StreamOpts) (AssistantTurnResult, error) {
+func (b *Backend) StreamTurn(ctx context.Context, req apitype.TurnRequest, contentOut io.Writer, opts apitype.StreamOpts) (apitype.AssistantTurnResult, error) {
 	resp, err := b.postStream(ctx, b.buildBody(req, true))
 	if err != nil {
-		return AssistantTurnResult{}, err
+		return apitype.AssistantTurnResult{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return AssistantTurnResult{}, anthropicHTTPError(resp, bb)
+		return apitype.AssistantTurnResult{}, httpError(resp, bb)
 	}
-	return readAnthropicStreamTurn(resp.Body, contentOut, opts)
+	return readStreamTurn(resp.Body, contentOut, opts)
 }
 
-func (b *AnthropicBackend) StreamText(ctx context.Context, req SimpleCompletionRequest, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {
+func (b *Backend) StreamText(ctx context.Context, req apitype.SimpleCompletionRequest, contentOut io.Writer, opts apitype.StreamOpts) (string, apitype.UsageStats, error) {
 	resp, err := b.postStream(ctx, b.buildSimpleBody(req, true))
 	if err != nil {
-		return "", UsageStats{}, err
+		return "", apitype.UsageStats{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return "", UsageStats{}, anthropicHTTPError(resp, bb)
+		return "", apitype.UsageStats{}, httpError(resp, bb)
 	}
-	turn, err := readAnthropicStreamTurn(resp.Body, contentOut, opts)
+	turn, err := readStreamTurn(resp.Body, contentOut, opts)
 	if err != nil {
-		return "", UsageStats{}, err
+		return "", apitype.UsageStats{}, err
 	}
 	return turn.Content, turn.Usage, nil
 }
 
-func readAnthropicStreamTurn(body io.Reader, contentOut io.Writer, opts StreamOpts) (AssistantTurnResult, error) {
+func readStreamTurn(body io.Reader, contentOut io.Writer, opts apitype.StreamOpts) (apitype.AssistantTurnResult, error) {
 	reasonSink := opts.ReasoningSink
 	if reasonSink == nil {
 		reasonSink = io.Discard
 	}
 	tStart := time.Now()
-	st := &anthropicStreamState{toolNames: map[int]string{}, toolArgs: map[int]*strings.Builder{}, toolIDs: map[int]string{}}
+	st := &streamState{toolNames: map[int]string{}, toolArgs: map[int]*strings.Builder{}, toolIDs: map[int]string{}}
 	var tTTFT, tFirstVisible time.Time
 	var legacyStopped bool
 	sc := bufio.NewScanner(body)
@@ -131,7 +133,7 @@ func readAnthropicStreamTurn(body io.Reader, contentOut io.Writer, opts StreamOp
 			return nil
 		}
 		dataBuf = ""
-		return applyAnthropicStreamEvent(st, ev, contentOut, reasonSink, opts, &tTTFT, &tFirstVisible, tStart)
+		return applyStreamEvent(st, ev, contentOut, reasonSink, opts, &tTTFT, &tFirstVisible, tStart)
 	}
 	for sc.Scan() {
 		line := sc.Text()
@@ -142,34 +144,34 @@ func readAnthropicStreamTurn(body io.Reader, contentOut io.Writer, opts StreamOp
 		}
 		if line == "" {
 			if err := flushEvent(); err != nil {
-				if errors.Is(err, errLegacyStreamEarlyStop) {
+				if errors.Is(err, streamio.ErrLegacyEarlyStop) {
 					legacyStopped = true
 					goto legacyDone
 				}
-				return AssistantTurnResult{}, err
+				return apitype.AssistantTurnResult{}, err
 			}
 		}
 	}
 	if err := flushEvent(); err != nil {
-		if errors.Is(err, errLegacyStreamEarlyStop) {
+		if errors.Is(err, streamio.ErrLegacyEarlyStop) {
 			legacyStopped = true
 		} else {
-			return AssistantTurnResult{}, err
+			return apitype.AssistantTurnResult{}, err
 		}
 	}
 legacyDone:
-	var out AssistantTurnResult
-	out.Content = streamTruncatedContent(contentOut, strings.TrimSpace(st.content.String()))
-	out.ReasoningText = strings.TrimSpace(normalizeReasoningWhitespace(st.reasoning.String()))
-	out.Usage = NormalizeAnthropicUsage(st.usage)
-	fillAnthropicTiming(&out.Usage, tStart, tTTFT, tFirstVisible, time.Now())
+	var out apitype.AssistantTurnResult
+	out.Content = streamio.TruncatedContent(contentOut, strings.TrimSpace(st.content.String()))
+	out.ReasoningText = strings.TrimSpace(streamio.NormalizeReasoningWhitespace(st.reasoning.String()))
+	out.Usage = NormalizeUsage(st.usage)
+	fillTiming(&out.Usage, tStart, tTTFT, tFirstVisible, time.Now())
 	if !legacyStopped {
 		for idx, name := range st.toolNames {
 			args := ""
 			if argB := st.toolArgs[idx]; argB != nil {
 				args = argB.String()
 			}
-			out.ToolCalls = append(out.ToolCalls, AssistantToolCall{
+			out.ToolCalls = append(out.ToolCalls, apitype.AssistantToolCall{
 				ID:        st.toolIDs[idx],
 				Name:      name,
 				Arguments: args,
@@ -179,7 +181,7 @@ legacyDone:
 	return out, nil
 }
 
-func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawMessage, contentOut, reasonSink io.Writer, opts StreamOpts, tTTFT, tFirstVisible *time.Time, tStart time.Time) error {
+func applyStreamEvent(st *streamState, ev map[string]json.RawMessage, contentOut, reasonSink io.Writer, opts apitype.StreamOpts, tTTFT, tFirstVisible *time.Time, tStart time.Time) error {
 	var typ string
 	if v, ok := ev["type"]; ok {
 		_ = json.Unmarshal(v, &typ)
@@ -188,25 +190,25 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 	case "message_start":
 		var wrap struct {
 			Message struct {
-				Usage AnthropicUsagePayload `json:"usage"`
+				Usage UsagePayload `json:"usage"`
 			} `json:"message"`
 		}
 		if raw, ok := ev["message"]; ok {
 			_ = json.Unmarshal(raw, &wrap.Message)
 		} else {
-			_ = json.Unmarshal(anthropicMustMarshal(ev), &wrap)
+			_ = json.Unmarshal(mustMarshal(ev), &wrap)
 		}
 		st.usage.InputTokens += wrap.Message.Usage.InputTokens
 		st.usage.CacheReadInputTokens += wrap.Message.Usage.CacheReadInputTokens
 		st.usage.CacheCreationInputTokens += wrap.Message.Usage.CacheCreationInputTokens
 	case "message_delta":
 		var wrap struct {
-			Usage AnthropicUsagePayload `json:"usage"`
+			Usage UsagePayload `json:"usage"`
 			Delta struct {
 				StopReason string `json:"stop_reason"`
 			} `json:"delta"`
 		}
-		_ = json.Unmarshal(anthropicMustMarshal(ev), &wrap)
+		_ = json.Unmarshal(mustMarshal(ev), &wrap)
 		st.usage.OutputTokens = wrap.Usage.OutputTokens
 		if wrap.Usage.InputTokens > 0 {
 			st.usage.InputTokens = wrap.Usage.InputTokens
@@ -223,7 +225,7 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 				Name string `json:"name"`
 			} `json:"content_block"`
 		}
-		_ = json.Unmarshal(anthropicMustMarshal(ev), &wrap)
+		_ = json.Unmarshal(mustMarshal(ev), &wrap)
 		if wrap.Content.Type == "tool_use" {
 			st.toolNames[wrap.Index] = wrap.Content.Name
 			st.toolIDs[wrap.Index] = wrap.Content.ID
@@ -239,7 +241,7 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 				Thinking    string `json:"thinking"`
 			} `json:"delta"`
 		}
-		_ = json.Unmarshal(anthropicMustMarshal(ev), &wrap)
+		_ = json.Unmarshal(mustMarshal(ev), &wrap)
 		switch wrap.Delta.Type {
 		case "text_delta":
 			if wrap.Delta.Text != "" {
@@ -253,10 +255,10 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 					opts.OnDelta("content", wrap.Delta.Text)
 				}
 				st.content.WriteString(wrap.Delta.Text)
-				if stopped, err := writeStreamContentLegacy(contentOut, wrap.Delta.Text); err != nil {
+				if stopped, err := streamio.WriteContentLegacy(contentOut, wrap.Delta.Text); err != nil {
 					return err
 				} else if stopped {
-					return errLegacyStreamEarlyStop
+					return streamio.ErrLegacyEarlyStop
 				}
 			}
 		case "input_json_delta":
@@ -267,7 +269,7 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 			if wrap.Delta.Thinking != "" {
 				st.reasoning.WriteString(wrap.Delta.Thinking)
 				if opts.ShowThinking {
-					writeReasoningDelta(reasonSink, wrap.Delta.Thinking)
+					streamio.WriteReasoningDelta(reasonSink, wrap.Delta.Thinking)
 				}
 			}
 		}
@@ -275,12 +277,12 @@ func applyAnthropicStreamEvent(st *anthropicStreamState, ev map[string]json.RawM
 	return nil
 }
 
-func anthropicMustMarshal(v any) []byte {
+func mustMarshal(v any) []byte {
 	b, _ := json.Marshal(v)
 	return b
 }
 
-func fillAnthropicTiming(u *UsageStats, tStart, tTTFT, tFirstVisible, tEnd time.Time) {
+func fillTiming(u *apitype.UsageStats, tStart, tTTFT, tFirstVisible, tEnd time.Time) {
 	u.TurnWallSecs = tEnd.Sub(tStart).Seconds()
 	if !tFirstVisible.IsZero() {
 		u.ThoughtSecs = tFirstVisible.Sub(tStart).Seconds()

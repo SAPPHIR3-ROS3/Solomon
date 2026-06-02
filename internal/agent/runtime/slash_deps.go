@@ -4,8 +4,9 @@ import (
 	"context"
 	"os"
 
-	solomonagent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -16,14 +17,14 @@ func (r *Runtime) promptIO() config.PromptIO {
 	if r.RL != nil {
 		rl := r.RL
 		pio.ReadLine = func(prompt string) (string, error) {
-			return ReadlinePrompt(rl, prompt)
+			return repl.Prompt(rl, prompt)
 		}
 	}
 	return pio
 }
 
 func (r *Runtime) handleSlash(ctx context.Context, line string) error {
-	return solomonagent.SlashDispatch(r.slashDeps(ctx), line)
+	return slash.Dispatch(r.slashDeps(ctx), line)
 }
 
 func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
@@ -93,7 +94,7 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		SubmitVisibleUserMessage: func(visible, api string) error { return r.onUserMessageWithAPIContent(ctx, visible, api, false) },
 
 		PrintWelcomeBanner: func() {
-			printWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
+			repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
 		},
 
 		PersistSession: r.persistSession,

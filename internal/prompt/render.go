@@ -2,8 +2,6 @@ package prompt
 
 import (
 	_ "embed"
-	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -228,7 +226,7 @@ func RenderSummarizeSystem(d SummarizeData) (string, error) {
 
 func render(raw string, d Data) (string, error) {
 	applyRuntimeSystem(&d)
-	d.Shell = effectiveShell()
+	d.Shell = EffectiveShell()
 	return executeTemplate("p", raw, d)
 }
 
@@ -264,32 +262,6 @@ func systemCPUFamily(arch string) string {
 	}
 }
 
-func effectiveShell() string {
-	if v := strings.TrimSpace(os.Getenv("SHELL")); v != "" {
-		return v
-	}
-	if runtime.GOOS == "windows" {
-		if sh := windowsInteractiveShellOverride(); sh != "" {
-			return sh
-		}
-		if v := strings.TrimSpace(os.Getenv("COMSPEC")); v != "" {
-			return v
-		}
-		if p := windowsFallbackShellExecutable(); p != "" {
-			return p
-		}
-		return "unknown"
-	}
-	if v := strings.TrimSpace(os.Getenv("COMSPEC")); v != "" {
-		return v
-	}
-	return "unknown"
-}
-
-func EffectiveShell() string {
-	return effectiveShell()
-}
-
 func SummarizeSystemFallback() string {
 	return strings.TrimSpace(`You summarize technical conversations concisely.
 Preserve important facts: decisions, file paths, commands, errors, and open tasks.
@@ -306,40 +278,6 @@ func SystemWithNoThink(disableThinking bool, content string) string {
 		return content
 	}
 	return "/no_think\n" + content
-}
-
-func windowsFallbackShellExecutable() string {
-	systemRoot := strings.TrimSpace(os.Getenv("SystemRoot"))
-	if systemRoot == "" {
-		systemRoot = strings.TrimSpace(os.Getenv("windir"))
-	}
-	if systemRoot != "" {
-		for _, rel := range []string{`System32\WindowsPowerShell\v1.0\powershell.exe`, `SysWOW64\WindowsPowerShell\v1.0\powershell.exe`} {
-			p := filepath.Join(systemRoot, rel)
-			if isExecutableFile(p) {
-				return p
-			}
-		}
-	}
-	for _, base := range []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)")} {
-		base = strings.TrimSpace(base)
-		if base == "" {
-			continue
-		}
-		p := filepath.Join(base, "PowerShell", "7", "pwsh.exe")
-		if isExecutableFile(p) {
-			return p
-		}
-	}
-	return ""
-}
-
-func isExecutableFile(path string) bool {
-	if path == "" {
-		return false
-	}
-	st, err := os.Stat(path)
-	return err == nil && !st.IsDir()
 }
 
 func executeTemplate(name, raw string, data any) (string, error) {

@@ -1,6 +1,6 @@
 //go:build windows
 
-package tooloutput
+package process
 
 import "golang.org/x/sys/windows"
 

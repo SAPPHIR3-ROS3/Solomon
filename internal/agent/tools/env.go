@@ -1,23 +1,5 @@
 package tools
 
-import (
-	"context"
+import agenttoolenv "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/toolenv"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
-	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
-)
-
-type Env struct {
-	ProjHex                string
-	ProjRoot               string
-	Cfg                    *config.Root
-	MCP                    *solomonmcp.Manager
-	RunNested              func(ctx context.Context, body string) (string, error)
-	RunNestedWithSystem    func(ctx context.Context, sys, task string) (string, error)
-	SetMode                func(string)
-	CurrentMode            func() string
-	CheckpointStageProjAbs func(path string)
-	ActivateInstructionsFromAbsPath func(absPath string)
-	ActivateInstructionsFromShellCommand func(command string)
-	MergeInstructionBlock func(customSys string) (string, error)
-}
+type Env = agenttoolenv.Env

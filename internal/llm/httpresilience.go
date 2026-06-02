@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/transport"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	openai "github.com/openai/openai-go/v2"
 )
@@ -28,23 +29,6 @@ const (
 	ErrorRetryable
 	ErrorCircuitOpen
 )
-
-type ProviderHTTPError struct {
-	StatusCode int
-	Message    string
-	RetryAfter time.Duration
-}
-
-func (e *ProviderHTTPError) Error() string {
-	if e.Message != "" {
-		return fmt.Sprintf("API HTTP %d: %s", e.StatusCode, e.Message)
-	}
-	return fmt.Sprintf("API HTTP %d", e.StatusCode)
-}
-
-func NewProviderHTTPError(status int, message string, retryAfter time.Duration) *ProviderHTTPError {
-	return &ProviderHTTPError{StatusCode: status, Message: strings.TrimSpace(message), RetryAfter: retryAfter}
-}
 
 func HostKeyFromBaseURL(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
@@ -68,7 +52,7 @@ func ClassifyAPIError(err error, circuitOpen bool) (ErrorClass, int, time.Durati
 	if errors.Is(err, ErrStreamAccumulatorRejected) {
 		return ErrorPermanent, 0, 0
 	}
-	var phe *ProviderHTTPError
+	var phe *transport.ProviderHTTPError
 	if errors.As(err, &phe) {
 		if retryableStatus(phe.StatusCode) {
 			return ErrorRetryable, phe.StatusCode, phe.RetryAfter
@@ -77,7 +61,7 @@ func ClassifyAPIError(err error, circuitOpen bool) (ErrorClass, int, time.Durati
 	}
 	var apiErr *openai.Error
 	if errors.As(err, &apiErr) {
-		ra := parseRetryAfterHeader(apiErr.Response)
+		ra := transport.ParseRetryAfterHeader(apiErr.Response)
 		if retryableStatus(apiErr.StatusCode) {
 			return ErrorRetryable, apiErr.StatusCode, ra
 		}
@@ -140,26 +124,6 @@ func statusCodeFromMessage(msg string) int {
 	for _, code := range []int{429, 503, 502, 500, 504, 408} {
 		if strings.Contains(msg, strconv.Itoa(code)) {
 			return code
-		}
-	}
-	return 0
-}
-
-func parseRetryAfterHeader(resp *http.Response) time.Duration {
-	if resp == nil {
-		return 0
-	}
-	v := strings.TrimSpace(resp.Header.Get("Retry-After"))
-	if v == "" {
-		return 0
-	}
-	if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
-		return time.Duration(sec) * time.Second
-	}
-	if t, err := http.ParseTime(v); err == nil {
-		d := time.Until(t)
-		if d > 0 {
-			return d
 		}
 	}
 	return 0
@@ -298,7 +262,7 @@ func UserFacingAPIError(err error) string {
 	if msg := chatGPTSubPrefixedError(err); msg != "" {
 		return msg
 	}
-	var phe *ProviderHTTPError
+	var phe *transport.ProviderHTTPError
 	if errors.As(err, &phe) {
 		return formatAPIErrorLines(0, phe.StatusCode, phe.Message)
 	}

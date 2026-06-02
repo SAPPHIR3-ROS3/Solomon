@@ -6,19 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/streamio"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
 var ErrStreamAccumulatorRejected = errors.New("chat completion stream accumulator rejected chunk")
-
-var errLegacyStreamEarlyStop = errors.New("legacy stream early stop")
 
 func flushStreamOut(w io.Writer) {
 	_ = flushStreamOutErr(w)
@@ -35,50 +33,20 @@ func writeThoughtForLine(sink io.Writer, secs float64) {
 	_, _ = fmt.Fprintf(sink, "\n%s\n", termcolor.ThoughtForSuffix(secs))
 }
 
-var oversizedInlineSpaceRe = regexp.MustCompile(`([^\s]) {3,}([^\s])`)
-
-func normalizeReasoningWhitespace(s string) string {
-	if s == "" {
-		return ""
-	}
-	return oversizedInlineSpaceRe.ReplaceAllString(s, `$1 $2`)
-}
-
-func writeReasoningDelta(sink io.Writer, s string) {
-	if s == "" {
-		return
-	}
-	_, _ = io.WriteString(sink, termcolor.WrapThinking(normalizeReasoningWhitespace(s)))
-}
-
 func writeStreamContent(w io.Writer, s string) error {
-	if s == "" {
-		return nil
-	}
-	_, err := io.WriteString(w, s)
-	return err
-}
-
-type legacyStreamTruncator interface {
-	TruncatedContent() string
+	return streamio.WriteContent(w, s)
 }
 
 func writeStreamContentLegacy(w io.Writer, s string) (legacyStopped bool, err error) {
-	err = writeStreamContent(w, s)
-	if errors.Is(err, tooling.ErrLegacyToolBlockComplete) {
-		_ = flushStreamOutErr(w)
-		return true, nil
-	}
-	return false, err
+	return streamio.WriteContentLegacy(w, s)
 }
 
 func streamTruncatedContent(w io.Writer, fallback string) string {
-	if t, ok := w.(legacyStreamTruncator); ok {
-		if c := t.TruncatedContent(); c != "" {
-			return c
-		}
-	}
-	return fallback
+	return streamio.TruncatedContent(w, fallback)
+}
+
+func writeReasoningDelta(sink io.Writer, s string) {
+	streamio.WriteReasoningDelta(sink, s)
 }
 
 func closeCompletionStream(stream any) {
@@ -152,40 +120,6 @@ func parseLooseReasoningTokensFromUsageRawJSON(raw string) int64 {
 		}
 	}
 	return 0
-}
-
-type AssistantToolCall struct {
-	ID        string
-	Name      string
-	Arguments string
-}
-
-type UsageStats struct {
-	PromptTokens              int64
-	CachedPromptTokens        int64
-	CacheCreationPromptTokens int64
-	ReasoningTokens           int64
-	ResponseTokens            int64
-	TotalTokens               int64
-	OutputTPS          float64
-	TTFTSecs           float64
-	PromptTPS          float64
-	TurnWallSecs       float64
-	ThoughtSecs        float64
-}
-
-type AssistantTurnResult struct {
-	Content        string
-	ReasoningText  string
-	ToolCalls      []AssistantToolCall
-	Usage          UsageStats
-}
-
-type StreamOpts struct {
-	ShowThinking  bool
-	ReasoningSink io.Writer
-	OnDelta       func(channel, text string)
-	OnRetry       func(attempt int, max int, err error, wait time.Duration)
 }
 
 func StreamText(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {
@@ -404,7 +338,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	}
 	tEnd := time.Now()
 	var out AssistantTurnResult
-	out.ReasoningText = tooling.StripLegacyToolBlocks(strings.TrimSpace(normalizeReasoningWhitespace(reasoningBuf.String())))
+	out.ReasoningText = tooling.StripLegacyToolBlocks(strings.TrimSpace(streamio.NormalizeReasoningWhitespace(reasoningBuf.String())))
 	if legacyStopped {
 		out.Content = streamTruncatedContent(contentOut, "")
 	} else if len(acc.Choices) > 0 {
