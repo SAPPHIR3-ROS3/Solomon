@@ -54,3 +54,39 @@ func TestInstructionsPromptSectionsConditional(t *testing.T) {
 		t.Fatalf("sections missing: %q", withSections)
 	}
 }
+
+func TestImagesWorkflowSection_inPrompts(t *testing.T) {
+	section := prompt.ImagesWorkflowSection()
+	if section == "" {
+		t.Fatal("empty images workflow section")
+	}
+	if strings.Contains(section, "[img-") {
+		t.Fatalf("section must avoid bracket img literals stripped before API: %q", section)
+	}
+	for _, sub := range []string{"SHA-256", "ImageFiles", "U+200B", "private-use", "Ctrl+V"} {
+		if !strings.Contains(section, sub) {
+			t.Fatalf("missing %q in section", sub)
+		}
+	}
+	build, err := prompt.RenderBuild(prompt.Data{Tools: "t", Syntax: "s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(build, "## Session images") {
+		t.Fatalf("build prompt missing images section")
+	}
+	plan, err := prompt.RenderPlan(prompt.Data{Tools: "t", Syntax: "s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plan, "PLAN mode cannot paste") {
+		t.Fatalf("plan prompt missing plan-specific images note")
+	}
+	sumSys, err := prompt.RenderSummarizeSystem(prompt.SummarizeData{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sumSys, "wire token") {
+		t.Fatalf("summarize system missing wire token description")
+	}
+}

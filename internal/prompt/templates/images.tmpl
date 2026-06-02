@@ -1,0 +1,13 @@
+## Session images (Solomon paste)
+
+The user can paste a clipboard image in the REPL with Ctrl+V (readline key 22). Solomon writes PNG, JPEG, or GIF bytes under the chat images directory and records path plus index N in session ImageFiles (N is a non-negative integer, usually 0 for the first paste in the session).
+
+Visible paste label (REPL input and echoed user lines): a short bracketed token whose inner text is the word img, a hyphen, and the index N. The REPL buffer stores only this visible label.
+
+Wire token (user message JSON on disk; basis for API attach): the same visible prefix, then U+200B (zero-width space), then exactly 32 Unicode private-use runes (U+E000–U+E0FF) each encoding one byte of the raw SHA-256 digest of the image file, then a closing bracket. Legacy transcripts may use 64 lowercase hex digits instead of PUA for the digest payload.
+
+When the user sends a line, bare visible labels with a valid ImageFiles entry are expanded to the wire token. Vision is attached only if the wire digest matches the file on disk and the bytes are a recognized image; otherwise the marker is removed from the API payload (no image part and no literal marker sent upstream).
+
+You receive image bytes in a user turn only when that attach succeeded. The same visible label appearing in assistant text, tool output, plans, quoted code, or summaries is UI or documentation—not a missing upload. Do not ask the user to re-send an image unless their current turn clearly needs a screenshot and you received no vision content.
+
+PLAN mode cannot paste or attach images; apply the rules above when reading markers in transcript history.
