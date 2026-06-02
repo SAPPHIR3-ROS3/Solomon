@@ -35,7 +35,8 @@ func (r *Runtime) Run(ctx context.Context) error {
 	r.mutateSession(func(s *chatstore.Session) {
 		chatstore.FinishSessionLoad(s)
 	})
-	repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
+	_, _ = r.refreshUpdateCheck(ctx, false)
+	repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst, r.cachedUpdateNotice())
 	go func() { r.InitMCP(ctx) }()
 	if !config.NeedsOnboard(r.Cfg) {
 		go commands.PrefetchSlashModelCatalog(ctx, r.Cfg, r.Out)

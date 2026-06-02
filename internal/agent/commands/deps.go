@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 
 	"github.com/openai/openai-go/v2"
 )
@@ -53,6 +54,9 @@ type Deps struct {
 	SubmitVisibleUserMessage func(visible, api string) error
 
 	PrintWelcomeBanner func()
+
+	CheckForUpdate func(force bool) (*updater.Notice, error)
+	InstallUpdate    func(tag string) error
 
 	CheckpointGoto func(*checkpoint.FullCheckpointID) error
 

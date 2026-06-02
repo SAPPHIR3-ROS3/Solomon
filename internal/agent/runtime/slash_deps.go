@@ -10,6 +10,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
 func (r *Runtime) promptIO() config.PromptIO {
@@ -94,7 +95,13 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		SubmitVisibleUserMessage: func(visible, api string) error { return r.onUserMessageWithAPIContent(ctx, visible, api, false) },
 
 		PrintWelcomeBanner: func() {
-			repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst)
+			repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst, r.cachedUpdateNotice())
+		},
+		CheckForUpdate: func(force bool) (*updater.Notice, error) {
+			return r.refreshUpdateCheck(ctx, force)
+		},
+		InstallUpdate: func(tag string) error {
+			return updater.Install(ctx, tag, r.Out)
 		},
 
 		PersistSession: r.persistSession,

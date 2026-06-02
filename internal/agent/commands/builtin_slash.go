@@ -81,6 +81,7 @@ func getSlashBuiltins() []slashBuiltin {
 			return Remove(d, parts[1:])
 		}},
 		{[]string{"version"}, "/version", "print installed Solomon version", func(d Deps, parts []string) error { return Version(d) }},
+		{[]string{"update"}, "/update", "check GitHub releases; clear screen and show update banner, or install when autoupdate=true", func(d Deps, parts []string) error { return Update(d) }},
 		{[]string{"onboard"}, "/onboard", "run setup wizard (overwrites first-setup fields)", func(d Deps, parts []string) error { return Onboard(d) }},
 		{[]string{"configbackup"}, "/configbackup", "copy config.toml to ~/.solomon/backup/config.toml.<isodate>.bak", func(d Deps, parts []string) error { return ConfigBackup(d) }},
 		{[]string{"help"}, "/help", "this list", func(d Deps, parts []string) error {

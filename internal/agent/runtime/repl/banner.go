@@ -14,6 +14,7 @@ import (
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
 var reStripANSI = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
@@ -80,7 +81,7 @@ func borderPaint(s string) string {
 	return termcolor.WrapBoldGold(s)
 }
 
-func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool) {
+func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool, updateNotice *updater.Notice) {
 	welcomeOut := termcolor.WrapWhite("Welcome to ") + termcolor.WrapBoldGold("Solomon")
 	wWel := visibleCells(welcomeOut)
 	logoLines := logo.WelcomeLogoLines()
@@ -210,5 +211,27 @@ func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 		ppad = 0
 	}
 	fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), pathLine, strings.Repeat(" ", ppad), borderPaint("│"))
+	if updateNotice != nil {
+		line1 := termcolor.WrapAssistant("Update available: ") + termcolor.WrapBoldGold(updateNotice.Latest)
+		l1pad := innerW - visibleCells(line1)
+		if l1pad < 0 {
+			l1pad = 0
+		}
+		fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), line1, strings.Repeat(" ", l1pad), borderPaint("│"))
+		hint := "Run /update to install"
+		if cfg != nil && cfg.AutoUpdateEnabled() {
+			hint = "autoupdate=true — installing in background"
+		}
+		cur := strings.TrimSpace(updateNotice.Current)
+		if cur != "" {
+			hint = fmt.Sprintf("%s (current %s)", hint, cur)
+		}
+		line2 := termcolor.WrapThinking(hint)
+		l2pad := innerW - visibleCells(line2)
+		if l2pad < 0 {
+			l2pad = 0
+		}
+		fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), line2, strings.Repeat(" ", l2pad), borderPaint("│"))
+	}
 	fmt.Fprintln(out, borderPaint("└"+strings.Repeat("─", innerW)+"┘"))
 }
