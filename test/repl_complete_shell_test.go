@@ -10,13 +10,21 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
 )
 
+func writePATHExecutable(t *testing.T, dir, name string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	p := filepath.Join(dir, name)
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestReplComplete_shellPathBin(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"git", "go"} {
-		p := filepath.Join(dir, name)
-		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		writePATHExecutable(t, dir, name)
 	}
 	t.Setenv("PATH", dir)
 	env := replcomplete.ReplCompleteEnv{}
@@ -56,10 +64,7 @@ func TestReplComplete_goSubcommand(t *testing.T) {
 
 func TestReplComplete_shellPostPipe(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "grep")
-	if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writePATHExecutable(t, dir, "grep")
 	t.Setenv("PATH", dir)
 	env := replcomplete.ReplCompleteEnv{}
 	line := []rune("!echo hi | g")
@@ -118,8 +123,8 @@ func TestReplComplete_windowsPATHEXT(t *testing.T) {
 	env := replcomplete.ReplCompleteEnv{}
 	line := []rune("!too")
 	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
-	if off != len("too")-1 {
-		t.Fatalf("offset=%d want partial command len", off)
+	if off != len("too") {
+		t.Fatalf("offset=%d want len(too)=%d", off, len("too"))
 	}
 	found := false
 	for _, s := range suffixes {

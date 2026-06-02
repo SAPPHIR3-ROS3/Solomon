@@ -265,8 +265,17 @@ func escapePathCompletionSuffix(suffix string) string {
 	if suffix == "" {
 		return suffix
 	}
+	trailSep := ""
+	sep := string(filepath.Separator)
+	if strings.HasSuffix(suffix, sep) {
+		trailSep = sep
+		suffix = suffix[:len(suffix)-len(sep)]
+	}
+	if suffix == "" {
+		return trailSep
+	}
 	var b strings.Builder
-	b.Grow(len(suffix) * 2)
+	b.Grow(len(suffix)*2 + len(trailSep))
 	for i := 0; i < len(suffix); i++ {
 		c := suffix[i]
 		if needsShellEscapeByte(c) {
@@ -274,6 +283,7 @@ func escapePathCompletionSuffix(suffix string) string {
 		}
 		b.WriteByte(c)
 	}
+	b.WriteString(trailSep)
 	return b.String()
 }
 
