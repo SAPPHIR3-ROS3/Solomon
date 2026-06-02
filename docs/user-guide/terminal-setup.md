@@ -55,7 +55,7 @@ While the REPL prompt is active, Solomon runs its own line editor in **raw mode*
 
 | Key / action | Behavior |
 | ------------ | -------- |
-| **Tab** | Complete `/` slash command names, installed skill slash tokens, some command arguments (e.g. `/reasoning`, `/log`, `/resume`, `/goto`), and **paths** on shell lines (`!…` or shell-first lines without `!`). |
+| **Tab** | Complete `/` slash names and skill tokens; slash arguments (e.g. `/reasoning`, `/log`, `/add`, `/remove`, `/resume`, `/goto`); on shell lines (`!…` or shell-first): **PATH binaries** on command tokens (including after `\|`, `\|\|`, `&&`, `;`), **`go` subcommands** (from `go help`) as the second token after `go`, and **workspace paths** on file-like tokens. |
 | **Tab** again | Cycle or list candidates when more than one match remains. |
 | **Ctrl+C** | Cancel an open completion menu (same as canceling other readline modes). |
 
@@ -68,8 +68,10 @@ On **Windows**, prefer **Windows Terminal** (`WT_SESSION`) for reliable input; l
 1. `/mo` + Tab → completes toward `/models`.
 2. Double Tab on a partial `/` command shows a candidate list.
 3. `/reasoning l` + Tab → completes toward `low`.
-4. Buffer containing `[img-1]` + Tab does not corrupt the tag display.
-5. Smoke-test on at least: macOS Terminal or Ghostty, one Linux terminal, Windows Terminal.
+4. `!go te` + Tab → completes toward `test`.
+5. `!g` + Tab → offers PATH matches (e.g. `go`, `git` when on PATH).
+6. Buffer containing `[img-1]` + Tab does not corrupt the tag display.
+7. Smoke-test on at least: macOS Terminal or Ghostty, one Linux terminal, Windows Terminal.
 
 ## See also
 
