@@ -13,7 +13,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 
 	readline "github.com/chzyer/readline"
-	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -182,15 +181,6 @@ func readBracketedPaste(r *bufio.Reader) (editorKey, error) {
 			return editorKey{text: strings.TrimSuffix(s, "\x1b[201~"), paste: true}, nil
 		}
 	}
-}
-
-func stdinReady(d time.Duration) bool {
-	var fds unix.FdSet
-	fd := int(os.Stdin.Fd())
-	fds.Bits[fd/64] |= 1 << (fd % 64)
-	tv := unix.NsecToTimeval(d.Nanoseconds())
-	n, err := unix.Select(fd+1, &fds, nil, nil, &tv)
-	return err == nil && n > 0
 }
 
 func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
