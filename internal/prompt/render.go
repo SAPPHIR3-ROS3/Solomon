@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 )
 
 //go:embed templates/plan.tmpl
@@ -46,7 +45,6 @@ type Data struct {
 	SystemGOARCH          string
 	WorkspaceAbsolutePath string
 	Shell                 string
-	LocalDateTime         string
 }
 
 type TitleData struct {
@@ -167,6 +165,20 @@ Examples (BUILD):
 </tool>
 </tool_calls>
 
+Examples (BUILD):
+<tool_calls>
+<tool name="find">
+<args>{"pattern": "**/*.go", "files": true}</args>
+</tool>
+</tool_calls>
+
+Examples (BUILD):
+<tool_calls>
+<tool name="find">
+<args>{"pattern": "RegisterTool", "files": false, "pathGlob": "*.go"}</args>
+</tool>
+</tool_calls>
+
 Examples (BUILD, multiple tools):
 <tool_calls>
 <tool name="shell">
@@ -217,7 +229,6 @@ func RenderSummarizeSystem(d SummarizeData) (string, error) {
 func render(raw string, d Data) (string, error) {
 	applyRuntimeSystem(&d)
 	d.Shell = effectiveShell()
-	d.LocalDateTime = time.Now().Format(time.RFC3339)
 	return executeTemplate("p", raw, d)
 }
 
