@@ -278,6 +278,29 @@ func TestSlashDispatch_help(t *testing.T) {
 	}
 }
 
+func TestSlashDispatch_cleansessioncache_stripsAssistantImgLiterals(t *testing.T) {
+	sess := &chatstore.Session{
+		Messages: []chatstore.Message{{
+			Role:          "assistant",
+			ReasoningText: "discuss [img-0] in TODO",
+			Content:       "see [img-1] in docs",
+		}},
+	}
+	d := testDeps(sess)
+	d.Out = bytes.NewBuffer(nil)
+	d.PersistSession = func() error { return nil }
+	if err := agent.SlashDispatch(d, "/cleansessioncache"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(sess.Messages[0].ReasoningText, "[img-") || strings.Contains(sess.Messages[0].Content, "[img-") {
+		t.Fatalf("img literals should be stripped: reasoning=%q content=%q", sess.Messages[0].ReasoningText, sess.Messages[0].Content)
+	}
+	out := d.Out.(*bytes.Buffer).String()
+	if !strings.Contains(out, "stripped") {
+		t.Fatalf("output should report stripped count: %q", out)
+	}
+}
+
 func TestSlashDispatch_cleansessioncache_badAttachment(t *testing.T) {
 	badPath := filepath.Join(t.TempDir(), "missing.png")
 	sess := &chatstore.Session{

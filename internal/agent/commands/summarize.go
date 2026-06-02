@@ -131,14 +131,21 @@ func FormatRetainedMessages(msgs []chatstore.Message) string {
 			fmt.Fprintf(&b, "%s:\n%s\n\n", m.Role, m.Content)
 		}
 	}
-	return b.String()
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func CompactSummaryBody(sep, summaryLLM, retainedBlock string) string {
+	summaryLLM = strings.TrimSpace(summaryLLM)
+	retainedBlock = strings.TrimSpace(retainedBlock)
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s\n\n", sep, "[Conversation summary]", sep, summaryLLM)
-	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s\n\n%s\n", sep, "[Retained messages]", sep, retainedBlock, sep)
-	return b.String()
+	fmt.Fprintf(&b, "%s\n%s\n%s\n\n%s", sep, "[Conversation summary]", sep, summaryLLM)
+	if retainedBlock != "" {
+		fmt.Fprintf(&b, "\n\n%s\n%s\n%s\n\n%s", sep, "[Retained messages]", sep, retainedBlock)
+		fmt.Fprintf(&b, "\n%s", sep)
+	} else {
+		fmt.Fprintf(&b, "\n%s", sep)
+	}
+	return chatstore.NormalizeSummaryWhitespace(b.String())
 }
 
 // RenderCompactSummaryBody applies terminal color to a plain-text summary body
@@ -248,7 +255,8 @@ func SummarizeBody(d Deps) (string, error) {
 	} else {
 		retainedBlock = FormatRetainedMessages(msgs)
 	}
-	return CompactSummaryBody(sep, summary, retainedBlock), nil
+	body := CompactSummaryBody(sep, summary, retainedBlock)
+	return chatstore.ScrubCompactSummaryContent(body), nil
 }
 
 func Summarize(d Deps) error {

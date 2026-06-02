@@ -1,10 +1,13 @@
 package test
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 func TestCompactSummaryBodyPlainText(t *testing.T) {
@@ -23,11 +26,21 @@ func TestCompactSummaryBodyPlainText(t *testing.T) {
 	if !strings.Contains(body, "[Retained messages]") {
 		t.Error("body missing [Retained messages]")
 	}
-	if !strings.Contains(body, retained) {
+	if !strings.Contains(body, "User:\nHello") || !strings.Contains(body, "Assistant:\nHi") {
 		t.Error("body missing retained block")
 	}
 	if strings.Contains(body, "\x1b[") {
 		t.Error("body must not contain ANSI escape sequences")
+	}
+}
+
+func TestCompactSummaryBodyOmitsEmptyRetained(t *testing.T) {
+	body := commands.CompactSummaryBody("---", "summary only", "  \n")
+	if strings.Contains(body, "[Retained messages]") {
+		t.Fatalf("empty retained should omit section, got %q", body)
+	}
+	if strings.Contains(body, "\n\n\n") {
+		t.Fatalf("triple blank lines: %q", body)
 	}
 }
 
@@ -70,6 +83,21 @@ func TestSummarizeProgressLine(t *testing.T) {
 		if result != tc.expected {
 			t.Errorf("SummarizeProgressLine(%d) = %q, want %q", tc.dots, result, tc.expected)
 		}
+	}
+}
+
+func TestWriteLabeledTranscript_compactSummaryNoModelPrefix(t *testing.T) {
+	sep := "================================================================================"
+	body := commands.CompactSummaryBody(sep, "summary text", "")
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
+	var buf bytes.Buffer
+	commands.WriteLabeledTranscript(&buf, []chatstore.Message{{Role: "assistant", Content: body}}, "qwen-test", false)
+	out := buf.String()
+	if strings.Contains(out, "qwen-test:") {
+		t.Fatalf("compact summary must not use assistant model prefix, got %q", out)
+	}
+	if !strings.Contains(out, "[Conversation summary]") {
+		t.Fatalf("missing summary header: %q", out)
 	}
 }
 

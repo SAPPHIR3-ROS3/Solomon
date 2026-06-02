@@ -185,10 +185,10 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 			if len(m.ToolCalls) > 0 {
 				ap := openai.ChatCompletionAssistantMessageParam{}
 				if m.Content != "" {
-					ap.Content.OfString = param.NewOpt(m.Content)
+					ap.Content.OfString = param.NewOpt(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content))
 				}
 				if i == lastAsst {
-					if rt := strings.TrimSpace(m.ReasoningText); rt != "" {
+					if rt := strings.TrimSpace(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.ReasoningText)); rt != "" {
 						ap.SetExtraFields(map[string]any{"reasoning_content": rt})
 					}
 				}
@@ -199,7 +199,7 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 							Type: "function",
 							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
 								Name:      tc.Name,
-								Arguments: tc.Arguments,
+								Arguments: chatstore.ScrubLiteralImgPlaceholdersForAPI(tc.Arguments),
 							},
 						},
 					})
@@ -208,17 +208,17 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 				continue
 			}
 			if i == lastAsst {
-				if rt := strings.TrimSpace(m.ReasoningText); rt != "" {
+				if rt := strings.TrimSpace(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.ReasoningText)); rt != "" {
 					ap := openai.ChatCompletionAssistantMessageParam{}
-					ap.Content.OfString = param.NewOpt(m.Content)
+					ap.Content.OfString = param.NewOpt(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content))
 					ap.SetExtraFields(map[string]any{"reasoning_content": rt})
 					out = append(out, openai.ChatCompletionMessageParamUnion{OfAssistant: &ap})
 					continue
 				}
 			}
-			out = append(out, openai.AssistantMessage(m.Content))
+			out = append(out, openai.AssistantMessage(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content)))
 		case "tool":
-			out = append(out, openai.ToolMessage(m.Content, m.ToolCallID))
+			out = append(out, openai.ToolMessage(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content), m.ToolCallID))
 		case "user":
 			content := m.Content
 			if strings.TrimSpace(m.APIContent) != "" {

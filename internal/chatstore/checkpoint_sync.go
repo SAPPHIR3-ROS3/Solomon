@@ -10,13 +10,14 @@ func MessageCheckpointTagVisible(m Message) bool {
 	return m.CheckpointSeq > 0
 }
 
-func FinishSessionLoad(s *Session) {
+func FinishSessionLoad(s *Session) (repaired bool) {
 	if s == nil {
-		return
+		return false
 	}
 	MigrateLegacyCheckpointsToBase0(s)
 	ReconcileCheckpointLast(s)
-	RepairSessionMalformedImages(s)
+	broken, userAdj, empty, neutralized := RepairSessionMalformedImages(s)
+	return SessionRepairChanged(broken, userAdj, empty, neutralized)
 }
 
 func MigrateLegacyCheckpointsToBase0(s *Session) {

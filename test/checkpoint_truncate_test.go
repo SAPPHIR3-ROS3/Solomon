@@ -350,6 +350,31 @@ func TestSplitAtFullID_gotoNonexistentBranch(t *testing.T) {
 	}
 }
 
+func TestSplitAtFullID_gotoToolCallCheckpoint(t *testing.T) {
+	msgs := []chatstore.Message{
+		{Role: "user", CheckpointSeq: 133, CheckpointBranchKey: "c", CpSeqSet: true},
+		{Role: "assistant", CheckpointSeq: 133, CheckpointBranchKey: "c", CpSeqSet: true, ToolCalls: []chatstore.ToolCall{
+			{Name: "editFile", CpSeqSet: true, CheckpointSeq: 134, CheckpointBranchKey: "c"},
+		}},
+		{Role: "user", CheckpointSeq: 134, CheckpointBranchKey: "d", CpSeqSet: true},
+		{Role: "user", CheckpointSeq: 135, CheckpointBranchKey: "d", CpSeqSet: true},
+	}
+	id, err := checkpoint.ParseFullCheckpointID("134c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keep, drop, err := checkpoint.SplitAtFullID(msgs, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keep) != 2 || len(drop) != 2 {
+		t.Fatalf("keep=%d drop=%d", len(keep), len(drop))
+	}
+	if keep[len(keep)-1].Role != "assistant" || len(keep[len(keep)-1].ToolCalls) != 1 {
+		t.Fatalf("keep tail = %+v", keep[len(keep)-1])
+	}
+}
+
 func TestSplitAtFullID_gotoNonexistentSeq(t *testing.T) {
 	msgs := []chatstore.Message{
 		{Role: "user", CheckpointSeq: 5, CheckpointBranchKey: "", CpSeqSet: true},

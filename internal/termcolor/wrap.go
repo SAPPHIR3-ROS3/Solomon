@@ -49,6 +49,14 @@ func WrapTool(s string) string {
 	return renderStyle(dark.tool, s)
 }
 
+func WrapEditFileOldString(s string) string {
+	return renderStyle(dark.editOld, s)
+}
+
+func WrapEditFileNewString(s string) string {
+	return renderStyle(dark.editNew, s)
+}
+
 func ToolLine(toolName, body string) string {
 	if !colorOn {
 		if body == "" {
