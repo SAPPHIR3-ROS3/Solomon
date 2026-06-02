@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
 )
 
 func TestReplComplete_quotedPathWithSpace(t *testing.T) {
@@ -18,9 +18,9 @@ func TestReplComplete_quotedPathWithSpace(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	env := agentruntime.ReplCompleteEnv{ProjRoot: root}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: root}
 	line := []rune(`!cat "my dir/not`)
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("not") {
 		t.Fatalf("offset=%d want len(not) for quoted path segment", off)
 	}
@@ -45,9 +45,9 @@ func TestReplComplete_backslashEscapedSpaceInPath(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "data.log"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	env := agentruntime.ReplCompleteEnv{ProjRoot: root}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: root}
 	line := []rune(`!cat my\ dir/da`)
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("da") {
 		t.Fatalf("offset=%d want len(da)", off)
 	}
@@ -71,9 +71,9 @@ func TestReplComplete_backslashPathSeparator(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "src", "pkg", "lib.go"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	env := agentruntime.ReplCompleteEnv{ProjRoot: root}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: root}
 	line := []rune(`!cat src\pkg\l`)
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("l") {
 		t.Fatalf("offset=%d want 1", off)
 	}
@@ -90,9 +90,9 @@ func TestReplComplete_dollarHOMEPath(t *testing.T) {
 	}
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	env := agentruntime.ReplCompleteEnv{ProjRoot: t.TempDir()}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: t.TempDir()}
 	line := []rune("!ls -lah $HOME/Desktop/P")
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("P") {
 		t.Fatalf("offset=%d want 1", off)
 	}
@@ -114,9 +114,9 @@ func TestReplComplete_bracedHOMEPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
-	env := agentruntime.ReplCompleteEnv{}
+	env := replcomplete.ReplCompleteEnv{}
 	line := []rune("!ls ${HOME}/b")
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("b") {
 		t.Fatalf("offset=%d want 1", off)
 	}
@@ -132,9 +132,9 @@ func TestReplComplete_tildeHomePath(t *testing.T) {
 	}
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	env := agentruntime.ReplCompleteEnv{ProjRoot: t.TempDir()}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: t.TempDir()}
 	line := []rune("!ls ~/Des")
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("Des") {
 		t.Fatalf("offset=%d want len(Des)", off)
 	}
@@ -164,11 +164,11 @@ func TestReplComplete_absolutePathOutsideProjRoot(t *testing.T) {
 	if err := os.MkdirAll(proj, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	env := agentruntime.ReplCompleteEnv{ProjRoot: proj}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: proj}
 	partial := filepath.Join(root, "els")
 	lineStr := "!ls " + partial
 	line := []rune(lineStr)
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("els") {
 		t.Fatalf("offset=%d want len(els)", off)
 	}
@@ -196,9 +196,9 @@ func TestReplComplete_pathWithSpaceEscaped(t *testing.T) {
 	}
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	env := agentruntime.ReplCompleteEnv{ProjRoot: t.TempDir()}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: t.TempDir()}
 	line := []rune("!ls -lah ~/Desktop/Photo")
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("Photo") {
 		t.Fatalf("offset=%d want len(Photo)", off)
 	}
@@ -226,9 +226,9 @@ func TestReplComplete_singleQuotedPath(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	env := agentruntime.ReplCompleteEnv{ProjRoot: root}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: root}
 	line := []rune("!cat 'src/a")
-	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
+	suffixes, off := replcomplete.ReplCompleteDo(env, line, len(line))
 	if off != len("a") {
 		t.Fatalf("offset=%d want 1", off)
 	}

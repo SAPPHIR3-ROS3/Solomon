@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -311,8 +312,8 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 }
 
 func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
-	clean, _ := parseMultilineControlRunes(line)
-	line = trimMessageEdges(clean)
+	clean, _ := multiline.ParseMultilineControlRunes(line)
+	line = multiline.TrimMessageEdges(clean)
 	if r.machineMode() {
 		return r.runPromptOnceCI(ctx, line)
 	}

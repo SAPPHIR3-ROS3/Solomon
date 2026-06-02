@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	codexchat "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex/chat"
 	"github.com/openai/openai-go/v2/option"
 )
 
@@ -36,7 +37,7 @@ func chatGPTSubMiddleware(accountID string) option.Middleware {
 		if !clientStream {
 			chat["stream"] = true
 		}
-		codexBody, err := ChatCompletionToCodexBody(chat)
+		codexBody, err := codexchat.ChatCompletionToCodexBody(chat)
 		if err != nil {
 			return nil, err
 		}
@@ -50,20 +51,20 @@ func chatGPTSubMiddleware(accountID string) option.Middleware {
 			return nil, err
 		}
 		if upResp.StatusCode != http.StatusOK {
-			body, _ := drainUpstreamError(upResp)
-			return nil, chatGPTSubUpstreamError(upResp.StatusCode, body, model)
+			body, _ := codexchat.DrainUpstreamError(upResp)
+			return nil, codexchat.ChatGPTSubUpstreamError(upResp.StatusCode, body, model)
 		}
 		if clientStream {
 			pr, pw := io.Pipe()
 			go func() {
 				defer upResp.Body.Close()
-				err := rewriteCodexSSEStream(upResp.Body, pw, model)
+				err := codexchat.RewriteCodexSSEStream(upResp.Body, pw, model)
 				_ = pw.CloseWithError(err)
 			}()
 			return codexProxyResponse(upResp, pr, "text/event-stream"), nil
 		}
 		defer upResp.Body.Close()
-		jsonBody, err := bufferChatCompletionFromCodexSSE(upResp.Body, model)
+		jsonBody, err := codexchat.BufferChatCompletionFromCodexSSE(upResp.Body, model)
 		if err != nil {
 			return nil, err
 		}

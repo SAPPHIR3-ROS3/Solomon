@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 )
 
@@ -14,11 +15,11 @@ func (r *Runtime) releaseTTYForSubprocess() func() {
 	}
 	r.RL.Clean()
 	_ = r.RL.Terminal.ExitRawMode()
-	writeTerminalModeSequences(bracketedPasteDisable + mouseReportDisable)
-	restoreConsole := prepareConsoleInput()
+	multiline.WriteTerminalModeSequences(multiline.BracketedPasteDisable + multiline.MouseReportDisable)
+	restoreConsole := multiline.PrepareConsoleInput()
 	return func() {
 		restoreConsole()
-		writeTerminalModeSequences(bracketedPasteEnable)
+		multiline.WriteTerminalModeSequences(multiline.BracketedPasteEnable)
 		r.RL.Refresh()
 	}
 }

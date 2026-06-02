@@ -1,4 +1,4 @@
-package codex
+package chat
 
 import (
 	"strings"
@@ -26,7 +26,7 @@ func TestParseCodexUpstreamDetail(t *testing.T) {
 
 func TestChatGPTSubUpstreamError_wrapsMessage(t *testing.T) {
 	t.Parallel()
-	err := chatGPTSubUpstreamError(400, []byte(`{"detail":"The 'gpt-5.4' model is not supported when using Codex with a ChatGPT account."}`), "gpt-5.4")
+	err := ChatGPTSubUpstreamError(400, []byte(`{"detail":"The 'gpt-5.4' model is not supported when using Codex with a ChatGPT account."}`), "gpt-5.4")
 	if !strings.HasPrefix(err.Error(), "ChatGPT Sub: ") {
 		t.Fatalf("got %v", err)
 	}

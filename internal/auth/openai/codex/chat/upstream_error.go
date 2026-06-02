@@ -1,4 +1,4 @@
-package codex
+package chat
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ type upstreamErrorPayload struct {
 	Type    string `json:"type"`
 }
 
-func chatGPTSubUpstreamError(statusCode int, body []byte, model string) error {
+func ChatGPTSubUpstreamError(statusCode int, body []byte, model string) error {
 	msg := humanizeCodexUpstreamError(statusCode, parseCodexUpstreamDetail(body), strings.TrimSpace(model))
 	return fmt.Errorf("ChatGPT Sub: %s", msg)
 }
@@ -82,7 +82,7 @@ func humanizeKnownCodexDetail(detail, model string) string {
 	return ""
 }
 
-func drainUpstreamError(resp *http.Response) ([]byte, error) {
+func DrainUpstreamError(resp *http.Response) ([]byte, error) {
 	if resp == nil || resp.Body == nil {
 		return nil, nil
 	}

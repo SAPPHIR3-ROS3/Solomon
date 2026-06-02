@@ -1,4 +1,4 @@
-package codex
+package chat
 
 import (
 	"bufio"
@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-func rewriteCodexSSEStream(r io.Reader, w io.Writer, model string) error {
+func RewriteCodexSSEStream(r io.Reader, w io.Writer, model string) error {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 	transformer := newSSETransformer(model)
