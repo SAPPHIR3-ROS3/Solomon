@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 )
 
@@ -22,6 +23,21 @@ var summarizeRaw string
 
 //go:embed templates/summarize_system.tmpl
 var summarizeSystemRaw string
+
+//go:embed templates/images.tmpl
+var imagesWorkflowRaw string
+
+var (
+	imagesWorkflowOnce sync.Once
+	imagesWorkflowText string
+)
+
+func ImagesWorkflowSection() string {
+	imagesWorkflowOnce.Do(func() {
+		imagesWorkflowText = strings.TrimSpace(imagesWorkflowRaw)
+	})
+	return imagesWorkflowText
+}
 
 type Data struct {
 	Tools                 string
@@ -43,6 +59,7 @@ type Data struct {
 	SystemGOARCH          string
 	WorkspaceAbsolutePath string
 	Shell                 string
+	ImagesWorkflow        string
 }
 
 type TitleData struct {
@@ -53,6 +70,7 @@ type TitleData struct {
 type SummarizeData struct {
 	Transcript        string
 	DisableThinking   bool
+	ImagesWorkflow    string
 }
 
 func NativeToolInvocationSyntax(legacyFallbackEnabled bool) string {
@@ -221,12 +239,14 @@ func RenderSummarize(d SummarizeData) (string, error) {
 }
 
 func RenderSummarizeSystem(d SummarizeData) (string, error) {
+	d.ImagesWorkflow = ImagesWorkflowSection()
 	return executeTemplate("summarize_system", summarizeSystemRaw, d)
 }
 
 func render(raw string, d Data) (string, error) {
 	applyRuntimeSystem(&d)
 	d.Shell = EffectiveShell()
+	d.ImagesWorkflow = ImagesWorkflowSection()
 	return executeTemplate("p", raw, d)
 }
 
@@ -266,7 +286,10 @@ func SummarizeSystemFallback() string {
 	return strings.TrimSpace(`You summarize technical conversations concisely.
 Preserve important facts: decisions, file paths, commands, errors, and open tasks.
 Match the language of the transcript.
-Output only the summary text, without preamble or meta-commentary.`)
+Output only the summary text, without preamble or meta-commentary.
+Do not describe Solomon image paste markers or ask the user to re-send images unless the open task is explicitly blocked on a missing real attachment.
+
+` + ImagesWorkflowSection())
 }
 
 func SystemWithNoThink(disableThinking bool, content string) string {
