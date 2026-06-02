@@ -54,7 +54,12 @@ func buildMessages(msgs []chatstore.Message, imageFiles map[int]string) []messag
 		m := msgs[i]
 		switch m.Role {
 		case "user":
-			out = append(out, messageParam{Role: "user", Content: userBlocks(m.Content, imageFiles)})
+			content := m.Content
+			if strings.TrimSpace(m.APIContent) != "" {
+				content = m.APIContent
+			}
+			content = chatstore.StripUnresolvedImgPlaceholders(content, imageFiles)
+			out = append(out, messageParam{Role: "user", Content: userBlocks(content, imageFiles)})
 			i++
 		case "assistant":
 			var blocks []contentBlock
@@ -101,29 +106,17 @@ func buildMessages(msgs []chatstore.Message, imageFiles map[int]string) []messag
 }
 
 func userBlocks(content string, imageFiles map[int]string) []contentBlock {
-	content = chatstore.StripUnresolvedImgPlaceholders(content, imageFiles)
+	segs := images.ParseUserContentSegments(content, imageFiles)
 	var blocks []contentBlock
-	if !images.PlaceholderRE.MatchString(content) {
-		if strings.TrimSpace(content) != "" {
-			blocks = append(blocks, contentBlock{"type": "text", "text": content})
+	for _, seg := range segs {
+		if seg.Text != "" {
+			blocks = append(blocks, contentBlock{"type": "text", "text": seg.Text})
 		}
-		return blocks
-	}
-	idx := 0
-	for _, m := range images.PlaceholderRE.FindAllStringSubmatchIndex(content, -1) {
-		if m[0] > idx {
-			blocks = append(blocks, contentBlock{"type": "text", "text": content[idx:m[0]]})
-		}
-		seq := images.Atoi(content[m[2]:m[3]])
-		idx = m[1]
-		if path, ok := imageFiles[seq]; ok {
-			if b := imageBlockFromFile(path); b != nil {
+		if seg.ImagePath != "" {
+			if b := imageBlockFromFile(seg.ImagePath); b != nil {
 				blocks = append(blocks, b)
 			}
 		}
-	}
-	if idx < len(content) {
-		blocks = append(blocks, contentBlock{"type": "text", "text": content[idx:]})
 	}
 	if len(blocks) == 0 {
 		blocks = append(blocks, contentBlock{"type": "text", "text": ""})

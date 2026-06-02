@@ -18,6 +18,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/title"
@@ -68,6 +69,10 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 	var um chatstore.Message
 	var firstUserLine string
 	r.mutateSession(func(s *chatstore.Session) {
+		line = images.CanonicalizeUserLineForStorage(line, s.ImageFiles)
+		if strings.TrimSpace(apiContent) != "" {
+			apiContent = images.CanonicalizeUserLineForStorage(apiContent, s.ImageFiles)
+		}
 		if !r.EphemeralSession {
 			r.markSessionFileCreated()
 			if s.ID == "" && len(s.Messages) == 0 {

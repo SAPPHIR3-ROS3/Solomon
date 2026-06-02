@@ -306,9 +306,17 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		d.RepoInstructions = sections.RepoInstructions
 	}
 	if r.Mode == "plan" {
-		return prompt.RenderPlan(d)
+		s, err := prompt.RenderPlan(d)
+		if err != nil {
+			return "", err
+		}
+		return chatstore.ScrubLiteralImgPlaceholdersForAPI(s), nil
 	}
-	return prompt.RenderBuild(d)
+	s, err := prompt.RenderBuild(d)
+	if err != nil {
+		return "", err
+	}
+	return chatstore.ScrubLiteralImgPlaceholdersForAPI(s), nil
 }
 
 func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {

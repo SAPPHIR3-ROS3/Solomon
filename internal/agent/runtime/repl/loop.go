@@ -30,7 +30,7 @@ type Loop struct {
 	SlashDeps               func() commands.Deps
 	OnUserMessage           func(line string) error
 	ClipboardPasteForStdin  func() (tag string, ok bool)
-	SaveClipboardImage      func() (seq int, err error)
+	SaveClipboardImage      func() (tag string, err error)
 }
 
 func Run(loop *Loop) error {
@@ -52,17 +52,26 @@ func Run(loop *Loop) error {
 	cfg.AutoComplete = replcomplete.NewReplCompleter(loop.CompleteEnv)
 	cfg.Painter = imgDisplayPainter{}
 	cfg.Listener = readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
-		if key == readline.CharBackward && len(line) > 0 {
-			if newPos := llm.JumpLeftOverImgTag(line, pos); newPos >= 0 {
-				return line, newPos, true
+		if len(line) > 0 {
+			line, pos = llm.NormalizeREPLBuffer(line, pos)
+			switch key {
+			case readline.CharPrev, readline.CharBackward:
+				if newPos := llm.JumpLeftOverImgTag(line, pos); newPos >= 0 {
+					return line, newPos, true
+				}
+			case readline.CharNext, readline.CharForward:
+				if newPos := llm.JumpRightOverImgTag(line, pos); newPos >= 0 {
+					return line, newPos, true
+				}
+			case readline.CharBackspace, readline.CharCtrlH:
+				if newLine, newPos, ok := llm.BackspaceOverImgTag(line, pos); ok {
+					return newLine, newPos, true
+				}
+			case readline.CharDelete:
+				if newLine, newPos, ok := llm.DeleteForwardOverImgTag(line, pos); ok {
+					return newLine, newPos, true
+				}
 			}
-			return nil, 0, false
-		}
-		if key == readline.CharForward && len(line) > 0 {
-			if newPos := llm.JumpRightOverImgTag(line, pos); newPos >= 0 {
-				return line, newPos, true
-			}
-			return nil, 0, false
 		}
 		if newLine, newPos, ok := TryPasteImageAtCursor(loop.RL.Stderr(), loop.SaveClipboardImage, line, pos, key); ok {
 			return newLine, newPos, true

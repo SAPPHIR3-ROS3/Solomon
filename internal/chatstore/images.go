@@ -6,16 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
-var imgPlaceholderRegexp = regexp.MustCompile(`\[img-(\d+)\]`)
-
-// Matches [img-0], [img-n], and dangling [img- (no closing ]) from docs/grep.
 var imgLiteralBracketRegexp = regexp.MustCompile(`\[img-[^\]]*\]?`)
 
 var summaryImgWorkflowLineRegexp = regexp.MustCompile(`(?i)(tag immagine|\[img-|imageplaceholder|jumpleftoverimgtag|paste.*immag|placeholder.*immag)`)
@@ -55,7 +52,7 @@ func imageFileHasRecognizedBinaryPayload(path string) bool {
 }
 
 func StripUnresolvedImgPlaceholders(content string, imageFiles map[int]string) string {
-	return stripStaleUserImgPlaceholderTags(content, imageFiles)
+	return images.RepairStripUserImageLiterals(content, imageFiles)
 }
 
 func RemoveBrokenSessionImageFiles(s *Session) int {
@@ -80,10 +77,6 @@ func RemoveBrokenSessionImageFiles(s *Session) int {
 		s.ImageFiles = nil
 	}
 	return n
-}
-
-func StripImgPlaceholderTags(content string) string {
-	return imgPlaceholderRegexp.ReplaceAllString(content, "")
 }
 
 func StripAllImgPlaceholderLiterals(content string) string {
@@ -144,28 +137,8 @@ func ScrubCompactSummaryContent(content string) string {
 }
 
 func NeutralizeLiteralImgPlaceholders(content string) string {
-	return imgPlaceholderRegexp.ReplaceAllString(content, "`[img-$1]`")
-}
-
-func StripAllImgPlaceholders(content string) string {
-	return strings.TrimSpace(StripImgPlaceholderTags(strings.TrimSpace(content)))
-}
-
-func stripStaleUserImgPlaceholderTags(content string, imageFiles map[int]string) string {
-	return imgPlaceholderRegexp.ReplaceAllStringFunc(content, func(tag string) string {
-		sm := imgPlaceholderRegexp.FindStringSubmatch(tag)
-		if len(sm) < 2 {
-			return ""
-		}
-		seq, err := strconv.Atoi(sm[1])
-		if err != nil || seq < 0 {
-			return ""
-		}
-		path, ok := imageFiles[seq]
-		if ok && imageFileHasRecognizedBinaryPayload(path) {
-			return tag
-		}
-		return ""
+	return imgLiteralBracketRegexp.ReplaceAllStringFunc(content, func(tag string) string {
+		return "`" + tag + "`"
 	})
 }
 
@@ -179,7 +152,7 @@ func StripStaleUserImgPlaceholdersFromSession(s *Session) int {
 		if m == nil || m.Role != "user" {
 			return
 		}
-		next := stripStaleUserImgPlaceholderTags(m.Content, files)
+		next := images.RepairStripUserImageLiterals(m.Content, files)
 		if next != m.Content {
 			m.Content = next
 			n++
@@ -270,6 +243,32 @@ func StripFalseImgPlaceholdersFromNonUserSession(s *Session) int {
 	return n
 }
 
+func SessionValidImageTokenCount(s *Session) int {
+	if s == nil {
+		return 0
+	}
+	n := 0
+	count := func(m Message) {
+		if m.Role != "user" {
+			return
+		}
+		for _, tok := range images.FindAllCompleteTokens(m.Content) {
+			if images.TokenFileOK(tok, s.ImageFiles) {
+				n++
+			}
+		}
+	}
+	for _, m := range s.Messages {
+		count(m)
+	}
+	for _, seg := range s.MainOrphans {
+		for _, m := range seg.Messages {
+			count(m)
+		}
+	}
+	return n
+}
+
 func SessionImgFragmentCount(s *Session) int {
 	if s == nil {
 		return 0
@@ -355,15 +354,8 @@ func MigrateImagePathsAfterChatRename(projectHex string, s *Session, oldChatID, 
 func collectReferencedImageSeqs(s *Session) map[int]struct{} {
 	ref := make(map[int]struct{})
 	add := func(content string) {
-		for _, m := range imgPlaceholderRegexp.FindAllStringSubmatch(content, -1) {
-			if len(m) < 2 {
-				continue
-			}
-			n, err := strconv.Atoi(m[1])
-			if err != nil || n < 0 {
-				continue
-			}
-			ref[n] = struct{}{}
+		for seq := range images.CollectReferencedSeqs(content) {
+			ref[seq] = struct{}{}
 		}
 	}
 	for _, msg := range s.Messages {
