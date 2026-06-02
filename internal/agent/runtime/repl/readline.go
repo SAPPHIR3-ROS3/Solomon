@@ -1,4 +1,4 @@
-package agentruntime
+package repl
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ func StdinIsTerminal() bool {
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }
 
-func ReadlinePrompt(rl *readline.Instance, prompt string) (string, error) {
+func Prompt(rl *readline.Instance, prompt string) (string, error) {
 	if rl == nil {
 		return "", fmt.Errorf("readline unavailable")
 	}
@@ -29,7 +29,7 @@ func ReadlinePrompt(rl *readline.Instance, prompt string) (string, error) {
 	return line, err
 }
 
-func NewREPLReadline(defaultPrompt string) (*readline.Instance, func(string) (string, error), error) {
+func NewReadline(defaultPrompt string) (*readline.Instance, func(string) (string, error), error) {
 	if !StdinIsTerminal() {
 		return nil, nil, nil
 	}
@@ -42,7 +42,7 @@ func NewREPLReadline(defaultPrompt string) (*readline.Instance, func(string) (st
 		return nil, nil, err
 	}
 	fn := func(prompt string) (string, error) {
-		return ReadlinePrompt(rl, prompt)
+		return Prompt(rl, prompt)
 	}
 	return rl, fn, nil
 }

@@ -1,4 +1,4 @@
-package agentruntime
+package repl
 
 import (
 	"fmt"
@@ -80,7 +80,7 @@ func borderPaint(s string) string {
 	return termcolor.WrapBoldGold(s)
 }
 
-func printWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool) {
+func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool) {
 	welcomeOut := termcolor.WrapWhite("Welcome to ") + termcolor.WrapBoldGold("Solomon")
 	wWel := visibleCells(welcomeOut)
 	logoLines := logo.WelcomeLogoLines()

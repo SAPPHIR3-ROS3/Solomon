@@ -1,4 +1,4 @@
-package agent
+package slash
 
 import (
 	"errors"
@@ -58,7 +58,7 @@ func slashCommandName(parts []string) string {
 	return strings.ToLower(t)
 }
 
-func SlashDispatch(d commands.Deps, line string) error {
+func Dispatch(d commands.Deps, line string) error {
 	parts := splitSlashArgs(line)
 	if len(parts) == 0 {
 		return nil

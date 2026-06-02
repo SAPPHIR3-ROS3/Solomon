@@ -8,6 +8,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/anthropic"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/openai/openai-go/v2"
@@ -30,11 +31,11 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 			logging.Log(logging.ERROR_LOG_LEVEL, "completion backend resolve bearer failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
 			return nil, err
 		}
-		auth := AnthropicAuthFromAPIKey(bearer)
+		auth := anthropic.AuthFromAPIKey(bearer)
 		if p.UsesAnthropicOAuthBearer() {
-			auth = AnthropicAuthFromOAuthBearer(bearer)
+			auth = anthropic.AuthFromOAuthBearer(bearer)
 		}
-		inner = NewAnthropicBackendWithClient(p.BaseURL, auth, httpClient)
+		inner = anthropic.NewBackendWithClient(p.BaseURL, auth, httpClient)
 	default:
 		client, err := newOpenAIClient(ctx, cfg, p, httpClient)
 		if err != nil {

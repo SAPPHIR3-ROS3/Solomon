@@ -1,15 +1,14 @@
 package llm
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/packages/param"
@@ -165,11 +164,8 @@ func applyChatExtraFields(p *openai.ChatCompletionNewParams, extras map[string]a
 	p.SetExtraFields(extras)
 }
 
-var imgPlaceholderRe = regexp.MustCompile(`\[img-(\d+)\]`)
-
-// ImagePlaceholder returns the placeholder string for a given image sequence number.
 func ImagePlaceholder(seq int) string {
-	return fmt.Sprintf("[img-%d]", seq)
+	return images.Placeholder(seq)
 }
 
 // MessageParams builds OpenAI API message params from chatstore messages.
@@ -243,13 +239,13 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 
 func BuildUserContentParts(content string, imageFiles map[int]string) []openai.ChatCompletionContentPartUnionParam {
 	content = chatstore.StripUnresolvedImgPlaceholders(content, imageFiles)
-	if !imgPlaceholderRe.MatchString(content) {
+	if !images.PlaceholderRE.MatchString(content) {
 		return []openai.ChatCompletionContentPartUnionParam{openai.TextContentPart(content)}
 	}
 	// Shortcut: content is just a single image tag with no surrounding text.
 	trimmed := strings.TrimSpace(content)
-	if m := imgPlaceholderRe.FindStringSubmatch(trimmed); m != nil && trimmed == m[0] {
-		seq := atoi(m[1])
+	if m := images.PlaceholderRE.FindStringSubmatch(trimmed); m != nil && trimmed == m[0] {
+		seq := images.Atoi(m[1])
 		if path, ok := imageFiles[seq]; ok {
 			if part := imageContentPartFromFile(path); part != nil {
 				return []openai.ChatCompletionContentPartUnionParam{*part}
@@ -258,11 +254,11 @@ func BuildUserContentParts(content string, imageFiles map[int]string) []openai.C
 	}
 	var parts []openai.ChatCompletionContentPartUnionParam
 	idx := 0
-	for _, m := range imgPlaceholderRe.FindAllStringSubmatchIndex(content, -1) {
+	for _, m := range images.PlaceholderRE.FindAllStringSubmatchIndex(content, -1) {
 		if m[0] > idx {
 			parts = append(parts, openai.TextContentPart(content[idx:m[0]]))
 		}
-		seq := atoi(content[m[2]:m[3]])
+		seq := images.Atoi(content[m[2]:m[3]])
 		idx = m[1]
 		if path, ok := imageFiles[seq]; ok {
 			if part := imageContentPartFromFile(path); part != nil {
@@ -277,30 +273,12 @@ func BuildUserContentParts(content string, imageFiles map[int]string) []openai.C
 	return parts
 }
 
-var llmPNG = []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
-
-func imageMIMEForBinary(data []byte) (mime string, ok bool) {
-	if len(data) < 3 {
-		return "", false
-	}
-	switch {
-	case len(data) >= len(llmPNG) && bytes.Equal(data[:len(llmPNG)], llmPNG):
-		return "image/png", true
-	case data[0] == 0xff && data[1] == 0xd8 && data[2] == 0xff:
-		return "image/jpeg", true
-	case len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a"):
-		return "image/gif", true
-	default:
-		return "", false
-	}
-}
-
 func imageContentPartFromFile(path string) *openai.ChatCompletionContentPartUnionParam {
 	data, err := os.ReadFile(path)
 	if err != nil || len(data) == 0 {
 		return nil
 	}
-	mime, ok := imageMIMEForBinary(data)
+	mime, ok := images.MIMEForBinary(data)
 	if !ok {
 		return nil
 	}
@@ -315,19 +293,6 @@ func imageContentPartFromFile(path string) *openai.ChatCompletionContentPartUnio
 	}
 }
 
-// atoi is a simple ASCII-to-int for non-negative numbers in image tags.
-func atoi(s string) int {
-	n := 0
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c < '0' || c > '9' {
-			break
-		}
-		n = n*10 + int(c-'0')
-	}
-	return n
-}
-
 // JumpLeftOverImgTag treats an [img-<n>] tag as a single atomic unit: if the cursor
 // lies anywhere inside the tag (start < pos <= end), it jumps to start (before the tag).
 // Spaces around the tag are never considered part of the placeholder.
@@ -336,7 +301,7 @@ func JumpLeftOverImgTag(line []rune, pos int) int {
 		return -1
 	}
 	lineStr := string(line)
-	for _, loc := range imgPlaceholderRe.FindAllStringSubmatchIndex(lineStr, -1) {
+	for _, loc := range images.PlaceholderRE.FindAllStringSubmatchIndex(lineStr, -1) {
 		start := utf8.RuneCountInString(lineStr[:loc[0]])
 		end := utf8.RuneCountInString(lineStr[:loc[1]])
 		if pos > start && pos <= end {
@@ -354,7 +319,7 @@ func JumpRightOverImgTag(line []rune, pos int) int {
 		return -1
 	}
 	lineStr := string(line)
-	for _, loc := range imgPlaceholderRe.FindAllStringSubmatchIndex(lineStr, -1) {
+	for _, loc := range images.PlaceholderRE.FindAllStringSubmatchIndex(lineStr, -1) {
 		start := utf8.RuneCountInString(lineStr[:loc[0]])
 		end := utf8.RuneCountInString(lineStr[:loc[1]])
 		if pos >= start && pos < end {

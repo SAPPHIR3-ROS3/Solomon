@@ -19,6 +19,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	cursoragent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor/agent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
@@ -109,8 +110,7 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 				if cwd == "" {
 					cwd, _ = os.Getwd()
 				}
-				bo := runtimeBootstrapOut{out: rt.Out}
-				if err := cursorint.WaitSidecarIfConfigured(context.Background(), rt.Cfg, cwd, bo); err != nil {
+				if err := cursorint.WaitSidecarIfConfigured(context.Background(), rt.Cfg, cwd, cursoragent.BootstrapIO(rt.Out)); err != nil {
 					logging.Log(logging.ERROR_LOG_LEVEL, "cursor API sidecar ensure failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 					termcolor.WriteSystem(rt.Out, "Cursor API sidecar failed to start: "+err.Error())
 				}
@@ -143,7 +143,7 @@ func (r *Runtime) ensureCursorAPISidecar(ctx context.Context) {
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
-	cursorint.KickSidecarIfConfigured(ctx, r.Cfg, cwd, runtimeBootstrapOut{out: r.Out})
+	cursorint.KickSidecarIfConfigured(ctx, r.Cfg, cwd, cursoragent.BootstrapIO(r.Out))
 }
 
 func (r *Runtime) currentSessionID() string {

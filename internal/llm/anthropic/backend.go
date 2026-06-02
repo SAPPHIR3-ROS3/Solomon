@@ -1,4 +1,4 @@
-package llm
+package anthropic
 
 import (
 	"context"
@@ -7,39 +7,38 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
 
-const AnthropicAPIVersion = "2023-06-01"
-
-type AnthropicBackend struct {
+type Backend struct {
 	baseURL    string
-	auth       AnthropicAuth
+	auth       Auth
 	httpClient *http.Client
 }
 
-func NewAnthropicBackend(baseURL string, auth AnthropicAuth) *AnthropicBackend {
-	return NewAnthropicBackendWithClient(baseURL, auth, nil)
+func NewBackend(baseURL string, auth Auth) *Backend {
+	return NewBackendWithClient(baseURL, auth, nil)
 }
 
-func NewAnthropicBackendWithClient(baseURL string, auth AnthropicAuth, client *http.Client) *AnthropicBackend {
+func NewBackendWithClient(baseURL string, auth Auth, client *http.Client) *Backend {
 	if client == nil {
-		client = anthropicHTTPDefault()
+		client = httpDefault()
 	}
-	return &AnthropicBackend{baseURL: strings.TrimSpace(baseURL), auth: auth, httpClient: client}
+	return &Backend{baseURL: strings.TrimSpace(baseURL), auth: auth, httpClient: client}
 }
 
-func (b *AnthropicBackend) Protocol() Protocol { return ProtocolAnthropic }
+func (b *Backend) Protocol() apitype.Protocol { return apitype.ProtocolAnthropic }
 
-func (b *AnthropicBackend) CompleteText(ctx context.Context, req SimpleCompletionRequest) (string, error) {
+func (b *Backend) CompleteText(ctx context.Context, req apitype.SimpleCompletionRequest) (string, error) {
 	body := b.buildSimpleBody(req, false)
 	raw, err := json.Marshal(body)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "anthropic complete marshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
-	httpReq, err := anthropicHTTPNew(ctx, AnthropicMessagesURL(b.baseURL), raw, b.auth)
+	httpReq, err := httpNew(ctx, MessagesURL(b.baseURL), raw, b.auth)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "anthropic complete request build failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
@@ -51,7 +50,7 @@ func (b *AnthropicBackend) CompleteText(ctx context.Context, req SimpleCompletio
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return "", anthropicHTTPError(resp, bb)
+		return "", httpError(resp, bb)
 	}
 	var msg struct {
 		Content []struct {
@@ -71,7 +70,7 @@ func (b *AnthropicBackend) CompleteText(ctx context.Context, req SimpleCompletio
 	return strings.TrimSpace(strings.Join(parts, "\n")), nil
 }
 
-func (b *AnthropicBackend) ListModels(ctx context.Context) ([]string, error) {
+func (b *Backend) ListModels(ctx context.Context) ([]string, error) {
 	_ = ctx
 	return modelsapi.CuratedAnthropicModels(), nil
 }

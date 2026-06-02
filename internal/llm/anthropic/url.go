@@ -1,8 +1,8 @@
-package llm
+package anthropic
 
 import "strings"
 
-func AnthropicMessagesURL(base string) string {
+func MessagesURL(base string) string {
 	base = strings.TrimSpace(base)
 	base = strings.TrimSuffix(base, "/")
 	if strings.HasSuffix(base, "/v1/messages") {
