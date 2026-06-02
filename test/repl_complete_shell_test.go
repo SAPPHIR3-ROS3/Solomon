@@ -22,7 +22,7 @@ func TestReplComplete_shellPathBin(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("!g")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != 1 {
+	if off != len("g") {
 		t.Fatalf("offset=%d want 1", off)
 	}
 	seen := map[string]bool{}
@@ -39,8 +39,8 @@ func TestReplComplete_goSubcommand(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("!go te")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != len("!go ") {
-		t.Fatalf("offset=%d want %d", off, len("!go "))
+	if off != len("te") {
+		t.Fatalf("offset=%d want 2 (go subcommand prefix)", off)
 	}
 	found := false
 	for _, s := range suffixes {
@@ -64,9 +64,8 @@ func TestReplComplete_shellPostPipe(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("!echo hi | g")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	wantOff := len("!echo hi | ")
-	if off != wantOff {
-		t.Fatalf("offset=%d want %d", off, wantOff)
+	if off != len("g") {
+		t.Fatalf("offset=%d want 1 (command token prefix)", off)
 	}
 	found := false
 	for _, s := range suffixes {
@@ -84,8 +83,8 @@ func TestReplComplete_addSubcommand(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("/add ru")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != len("/add ") {
-		t.Fatalf("offset=%d want %d", off, len("/add "))
+	if off != len("ru") {
+		t.Fatalf("offset=%d want 2", off)
 	}
 	if len(suffixes) != 1 || string(suffixes[0]) != "le" {
 		t.Fatalf("suffixes=%v want [le]", suffixes)
@@ -97,8 +96,8 @@ func TestReplComplete_goSubcommandAfterGoSpace(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("!go ")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != len("!go ") {
-		t.Fatalf("offset=%d want %d", off, len("!go "))
+	if off != 0 {
+		t.Fatalf("offset=%d want 0 (empty go subcommand prefix)", off)
 	}
 	if len(suffixes) == 0 {
 		t.Fatal("expected go subcommand candidates")
@@ -119,8 +118,8 @@ func TestReplComplete_windowsPATHEXT(t *testing.T) {
 	env := agentruntime.ReplCompleteEnv{}
 	line := []rune("!too")
 	suffixes, off := agentruntime.ReplCompleteDo(env, line, len(line))
-	if off != 1 {
-		t.Fatalf("offset=%d want 1", off)
+	if off != len("too")-1 {
+		t.Fatalf("offset=%d want partial command len", off)
 	}
 	found := false
 	for _, s := range suffixes {

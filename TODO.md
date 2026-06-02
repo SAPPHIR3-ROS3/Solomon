@@ -11,9 +11,10 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
   - argomenti statici slash (`/reasoning`, `/log`, `/add`, `/remove`, …) e dinamici (`/resume`, `/goto`);
   - righe shell (`!…` o shell-first): **binari da PATH** (e builtin leggeri) sul token comando (inizio riga o dopo `|`, `||`, `&&`, `;`);
   - **`go` sotto-comandi** dal toolchain (`go help`, cache per versione) sul secondo token;
-  - **path** sotto `ProjRoot` sugli altri token; **no** `!/…` (non slash).
-- **Non è completa:** flag e sotto-comandi shell generici (no delega bash/zsh/PowerShell); path con spazi/virgolette; modelli/provider da config; altri slash con argomenti dinamici; Shift+Tab (limite readline).
-- **Cosa manca (priorità):** flag/binari avanzati stile shell host; path quotati; Tab su modelli; eventuale delega opzionale alla shell.
+  - **path** sotto `ProjRoot` (anche virgolette `'…'`/`"…"`, spazi escapati `\ `, separatori `\` o `/`); **no** `!/…` (non slash).
+- **Non è completa:** altri slash con argomenti dinamici oltre a `/resume` e `/goto`; Shift+Tab (limite readline).
+- **Fuori scope (non previsto):** flag shell generici; Tab su modelli/provider; delega completion alla shell host (bash/zsh/PowerShell).
+- **Cosa manca (priorità):** completamento argomenti slash aggiuntivi solo dove serve; edge case path rari (quote annidate o escape esotici).
 
 ---
 
