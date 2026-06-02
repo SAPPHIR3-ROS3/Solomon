@@ -164,8 +164,17 @@ func applyChatExtraFields(p *openai.ChatCompletionNewParams, extras map[string]a
 	p.SetExtraFields(extras)
 }
 
-func ImagePlaceholder(seq int) string {
-	return images.Placeholder(seq)
+func ImagePlaceholder(seq int, imagePath string) string {
+	_ = imagePath
+	return images.PlaceholderBuffer(seq)
+}
+
+func CanonicalizeUserLineForStorage(line string, imageFiles map[int]string) string {
+	return images.CanonicalizeUserLineForStorage(line, imageFiles)
+}
+
+func NormalizeREPLBuffer(line []rune, pos int) ([]rune, int) {
+	return images.NormalizeREPLBuffer(line, pos)
 }
 
 // MessageParams builds OpenAI API message params from chatstore messages.
@@ -220,6 +229,7 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 			if strings.TrimSpace(m.APIContent) != "" {
 				content = m.APIContent
 			}
+			content = chatstore.StripUnresolvedImgPlaceholders(content, imageFiles)
 			parts := BuildUserContentParts(content, imageFiles)
 			if len(parts) == 0 {
 				out = append(out, openai.UserMessage(""))
@@ -239,36 +249,23 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 
 func BuildUserContentParts(content string, imageFiles map[int]string) []openai.ChatCompletionContentPartUnionParam {
 	content = chatstore.StripUnresolvedImgPlaceholders(content, imageFiles)
-	if !images.PlaceholderRE.MatchString(content) {
-		return []openai.ChatCompletionContentPartUnionParam{openai.TextContentPart(content)}
-	}
-	// Shortcut: content is just a single image tag with no surrounding text.
-	trimmed := strings.TrimSpace(content)
-	if m := images.PlaceholderRE.FindStringSubmatch(trimmed); m != nil && trimmed == m[0] {
-		seq := images.Atoi(m[1])
-		if path, ok := imageFiles[seq]; ok {
-			if part := imageContentPartFromFile(path); part != nil {
-				return []openai.ChatCompletionContentPartUnionParam{*part}
-			}
-		}
+	segs := images.ParseUserContentSegments(content, imageFiles)
+	if len(segs) == 0 {
+		return []openai.ChatCompletionContentPartUnionParam{openai.TextContentPart("")}
 	}
 	var parts []openai.ChatCompletionContentPartUnionParam
-	idx := 0
-	for _, m := range images.PlaceholderRE.FindAllStringSubmatchIndex(content, -1) {
-		if m[0] > idx {
-			parts = append(parts, openai.TextContentPart(content[idx:m[0]]))
+	for _, seg := range segs {
+		if seg.Text != "" {
+			parts = append(parts, openai.TextContentPart(seg.Text))
 		}
-		seq := images.Atoi(content[m[2]:m[3]])
-		idx = m[1]
-		if path, ok := imageFiles[seq]; ok {
-			if part := imageContentPartFromFile(path); part != nil {
+		if seg.ImagePath != "" {
+			if part := imageContentPartFromFile(seg.ImagePath); part != nil {
 				parts = append(parts, *part)
-				continue
 			}
 		}
 	}
-	if idx < len(content) {
-		parts = append(parts, openai.TextContentPart(content[idx:]))
+	if len(parts) == 0 {
+		return []openai.ChatCompletionContentPartUnionParam{openai.TextContentPart("")}
 	}
 	return parts
 }
@@ -293,40 +290,42 @@ func imageContentPartFromFile(path string) *openai.ChatCompletionContentPartUnio
 	}
 }
 
-// JumpLeftOverImgTag treats an [img-<n>] tag as a single atomic unit: if the cursor
-// lies anywhere inside the tag (start < pos <= end), it jumps to start (before the tag).
-// Spaces around the tag are never considered part of the placeholder.
 func JumpLeftOverImgTag(line []rune, pos int) int {
 	if pos <= 0 {
 		return -1
 	}
-	lineStr := string(line)
-	for _, loc := range images.PlaceholderRE.FindAllStringSubmatchIndex(lineStr, -1) {
-		start := utf8.RuneCountInString(lineStr[:loc[0]])
-		end := utf8.RuneCountInString(lineStr[:loc[1]])
-		if pos > start && pos <= end {
-			return start
+	for _, b := range images.ImgTagRuneBounds(line) {
+		if pos > b.Start && pos <= b.End {
+			return b.Start
 		}
 	}
 	return -1
 }
 
-// JumpRightOverImgTag treats an [img-<n>] tag as a single atomic unit: if the cursor
-// lies anywhere inside the tag (start <= pos < end), it jumps to end (after the tag).
-// Spaces around the tag are never considered part of the placeholder.
 func JumpRightOverImgTag(line []rune, pos int) int {
 	if pos >= len(line) {
 		return -1
 	}
-	lineStr := string(line)
-	for _, loc := range images.PlaceholderRE.FindAllStringSubmatchIndex(lineStr, -1) {
-		start := utf8.RuneCountInString(lineStr[:loc[0]])
-		end := utf8.RuneCountInString(lineStr[:loc[1]])
-		if pos >= start && pos < end {
-			return end
+	for _, b := range images.ImgTagRuneBounds(line) {
+		if pos > b.Start && pos < b.End {
+			return b.End
+		}
+		if pos == b.Start {
+			return b.End
 		}
 	}
 	return -1
+}
+
+func BackspaceOverImgTag(line []rune, pos int) ([]rune, int, bool) {
+	if newLine, newPos, ok := images.DeleteImgTagAt(line, pos); ok {
+		return newLine, newPos, true
+	}
+	return images.BackspaceImgFragment(line, pos)
+}
+
+func DeleteForwardOverImgTag(line []rune, pos int) ([]rune, int, bool) {
+	return images.DeleteImgTagForward(line, pos)
 }
 
 func ModelID(s string) shared.ChatModel {

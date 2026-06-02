@@ -3,10 +3,9 @@ package images
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 )
 
-var PlaceholderRE = regexp.MustCompile(`\[img-(\d+)\]`)
+var PlaceholderRE = completeTokenRE
 
 var pngMagic = []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
 

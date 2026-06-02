@@ -52,30 +52,37 @@ func (r *Runtime) Run(ctx context.Context) error {
 		SlashDeps:              func() commands.Deps { return r.slashDeps(ctx) },
 		OnUserMessage:          func(line string) error { return r.onUserMessage(ctx, line, true) },
 		ClipboardPasteForStdin: r.replClipboardPasteTag,
-		SaveClipboardImage:     r.saveReplClipboardImageSeq,
+		SaveClipboardImage:     r.saveReplClipboardImageTag,
 	})
 }
 
 func (r *Runtime) finishReplSessionLoad() {
+	var repaired bool
 	r.mutateSession(func(s *chatstore.Session) {
-		chatstore.FinishSessionLoad(s)
+		repaired = chatstore.FinishSessionLoad(s)
 	})
+	if repaired {
+		_ = r.persistSession()
+	}
 }
 
 func (r *Runtime) replClipboardPasteTag() (string, bool) {
-	seq, _, err := r.saveReplClipboardImage()
+	tag, err := r.saveReplClipboardImageTag()
 	if err != nil {
 		if r.RL != nil {
 			fmt.Fprintf(r.RL.Stderr(), "clipboard image paste failed: %v\n", err)
 		}
 		return "", false
 	}
-	return llm.ImagePlaceholder(seq), true
+	return tag, true
 }
 
-func (r *Runtime) saveReplClipboardImageSeq() (int, error) {
-	seq, _, err := r.saveReplClipboardImage()
-	return seq, err
+func (r *Runtime) saveReplClipboardImageTag() (string, error) {
+	seq, path, err := r.saveReplClipboardImage()
+	if err != nil {
+		return "", err
+	}
+	return llm.ImagePlaceholder(seq, path), nil
 }
 
 func (r *Runtime) saveReplClipboardImage() (seq int, path string, err error) {
@@ -87,19 +94,21 @@ func (r *Runtime) saveReplClipboardImage() (seq int, path string, err error) {
 		if s.ID == "" {
 			s.ID = chatstore.NewPlaceholderChatID(time.Now())
 		}
-		seq = s.ImageSeq
-		s.ImageSeq++
 		chatID = s.ID
 	})
 	dir, err := paths.ChatImagesDir(r.ProjHex)
 	if err != nil {
 		return 0, "", err
 	}
+	r.mutateSession(func(s *chatstore.Session) {
+		seq = s.ImageSeq
+	})
 	path, err = clipboard.PasteImage(dir, chatID, seq)
 	if err != nil {
 		return 0, "", err
 	}
 	r.mutateSession(func(s *chatstore.Session) {
+		s.ImageSeq++
 		if s.ImageFiles == nil {
 			s.ImageFiles = make(map[int]string)
 		}

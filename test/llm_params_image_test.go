@@ -120,11 +120,44 @@ func TestBuildUserContentPartsOmitsStaleImgTag(t *testing.T) {
 	if len(parts) != 1 || parts[0].OfText == nil {
 		t.Fatalf("want single text part, got %+v", parts)
 	}
-	if got := parts[0].GetText(); got == nil || *got != "" {
-		t.Fatalf("want empty visible text without [img-0], got %q", *got)
+	if got := parts[0].GetText(); got == nil || strings.TrimSpace(*got) != "" {
+		t.Fatalf("unresolved bare tag must not reach API, got %q", *got)
+	}
+	if strings.Contains(*parts[0].GetText(), "[img-") {
+		t.Fatalf("API text still contains img literal: %q", *parts[0].GetText())
 	}
 	parts = llm.BuildUserContentParts("pre [img-1] suf", map[int]string{1: filepath.Join(t.TempDir(), "nope.png")})
 	if len(parts) != 1 || parts[0].OfText == nil {
 		t.Fatalf("want flattened text-only, got %+v", parts)
+	}
+	got := parts[0].GetText()
+	if got == nil || *got != "pre  suf" {
+		t.Fatalf("got %q", *got)
+	}
+	if strings.Contains(*got, "[img-") {
+		t.Fatalf("stale tag in API text: %q", *got)
+	}
+}
+
+func TestMessageParamsUserPlainTextNoImgLiteral(t *testing.T) {
+	msgs := []chatstore.Message{{Role: "user", Content: "ciao"}}
+	params := llm.MessageParams("system ok", msgs, map[int]string{0: "/tmp/orphan.png"})
+	if len(params) < 2 {
+		t.Fatalf("params len %d", len(params))
+	}
+	up := params[1].OfUser
+	if up == nil {
+		t.Fatal("expected user message")
+	}
+	var text string
+	if up.Content.OfString.Valid() {
+		text = up.Content.OfString.Value
+	}
+	if strings.Contains(text, "[img-") {
+		t.Fatalf("user API text: %q", text)
+	}
+	sys := params[0].OfSystem
+	if sys == nil || strings.Contains(sys.Content.OfString.Value, "[img-") {
+		t.Fatalf("system must not contain img literal: %+v", sys)
 	}
 }

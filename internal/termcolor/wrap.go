@@ -8,13 +8,15 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 )
+
+var replImgVisibleRE = regexp.MustCompile(`\[img-\d+\]`)
 
 const resetANSI = "\x1b[0m"
 
 const SystemBorder = "===SYSTEM==="
-
-var imgTagRe = regexp.MustCompile(`\[img-\d+\]`)
 
 func ResetSeq() string {
 	if !colorOn {
@@ -242,9 +244,9 @@ func wrapImgTagReplInput(tag string) string {
 }
 
 func ColorizeImgTags(s string) string {
-	return imgTagRe.ReplaceAllStringFunc(s, WrapImgTag)
+	return images.ColorizeVisibleImgTags(images.ExpandForDisplay(s), WrapImgTag)
 }
 
 func ColorizeImgTagsReplInput(s string) string {
-	return imgTagRe.ReplaceAllStringFunc(s, wrapImgTagReplInput)
+	return replImgVisibleRE.ReplaceAllStringFunc(s, wrapImgTagReplInput)
 }

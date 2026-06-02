@@ -351,8 +351,11 @@ func TestSlashDispatch_cleansessioncache_keepsValidPath(t *testing.T) {
 	if err := agent.SlashDispatch(d, "/cleansessioncache"); err != nil {
 		t.Fatal(err)
 	}
-	if sess.Messages[0].Content != "[img-0] caption" {
-		t.Fatalf("want tag kept, got %q", sess.Messages[0].Content)
+	if !strings.Contains(sess.Messages[0].Content, "caption") {
+		t.Fatalf("want caption kept, got %q", sess.Messages[0].Content)
+	}
+	if !strings.Contains(sess.Messages[0].Content, "\u200b") {
+		t.Fatalf("want migrated SEP token, got %q", sess.Messages[0].Content)
 	}
 	p, ok := sess.ImageFiles[0]
 	if !ok || p != goodPath {
