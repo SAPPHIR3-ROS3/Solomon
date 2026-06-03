@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -238,6 +239,9 @@ func main() {
 	rt := agentruntime.NewRuntime(rl, cfg, prov, hex, root, sess)
 	defer rt.Close()
 	if err := rt.Run(ctx); err != nil {
+		if errors.Is(err, agentruntime.ErrRestartSolomon) {
+			os.Exit(0)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "repl run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)

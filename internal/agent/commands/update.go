@@ -1,11 +1,14 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
+
+var ErrRestartSolomon = errors.New("restart solomon")
 
 func Update(d Deps) error {
 	if d.CheckForUpdate == nil {
@@ -74,7 +77,11 @@ func Upgrade(d Deps) error {
 	} else {
 		PrintSystemf(d.Out, "Installing %s...", notice.Latest)
 	}
-	return d.InstallUpdate(notice.Latest)
+	err = d.InstallUpdate(notice.Latest)
+	if errors.Is(err, updater.ErrRestartScheduled) {
+		return ErrRestartSolomon
+	}
+	return err
 }
 
 func printUpToDateIfCurrent(d Deps, notice *updater.Notice, err error) bool {

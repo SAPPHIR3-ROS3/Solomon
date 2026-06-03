@@ -2,6 +2,8 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
+	"os"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
@@ -36,7 +38,12 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 }
 
 func (r *Runtime) installUpdate(ctx context.Context, tag string) {
-	if err := updater.RunSystemInstall(ctx, tag, r.Out); err != nil {
+	err := updater.RunSystemInstall(ctx, tag, r.Out)
+	if errors.Is(err, updater.ErrRestartScheduled) {
+		r.shutdownForUpdateRestart()
+		os.Exit(0)
+	}
+	if err != nil {
 		commands.PrintSystemErr(r.Out, err)
 	}
 }
