@@ -12,6 +12,8 @@ import (
 
 var ErrExitChat = errors.New("exit chat")
 
+var ErrRestartSolomon = errors.New("restart solomon")
+
 func splitSlashArgs(line string) []string {
 	line = strings.TrimSpace(line)
 	var fields []string
@@ -78,6 +80,9 @@ func Dispatch(d commands.Deps, line string) error {
 	if ok {
 		if errors.Is(err, commands.ErrBuiltinExitChat) {
 			return ErrExitChat
+		}
+		if errors.Is(err, commands.ErrRestartSolomon) {
+			return ErrRestartSolomon
 		}
 		if err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "slash command failed", logging.LogOptions{Params: map[string]any{"command": name, "err": err.Error()}})

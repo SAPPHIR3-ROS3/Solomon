@@ -2,10 +2,12 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -41,7 +43,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	if !config.NeedsOnboard(r.Cfg) {
 		go commands.PrefetchSlashModelCatalog(ctx, r.Cfg, r.Out)
 	}
-	return repl.Run(&repl.Loop{
+	err := repl.Run(&repl.Loop{
 		RL:                     r.RL,
 		Out:                    r.Out,
 		Ctx:                    ctx,
@@ -55,6 +57,19 @@ func (r *Runtime) Run(ctx context.Context) error {
 		ClipboardPasteForStdin: r.replClipboardPasteTag,
 		SaveClipboardImage:     r.saveReplClipboardImageTag,
 	})
+	if errors.Is(err, slash.ErrRestartSolomon) {
+		r.shutdownForUpdateRestart()
+		return ErrRestartSolomon
+	}
+	return err
+}
+
+func (r *Runtime) shutdownForUpdateRestart() {
+	_ = r.persistSession()
+	commands.PrintSystem(r.Out, "Exiting Solomon for update...")
+	if r.RL != nil {
+		_ = r.RL.Close()
+	}
 }
 
 func (r *Runtime) finishReplSessionLoad() {

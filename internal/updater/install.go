@@ -142,7 +142,6 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 	ok = true
 	_ = os.Remove(backup)
 	fmt.Fprintf(progress, "Installed %s to %s\n", tag, target)
-	fmt.Fprintln(progress, "Restart Solomon to use the new version.")
 	return nil
 }
 
@@ -175,30 +174,24 @@ func RunSystemInstall(ctx context.Context, tag string, progress io.Writer) error
 	if tag == "" {
 		return fmt.Errorf("empty release tag")
 	}
-	switch runtime.GOOS {
-	case "linux", "darwin":
-		script := fmt.Sprintf("SOLOMON_VERSION=%s curl -fsSL %s | bash", tag, installScriptRawURL)
-		cmd := exec.CommandContext(ctx, "bash", "-c", script)
-		cmd.Stdout = progress
-		cmd.Stderr = progress
-		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(progress, "Install script failed (%v); trying direct download...\n", err)
-			return Install(ctx, tag, progress)
-		}
-		fmt.Fprintln(progress, "Restart Solomon to use the new version.")
-		return nil
-	case "windows":
-		ps := fmt.Sprintf("$env:SOLOMON_VERSION='%s'; irm %s | iex", strings.ReplaceAll(tag, "'", "''"), installPS1RawURL)
-		cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps)
-		cmd.Stdout = progress
-		cmd.Stderr = progress
-		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(progress, "Install script failed (%v); trying direct download...\n", err)
-			return Install(ctx, tag, progress)
-		}
-		fmt.Fprintln(progress, "Restart Solomon to use the new version.")
-		return nil
-	default:
-		return Install(ctx, tag, progress)
+	fmt.Fprintln(progress, "Stopping Solomon to install the update; restart follows...")
+	if err := scheduleInstallRestart(ctx, tag, progress); err == nil {
+		return ErrRestartScheduled
+	} else if progress != nil {
+		fmt.Fprintf(progress, "Detached install failed (%v); trying in-process download...\n", err)
 	}
+	if err := Install(ctx, tag, progress); err != nil {
+		return err
+	}
+	exe, err := restartExecutable()
+	if err != nil {
+		fmt.Fprintln(progress, "Restart Solomon manually to use the new version.")
+		return ErrRestartScheduled
+	}
+	cwd, _ := os.Getwd()
+	if err := scheduleRestartOnly(ctx, os.Getpid(), cwd, exe, os.Args[1:], progress); err != nil {
+		fmt.Fprintln(progress, "Restart Solomon manually to use the new version.")
+		return ErrRestartScheduled
+	}
+	return ErrRestartScheduled
 }

@@ -79,6 +79,9 @@ func Run(loop *Loop) error {
 					logging.Log(logging.INFO_LOG_LEVEL, "user requested exit from chat")
 					return nil
 				}
+				if errors.Is(err, slash.ErrRestartSolomon) {
+					return slash.ErrRestartSolomon
+				}
 				commands.PrintSystemErr(loop.Out, err)
 			}
 			continue

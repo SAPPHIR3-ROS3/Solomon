@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -124,11 +125,11 @@ func TestUpgradeInstalls(t *testing.T) {
 		},
 		InstallUpdate: func(latest string) error {
 			tag = latest
-			return nil
+			return updater.ErrRestartScheduled
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, commands.ErrRestartSolomon) {
+		t.Fatalf("got %v", err)
 	}
 	if tag != "v2099.1.0" {
 		t.Fatalf("tag %q", tag)
