@@ -101,7 +101,7 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 			return r.refreshUpdateCheck(ctx, force)
 		},
 		InstallUpdate: func(tag string) error {
-			return updater.Install(ctx, tag, r.Out)
+			return updater.RunSystemInstall(ctx, tag, r.Out)
 		},
 
 		PersistSession: r.persistSession,

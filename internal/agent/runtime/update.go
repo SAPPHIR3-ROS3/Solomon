@@ -36,7 +36,7 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 }
 
 func (r *Runtime) installUpdate(ctx context.Context, tag string) {
-	if err := updater.Install(ctx, tag, r.Out); err != nil {
+	if err := updater.RunSystemInstall(ctx, tag, r.Out); err != nil {
 		commands.PrintSystemErr(r.Out, err)
 	}
 }
