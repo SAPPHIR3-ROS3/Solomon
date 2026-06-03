@@ -181,6 +181,10 @@ export function processStreamEvent(
       }
       return;
     }
+    if (event.name === "mcp") {
+      onText(blockedCursorToolLine("mcp:external"));
+      return;
+    }
     if (!allowCursorInternalTools) {
       if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args)) {
         onToolDetected();

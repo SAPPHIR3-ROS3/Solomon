@@ -1,6 +1,6 @@
 import type { SDKImage, SDKUserMessage } from "@cursor/sdk";
 import type { ChatCompletionTool, ChatMessage, ChatToolCall, ContentPart } from "./openai-types.js";
-import { harnessToolsClause } from "./openai-tools.js";
+import { harnessPreamble } from "./harness-prompt.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -94,27 +94,6 @@ export function roughTokFromMessages(messages: ChatMessage[]): number {
     sum += roughTokFromString(messageToPromptText(m));
   }
   return sum;
-}
-
-const HARNESS_MARKER = "[Harness]";
-
-const HARNESS_CLAUSES: string[] = [
-  `${HARNESS_MARKER} Interaction mode: you are running behind a remote host harness, not a normal Cursor IDE agent session. The workspace is real, but it is operated by the host on your behalf.`,
-  `${HARNESS_MARKER} Tools: to inspect or change the workspace, call your available tools normally (read a file, edit a file, run a shell/terminal command, search). The host intercepts each tool call, runs it on the real workspace, and returns the output as [tool result …] lines in a later turn.`,
-  `${HARNESS_MARKER} Results: do not invent or quote file contents unless they appeared in a prior [tool result …] or in the user's message. After you issue a tool call, stop and wait for its result; never assume it succeeded or narrate a result you did not receive.`,
-  `${HARNESS_MARKER} Format: issue real tool calls. Do not emit XML tool blocks, Markdown-fenced tool snippets, or textual tool-call examples in your reply. Optional brief prose may precede a tool call.`,
-];
-
-export function harnessPreamble(tools?: ChatCompletionTool[]): string {
-  if (!tools?.length) {
-    return "";
-  }
-  const parts = [...HARNESS_CLAUSES];
-  const toolsClause = harnessToolsClause(tools);
-  if (toolsClause) {
-    parts.push(toolsClause);
-  }
-  return parts.join("\n\n") + "\n\n";
 }
 
 export function withHarnessPreamble(

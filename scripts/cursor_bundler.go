@@ -196,17 +196,18 @@ func cursorDistStale(dir string) bool {
 	if err != nil {
 		return true
 	}
-	srcRoot := filepath.Join(dir, "src")
 	var newest time.Time
-	_ = filepath.Walk(srcRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	for _, root := range []string{filepath.Join(dir, "src"), filepath.Join(dir, "prompts")} {
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			if info.ModTime().After(newest) {
+				newest = info.ModTime()
+			}
 			return nil
-		}
-		if info.ModTime().After(newest) {
-			newest = info.ModTime()
-		}
-		return nil
-	})
+		})
+	}
 	if newest.IsZero() {
 		return true
 	}

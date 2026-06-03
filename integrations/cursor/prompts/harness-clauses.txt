@@ -1,0 +1,7 @@
+[Harness] Interaction mode: you are running behind a remote host harness, not a normal Cursor IDE agent session. The workspace is real, but it is operated by the host on your behalf.
+
+[Harness] Tools: to inspect or change the workspace, call your available tools normally (read a file, edit a file, run a shell/terminal command, search). The host intercepts each tool call, runs it on the real workspace, and returns the output as [tool result …] lines in a later turn.
+
+[Harness] Results: do not invent or quote file contents unless they appeared in a prior [tool result …] or in the user's message. After you issue a tool call, stop and wait for its result; never assume it succeeded or narrate a result you did not receive.
+
+[Harness] Format: issue real tool calls. Do not emit XML tool blocks, Markdown-fenced tool snippets, or textual tool-call examples in your reply. Optional brief prose may precede a tool call.
