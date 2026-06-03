@@ -2,6 +2,7 @@ import { Agent, type SDKAgent } from "@cursor/sdk";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { buildPromptFromMessages } from "./messages.js";
+import { openAIToolsToMcpTools } from "./openai-tools.js";
 import type { ChatCompletionTool, ChatMessage } from "./openai-types.js";
 import type { AgentRun } from "./run-control.js";
 import type { ModelSelection } from "./model-selection.js";
@@ -28,17 +29,13 @@ function writeDenyHooks(workspace: string): void {
     [
       "process.stdin.resume();",
       "process.stdin.on('end', () => {",
-      "  process.stdout.write(JSON.stringify({ permission: 'deny', agentMessage: 'Cursor built-in tools are disabled by Solomon. Use the solomon tools (readFile, editFile, shell) instead.' }));",
+      "  process.stdout.write(JSON.stringify({ permission: 'deny', agentMessage: 'Cursor built-in tools are disabled by Solomon. Use the solomon MCP tools from this request instead.' }));",
       "});",
     ].join("\n") + "\n",
     "utf8",
   );
   const command = `node "${denyScript.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
   const hook = { command, failClosed: true };
-  // The matcher and explicit hooks deny Cursor built-ins only. MCP execution is
-  // intentionally NOT denied so the bundled solomon MCP tools remain callable;
-  // the proxy intercepts those tool-call events and force-stops before the MCP
-  // server executes, routing real execution back to Solomon.
   fs.writeFileSync(
     path.join(cursorDir, "hooks.json"),
     JSON.stringify(
@@ -59,52 +56,21 @@ function writeDenyHooks(workspace: string): void {
 }
 
 const SOLOMON_MCP_SERVER_SOURCE = String.raw`'use strict';
-// Solomon MCP server (stdio). It only advertises tool schemas so the model can
-// call clean, host-owned tools. It never executes: the Solomon proxy intercepts
-// each tool-call event and force-stops the run before execution would happen.
+const fs = require('fs');
 const SAFETY_TIMEOUT_MS = 30000;
-const tools = [
-  {
-    name: 'readFile',
-    description: 'Read a file from the workspace and return its contents. Use this to inspect files instead of shell cat/head/tail.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: 'Absolute path or workspace-relative path to the file.' },
-        startLine: { type: 'integer', description: 'Optional 1-based start line.' },
-        endLine: { type: 'integer', description: 'Optional 1-based end line.' },
-      },
-      required: ['path'],
-    },
-  },
-  {
-    name: 'editFile',
-    description: 'Edit a file by replacing oldString with newString. ALWAYS use this to modify files; never edit files via shell (no sed, awk, echo redirection, or here-docs).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: 'Path to the file to edit.' },
-        oldString: { type: 'string', description: 'Exact text to replace (empty only when creating a brand-new file).' },
-        newString: { type: 'string', description: 'Replacement text.' },
-        intent: { type: 'string', description: 'Brief description of the edit.' },
-      },
-      required: ['path', 'oldString', 'newString', 'intent'],
-    },
-  },
-  {
-    name: 'shell',
-    description: 'Run a shell command for inspection or system tasks. Do NOT use it to read or edit files (use readFile and editFile instead).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        command: { type: 'string', description: 'The shell command to run.' },
-        intent: { type: 'string', description: 'Brief description of why the command is run.' },
-        timeoutSeconds: { type: 'integer', description: 'Optional timeout in seconds.' },
-      },
-      required: ['command', 'intent'],
-    },
-  },
-];
+function loadTools() {
+  const manifestPath = process.argv[2];
+  if (!manifestPath) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+const tools = loadTools();
 function send(obj) {
   process.stdout.write(JSON.stringify(obj) + '\n');
 }
@@ -143,9 +109,6 @@ function handle(msg) {
     return;
   }
   if (method === 'tools/call') {
-    // The proxy force-stops the run before this resolves. As a safety net (in
-    // case the run is not stopped), respond with an error after a timeout so a
-    // stuck child never silently performs the action.
     setTimeout(function () {
       send({
         jsonrpc: '2.0',
@@ -164,7 +127,7 @@ function handle(msg) {
 }
 `;
 
-function writeSolomonMcpServer(workspace: string): string {
+function ensureSolomonMcpServer(workspace: string): string {
   const cursorDir = path.join(workspace, ".cursor");
   fs.mkdirSync(cursorDir, { recursive: true });
   const serverPath = path.join(cursorDir, "solomon-mcp-server.cjs");
@@ -172,10 +135,19 @@ function writeSolomonMcpServer(workspace: string): string {
   return serverPath;
 }
 
+function writeSolomonMcpToolsManifest(workspace: string, tools: ChatCompletionTool[] | undefined): string {
+  const cursorDir = path.join(workspace, ".cursor");
+  fs.mkdirSync(cursorDir, { recursive: true });
+  const manifestPath = path.join(cursorDir, "solomon-mcp-tools.json");
+  fs.writeFileSync(manifestPath, JSON.stringify(openAIToolsToMcpTools(tools)), "utf8");
+  return manifestPath;
+}
+
 async function createAgentWithOptions(
   cfg: ProxyConfig,
   modelSelection: ModelSelection,
   sandbox: boolean,
+  tools?: ChatCompletionTool[],
 ): Promise<SDKAgent> {
   if (cfg.allowCursorInternalTools) {
     return Agent.create({
@@ -186,24 +158,29 @@ async function createAgentWithOptions(
   }
   const workspace = guardedWorkspaceDir();
   writeDenyHooks(workspace);
-  const mcpServerPath = writeSolomonMcpServer(workspace);
+  const mcpServerPath = ensureSolomonMcpServer(workspace);
+  const manifestPath = writeSolomonMcpToolsManifest(workspace, tools);
   return Agent.create({
     apiKey: cfg.apiKey,
     model: modelSelection,
     mcpServers: {
-      solomon: { type: "stdio", command: process.execPath, args: [mcpServerPath] },
+      solomon: { type: "stdio", command: process.execPath, args: [mcpServerPath, manifestPath] },
     },
     local: { cwd: workspace, settingSources: ["project"], sandboxOptions: { enabled: sandbox } },
   });
 }
 
-async function createAgent(cfg: ProxyConfig, modelSelection: ModelSelection): Promise<SDKAgent> {
+async function createAgent(
+  cfg: ProxyConfig,
+  modelSelection: ModelSelection,
+  tools?: ChatCompletionTool[],
+): Promise<SDKAgent> {
   try {
-    return await createAgentWithOptions(cfg, modelSelection, true);
+    return await createAgentWithOptions(cfg, modelSelection, true, tools);
   } catch (err) {
     const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
     if (!cfg.allowCursorInternalTools && msg.includes("sandbox")) {
-      return createAgentWithOptions(cfg, modelSelection, false);
+      return createAgentWithOptions(cfg, modelSelection, false, tools);
     }
     throw err;
   }
@@ -226,7 +203,7 @@ export async function sendStateless(
   sendOpts: AgentSendOpts,
   tools?: ChatCompletionTool[],
 ): Promise<{ agent: SDKAgent; run: AgentRun }> {
-  const agent = await createAgent(cfg, modelSelection);
+  const agent = await createAgent(cfg, modelSelection, tools);
   const prompt = buildPromptFromMessages(messages, tools);
   try {
     const run = await agent.send(prompt, sendOpts);

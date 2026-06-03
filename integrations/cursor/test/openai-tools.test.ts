@@ -5,6 +5,7 @@ import {
   filterInvocations,
   isValidInvocation,
   limitInvocations,
+  openAIToolsToMcpTools,
   parseToolInvocationsFromText,
   requestUsesNativeTools,
   toolArgumentsJSON,
@@ -179,4 +180,59 @@ test("maps disallowed cursor tool events into proxy tools", () => {
   assert.equal(text, "");
   assert.equal(detected, true);
   assert.deepEqual(pending, [{ name: "readFile", args: { path: "PLAN.md" } }]);
+});
+
+test("converts OpenAI request tools into MCP tool definitions", () => {
+  const mcp = openAIToolsToMcpTools([
+    {
+      type: "function",
+      function: {
+        name: "find",
+        description: "Search files",
+        parameters: {
+          type: "object",
+          properties: { pattern: { type: "string" } },
+          required: ["pattern"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: { name: "find", description: "duplicate" },
+    },
+    {
+      type: "function",
+      function: { name: "subagent", description: "Run nested agent" },
+    },
+  ]);
+  assert.equal(mcp.length, 2);
+  assert.equal(mcp[0]?.name, "find");
+  assert.equal(mcp[0]?.description, "Search files");
+  assert.deepEqual(mcp[0]?.inputSchema.required, ["pattern"]);
+  assert.equal(mcp[1]?.name, "subagent");
+});
+
+test("unwraps solomon MCP find and subagent tool calls", () => {
+  for (const [toolName, args, expected] of [
+    ["find", { pattern: "foo", files: false }, { name: "find", args: { pattern: "foo", files: false } }],
+    ["subagent", { task: "explore auth", sysPromptPath: "build.tmpl" }, { name: "subagent", args: { task: "explore auth", sysPromptPath: "build.tmpl" } }],
+  ] as const) {
+    const pending = [];
+    let detected = false;
+    processStreamEvent(
+      {
+        type: "tool_call",
+        name: "mcp",
+        status: "running",
+        args: { providerIdentifier: "solomon", toolName, args },
+      } as any,
+      false,
+      () => {},
+      () => {},
+      pending,
+      () => { detected = true; },
+    );
+    assert.equal(detected, true, toolName);
+    assert.deepEqual(pending, [expected], toolName);
+  }
 });

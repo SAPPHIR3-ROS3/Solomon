@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external && node -e \"require('node:fs').cpSync('prompts','dist/prompts',{recursive:true})\"",
     "test": "esbuild test/openai-tools.test.ts --bundle --platform=node --format=esm --outfile=.test/openai-tools.test.mjs --packages=external && node --test .test/openai-tools.test.mjs",
     "start": "node dist/index.js"
   },

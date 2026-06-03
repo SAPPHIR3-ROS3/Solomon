@@ -119,27 +119,39 @@ export function writeSSEToolCalls(
   writeSSE(res, chunkDelta(completionId, model, { tool_calls: toolCalls }));
 }
 
-export function harnessToolsClause(tools: ChatCompletionTool[] | undefined): string {
+export type McpToolDefinition = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+};
+
+export function openAIToolsToMcpTools(tools: ChatCompletionTool[] | undefined): McpToolDefinition[] {
   if (!tools?.length) {
-    return "";
+    return [];
   }
-  const names: string[] = [];
+  const out: McpToolDefinition[] = [];
+  const seen = new Set<string>();
   for (const t of tools) {
-    const n = t.function?.name?.trim();
-    if (n) {
-      names.push(n);
+    const name = t.function?.name?.trim();
+    if (!name || seen.has(name)) {
+      continue;
     }
+    seen.add(name);
+    const params = t.function?.parameters;
+    const inputSchema =
+      params && typeof params === "object" && !Array.isArray(params)
+        ? { ...(params as Record<string, unknown>) }
+        : { type: "object", properties: {} };
+    if (typeof inputSchema.type !== "string") {
+      inputSchema.type = "object";
+    }
+    out.push({
+      name,
+      description: t.function?.description?.trim() ?? "",
+      inputSchema,
+    });
   }
-  if (names.length === 0) {
-    return "";
-  }
-  return (
-    `[Harness] Host tools enabled for this request: ${names.join(", ")}. ` +
-    "These capabilities are provided as the 'solomon' tools (readFile, editFile, find, shell); call them directly. " +
-    "Cursor built-in tools are disabled, so do not attempt Read/Write/Edit/Shell/Grep/Glob/etc. " +
-    "Always use editFile to modify files and readFile to inspect them; never use shell to read or edit files (no sed, awk, echo redirection, or here-docs). " +
-    "Do not emit tool calls as XML or text."
-  );
+  return out;
 }
 
 export type ParsedToolText = {

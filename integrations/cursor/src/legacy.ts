@@ -88,6 +88,11 @@ export function collectLegacyTool(
   const mapped = mapCursorToolToSolomon(name, rawArgs);
   if (mapped) {
     pending.push(mapped);
+    return;
+  }
+  const direct = directSolomonToolInvocation(name, rawArgs);
+  if (direct) {
+    pending.push(direct);
   }
 }
 
@@ -101,7 +106,7 @@ export function tryCollectLegacyTool(
   return pending.length > before;
 }
 
-const SOLOMON_TOOL_NAMES = new Set(["readFile", "shell", "editFile", "find"]);
+const SOLOMON_TOOL_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
 
 export function mapCursorToolToSolomon(
   name: string,
@@ -119,9 +124,31 @@ export function mapCursorToolToSolomon(
   if (!args) {
     return null;
   }
-  if (!SOLOMON_TOOL_NAMES.has(solomonName)) {
+  return invocationWithIntent(solomonName, args);
+}
+
+function directSolomonToolInvocation(
+  name: string,
+  rawArgs: unknown,
+): LegacyToolInvocation | null {
+  const trimmed = name.trim();
+  if (!trimmed || !SOLOMON_TOOL_NAME_RE.test(trimmed)) {
     return null;
   }
+  if (CURSOR_TO_SOLOMON[trimmed] !== undefined) {
+    return null;
+  }
+  const obj = parseArgsObject(rawArgs);
+  if (obj === null) {
+    return null;
+  }
+  return invocationWithIntent(trimmed, obj);
+}
+
+function invocationWithIntent(
+  solomonName: string,
+  args: Record<string, unknown>,
+): LegacyToolInvocation {
   const intent =
     typeof args.intent === "string"
       ? args.intent
