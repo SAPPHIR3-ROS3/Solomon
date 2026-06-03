@@ -145,3 +145,60 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 	fmt.Fprintln(progress, "Restart Solomon to use the new version.")
 	return nil
 }
+
+const (
+	installScriptRawURL = "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh"
+	installPS1RawURL    = "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1"
+)
+
+func InstallCommand(tag string) (string, error) {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return "", fmt.Errorf("empty release tag")
+	}
+	switch runtime.GOOS {
+	case "linux", "darwin":
+		return fmt.Sprintf("SOLOMON_VERSION=%s curl -fsSL %s | bash", tag, installScriptRawURL), nil
+	case "windows":
+		escaped := strings.ReplaceAll(tag, "'", "''")
+		return fmt.Sprintf("$env:SOLOMON_VERSION='%s'; irm %s | iex", escaped, installPS1RawURL), nil
+	default:
+		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+}
+
+func RunSystemInstall(ctx context.Context, tag string, progress io.Writer) error {
+	if progress == nil {
+		progress = io.Discard
+	}
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return fmt.Errorf("empty release tag")
+	}
+	switch runtime.GOOS {
+	case "linux", "darwin":
+		script := fmt.Sprintf("SOLOMON_VERSION=%s curl -fsSL %s | bash", tag, installScriptRawURL)
+		cmd := exec.CommandContext(ctx, "bash", "-c", script)
+		cmd.Stdout = progress
+		cmd.Stderr = progress
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(progress, "Install script failed (%v); trying direct download...\n", err)
+			return Install(ctx, tag, progress)
+		}
+		fmt.Fprintln(progress, "Restart Solomon to use the new version.")
+		return nil
+	case "windows":
+		ps := fmt.Sprintf("$env:SOLOMON_VERSION='%s'; irm %s | iex", strings.ReplaceAll(tag, "'", "''"), installPS1RawURL)
+		cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps)
+		cmd.Stdout = progress
+		cmd.Stderr = progress
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(progress, "Install script failed (%v); trying direct download...\n", err)
+			return Install(ctx, tag, progress)
+		}
+		fmt.Fprintln(progress, "Restart Solomon to use the new version.")
+		return nil
+	default:
+		return Install(ctx, tag, progress)
+	}
+}

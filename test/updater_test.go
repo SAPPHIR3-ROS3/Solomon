@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
@@ -53,5 +54,19 @@ func TestReleaseAssetName(t *testing.T) {
 	}
 	if name == "" {
 		t.Fatal("empty asset")
+	}
+}
+
+func TestInstallCommand(t *testing.T) {
+	t.Parallel()
+	cmd, err := updater.InstallCommand("v2026.602.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd == "" {
+		t.Fatal("empty command")
+	}
+	if !strings.Contains(cmd, "v2026.602.1") {
+		t.Fatalf("tag missing from %q", cmd)
 	}
 }

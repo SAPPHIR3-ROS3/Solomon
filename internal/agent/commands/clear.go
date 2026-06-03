@@ -9,7 +9,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 )
 
-func Clear(d Deps) error {
+func clearTerminal(d Deps) error {
 	if runtime.GOOS == "windows" {
 		sh := prompt.EffectiveShell()
 		if sh != "unknown" && strings.EqualFold(filepath.Base(sh), "cmd.exe") {
@@ -18,6 +18,13 @@ func Clear(d Deps) error {
 		}
 	}
 	fmt.Fprint(d.Out, "\033[2J\033[H")
+	return nil
+}
+
+func Clear(d Deps) error {
+	if err := clearTerminal(d); err != nil {
+		return err
+	}
 	if d.PrintWelcomeBanner != nil {
 		d.PrintWelcomeBanner()
 	}

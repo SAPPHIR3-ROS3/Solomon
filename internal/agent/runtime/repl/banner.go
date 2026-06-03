@@ -218,9 +218,9 @@ func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 			l1pad = 0
 		}
 		fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), line1, strings.Repeat(" ", l1pad), borderPaint("│"))
-		hint := "Run /update to install"
+		hint := "Run /upgrade to install · /autoupdate on|off"
 		if cfg != nil && cfg.AutoUpdateEnabled() {
-			hint = "autoupdate=true — installing in background"
+			hint = "autoupdate=true — installing in background · /autoupdate off to disable"
 		}
 		cur := strings.TrimSpace(updateNotice.Current)
 		if cur != "" {
