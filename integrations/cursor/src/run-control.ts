@@ -113,11 +113,12 @@ export function endOpenAIStream(
   model: string,
   usage: OpenAIUsagePayload,
   finishReason: OpenAIFinishReason = "stop",
+  proxyCorrection?: string,
 ): void {
   if (res.writableEnded || res.destroyed) {
     return;
   }
-  writeSSE(res, usageChunk(completionId, model, usage));
+  writeSSE(res, usageChunk(completionId, model, usage, proxyCorrection));
   writeSSE(res, chunkDelta(completionId, model, {}, finishReason));
   finishSSE(res);
 }
@@ -147,6 +148,7 @@ export function finishStreamWithUsage(
   model: string,
   input: StreamUsageInput,
   finishReason: OpenAIFinishReason = "stop",
+  proxyCorrection?: string,
 ): void {
   endOpenAIStream(
     res,
@@ -154,5 +156,6 @@ export function finishStreamWithUsage(
     model,
     input.buildUsage(input.messages, input.sdkUsage, input.textBuf, input.thinkingBuf),
     finishReason,
+    proxyCorrection,
   );
 }

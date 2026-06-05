@@ -122,6 +122,42 @@ func parseLooseReasoningTokensFromUsageRawJSON(raw string) int64 {
 	return 0
 }
 
+func parseProxyCorrectionFromChunkRawJSON(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &top); err != nil {
+		return ""
+	}
+	v, ok := top["solomon_proxy_correction"]
+	if !ok {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(v, &s); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(s)
+}
+
+func parseCursorToolEventFromChunkRawJSON(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &top); err != nil {
+		return ""
+	}
+	v, ok := top["solomon_cursor_tool_event"]
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(string(v))
+}
+
 func StreamText(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {
 	params.StreamOptions = openai.ChatCompletionStreamOptionsParam{IncludeUsage: openai.Bool(true)}
 	reasonSink := opts.ReasoningSink
@@ -248,11 +284,18 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	var tFirstVisible time.Time
 	var printedThought bool
 	var legacyStopped bool
+	var proxyToolCorrection string
 	for stream.Next() {
 		if legacyStopped {
 			break
 		}
 		ch := stream.Current()
+		if corr := parseProxyCorrectionFromChunkRawJSON(ch.RawJSON()); corr != "" {
+			proxyToolCorrection = corr
+		}
+		if ev := parseCursorToolEventFromChunkRawJSON(ch.RawJSON()); ev != "" && opts.OnDelta != nil {
+			opts.OnDelta("cursor_tool", ev)
+		}
 		if ch.JSON.Usage.Valid() {
 			rt := ch.Usage.CompletionTokensDetails.ReasoningTokens
 			if rt == 0 {
@@ -355,6 +398,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			})
 		}
 	}
+	out.ProxyToolCorrection = proxyToolCorrection
 	out.Usage = buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)
 	if !printedThought && strings.TrimSpace(out.ReasoningText) != "" {
 		writeThoughtForLine(reasonSink, out.Usage.ThoughtSecs)

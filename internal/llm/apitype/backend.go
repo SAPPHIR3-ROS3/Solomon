@@ -63,10 +63,11 @@ type UsageStats struct {
 }
 
 type AssistantTurnResult struct {
-	Content       string
-	ReasoningText string
-	ToolCalls     []AssistantToolCall
-	Usage         UsageStats
+	Content            string
+	ReasoningText      string
+	ToolCalls          []AssistantToolCall
+	Usage              UsageStats
+	ProxyToolCorrection string
 }
 
 type StreamOpts struct {

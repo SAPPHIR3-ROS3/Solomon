@@ -85,8 +85,9 @@ export function usageChunk(
   id: string,
   model: string,
   usage: OpenAIUsagePayload,
+  proxyCorrection?: string,
 ): Record<string, unknown> {
-  return {
+  const chunk: Record<string, unknown> = {
     id,
     object: "chat.completion.chunk",
     created: Math.floor(Date.now() / 1000),
@@ -94,4 +95,9 @@ export function usageChunk(
     choices: [{ index: 0, delta: {}, finish_reason: null }],
     usage,
   };
+  const correction = proxyCorrection?.trim();
+  if (correction) {
+    chunk.solomon_proxy_correction = correction;
+  }
+  return chunk;
 }
