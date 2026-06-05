@@ -38,6 +38,34 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 
 Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
 
+## `editFile` semantics (build)
+
+| Args | Behavior |
+|------|----------|
+| `oldString` non-empty, `newString` any | Replace **one** occurrence of `oldString` with `newString` |
+| `oldString` empty, `newString` non-empty, `delete` false/absent | Create or overwrite file at `path` |
+| `delete: true` | Remove file at `path` (`oldString` / `newString` ignored) |
+| `oldString` and `newString` both empty, `delete` false/absent | Rejected (`editFile refuses empty overwrite`) |
+
+All variants require non-empty `intent`. Paths are relative to the project root. The Cursor sidecar maps Cursor `Delete` to `editFile` with `delete: true` so Solomon remains the executor.
+
+## Cursor sidecar proxy
+
+When Solomon drives the optional Cursor API sidecar, **Solomon stays the tool executor** on the project root. Configuration: [`cursor_internal_tools`](../user-guide/configuration.md#cursor-integration-tool-execution) in `[tools]` (default **off**).
+
+| Layer | Role |
+|-------|------|
+| Deny hooks | Block Cursor built-in tool names before execution |
+| Guard `cwd` | Cursor agent workspace is `.solomon-cursor-guard/`, not the repo |
+| MCP `solomon` | Schema-only stub; no `tools/call` execution in the sidecar |
+| Stream bridge | Map or block tool events; stop Cursor run; emit Solomon `tool_calls` / legacy XML |
+
+Bridging examples: `Read` → `readFile`, `Grep`/`Glob`/`SemanticSearch` → `find`, `Task` → `subagent`, `WebFetch` → `fetchWeb`. Any tool name in the request `tools[]` list is accepted by exact name (dynamic pass-through). Unmapped Cursor-only tools are rejected with structured proxy correction, not executed by Solomon unless they map to an allowed tool.
+
+When [`cursor_internal_tools`](../user-guide/configuration.md#cursor-integration-tool-execution) is **true**, the sidecar forwards native Cursor tool events (`solomon_cursor_tool_event`) for live REPL display; Solomon does not bridge or execute them.
+
+Do **not** set `cursor_internal_tools = true` unless you intend Cursor to run its native tools on the project.
+
 ## Router flow
 
 Legacy XML invocations (when `[tools].legacy` is enabled) are parsed by [`internal/tooling/legacy_xml.go`](../../internal/tooling/legacy_xml.go) and [`legacy_stream.go`](../../internal/tooling/legacy_stream.go); tool names are validated against the active native + MCP tool set before execution.
