@@ -98,6 +98,13 @@ test("rejects empty editFile invocations before native tool emission", () => {
   assert.deepEqual(filterInvocations([inv], null), []);
 });
 
+test("accepts editFile delete invocations for native tool emission", () => {
+  assert.equal(isValidInvocation({
+    name: "editFile",
+    args: { path: "x.go", delete: true, intent: "remove file" },
+  }), true);
+});
+
 test("deduplicates cumulative cursor text snapshots", () => {
   let text = "";
   text += nextTextChunk(text, "ciao");

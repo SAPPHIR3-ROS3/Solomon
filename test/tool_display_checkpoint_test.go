@@ -142,6 +142,32 @@ func TestFormatToolDisplayLines_editFileSkipsEmptyOldBlock(t *testing.T) {
 	}
 }
 
+func TestFormatToolDisplayLines_editFileDelete(t *testing.T) {
+	args, err := json.Marshal(map[string]any{
+		"path":   "obsolete.go",
+		"delete": true,
+		"intent": "remove dead code",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("editFile", args)
+	if len(lines) != 1 {
+		t.Fatalf("lines: %#v", lines)
+	}
+	if !strings.Contains(lines[0], "(delete)") || !strings.Contains(lines[0], "obsolete.go") {
+		t.Fatalf("unexpected delete display: %q", lines[0])
+	}
+}
+
+func TestFormatToolResultDisplayLines_editFileDelete(t *testing.T) {
+	payload := `{"ok":true,"action":"deleted"}`
+	lines := tooling.FormatToolResultDisplayLines("editFile", payload)
+	if len(lines) != 1 || !strings.Contains(lines[0], "deleted") {
+		t.Fatalf("lines: %v", lines)
+	}
+}
+
 func TestFormatToolResultDisplayLines_readFileOmitsContent(t *testing.T) {
 	payload := `{"path":"TODO.md","total_lines":141,"content":"# TODO\n\nlong body"}`
 	lines := tooling.FormatToolResultDisplayLines("readFile", payload)

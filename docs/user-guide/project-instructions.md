@@ -39,7 +39,7 @@ Use these files for **project-level and architectural** context: languages and f
 
 Subdirectory files are **not** scanned upfront. They enter the prompt when a tool touches a path under that folder:
 
-- `readFile` / `editFile` — from the resolved file path, Solomon walks up to the repo root and activates any `AGENTS.md` (or fallback) found on the way.
+- `readFile` / `editFile` — from the resolved file path, Solomon walks up to the repo root and activates any `AGENTS.md` (or fallback) found on the way. Use `editFile` with `delete: true` to remove a file (do not use `shell` for file deletion).
 - `shell` — path-like tokens in the command (for example `./src/lib/...`) trigger the same activation.
 
 Once activated for a chat session, a subdirectory stays in the prompt for later turns (stored in the session file).

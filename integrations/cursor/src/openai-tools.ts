@@ -78,6 +78,10 @@ export function isValidInvocation(inv: LegacyToolInvocation): boolean {
   if (inv.name !== "editFile") {
     return true;
   }
+  if (inv.args?.delete === true) {
+    const path = typeof inv.args?.path === "string" ? inv.args.path.trim() : "";
+    return path !== "";
+  }
   const oldString = typeof inv.args?.oldString === "string" ? inv.args.oldString : "";
   const newString = typeof inv.args?.newString === "string" ? inv.args.newString : "";
   return oldString !== "" || newString !== "";
