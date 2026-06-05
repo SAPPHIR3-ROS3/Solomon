@@ -12,7 +12,7 @@ Capabilities that are rare or combined in ways other terminal agents do not matc
 
 ### Edit file in the workspace
 
-Solomon exposes an `editFile` native tool in build mode that applies search-and-replace patches to project files, with optional `intent` metadata echoed in the REPL. The same capability is the default way Claude Code, Codex, and Copilot CLI modify source trees, usually under names like `Edit` or `write`. Solomon validates paths relative to the project root but does not yet enforce a strict workspace jail; see [Security (in the future)](#security-sandbox-and-path-policy-in-the-future). Details: [Native tools](architecture/native-tools.md), [Plan vs build](architecture/plan-vs-build.md).
+Solomon exposes an `editFile` native tool in build mode that applies search-and-replace patches to project files, creates or overwrites files when `oldString` is empty, and deletes files when `delete` is true (same tool, with `path` and `intent`). Optional `intent` metadata is echoed in the REPL. The same capability is the default way Claude Code, Codex, and Copilot CLI modify source trees, usually under names like `Edit` or `write`; delete is often a separate tool in other agents. Solomon validates paths relative to the project root but does not yet enforce a strict workspace jail; see [Security (in the future)](#security-sandbox-and-path-policy-in-the-future). Details: [Native tools](architecture/native-tools.md), [Plan vs build](architecture/plan-vs-build.md).
 
 ### MCP server integration
 
@@ -124,7 +124,7 @@ Optional `[api_resilience]` configures retries, backoff, jitter, timeouts, and c
 
 ### Cursor integration sidecar
 
-`/integrations` reports the optional Cursor API sidecar URL, health, and install path for editor-adjacent workflows. This is Solomon-specific glue rather than a universal agent feature. Requires Node when enabled.
+`/integrations` reports the optional Cursor API sidecar URL, health, and install path for editor-adjacent workflows. Requires Node when enabled. Default **`cursor_internal_tools = false`**: Solomon executes tools on the repo; Cursor native tools are blocked or bridged. Details: [Configuration — Cursor integration](user-guide/configuration.md#cursor-integration-tool-execution).
 
 ### Shell-first REPL mode
 
@@ -150,7 +150,7 @@ Every user turn advances a numbered checkpoint; the REPL prompt and echoed lines
 
 ### Cursor sidecar with Solomon harness
 
-The optional Cursor integration runs a Node sidecar that speaks OpenAI-style HTTP while Solomon remains the tool executor on disk. The sidecar prefixes prompts so the remote model must emit Solomon’s legacy `<tool_calls>` XML (`readFile`, `shell`, `editFile`) and must not use Cursor’s built-in tools. `/integrations` reports health, URL, and install path. No other terminal harness in this comparison ships first-party glue to drive Cursor’s agent API through an external legacy-tool loop. See [`integrations/cursor/`](../integrations/cursor/) and [`internal/integrations/cursor/`](../internal/integrations/cursor/).
+The optional Cursor integration runs a Node sidecar that speaks OpenAI-style HTTP while Solomon remains the tool executor on disk. With **`[tools].cursor_internal_tools = false`** (default), Cursor built-in tools are blocked or bridged to Solomon names; the sidecar does not execute MCP `solomon` calls on disk. The sidecar prefixes prompts so the remote model should use Solomon tools via the solomon MCP server or native API `tool_calls`. Cursor `Delete` is translated to `editFile` with `delete: true`. **`cursor_internal_tools = true` disables this fail-closed setup** — see [Configuration — Cursor integration](user-guide/configuration.md#cursor-integration-tool-execution). `/integrations` reports health, URL, and install path. See [`integrations/cursor/`](../integrations/cursor/) and [`internal/integrations/cursor/`](../internal/integrations/cursor/).
 
 ### Dual transcript for forced skills
 
@@ -200,7 +200,7 @@ Today only `plan` and `build` modes exist. A dedicated **code mode** would narro
 
 ### Full file-operation surface **(in the future)**
 
-`readFile` and `editFile` cover most edits; rename, delete, glob, and unified sandbox semantics are not first-class tools yet. Agents with richer filesystem primitives (or stricter cages) expect parity here.
+`readFile`, `editFile` (including delete via `delete: true`), and `find` cover most filesystem work in build mode; dedicated rename and unified sandbox semantics are not first-class yet. Agents with richer filesystem primitives (or stricter cages) may still expect parity here.
 
 ### LSP-backed code intelligence **(in the future)**
 
