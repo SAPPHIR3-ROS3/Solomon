@@ -16,70 +16,17 @@ import (
 	"golang.org/x/term"
 )
 
-type inputHistory struct {
-	items []string
-	idx   int
-	draft string
-}
-
-func newInputHistory() *inputHistory {
-	return &inputHistory{idx: -1}
-}
-
-func (h *inputHistory) add(s string) {
-	if strings.TrimSpace(s) == "" {
-		return
-	}
-	if len(h.items) == 0 || h.items[len(h.items)-1] != s {
-		h.items = append(h.items, s)
-	}
-	h.idx = len(h.items)
-	h.draft = ""
-}
-
-func (h *inputHistory) prev(draft string) (string, bool) {
-	if len(h.items) == 0 {
-		return "", false
-	}
-	if h.idx < 0 || h.idx > len(h.items) {
-		h.idx = len(h.items)
-	}
-	if h.idx == len(h.items) {
-		h.draft = draft
-	}
-	if h.idx == 0 {
-		return h.items[0], true
-	}
-	h.idx--
-	return h.items[h.idx], true
-}
-
-func (h *inputHistory) next() (string, bool) {
-	if len(h.items) == 0 || h.idx < 0 || h.idx >= len(h.items) {
-		return "", false
-	}
-	h.idx++
-	if h.idx == len(h.items) {
-		return h.draft, true
-	}
-	return h.items[h.idx], true
-}
-
-func (h *inputHistory) resetNav() {
-	h.idx = len(h.items)
-	h.draft = ""
-}
-
 type multilineEditor struct {
-	loop       *Loop
-	history    *inputHistory
-	lines      [][]rune
-	row        int
-	col        int
-	width      int
-	rendered   int
-	cursorLine int
-	out        io.Writer
+	loop          *Loop
+	history       *inputHistory
+	lines         [][]rune
+	row           int
+	col           int
+	width         int
+	rendered      int
+	cursorLine    int
+	suggestSuffix []rune
+	out           io.Writer
 }
 
 func readMultilineInput(loop *Loop, history *inputHistory) (string, error) {
@@ -189,6 +136,7 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 	case key.paste:
 		e.insertPaste(key.text)
 		resetHistory = true
+		e.clearSuggest()
 	case key.seq != "":
 		return e.handleSeq(key.seq)
 	case key.r == readline.CharInterrupt:
@@ -210,7 +158,11 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 	case key.r == readline.CharLineStart:
 		e.col = 0
 	case key.r == readline.CharLineEnd:
-		e.col = len(e.lines[e.row])
+		if e.cursorAtBufferEnd() && len(e.suggestSuffix) > 0 {
+			e.acceptSuggest(false)
+		} else {
+			e.col = len(e.lines[e.row])
+		}
 	case key.r == readline.CharBackward:
 		e.left()
 	case key.r == readline.CharForward:
@@ -228,25 +180,41 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 	if resetHistory {
 		e.history.resetNav()
 	}
+	e.recomputeSuggest()
 	e.refresh()
 	return false, "", nil
 }
 
 func (e *multilineEditor) handleSeq(seq string) (bool, string, error) {
 	resetHistory := false
+	clearSuggest := false
 	switch seq {
 	case "\x1b[A", "\x1bOA":
 		e.up()
+		clearSuggest = true
 	case "\x1b[B", "\x1bOB":
 		e.down()
+		clearSuggest = true
 	case "\x1b[D", "\x1bOD":
 		e.left()
+		clearSuggest = true
 	case "\x1b[C", "\x1bOC":
 		e.right()
+	case "\x1b[1;3C", "\x1b[1;5C":
+		if e.cursorAtBufferEnd() && len(e.suggestSuffix) > 0 {
+			e.acceptSuggest(true)
+		} else {
+			e.right()
+		}
 	case "\x1b[H", "\x1bOH":
 		e.col = 0
+		clearSuggest = true
 	case "\x1b[F", "\x1bOF":
-		e.col = len(e.lines[e.row])
+		if e.cursorAtBufferEnd() && len(e.suggestSuffix) > 0 {
+			e.acceptSuggest(false)
+		} else {
+			e.col = len(e.lines[e.row])
+		}
 	case "\x1b[3~":
 		e.deleteForward()
 		resetHistory = true
@@ -258,6 +226,11 @@ func (e *multilineEditor) handleSeq(seq string) (bool, string, error) {
 	}
 	if resetHistory {
 		e.history.resetNav()
+	}
+	if clearSuggest {
+		e.clearSuggest()
+	} else if !resetHistory {
+		e.recomputeSuggest()
 	}
 	e.refresh()
 	return false, "", nil
@@ -358,6 +331,10 @@ func (e *multilineEditor) left() {
 }
 
 func (e *multilineEditor) right() {
+	if e.cursorAtBufferEnd() && len(e.suggestSuffix) > 0 {
+		e.acceptSuggest(false)
+		return
+	}
 	if newPos := llm.JumpRightOverImgTag(e.lines[e.row], e.col); newPos >= 0 {
 		e.col = newPos
 		return
@@ -401,12 +378,14 @@ func (e *multilineEditor) down() {
 func (e *multilineEditor) loadHistoryPrev() {
 	if s, ok := e.history.prev(e.string()); ok {
 		e.setString(s, 0)
+		e.clearSuggest()
 	}
 }
 
 func (e *multilineEditor) loadHistoryNext() {
 	if s, ok := e.history.next(); ok {
 		e.setString(s, len(strings.Split(s, "\n"))-1)
+		e.clearSuggest()
 	}
 }
 
@@ -426,6 +405,7 @@ func (e *multilineEditor) complete() bool {
 	for _, r := range insert {
 		e.insertRune(r)
 	}
+	e.recomputeSuggest()
 	return true
 }
 

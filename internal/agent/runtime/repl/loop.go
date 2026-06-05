@@ -72,7 +72,7 @@ func Run(loop *Loop) error {
 		if line == "" {
 			continue
 		}
-		history.add(line)
+		history.add(line, loop.CompleteEnv.ReplShellFirst)
 		if strings.HasPrefix(line, "/") {
 			if err := loop.HandleSlash(line); err != nil {
 				if errors.Is(err, slash.ErrExitChat) {
