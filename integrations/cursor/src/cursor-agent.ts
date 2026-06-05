@@ -6,6 +6,7 @@ import { openAIToolsToMcpTools } from "./openai-tools.js";
 import type { ChatCompletionTool, ChatMessage } from "./openai-types.js";
 import type { AgentRun } from "./run-control.js";
 import type { ModelSelection } from "./model-selection.js";
+import { DEFAULT_SUBAGENT_SYS_PATH } from "./legacy.js";
 import type { ProxyConfig } from "./chat.js";
 
 export type AgentSendOpts = {
@@ -17,6 +18,21 @@ export type AgentSendOpts = {
 
 function guardedWorkspaceDir(): string {
   return path.join(process.cwd(), ".solomon-cursor-guard");
+}
+
+const DEFAULT_SUBAGENT_SYS_PROMPT = [
+  "You are a nested Solomon build agent running a scoped sub-task.",
+  "Use readFile, editFile (delete=true to remove files), find, and shell via the host tools when needed.",
+  "Stay focused on the assigned task and return a concise result.",
+].join("\n");
+
+function ensureDefaultSubagentSysPrompt(projRoot: string): void {
+  const file = path.join(projRoot, DEFAULT_SUBAGENT_SYS_PATH);
+  if (fs.existsSync(file)) {
+    return;
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, DEFAULT_SUBAGENT_SYS_PROMPT + "\n", "utf8");
 }
 
 function writeDenyHooks(workspace: string): void {
@@ -157,6 +173,7 @@ async function createAgentWithOptions(
     });
   }
   const workspace = guardedWorkspaceDir();
+  ensureDefaultSubagentSysPrompt(cfg.cwd);
   writeDenyHooks(workspace);
   const mcpServerPath = ensureSolomonMcpServer(workspace);
   const manifestPath = writeSolomonMcpToolsManifest(workspace, tools);
