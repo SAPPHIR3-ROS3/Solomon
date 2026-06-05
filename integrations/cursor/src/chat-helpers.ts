@@ -1,8 +1,10 @@
 import type { SDKMessage } from "@cursor/sdk";
+import { processNativeCursorStreamEvent, type CursorNativeToolEvent } from "./cursor-native-tools.js";
 import {
   tryCollectLegacyTool,
   unwrapSolomonMcpCall,
   type LegacyToolInvocation,
+  type ToolBridgeContext,
 } from "./legacy.js";
 import {
   roughTokFromMessages,
@@ -39,18 +41,24 @@ export function finishReasonForTools(
 export function nativeInvocationsFromText(text: string, turnOpts: TurnToolOpts): {
   content: string;
   invocations: LegacyToolInvocation[];
+  blockedTools: string[];
 } {
   const parsed = parseToolInvocationsFromText(text);
-  const invalidCount = parsed.invocations.filter((inv) => !isValidInvocation(inv)).length;
-  const content = invalidCount > 0
-    ? `${parsed.content}\n[error] Invalid empty editFile tool call blocked by Solomon proxy`.trim()
-    : parsed.content;
+  const blockedTools: string[] = [];
+  const valid = parsed.invocations.filter((inv) => {
+    if (isValidInvocation(inv)) {
+      return true;
+    }
+    blockedTools.push(`${inv.name}:invalid`);
+    return false;
+  });
   return {
-    content,
+    content: parsed.content,
     invocations: limitInvocations(
-      filterInvocations(parsed.invocations, turnOpts.allowedNames),
+      filterInvocations(valid, turnOpts.allowedNames),
       turnOpts.parallelToolCalls,
     ),
+    blockedTools,
   };
 }
 
@@ -118,6 +126,28 @@ export function buildOpenAIUsage(
   return out;
 }
 
+export function proxyToolCorrectionMessage(
+  blocked: string[],
+  allowedNames: Set<string> | null,
+): string {
+  const unique = [...new Set(blocked.map((n) => n.trim()).filter(Boolean))];
+  if (unique.length === 0) {
+    return "";
+  }
+  const enabled =
+    allowedNames && allowedNames.size > 0
+      ? [...allowedNames].sort().join(", ")
+      : "readFile, editFile, find, shell, subagent, fetchWeb, webSearch";
+  return (
+    `Your previous reply attempted disabled Cursor built-in tool(s): ${unique.join(", ")}. ` +
+    `Use native API tool_calls via the solomon MCP server instead. Enabled host tools for this session: ${enabled}. ` +
+    "Do not use Read/Write/Edit/Shell/Grep/Glob/Task/SemanticSearch/Delete or other Cursor IDE tools. " +
+    "For nested work use subagent with sysPromptPath and task. For search use find. " +
+    "For web content use fetchWeb or webSearch when available. " +
+    "Send a corrected native tool_call only, or continue without tools if you meant plain text."
+  );
+}
+
 export function processStreamEvent(
   event: SDKMessage,
   allowCursorInternalTools: boolean,
@@ -125,31 +155,43 @@ export function processStreamEvent(
   onThinking: (s: string) => void,
   pendingLegacy: LegacyToolInvocation[],
   onToolDetected: () => void,
+  onBlockedTool?: (name: string) => void,
+  bridgeCtx: ToolBridgeContext = { allowedNames: null },
+  onNativeToolEvent?: (event: CursorNativeToolEvent) => void,
 ): void {
+  if (allowCursorInternalTools && onNativeToolEvent) {
+    processNativeCursorStreamEvent(event, onText, onThinking, onNativeToolEvent);
+    return;
+  }
+  const reportBlocked = (name: string): void => {
+    if (onBlockedTool) {
+      onBlockedTool(name);
+    }
+  };
   if (event.type === "assistant") {
     let afterTool = false;
     for (const block of event.message.content) {
       if (block.type === "tool_use") {
         const mcp = unwrapSolomonMcpCall(block.name, block.input);
         if (mcp) {
-          if (tryCollectLegacyTool(pendingLegacy, mcp.toolName, mcp.args)) {
+          if (tryCollectLegacyTool(pendingLegacy, mcp.toolName, mcp.args, bridgeCtx)) {
             afterTool = true;
             onToolDetected();
           } else {
-            onText(blockedCursorToolLine(`mcp:${mcp.toolName}`));
+            reportBlocked(`mcp:${mcp.toolName}`);
           }
           continue;
         }
         if (!allowCursorInternalTools) {
-          if (tryCollectLegacyTool(pendingLegacy, block.name, block.input)) {
+          if (tryCollectLegacyTool(pendingLegacy, block.name, block.input, bridgeCtx)) {
             afterTool = true;
             onToolDetected();
           } else {
-            onText(blockedCursorToolLine(block.name));
+            reportBlocked(block.name);
           }
           continue;
         }
-        if (tryCollectLegacyTool(pendingLegacy, block.name, block.input)) {
+        if (tryCollectLegacyTool(pendingLegacy, block.name, block.input, bridgeCtx)) {
           afterTool = true;
           onToolDetected();
         }
@@ -174,34 +216,35 @@ export function processStreamEvent(
       if (event.status === "error") {
         return;
       }
-      if (tryCollectLegacyTool(pendingLegacy, mcp.toolName, mcp.args)) {
+      if (tryCollectLegacyTool(pendingLegacy, mcp.toolName, mcp.args, bridgeCtx)) {
         onToolDetected();
       } else {
-        onText(blockedCursorToolLine(`mcp:${mcp.toolName}`));
+        reportBlocked(`mcp:${mcp.toolName}`);
       }
       return;
     }
     if (event.name === "mcp") {
-      onText(blockedCursorToolLine("mcp:external"));
+      reportBlocked("mcp:external");
       return;
     }
     if (!allowCursorInternalTools) {
-      if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args)) {
+      if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args, bridgeCtx)) {
         onToolDetected();
       } else {
-        onText(blockedCursorToolLine(event.name));
+        reportBlocked(event.name);
       }
       return;
     }
     if (event.status === "error") {
       return;
     }
-    if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args)) {
+    if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args, bridgeCtx)) {
       onToolDetected();
     }
   }
 }
 
+/** @deprecated inline proxy errors replaced by solomon_proxy_correction */
 export function blockedCursorToolLine(name: string): string {
   const safe = name.replace(/[^\w:.-]/g, "").slice(0, 128) || "unknown";
   return `\n[error] Cursor internal tool call blocked by Solomon proxy: ${safe}\n`;

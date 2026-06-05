@@ -11,6 +11,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
@@ -226,6 +227,36 @@ func TestParseToolCallsBlock_multilineJSONInArgs(t *testing.T) {
 	}
 	if m["oldString"] != "line1\nline2" {
 		t.Fatalf("oldString=%q", m["oldString"])
+	}
+}
+
+func TestParseToolCallsBlock_editFileDelete(t *testing.T) {
+	block := `<tool_calls>
+<tool name="editFile">
+<intent>Remove temp file</intent>
+<args>{"path":"tmp/old.txt","delete":true}</args>
+</tool>
+</tool_calls>`
+	invs, err := tooling.ParseToolCallsBlock(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(invs) != 1 || invs[0].Name != "editFile" {
+		t.Fatalf("invs=%+v", invs)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(invs[0].Args, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["delete"] != true || m["path"] != "tmp/old.txt" {
+		t.Fatalf("args=%v", m)
+	}
+}
+
+func TestLegacyToolInvocationSyntax_editFileDeleteExample(t *testing.T) {
+	s := prompt.LegacyToolInvocationSyntaxAppend(false)
+	if !strings.Contains(s, `"delete": true`) {
+		t.Fatalf("expected editFile delete legacy example: %q", s)
 	}
 }
 
