@@ -10,8 +10,14 @@ import {
   requestUsesNativeTools,
   toolArgumentsJSON,
 } from "../src/openai-tools.js";
-import { collapseExactRepeat, nextTextChunk, processStreamEvent } from "../src/chat-helpers.js";
+import { collapseExactRepeat, nextTextChunk, processStreamEvent, proxyToolCorrectionMessage } from "../src/chat-helpers.js";
+import { bridgeToolInvocation } from "../src/legacy.js";
+import type { CursorNativeToolEvent } from "../src/cursor-native-tools.js";
 import type { ChatCompletionTool } from "../src/openai-types.js";
+
+function bridgeCtx(...names: string[]) {
+  return { allowedNames: new Set(names) };
+}
 
 const tools: ChatCompletionTool[] = [
   { type: "function", function: { name: "readFile" } },
@@ -98,13 +104,6 @@ test("rejects empty editFile invocations before native tool emission", () => {
   assert.deepEqual(filterInvocations([inv], null), []);
 });
 
-test("accepts editFile delete invocations for native tool emission", () => {
-  assert.equal(isValidInvocation({
-    name: "editFile",
-    args: { path: "x.go", delete: true, intent: "remove file" },
-  }), true);
-});
-
 test("deduplicates cumulative cursor text snapshots", () => {
   let text = "";
   text += nextTextChunk(text, "ciao");
@@ -150,7 +149,7 @@ test("unwraps solomon MCP tool_call events into proxy tools", () => {
 test("ignores MCP tool_call events from other providers", () => {
   const pending = [];
   let detected = false;
-  let text = "";
+  const blocked: string[] = [];
   processStreamEvent(
     {
       type: "tool_call",
@@ -159,14 +158,130 @@ test("ignores MCP tool_call events from other providers", () => {
       args: { providerIdentifier: "other", toolName: "readFile", args: { path: "x" } },
     } as any,
     false,
-    (s) => { text += s; },
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+    (name) => { blocked.push(name); },
+  );
+  assert.equal(detected, false);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["mcp:external"]);
+});
+
+test("maps Cursor Task tool events into subagent", () => {
+  const pending = [];
+  let detected = false;
+  processStreamEvent(
+    {
+      type: "assistant",
+      message: {
+        content: [{
+          type: "tool_use",
+          name: "Task",
+          input: { description: "explore auth", prompt: "find login flow" },
+        }],
+      },
+    } as any,
+    false,
+    () => {},
     () => {},
     pending,
     () => { detected = true; },
   );
-  assert.equal(detected, false);
-  assert.deepEqual(pending, []);
-  assert.ok(text.includes("[error]"));
+  assert.equal(detected, true);
+  assert.equal(pending[0]?.name, "subagent");
+  assert.equal(pending[0]?.args.task, "find login flow");
+  assert.equal(pending[0]?.args.sysPromptPath, ".solomon/cursor-task-sys.txt");
+});
+
+test("maps Cursor SemanticSearch tool events into find", () => {
+  const pending = [];
+  let detected = false;
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "SemanticSearch",
+      status: "running",
+      args: { query: "auth middleware", target_directories: ["internal"] },
+    } as any,
+    false,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+  );
+  assert.equal(detected, true);
+  assert.deepEqual(pending, [{
+    name: "find",
+    args: { pattern: "auth middleware", files: false, path: "internal" },
+  }]);
+});
+
+test("maps Cursor Delete tool events into editFile delete", () => {
+  const pending = [];
+  let detected = false;
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "Delete",
+      status: "running",
+      args: { path: "tmp/old.txt" },
+    } as any,
+    false,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+  );
+  assert.equal(detected, true);
+  assert.deepEqual(pending, [{
+    name: "editFile",
+    args: { path: "tmp/old.txt", delete: true },
+    intent: "delete file",
+  }]);
+});
+
+test("accepts editFile delete invocations for native tool emission", () => {
+  assert.equal(isValidInvocation({
+    name: "editFile",
+    args: { path: "x.go", delete: true, intent: "remove file" },
+  }), true);
+});
+
+test("unwraps solomon MCP editFile delete tool calls", () => {
+  const pending = [];
+  let detected = false;
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "mcp",
+      status: "running",
+      args: {
+        providerIdentifier: "solomon",
+        toolName: "editFile",
+        args: { path: "tmp/old.txt", delete: true, intent: "cleanup" },
+      },
+    } as any,
+    false,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+  );
+  assert.equal(detected, true);
+  assert.deepEqual(pending, [{
+    name: "editFile",
+    args: { path: "tmp/old.txt", delete: true },
+    intent: "cleanup",
+  }]);
+});
+
+test("builds structured proxy correction message", () => {
+  const msg = proxyToolCorrectionMessage(["Delete", "Task"], new Set(["readFile", "find"]));
+  assert.ok(msg.includes("Delete"));
+  assert.ok(msg.includes("find") && msg.includes("readFile"));
+  assert.ok(!msg.includes("[error]"));
 });
 
 test("maps disallowed cursor tool events into proxy tools", () => {
@@ -219,10 +334,104 @@ test("converts OpenAI request tools into MCP tool definitions", () => {
   assert.equal(mcp[1]?.name, "subagent");
 });
 
+test("passes through any allowed Solomon tool without manual mapping", () => {
+  const ctx = bridgeCtx("loadSkill", "searchSkill");
+  const inv = bridgeToolInvocation("loadSkill", { name: "babysit" }, ctx);
+  assert.deepEqual(inv, { name: "loadSkill", args: { name: "babysit" } });
+});
+
+test("maps WebFetch cursor alias to fetchWeb when allowed", () => {
+  const ctx = bridgeCtx("fetchWeb");
+  const inv = bridgeToolInvocation("WebFetch", { url: "https://example.com" }, ctx);
+  assert.deepEqual(inv, { name: "fetchWeb", args: { url: "https://example.com" } });
+});
+
+test("rejects tools not in the allowed set", () => {
+  const ctx = bridgeCtx("readFile");
+  assert.equal(bridgeToolInvocation("loadSkill", { name: "x" }, ctx), null);
+  assert.equal(bridgeToolInvocation("WebFetch", { url: "https://x" }, ctx), null);
+});
+
+test("processStreamEvent respects allowed tool set for cursor aliases", () => {
+  const pending = [];
+  let detected = false;
+  const blocked: string[] = [];
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "WebSearch",
+      status: "running",
+      args: { query: "solomon mcp" },
+    } as any,
+    false,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+    (name) => { blocked.push(name); },
+    bridgeCtx("readFile"),
+  );
+  assert.equal(detected, false);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["WebSearch"]);
+});
+
+test("native cursor mode emits tool events without bridging to Solomon", () => {
+  const pending = [];
+  const native: CursorNativeToolEvent[] = [];
+  let detected = false;
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "Read",
+      status: "running",
+      args: { path: "main.go" },
+    } as any,
+    true,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+    undefined,
+    { allowedNames: null },
+    (ev) => { native.push(ev); },
+  );
+  assert.equal(detected, false);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(native, [{ name: "Read", status: "running", args: { path: "main.go" } }]);
+});
+
+test("native cursor mode forwards completed tool results", () => {
+  const native: CursorNativeToolEvent[] = [];
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "Shell",
+      status: "completed",
+      args: { command: "pwd" },
+      result: { output: "/tmp" },
+    } as any,
+    true,
+    () => {},
+    () => {},
+    [],
+    () => {},
+    undefined,
+    { allowedNames: null },
+    (ev) => { native.push(ev); },
+  );
+  assert.deepEqual(native, [{
+    name: "Shell",
+    status: "completed",
+    args: { command: "pwd" },
+    result: { output: "/tmp" },
+  }]);
+});
+
 test("unwraps solomon MCP find and subagent tool calls", () => {
   for (const [toolName, args, expected] of [
     ["find", { pattern: "foo", files: false }, { name: "find", args: { pattern: "foo", files: false } }],
-    ["subagent", { task: "explore auth", sysPromptPath: "build.tmpl" }, { name: "subagent", args: { task: "explore auth", sysPromptPath: "build.tmpl" } }],
+    ["subagent", { task: "explore auth", sysPromptPath: "build.tmpl" }, { name: "subagent", args: { task: "explore auth", sysPromptPath: "build.tmpl" }, intent: "nested task" }],
   ] as const) {
     const pending = [];
     let detected = false;

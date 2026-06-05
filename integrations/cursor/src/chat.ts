@@ -6,7 +6,6 @@ import {
 } from "./messages.js";
 import {
   formatLegacyToolCallsBlock,
-  tryCollectLegacyTool,
   type LegacyToolInvocation,
 } from "./legacy.js";
 import type { ChatCompletionRequest, ChatCompletionTool, ChatMessage } from "./openai-types.js";
@@ -35,12 +34,14 @@ import {
   finishStreamWithUsage,
   wireClientAbort,
   type CursorTurnUsage,
+  type StreamUsageInput,
   type OpenAIFinishReason,
 } from "./run-control.js";
 import { newCompletionId } from "./sessions.js";
 import type { ModelSelection } from "./model-selection.js";
 import { disposeAgent, sendStateless, type AgentSendOpts } from "./cursor-agent.js";
-import { buildOpenAIUsage, finishReasonForTools, nativeInvocationsFromText, nextTextChunk, processStreamEvent } from "./chat-helpers.js";
+import { buildOpenAIUsage, finishReasonForTools, nativeInvocationsFromText, nextTextChunk, processStreamEvent, proxyToolCorrectionMessage } from "./chat-helpers.js";
+import { cursorToolEventChunk, type CursorNativeToolEvent } from "./cursor-native-tools.js";
 
 export type ProxyConfig = {
   apiKey: string;
@@ -129,6 +130,33 @@ export async function handleChatCompletions(
     return;
   }
   await streamCompletion(cfg, messages, completionId, model, modelSelection, clientAbort, res, turnOpts);
+}
+
+function streamUsageInput(
+  messages: ChatMessage[],
+  sdkUsage: CursorTurnUsage | undefined,
+  textBuf: string,
+  thinkingBuf: string,
+): StreamUsageInput {
+  return {
+    messages,
+    sdkUsage,
+    textBuf,
+    thinkingBuf,
+    buildUsage: buildOpenAIUsage,
+  };
+}
+
+function resolveProxyCorrection(
+  blockedTools: string[],
+  bridgedCount: number,
+  turnOpts: TurnOpts,
+): string | undefined {
+  if (blockedTools.length === 0 || bridgedCount > 0) {
+    return undefined;
+  }
+  const msg = proxyToolCorrectionMessage(blockedTools, turnOpts.allowedNames);
+  return msg || undefined;
 }
 
 function emitBridgedTools(
@@ -234,16 +262,23 @@ async function streamCompletion(
     let legacyEmitted = false;
     let toolDetected = false;
     const pendingLegacy: LegacyToolInvocation[] = [];
+    const blockedTools: string[] = [];
+    const recordBlocked = (name: string): void => {
+      blockedTools.push(name);
+    };
+    const emitNativeTool = (ev: CursorNativeToolEvent): void => {
+      writeSSE(res, cursorToolEventChunk(completionId, model, ev));
+    };
     try {
       for await (const event of run.stream()) {
-        if (clientAborted || legacyEmitted) {
+        if (clientAborted || (legacyEmitted && !cfg.allowCursorInternalTools)) {
           break;
         }
         processStreamEvent(
           event,
           cfg.allowCursorInternalTools,
           (t) => {
-            if (toolDetected || clientAborted) {
+            if ((toolDetected && !cfg.allowCursorInternalTools) || clientAborted) {
               return;
             }
             proseBuf += nextTextChunk(proseBuf, t);
@@ -260,26 +295,24 @@ async function streamCompletion(
           () => {
             toolDetected = true;
           },
+          recordBlocked,
+          { allowedNames: turnOpts.allowedNames },
+          cfg.allowCursorInternalTools ? emitNativeTool : undefined,
         );
-        if (toolDetected && pendingLegacy.length > 0) {
+        if (toolDetected && pendingLegacy.length > 0 && !cfg.allowCursorInternalTools) {
           legacyEmitted = true;
           await forceStopRun(run);
           break;
         }
       }
-      const finishStream = (finishReason: OpenAIFinishReason = "stop") => {
+      const finishStream = (finishReason: OpenAIFinishReason = "stop", proxyCorrection?: string) => {
         finishStreamWithUsage(
           res,
           completionId,
           model,
-          {
-            messages,
-            sdkUsage,
-            textBuf: proseBuf,
-            thinkingBuf,
-            buildUsage: buildOpenAIUsage,
-          },
+          streamUsageInput(messages, sdkUsage, proseBuf, thinkingBuf),
           finishReason,
+          proxyCorrection,
         );
       };
       if (clientAborted) {
@@ -292,11 +325,12 @@ async function streamCompletion(
         const parsed = nativeInvocationsFromText(proseBuf, turnOpts);
         proseBuf = parsed.content;
         nativeInvocations = parsed.invocations;
+        blockedTools.push(...parsed.blockedTools);
       }
       emitBufferedContent(res, completionId, model, proseBuf);
       if (turnOpts.nativeTools && nativeInvocations.length > 0) {
         writeSSEToolCalls(res, completionId, model, nativeInvocations);
-        finishStream("tool_calls");
+        finishStream("tool_calls", resolveProxyCorrection(blockedTools, nativeInvocations.length, turnOpts));
         return;
       }
       if (pendingLegacy.length > 0) {
@@ -304,11 +338,14 @@ async function streamCompletion(
         if (!turnOpts.nativeTools) {
           proseBuf += formatLegacyToolCallsBlock(bridged);
         }
-        finishStream(finishReasonForTools(bridged.length, turnOpts.nativeTools));
+        finishStream(
+          finishReasonForTools(bridged.length, turnOpts.nativeTools),
+          resolveProxyCorrection(blockedTools, bridged.length, turnOpts),
+        );
         return;
       }
       if (!legacyEmitted) {
-        finishStream();
+        finishStream("stop", resolveProxyCorrection(blockedTools, 0, turnOpts));
       }
     } catch (err) {
       if (clientAborted) {
@@ -393,6 +430,8 @@ async function handleNonStream(
     let content = "";
     let reasoning = "";
     const pendingLegacy: LegacyToolInvocation[] = [];
+    const blockedTools: string[] = [];
+    const nativeToolEvents: CursorNativeToolEvent[] = [];
     let toolDetected = false;
     for await (const event of run.stream()) {
       if (clientAborted) {
@@ -405,8 +444,13 @@ async function handleNonStream(
         (t) => { reasoning += t; },
         pendingLegacy,
         () => { toolDetected = true; },
+        (name) => { blockedTools.push(name); },
+        { allowedNames: turnOpts.allowedNames },
+        cfg.allowCursorInternalTools
+          ? (ev) => { nativeToolEvents.push(ev); }
+          : undefined,
       );
-      if (toolDetected) {
+      if (toolDetected && !cfg.allowCursorInternalTools) {
         await forceStopRun(run);
         break;
       }
@@ -414,20 +458,22 @@ async function handleNonStream(
     if (clientAborted) {
       return;
     }
-    if (toolDetected) {
+    if (toolDetected && !cfg.allowCursorInternalTools) {
       await forceStopRun(run);
     }
     const parsedNative = turnOpts.nativeTools
       ? nativeInvocationsFromText(content, turnOpts)
-      : { content, invocations: [] };
+      : { content, invocations: [], blockedTools: [] as string[] };
     if (turnOpts.nativeTools) {
       content = parsedNative.content;
+      blockedTools.push(...parsedNative.blockedTools);
     }
     const bridged = limitInvocations(
       filterInvocations([...parsedNative.invocations, ...pendingLegacy], turnOpts.allowedNames),
       turnOpts.parallelToolCalls,
     );
     const toolCalls = openAIToolCallsFromInvocations(bridged);
+    const proxyCorrection = resolveProxyCorrection(blockedTools, bridged.length, turnOpts);
     if (bridged.length > 0 && !turnOpts.nativeTools) {
       content = (toolDetected ? "" : content) + formatLegacyToolCallsBlock(bridged);
     }
@@ -447,7 +493,7 @@ async function handleNonStream(
     if (turnOpts.nativeTools && toolCalls.length > 0) {
       message.tool_calls = toolCalls;
     }
-    const body = {
+    const body: Record<string, unknown> = {
       id: completionId,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
@@ -461,6 +507,12 @@ async function handleNonStream(
       ],
       usage: buildOpenAIUsage(messages, sdkUsage, content, reasoning),
     };
+    if (proxyCorrection) {
+      body.solomon_proxy_correction = proxyCorrection;
+    }
+    if (nativeToolEvents.length > 0) {
+      body.solomon_cursor_tool_events = nativeToolEvents;
+    }
     sendJsonResponse(res, 200, body);
   } finally {
     unwireAbort();
