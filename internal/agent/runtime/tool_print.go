@@ -18,6 +18,8 @@ const legacyToolJSONCorrectionUserMsg = "Your previous reply contained a malform
 
 const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Use readFile, editFile, and shell via function calling with JSON arguments that match each tool schema. Do not emit <tool_calls> XML or other textual tool-invocation examples in assistant text. Send a corrected native tool_call only, or continue without tools if you meant plain text."
 
+const cursorProxyInlineErrorPrefix = "[error] Cursor internal tool call blocked by Solomon proxy:"
+
 func newLegacyStreamWriter(out io.Writer, enabled bool, allowed map[string]struct{}) (*tooling.LegacyStreamWriter, io.Writer) {
 	if !enabled {
 		return nil, out
@@ -94,6 +96,27 @@ func (r *Runtime) handleMalformedLegacyTool(err error) error {
 	if r != nil {
 		correction = r.toolInvocationCorrectionUserMsg()
 	}
+	return r.injectToolCorrectionUserMsg(correction)
+}
+
+func (r *Runtime) handleProxyToolCorrection(msg string) error {
+	msg = strings.TrimSpace(msg)
+	if msg == "" {
+		return nil
+	}
+	if !r.machineMode() {
+		termcolor.WriteSystem(r.Out, "Cursor proxy rejected a built-in tool call; retrying with host tools.")
+		fmt.Fprintln(r.Out)
+		flushWriter(r.Out)
+	}
+	return r.injectToolCorrectionUserMsg(msg)
+}
+
+func (r *Runtime) injectToolCorrectionUserMsg(correction string) error {
+	correction = strings.TrimSpace(correction)
+	if correction == "" {
+		return nil
+	}
 	r.mutateSession(func(s *chatstore.Session) {
 		seq := checkpoint.Bump(s)
 		um := chatstore.Message{Role: "user", Content: correction}
@@ -102,6 +125,32 @@ func (r *Runtime) handleMalformedLegacyTool(err error) error {
 		s.LastMessageAt = time.Now()
 	})
 	return r.persistSession()
+}
+
+func stripCursorProxyInlineErrors(content string) (string, string) {
+	lines := strings.Split(content, "\n")
+	out := make([]string, 0, len(lines))
+	var blocked []string
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, cursorProxyInlineErrorPrefix) {
+			name := strings.TrimSpace(strings.TrimPrefix(trim, cursorProxyInlineErrorPrefix))
+			if name != "" {
+				blocked = append(blocked, name)
+			}
+			continue
+		}
+		out = append(out, line)
+	}
+	cleaned := strings.TrimSpace(strings.Join(out, "\n"))
+	if len(blocked) == 0 {
+		return content, ""
+	}
+	fallback := nativeBridgeToolCorrectionUserMsg
+	if len(blocked) > 0 {
+		fallback = "Your previous reply attempted disabled Cursor built-in tool(s): " + strings.Join(blocked, ", ") + ". " + strings.TrimPrefix(nativeBridgeToolCorrectionUserMsg, "Your previous reply did not include valid native API tool_calls. ")
+	}
+	return cleaned, fallback
 }
 
 func legacyToolScreenMessage(err error) string {

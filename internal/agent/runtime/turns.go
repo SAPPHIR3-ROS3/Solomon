@@ -276,7 +276,16 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			usageTurns = append(usageTurns, turn.Usage)
 			usageSys, usageMsgs = sys, msgs
 		}
-		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
+		proxyCorrection := strings.TrimSpace(turn.ProxyToolCorrection)
+		turnContent := turn.Content
+		if r.externalToolBridge() && proxyCorrection == "" {
+			cleaned, fallback := stripCursorProxyInlineErrors(turn.Content)
+			if fallback != "" {
+				turnContent = cleaned
+				proxyCorrection = fallback
+			}
+		}
+		ast := chatstore.Message{Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
@@ -306,6 +315,12 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 		r.syncLegacyToolCallsToLastAssistant(invs)
 		_ = r.persistSession()
 		if len(invs) == 0 {
+			if proxyCorrection != "" {
+				if err2 := r.handleProxyToolCorrection(proxyCorrection); err2 != nil {
+					return err2
+				}
+				continue
+			}
 			flushUsageStats()
 			if r.machineMode() {
 				r.ciFinalContent = turn.Content
@@ -449,6 +464,14 @@ func toolingResultJSON(v any) string {
 
 func (r *Runtime) streamOptsWithRetry(showThinking bool, reasonSink io.Writer) llm.StreamOpts {
 	opts := llm.StreamOpts{ShowThinking: showThinking, ReasoningSink: reasonSink}
+	if r.cursorNativeToolsEnabled() {
+		out := r.Out
+		opts.OnDelta = func(channel, text string) {
+			if channel == "cursor_tool" && out != nil && !r.machineMode() {
+				r.printCursorNativeToolEvent(text)
+			}
+		}
+	}
 	r.bindAPIRetry(&opts)
 	return opts
 }
