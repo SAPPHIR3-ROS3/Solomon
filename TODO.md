@@ -41,8 +41,15 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 6 — Persistenza subagent
 
-- **Stato:** esistono **directory e helper** per `subchats` (`SubchatsDir`, `SubchatPath`), ma la run annidata costruisce soprattutto **transcript in memoria** e restituisce una stringa al parent; non c'è un **file di sessione subagent** completo e riapribile come la chat principale (messaggi, tool, usage, id stabile, resume).
-- **Cosa manca:** modello di persistenza allineato alla chat (stesso schema o sottoinsieme), ID univoco per sub-run, salvataggio incrementale a ogni turno/tool, eventualmente collegamento al messaggio/tool call che ha spawnato il subagent.
+- **Stato:** esistono **directory e helper** per `subchats` (`SubchatsDir`, `SubchatPath`), ma la run annidata costruisce soprattutto **transcript in memoria** e restituisce una stringa al parent; non c'è un **file di sessione subagent** completo e riapribile come la chat principale (messaggi, tool, usage, id stabile, resume). Il tool `subagent` espone solo `sysPromptPath` + `task`; reasoning nested è **sempre disabilitato** (`ForceDisableReasoning: true` in `nested.go`). Il bridge Cursor `Task` → `subagent` ignora `resume`, `interrupt`, `run_in_background` e non ha equivalente per `subagent_type` / `readonly`.
+- **Cosa manca — persistenza:** modello di sessione allineato alla chat principale (stesso schema o sottoinsieme), **ID univoco** per sub-run (esposto al parent e riusabile come `resume`), salvataggio incrementale a ogni turno/tool, collegamento al messaggio/tool call che ha spawnato il subagent; riapertura con `/resume` o argomento `resume` sul tool.
+- **Cosa manca — parametri `subagent` (allineati a Task Cursor, solo quelli utili):**
+  - **`resume`** (opzionale): ID subchat da riprendere; richiede persistenza e lookup su `subchats/`.
+  - **`interrupt`** (opzionale): interrompe una sub-run in corso e accetta il nuovo `task`; richiede tracking run attive (o cancel via context + id).
+  - **`run_in_background`** (opzionale): subagent non blocca il parent; richiede run async, notifica/aggregazione risultato al parent (analogo Task background).
+  - **`reasoningEffort`** (opzionale, default **`none`**): `none | low | med | high` solo per la run nested; sostituisce il hardcoded `ForceDisableReasoning: true` quando esplicitamente richiesto; la chat principale resta governata da `/reasoning` e config globale.
+- **Schema tool:** estendere `subagentOpenAI()` / `execSubagent` e il bridge `legacy-normalize` (`Task` → `subagent`) per i campi sopra; aggiornare dump, display tool e test proxy.
+- **Fuori scope (per ora):** `subagent_type` e `readonly` (Cursor-specific, nessun equivalente Solomon); **`model`** e **`file_attachments`** — non implementare finché non c’è policy esplicita (model nested, allegati per sub-run vs `ImageFiles` di sessione).
 
 ---
 
@@ -102,6 +109,8 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 - **`chzyer/readline` su Windows — sequenze ANSI estese nel prompt:** il parser ANSI di readline v1.5.1 (`ansi_windows.go`) tratta erroneamente i codici SGR `38`/`48` (true color / 256 color) come indici colore base 30–37 e va in panic (`index out of range [8]`). Workaround attuale: `termcolor.WrapUserReadline` usa solo sequenze basic (`\033[96m`) nei prompt passati a readline su Windows. **Cosa manca (opzionale):** patch upstream o fork di readline con supporto `38;2;…` / `38;5;…`, oppure sostituire readline con una libreria TTY cross-platform che gestisca il true color; finché resta readline, evitare lipgloss/true color su qualsiasi stringa che passa da `SetPrompt` / `Readline` su Windows.
 
 - **Anthropic / extended thinking (dopo adapter Messages API v1):** oggi il piano Anthropic nativo prevede extended thinking **disattivato** e reasoning in API solo sull’ultimo messaggio `assistant`; in sessione resta `ReasoningText` per display. **Cosa manca:** abilitare `thinking` in request (`budget_tokens` / adaptive da config); persistere **`ThinkingBlocks`** (blocchi `thinking` + `signature` immutabile) su messaggi assistant in `chatstore`; mapper Anthropic che reinserisce i blocchi in history; rivalutare se la policy “solo ultimo assistant” basta per tool/multi-turn o serve history thinking completa; stream/usage per thinking tokens; documentare impatto token (prompt gonfio se si reinvia tutta la history). Dipende da: layer `CompletionBackend` + provider `api_protocol = anthropic`.
+
+- **Ricerca semantica nel codice:** oggi `find` copre solo **glob + regexp** su file; nel bridge Cursor `SemanticSearch` → `find` con `pattern=query` è un **fallback testuale**, non semantica vera. **Cosa manca (opzionale):** tool dedicato (es. `semanticFind` / `codeSearch`), separato da `find`; indice del workspace (embeddings locali o API) con aggiornamento incrementale, rispetto `.gitignore`, limiti su file binari/segreti; query per concetti (“dove si gestisce l’auth?”) con chunk + path/righe; integrazione build mode + dump/help + alias bridge Cursor verso il tool reale. **Approccio preferito:** provare prima via **MCP opzionale** o comando `/index` on-demand; nativizzare in core solo se diventa uso quotidiano. `find` resta il percorso deterministico per simboli/stringhe note.
 
 ---
 
