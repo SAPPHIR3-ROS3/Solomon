@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl/shellhist"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 )
 
@@ -35,5 +36,9 @@ func (r *Runtime) runUserShellLine(ctx context.Context, script string) error {
 	c.Stdin = os.Stdin
 	release := r.releaseTTYForSubprocess()
 	defer release()
-	return c.Run()
+	if err := c.Run(); err != nil {
+		return err
+	}
+	_ = shellhist.Append(script)
+	return nil
 }

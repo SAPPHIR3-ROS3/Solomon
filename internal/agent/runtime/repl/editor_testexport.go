@@ -9,7 +9,15 @@ func NewInputHistoryForTest() *InputHistoryTest {
 }
 
 func (h *InputHistoryTest) Add(s string) {
-	h.add(s)
+	h.add(s, false)
+}
+
+func (h *InputHistoryTest) AddWithMode(s string, shellFirst bool) {
+	h.add(s, shellFirst)
+}
+
+func (h *InputHistoryTest) ShellMatch(prefix string) string {
+	return h.shellMatch(prefix)
 }
 
 func (h *InputHistoryTest) Prev(draft string) (string, bool) {
@@ -72,6 +80,31 @@ func (e *MultilineEditorTest) Line(i int) string {
 	return string(e.lines[i])
 }
 
+func (e *MultilineEditorTest) RecomputeSuggest() {
+	e.recomputeSuggest()
+}
+
+func (e *MultilineEditorTest) SuggestSuffix() string {
+	return string(e.suggestSuffix)
+}
+
+func (e *MultilineEditorTest) AcceptSuggestAll() {
+	e.acceptSuggest(false)
+}
+
 func CommonRunePrefixForTest(candidates [][]rune) []rune {
 	return commonRunePrefix(candidates)
+}
+
+func ShellPrefixNormalizedForTest(buffer string, shellFirst bool) string {
+	return shellPrefixNormalized(buffer, shellFirst)
+}
+
+func VisualRowsWithGhostForTest(width int, prompt, line, ghost string) int {
+	e := &multilineEditor{width: width}
+	if ghost == "" {
+		return e.visualRows(prompt, []rune(line))
+	}
+	combined := append(append([]rune(nil), []rune(line)...), []rune(ghost)...)
+	return e.visualRows(prompt, combined)
 }

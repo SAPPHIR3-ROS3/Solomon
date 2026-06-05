@@ -2,9 +2,12 @@ package repl
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
+
+const replGhostANSI = "\x1b[2m\x1b[90m"
 
 func (e *multilineEditor) primaryPrompt() string {
 	if e.loop.PromptPrimary != nil {
@@ -51,7 +54,16 @@ func (e *multilineEditor) moveToTop() {
 }
 
 func (e *multilineEditor) render() int {
+	ghost := ""
+	if e.cursorAtBufferEnd() && len(e.suggestSuffix) > 0 {
+		ghost = string(e.suggestSuffix)
+	}
+	ghostParts := []string{""}
+	if ghost != "" {
+		ghostParts = strings.Split(ghost, "\n")
+	}
 	rows := 0
+	lineCount := len(e.lines)
 	for i, line := range e.lines {
 		if i > 0 {
 			fmt.Fprint(e.out, "\r\n")
@@ -59,7 +71,31 @@ func (e *multilineEditor) render() int {
 		prompt := e.promptFor(i)
 		fmt.Fprint(e.out, prompt)
 		fmt.Fprint(e.out, termcolor.ColorizeImgTagsReplInput(string(line)))
-		rows += e.visualRows(prompt, line)
+		lineGhost := ""
+		if i == lineCount-1 && ghost != "" {
+			lineGhost = ghostParts[0]
+		}
+		if lineGhost != "" {
+			fmt.Fprint(e.out, replGhostANSI)
+			fmt.Fprint(e.out, termcolor.ColorizeImgTagsReplInput(lineGhost))
+			fmt.Fprint(e.out, "\x1b[0m")
+		}
+		if lineGhost != "" {
+			combined := append(append([]rune(nil), line...), []rune(lineGhost)...)
+			rows += e.visualRows(prompt, combined)
+		} else {
+			rows += e.visualRows(prompt, line)
+		}
+	}
+	for gi := 1; gi < len(ghostParts); gi++ {
+		fmt.Fprint(e.out, "\r\n")
+		prompt := e.continuePrompt()
+		fmt.Fprint(e.out, prompt)
+		part := ghostParts[gi]
+		fmt.Fprint(e.out, replGhostANSI)
+		fmt.Fprint(e.out, termcolor.ColorizeImgTagsReplInput(part))
+		fmt.Fprint(e.out, "\x1b[0m")
+		rows += e.visualRows(prompt, []rune(part))
 	}
 	if rows == 0 {
 		return 1
