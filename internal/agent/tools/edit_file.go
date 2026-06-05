@@ -13,20 +13,24 @@ import (
 
 func signatureEditFile(path, oldString, newString, intent string) {}
 
+func signatureEditFileDelete(path string, delete bool, intent string) {}
+
 type editArgs struct {
 	Path      string `json:"path"`
 	OldString string `json:"oldString"`
 	NewString string `json:"newString"`
 	Intent    string `json:"intent"`
+	Delete    bool   `json:"delete,omitempty"`
 }
 
 func editFileOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("editFile", "Replace oldString once with newString, or write newString when oldString is empty.", map[string]any{
+	return nativeToolUnion("editFile", "Replace oldString once with newString; use empty oldString to create or overwrite; set delete=true to remove the file at path.", map[string]any{
 		"path":      map[string]any{"type": "string", "description": "Path relative to project root"},
-		"oldString": map[string]any{"type": "string", "description": "Substring to replace once; empty means create/overwrite per tool semantics"},
-		"newString": map[string]any{"type": "string", "description": "New content or replacement text"},
-		"intent":    map[string]any{"type": "string", "description": "Brief phrase describing the purpose of this edit"},
-	}, []string{"path", "oldString", "newString", "intent"})
+		"oldString": map[string]any{"type": "string", "description": "Substring to replace once; empty means create/overwrite when delete is false"},
+		"newString": map[string]any{"type": "string", "description": "New content or replacement text; ignored when delete is true"},
+		"delete":    map[string]any{"type": "boolean", "description": "When true, deletes the file at path instead of editing it"},
+		"intent":    map[string]any{"type": "string", "description": "Brief phrase describing the purpose of this edit or deletion"},
+	}, []string{"path", "intent"})
 }
 
 func appendEditFileDump(b *dumpBuilder) error {
@@ -34,7 +38,15 @@ func appendEditFileDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("editFile", "Replace oldString once with newString, or write newString when oldString empty. Requires intent (brief purpose).", sig)
+	delSig, err := tooling.FuncSignature(signatureEditFileDelete)
+	if err != nil {
+		return err
+	}
+	b.addBlock(
+		"editFile",
+		"Replace oldString once with newString; use empty oldString to create or overwrite; use delete=true with path and intent to remove a file ("+delSig+"). Requires intent (brief purpose).",
+		sig,
+	)
 	return nil
 }
 
@@ -46,12 +58,22 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 	if strings.TrimSpace(a.Intent) == "" {
 		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
 	}
-	if a.OldString == "" && a.NewString == "" {
-		return nil, fmt.Errorf("editFile refuses empty overwrite")
-	}
 	p := resolveProjectPath(env.ProjRoot, a.Path)
 	if env.ActivateInstructionsFromAbsPath != nil {
 		env.ActivateInstructionsFromAbsPath(p)
+	}
+	if a.Delete {
+		if err := os.Remove(p); err != nil {
+			if os.IsNotExist(err) {
+				return map[string]any{"ok": false, "reason": "file not found"}, nil
+			}
+			return nil, err
+		}
+		env.CheckpointStageProjAbs(p)
+		return map[string]any{"ok": true, "action": "deleted", "intent": a.Intent}, nil
+	}
+	if a.OldString == "" && a.NewString == "" {
+		return nil, fmt.Errorf("editFile refuses empty overwrite")
 	}
 	if a.OldString == "" {
 		if err := os.WriteFile(p, []byte(a.NewString), 0o600); err != nil {

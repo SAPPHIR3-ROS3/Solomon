@@ -92,6 +92,13 @@ func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
 
 func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
 	path := jsonDisplayString(m["path"])
+	if jsonDisplayBool(m["delete"]) {
+		body := path
+		if intent := jsonDisplayString(m["intent"]); intent != "" {
+			body = intent + " • " + path
+		}
+		return []string{termcolor.ToolHeaderLine("editFile", body+" (delete)")}
+	}
 	oldS := jsonDisplayString(m["oldString"])
 	newS := jsonDisplayString(m["newString"])
 	if utf8.RuneCountInString(oldS)+utf8.RuneCountInString(newS) > editFileDisplayMaxBodyRunes {

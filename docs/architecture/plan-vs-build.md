@@ -43,7 +43,7 @@ MCP tools append to both modes when connected ([`toolParams`](../../internal/age
 - `Language`, `UserName`, `DisableThinking`
 - `CustomRules`, `GlobalInstructions`, `RepoInstructions` — optional sections from [`internal/instructions`](../../internal/instructions/) (empty sections omitted from the rendered prompt)
 
-Both plan and build templates include the same instruction sections when present. Subdirectory repo instructions appear only after session activation (build-mode tools: `readFile`, `editFile`, `shell`). Plan mode does not read arbitrary project files, so subdirectory activation typically happens after switching to `/build`.
+Both plan and build templates include the same instruction sections when present. Subdirectory repo instructions appear only after session activation (build-mode tools: `readFile`, `editFile` including delete via `delete: true`, `shell`). Plan mode does not read arbitrary project files, so subdirectory activation typically happens after switching to `/build`.
 
 When `[tools].legacy_force` is enabled, native OpenAI tool schemas are omitted from LLM requests in both modes; the model must use legacy XML described in the system prompt. With `legacy` only (not force), native API calls are preferred and XML is a fallback.
 

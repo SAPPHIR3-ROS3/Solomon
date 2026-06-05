@@ -183,6 +183,14 @@ Examples (BUILD):
 
 Examples (BUILD):
 <tool_calls>
+<tool name="editFile">
+<intent>Remove obsolete helper</intent>
+<args>{"path": "internal/legacy/helper.go", "delete": true}</args>
+</tool>
+</tool_calls>
+
+Examples (BUILD):
+<tool_calls>
 <tool name="find">
 <args>{"pattern": "**/*.go", "files": true}</args>
 </tool>
