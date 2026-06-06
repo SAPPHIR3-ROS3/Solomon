@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 const (
-	editFileDisplayMaxBodyRunes       = 400
 	webSearchDisplayDefaultMaxResults = 10
 	webSearchDisplayDefaultTimeoutS   = 30
 )
@@ -92,60 +90,6 @@ func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
 		body += fmt.Sprintf(" • %ds", *t)
 	}
 	return []string{termcolor.ToolHeaderLine("shell", body)}
-}
-
-func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
-	path := jsonDisplayString(m["path"])
-	if jsonDisplayBool(m["delete"]) {
-		return []string{termcolor.EditFileDeleteToolLine(path)}
-	}
-	if to := jsonDisplayString(m["renameTo"]); to != "" {
-		return []string{termcolor.ToolHeaderLine("editFile", path+" → "+to)}
-	}
-	oldS := jsonDisplayString(m["oldString"])
-	newS := jsonDisplayString(m["newString"])
-	if utf8.RuneCountInString(oldS)+utf8.RuneCountInString(newS) > editFileDisplayMaxBodyRunes {
-		body := path
-		if intent := jsonDisplayString(m["intent"]); intent != "" {
-			body = intent + " • " + path
-		}
-		switch {
-		case oldS == "" && newS != "":
-			body += fmt.Sprintf(" (write ~%d lines)", editLineCount(newS))
-		case oldS != "" && newS != "":
-			body += fmt.Sprintf(" (~%d→~%d lines)", editLineCount(oldS), editLineCount(newS))
-		case newS == "":
-			body += " (delete)"
-		}
-		return []string{termcolor.ToolHeaderLine("editFile", body)}
-	}
-	out := []string{termcolor.ToolHeaderLine("editFile", path)}
-	if oldS != "" {
-		out = append(out, formatEditFileContentLines(oldS, termcolor.WrapEditFileOldString)...)
-	}
-	if newS != "" {
-		out = append(out, formatEditFileContentLines(newS, termcolor.WrapEditFileNewString)...)
-	}
-	return out
-}
-
-func editLineCount(s string) int {
-	if s == "" {
-		return 0
-	}
-	return strings.Count(s, "\n") + 1
-}
-
-func formatEditFileContentLines(s string, wrap func(string) string) []string {
-	lines := splitEditContentLines(s)
-	if len(lines) == 0 {
-		return nil
-	}
-	out := make([]string, len(lines))
-	for i, ln := range lines {
-		out[i] = wrap(editDisplayLine(ln))
-	}
-	return out
 }
 
 func splitEditContentLines(s string) []string {

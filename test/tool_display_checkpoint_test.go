@@ -67,7 +67,7 @@ func TestWriteLabeledTranscript_toolCallsUseStoredCheckpoints(t *testing.T) {
 	}
 }
 
-func TestFormatToolDisplayLines_editFileLargePatchSummary(t *testing.T) {
+func TestFormatToolDisplayLines_editFileLargePatchHeadTail(t *testing.T) {
 	body := strings.Repeat("line\n", 120)
 	args, _ := json.Marshal(map[string]string{
 		"path":      "big.go",
@@ -76,14 +76,36 @@ func TestFormatToolDisplayLines_editFileLargePatchSummary(t *testing.T) {
 		"intent":    "create module",
 	})
 	lines := tooling.FormatToolDisplayLines("editFile", args)
-	if len(lines) != 1 {
-		t.Fatalf("want summary line, got %d: %v", len(lines), lines)
+	if len(lines) != 22 {
+		t.Fatalf("want header + 10 head + truncated + 10 tail, got %d", len(lines))
 	}
-	if strings.Contains(lines[0], `"newString"`) || strings.Count(lines[0], "line") > 2 {
-		t.Fatalf("want compact summary, got %q", lines[0])
+	if !strings.Contains(lines[0], "big.go") {
+		t.Fatalf("want path in header: %q", lines[0])
 	}
-	if !strings.Contains(lines[0], "big.go") || !strings.Contains(lines[0], "write") {
-		t.Fatalf("want path and write hint: %q", lines[0])
+	if lines[11] == "" || !strings.Contains(lines[11], "TRUNCATED") {
+		t.Fatalf("want truncated marker at index 11, got %q", lines[11])
+	}
+	if strings.Count(strings.Join(lines, "\n"), "line") != 20 {
+		t.Fatalf("want exactly 20 content lines shown, got %q", strings.Join(lines, "\n"))
+	}
+}
+
+func TestFormatToolDisplayLines_editFileDiffStripsCommonLines(t *testing.T) {
+	args, _ := json.Marshal(map[string]string{
+		"path":      "plan.tmpl",
+		"oldString": "same\nold-only\nshared-tail\n",
+		"newString": "same\nnew-only\nshared-tail\n",
+	})
+	lines := tooling.FormatToolDisplayLines("editFile", args)
+	if len(lines) != 3 {
+		t.Fatalf("want header + removed + added, got %d: %#v", len(lines), lines)
+	}
+	joined := strings.Join(lines, "\n")
+	if strings.Contains(joined, "same") || strings.Contains(joined, "shared-tail") {
+		t.Fatalf("common lines should be omitted: %q", joined)
+	}
+	if !strings.Contains(joined, "old-only") || !strings.Contains(joined, "new-only") {
+		t.Fatalf("want only differing lines: %q", joined)
 	}
 }
 
