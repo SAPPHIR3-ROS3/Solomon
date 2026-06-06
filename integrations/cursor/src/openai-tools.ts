@@ -80,7 +80,12 @@ export function isValidInvocation(inv: LegacyToolInvocation): boolean {
   }
   if (inv.args?.delete === true) {
     const path = typeof inv.args?.path === "string" ? inv.args.path.trim() : "";
-    return path !== "";
+    if (path === "") {
+      return false;
+    }
+    const oldString = typeof inv.args?.oldString === "string" ? inv.args.oldString : "";
+    const newString = typeof inv.args?.newString === "string" ? inv.args.newString : "";
+    return oldString === "" && newString === "";
   }
   const oldString = typeof inv.args?.oldString === "string" ? inv.args.oldString : "";
   const newString = typeof inv.args?.newString === "string" ? inv.args.newString : "";

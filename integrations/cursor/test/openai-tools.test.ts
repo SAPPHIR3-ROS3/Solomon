@@ -249,6 +249,17 @@ test("accepts editFile delete invocations for native tool emission", () => {
   }), true);
 });
 
+test("rejects editFile delete invocations with oldString or newString", () => {
+  assert.equal(isValidInvocation({
+    name: "editFile",
+    args: { path: "x.go", delete: true, oldString: "a", intent: "remove file" },
+  }), false);
+  assert.equal(isValidInvocation({
+    name: "editFile",
+    args: { path: "x.go", delete: true, newString: "b", intent: "remove file" },
+  }), false);
+});
+
 test("unwraps solomon MCP editFile delete tool calls", () => {
   const pending = [];
   let detected = false;

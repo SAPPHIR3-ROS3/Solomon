@@ -88,6 +88,14 @@ func ToolHeaderLine(toolName, body string) string {
 	return out
 }
 
+func EditFileDeleteToolLine(path string) string {
+	line := "editFile removed " + path
+	if !colorOn {
+		return "Tool: " + line
+	}
+	return dark.tool.Render("Tool: ") + dark.red.Render(line)
+}
+
 func WrapThinking(s string) string {
 	return renderStyle(dark.thinking, s)
 }

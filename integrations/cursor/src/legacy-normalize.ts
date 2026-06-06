@@ -99,6 +99,13 @@ function normalizeArgs(
       return null;
     }
     if (pickBoolean(obj, ["delete"])) {
+      const oldString =
+        pickString(obj, ["oldString", "old_string", "oldText"]) ?? "";
+      const newString =
+        pickString(obj, ["newString", "new_string", "newText", "content"]) ?? "";
+      if (oldString !== "" || newString !== "") {
+        return null;
+      }
       return {
         path,
         delete: true,
@@ -180,6 +187,11 @@ function normalizeDeleteEditFileArgs(raw: unknown): Record<string, unknown> | nu
   }
   const path = pickString(obj, ["path", "file_path", "filePath", "target_file"]) ?? "";
   if (!path) {
+    return null;
+  }
+  const oldString = pickString(obj, ["oldString", "old_string", "oldText"]) ?? "";
+  const newString = pickString(obj, ["newString", "new_string", "newText", "content"]) ?? "";
+  if (oldString !== "" || newString !== "") {
     return null;
   }
   return {

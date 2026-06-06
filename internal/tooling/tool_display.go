@@ -93,11 +93,7 @@ func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
 func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
 	path := jsonDisplayString(m["path"])
 	if jsonDisplayBool(m["delete"]) {
-		body := path
-		if intent := jsonDisplayString(m["intent"]); intent != "" {
-			body = intent + " • " + path
-		}
-		return []string{termcolor.ToolHeaderLine("editFile", body+" (delete)")}
+		return []string{termcolor.EditFileDeleteToolLine(path)}
 	}
 	oldS := jsonDisplayString(m["oldString"])
 	newS := jsonDisplayString(m["newString"])
@@ -117,8 +113,12 @@ func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
 		return []string{termcolor.ToolHeaderLine("editFile", body)}
 	}
 	out := []string{termcolor.ToolHeaderLine("editFile", path)}
-	out = append(out, formatEditFileContentLines(oldS, termcolor.WrapEditFileOldString)...)
-	out = append(out, formatEditFileContentLines(newS, termcolor.WrapEditFileNewString)...)
+	if oldS != "" {
+		out = append(out, formatEditFileContentLines(oldS, termcolor.WrapEditFileOldString)...)
+	}
+	if newS != "" {
+		out = append(out, formatEditFileContentLines(newS, termcolor.WrapEditFileNewString)...)
+	}
 	return out
 }
 
@@ -269,6 +269,9 @@ func FormatToolResultDisplayLines(toolName string, payload string) []string {
 	if body := formatToolResultBody(toolName, m); body != "" {
 		return []string{termcolor.ToolHeaderLine(label, body)}
 	}
+	if toolResultDisplaySuppressed(toolName, m) {
+		return nil
+	}
 	return []string{termcolor.WrapThinking(compactToolResultJSON(m, 200))}
 }
 
@@ -304,14 +307,7 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 			}
 			return "→ failed"
 		}
-		action := jsonDisplayString(m["action"])
-		if action == "" {
-			action = "ok"
-		}
-		if p := jsonDisplayString(m["path"]); p != "" {
-			return "→ " + action + " " + p
-		}
-		return "→ " + action
+		return ""
 	case "find":
 		if n, ok := jsonDisplayInt(m["matches"]); ok {
 			return fmt.Sprintf("→ %d matches", n)
@@ -319,6 +315,19 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 		return "→ done"
 	default:
 		return formatGenericToolResultBody(m)
+	}
+}
+
+func toolResultDisplaySuppressed(toolName string, m map[string]json.RawMessage) bool {
+	switch toolName {
+	case "editFile", "editPlan":
+		if jsonDisplayString(m["error"]) != "" {
+			return false
+		}
+		rawOK, hasOK := m["ok"]
+		return hasOK && len(rawOK) > 0 && jsonDisplayBool(rawOK)
+	default:
+		return false
 	}
 }
 

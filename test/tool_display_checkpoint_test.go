@@ -142,6 +142,18 @@ func TestFormatToolDisplayLines_editFileSkipsEmptyOldBlock(t *testing.T) {
 	}
 }
 
+func TestFormatToolDisplayLines_editFileSkipsEmptyNewBlock(t *testing.T) {
+	args, _ := json.Marshal(map[string]string{
+		"path":      "x.go",
+		"oldString": "before",
+		"newString": "",
+	})
+	lines := tooling.FormatToolDisplayLines("editFile", args)
+	if len(lines) != 2 {
+		t.Fatalf("want header + old only, got %d: %#v", len(lines), lines)
+	}
+}
+
 func TestFormatToolDisplayLines_editFileDelete(t *testing.T) {
 	args, err := json.Marshal(map[string]any{
 		"path":   "obsolete.go",
@@ -155,15 +167,28 @@ func TestFormatToolDisplayLines_editFileDelete(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("lines: %#v", lines)
 	}
-	if !strings.Contains(lines[0], "(delete)") || !strings.Contains(lines[0], "obsolete.go") {
+	if !strings.Contains(lines[0], "removed obsolete.go") || strings.Contains(lines[0], "(delete)") {
 		t.Fatalf("unexpected delete display: %q", lines[0])
 	}
 }
 
-func TestFormatToolResultDisplayLines_editFileDelete(t *testing.T) {
-	payload := `{"ok":true,"action":"deleted"}`
+func TestFormatToolResultDisplayLines_editFileSuccessSilent(t *testing.T) {
+	for _, payload := range []string{
+		`{"ok":true,"action":"edited"}`,
+		`{"ok":true,"action":"deleted"}`,
+		`{"ok":true,"action":"created_or_overwrite"}`,
+	} {
+		lines := tooling.FormatToolResultDisplayLines("editFile", payload)
+		if len(lines) != 0 {
+			t.Fatalf("payload %s: want no result line, got %v", payload, lines)
+		}
+	}
+}
+
+func TestFormatToolResultDisplayLines_editFileFailureShowsReason(t *testing.T) {
+	payload := `{"ok":false,"reason":"oldString not found"}`
 	lines := tooling.FormatToolResultDisplayLines("editFile", payload)
-	if len(lines) != 1 || !strings.Contains(lines[0], "deleted") {
+	if len(lines) != 1 || !strings.Contains(lines[0], "oldString not found") {
 		t.Fatalf("lines: %v", lines)
 	}
 }
