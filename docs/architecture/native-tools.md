@@ -49,6 +49,16 @@ Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (
 
 All variants require non-empty `intent`. Paths are relative to the project root. The Cursor sidecar maps Cursor `Delete` to `editFile` with `delete: true` so Solomon remains the executor.
 
+## `find` semantics (build)
+
+| Args | Behavior |
+|------|----------|
+| `files=true`, `pattern` | Glob listing of matching paths under `path` (default `.`), sorted by mtime descending; respects `.gitignore` |
+| `files=false`, `pattern` | Go regexp content search; optional `pathGlob`, `outputMode` (`content`, `files_with_matches`, `count`), context lines, `headLimit`, `caseInsensitive`, `multiline` |
+| `timeoutSeconds` | Optional per-call timeout (default 60s) |
+
+Cursor `Grep`, `Glob`, and `SemanticSearch` map to `find`; semantic queries today use the same regexp fallback as text search.
+
 ## Cursor sidecar proxy
 
 When Solomon drives the optional Cursor API sidecar, **Solomon stays the tool executor** on the project root. Configuration: [`cursor_internal_tools`](../user-guide/configuration.md#cursor-integration-tool-execution) in `[tools]` (default **off**).

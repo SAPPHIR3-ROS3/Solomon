@@ -20,11 +20,15 @@ Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtim
 
 ### Model and provider selection
 
-Switch models and backends with `/models`, add providers with `/connect`, or rerun setup via `/onboard` and first-run wizard. Every major terminal agent exposes equivalent controls (`/model`, provider pickers, or config files). Solomon stores providers in `config.toml` with OpenAI-compatible or native Anthropic Messages API modes. See [Configuration](user-guide/configuration.md).
+Switch models and backends with `/models`, add providers with `/connect`, or rerun setup via `/onboard` and first-run wizard. `/connect` supports ChatGPT Sub (OAuth), OpenAI-compatible API keys, Anthropic API keys, and Cursor API; **Claude Sub** is listed in the wizard as coming soon. Every major terminal agent exposes equivalent controls (`/model`, provider pickers, or config files). Solomon stores providers in `config.toml` with OpenAI-compatible or native Anthropic Messages API modes. See [Configuration](user-guide/configuration.md).
 
 ### Read project files
 
 The `readFile` tool returns file contents (with line ranges) from the resolved project tree. Read-before-edit is a shared convention across Claude Code, Codex, Copilot CLI, and most agent harnesses. Plan mode restricts writes but still allows reads for research. Implementation: [Native tools](architecture/native-tools.md).
+
+### Search project files (find)
+
+The `find` tool lists paths by glob (`files=true`, sorted by mtime) or searches file contents with a Go regexp (`files=false`), with optional path scope, `.gitignore` respect, context lines, output modes, and timeouts. Claude Code, Codex, and Copilot CLI expose the same capability as separate Grep/Glob tools or a unified search primitive; Solomon combines both in one native tool. The Cursor sidecar maps `Grep`, `Glob`, and `SemanticSearch` to `find` (semantic search is regexp fallback today — see [Semantic code search (in the future)](#semantic-code-search-in-the-future)). Details: [Native tools — `find`](architecture/native-tools.md#find-semantics-build).
 
 ### Run shell commands
 
@@ -54,9 +58,17 @@ Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the
 
 Default `solomon` starts an interactive REPL with a raw-mode multiline editor, checkpoint-aware prompts, slash commands, and streaming assistant output. This is the core UX shared with `codex`, `claude`, and `copilot` TUIs. REPL behavior: [Runtime and REPL](architecture/runtime-and-repl.md).
 
+### Multiline REPL input
+
+Paste and author multi-line prompts without premature send. Solomon owns the REPL input buffer in raw mode, supports vertical cursor movement within the draft, bracketed paste, and enters history only from the first/last line. Modified Enter (Alt+Enter / Ctrl+Enter) inserts newlines when the terminal sends a distinguishable sequence. Details: [Terminal setup — Multiline input](user-guide/terminal-setup.md#multiline-input-interactive-repl).
+
+### In-REPL one-shot prompt
+
+`/exec <prompt>` or `/exec "prompt with spaces"` sends one user message and runs a full agent turn without leaving the REPL — the REPL counterpart to headless `solomon exec`. Useful when you want a single automated turn while keeping session context and checkpoint tags.
+
 ### Plan mode vs build mode
 
-`/plan` restricts the model to planning tools (`createPlan`, `editPlan`, `buildPlan`, skills search); `/build` enables shell, files, subagent, and web tools. Claude Code’s plan mode, Copilot’s `/plan`, and Codex review/plan flows address the same “think before you edit” workflow. Deep dive: [Plan vs build](architecture/plan-vs-build.md).
+`/plan` restricts the model to planning tools (`createPlan`, `editPlan`, `buildPlan`, skills search); `/build` enables shell, files (`readFile`, `editFile`, `find`), subagent, and web tools. Claude Code’s plan mode, Copilot’s `/plan`, and Codex review/plan flows address the same “think before you edit” workflow. Deep dive: [Plan vs build](architecture/plan-vs-build.md).
 
 ### Project-scoped sessions and data
 
@@ -92,7 +104,7 @@ Install skills with `solomon add` / `/add npx … skills add …`, list with `/s
 
 ### Clipboard images in the REPL
 
-Ctrl+V (key 22) pastes a clipboard image into the session as `[img-n]` plus an on-disk PNG under the chat images directory, sent to vision-capable models. Codex and Claude accept image inputs; macOS `Cmd+V` for images only is **(in the future)**. REPL: [Runtime and REPL](architecture/runtime-and-repl.md#repl-flow).
+Ctrl+V (key 22) pastes a clipboard image into the session as `[img-n]` plus an on-disk PNG under the chat images directory, sent to vision-capable models. `/cleansessioncache` drops broken pasted PNG paths and strips orphaned `[img-*]` tokens from the transcript. Codex and Claude accept image inputs; macOS `Cmd+V` for images only is **(in the future)**. REPL: [Runtime and REPL](architecture/runtime-and-repl.md#repl-flow).
 
 ### OAuth ChatGPT subscription provider
 
@@ -104,7 +116,7 @@ Providers may set `api_protocol = anthropic` for native Messages API calls inste
 
 ### Checkpoints and transcript rewind
 
-Each user message advances a checkpoint sequence; `/goto` rewinds or forks the transcript, with tags like `[#012]` in the prompt. Fewer agents expose first-class checkpoint ids; Solomon’s model is documented in [Checkpoints](architecture/checkpoints.md).
+Each user message advances a checkpoint sequence; `/goto` rewinds or forks the transcript, with tags like `[#012]` in the prompt. `/checkpoint` prints the current checkpoint tag. Fewer agents expose first-class checkpoint ids; Solomon’s model is documented in [Checkpoints](architecture/checkpoints.md).
 
 ### Ephemeral sessions
 
@@ -137,6 +149,14 @@ If the SSE accumulator detects inconsistent completion chunks (e.g. mismatched `
 ### Tool output limits
 
 `tool_output.max_bytes` and `tool_output.max_lines` truncate large tool results before the next LLM call. Shared problem across agents with verbose `shell` or `readFile` output; Solomon makes limits explicit in config.
+
+### REPL display and session preferences
+
+Persisted REPL settings map to `config.toml` and slash commands: `/name` and `/language` inject user name and reply language into the system prompt; `/stats` toggles token usage after assistant turns; `/max_response` caps assistant output tokens; `/timeout` sets subagent segment minutes; `/log` sets visible log verbosity; `/fast` toggles Cursor fast mode when the active provider supports it. See [Configuration](user-guide/configuration.md) and `/help`.
+
+### Release updates and config backup
+
+`/version` prints the installed build; `/update` checks GitHub releases and refreshes the welcome banner; `/autoupdate` toggles automatic install of newer releases; `/upgrade` runs the OS install command for the available release; `/configbackup` copies `config.toml` to a dated file under `~/.solomon/backup/`. `/onboard` reruns the setup wizard (overwrites first-setup fields).
 
 ---
 
@@ -200,7 +220,7 @@ Today only `plan` and `build` modes exist. A dedicated **code mode** would narro
 
 ### Full file-operation surface **(in the future)**
 
-`readFile`, `editFile` (including delete via `delete: true`), and `find` cover most filesystem work in build mode; dedicated rename and unified sandbox semantics are not first-class yet. Agents with richer filesystem primitives (or stricter cages) may still expect parity here.
+`readFile`, `editFile` (including delete via `delete: true`), and `find` (glob + regexp) cover most filesystem work in build mode today; dedicated **rename** and unified **sandbox** semantics are not first-class yet. Agents with richer filesystem primitives (or stricter cages) may still expect parity here.
 
 ### LSP-backed code intelligence **(in the future)**
 
@@ -218,9 +238,9 @@ External memory (MemPalace or similar) plus Obsidian vault conventions would ext
 
 Automatic model choice by task type, cost, or fallback on rate limits goes beyond manual `/models` and `/connect`. Some cloud agents route internally; local harnesses would need explicit configurable rules.
 
-### Multiline REPL input
+### Semantic code search **(in the future)**
 
-Paste and author multi-line prompts without premature send. Solomon owns the REPL input buffer in raw mode, supports vertical cursor movement within the draft, and enters history only from the first/last line. Modified Enter support remains terminal-dependent.
+Today `find` with `files=false` is deterministic regexp search; the Cursor sidecar maps `SemanticSearch` to that fallback. A dedicated semantic or embedding-backed code search tool (or MCP-backed index) would answer concept queries (“where is auth handled?”) without known symbol strings.
 
 ### Oracle consultative agent **(in the future)**
 
