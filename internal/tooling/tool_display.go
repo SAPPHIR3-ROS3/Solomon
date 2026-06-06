@@ -12,7 +12,11 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
-const editFileDisplayMaxBodyRunes = 400
+const (
+	editFileDisplayMaxBodyRunes       = 400
+	webSearchDisplayDefaultMaxResults = 10
+	webSearchDisplayDefaultTimeoutS   = 30
+)
 
 func WriteToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []string) {
 	first := true
@@ -175,21 +179,47 @@ func formatFetchWebToolDisplayLines(m map[string]json.RawMessage) []string {
 }
 
 func formatWebSearchToolDisplayLines(m map[string]json.RawMessage) []string {
-	body := jsonDisplayString(m["query"])
-	if s := jsonDisplayString(m["engine"]); s != "" {
-		body += " [• " + s + "]"
-	}
+	query := jsonDisplayString(m["query"])
+	engine := jsonDisplayString(m["engine"])
+	maxResults := webSearchDisplayDefaultMaxResults
 	if n := jsonDisplayIntPtr(m["maxResults"]); n != nil {
-		body += fmt.Sprintf(" [• %d]", *n)
+		maxResults = *n
 	}
+	timeout := webSearchDisplayDefaultTimeoutS
 	if t := jsonDisplayIntPtr(m["timeoutSeconds"]); t != nil {
-		body += fmt.Sprintf(" [• %d]", *t)
+		timeout = *t
 	}
-	lines := []string{termcolor.ToolHeaderLine("webSearch", body)}
+	meta := formatWebSearchMeta(engine, maxResults, timeout)
+	lines := []string{termcolor.ToolLine("webSearch", meta) + termcolor.WrapThinking(query)}
 	if ex := formatToolDisplayExtrasLine(m["extras"]); ex != "" {
-		lines = append(lines, termcolor.ToolHeaderLine("webSearch", ex))
+		lines = append(lines, termcolor.ToolLine("webSearch", ex))
 	}
 	return lines
+}
+
+func formatWebSearchMeta(engine string, maxResults, timeout int) string {
+	var parens string
+	customMax := maxResults != webSearchDisplayDefaultMaxResults
+	customTimeout := timeout != webSearchDisplayDefaultTimeoutS
+	switch {
+	case customMax && customTimeout:
+		parens = fmt.Sprintf("(%d result • %ds)", maxResults, timeout)
+	case customMax:
+		parens = fmt.Sprintf("(%d result)", maxResults)
+	case customTimeout:
+		parens = fmt.Sprintf("(%ds)", timeout)
+	}
+	enginePart := ""
+	if engine != "" {
+		enginePart = engine + " "
+	}
+	if parens != "" {
+		return fmt.Sprintf("• %s%s | ", enginePart, parens)
+	}
+	if enginePart != "" {
+		return "• " + strings.TrimSpace(enginePart) + " | "
+	}
+	return "• | "
 }
 
 func formatToolDisplayExtrasLine(raw json.RawMessage) string {

@@ -154,6 +154,54 @@ func TestFormatToolDisplayLines_editFileSkipsEmptyNewBlock(t *testing.T) {
 	}
 }
 
+func TestFormatToolDisplayLines_webSearch(t *testing.T) {
+	args, err := json.Marshal(map[string]any{
+		"query":          "golang context",
+		"engine":         "duckduckgo",
+		"maxResults":     5,
+		"timeoutSeconds": 45,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("webSearch", args)
+	if len(lines) != 1 {
+		t.Fatalf("lines: %#v", lines)
+	}
+	want := "webSearch • duckduckgo (5 result • 45s) | golang context"
+	if !strings.Contains(lines[0], want) {
+		t.Fatalf("got %q, want substring %q", lines[0], want)
+	}
+
+	minimal, err := json.Marshal(map[string]any{"query": "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines = tooling.FormatToolDisplayLines("webSearch", minimal)
+	wantMinimal := "webSearch • | test"
+	if !strings.Contains(lines[0], wantMinimal) {
+		t.Fatalf("defaults: got %q, want substring %q", lines[0], wantMinimal)
+	}
+
+	onlyTimeout, err := json.Marshal(map[string]any{"query": "slow", "timeoutSeconds": 60})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines = tooling.FormatToolDisplayLines("webSearch", onlyTimeout)
+	if !strings.Contains(lines[0], "webSearch • (60s) | slow") {
+		t.Fatalf("custom timeout only: %q", lines[0])
+	}
+
+	onlyMax, err := json.Marshal(map[string]any{"query": "wide", "maxResults": 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines = tooling.FormatToolDisplayLines("webSearch", onlyMax)
+	if !strings.Contains(lines[0], "webSearch • (3 result) | wide") {
+		t.Fatalf("custom maxResults only: %q", lines[0])
+	}
+}
+
 func TestFormatToolDisplayLines_editFileDelete(t *testing.T) {
 	args, err := json.Marshal(map[string]any{
 		"path":   "obsolete.go",
