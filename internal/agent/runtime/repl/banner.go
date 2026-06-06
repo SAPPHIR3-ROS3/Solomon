@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logo"
@@ -99,6 +100,7 @@ func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	nChats, uSum, rSum, sSum, _ := chatstore.ProjectWelcomeStats(projHex)
 	skillN, _ := skills.InstalledSkillCount(projHex, projRoot)
 	var right []string
+	right = append(right, termcolor.WrapBoldGold(commands.VersionString()))
 	const resumeLine = "/resume to show most recent chats"
 	if nChats == 1 {
 		right = append(right, "1 chat  "+resumeLine)
@@ -123,8 +125,6 @@ func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 	} else {
 		right = append(right, "!<command> to execute commands on the shell")
 	}
-	right = append(right, "Paste multiline text stays as one input (manual Enter to send)")
-	right = append(right, "Alt+Enter / Ctrl+Enter for multiline input")
 	if runtime.GOOS == "windows" {
 		right = append(right, "Ctrl+V to paste a clipboard image")
 	}
