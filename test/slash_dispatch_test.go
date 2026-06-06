@@ -14,6 +14,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 func TestSlashDispatch_emptyWhitespace(t *testing.T) {
@@ -364,6 +365,7 @@ func TestSlashDispatch_cleansessioncache_keepsValidPath(t *testing.T) {
 }
 
 func TestSlashDispatch_mcp(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
 	dir := t.TempDir()
 	p := filepath.Join(dir, "mcp.json")
 	t.Setenv("SOLOMON_MCP_CONFIG", p)
@@ -376,7 +378,7 @@ func TestSlashDispatch_mcp(t *testing.T) {
 	if err := agent.SlashDispatch(d, "/mcp"); err != nil {
 		t.Fatal(err)
 	}
-	out := buf.String()
+	out := termcolor.Plain(buf.String())
 	if !strings.Contains(out, "filesystem\tstdio\tnpx") || !strings.Contains(out, "remote\tstreamable-http\thttps://example.com") {
 		t.Fatalf("/mcp unexpected: %s", out)
 	}
