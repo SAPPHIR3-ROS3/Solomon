@@ -23,6 +23,8 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `compaction_threshold_tokens` | Auto compaction threshold |
 | `tool_output.max_bytes`, `tool_output.max_lines` | Tool result truncation before LLM (defaults 65536 / 2048) |
 | `web_search_engine` | Default engine for the **`webSearch`** tool (omit for `duckduckgo`) |
+| `fast_mode` | Cursor fast mode when the active provider supports it (default on; toggle with `/fast`) |
+| `autoupdate` | Auto-install newer releases when `/update` finds one (toggle with `/autoupdate`) |
 
 ### `[tools]` (legacy XML tool calling)
 
@@ -119,8 +121,31 @@ You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic
 | `/onboard` or `/connect` → OpenAI Compatible API | `openai` (default) | Any OpenAI Chat Completions-compatible `base_url` |
 | `/onboard` or `/connect` → Anthropic Compatible API | `anthropic` | Messages API (`POST …/v1/messages`); curated model list |
 | `/connect` → ChatGPT Sub | `openai` | OAuth; Codex middleware |
+| `/connect` → Claude Sub | — | Listed in wizard as **coming soon** (not available yet) |
+| `/connect` → Cursor API | `openai` | Optional sidecar; see [Cursor integration](#cursor-integration-tool-execution) |
 
 Provider block fields: `base_url`, `api_key`, optional `api_protocol` (`openai` | `anthropic`). Anthropic official base: `https://api.anthropic.com` (normalized on save).
+
+### REPL slash commands and config fields
+
+Many slash commands write back to `config.toml` on save:
+
+| Slash command | Config field | Notes |
+|---------------|--------------|-------|
+| `/name` | `user_name` | `/name clear` removes |
+| `/language` | `response_language` | `/language clear` resets to English |
+| `/reasoning` | `reasoning_effort` | Main chat only; subagent reasoning stays off unless extended later |
+| `/thinking` | `show_thinking` | Streamed reasoning preview |
+| `/stats` | `show_usage_stats` | Token line after assistant turns |
+| `/max_response` | `max_response_tokens` | Assistant output cap |
+| `/timeout` | `subagent_timeout_minutes` | Range 1–180 |
+| `/log` | `log_level` | `error`, `warning`, `info`, `debug`, `result` |
+| `/threshold` | `compaction_threshold_tokens` | Auto `/summarize` when prompt tokens exceed limit |
+| `/legacytools` | `[tools].legacy`, `[tools].legacy_force` | Global, not per session |
+| `/fast` | `fast_mode` | Only when active provider supports Cursor fast mode |
+| `/autoupdate` | `autoupdate` | Auto-install on `/update` check |
+
+Commands such as `/configbackup`, `/update`, `/upgrade`, and `/version` do not add new config keys; `/onboard` overwrites wizard-managed provider fields.
 
 ### `[api_resilience]` (optional)
 

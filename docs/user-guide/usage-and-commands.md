@@ -9,6 +9,7 @@
 - **Skills**: `solomon add` / `solomon remove`; `/skills`, `/add`, dynamic skill slashes, and forced `/skill:<name> [request]` in-session (authoritative list: `/help`)
 - **Project instructions**: `AGENTS.md` (and fallbacks) plus numbered custom rules injected into the system prompt — see [Project instructions](project-instructions.md)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools
+- **Build tools**: `readFile`, `editFile`, `find`, `shell`, `subagent`, `fetchWeb`, `webSearch` (build mode); plan tools `createPlan`, `editPlan`, `buildPlan` (plan mode) — see [Native tools](../architecture/native-tools.md)
 
 ## CLI usage modes
 
@@ -70,8 +71,24 @@ Highlights:
 | `/remove rule`, `/remove projectrule` | Remove a rule by number (remaining rules renumbered) |
 | `/rules` | List custom rules (global + project) |
 | `/instructions` | Show global `~/.solomon/AGENTS.md` loaded into the system prompt |
+| `/goto`, `/checkpoint` | Rewind transcript to a checkpoint id; print current checkpoint tag |
+| `/exec` | Send one user message and run a turn (`/exec "prompt with spaces"`) |
+| `/models`, `/onboard` | Switch model; rerun setup wizard |
+| `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
+| `/reasoning`, `/thinking` | Main-chat reasoning effort; streamed reasoning preview |
+| `/log`, `/stats`, `/max_response`, `/timeout` | Log verbosity; token footer; output cap; subagent minutes |
+| `/name`, `/language` | User name and reply language in system prompt (saved) |
+| `/fast` | Cursor fast mode when supported by the active provider (saved) |
+| `/testweb` | Test web search config (OK / NOT OK + DuckDuckGo fallback) |
+| `/cleansessioncache` | Drop broken pasted PNG paths; strip orphaned `[img-*]` from transcript |
+| `/terminal` | Shell-first input: plain lines = shell; `!…` = AI message |
+| `/version`, `/update`, `/upgrade`, `/autoupdate` | Version; check releases; install update; toggle auto-update |
+| `/configbackup` | Copy `config.toml` to `~/.solomon/backup/config.toml.<isodate>.bak` |
+| `/clear`, `/exit`, `/quit` | Clear terminal; exit REPL with resume hint |
 
 Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Project instructions](project-instructions.md).
+
+Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
 
 ### Skill install safety checks
 
