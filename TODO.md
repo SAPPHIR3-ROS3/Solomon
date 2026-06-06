@@ -93,6 +93,8 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 - **Ricerca semantica nel codice:** oggi `find` copre solo **glob + regexp** su file; nel bridge Cursor `SemanticSearch` → `find` con `pattern=query` è un **fallback testuale**, non semantica vera. **Cosa manca (opzionale):** tool dedicato (es. `semanticFind` / `codeSearch`), separato da `find`; indice del workspace (embeddings locali o API) con aggiornamento incrementale, rispetto `.gitignore`, limiti su file binari/segreti; query per concetti (“dove si gestisce l’auth?”) con chunk + path/righe; integrazione build mode + dump/help + alias bridge Cursor verso il tool reale. **Approccio preferito:** provare prima via **MCP opzionale** o comando `/index` on-demand; nativizzare in core solo se diventa uso quotidiano. `find` resta il percorso deterministico per simboli/stringhe note.
 
+- **Allineamento esperienza Windows con Linux/macOS:** oggi Solomon gira su Windows ma con compromessi e fork per OS (es. `termcolor.WrapUserReadline` e limiti ANSI readline, `/clear` assente in cmd.exe, input console/multiline, clipboard via PowerShell, rilevamento shell, banner e test spesso saltati su `GOOS=windows`). **Cosa manca:** audit delle divergenze UX tra piattaforme; parità per terminale interattivo (colori, pulizia schermo, paste immagini, hotkey REPL) su Windows Terminal e PowerShell; riduzione dei percorsi `*_windows.go` / `*_unix.go` dove fattibile; test e documentazione setup Windows allineati al flusso macOS/Linux.
+
 ---
 
 ## EXTREMELY LOW PRIORITY
