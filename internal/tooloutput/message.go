@@ -1,15 +1,13 @@
 package tooloutput
 
-const (
-	truncatedMarker = "---TRUNCATED---"
-)
+const TruncatedMarker = "---TRUNCATED---"
 
 func FormatTruncatedMessage(spillPath string) string {
 	line := "full output unavailable"
 	if spillPath != "" {
 		line = "full output at " + spillPath
 	}
-	return truncatedMarker + "\n" + line + "\n" + truncatedMarker
+	return TruncatedMarker + "\n" + line + "\n" + TruncatedMarker
 }
 
 func truncatedResult(spillPath string, spillErr error) map[string]any {
