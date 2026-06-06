@@ -4,12 +4,6 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ---
 
-## 1 — Syntax highlighting nel terminale
-
-- **Stato:** output REPL e risultati tool sono testo grezzo (colori dove già usati, es. `termcolor`); nessun highlight di linguaggio su blocchi di codice o comandi durante digitazione/visualizzazione.
-- **Cosa manca:** evidenziazione sintattica coerente (es. paste, anteprima snippet, output assistant) integrata col terminale in uso, senza rompere copy-paste o accessibilità.
-
----
 
 ## 2 — Model routing
 
