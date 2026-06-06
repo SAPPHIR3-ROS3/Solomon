@@ -24,11 +24,11 @@ type editArgs struct {
 }
 
 func editFileOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("editFile", "Replace oldString once with newString; use empty oldString to create or overwrite; set delete=true to remove the file at path.", map[string]any{
+	return nativeToolUnion("editFile", "Replace oldString once with newString; use empty oldString to create or overwrite; set delete=true with empty oldString and newString to remove the file at path.", map[string]any{
 		"path":      map[string]any{"type": "string", "description": "Path relative to project root"},
-		"oldString": map[string]any{"type": "string", "description": "Substring to replace once; empty means create/overwrite when delete is false"},
-		"newString": map[string]any{"type": "string", "description": "New content or replacement text; ignored when delete is true"},
-		"delete":    map[string]any{"type": "boolean", "description": "When true, deletes the file at path instead of editing it"},
+		"oldString": map[string]any{"type": "string", "description": "Substring to replace once; empty means create/overwrite when delete is false; must be empty when delete is true"},
+		"newString": map[string]any{"type": "string", "description": "New content or replacement text; must be empty when delete is true"},
+		"delete":    map[string]any{"type": "boolean", "description": "When true, deletes the file at path; oldString and newString must be empty"},
 		"intent":    map[string]any{"type": "string", "description": "Brief phrase describing the purpose of this edit or deletion"},
 	}, []string{"path", "intent"})
 }
@@ -44,7 +44,7 @@ func appendEditFileDump(b *dumpBuilder) error {
 	}
 	b.addBlock(
 		"editFile",
-		"Replace oldString once with newString; use empty oldString to create or overwrite; use delete=true with path and intent to remove a file ("+delSig+"). Requires intent (brief purpose).",
+		"Replace oldString once with newString; use empty oldString to create or overwrite; use delete=true with empty oldString and newString to remove a file ("+delSig+"). Requires intent (brief purpose).",
 		sig,
 	)
 	return nil
@@ -63,6 +63,9 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 		env.ActivateInstructionsFromAbsPath(p)
 	}
 	if a.Delete {
+		if a.OldString != "" || a.NewString != "" {
+			return nil, fmt.Errorf("editFile delete requires empty oldString and newString")
+		}
 		if err := os.Remove(p); err != nil {
 			if os.IsNotExist(err) {
 				return map[string]any{"ok": false, "reason": "file not found"}, nil

@@ -95,6 +95,37 @@ func TestExecEditFileDeleteRequiresIntent(t *testing.T) {
 	}
 }
 
+func TestExecEditFileDeleteRejectsOldOrNewString(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/keep.txt"
+	if err := os.WriteFile(path, []byte("stay"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, argsMap := range map[string]map[string]any{
+		"oldString": {
+			"path": "keep.txt", "delete": true, "oldString": "stay", "intent": "bad delete",
+		},
+		"newString": {
+			"path": "keep.txt", "delete": true, "newString": "gone", "intent": "bad delete",
+		},
+		"both": {
+			"path": "keep.txt", "delete": true, "oldString": "stay", "newString": "gone", "intent": "bad delete",
+		},
+	} {
+		args, err := json.Marshal(argsMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = execEditFileForTest(t, dir, args)
+		if err == nil || !strings.Contains(err.Error(), "empty oldString and newString") {
+			t.Fatalf("%s: expected delete string rejection, got %v", name, err)
+		}
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("file should still exist: %v", err)
+	}
+}
+
 func TestBuildBuildToolDumpMentionsEditFileDelete(t *testing.T) {
 	dump, err := tools.BuildBuildToolDump()
 	if err != nil {

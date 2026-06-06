@@ -15,8 +15,8 @@ const (
 	colorRed       = "#FF5555"
 	colorGold      = "#FFD700"
 	colorImgBG          = "#00D1F0"
-	colorEditFileOldBG  = "#5c3232"
-	colorEditFileNewBG  = "#325c3f"
+	colorEditFileOldBG  = "#5c0000"
+	colorEditFileNewBG  = "#005c00"
 )
 
 var dark struct {
