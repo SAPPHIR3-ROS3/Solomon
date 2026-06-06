@@ -142,6 +142,10 @@ func parseProxyCorrectionFromChunkRawJSON(raw string) string {
 	return strings.TrimSpace(s)
 }
 
+func ParseCursorToolEventFromChunkRawJSON(raw string) string {
+	return parseCursorToolEventFromChunkRawJSON(raw)
+}
+
 func parseCursorToolEventFromChunkRawJSON(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

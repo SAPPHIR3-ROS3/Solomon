@@ -1,11 +1,20 @@
-package tools
+package test
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
+
+func execEditFileForTest(t *testing.T, dir string, args json.RawMessage) (any, error) {
+	t.Helper()
+	return tools.Exec(context.Background(), &tools.Env{ProjRoot: dir, CheckpointStageProjAbs: func(string) {}}, "build", tooling.Invocation{Name: "editFile", Args: args})
+}
 
 func TestExecEditFileRejectsEmptyOverwrite(t *testing.T) {
 	dir := t.TempDir()
@@ -18,7 +27,7 @@ func TestExecEditFileRejectsEmptyOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = execEditFile(&Env{ProjRoot: dir, CheckpointStageProjAbs: func(string) {}}, args)
+	_, err = execEditFileForTest(t, dir, args)
 	if err == nil || !strings.Contains(err.Error(), "empty overwrite") {
 		t.Fatalf("expected empty overwrite rejection, got %v", err)
 	}
@@ -38,7 +47,7 @@ func TestExecEditFileDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := execEditFile(&Env{ProjRoot: dir, CheckpointStageProjAbs: func(string) {}}, args)
+	res, err := execEditFileForTest(t, dir, args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +70,7 @@ func TestExecEditFileDeleteMissingFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := execEditFile(&Env{ProjRoot: dir, CheckpointStageProjAbs: func(string) {}}, args)
+	res, err := execEditFileForTest(t, dir, args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,14 +89,14 @@ func TestExecEditFileDeleteRequiresIntent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = execEditFile(&Env{ProjRoot: dir, CheckpointStageProjAbs: func(string) {}}, args)
+	_, err = execEditFileForTest(t, dir, args)
 	if err == nil || !strings.Contains(err.Error(), "intent") {
 		t.Fatalf("expected intent error, got %v", err)
 	}
 }
 
 func TestBuildBuildToolDumpMentionsEditFileDelete(t *testing.T) {
-	dump, err := BuildBuildToolDump()
+	dump, err := tools.BuildBuildToolDump()
 	if err != nil {
 		t.Fatal(err)
 	}
