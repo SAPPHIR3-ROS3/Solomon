@@ -62,6 +62,7 @@ The REPL prompt uses a Solomon-owned raw-mode editor instead of delegating the m
 | **Backspace / Delete** | Edit the current buffer; Backspace at the start of a line joins it with the previous line. |
 | **Paste text** | Bracketed paste inserts multiline text into the current message without submitting it. |
 | **Paste image** | When the terminal exposes an image paste through the supported clipboard path, Solomon inserts an `[img-N]` tag. |
+| **@ file/folder** | Type `@` plus a name fragment to open a path picker under the prompt; Tab, Enter, or arrow keys select a match. Inserts the shortest unique `@path` tag (plain text, no SHA). Arrow Left/Right and Backspace/Delete treat each tag as one unit. On send, file or folder content is expanded for the model (visible transcript keeps the short tags). |
 
 ## Tab completion (interactive REPL)
 
@@ -69,7 +70,7 @@ While the REPL prompt is active, Solomon runs its own line editor in **raw mode*
 
 | Key / action | Behavior |
 | ------------ | -------- |
-| **Tab** | Complete `/` slash names and skill tokens; slash arguments (e.g. `/reasoning`, `/log`, `/add`, `/remove`, `/resume`, `/goto`); on shell lines (`!…` or shell-first): **PATH binaries** on command tokens (including after `\|`, `\|\|`, `&&`, `;`), **`go` subcommands** (from `go help`) as the second token after `go`, and **workspace paths** (relative under the project, `~/…` home, or other absolute paths; quoted paths, `\ ` escapes, `\` or `/` separators) on file-like tokens. |
+| **Tab** | Complete `/` slash names and skill tokens; slash arguments (e.g. `/reasoning`, `/log`, `/add`, `/remove`, `/resume`, `/goto`); **`@` workspace paths** (files and directories under the project root, shortest unique tag on full select); on shell lines (`!…` or shell-first): **PATH binaries** on command tokens (including after `\|`, `\|\|`, `&&`, `;`), **`go` subcommands** (from `go help`) as the second token after `go`, and **workspace paths** (relative under the project, `~/…` home, or other absolute paths; quoted paths, `\ ` escapes, `\` or `/` separators) on file-like tokens. |
 | **Tab** again | Cycle or list candidates when more than one match remains. |
 | **Ctrl+C** | Cancel an open completion menu (same as canceling other readline modes). |
 

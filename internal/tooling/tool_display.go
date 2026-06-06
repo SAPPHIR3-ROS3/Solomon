@@ -99,6 +99,9 @@ func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
 	if jsonDisplayBool(m["delete"]) {
 		return []string{termcolor.EditFileDeleteToolLine(path)}
 	}
+	if to := jsonDisplayString(m["renameTo"]); to != "" {
+		return []string{termcolor.ToolHeaderLine("editFile", path+" → "+to)}
+	}
 	oldS := jsonDisplayString(m["oldString"])
 	newS := jsonDisplayString(m["newString"])
 	if utf8.RuneCountInString(oldS)+utf8.RuneCountInString(newS) > editFileDisplayMaxBodyRunes {

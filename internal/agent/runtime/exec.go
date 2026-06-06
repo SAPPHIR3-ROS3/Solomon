@@ -17,7 +17,10 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 		RunNestedWithSystem:    r.runNestedWithSystem,
 		SetMode:                func(m string) { r.Mode = m },
 		CurrentMode:            func() string { return r.Mode },
-		CheckpointStageProjAbs: r.checkpointStageProjAbs,
+		CheckpointStageProjAbs:  r.checkpointStageProjAbs,
+		CheckpointBeforeProjAbs: r.checkpointBeforeProjAbs,
+		CheckpointRecordEdit:    r.checkpointRecordEdit,
+		CheckpointCpSeq:         func() int { return r.currentToolCpSeq },
 		ActivateInstructionsFromAbsPath: func(absPath string) {
 			r.activateInstructionsFromAbsPath(absPath)
 		},

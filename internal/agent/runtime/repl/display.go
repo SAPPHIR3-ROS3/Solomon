@@ -8,7 +8,7 @@ import (
 type imgDisplayPainter struct{}
 
 func (imgDisplayPainter) Paint(line []rune, _ int) []rune {
-	return []rune(termcolor.ColorizeImgTagsReplInput(string(line)))
+	return []rune(termcolor.ColorizeReplInputTags(string(line)))
 }
 
 func stripPasteTrigger(line []rune, pos int, key rune) ([]rune, int) {

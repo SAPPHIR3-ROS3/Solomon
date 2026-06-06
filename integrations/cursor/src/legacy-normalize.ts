@@ -98,6 +98,23 @@ function normalizeArgs(
     if (!path) {
       return null;
     }
+    const renameTo =
+      pickString(obj, ["renameTo", "rename_to", "new_path", "newPath", "destination"]) ?? "";
+    if (renameTo) {
+      const oldString =
+        pickString(obj, ["oldString", "old_string", "oldText"]) ?? "";
+      const newString =
+        pickString(obj, ["newString", "new_string", "newText", "content"]) ?? "";
+      if (pickBoolean(obj, ["delete"]) || oldString !== "" || newString !== "") {
+        return null;
+      }
+      return {
+        path,
+        renameTo,
+        intent:
+          pickString(obj, ["intent", "description", "explanation"]) ?? "rename file",
+      };
+    }
     if (pickBoolean(obj, ["delete"])) {
       const oldString =
         pickString(obj, ["oldString", "old_string", "oldText"]) ?? "";

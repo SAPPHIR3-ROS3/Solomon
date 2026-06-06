@@ -258,3 +258,23 @@ func ColorizeImgTags(s string) string {
 func ColorizeImgTagsReplInput(s string) string {
 	return replImgVisibleRE.ReplaceAllStringFunc(s, wrapImgTagReplInput)
 }
+
+var replAtTagRE = regexp.MustCompile(`@[^\s@]+`)
+
+func wrapAtTagReplInput(tag string) string {
+	if runtime.GOOS == "windows" {
+		if !colorOn {
+			return tag
+		}
+		return "\033[30m\033[43m" + tag + resetANSI
+	}
+	return renderStyle(dark.atTag, tag)
+}
+
+func ColorizeAtTagsReplInput(s string) string {
+	return replAtTagRE.ReplaceAllStringFunc(s, wrapAtTagReplInput)
+}
+
+func ColorizeReplInputTags(s string) string {
+	return ColorizeAtTagsReplInput(ColorizeImgTagsReplInput(s))
+}

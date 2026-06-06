@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -68,6 +70,14 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 	}
 	var um chatstore.Message
 	var firstUserLine string
+	if strings.TrimSpace(apiContent) == "" && strings.Contains(line, "@") {
+		entries, err := replcomplete.AtIndexEntries(ctx, replcomplete.ReplCompleteEnv{ProjRoot: r.ProjRoot})
+		if err == nil {
+			if exp, err := atmention.ExpandLine(ctx, line, r.ProjRoot, entries); err == nil && strings.TrimSpace(exp) != "" {
+				apiContent = exp
+			}
+		}
+	}
 	r.mutateSession(func(s *chatstore.Session) {
 		line = images.CanonicalizeUserLineForStorage(line, s.ImageFiles)
 		if strings.TrimSpace(apiContent) != "" {
@@ -101,7 +111,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 			fmt.Fprintln(r.Out)
 		} else {
 			fmt.Fprintln(r.Out)
-			echoLine := termcolor.ColorizeImgTags(line)
+			echoLine := termcolor.ColorizeAtTagsReplInput(termcolor.ColorizeImgTags(line))
 			cpPref := checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey)
 			youLbl := termcolor.WrapUser("You:")
 			fmt.Fprintf(r.Out, "%s%s %s\n", cpPref, youLbl, echoLine)
@@ -376,6 +386,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 			} else {
 				toolCpSeq = r.printToolInvocation(i, inv.Name, inv.Args)
 			}
+			r.currentToolCpSeq = toolCpSeq
 			res, err := r.execTool(runCtx, inv)
 			if interruptedDuringGeneration(ctx, runCtx, err) {
 				if err2 := r.appendSyntheticToolResults(astSeq, invs, toolIDs, i); err2 != nil {

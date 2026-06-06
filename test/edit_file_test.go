@@ -126,6 +126,40 @@ func TestExecEditFileDeleteRejectsOldOrNewString(t *testing.T) {
 	}
 }
 
+func TestExecEditFileRename(t *testing.T) {
+	dir := t.TempDir()
+	src := dir + "/old.txt"
+	if err := os.WriteFile(src, []byte("move me"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	args, err := json.Marshal(map[string]any{
+		"path":     "old.txt",
+		"renameTo": "new.txt",
+		"intent":   "rename test file",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := execEditFileForTest(t, dir, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, ok := res.(map[string]any)
+	if !ok || m["action"] != "renamed" || m["ok"] != true {
+		t.Fatalf("unexpected result: %#v", res)
+	}
+	if _, err := os.Stat(src); !os.IsNotExist(err) {
+		t.Fatalf("src should be gone: %v", err)
+	}
+	b, err := os.ReadFile(dir + "/new.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "move me" {
+		t.Fatalf("got %q", b)
+	}
+}
+
 func TestBuildBuildToolDumpMentionsEditFileDelete(t *testing.T) {
 	dump, err := tools.BuildBuildToolDump()
 	if err != nil {

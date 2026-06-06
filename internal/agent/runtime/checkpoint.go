@@ -6,7 +6,28 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint/staging"
 )
+
+func (r *Runtime) stagingStore() (*staging.Store, error) {
+	if r == nil || r.Session == nil || r.ProjHex == "" || r.Session.ID == "" {
+		return nil, nil
+	}
+	if r.stagingCache != nil && r.stagingCacheSession == r.Session.ID {
+		return r.stagingCache, nil
+	}
+	dir, err := staging.SessionDir(r.ProjHex, r.Session.ID)
+	if err != nil {
+		return nil, err
+	}
+	store, err := staging.Load(dir)
+	if err != nil {
+		return nil, err
+	}
+	r.stagingCache = store
+	r.stagingCacheSession = r.Session.ID
+	return store, nil
+}
 
 func (r *Runtime) checkpointStageProjAbs(absResolved string) {
 	if checkpoint.SkipStagingIfRunningExecutable(absResolved) {
@@ -14,7 +35,41 @@ func (r *Runtime) checkpointStageProjAbs(absResolved string) {
 	}
 }
 
+func (r *Runtime) checkpointBeforeProjAbs(absResolved string) {
+	if checkpoint.SkipStagingIfRunningExecutable(absResolved) {
+		return
+	}
+	store, err := r.stagingStore()
+	if err != nil || store == nil {
+		return
+	}
+	_ = store.RecordBefore(absResolved)
+}
+
+func (r *Runtime) checkpointRecordEdit(kind, absPath, renameTo string, content []byte) {
+	if checkpoint.SkipStagingIfRunningExecutable(absPath) {
+		return
+	}
+	store, err := r.stagingStore()
+	if err != nil || store == nil {
+		return
+	}
+	_ = store.RecordOp(r.currentToolCpSeq, kind, absPath, renameTo, content)
+}
+
 func (r *Runtime) ApplyGotoCheckpoint(id *checkpoint.FullCheckpointID) error {
+	store, _ := r.stagingStore()
+	if store != nil && r.ProjRoot != "" {
+		res, err := store.RestoreToCheckpoint(id.Seq, r.ProjRoot)
+		if err != nil {
+			commands.PrintSystemf(r.Out, "goto: file restore warning: %v", err)
+		} else if res.FilesWritten > 0 || res.FilesRemoved > 0 {
+			commands.PrintSystemf(r.Out, "goto: restored workspace (%d written, %d removed).", res.FilesWritten, res.FilesRemoved)
+		}
+		for _, w := range res.Warnings {
+			commands.PrintSystemf(r.Out, "goto: %s", w)
+		}
+	}
 	var splitErr error
 	var dropCopy []chatstore.Message
 	var truncLen int

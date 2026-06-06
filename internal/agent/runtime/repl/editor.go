@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 
 	readline "github.com/chzyer/readline"
@@ -26,6 +27,9 @@ type multilineEditor struct {
 	rendered      int
 	cursorLine    int
 	suggestSuffix []rune
+	atMatches     []atmention.Entry
+	atSelected    int
+	atCtx         atmention.AtContext
 	out           io.Writer
 }
 
@@ -146,6 +150,11 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 			return true, "", io.EOF
 		}
 	case key.r == '\r' || key.r == '\n':
+		if e.completeAtMention() {
+			e.recomputeAtPicker()
+			e.refresh()
+			return false, "", nil
+		}
 		return true, e.string(), nil
 	case key.r == readline.CharBackspace || key.r == readline.CharCtrlH:
 		e.backspace()
@@ -154,7 +163,11 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 		e.deleteForward()
 		resetHistory = true
 	case key.r == readline.CharTab:
-		resetHistory = e.complete()
+		if e.completeAtMention() {
+			resetHistory = true
+		} else {
+			resetHistory = e.complete()
+		}
 	case key.r == readline.CharLineStart:
 		e.col = 0
 	case key.r == readline.CharLineEnd:
@@ -181,6 +194,7 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 		e.history.resetNav()
 	}
 	e.recomputeSuggest()
+	e.recomputeAtPicker()
 	e.refresh()
 	return false, "", nil
 }
@@ -190,10 +204,18 @@ func (e *multilineEditor) handleSeq(seq string) (bool, string, error) {
 	clearSuggest := false
 	switch seq {
 	case "\x1b[A", "\x1bOA":
-		e.up()
+		if e.atPickerActive() {
+			e.atPickerUp()
+		} else {
+			e.up()
+		}
 		clearSuggest = true
 	case "\x1b[B", "\x1bOB":
-		e.down()
+		if e.atPickerActive() {
+			e.atPickerDown()
+		} else {
+			e.down()
+		}
 		clearSuggest = true
 	case "\x1b[D", "\x1bOD":
 		e.left()
@@ -232,6 +254,7 @@ func (e *multilineEditor) handleSeq(seq string) (bool, string, error) {
 	} else if !resetHistory {
 		e.recomputeSuggest()
 	}
+	e.recomputeAtPicker()
 	e.refresh()
 	return false, "", nil
 }
@@ -278,7 +301,7 @@ func (e *multilineEditor) insertNewline() {
 
 func (e *multilineEditor) backspace() {
 	line := e.lines[e.row]
-	if newLine, newPos, ok := llm.BackspaceOverImgTag(line, e.col); ok {
+	if newLine, newPos, ok := llm.BackspaceOverAtomicReplToken(line, e.col); ok {
 		e.lines[e.row] = newLine
 		e.col = newPos
 		return
@@ -300,7 +323,7 @@ func (e *multilineEditor) backspace() {
 
 func (e *multilineEditor) deleteForward() {
 	line := e.lines[e.row]
-	if newLine, newPos, ok := llm.DeleteForwardOverImgTag(line, e.col); ok {
+	if newLine, newPos, ok := llm.DeleteForwardOverAtomicReplToken(line, e.col); ok {
 		e.lines[e.row] = newLine
 		e.col = newPos
 		return
@@ -316,7 +339,7 @@ func (e *multilineEditor) deleteForward() {
 }
 
 func (e *multilineEditor) left() {
-	if newPos := llm.JumpLeftOverImgTag(e.lines[e.row], e.col); newPos >= 0 {
+	if newPos := llm.JumpLeftOverAtomicReplToken(e.lines[e.row], e.col); newPos >= 0 {
 		e.col = newPos
 		return
 	}
@@ -332,10 +355,13 @@ func (e *multilineEditor) left() {
 
 func (e *multilineEditor) right() {
 	if e.cursorAtBufferEnd() && len(e.suggestSuffix) > 0 {
+		if e.completeAtMention() {
+			return
+		}
 		e.acceptSuggest(false)
 		return
 	}
-	if newPos := llm.JumpRightOverImgTag(e.lines[e.row], e.col); newPos >= 0 {
+	if newPos := llm.JumpRightOverAtomicReplToken(e.lines[e.row], e.col); newPos >= 0 {
 		e.col = newPos
 		return
 	}

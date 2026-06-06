@@ -72,14 +72,14 @@ func (e *multilineEditor) render() int {
 		prompt := e.promptFor(i)
 		fmt.Fprint(e.out, prompt)
 		lineStr := replhl.HighlightInputLine(e.lines, i, e.loop.CompleteEnv.ReplShellFirst, e.loop.CompleteEnv)
-		fmt.Fprint(e.out, termcolor.ColorizeImgTagsReplInput(lineStr))
+		fmt.Fprint(e.out, termcolor.ColorizeReplInputTags(lineStr))
 		lineGhost := ""
 		if i == lineCount-1 && ghost != "" {
 			lineGhost = ghostParts[0]
 		}
 		if lineGhost != "" {
 			fmt.Fprint(e.out, replGhostANSI)
-			fmt.Fprint(e.out, termcolor.ColorizeImgTagsReplInput(lineGhost))
+			fmt.Fprint(e.out, termcolor.ColorizeReplInputTags(lineGhost))
 			fmt.Fprint(e.out, "\x1b[0m")
 		}
 		if lineGhost != "" {
@@ -89,13 +89,27 @@ func (e *multilineEditor) render() int {
 			rows += e.visualRows(prompt, line)
 		}
 	}
+	for i, m := range e.atMatches {
+		if !e.atPickerItemVisible(i) {
+			continue
+		}
+		fmt.Fprint(e.out, "\r\n")
+		marker := "  "
+		if i == e.atSelected {
+			marker = "> "
+		}
+		fmt.Fprint(e.out, replGhostANSI)
+		fmt.Fprintf(e.out, "%s%s", marker, m.RelPath)
+		fmt.Fprint(e.out, "\x1b[0m")
+		rows++
+	}
 	for gi := 1; gi < len(ghostParts); gi++ {
 		fmt.Fprint(e.out, "\r\n")
 		prompt := e.continuePrompt()
 		fmt.Fprint(e.out, prompt)
 		part := ghostParts[gi]
 		fmt.Fprint(e.out, replGhostANSI)
-		fmt.Fprint(e.out, termcolor.ColorizeImgTagsReplInput(part))
+		fmt.Fprint(e.out, termcolor.ColorizeReplInputTags(part))
 		fmt.Fprint(e.out, "\x1b[0m")
 		rows += e.visualRows(prompt, []rune(part))
 	}

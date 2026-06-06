@@ -21,7 +21,7 @@ Version messages within a session with checkpoint sequences and branch suffixes;
 | `checkpoint.StampMsg` | Attach seq/branch to message |
 | `FormatReplPromptPrefix` | `You: ` prompt shows next checkpoint tag |
 | `FormatLinePrefix` | Prefix on echoed user/assistant lines |
-| `Runtime.ApplyGotoCheckpoint` | Rewind session to a checkpoint id |
+| `Runtime.ApplyGotoCheckpoint` | Restore staged workspace files then rewind session to a checkpoint id |
 
 ## Checkpoint display
 
@@ -40,6 +40,10 @@ flowchart TD
 ```
 
 Exact slash names and branch rules: [`checkpoint_cmds.go`](../../internal/agent/commands/checkpoint_cmds.go).
+
+## File staging
+
+`editFile` calls record a per-session staging log under `chats/<session-id>/staging/` (baselines on first touch, operations tagged with checkpoint seq). `ApplyGotoCheckpoint` replays baselines and ops up to the target seq on the project root before truncating the transcript. Shell mutations are not staged in v1.
 
 ## Git OID
 

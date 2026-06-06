@@ -27,9 +27,14 @@ var summarizeSystemRaw string
 //go:embed templates/images.tmpl
 var imagesWorkflowRaw string
 
+//go:embed templates/atmention.tmpl
+var atMentionWorkflowRaw string
+
 var (
 	imagesWorkflowOnce sync.Once
 	imagesWorkflowText string
+	atMentionOnce      sync.Once
+	atMentionText      string
 )
 
 func ImagesWorkflowSection() string {
@@ -37,6 +42,13 @@ func ImagesWorkflowSection() string {
 		imagesWorkflowText = strings.TrimSpace(imagesWorkflowRaw)
 	})
 	return imagesWorkflowText
+}
+
+func AtMentionWorkflowSection() string {
+	atMentionOnce.Do(func() {
+		atMentionText = strings.TrimSpace(atMentionWorkflowRaw)
+	})
+	return atMentionText
 }
 
 type Data struct {
@@ -60,6 +72,7 @@ type Data struct {
 	WorkspaceAbsolutePath string
 	Shell                 string
 	ImagesWorkflow        string
+	AtMentionWorkflow     string
 }
 
 type TitleData struct {
@@ -255,6 +268,7 @@ func render(raw string, d Data) (string, error) {
 	applyRuntimeSystem(&d)
 	d.Shell = EffectiveShell()
 	d.ImagesWorkflow = ImagesWorkflowSection()
+	d.AtMentionWorkflow = AtMentionWorkflowSection()
 	return executeTemplate("p", raw, d)
 }
 

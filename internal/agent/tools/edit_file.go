@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -15,21 +16,25 @@ func signatureEditFile(path, oldString, newString, intent string) {}
 
 func signatureEditFileDelete(path string, delete bool, intent string) {}
 
+func signatureEditFileRename(path, renameTo, intent string) {}
+
 type editArgs struct {
 	Path      string `json:"path"`
 	OldString string `json:"oldString"`
 	NewString string `json:"newString"`
 	Intent    string `json:"intent"`
 	Delete    bool   `json:"delete,omitempty"`
+	RenameTo  string `json:"renameTo,omitempty"`
 }
 
 func editFileOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("editFile", "Replace oldString once with newString; use empty oldString to create or overwrite; set delete=true with empty oldString and newString to remove the file at path.", map[string]any{
+	return nativeToolUnion("editFile", "Replace oldString once with newString; use empty oldString to create or overwrite; set delete=true with empty oldString and newString to remove the file at path; set renameTo to move or rename path.", map[string]any{
 		"path":      map[string]any{"type": "string", "description": "Path relative to project root"},
-		"oldString": map[string]any{"type": "string", "description": "Substring to replace once; empty means create/overwrite when delete is false; must be empty when delete is true"},
-		"newString": map[string]any{"type": "string", "description": "New content or replacement text; must be empty when delete is true"},
+		"oldString": map[string]any{"type": "string", "description": "Substring to replace once; empty means create/overwrite when delete is false; must be empty when delete is true or renameTo is set"},
+		"newString": map[string]any{"type": "string", "description": "New content or replacement text; must be empty when delete is true or renameTo is set"},
 		"delete":    map[string]any{"type": "boolean", "description": "When true, deletes the file at path; oldString and newString must be empty"},
-		"intent":    map[string]any{"type": "string", "description": "Brief phrase describing the purpose of this edit or deletion"},
+		"renameTo":  map[string]any{"type": "string", "description": "When set, renames or moves path to renameTo; oldString, newString must be empty and delete must be false"},
+		"intent":    map[string]any{"type": "string", "description": "Brief phrase describing the purpose of this edit, deletion, or rename"},
 	}, []string{"path", "intent"})
 }
 
@@ -42,12 +47,37 @@ func appendEditFileDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
+	renSig, err := tooling.FuncSignature(signatureEditFileRename)
+	if err != nil {
+		return err
+	}
 	b.addBlock(
 		"editFile",
-		"Replace oldString once with newString; use empty oldString to create or overwrite; use delete=true with empty oldString and newString to remove a file ("+delSig+"). Requires intent (brief purpose).",
+		"Replace oldString once with newString; use empty oldString to create or overwrite; use delete=true with empty oldString and newString to remove a file ("+delSig+"); use renameTo to move or rename path ("+renSig+"). Requires intent (brief purpose).",
 		sig,
 	)
 	return nil
+}
+
+func stageBeforeEdit(env *Env, abs string) {
+	if env != nil && env.CheckpointBeforeProjAbs != nil {
+		env.CheckpointBeforeProjAbs(abs)
+	}
+}
+
+func stageAfterEdit(env *Env, kind, abs, renameTo string) {
+	if env == nil || env.CheckpointRecordEdit == nil {
+		return
+	}
+	var content []byte
+	if kind != "delete" {
+		readPath := abs
+		if renameTo != "" {
+			readPath = renameTo
+		}
+		content, _ = os.ReadFile(readPath)
+	}
+	env.CheckpointRecordEdit(kind, abs, renameTo, content)
 }
 
 func execEditFile(env *Env, raw json.RawMessage) (any, error) {
@@ -62,26 +92,58 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 	if env.ActivateInstructionsFromAbsPath != nil {
 		env.ActivateInstructionsFromAbsPath(p)
 	}
+	if strings.TrimSpace(a.RenameTo) != "" {
+		if a.Delete || a.OldString != "" || a.NewString != "" {
+			return nil, fmt.Errorf("editFile rename requires empty oldString, newString, and delete=false")
+		}
+		dst := resolveProjectPath(env.ProjRoot, a.RenameTo)
+		if _, err := os.Stat(dst); err == nil {
+			return nil, fmt.Errorf("editFile rename: destination already exists")
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+		stageBeforeEdit(env, p)
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(p, dst); err != nil {
+			if os.IsNotExist(err) {
+				return map[string]any{"ok": false, "reason": "file not found"}, nil
+			}
+			return nil, err
+		}
+		stageAfterEdit(env, "rename", p, dst)
+		env.CheckpointStageProjAbs(p)
+		env.CheckpointStageProjAbs(dst)
+		return map[string]any{"ok": true, "action": "renamed", "from": a.Path, "to": a.RenameTo, "intent": a.Intent}, nil
+	}
 	if a.Delete {
 		if a.OldString != "" || a.NewString != "" {
 			return nil, fmt.Errorf("editFile delete requires empty oldString and newString")
 		}
+		stageBeforeEdit(env, p)
 		if err := os.Remove(p); err != nil {
 			if os.IsNotExist(err) {
 				return map[string]any{"ok": false, "reason": "file not found"}, nil
 			}
 			return nil, err
 		}
+		stageAfterEdit(env, "delete", p, "")
 		env.CheckpointStageProjAbs(p)
 		return map[string]any{"ok": true, "action": "deleted", "intent": a.Intent}, nil
 	}
 	if a.OldString == "" && a.NewString == "" {
 		return nil, fmt.Errorf("editFile refuses empty overwrite")
 	}
+	stageBeforeEdit(env, p)
 	if a.OldString == "" {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return nil, err
+		}
 		if err := os.WriteFile(p, []byte(a.NewString), 0o600); err != nil {
 			return nil, err
 		}
+		stageAfterEdit(env, "create", p, "")
 		env.CheckpointStageProjAbs(p)
 		return map[string]any{"ok": true, "action": "created_or_overwrite", "intent": a.Intent}, nil
 	}
@@ -97,6 +159,7 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 	if err := os.WriteFile(p, []byte(s), 0o600); err != nil {
 		return nil, err
 	}
+	stageAfterEdit(env, "patch", p, "")
 	env.CheckpointStageProjAbs(p)
 	return map[string]any{"ok": true, "action": "edited", "intent": a.Intent}, nil
 }
