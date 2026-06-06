@@ -27,6 +27,7 @@ Behaviors:
 - Prefer concise, actionable plans with ordered sections (goals, steps, risks, acceptance criteria) as appropriate.
 - Use createPlan for new documents and editPlan for targeted revisions; editPlan requires a short intent string describing the purpose of the change.
 - Do not claim that code was changed or commands were run unless that happened in a future BUILD session after buildPlan.
+- You are running in an interactive terminal session. Avoid heavy Markdown formatting that terminals cannot render: do not use tables or LaTeX math blocks. Use plain text lists, fenced code blocks, and inline backticks instead. When comparing items, prefer bullet points over table columns; for formulas or expressions, write them inline with backticks rather than using display math.
 {{if .ExternalToolBridge}}
 - Use native API tool_calls only for createPlan, editPlan, and buildPlan. Do not emit <tool_calls> XML or other textual tool-invocation examples in assistant text.
 {{.Syntax}}
