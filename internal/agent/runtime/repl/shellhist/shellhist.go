@@ -71,11 +71,8 @@ const (
 )
 
 func resolveHistoryFile() (string, historyKind) {
-	if runtime.GOOS == "windows" {
-		return psReadLinePath()
-	}
 	sh := strings.ToLower(shell.Effective())
-	if strings.Contains(sh, "fish") {
+	if runtime.GOOS != "windows" && strings.Contains(sh, "fish") {
 		dir, _ := os.UserHomeDir()
 		if dir == "" {
 			return "", historyNone
@@ -88,6 +85,9 @@ func resolveHistoryFile() (string, historyKind) {
 			kind = detectZshFormat(p)
 		}
 		return p, kind
+	}
+	if runtime.GOOS == "windows" {
+		return psReadLinePath()
 	}
 	dir, _ := os.UserHomeDir()
 	if dir == "" {
