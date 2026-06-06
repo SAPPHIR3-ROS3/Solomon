@@ -16,6 +16,7 @@ import (
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint/staging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
@@ -76,6 +77,10 @@ type Runtime struct {
 	ciFinalContent string
 
 	ToolOut *tooloutput.Service
+
+	currentToolCpSeq    int
+	stagingCache        *staging.Store
+	stagingCacheSession string
 
 	Instructions *instructions.Loader
 

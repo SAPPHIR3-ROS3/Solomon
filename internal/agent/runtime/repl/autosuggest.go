@@ -1,9 +1,11 @@
 package repl
 
 import (
+	"context"
 	"os"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl/shellhist"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
@@ -80,6 +82,21 @@ func (e *multilineEditor) recomputeSuggest() {
 	}
 	buf := e.string()
 	if strings.TrimSpace(buf) == "" || bufferHasImgTag(buf) {
+		return
+	}
+	if e.atPickerActive() {
+		entries, err := replcomplete.AtIndexEntries(context.Background(), e.loop.CompleteEnv)
+		if err == nil && len(entries) > 0 && len(e.atMatches) > 0 {
+			sel := e.atMatches[e.atSelected]
+			tag := "@" + atmention.ShortTag(sel.RelPath, entries)
+			line := e.lines[e.row]
+			if e.col <= len(line) && len(tag) > e.col-e.atCtx.ReplaceStart {
+				suf := tag[e.col-e.atCtx.ReplaceStart:]
+				if suf != "" {
+					e.suggestSuffix = []rune(suf)
+				}
+			}
+		}
 		return
 	}
 	env := e.loop.CompleteEnv

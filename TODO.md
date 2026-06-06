@@ -14,8 +14,8 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 2 — Integrazione file completa
 
-- **Stato:** `readFile` / `editFile` + `shell` coprono molti casi; non c’è un insieme esplicito e completo di operazioni file-first (es. rename/delete/list/glob come primitive dedicate, vincoli chiari sul workspace, coerenza con checkpoint).
-- **Cosa manca:** superficie **file** omogenea e “completa” rispetto al flusso agente (operazioni mancanti, semantica unificata, allineamento con vincoli di path/sandbox quando saranno affrontati nella sezione **Sicurezza**).
+- **Stato (parziale):** REPL `@` file/cartelle con picker, tab completion, tag path minimo univoco, navigazione atomica, espansione Codex all’invio (`api_content`); `editFile` con `renameTo`; staging filesystem sui checkpoint (`editFile` mutazioni) con ripristino workspace su `/goto`.
+- **Cosa manca ancora:** tool file-first dedicati opzionali (`listDir`, `glob` separato — oggi `find` + `shell`); vincoli path/sandbox forti (§10 **Sicurezza**); staging per mutazioni `shell`.
 
 ---
 

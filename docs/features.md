@@ -106,6 +106,10 @@ Install skills with `solomon add` / `/add npx … skills add …`, list with `/s
 
 Ctrl+V (key 22) pastes a clipboard image into the session as `[img-n]` plus an on-disk PNG under the chat images directory, sent to vision-capable models. `/cleansessioncache` drops broken pasted PNG paths and strips orphaned `[img-*]` tokens from the transcript. Codex and Claude accept image inputs; macOS `Cmd+V` for images only is **(in the future)**. REPL: [Runtime and REPL](architecture/runtime-and-repl.md#repl-flow).
 
+### @ file and folder mentions in the REPL
+
+Type `@` in the prompt to cite workspace files or directories: a path picker lists matches (full project-relative paths); selection inserts the shortest unique `@tag` (plain path text, no digest). Tags move as atomic units with the arrow keys; on send, Solomon expands file text or a folder tree into `api_content` while the visible transcript keeps the short tags. Codex-style `@` file search is the closest peer. Details: [Terminal setup — Multiline input](user-guide/terminal-setup.md#multiline-input-interactive-repl).
+
 ### OAuth ChatGPT subscription provider
 
 `/connect` can add **ChatGPT Sub** with browser OAuth and Codex-oriented request middleware for OpenAI’s subscription endpoint. Codex CLI’s “Sign in with ChatGPT” is the closest peer. Tokens today live in config TOML; secure vault storage is **(in the future)**.
@@ -116,7 +120,7 @@ Providers may set `api_protocol = anthropic` for native Messages API calls inste
 
 ### Checkpoints and transcript rewind
 
-Each user message advances a checkpoint sequence; `/goto` rewinds or forks the transcript, with tags like `[#012]` in the prompt. `/checkpoint` prints the current checkpoint tag. Fewer agents expose first-class checkpoint ids; Solomon’s model is documented in [Checkpoints](architecture/checkpoints.md).
+Each user message advances a checkpoint sequence; `/goto` rewinds or forks the transcript, with tags like `[#012]` in the prompt. `/checkpoint` prints the current checkpoint tag. `editFile` mutations are staged per session; `/goto` also restores workspace files touched by those edits (byte snapshots, not git). Fewer agents expose first-class checkpoint ids; Solomon’s model is documented in [Checkpoints](architecture/checkpoints.md).
 
 ### Ephemeral sessions
 

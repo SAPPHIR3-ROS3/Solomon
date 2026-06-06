@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -288,6 +289,34 @@ func imageContentPartFromFile(path string) *openai.ChatCompletionContentPartUnio
 			},
 		},
 	}
+}
+
+func JumpLeftOverAtomicReplToken(line []rune, pos int) int {
+	if p := JumpLeftOverImgTag(line, pos); p >= 0 {
+		return p
+	}
+	return atmention.JumpLeftOverTag(line, pos)
+}
+
+func JumpRightOverAtomicReplToken(line []rune, pos int) int {
+	if p := JumpRightOverImgTag(line, pos); p >= 0 {
+		return p
+	}
+	return atmention.JumpRightOverTag(line, pos)
+}
+
+func BackspaceOverAtomicReplToken(line []rune, pos int) ([]rune, int, bool) {
+	if newLine, newPos, ok := BackspaceOverImgTag(line, pos); ok {
+		return newLine, newPos, true
+	}
+	return atmention.DeleteTagAt(line, pos)
+}
+
+func DeleteForwardOverAtomicReplToken(line []rune, pos int) ([]rune, int, bool) {
+	if newLine, newPos, ok := DeleteForwardOverImgTag(line, pos); ok {
+		return newLine, newPos, true
+	}
+	return atmention.DeleteTagForward(line, pos)
 }
 
 func JumpLeftOverImgTag(line []rune, pos int) int {

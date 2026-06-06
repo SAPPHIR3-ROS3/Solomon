@@ -56,6 +56,9 @@ func (c *replCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	if head[trimLeft] == '/' {
 		return c.completeSlash(head, pos, trimLeft)
 	}
+	if suf, off, ok := c.completeAtMention(head, pos); ok {
+		return suf, off
+	}
 	if suf, off, ok := c.completeShellLine(head, pos, trimLeft); ok {
 		return suf, off
 	}

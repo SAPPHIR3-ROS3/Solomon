@@ -45,9 +45,12 @@ Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (
 | `oldString` non-empty, `newString` any | Replace **one** occurrence of `oldString` with `newString` |
 | `oldString` empty, `newString` non-empty, `delete` false/absent | Create or overwrite file at `path` |
 | `delete: true` | Remove file at `path` (`oldString` / `newString` ignored) |
-| `oldString` and `newString` both empty, `delete` false/absent | Rejected (`editFile refuses empty overwrite`) |
+| `renameTo` non-empty | Move/rename `path` to `renameTo`; `oldString`, `newString` empty; `delete` false; destination must not exist |
+| `oldString` and `newString` both empty, `delete` false/absent, `renameTo` empty | Rejected (`editFile refuses empty overwrite`) |
 
 All variants require non-empty `intent`. Paths are relative to the project root. The Cursor sidecar maps Cursor `Delete` to `editFile` with `delete: true` so Solomon remains the executor.
+
+`editFile` mutations are recorded for checkpoint file staging; `/goto` restores the workspace for staged paths (byte snapshots under the session `staging/` directory).
 
 ## `find` semantics (build)
 

@@ -15,6 +15,7 @@ const (
 	colorRed       = "#FF5555"
 	colorGold      = "#FFD700"
 	colorImgBG          = "#00D1F0"
+	colorAtTagBG        = "#B8860B"
 	colorEditFileOldBG  = "#5c0000"
 	colorEditFileNewBG  = "#005c00"
 )
@@ -31,6 +32,7 @@ var dark struct {
 	red       lipgloss.Style
 	boldGold  lipgloss.Style
 	imgTag    lipgloss.Style
+	atTag     lipgloss.Style
 	editOld   lipgloss.Style
 	editNew   lipgloss.Style
 }
@@ -50,6 +52,9 @@ func rebuildTheme() {
 	dark.imgTag = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorWhite)).
 		Background(lipgloss.Color(colorImgBG))
+	dark.atTag = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colorWhite)).
+		Background(lipgloss.Color(colorAtTagBG))
 	dark.editOld = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorWhite)).
 		Background(lipgloss.Color(colorEditFileOldBG))
