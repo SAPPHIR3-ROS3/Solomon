@@ -17,6 +17,14 @@ type cursorNativeToolEvent struct {
 	Error  string          `json:"error"`
 }
 
+func (r *Runtime) PrintCursorNativeToolEvent(rawJSON string) {
+	r.printCursorNativeToolEvent(rawJSON)
+}
+
+func (r *Runtime) CursorNativeToolsEnabled() bool {
+	return r.cursorNativeToolsEnabled()
+}
+
 func (r *Runtime) cursorNativeToolsEnabled() bool {
 	return r != nil && r.Prov != nil && r.Prov.IsCursorAPI() &&
 		r.Cfg != nil && r.Cfg.Tools.CursorInternalTools

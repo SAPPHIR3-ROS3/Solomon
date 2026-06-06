@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	codexchat "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex/chat"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
 
@@ -32,5 +33,33 @@ func TestUserFacingAPIError_codexDetailJSON(t *testing.T) {
 	got := llm.UserFacingAPIError(errors.New(raw))
 	if !strings.Contains(got, "message: something went wrong") {
 		t.Fatalf("got:\n%s", got)
+	}
+}
+
+func TestHumanizeCodexUpstreamError_unsupportedModel(t *testing.T) {
+	t.Parallel()
+	err := codexchat.ChatGPTSubUpstreamError(400, []byte(`{"detail":"The 'gpt-5.4' model is not supported when using Codex with a ChatGPT account."}`), "gpt-5.4")
+	got := strings.TrimPrefix(err.Error(), "ChatGPT Sub: ")
+	for _, want := range []string{`model "gpt-5.4"`, "/models", "gpt-5.4-mini"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %q", want, got)
+		}
+	}
+}
+
+func TestParseCodexUpstreamDetail(t *testing.T) {
+	t.Parallel()
+	err := codexchat.ChatGPTSubUpstreamError(400, []byte(`{"detail":"quota exceeded"}`), "")
+	got := strings.TrimPrefix(err.Error(), "ChatGPT Sub: ")
+	if got != "quota exceeded" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestChatGPTSubUpstreamError_wrapsMessage(t *testing.T) {
+	t.Parallel()
+	err := codexchat.ChatGPTSubUpstreamError(400, []byte(`{"detail":"The 'gpt-5.4' model is not supported when using Codex with a ChatGPT account."}`), "gpt-5.4")
+	if !strings.HasPrefix(err.Error(), "ChatGPT Sub: ") {
+		t.Fatalf("got %v", err)
 	}
 }

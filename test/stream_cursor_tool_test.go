@@ -1,10 +1,14 @@
-package llm
+package test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+)
 
 func TestParseCursorToolEventFromChunkRawJSON(t *testing.T) {
 	raw := `{"solomon_cursor_tool_event":{"name":"Read","status":"running","args":{"path":"a.go"}}}`
-	got := parseCursorToolEventFromChunkRawJSON(raw)
+	got := llm.ParseCursorToolEventFromChunkRawJSON(raw)
 	if got == "" {
 		t.Fatal("expected event json")
 	}
