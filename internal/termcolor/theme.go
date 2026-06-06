@@ -36,6 +36,7 @@ var dark struct {
 }
 
 func rebuildTheme() {
+	rebuildZshStyles()
 	dark.user = lipgloss.NewStyle().Foreground(lipgloss.Color(colorUser))
 	dark.assistant = lipgloss.NewStyle().Foreground(lipgloss.Color(colorAssistant))
 	dark.tool = lipgloss.NewStyle().Foreground(lipgloss.Color(colorTool))

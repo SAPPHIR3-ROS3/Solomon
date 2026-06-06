@@ -18,8 +18,9 @@ var (
 )
 
 type InitOptions struct {
-	Out     io.Writer
-	NoColor bool
+	Out        io.Writer
+	NoColor    bool
+	ForceColor bool
 }
 
 func Init(opts InitOptions) {
@@ -29,10 +30,12 @@ func Init(opts InitOptions) {
 	if out == nil {
 		out = os.Stdout
 	}
-	colorOn = colorsEnabled(out, opts.NoColor)
+	colorOn = colorsEnabled(out, opts.NoColor, opts.ForceColor)
 	r := lipgloss.NewRenderer(out)
 	if !colorOn {
 		r.SetColorProfile(termenv.Ascii)
+	} else {
+		r.SetColorProfile(termenv.ANSI256)
 	}
 	lipgloss.SetDefaultRenderer(r)
 	rebuildTheme()
@@ -46,9 +49,12 @@ func Plain(s string) string {
 	return ansiStrip.ReplaceAllString(s, "")
 }
 
-func colorsEnabled(w io.Writer, explicitNoColor bool) bool {
+func colorsEnabled(w io.Writer, explicitNoColor, forceColor bool) bool {
 	if explicitNoColor {
 		return false
+	}
+	if forceColor {
+		return true
 	}
 	if os.Getenv("NO_COLOR") != "" {
 		return false
