@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl/replhl"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
@@ -70,7 +71,8 @@ func (e *multilineEditor) render() int {
 		}
 		prompt := e.promptFor(i)
 		fmt.Fprint(e.out, prompt)
-		fmt.Fprint(e.out, termcolor.ColorizeImgTagsReplInput(string(line)))
+		lineStr := replhl.HighlightInputLine(e.lines, i, e.loop.CompleteEnv.ReplShellFirst, e.loop.CompleteEnv)
+		fmt.Fprint(e.out, termcolor.ColorizeImgTagsReplInput(lineStr))
 		lineGhost := ""
 		if i == lineCount-1 && ghost != "" {
 			lineGhost = ghostParts[0]

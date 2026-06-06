@@ -5,10 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 
 	readline "github.com/chzyer/readline"
 )
@@ -89,31 +87,7 @@ func (c *replCompleter) completeSlash(line []rune, pos, trimLeft int) ([][]rune,
 
 
 func (c *replCompleter) slashCommandNames() []string {
-	seen := make(map[string]struct{})
-	var out []string
-	add := func(name string) {
-		name = strings.ToLower(strings.TrimSpace(name))
-		if name == "" {
-			return
-		}
-		if _, ok := seen[name]; ok {
-			return
-		}
-		seen[name] = struct{}{}
-		out = append(out, name)
-	}
-	for _, n := range commands.SlashBuiltinNames() {
-		add(n)
-	}
-	if c.env.ProjHex != "" || c.env.ProjRoot != "" {
-		skillNames, err := skills.InstalledSlashCommandNames(c.env.ProjHex, c.env.ProjRoot)
-		if err == nil {
-			for _, n := range skillNames {
-				add(n)
-			}
-		}
-	}
-	return out
+	return SlashCommandNames(c.env)
 }
 
 func (c *replCompleter) completeArg(cmd string, line []rune, pos, argStart int, argPrefix string) ([][]rune, int) {

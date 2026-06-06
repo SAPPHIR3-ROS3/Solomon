@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl/shelllex"
 )
 
 var pathEnvVarRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)`)
@@ -19,9 +21,9 @@ func pathCompletionSpanInShell(shell []rune, cursor int) (pathCompletionSpan, bo
 	if cursor < 0 || cursor > len(shell) {
 		return pathCompletionSpan{}, false
 	}
-	tokStart, _ := shellTokenBounds(shell, cursor)
+	tokStart, _ := shelllex.ShellTokenBounds(shell, cursor)
 	raw := string(shell[tokStart:cursor])
-	inQuotes, _ := quoteStateAt(shell, cursor)
+	inQuotes, _ := shelllex.QuoteStateAt(shell, cursor)
 	if len(raw) > 0 && (raw[0] == '"' || raw[0] == '\'') {
 		inQuotes = true
 	}
