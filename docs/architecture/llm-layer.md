@@ -13,6 +13,20 @@ Translate `chatstore` messages into provider API requests, stream assistant outp
 
 Runtime holds `CompletionBackend` (`NewCompletionBackend` in [`internal/llm/factory.go`](../../internal/llm/factory.go)). OpenAI-compatible and ChatGPT Sub providers use `openai`; Anthropic Compatible API providers use `anthropic`.
 
+## ChatGPT Sub (Codex OAuth)
+
+Subscription providers use the OpenAI backend with Codex-oriented middleware instead of a static API key.
+
+| Area | Path | Role |
+|------|------|------|
+| OAuth / PKCE | `internal/auth/openai/codex/oauth.go`, `pkce.go` | Browser login, token exchange, refresh |
+| JWT / account | `internal/auth/openai/codex/jwt.go` | Parse account id from id_token |
+| HTTP middleware | `internal/auth/openai/codex/chatgpt_middleware.go` | Attach bearer token, Codex headers |
+| SSE transform | `internal/auth/openai/codex/chat/sse_*.go` | Stream shaping for subscription endpoint |
+| Setup UX | `internal/providersetup/`, `commands/connect/` | `/connect` wizard and provider blocks in TOML |
+
+Tokens are stored in `config.toml` today (secure vault is planned — see [TODO.md](../../TODO.md)). Tests: [`test/provider_auth_test.go`](../../test/provider_auth_test.go), [`test/codex_upstream_error_test.go`](../../test/codex_upstream_error_test.go).
+
 ## Packages and files
 
 | Package / file | Responsibility |
@@ -101,3 +115,4 @@ sequenceDiagram
 - [Agent turn pipeline](agent-turn-pipeline.md)
 - [Sessions and storage](sessions-and-storage.md)
 - [Configuration](../user-guide/configuration.md)
+- [Supporting packages — ChatGPT Sub auth](supporting-packages.md#chatgpt-sub-auth)

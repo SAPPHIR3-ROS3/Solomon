@@ -18,20 +18,34 @@ Compared to IDE-hosted or vendor-locked CLIs, Solomon keeps backend and workspac
 
 | Path | Role |
 |------|------|
-| `cmd/solomon/` | Single binary entry |
-| `internal/agent/runtime/` | REPL, turns, persistence, MCP on runtime |
-| `internal/agent/commands/` | Slash command implementations |
+| `cmd/solomon/` | Single binary entry (`main.go`, `exec.go`) |
+| `internal/agent/runtime/` | REPL, turns, persistence, MCP, Cursor — [Runtime hub](runtime.md) |
+| `internal/agent/commands/` | Slash command implementations and `/connect` wizard |
 | `internal/agent/tools/` | Native OpenAI tools (plan/build) |
-| `internal/agent/slash.go` | Slash parsing and dispatch |
-| `internal/llm/` | Streaming, message params, usage |
+| `internal/agent/toolenv/` | `Env` struct — runtime callbacks passed into tools |
+| `internal/agent/slash/` | Slash parsing and dispatch (`dispatch.go`) |
+| `internal/agent/slash_forward.go` | Public `agent.SlashDispatch` re-export |
+| `internal/agent/cievents/` | CI event schema for `exec --json` / `--jsonl` |
+| `internal/llm/` | Streaming, message params, usage, provider backends |
+| `internal/auth/openai/codex/` | ChatGPT Sub OAuth (PKCE), token refresh, Codex middleware |
 | `internal/prompt/` | System prompt templates |
 | `internal/chatstore/` | Session JSON I/O |
 | `internal/mcp/` | MCP client manager and adapter |
 | `internal/config/`, `internal/paths/`, `internal/project/` | Config and layout |
+| `internal/providersetup/` | Provider-specific onboard flows (`/connect`, wizard) |
 | `internal/skills/` | Skill registry and install |
+| `internal/instructions/` | `AGENTS.md` / fallbacks loader and cache |
 | `internal/checkpoint/` | Checkpoint sequences and labels |
 | `internal/tooling/` | Legacy `<tool_calls>` XML parse/stream; shared invocation types |
+| `internal/tooloutput/` | Tool result truncation and spill to `temp/` |
+| `internal/atmention/` | `@` file/folder tags, short tags, picker scoring |
 | `internal/search/` | Web search backends for `webSearch` |
+| `internal/integrations/cursor/` | Cursor sidecar install paths and health |
+| `integrations/cursor/` | Node sidecar — [Cursor integration](cursor-integration.md) |
+| `internal/updater/` | GitHub release check, install, restart |
+| `test/` | Integration and unit tests (package `test`) |
+
+Full checklist with tiers: **[Package index](package-index.md)**.
 
 ## Package dependency graph
 
@@ -39,8 +53,10 @@ Compared to IDE-hosted or vendor-locked CLIs, Solomon keeps backend and workspac
 flowchart TB
   cmd[cmd_solomon]
   runtime[agent_runtime]
-  slash[slash_commands]
+  slash_pkg[agent_slash]
+  commands[agent_commands]
   llm_pkg[internal_llm]
+  auth[codex_auth]
   store[chatstore]
   proj_mod[internal_project]
   skills_pkg[internal_skills]
@@ -50,13 +66,16 @@ flowchart TB
   cmd --> cfg
   cmd --> proj_mod
   cmd --> runtime
-  runtime --> slash
+  runtime --> slash_pkg
+  slash_pkg --> commands
+  slash_pkg --> skills_pkg
   runtime --> llm_pkg
   runtime --> store
   runtime --> proj_mod
   runtime --> mcp_pkg
-  slash --> skills_pkg
+  llm_pkg --> auth
   llm_pkg --> prompt_pkg
+  commands --> cfg
 ```
 
 **Shape:** [`cmd/solomon/main.go`](../../cmd/solomon/main.go) loads config, resolves the project, builds `agentruntime.Runtime`, calls `InitMCP`, then `Run` (REPL) or `RunPromptOnce`. Runtime owns readline, slash bridge, chat turns, and session writes.
@@ -79,6 +98,8 @@ flowchart TB
 
 ## See also
 
+- [Package index](package-index.md)
+- [Runtime hub](runtime.md)
 - [Startup and CLI](startup-and-cli.md)
 - [Agent turn pipeline](agent-turn-pipeline.md)
 - [Native tools](native-tools.md)

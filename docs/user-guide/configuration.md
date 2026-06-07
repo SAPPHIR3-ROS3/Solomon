@@ -70,11 +70,11 @@ Architecture: [Agent turn pipeline](../architecture/agent-turn-pipeline.md#legac
 
 ### Cursor integration (tool execution)
 
-When Solomon uses the optional **Cursor API sidecar** (`/integrations`), inference may run through Cursor’s agent SDK while **tool execution on your project must stay in Solomon** (Go `tools.Exec` on the real project root).
+When the active provider is **Cursor API**, Solomon starts a local OpenAI-compatible **sidecar** and (by default) keeps **tool execution in Go** on your project root.
 
 | Key | Default | Role |
 |-----|---------|------|
-| `cursor_internal_tools` | **`false`** (omit or unset) | When **false**, Cursor built-in tools (`Read`, `Shell`, `Task`, …) are **not** allowed to run against your repo; the sidecar intercepts or blocks them and returns Solomon tool calls instead. When **true**, the sidecar may let Cursor execute its native tools on the project — **avoid unless you explicitly want that**. |
+| `cursor_internal_tools` | **`false`** (omit or unset) | When **false**, Cursor built-in tools must not run against your repo; the sidecar bridges to Solomon tool names. When **true**, Cursor may execute native tools on the project — avoid unless intentional. |
 
 Example (recommended):
 
@@ -83,34 +83,13 @@ Example (recommended):
 cursor_internal_tools = false
 ```
 
-Sidecar env (set by Solomon when starting the proxy): `CURSOR_API_ALLOW_INTERNAL_TOOLS=true` only when `cursor_internal_tools = true` in config.
+**Setup:** `/connect` → Cursor API (requires Node.js). **Status:** `/integrations` (URL, health, install path). **Fast mode:** `/fast` when the provider supports it.
 
-#### Fail-closed behavior (`cursor_internal_tools = false`)
+Sidecar env (set by Solomon at start): `CURSOR_API_ALLOW_INTERNAL_TOOLS=true` only when `cursor_internal_tools = true`.
 
-With the default, several layers stack:
+Architecture (fail-closed layers, HTTP API, tool bridge, debug): **[Cursor integration](../architecture/cursor-integration.md)**.
 
-1. **Deny hooks** — `.solomon-cursor-guard/.cursor/hooks.json` rejects common Cursor tools (`Shell`, `Read`, `Write`, `Edit`, `Grep`, `Glob`, `Delete`, `Task`) with `permission: deny` and `failClosed: true`.
-2. **Isolated workspace** — the Cursor agent’s `cwd` is `.solomon-cursor-guard/`, not your project root, so accidental native file/shell ops do not target the repo.
-3. **Dummy MCP `solomon`** — exposes tool **schemas** from the current request; `tools/call` does **not** execute on disk (returns an error after a safety timeout). Solomon is the only executor.
-4. **Stream proxy** — the sidecar watches Cursor stream events: mappable calls (e.g. `Read` → `readFile`, MCP `solomon` unwrap) become Solomon invocations; the Cursor run is stopped (`forceStopRun`); unmapped or disallowed tools are blocked and reported via `solomon_proxy_correction`.
-
-Solomon then runs `readFile`, `shell`, `editFile`, etc. on the **real** project path.
-
-#### Name mapping vs execution
-
-The sidecar may **translate** Cursor-native names to Solomon names (`Task` → `subagent`, `Delete` → `editFile` with `delete: true`, …). That is **not** Cursor executing your project: it is recognition + handoff so the model’s habit vocabulary still reaches Solomon’s executor. Tools present in the request `tools[]` list are also accepted by **exact Solomon name** without maintaining a fixed map.
-
-#### When `cursor_internal_tools = true`
-
-Hooks and guard workspace are **not** used; the agent may run with your project as `cwd`. Native Cursor tools can execute there. Use only for debugging or deliberate Cursor-native workflows — not for “Solomon owns all tools” setups.
-
-While native tools run, the sidecar streams **`solomon_cursor_tool_event`** chunks (tool name, status, args, result). Solomon prints them in the REPL as `Tool: Read (cursor) …` so you see the same activity you would in Cursor, even though Solomon does not execute those calls.
-
-#### Limits
-
-Hook matchers do not cover every possible Cursor tool name (e.g. some browser or alias names rely on the stream proxy). External MCP servers from Cursor are blocked (`mcp:external`). Guarantees depend on the sidecar version and Cursor SDK behavior; keep `cursor_internal_tools = false` for production Solomon sessions.
-
-Implementation: [`integrations/cursor/`](../integrations/cursor/), [`internal/integrations/cursor/`](../internal/integrations/cursor/). Architecture detail: [Native tools — Cursor sidecar proxy](../architecture/native-tools.md#cursor-sidecar-proxy).
+Implementation paths: [`integrations/cursor/`](../../integrations/cursor/), [`internal/integrations/cursor/`](../../internal/integrations/cursor/).
 
 You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic Compatible API), or manage providers and models in the REPL with `/connect` and `/models`.
 

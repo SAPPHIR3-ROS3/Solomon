@@ -31,6 +31,8 @@ jobs:
           go run scripts/cursor_bundler.go build
           go run scripts/cursor_bundler.go bundle
       - run: go vet ./...
+      - run: go run scripts/check_doc_paths.go
+      - run: go run scripts/check_package_index.go
       - run: go test ./... -count=1
       - name: Build solomon with embedded version metadata
         shell: bash

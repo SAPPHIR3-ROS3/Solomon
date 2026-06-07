@@ -90,13 +90,20 @@ See [Configuration — `[tools]`](../user-guide/configuration.md#tools-legacy-xm
 
 ## Nested agents
 
-`subagent` tool and `runtime/nested.go` run a nested stream with a separate system prompt and return a string to the parent tool result (subchat files optional; see [Sessions and storage](sessions-and-storage.md)).
+The `subagent` tool calls [`nested.go`](../../internal/agent/runtime/nested.go) for an isolated nested stream. Detail: [Runtime — orchestration](runtime-orchestration.md#nested-subagent).
 
-Default nested runs use the build-mode system template (`runNested`). Custom `sysPromptPath` files are merged with inherited instruction blocks; when legacy tools are enabled and the prompt is not the full build template, Solomon appends the tool-invocation syntax section, and when `legacy_force` is on it also appends the build tool dump (native API schemas are omitted in force mode).
+| Step | Behavior |
+|------|----------|
+| Entry | `tools/subagent` → `Runtime.runNested` or `runNestedWithSystem` |
+| Prompt | Build-mode template by default; optional custom `sysPromptPath` merged with inherited instructions |
+| Tools | Build tool dump + MCP dump; legacy syntax appended when `[tools].legacy` and not full build template |
+| Result | Consolidated string returned to parent tool message (subchat files optional) |
+
+Subchat persistence: [Sessions and storage](sessions-and-storage.md).
 
 ## Tool output limits
 
-After each tool returns, `applyToolOutput` serializes the result and, when it exceeds configured **byte** or **line** thresholds (defaults: 64 KiB, 2048 lines), returns a `---TRUNCATED---` block with `full output at <path>` and writes the full payload to `projects/<project-id>/temp/`. Spill cleanup runs when the **last** Solomon process exits; if other instances are still running, the project id is appended to `~/.solomon/temp.txt` (only when this session produced a spill). Optional overrides: `[tool_output]` in `config.toml`. `readFile` accepts optional `startLine` / `endLine` (1-based) for line-range reads before truncation runs.
+After each tool returns, `applyToolOutput` (via [`internal/tooloutput/`](../../internal/tooloutput/)) serializes the result and, when it exceeds configured **byte** or **line** thresholds (defaults: 64 KiB, 2048 lines), returns a `---TRUNCATED---` block with `full output at <path>` and writes the full payload to `projects/<project-id>/temp/`. Spill cleanup runs when the **last** Solomon process exits; if other instances are still running, the project id is appended to `~/.solomon/temp.txt` (only when this session produced a spill). Optional overrides: `[tool_output]` in `config.toml`. `readFile` accepts optional `startLine` / `endLine` (1-based) for line-range reads before truncation runs. Details: [Supporting packages — Tool output spill](supporting-packages.md#tool-output-spill). Tests: [`test/tooloutput_test.go`](../../test/tooloutput_test.go).
 
 ## Extension points
 
@@ -107,6 +114,7 @@ After each tool returns, `applyToolOutput` serializes the result and, when it ex
 
 - [`internal/agent/runtime/turns.go`](../../internal/agent/runtime/turns.go)
 - [`internal/llm/stream.go`](../../internal/llm/stream.go)
+- [`internal/tooloutput/service.go`](../../internal/tooloutput/service.go)
 
 ## See also
 
