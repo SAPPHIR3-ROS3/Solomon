@@ -3,6 +3,7 @@ package repl
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -30,8 +31,9 @@ type multilineEditor struct {
 	atMatches     []atmention.Entry
 	atSelected    int
 	atCtx         atmention.AtContext
-	out           io.Writer
-	wrapDisabled  bool
+	out              io.Writer
+	wrapDisabled     bool
+	wrapClearPrevRow bool
 }
 
 func readMultilineInput(loop *Loop, history *inputHistory) (string, error) {
@@ -196,6 +198,12 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 	}
 	e.recomputeSuggest()
 	e.recomputeAtPicker()
+	if e.wrapClearPrevRow {
+		e.wrapClearPrevRow = false
+		fmt.Fprint(e.out, "\x1b[1A\x1b[2K\x1b[1B\r\x1b[2K")
+		e.cursorLine = 0
+		e.rendered = 0
+	}
 	e.refresh()
 	return false, "", nil
 }
@@ -301,16 +309,13 @@ func (e *multilineEditor) insertRune(r rune) {
 		if cells > e.width {
 			splitAt := e.findWrapSplit(prompt)
 			if splitAt >= 0 {
+				e.wrapClearPrevRow = true
 				e.col = splitAt + 1 // after the space
 				e.insertNewline()
 				// Position cursor at the end of the overflow word on the
 				// new line so the typed character is appended, not prepended.
 				e.col = len(e.lines[e.row])
 				e.insertRuneRaw(r)
-				// Reset rendering state to avoid ghost lines and
-				// the input climbing up over previous session output.
-				e.cursorLine = 0
-				e.rendered = 0
 				e.suggestSuffix = nil
 				return
 			}
