@@ -151,7 +151,14 @@ func CompactSummaryBody(sep, summaryLLM, retainedBlock string) string {
 // RenderCompactSummaryBody applies terminal color to a plain-text summary body
 // for display only. The returned string must never be persisted.
 func RenderCompactSummaryBody(body string) string {
-	return termcolor.WrapContext(body)
+	if body == "" {
+		return ""
+	}
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		lines[i] = termcolor.WrapContext(line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // SummarizeProgressLine returns the progress line text for a given number of dots.
