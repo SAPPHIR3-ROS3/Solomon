@@ -38,6 +38,12 @@ func getSlashBuiltins() []slashBuiltin {
 		return slashBuiltins
 	}
 	slashBuiltins = []slashBuiltin{
+		{[]string{"docs"}, "/docs", "/docs <query> — search embedded Solomon docs; keeps /docs ... visible in chat", nil, func(d Deps, parts []string) error {
+			if len(parts) < 2 {
+				return fmt.Errorf("usage: /docs <query>")
+			}
+			return RunDocsSlash(d, strings.Join(parts, " "))
+		}},
 		{[]string{"plan"}, "/plan", "planning tools only", nil, func(d Deps, parts []string) error { return Plan(d) }},
 		{[]string{"build"}, "/build", "build tools (shell, files, subagent)", nil, func(d Deps, parts []string) error { return Build(d) }},
 		{[]string{"clear"}, "/clear", "clear terminal (ANSI)", nil, func(d Deps, parts []string) error { return Clear(d) }},

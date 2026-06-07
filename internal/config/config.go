@@ -22,6 +22,10 @@ const MinCompactionThresholdTokens int64 = 32768
 
 const DefaultSkillSearchMinNormalizedScore = 0.05
 
+const DefaultDocSearchMinNormalizedScore = 0.05
+
+const DefaultDocSearchFullArticleScore = 0.9
+
 const DefaultWebSearchEngine = "duckduckgo"
 
 const DefaultToolOutputMaxBytes = 65536
@@ -81,6 +85,8 @@ type Root struct {
 	ResponseLanguage          string               `toml:"response_language"`
 	CompactionThresholdTokens int64                `toml:"compaction_threshold_tokens"`
 	SkillSearchMinNorm        *float64             `toml:"skill_search_min_normalized_score,omitempty"`
+	DocSearchMinNorm          *float64             `toml:"doc_search_min_normalized_score,omitempty"`
+	DocSearchFullArticleScore *float64             `toml:"doc_search_full_article_score,omitempty"`
 	WebSearchEngine           string               `toml:"web_search_engine,omitempty"`
 	WebSearchAPIKey           string               `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string               `toml:"web_search_base_url,omitempty"`
@@ -157,6 +163,28 @@ func EffectiveSkillSearchMinNorm(r *Root) float64 {
 	v := *r.SkillSearchMinNorm
 	if v < 0 || v > 1 {
 		return DefaultSkillSearchMinNormalizedScore
+	}
+	return v
+}
+
+func EffectiveDocSearchMinNorm(r *Root) float64 {
+	if r == nil || r.DocSearchMinNorm == nil {
+		return DefaultDocSearchMinNormalizedScore
+	}
+	v := *r.DocSearchMinNorm
+	if v < 0 || v > 1 {
+		return DefaultDocSearchMinNormalizedScore
+	}
+	return v
+}
+
+func EffectiveDocSearchFullArticleScore(r *Root) float64 {
+	if r == nil || r.DocSearchFullArticleScore == nil {
+		return DefaultDocSearchFullArticleScore
+	}
+	v := *r.DocSearchFullArticleScore
+	if v < 0 || v > 1 {
+		return DefaultDocSearchFullArticleScore
 	}
 	return v
 }

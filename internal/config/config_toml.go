@@ -60,6 +60,10 @@ type rootLegacyFile struct {
 
 	SkillSearchMinNorm        *float64         `toml:"skill_search_min_normalized_score,omitempty"`
 
+	DocSearchMinNorm          *float64         `toml:"doc_search_min_normalized_score,omitempty"`
+
+	DocSearchFullArticleScore *float64         `toml:"doc_search_full_article_score,omitempty"`
+
 	WebSearchEngine           string           `toml:"web_search_engine,omitempty"`
 
 	WebSearchAPIKey           string           `toml:"web_search_api_key,omitempty"`
@@ -113,6 +117,10 @@ type rootFile struct {
 	CompactionThresholdTokens int64               `toml:"compaction_threshold_tokens"`
 
 	SkillSearchMinNorm        *float64            `toml:"skill_search_min_normalized_score,omitempty"`
+
+	DocSearchMinNorm          *float64            `toml:"doc_search_min_normalized_score,omitempty"`
+
+	DocSearchFullArticleScore *float64            `toml:"doc_search_full_article_score,omitempty"`
 
 	WebSearchEngine           string              `toml:"web_search_engine,omitempty"`
 
@@ -190,6 +198,10 @@ func rootFromFile(f *rootFile) *Root {
 
 		SkillSearchMinNorm:        f.SkillSearchMinNorm,
 
+		DocSearchMinNorm:          f.DocSearchMinNorm,
+
+		DocSearchFullArticleScore: f.DocSearchFullArticleScore,
+
 		WebSearchEngine:           f.WebSearchEngine,
 
 		WebSearchAPIKey:           f.WebSearchAPIKey,
@@ -255,6 +267,10 @@ func rootToFile(r *Root) *rootFile {
 		CompactionThresholdTokens: r.CompactionThresholdTokens,
 
 		SkillSearchMinNorm:        r.SkillSearchMinNorm,
+
+		DocSearchMinNorm:          r.DocSearchMinNorm,
+
+		DocSearchFullArticleScore: r.DocSearchFullArticleScore,
 
 		WebSearchEngine:           r.WebSearchEngine,
 
@@ -361,6 +377,10 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		CompactionThresholdTokens: f.CompactionThresholdTokens,
 
 		SkillSearchMinNorm:        f.SkillSearchMinNorm,
+
+		DocSearchMinNorm:          f.DocSearchMinNorm,
+
+		DocSearchFullArticleScore: f.DocSearchFullArticleScore,
 
 		WebSearchEngine:           f.WebSearchEngine,
 

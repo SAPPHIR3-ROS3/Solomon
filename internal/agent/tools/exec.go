@@ -26,7 +26,8 @@ func resolveToolInvocation(ctx context.Context, env *Env, mode string, inv tooli
 
 func isInternalToolName(name string) bool {
 	switch name {
-	case "createPlan", "editPlan", "buildPlan",
+	case "docsRetrieval",
+		"createPlan", "editPlan", "buildPlan",
 		"shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch":
 		return true
 	default:
@@ -40,6 +41,8 @@ func isSkillToolName(name string) bool {
 
 func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (any, error) {
 	switch inv.Name {
+	case "docsRetrieval":
+		return execDocsRetrieval(env, inv.Args)
 	case "createPlan":
 		if mode != "plan" {
 			err := fmt.Errorf("tool %s only in /plan mode", inv.Name)
