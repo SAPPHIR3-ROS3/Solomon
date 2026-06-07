@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -126,5 +127,65 @@ func TestSummarizeProgressStopWaitsForGoroutine(t *testing.T) {
 	}
 	if !strings.Contains(out, "Summarizing") {
 		t.Errorf("output missing 'Summarizing', got: %q", out)
+	}
+}
+
+func TestApplyCompaction_archivesUncompactedRaw(t *testing.T) {
+	sess := &chatstore.Session{
+		Messages: []chatstore.Message{
+			{Role: "user", Content: "hello"},
+			{Role: "assistant", Content: "hi", ToolCalls: []chatstore.ToolCall{{ID: "c1", Name: "shell", Arguments: "{}"}}},
+		},
+		CheckpointLast:         3,
+		CheckpointBranchSuffix: "a",
+		ForkChildCount:         map[int]int{3: 1},
+		MainOrphans: []chatstore.MainOrphanSegment{{
+			ForkAtInclusive: 4,
+			Messages:        []chatstore.Message{{Role: "tool", Content: "ok", ToolCallID: "c1"}},
+		}},
+		LastCommitOID: "abc123",
+	}
+	chatstore.ApplyCompaction(sess, "compact body", time.Unix(1700000000, 0))
+
+	if len(sess.Messages) != 1 || sess.Messages[0].Content != "compact body" {
+		t.Fatalf("messages=%+v", sess.Messages)
+	}
+	if len(sess.UncompactedRaw) != 1 {
+		t.Fatalf("uncompactedRaw len=%d", len(sess.UncompactedRaw))
+	}
+	dump := sess.UncompactedRaw[0]
+	if dump.CompactAt.Unix() != 1700000000 {
+		t.Fatalf("compact_at=%v", dump.CompactAt)
+	}
+	if len(dump.Messages) != 2 || dump.Messages[1].ToolCalls[0].ID != "c1" {
+		t.Fatalf("archived messages=%+v", dump.Messages)
+	}
+	if dump.CheckpointLast != 3 || dump.CheckpointBranchSuffix != "a" {
+		t.Fatalf("checkpoint fields not archived: %+v", dump)
+	}
+	if dump.ForkChildCount[3] != 1 || len(dump.MainOrphans) != 1 || dump.LastCommitOID != "abc123" {
+		t.Fatalf("branch metadata not archived: %+v", dump)
+	}
+	if len(sess.MainOrphans) != 0 || sess.CheckpointLast != -1 {
+		t.Fatalf("live branch state not cleared: orphans=%+v cp=%d", sess.MainOrphans, sess.CheckpointLast)
+	}
+}
+
+func TestApplyCompaction_appendsOnRecompact(t *testing.T) {
+	sess := &chatstore.Session{
+		Messages: []chatstore.Message{{Role: "user", Content: "first"}},
+	}
+	chatstore.ApplyCompaction(sess, "first compact", time.Unix(1, 0))
+	sess.Messages = []chatstore.Message{{Role: "user", Content: "after first compact"}}
+	chatstore.ApplyCompaction(sess, "second compact", time.Unix(2, 0))
+
+	if len(sess.UncompactedRaw) != 2 {
+		t.Fatalf("uncompactedRaw len=%d want 2", len(sess.UncompactedRaw))
+	}
+	if sess.UncompactedRaw[0].Messages[0].Content != "first" {
+		t.Fatalf("first dump=%+v", sess.UncompactedRaw[0].Messages)
+	}
+	if sess.UncompactedRaw[1].Messages[0].Content != "after first compact" {
+		t.Fatalf("second dump=%+v", sess.UncompactedRaw[1].Messages)
 	}
 }

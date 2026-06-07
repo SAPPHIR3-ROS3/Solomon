@@ -295,6 +295,16 @@ test("builds structured proxy correction message", () => {
   assert.ok(!msg.includes("[error]"));
 });
 
+test("proxy correction suggests shell fallback when shell is allowed", () => {
+  const msg = proxyToolCorrectionMessage(["ApplyPatch"], new Set(["readFile", "shell", "find"]));
+  assert.ok(msg.includes("shell host tool"));
+});
+
+test("proxy correction omits shell fallback when shell is not allowed", () => {
+  const msg = proxyToolCorrectionMessage(["ApplyPatch"], new Set(["readFile", "find"]));
+  assert.ok(!msg.includes("Default fallback"));
+});
+
 test("maps disallowed cursor tool events into proxy tools", () => {
   const pending = [];
   let detected = false;

@@ -79,6 +79,17 @@ type MainOrphanSegment struct {
 	Messages        []Message `json:"messages"`
 }
 
+type UncompactedDump struct {
+	CompactAt              time.Time           `json:"compact_at"`
+	Messages               []Message           `json:"messages"`
+	CheckpointLast         int                 `json:"checkpoint_last"`
+	CheckpointCP0          bool                `json:"cp0,omitempty"`
+	CheckpointBranchSuffix string              `json:"cp_branch_suffix,omitempty"`
+	ForkChildCount         map[int]int         `json:"fork_child_count,omitempty"`
+	MainOrphans            []MainOrphanSegment `json:"main_orphans,omitempty"`
+	LastCommitOID          string              `json:"last_commit_oid,omitempty"`
+}
+
 type Session struct {
 	ID                string    `json:"id"`
 	Title             string    `json:"title"`
@@ -96,6 +107,7 @@ type Session struct {
 	ImageSeq                 int                 `json:"image_seq,omitempty"`
 	ImageFiles               map[int]string      `json:"image_files,omitempty"`
 	ActivatedInstructionDirs []string            `json:"activated_instruction_dirs,omitempty"`
+	UncompactedRaw           []UncompactedDump   `json:"uncompactedRaw,omitempty"`
 }
 
 func ChatIDHex(title string, ts time.Time) string {
