@@ -7,11 +7,13 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 
 	readline "github.com/chzyer/readline"
 )
 
 type ReplCompleteEnv struct {
+	Cfg            *config.Root
 	ProjHex        string
 	ProjRoot       string
 	ReplShellFirst bool

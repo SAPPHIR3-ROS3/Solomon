@@ -4,7 +4,7 @@
 
 Optional **Cursor API** provider: Solomon talks to a local **Node sidecar** (OpenAI-compatible HTTP), the sidecar drives the **Cursor Agent SDK**, and — by default — **Solomon Go** executes all tools on the real project root.
 
-User setup (TOML, `/connect`, `/integrations`): [Configuration — Cursor integration](../user-guide/configuration.md#cursor-integration-tool-execution).
+User setup (TOML, `/connect`, `/integrations`, `/cursortools`): [Configuration — Cursor integration](../user-guide/configuration.md#cursor-integration-tool-execution).
 
 ## Mental model
 
@@ -54,7 +54,7 @@ Sidecar startup: [`manager.go`](../../internal/integrations/cursor/manager.go) s
 
 Recommended production default: **`false`**. Solomon sets sidecar env `CURSOR_API_ALLOW_INTERNAL_TOOLS=true` only when config is `true`.
 
-Inspect status: `/integrations` ([`integrations_slash.go`](../../internal/agent/commands/integrations_slash.go)).
+Toggle in-session: `/cursortools on|off` (listed in `/help` only when Cursor API is configured). Implementation: [`thinking.go`](../../internal/agent/commands/thinking.go) (`CursorTools`). Inspect status: `/integrations` ([`integrations_slash.go`](../../internal/agent/commands/integrations_slash.go)).
 
 ## Fail-closed stack (`cursor_internal_tools = false`)
 

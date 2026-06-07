@@ -75,6 +75,7 @@ Highlights:
 | `/exec` | Send one user message and run a turn (`/exec "prompt with spaces"`) |
 | `/models`, `/onboard` | Switch model; rerun setup wizard |
 | `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
+| `/cursortools` | Cursor native tools on project (`cursor_internal_tools`) — only after `/connect` → Cursor API |
 | `/reasoning`, `/thinking` | Main-chat reasoning effort; streamed reasoning preview |
 | `/log`, `/stats`, `/max_response`, `/timeout` | Log verbosity; token footer; output cap; subagent minutes |
 | `/name`, `/language` | User name and reply language in system prompt (saved) |
@@ -88,7 +89,7 @@ Highlights:
 
 Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Project instructions](project-instructions.md).
 
-Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
+Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → `[tools].cursor_internal_tools`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
 
 ### Skill install safety checks
 
@@ -136,6 +137,18 @@ Persists to `[tools]` in `config.toml` (global, not per session).
 | `/legacytools force off` | Legacy stays on; force off |
 
 Useful for text-only or unreliable native function-calling backends. Details: [Configuration — `[tools]`](configuration.md#tools-legacy-xml-tool-calling), [Agent turn pipeline](../architecture/agent-turn-pipeline.md#legacy-xml-tool-calling).
+
+### `/cursortools`
+
+Persists to `[tools].cursor_internal_tools` in `config.toml`. The command appears in `/help`, tab completion, and dispatch **only after** Cursor API is configured (provider block with API key via `/connect`).
+
+| Invocation | Result |
+|------------|--------|
+| `/cursortools on` | `cursor native tools: on` — Cursor SDK may run built-in tools (Read, Shell, Edit, …) on the project |
+| `/cursortools off` | `cursor native tools: off` — Solomon Go executes tools on the repo (recommended default) |
+| `/cursortools` | Toggle current value |
+
+On save, Solomon restarts the Cursor sidecar with updated `CURSOR_API_ALLOW_INTERNAL_TOOLS`. Details: [Configuration — Cursor integration](configuration.md#cursor-integration-tool-execution), [Cursor integration (architecture)](../architecture/cursor-integration.md).
 
 Implementation: [Skills and slash](../architecture/skills-and-slash.md).
 

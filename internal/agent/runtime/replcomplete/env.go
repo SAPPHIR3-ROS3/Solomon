@@ -1,8 +1,12 @@
 package replcomplete
 
-import "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+import (
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+)
 
 type SessionSource interface {
+	ReplCompleteCfg() *config.Root
 	ReplCompleteProjHex() string
 	ReplCompleteProjRoot() string
 	ReplCompleteShellFirst() bool
@@ -14,6 +18,7 @@ func EnvFrom(src SessionSource) ReplCompleteEnv {
 		return ReplCompleteEnv{}
 	}
 	return ReplCompleteEnv{
+		Cfg:            src.ReplCompleteCfg(),
 		ProjHex:        src.ReplCompleteProjHex(),
 		ProjRoot:       src.ReplCompleteProjRoot(),
 		ReplShellFirst: src.ReplCompleteShellFirst(),

@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
@@ -117,6 +119,41 @@ func TestSlashDispatch_fast(t *testing.T) {
 	}
 	if !d.Cfg.EffectiveFastMode() {
 		t.Fatal("want fast mode toggled on")
+	}
+}
+
+func TestSlashDispatch_cursortools(t *testing.T) {
+	d := testDeps(nil)
+	if err := agent.SlashDispatch(d, "/cursortools on"); err == nil {
+		t.Fatal("expected unknown command without Cursor API configured")
+	}
+	for _, n := range commands.SlashBuiltinNames(d.Cfg) {
+		if n == "cursortools" {
+			t.Fatal("cursortools should be hidden without Cursor API")
+		}
+	}
+
+	d.Cfg.Providers[config.ProviderNameCursorAPI] = &config.Provider{
+		Name:     config.ProviderNameCursorAPI,
+		AuthKind: config.AuthKindCursorAPI,
+		BaseURL:  "http://127.0.0.1:8766/v1/",
+		APIKey:   "cursor-key",
+	}
+	found := false
+	for _, n := range commands.SlashBuiltinNames(d.Cfg) {
+		if n == "cursortools" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("cursortools should appear after Cursor API setup")
+	}
+	if err := agent.SlashDispatch(d, "/cursortools on"); err != nil {
+		t.Fatal(err)
+	}
+	if !d.Cfg.Tools.CursorInternalTools {
+		t.Fatal("want cursor internal tools on")
 	}
 }
 

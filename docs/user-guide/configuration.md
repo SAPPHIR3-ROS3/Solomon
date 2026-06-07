@@ -18,7 +18,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `log_level`, `max_response_tokens` | Verbosity and cap |
 | `show_thinking`, `show_usage_stats` | Streams / footer |
 | `[tools].legacy`, `[tools].legacy_force` | Legacy XML tool calling (global); see below |
-| `[tools].cursor_internal_tools` | Cursor sidecar: allow Cursor IDE built-in tools (default **off**); see [Cursor integration](#cursor-integration-tool-execution) |
+| `[tools].cursor_internal_tools` | Cursor sidecar: allow Cursor IDE built-in tools (default **off**); toggle in-session with `/cursortools` when Cursor API is configured; see [Cursor integration](#cursor-integration-tool-execution) |
 | `response_language` | Default reply language |
 | `compaction_threshold_tokens` | Auto compaction threshold |
 | `tool_output.max_bytes`, `tool_output.max_lines` | Tool result truncation before LLM (defaults 65536 / 2048) |
@@ -74,7 +74,7 @@ When the active provider is **Cursor API**, Solomon starts a local OpenAI-compat
 
 | Key | Default | Role |
 |-----|---------|------|
-| `cursor_internal_tools` | **`false`** (omit or unset) | When **false**, Cursor built-in tools must not run against your repo; the sidecar bridges to Solomon tool names. When **true**, Cursor may execute native tools on the project — avoid unless intentional. |
+| `cursor_internal_tools` | **`false`** (omit or unset) | When **false**, Cursor built-in tools must not run against your repo; the sidecar bridges to Solomon tool names. When **true**, Cursor may execute native tools on the project — avoid unless intentional. Toggle in-session with `/cursortools` when Cursor API is configured. |
 
 Example (recommended):
 
@@ -83,7 +83,7 @@ Example (recommended):
 cursor_internal_tools = false
 ```
 
-**Setup:** `/connect` → Cursor API (requires Node.js). **Status:** `/integrations` (URL, health, install path). **Fast mode:** `/fast` when the provider supports it.
+**Setup:** `/connect` → Cursor API (requires Node.js). **Status:** `/integrations` (URL, health, install path). **Fast mode:** `/fast` when the provider supports it. **Native tools:** `/cursortools on|off` (or edit TOML); listed in `/help` only after Cursor API is configured with credentials.
 
 Sidecar env (set by Solomon at start): `CURSOR_API_ALLOW_INTERNAL_TOOLS=true` only when `cursor_internal_tools = true`.
 
@@ -121,6 +121,7 @@ Many slash commands write back to `config.toml` on save:
 | `/log` | `log_level` | `error`, `warning`, `info`, `debug`, `result` |
 | `/threshold` | `compaction_threshold_tokens` | Auto `/summarize` when prompt tokens exceed limit |
 | `/legacytools` | `[tools].legacy`, `[tools].legacy_force` | Global, not per session |
+| `/cursortools` | `[tools].cursor_internal_tools` | Visible only when Cursor API provider is configured; restarts sidecar on save |
 | `/fast` | `fast_mode` | Only when active provider supports Cursor fast mode |
 | `/autoupdate` | `autoupdate` | Auto-install on `/update` check |
 

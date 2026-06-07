@@ -75,6 +75,14 @@ func (p *Provider) IsCursorAPI() bool {
 	return p.EffectiveAuthKind() == AuthKindCursorAPI
 }
 
+func CursorAPIConfigured(r *Root) bool {
+	if r == nil {
+		return false
+	}
+	p := ProviderByName(r, ProviderNameCursorAPI)
+	return p != nil && p.IsCursorAPI() && ProviderCredentialsReady(p)
+}
+
 func (p *Provider) IsOAuthProvider() bool {
 	return p != nil && IsOAuthAuthKind(p.EffectiveAuthKind())
 }

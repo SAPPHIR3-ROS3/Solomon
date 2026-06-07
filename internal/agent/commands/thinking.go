@@ -1,8 +1,13 @@
 package commands
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 )
 
 func Thinking(d Deps, parts []string) error {
@@ -113,5 +118,44 @@ func LegacyTools(d Deps, parts []string) error {
 		forceState = "ON"
 	}
 	PrintSystemf(d.Out, "legacy tools: %s, force: %s", legacyState, forceState)
+	return nil
+}
+
+func CursorTools(d Deps, parts []string) error {
+	if d.Cfg == nil {
+		return fmt.Errorf("config not loaded")
+	}
+	if !config.CursorAPIConfigured(d.Cfg) {
+		return fmt.Errorf("/cursortools unavailable (connect Cursor API first with /connect)")
+	}
+	next := !d.Cfg.Tools.CursorInternalTools
+	if len(parts) >= 2 {
+		switch strings.ToLower(parts[1]) {
+		case "on", "yes", "true", "1":
+			next = true
+		case "off", "no", "false", "0":
+			next = false
+		default:
+			return fmt.Errorf("usage: /cursortools | /cursortools on|off")
+		}
+	}
+	d.Cfg.Tools.CursorInternalTools = next
+	if err := d.SaveCfg(); err != nil {
+		return err
+	}
+	ctx := d.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cwd := d.ProjRoot
+	if strings.TrimSpace(cwd) == "" {
+		cwd, _ = os.Getwd()
+	}
+	cursorint.KickSidecarIfConfigured(ctx, d.Cfg, cwd, cursorint.DiscardBootstrap{})
+	onOff := "off"
+	if next {
+		onOff = "on"
+	}
+	PrintSystemf(d.Out, "cursor native tools: %s", onOff)
 	return nil
 }
