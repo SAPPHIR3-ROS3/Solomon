@@ -31,6 +31,7 @@ type multilineEditor struct {
 	atSelected    int
 	atCtx         atmention.AtContext
 	out           io.Writer
+	wrapDisabled  bool
 }
 
 func readMultilineInput(loop *Loop, history *inputHistory) (string, error) {
@@ -260,17 +261,20 @@ func (e *multilineEditor) handleSeq(seq string) (bool, string, error) {
 }
 
 func (e *multilineEditor) insertPaste(s string) {
+	e.wrapDisabled = true
 	if s == "" {
 		if e.loop.ClipboardPasteForStdin != nil {
 			if tag, ok := e.loop.ClipboardPasteForStdin(); ok {
 				e.insertString(tag)
 			}
 		}
+		e.wrapDisabled = false
 		return
 	}
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	e.insertString(s)
+	e.wrapDisabled = false
 }
 
 func (e *multilineEditor) insertString(s string) {
@@ -278,16 +282,57 @@ func (e *multilineEditor) insertString(s string) {
 		if r == '\n' {
 			e.insertNewline()
 		} else {
-			e.insertRune(r)
+			e.insertRuneRaw(r)
 		}
 	}
 }
 
-func (e *multilineEditor) insertRune(r rune) {
+func (e *multilineEditor) insertRuneRaw(r rune) {
 	line := e.lines[e.row]
 	line = append(line[:e.col], append([]rune{r}, line[e.col:]...)...)
 	e.lines[e.row] = line
 	e.col++
+}
+
+func (e *multilineEditor) insertRune(r rune) {
+	if !e.wrapDisabled && r != '\n' && e.col == len(e.lines[e.row]) && e.width > 0 {
+		prompt := e.promptFor(e.row)
+		cells := visibleCells(prompt) + runesCells(e.lines[e.row]) + runeDisplayWidth(r)
+		if cells > e.width {
+			splitAt := e.findWrapSplit(prompt)
+			if splitAt >= 0 {
+				e.col = splitAt + 1 // after the space
+				e.insertNewline()
+				// Position cursor at the end of the overflow word on the
+				// new line so the typed character is appended, not prepended.
+				e.col = len(e.lines[e.row])
+				e.insertRuneRaw(r)
+				// Reset rendering state to avoid ghost lines and
+				// the input climbing up over previous session output.
+				e.cursorLine = 0
+				e.rendered = 0
+				e.suggestSuffix = nil
+				return
+			}
+		}
+	}
+	e.insertRuneRaw(r)
+}
+
+// findWrapSplit cerca nella riga corrente l'ultimo spazio (da destra)
+// tale che la parte di riga prima dello spazio + il prompt stia entro e.width.
+// Restituisce l'indice dello spazio, o -1 se non trovato.
+func (e *multilineEditor) findWrapSplit(prompt string) int {
+	line := e.lines[e.row]
+	promptCells := visibleCells(prompt)
+	for i := len(line) - 1; i >= 0; i-- {
+		if line[i] == ' ' {
+			if promptCells+runesCells(line[:i]) <= e.width {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func (e *multilineEditor) insertNewline() {
@@ -429,7 +474,7 @@ func (e *multilineEditor) complete() bool {
 		return false
 	}
 	for _, r := range insert {
-		e.insertRune(r)
+		e.insertRuneRaw(r)
 	}
 	e.recomputeSuggest()
 	return true

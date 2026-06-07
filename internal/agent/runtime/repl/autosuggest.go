@@ -139,7 +139,7 @@ func (e *multilineEditor) acceptSuggest(partialWord bool) {
 		return
 	}
 	for _, r := range insert {
-		e.insertRune(r)
+		e.insertRuneRaw(r)
 	}
 	e.suggestSuffix = e.suggestSuffix[len(insert):]
 	if len(e.suggestSuffix) > 0 {
