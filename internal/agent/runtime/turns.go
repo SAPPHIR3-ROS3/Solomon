@@ -345,14 +345,7 @@ func (r *Runtime) runAgentTurns(ctx context.Context) error {
 						return nil
 					}
 					r.mutateSession(func(s *chatstore.Session) {
-						s.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
-						s.MainOrphans = nil
-						s.CheckpointBranchSuffix = ""
-						s.ForkChildCount = nil
-						s.CheckpointLast = -1
-						s.LastCommitOID = ""
-						s.LastMessageAt = time.Now()
-						chatstore.RepairSessionMalformedImages(s)
+						chatstore.ApplyCompaction(s, body, time.Now())
 					})
 					_ = r.persistSession()
 					commands.PrintSystem(r.Out, "context summarized")

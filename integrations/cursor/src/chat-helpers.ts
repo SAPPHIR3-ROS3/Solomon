@@ -138,9 +138,14 @@ export function proxyToolCorrectionMessage(
     allowedNames && allowedNames.size > 0
       ? [...allowedNames].sort().join(", ")
       : "readFile, editFile, find, shell, subagent, fetchWeb, webSearch";
+  const shellAllowed = !allowedNames || allowedNames.size === 0 || allowedNames.has("shell");
+  const shellFallback = shellAllowed
+    ? " Default fallback: use the shell host tool (with intent) when no mapped host tool fits or the call was denied. "
+    : " ";
   return (
     `Your previous reply attempted disabled Cursor built-in tool(s): ${unique.join(", ")}. ` +
     `Use native API tool_calls via the solomon MCP server instead. Enabled host tools for this session: ${enabled}. ` +
+    shellFallback +
     "Do not use Read/Write/Edit/Shell/Grep/Glob/Task/SemanticSearch/Delete or other Cursor IDE tools. " +
     "For nested work use subagent with sysPromptPath and task. For search use find. " +
     "For web content use fetchWeb or webSearch when available. " +

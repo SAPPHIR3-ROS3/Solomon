@@ -268,15 +268,7 @@ func Summarize(d Deps) error {
 		return fmt.Errorf("no active session")
 	}
 	d.MutateSession(func(sess *chatstore.Session) {
-		sess.Messages = []chatstore.Message{{Role: "assistant", Content: body}}
-		sess.MainOrphans = nil
-		sess.CheckpointBranchSuffix = ""
-		sess.ForkChildCount = nil
-		sess.CheckpointLast = -1
-		sess.CheckpointCP0 = true
-		sess.LastCommitOID = ""
-		sess.LastMessageAt = time.Now()
-		chatstore.RepairSessionMalformedImages(sess)
+		chatstore.ApplyCompaction(sess, body, time.Now())
 	})
 	if d.PersistSession == nil {
 		return fmt.Errorf("no active session")

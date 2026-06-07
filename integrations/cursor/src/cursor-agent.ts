@@ -45,7 +45,7 @@ function writeDenyHooks(workspace: string): void {
     [
       "process.stdin.resume();",
       "process.stdin.on('end', () => {",
-      "  process.stdout.write(JSON.stringify({ permission: 'deny', agentMessage: 'Cursor built-in tools are disabled by Solomon. Use the solomon MCP tools from this request instead.' }));",
+      "  process.stdout.write(JSON.stringify({ permission: 'deny', agentMessage: 'Cursor built-in tools are disabled by Solomon. Use the solomon MCP host tools from this request instead; when no mapped host tool fits, default to the shell host tool (with intent).' }));",
       "});",
     ].join("\n") + "\n",
     "utf8",
