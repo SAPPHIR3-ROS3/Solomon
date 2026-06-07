@@ -10,12 +10,14 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 	switch mode {
 	case "plan":
 		return []openai.ChatCompletionToolUnionParam{
+			docsRetrievalOpenAI(),
 			createPlanOpenAI(),
 			editPlanOpenAI(),
 			buildPlanOpenAI(),
 		}, nil
 	case "build":
 		return []openai.ChatCompletionToolUnionParam{
+			docsRetrievalOpenAI(),
 			shellOpenAI(),
 			readFileOpenAI(),
 			editFileOpenAI(),

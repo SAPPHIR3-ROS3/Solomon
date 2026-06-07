@@ -2,6 +2,9 @@ package tools
 
 func BuildBuildToolDump() (string, error) {
 	b := &dumpBuilder{}
+	if err := appendDocsRetrievalDump(b); err != nil {
+		return "", err
+	}
 	if err := appendShellDump(b); err != nil {
 		return "", err
 	}

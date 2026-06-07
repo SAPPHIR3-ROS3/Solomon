@@ -2,6 +2,9 @@ package tools
 
 func BuildPlanToolDump() (string, error) {
 	b := &dumpBuilder{}
+	if err := appendDocsRetrievalDump(b); err != nil {
+		return "", err
+	}
 	if err := appendCreatePlanDump(b); err != nil {
 		return "", err
 	}
