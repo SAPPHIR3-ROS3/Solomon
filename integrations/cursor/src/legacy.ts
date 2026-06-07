@@ -75,7 +75,11 @@ const CURSOR_NATIVE_ALIASES: Record<string, string> = {
   Write: "editFile",
   StrReplace: "editFile",
   strReplace: "editFile",
+  str_replace: "editFile",
   search_replace: "editFile",
+  ApplyPatch: "editFile",
+  apply_patch: "editFile",
+  applyPatch: "editFile",
   Delete: "editFile",
   delete: "editFile",
   find: "find",
@@ -84,6 +88,10 @@ const CURSOR_NATIVE_ALIASES: Record<string, string> = {
   grep: "find",
   Glob: "find",
   glob: "find",
+  ListDir: "find",
+  list_dir: "find",
+  listDir: "find",
+  ls: "find",
   ripgrep: "find",
   rg: "find",
   SemanticSearch: "find",
@@ -103,6 +111,21 @@ const CURSOR_NATIVE_ALIASES: Record<string, string> = {
 
 const SOLOMON_TOOL_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
 
+const SOLOMON_CANONICAL_TOOLS = new Set([
+  "readFile",
+  "shell",
+  "editFile",
+  "editPlan",
+  "find",
+  "subagent",
+  "fetchWeb",
+  "webSearch",
+  "loadSkill",
+  "searchSkill",
+  "createPlan",
+  "buildPlan",
+]);
+
 function isAllowedSolomonTool(name: string, ctx: ToolBridgeContext): boolean {
   if (!ctx.allowedNames) {
     return true;
@@ -119,7 +142,17 @@ export function bridgeToolInvocation(
   if (!trimmed) {
     return null;
   }
-  const solomonName = CURSOR_NATIVE_ALIASES[trimmed] ?? trimmed;
+  const alias = CURSOR_NATIVE_ALIASES[trimmed];
+  let solomonName: string;
+  if (alias) {
+    solomonName = alias;
+  } else if (ctx.allowedNames?.has(trimmed)) {
+    solomonName = trimmed;
+  } else if (!ctx.allowedNames && SOLOMON_CANONICAL_TOOLS.has(trimmed)) {
+    solomonName = trimmed;
+  } else {
+    return null;
+  }
   if (!SOLOMON_TOOL_NAME_RE.test(solomonName)) {
     return null;
   }

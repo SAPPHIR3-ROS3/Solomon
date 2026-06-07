@@ -12,6 +12,7 @@ import {
 } from "../src/openai-tools.js";
 import { collapseExactRepeat, nextTextChunk, processStreamEvent, proxyToolCorrectionMessage } from "../src/chat-helpers.js";
 import { bridgeToolInvocation } from "../src/legacy.js";
+import { harnessToolsClause } from "../src/harness-prompt.js";
 import type { CursorNativeToolEvent } from "../src/cursor-native-tools.js";
 import type { ChatCompletionTool } from "../src/openai-types.js";
 
@@ -292,17 +293,74 @@ test("builds structured proxy correction message", () => {
   const msg = proxyToolCorrectionMessage(["Delete", "Task"], new Set(["readFile", "find"]));
   assert.ok(msg.includes("Delete"));
   assert.ok(msg.includes("find") && msg.includes("readFile"));
+  assert.ok(msg.includes("Cursor built-in tools"));
   assert.ok(!msg.includes("[error]"));
+  assert.ok(!msg.includes("solomon MCP"));
 });
 
 test("proxy correction suggests shell fallback when shell is allowed", () => {
   const msg = proxyToolCorrectionMessage(["ApplyPatch"], new Set(["readFile", "shell", "find"]));
-  assert.ok(msg.includes("shell host tool"));
+  assert.ok(msg.includes("Default fallback"));
+  assert.ok(msg.includes("Shell"));
 });
 
 test("proxy correction omits shell fallback when shell is not allowed", () => {
   const msg = proxyToolCorrectionMessage(["ApplyPatch"], new Set(["readFile", "find"]));
   assert.ok(!msg.includes("Default fallback"));
+});
+
+test("maps str_replace cursor alias into editFile", () => {
+  const inv = bridgeToolInvocation(
+    "str_replace",
+    { path: "a.go", old_string: "foo", new_string: "bar" },
+    bridgeCtx("editFile"),
+  );
+  assert.deepEqual(inv, {
+    name: "editFile",
+    args: { path: "a.go", oldString: "foo", newString: "bar" },
+    intent: "edit file",
+  });
+});
+
+test("maps ListDir cursor alias into find glob listing", () => {
+  const inv = bridgeToolInvocation("ListDir", { path: "internal" }, bridgeCtx("find"));
+  assert.deepEqual(inv, {
+    name: "find",
+    args: { pattern: "**/*", files: true, path: "internal" },
+  });
+});
+
+test("maps ApplyPatch full content into editFile overwrite", () => {
+  const inv = bridgeToolInvocation(
+    "ApplyPatch",
+    { path: "new.txt", patch: "hello world" },
+    bridgeCtx("editFile"),
+  );
+  assert.deepEqual(inv, {
+    name: "editFile",
+    args: { path: "new.txt", oldString: "", newString: "hello world" },
+    intent: "apply patch",
+  });
+});
+
+test("rejects unified diff ApplyPatch as unmappable", () => {
+  const inv = bridgeToolInvocation(
+    "ApplyPatch",
+    { path: "a.go", patch: "@@ -1,1 +1,1 @@\n-old\n+new" },
+    bridgeCtx("editFile"),
+  );
+  assert.equal(inv, null);
+});
+
+test("harness tools clause steers cursor native bridge", () => {
+  const clause = harnessToolsClause([
+    { type: "function", function: { name: "readFile" } },
+    { type: "function", function: { name: "shell" } },
+  ]);
+  assert.ok(clause.includes("Cursor built-in tools"));
+  assert.ok(clause.includes("readFile, shell"));
+  assert.ok(!clause.includes("solomon MCP"));
+  assert.ok(!clause.includes("editFile to modify"));
 });
 
 test("maps disallowed cursor tool events into proxy tools", () => {
@@ -325,7 +383,7 @@ test("maps disallowed cursor tool events into proxy tools", () => {
   assert.deepEqual(pending, [{ name: "readFile", args: { path: "PLAN.md" } }]);
 });
 
-test("converts OpenAI request tools into MCP tool definitions", () => {
+test("converts OpenAI request tools into MCP tool definitions (legacy helper)", () => {
   const mcp = openAIToolsToMcpTools([
     {
       type: "function",
@@ -397,7 +455,7 @@ test("processStreamEvent respects allowed tool set for cursor aliases", () => {
   assert.deepEqual(blocked, ["WebSearch"]);
 });
 
-test("native cursor mode emits tool events without bridging to Solomon", () => {
+test("internal tools mode still bridges mappable cursor tools to Solomon", () => {
   const pending = [];
   const native: CursorNativeToolEvent[] = [];
   let detected = false;
@@ -417,20 +475,47 @@ test("native cursor mode emits tool events without bridging to Solomon", () => {
     { allowedNames: null },
     (ev) => { native.push(ev); },
   );
-  assert.equal(detected, false);
-  assert.deepEqual(pending, []);
-  assert.deepEqual(native, [{ name: "Read", status: "running", args: { path: "main.go" } }]);
+  assert.equal(detected, true);
+  assert.deepEqual(pending, [{ name: "readFile", args: { path: "main.go" } }]);
+  assert.deepEqual(native, []);
 });
 
-test("native cursor mode forwards completed tool results", () => {
+test("internal tools mode emits formatted events for unmapped tools", () => {
+  const pending = [];
+  const native: CursorNativeToolEvent[] = [];
+  let detected = false;
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "BrowserNavigate",
+      status: "running",
+      args: { url: "https://example.com" },
+    } as any,
+    true,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+    undefined,
+    { allowedNames: null },
+    (ev) => { native.push(ev); },
+  );
+  assert.equal(detected, false);
+  assert.deepEqual(pending, []);
+  assert.equal(native.length, 1);
+  assert.equal(native[0]?.name, "BrowserNavigate");
+  assert.equal(native[0]?.displayLine, "https://example.com");
+});
+
+test("internal tools mode forwards completed unmapped tool results with displayLine", () => {
   const native: CursorNativeToolEvent[] = [];
   processStreamEvent(
     {
       type: "tool_call",
-      name: "Shell",
+      name: "BrowserNavigate",
       status: "completed",
-      args: { command: "pwd" },
-      result: { output: "/tmp" },
+      args: { url: "https://example.com" },
+      result: { title: "Example Domain" },
     } as any,
     true,
     () => {},
@@ -441,12 +526,9 @@ test("native cursor mode forwards completed tool results", () => {
     { allowedNames: null },
     (ev) => { native.push(ev); },
   );
-  assert.deepEqual(native, [{
-    name: "Shell",
-    status: "completed",
-    args: { command: "pwd" },
-    result: { output: "/tmp" },
-  }]);
+  assert.equal(native.length, 1);
+  assert.equal(native[0]?.status, "completed");
+  assert.equal(native[0]?.displayLine, '{"title":"Example Domain"}');
 });
 
 test("unwraps solomon MCP find and subagent tool calls", () => {

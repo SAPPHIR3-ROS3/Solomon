@@ -266,19 +266,19 @@ async function streamCompletion(
     const recordBlocked = (name: string): void => {
       blockedTools.push(name);
     };
-    const emitNativeTool = (ev: CursorNativeToolEvent): void => {
+    const emitUnmappedTool = (ev: CursorNativeToolEvent): void => {
       writeSSE(res, cursorToolEventChunk(completionId, model, ev));
     };
     try {
       for await (const event of run.stream()) {
-        if (clientAborted || (legacyEmitted && !cfg.allowCursorInternalTools)) {
+        if (clientAborted || legacyEmitted) {
           break;
         }
         processStreamEvent(
           event,
           cfg.allowCursorInternalTools,
           (t) => {
-            if ((toolDetected && !cfg.allowCursorInternalTools) || clientAborted) {
+            if ((toolDetected && pendingLegacy.length > 0) || clientAborted) {
               return;
             }
             proseBuf += nextTextChunk(proseBuf, t);
@@ -297,9 +297,9 @@ async function streamCompletion(
           },
           recordBlocked,
           { allowedNames: turnOpts.allowedNames },
-          cfg.allowCursorInternalTools ? emitNativeTool : undefined,
+          cfg.allowCursorInternalTools ? emitUnmappedTool : undefined,
         );
-        if (toolDetected && pendingLegacy.length > 0 && !cfg.allowCursorInternalTools) {
+        if (toolDetected && pendingLegacy.length > 0) {
           legacyEmitted = true;
           await forceStopRun(run);
           break;
@@ -450,7 +450,7 @@ async function handleNonStream(
           ? (ev) => { nativeToolEvents.push(ev); }
           : undefined,
       );
-      if (toolDetected && !cfg.allowCursorInternalTools) {
+      if (toolDetected && pendingLegacy.length > 0) {
         await forceStopRun(run);
         break;
       }
@@ -458,7 +458,7 @@ async function handleNonStream(
     if (clientAborted) {
       return;
     }
-    if (toolDetected && !cfg.allowCursorInternalTools) {
+    if (toolDetected && pendingLegacy.length > 0) {
       await forceStopRun(run);
     }
     const parsedNative = turnOpts.nativeTools
