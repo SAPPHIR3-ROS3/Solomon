@@ -62,6 +62,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/pathglob/` | Glob `**` matching for `find` | [Native tools](native-tools.md) |
 | `internal/gitignore/` | `.gitignore` matcher for `find` | [Native tools](native-tools.md) |
 | `internal/atmention/` | `@` file/folder tags and picker scoring | [Runtime — REPL](runtime-repl.md) |
+| `internal/docs/` | Embedded docs corpus, BM25 retrieval for `docsRetrieval` and `/docs` | [Supporting packages](supporting-packages.md) |
 
 ## Support
 
@@ -130,6 +131,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/checkpoint/staging/` | Feature |
 | `internal/clipboard/` | Support |
 | `internal/config/` | Core |
+| `internal/docs/` | Feature |
 | `internal/gitignore/` | Feature |
 | `internal/instructions/` | Feature |
 | `internal/integrations/cursor/` | Integration |
