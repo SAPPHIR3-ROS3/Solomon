@@ -8,8 +8,14 @@ export function normalizeSolomonToolArgs(
   if (solomonName === "subagent") {
     return normalizeSubagentArgsFromRaw(raw);
   }
+  if (solomonName === "editFile" && isApplyPatchCursorName(viaCursorName)) {
+    return normalizeApplyPatchArgs(raw);
+  }
   if (solomonName === "editFile" && isDeleteCursorName(viaCursorName)) {
     return normalizeDeleteEditFileArgs(raw);
+  }
+  if (solomonName === "find" && isListDirCursorName(viaCursorName)) {
+    return normalizeListDirArgs(raw);
   }
   if (solomonName === "find" && isSemanticSearchCursorName(viaCursorName)) {
     return normalizeSemanticSearchArgs(raw);
@@ -131,9 +137,9 @@ function normalizeArgs(
       };
     }
     const oldString =
-      pickString(obj, ["oldString", "old_string", "oldText"]) ?? "";
+      pickString(obj, ["oldString", "old_string", "oldText", "old"]) ?? "";
     const newString =
-      pickString(obj, ["newString", "new_string", "newText", "content"]) ?? "";
+      pickString(obj, ["newString", "new_string", "newText", "content", "replace", "new"]) ?? "";
     if (oldString === "" && newString === "") {
       return null;
     }
@@ -195,6 +201,70 @@ function normalizeWebSearchArgs(raw: unknown): Record<string, unknown> | null {
 
 function isDeleteCursorName(name: string): boolean {
   return name.trim().toLowerCase() === "delete";
+}
+
+function isApplyPatchCursorName(name: string): boolean {
+  const n = name.trim().toLowerCase();
+  return n === "applypatch" || n === "apply_patch";
+}
+
+function normalizeApplyPatchArgs(raw: unknown): Record<string, unknown> | null {
+  const obj = parseArgsObject(raw);
+  if (!obj) {
+    return null;
+  }
+  const path = pickString(obj, ["path", "file_path", "filePath", "target_file"]) ?? "";
+  if (!path) {
+    return null;
+  }
+  const oldString =
+    pickString(obj, ["oldString", "old_string", "oldText", "old"]) ?? "";
+  const newString =
+    pickString(obj, ["newString", "new_string", "newText", "content", "replace", "new"]) ?? "";
+  if (oldString !== "" || newString !== "") {
+    if (oldString === "" && newString === "") {
+      return null;
+    }
+    return {
+      path,
+      oldString,
+      newString,
+      intent: pickString(obj, ["intent", "description", "explanation"]) ?? "apply patch",
+    };
+  }
+  const patch = pickString(obj, ["patch", "diff"]) ?? "";
+  if (patch.includes("@@")) {
+    return null;
+  }
+  if (patch.trim() !== "") {
+    return {
+      path,
+      oldString: "",
+      newString: patch,
+      intent: pickString(obj, ["intent", "description", "explanation"]) ?? "apply patch",
+    };
+  }
+  return null;
+}
+
+function isListDirCursorName(name: string): boolean {
+  const n = name.trim().toLowerCase();
+  return n === "listdir" || n === "list_dir" || n === "ls";
+}
+
+function normalizeListDirArgs(raw: unknown): Record<string, unknown> | null {
+  const obj = parseArgsObject(raw);
+  if (!obj) {
+    return null;
+  }
+  const dirPath = pickString(obj, ["path", "target_directory", "targetDirectory", "directory"]) ?? ".";
+  const pattern = pickString(obj, ["pattern", "glob_pattern", "globPattern"]) ?? "**/*";
+  const out: Record<string, unknown> = { pattern, files: true, path: dirPath };
+  const hl = pickNumber(obj, ["headLimit", "head_limit"]);
+  if (hl !== undefined) {
+    out.headLimit = hl;
+  }
+  return out;
 }
 
 function normalizeDeleteEditFileArgs(raw: unknown): Record<string, unknown> | null {

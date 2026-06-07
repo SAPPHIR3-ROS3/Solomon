@@ -1,6 +1,11 @@
 import type { SDKMessage } from "@cursor/sdk";
-import { processNativeCursorStreamEvent, type CursorNativeToolEvent } from "./cursor-native-tools.js";
 import {
+  type CursorNativeToolEvent,
+  unmappedToolEvent,
+  unmappedToolEventFromToolCall,
+} from "./cursor-native-tools.js";
+import {
+  bridgeToolInvocation,
   tryCollectLegacyTool,
   unwrapSolomonMcpCall,
   type LegacyToolInvocation,
@@ -140,17 +145,26 @@ export function proxyToolCorrectionMessage(
       : "readFile, editFile, find, shell, subagent, fetchWeb, webSearch";
   const shellAllowed = !allowedNames || allowedNames.size === 0 || allowedNames.has("shell");
   const shellFallback = shellAllowed
-    ? " Default fallback: use the shell host tool (with intent) when no mapped host tool fits or the call was denied. "
+    ? " Default fallback: call Shell again; the host maps it to shell and runs it on the workspace (include intent). "
     : " ";
   return (
-    `Your previous reply attempted disabled Cursor built-in tool(s): ${unique.join(", ")}. ` +
-    `Use native API tool_calls via the solomon MCP server instead. Enabled host tools for this session: ${enabled}. ` +
+    `Your previous tool call was rejected or not mappable: ${unique.join(", ")}. ` +
+    "Use normal Cursor built-in tools (Read, StrReplace, Write, Grep, Glob, Shell, Delete, SemanticSearch, Task, etc.); " +
+    "the Solomon host bridge intercepts them and executes on the real workspace when mapped. " +
+    `Host-enabled capabilities: ${enabled}. ` +
     shellFallback +
-    "Do not use Read/Write/Edit/Shell/Grep/Glob/Task/SemanticSearch/Delete or other Cursor IDE tools. " +
-    "For nested work use subagent with sysPromptPath and task. For search use find. " +
-    "For web content use fetchWeb or webSearch when available. " +
-    "Send a corrected native tool_call only, or continue without tools if you meant plain text."
+    "Prefer Read for file inspection, StrReplace/Write for edits, and Grep/Glob for search. " +
+    "For nested work use Task (mapped to subagent). For web content use fetchWeb or webSearch when available. " +
+    "Send a corrected tool call only, or continue without tools if you meant plain text."
   );
+}
+
+function wouldBridgeTool(name: string, rawArgs: unknown, bridgeCtx: ToolBridgeContext): boolean {
+  const mcp = unwrapSolomonMcpCall(name, rawArgs);
+  if (mcp) {
+    return bridgeToolInvocation(mcp.toolName, mcp.args, bridgeCtx) !== null;
+  }
+  return bridgeToolInvocation(name, rawArgs, bridgeCtx) !== null;
 }
 
 export function processStreamEvent(
@@ -162,44 +176,45 @@ export function processStreamEvent(
   onToolDetected: () => void,
   onBlockedTool?: (name: string) => void,
   bridgeCtx: ToolBridgeContext = { allowedNames: null },
-  onNativeToolEvent?: (event: CursorNativeToolEvent) => void,
+  onUnmappedToolEvent?: (event: CursorNativeToolEvent) => void,
 ): void {
-  if (allowCursorInternalTools && onNativeToolEvent) {
-    processNativeCursorStreamEvent(event, onText, onThinking, onNativeToolEvent);
-    return;
-  }
   const reportBlocked = (name: string): void => {
     if (onBlockedTool) {
       onBlockedTool(name);
+    }
+  };
+  const handleToolProposal = (name: string, rawArgs: unknown, callId?: string): void => {
+    const mcp = unwrapSolomonMcpCall(name, rawArgs);
+    if (mcp) {
+      if (tryCollectLegacyTool(pendingLegacy, mcp.toolName, mcp.args, bridgeCtx)) {
+        onToolDetected();
+      } else {
+        reportBlocked(`mcp:${mcp.toolName}`);
+      }
+      return;
+    }
+    if (name === "mcp") {
+      reportBlocked("mcp:external");
+      return;
+    }
+    if (tryCollectLegacyTool(pendingLegacy, name, rawArgs, bridgeCtx)) {
+      onToolDetected();
+      return;
+    }
+    if (!allowCursorInternalTools) {
+      reportBlocked(name);
+      return;
+    }
+    if (onUnmappedToolEvent) {
+      onUnmappedToolEvent(unmappedToolEvent(name, "running", rawArgs, undefined, undefined, callId));
     }
   };
   if (event.type === "assistant") {
     let afterTool = false;
     for (const block of event.message.content) {
       if (block.type === "tool_use") {
-        const mcp = unwrapSolomonMcpCall(block.name, block.input);
-        if (mcp) {
-          if (tryCollectLegacyTool(pendingLegacy, mcp.toolName, mcp.args, bridgeCtx)) {
-            afterTool = true;
-            onToolDetected();
-          } else {
-            reportBlocked(`mcp:${mcp.toolName}`);
-          }
-          continue;
-        }
-        if (!allowCursorInternalTools) {
-          if (tryCollectLegacyTool(pendingLegacy, block.name, block.input, bridgeCtx)) {
-            afterTool = true;
-            onToolDetected();
-          } else {
-            reportBlocked(block.name);
-          }
-          continue;
-        }
-        if (tryCollectLegacyTool(pendingLegacy, block.name, block.input, bridgeCtx)) {
-          afterTool = true;
-          onToolDetected();
-        }
+        afterTool = true;
+        handleToolProposal(block.name, block.input, block.id);
         continue;
       }
       if (block.type === "text" && block.text && !afterTool) {
@@ -213,39 +228,33 @@ export function processStreamEvent(
     return;
   }
   if (event.type === "tool_call") {
-    if (event.status === "completed") {
-      return;
-    }
-    const mcp = unwrapSolomonMcpCall(event.name, event.args);
-    if (mcp) {
-      if (event.status === "error") {
+    if (wouldBridgeTool(event.name, event.args, bridgeCtx)) {
+      if (event.status === "completed" || event.status === "error") {
         return;
       }
-      if (tryCollectLegacyTool(pendingLegacy, mcp.toolName, mcp.args, bridgeCtx)) {
-        onToolDetected();
-      } else {
-        reportBlocked(`mcp:${mcp.toolName}`);
+      if (event.args !== undefined) {
+        handleToolProposal(event.name, event.args, event.call_id);
       }
-      return;
-    }
-    if (event.name === "mcp") {
-      reportBlocked("mcp:external");
       return;
     }
     if (!allowCursorInternalTools) {
-      if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args, bridgeCtx)) {
-        onToolDetected();
+      if (event.status === "completed") {
+        return;
+      }
+      if (event.args !== undefined) {
+        handleToolProposal(event.name, event.args, event.call_id);
       } else {
         reportBlocked(event.name);
       }
       return;
     }
-    if (event.status === "error") {
-      return;
+    if (onUnmappedToolEvent) {
+      onUnmappedToolEvent(unmappedToolEventFromToolCall(event));
     }
-    if (event.args !== undefined && tryCollectLegacyTool(pendingLegacy, event.name, event.args, bridgeCtx)) {
-      onToolDetected();
-    }
+    return;
+  }
+  if (event.type === "task" && event.text) {
+    onThinking(event.text);
   }
 }
 

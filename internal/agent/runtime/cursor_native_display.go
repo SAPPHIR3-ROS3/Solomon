@@ -9,12 +9,13 @@ import (
 )
 
 type cursorNativeToolEvent struct {
-	CallID string          `json:"callId"`
-	Name   string          `json:"name"`
-	Status string          `json:"status"`
-	Args   json.RawMessage `json:"args"`
-	Result json.RawMessage `json:"result"`
-	Error  string          `json:"error"`
+	CallID      string          `json:"callId"`
+	Name        string          `json:"name"`
+	Status      string          `json:"status"`
+	Args        json.RawMessage `json:"args"`
+	Result      json.RawMessage `json:"result"`
+	Error       string          `json:"error"`
+	DisplayLine string          `json:"displayLine"`
 }
 
 func (r *Runtime) PrintCursorNativeToolEvent(rawJSON string) {
@@ -43,28 +44,43 @@ func (r *Runtime) printCursorNativeToolEvent(rawJSON string) {
 		name = "tool"
 	}
 	label := name + " (cursor)"
+	display := strings.TrimSpace(ev.DisplayLine)
 	switch strings.TrimSpace(ev.Status) {
 	case "running":
-		body := cursorNativeArgsPreview(ev.Args)
+		body := display
+		if body == "" {
+			body = cursorNativeArgsPreview(ev.Args)
+		}
 		if body != "" {
 			fmt.Fprintln(r.Out, termcolor.ToolHeaderLine(label, body))
 		} else {
 			fmt.Fprintln(r.Out, termcolor.ToolHeaderLine(label, "…"))
 		}
 	case "completed":
-		if preview := cursorNativeResultPreview(ev.Result); preview != "" {
-			fmt.Fprintln(r.Out, termcolor.ToolHeaderLine(label, preview))
+		body := display
+		if body == "" {
+			body = cursorNativeResultPreview(ev.Result)
+		}
+		if body != "" {
+			fmt.Fprintln(r.Out, termcolor.ToolHeaderLine(label, body))
 		} else {
 			fmt.Fprintln(r.Out, termcolor.ToolHeaderLine(label, "done"))
 		}
 	case "error":
-		msg := strings.TrimSpace(ev.Error)
+		msg := display
+		if msg == "" {
+			msg = strings.TrimSpace(ev.Error)
+		}
 		if msg == "" {
 			msg = "failed"
 		}
 		fmt.Fprintln(r.Out, termcolor.WrapRed("cursor tool "+name+": "+msg))
 	default:
-		if body := cursorNativeArgsPreview(ev.Args); body != "" {
+		body := display
+		if body == "" {
+			body = cursorNativeArgsPreview(ev.Args)
+		}
+		if body != "" {
 			fmt.Fprintln(r.Out, termcolor.ToolHeaderLine(label, body))
 		}
 	}

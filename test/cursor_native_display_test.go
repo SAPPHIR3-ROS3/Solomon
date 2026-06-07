@@ -28,13 +28,13 @@ func TestPrintCursorNativeToolEvent_runningRead(t *testing.T) {
 func TestPrintCursorNativeToolEvent_completedShell(t *testing.T) {
 	var buf bytes.Buffer
 	r := &agentruntime.Runtime{Out: &buf}
-	r.PrintCursorNativeToolEvent(`{"name":"Shell","status":"completed","result":{"output":"ok"}}`)
+	r.PrintCursorNativeToolEvent(`{"name":"Shell","status":"completed","displayLine":"/tmp"}`)
 	out := buf.String()
 	if !strings.Contains(out, "Shell (cursor)") {
 		t.Fatalf("expected cursor label: %q", out)
 	}
-	if !strings.Contains(out, "ok") {
-		t.Fatalf("expected result preview: %q", out)
+	if !strings.Contains(out, "/tmp") {
+		t.Fatalf("expected display line: %q", out)
 	}
 }
 
