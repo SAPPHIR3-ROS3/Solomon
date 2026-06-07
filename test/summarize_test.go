@@ -109,9 +109,20 @@ func TestRenderCompactSummaryBodyDoesNotMutatePlain(t *testing.T) {
 	if strings.Contains(rendered, body) == false {
 		t.Error("rendered output should contain the original plain text")
 	}
-	// Verify that rendering doesn't mutate the input
 	if body != "plain text summary" {
 		t.Error("RenderCompactSummaryBody must not mutate its input")
+	}
+}
+
+func TestRenderCompactSummaryBodyNoMultilinePadding(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{ForceColor: true})
+	multi := "short\n" + strings.Repeat("x", 120) + "\nend"
+	rendered := commands.RenderCompactSummaryBody(multi)
+	plain := termcolor.Plain(rendered)
+	for i, line := range strings.Split(plain, "\n") {
+		if len(line) != len(strings.TrimRight(line, " ")) {
+			t.Fatalf("line %d has trailing padding: len=%d", i, len(line))
+		}
 	}
 }
 
