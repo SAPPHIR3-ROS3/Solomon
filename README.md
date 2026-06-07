@@ -1,31 +1,32 @@
-# ⚠️ EARLY RELEASE ⚠️
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)
+![Status](https://img.shields.io/badge/status-early%20release-orange)
 
-## PREVIEW SOFTWARE — NOT PRODUCTION-READY
-
-**APIs, behavior, and on-disk formats may change without notice.**
-
-Bring your own OpenAI-compatible endpoint · Expect rough edges · [Open an issue](https://github.com/SAPPHIR3-ROS3/Solomon/issues) with feedback
-
-```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                                                                          ║
-║   S O L O M O N   ·   E A R L Y   R E L E A S E   ·   U S E   A T        ║
-║   Y O U R   O W N   R I S K   ·   F E E D B A C K   W E L C O M E        ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+> **Early release — preview software, not production-ready.** APIs, behavior, and on-disk formats may change without notice. Bring your own OpenAI-compatible endpoint · Expect rough edges · [Open an issue](https://github.com/SAPPHIR3-ROS3/Solomon/issues) with feedback
 
 # Solomon
 
 Interactive terminal harness for LLMs over OpenAI-compatible APIs — project-aware sessions, skills, slash commands, planning, and tooling.
 
+## What is Solomon
+
+Solomon is a **local-first terminal agent**: one Go binary, your choice of LLM provider, project state under `~/.solomon`. It is not an IDE or a hosted service.
+
+- **Interactive REPL** — multiline input, slash commands, checkpoints, streaming output
+- **Plan and build modes** — research and plan first (`/plan`), then implement with shell and file tools (`/build`)
+- **Skills and MCP** — install skills with `solomon add`; optional MCP tools from `mcp.json`
+- **Headless runs** — `solomon exec` and `--json` / `--jsonl` for scripts and CI
+- **BYO API** — OpenAI-compatible HTTPS endpoints, Anthropic Messages API, or ChatGPT Sub via `/connect`
+
+Data (config, chats, plans, skills) lives outside your repo in `~/.solomon`, keyed by workspace root.
+
 ## Install
 
-### 1. Install script (one command)
+### Install script (recommended)
 
-Installs Go **1.25.0+** if needed, ensures `make` is available, configures your shell `PATH`, and runs `go install` for `solomon`.
+Installs Go **1.25.0+** if needed, ensures `make` is available, configures your shell `PATH`, and runs `go install`.
 
-> Note: the standard installer does **not** require Node.js. Node/npm are only needed later if you use the optional Cursor integration.
+> The standard installer does **not** require Node.js. Node/npm are only needed for the optional Cursor integration.
 
 **macOS / Linux:**
 
@@ -33,11 +34,7 @@ Installs Go **1.25.0+** if needed, ensures `make` is available, configures your 
 curl -fsSL https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh | bash
 ```
 
-From a clone:
-
-```bash
-./scripts/install.sh
-```
+From a clone: `./scripts/install.sh`
 
 **Windows (PowerShell):**
 
@@ -45,34 +42,23 @@ From a clone:
 irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex
 ```
 
-From a clone:
+From a clone: `powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1`
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
-```
+Reload the terminal, then run `solomon version`.
 
-Reload the terminal (or `source` your rc file), then run `solomon version`.
-
-### 2. `go install` (manual)
+### `go install` (manual)
 
 Requires [Go](https://go.dev/) **1.25.0+** ([`go.mod`](go.mod)).
-
-Latest:
 
 ```bash
 go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
 ```
 
-Pin a [release tag](https://github.com/SAPPHIR3-ROS3/Solomon/tags):
+Pin a [release tag](https://github.com/SAPPHIR3-ROS3/Solomon/tags): `@v2026.527.2`
 
-```bash
-go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@v2026.527.2
-```
+If `solomon` is not found after install, the binary is in `$(go env GOPATH)/bin` — see [Installation and PATH](docs/user-guide/installation.md).
 
-
-### 3. Build from a clone
-
-For contributors or local patches:
+### Build from a clone
 
 ```bash
 git clone https://github.com/SAPPHIR3-ROS3/Solomon.git
@@ -82,93 +68,6 @@ make build
 
 Produces `./solomon` (Unix/macOS) or `./solomon.exe` (Windows). See [Building and releases](docs/development/building-and-releases.md).
 
-## Add `solomon` to your PATH
-
-After `go install`, the binary is placed in `$(go env GOPATH)/bin` — by default `~/go/bin` on macOS and Linux, and `%USERPROFILE%\go\bin` on Windows. Go does **not** add this directory to your PATH; configure it once below.
-
-**Check that the binary exists:**
-
-```bash
-# macOS / Linux
-ls "$(go env GOPATH)/bin/solomon"
-```
-
-```powershell
-# Windows (PowerShell)
-Test-Path "$(go env GOPATH)\bin\solomon.exe"
-```
-
-If the file is there but `solomon` is not found, follow the steps for your system.
-
-### macOS / Linux
-
-**zsh** (default on macOS) — add to `~/.zshrc`:
-
-```bash
-export PATH="$PATH:$(go env GOPATH)/bin"
-```
-
-Or append in one step:
-
-```bash
-echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-**bash** — add to `~/.bashrc`:
-
-```bash
-export PATH="$PATH:$(go env GOPATH)/bin"
-```
-
-Or append in one step:
-
-```bash
-echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-**fish** — add to `~/.config/fish/config.fish`:
-
-```fish
-fish_add_path (go env GOPATH)/bin
-```
-
-Verify: `which solomon` then `solomon version`.
-
-### Windows
-
-**PowerShell profile** — add to `$PROFILE` (run `notepad $PROFILE` if the file does not exist yet):
-
-```powershell
-$env:Path += ";$(go env GOPATH)\bin"
-```
-
-**Current session only** (PowerShell):
-
-```powershell
-$env:Path += ";$(go env GOPATH)\bin"
-```
-
-**Permanent user PATH** (PowerShell, no profile file):
-
-```powershell
-[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$(go env GOPATH)\bin", "User")
-```
-
-Restart the terminal, then run `solomon version`.
-
-### Alternative: set `GOBIN`
-
-If you already have a directory on your PATH (e.g. `~/.local/bin` on macOS/Linux), you can tell Go to install binaries there instead:
-
-```bash
-go env -w GOBIN="$HOME/.local/bin"
-go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
-```
-
-On Windows, use a path already on your PATH (e.g. `%USERPROFILE%\.local\bin`) and set `GOBIN` accordingly before re-running `go install`.
-
 ## Quickstart
 
 ```bash
@@ -176,27 +75,39 @@ cd /path/to/your/project
 solomon .
 ```
 
-On first run, Solomon starts an **interactive setup** (provider URL, API key, model). Name and language are optional; provider credentials are required.
+On first run, Solomon starts an **interactive setup** (provider URL, API key, model). Reconfigure later with `/onboard`; backup config with `/configbackup`.
 
-If you later enable the optional Cursor integration, Solomon may install its Node-based sidecar automatically at that time.
+At the `You:` prompt:
 
-Then chat at the `You:` prompt, or send one message:
-
-```bash
-solomon exec hello
+```
+/plan          # planning tools only — create and edit plans on disk
+/build         # shell, read/edit files, web search, subagent
+/help          # full slash command list
 ```
 
-Reconfigure later: `/onboard` in the REPL. Backup config: `/configbackup`.
+One-shot without the REPL:
 
-You need network access and credentials for an **OpenAI-compatible** HTTPS API (`base_url` + API key).
+```bash
+solomon exec "summarize the README"
+solomon exec --jsonl "run go test ./..."   # CI / automation
+```
+
+You need network access and credentials for an **OpenAI-compatible** HTTPS API (`base_url` + API key), or configure a provider with `/connect` (Anthropic, ChatGPT Sub, Cursor).
+
+Details: [Configuration](docs/user-guide/configuration.md), [Usage and commands](docs/user-guide/usage-and-commands.md).
 
 ## Documentation
 
-Full guides (configuration, commands, architecture, development): **[docs/](docs/README.md)**.
+| If you want to… | Start here |
+|-----------------|------------|
+| Configure providers, MCP, web search | [Configuration](docs/user-guide/configuration.md) |
+| REPL, slash commands, CLI modes | [Usage and commands](docs/user-guide/usage-and-commands.md) |
+| Find chats, plans, skills on disk | [Data layout](docs/user-guide/data-layout.md) |
+| Automate in CI | [Machine output](docs/user-guide/usage-and-commands.md#machine-readable-output---json---jsonl) · [GitHub Actions example](docs/development/ci-github-actions.example.yml) |
+| Compare capabilities | [Feature catalog](docs/features.md) |
+| Contribute or debug internals | [Package index](docs/architecture/package-index.md) · [Overview](docs/architecture/overview.md) · [Agent turn pipeline](docs/architecture/agent-turn-pipeline.md) · [Tests](docs/development/building-and-releases.md#tests-quick-reference) |
 
-Feature catalog (ranked list with short descriptions): **[docs/features.md](docs/features.md)**.
-
-Startup flow diagram: [Startup and CLI](docs/architecture/startup-and-cli.md#startup-flow).
+Full index: **[docs/](docs/README.md)** · Development: [Testing](docs/development/testing.md), [Cookbook](docs/development/cookbook.md) · Startup flow: [Startup and CLI](docs/architecture/startup-and-cli.md#startup-flow)
 
 ## License
 

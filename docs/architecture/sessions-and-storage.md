@@ -8,8 +8,8 @@ Persist chat transcripts as JSON per project, resolve storage paths from project
 
 | Package / file | Responsibility |
 |----------------|----------------|
-| `internal/chatstore/chatstore.go` | `Session`, `Message`, read/write, list |
-| `internal/chatstore/session_images.go` | Image path repair and storage |
+| `internal/chatstore/store.go` | `Session`, `Message`, read/write, list |
+| `internal/chatstore/images.go` | Image path repair and storage |
 | `internal/chatstore/subchat.go` | Subagent chat paths |
 | `internal/chatstore/checkpoint_sync.go` | Git OID fields on session |
 | `internal/paths/paths.go` | `SolomonHome`, chats dir, images dir |
@@ -51,7 +51,7 @@ See [Data layout](../user-guide/data-layout.md) for the full `~/.solomon` tree d
 
 ## Related code
 
-- [`internal/chatstore/chatstore.go`](../../internal/chatstore/chatstore.go)
+- [`internal/chatstore/store.go`](../../internal/chatstore/store.go)
 - [`internal/project/project.go`](../../internal/project/project.go)
 
 ## See also

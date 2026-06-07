@@ -1,8 +1,8 @@
 # Feature catalog
 
-Solomon features listed by **fame**: how often the same capability appears across terminal coding agents (Claude Code, OpenAI Codex, GitHub Copilot CLI, OpenCode, OpenClaw, Pi, Hermes-style agents, Cursor CLI, and similar). Higher rank means more agents ship something comparable. Ties break **alphabetically** by title.
+Solomon features listed by **fame**: how often the same capability appears across terminal coding agents (Claude Code, OpenAI Codex, OpenCode, OpenClaw, Pi, Hermes-style agents, Cursor CLI, and similar). Higher rank means more agents ship something comparable. Ties break **alphabetically** by title.
 
-Each entry is a short title plus a brief description. Items marked **(in the future)** are tracked in [`TODO.md`](../TODO.md) but not fully delivered yet. Implemented behavior links to the wiki where it exists.
+Each entry is a short title plus a brief description. Items marked **(in the future)** are tracked in [`TODO.md`](../TODO.md) but not fully delivered yet. Implemented behavior links to the wiki where it exists. Code map: [Package index](architecture/package-index.md) · change recipes: [Cookbook](development/cookbook.md).
 
 Capabilities that are rare or combined in ways other terminal agents do not match are listed separately under [Solomon-only and distinctive features](#solomon-only-and-distinctive-features).
 
@@ -12,11 +12,11 @@ Capabilities that are rare or combined in ways other terminal agents do not matc
 
 ### Edit file in the workspace
 
-Solomon exposes an `editFile` native tool in build mode that applies search-and-replace patches to project files, creates or overwrites files when `oldString` is empty, and deletes files when `delete` is true (same tool, with `path` and `intent`). Optional `intent` metadata is echoed in the REPL. The same capability is the default way Claude Code, Codex, and Copilot CLI modify source trees, usually under names like `Edit` or `write`; delete is often a separate tool in other agents. Solomon validates paths relative to the project root but does not yet enforce a strict workspace jail; see [Security (in the future)](#security-sandbox-and-path-policy-in-the-future). Details: [Native tools](architecture/native-tools.md), [Plan vs build](architecture/plan-vs-build.md).
+Solomon exposes an `editFile` native tool in build mode that applies search-and-replace patches to project files, creates or overwrites files when `oldString` is empty, deletes files when `delete` is true, and renames or moves files via `renameTo` (same tool, with `path` and `intent`). Optional `intent` metadata is echoed in the REPL. Mutations are recorded for checkpoint file restore on `/goto`. The same capability is the default way Claude Code, Codex, and OpenCode modify source trees, usually under names like `Edit` or `write`; delete and rename are often separate tools elsewhere. Solomon validates paths relative to the project root but does not yet enforce a strict workspace jail; see [Security (in the future)](#security-sandbox-and-path-policy-in-the-future). Details: [Native tools — `editFile`](architecture/native-tools.md#editfile-semantics-build), [Plan vs build](architecture/plan-vs-build.md).
 
 ### MCP server integration
 
-Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtime so remote tools appear next to native ones. Claude Code, Codex, and Copilot CLI all treat MCP as the standard extension plane for databases, GitHub, browsers, and custom servers. Use `/mcp` in the REPL to inspect configured servers (URLs redacted). Architecture: [MCP integration](architecture/mcp-integration.md).
+Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtime so remote tools appear next to native ones. Claude Code, Codex, OpenCode, and OpenClaw treat MCP as the standard extension plane for databases, GitHub, browsers, and custom servers. Use `/mcp` in the REPL to inspect configured servers (URLs redacted). Architecture: [MCP integration](architecture/mcp-integration.md).
 
 ### Model and provider selection
 
@@ -24,19 +24,19 @@ Switch models and backends with `/models`, add providers with `/connect`, or rer
 
 ### Read project files
 
-The `readFile` tool returns file contents (with line ranges) from the resolved project tree. Read-before-edit is a shared convention across Claude Code, Codex, Copilot CLI, and most agent harnesses. Plan mode restricts writes but still allows reads for research. Implementation: [Native tools](architecture/native-tools.md).
+The `readFile` tool returns file contents (with line ranges) from the resolved project tree. Read-before-edit is a shared convention across Claude Code, Codex, OpenCode, and Hermes-style harnesses. Plan mode restricts writes but still allows reads for research. Reading a path under the repo can activate subdirectory `AGENTS.md` instruction files. Implementation: [Native tools](architecture/native-tools.md).
 
 ### Search project files (find)
 
-The `find` tool lists paths by glob (`files=true`, sorted by mtime) or searches file contents with a Go regexp (`files=false`), with optional path scope, `.gitignore` respect, context lines, output modes, and timeouts. Claude Code, Codex, and Copilot CLI expose the same capability as separate Grep/Glob tools or a unified search primitive; Solomon combines both in one native tool. The Cursor sidecar maps `Grep`, `Glob`, and `SemanticSearch` to `find` (semantic search is regexp fallback today — see [Semantic code search (in the future)](#semantic-code-search-in-the-future)). Details: [Native tools — `find`](architecture/native-tools.md#find-semantics-build).
+The `find` tool lists paths by glob (`files=true`, sorted by mtime) or searches file contents with a Go regexp (`files=false`), with optional path scope, `.gitignore` respect, context lines, output modes, and timeouts. Claude Code and Codex expose the same capability as separate Grep/Glob tools; Solomon combines both in one native tool. The Cursor sidecar maps `Grep`, `Glob`, and `SemanticSearch` to `find` (semantic search is regexp fallback today — see [Semantic code search (in the future)](#semantic-code-search-in-the-future)). Details: [Native tools — `find`](architecture/native-tools.md#find-semantics-build), [Cursor integration — tool bridge](architecture/cursor-integration.md#tool-name-bridge).
 
 ### Run shell commands
 
-The `shell` tool executes real commands in the project working directory, with optional timeouts and `intent` metadata for display. Terminal agents universally rely on shell access for builds, tests, and git. Solomon also supports `!command` and shell-first REPL lines via `/terminal`. See [Usage and commands](user-guide/usage-and-commands.md) and [Runtime and REPL](architecture/runtime-and-repl.md).
+The `shell` tool executes real commands in the project working directory, with optional timeouts and `intent` metadata for display. Terminal agents universally rely on shell access for builds, tests, and git. Solomon also supports `!command` and shell-first REPL lines via `/terminal`. See [Usage and commands](user-guide/usage-and-commands.md) and [Runtime — REPL](architecture/runtime-repl.md).
 
 ### AGENTS.md and repository instructions
 
-Solomon loads `AGENTS.md` (and `CLAUDE.md` / `GEMINI.md` fallbacks) from the global home dir and from the repository, including subdirectory files after tools touch paths under them. Codex, Copilot CLI, Cursor, and Claude Code follow the same cross-tool convention for persistent project context. Custom slash rules are separate; see [Project instructions](user-guide/project-instructions.md).
+Solomon loads `AGENTS.md` (and `CLAUDE.md` / `GEMINI.md` fallbacks) from the global home dir and from the repository, including subdirectory files after tools touch paths under them. `/instructions` prints the global instruction block currently merged into the system prompt. Codex, Cursor, Claude Code, and OpenCode follow the same cross-tool convention for persistent project context. Custom slash rules are separate; see [Project instructions](user-guide/project-instructions.md).
 
 ### Bring your own API endpoint
 
@@ -44,7 +44,7 @@ One binary talks to any HTTPS **OpenAI Chat Completions-compatible** `base_url` 
 
 ### Web search
 
-The `webSearch` tool queries configured engines (DuckDuckGo default; SearxNG, Google PSE, Brave, Bing optional) so the model can fetch fresh web context. Codex, Claude Code, and several other agents ship first-party or MCP-backed search. Engine keys and `/testweb` live in [Configuration](user-guide/configuration.md#web-search-websearch).
+The `webSearch` tool queries configured engines (DuckDuckGo default; SearxNG, Google PSE, Brave, Bing optional) so the model can fetch fresh web context. Codex, Claude Code, and OpenCode ship first-party or MCP-backed search. Engine keys in [Configuration](user-guide/configuration.md#web-search-websearch); smoke-test in the REPL with `/testweb`.
 
 ### Fetch URL content
 
@@ -52,11 +52,11 @@ The `webSearch` tool queries configured engines (DuckDuckGo default; SearxNG, Go
 
 ### Headless one-shot execution
 
-Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the REPL, with shell-style tokenization for the prompt. Claude (`-p`), Codex (`exec`), and Copilot (`-p` / `--prompt`) all support non-interactive runs for scripts and automation. Entry: [`cmd/solomon/exec.go`](../cmd/solomon/exec.go), [Startup and CLI](architecture/startup-and-cli.md).
+Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the REPL, with shell-style tokenization for the prompt. Claude Code (`-p`), Codex (`exec`), and OpenCode support non-interactive runs for scripts and automation. Entry: [`cmd/solomon/exec.go`](../cmd/solomon/exec.go), [Startup and CLI](architecture/startup-and-cli.md).
 
 ### Interactive terminal REPL
 
-Default `solomon` starts an interactive REPL with a raw-mode multiline editor, checkpoint-aware prompts, slash commands, and streaming assistant output. This is the core UX shared with `codex`, `claude`, and `copilot` TUIs. REPL behavior: [Runtime and REPL](architecture/runtime-and-repl.md).
+Default `solomon` starts an interactive REPL with a raw-mode multiline editor, checkpoint-aware prompts, slash commands, and streaming assistant output. This is the core UX shared with Codex, Claude Code, and OpenCode TUIs. REPL behavior: [Runtime — REPL](architecture/runtime-repl.md).
 
 ### Multiline REPL input
 
@@ -68,7 +68,7 @@ Paste and author multi-line prompts without premature send. Solomon owns the REP
 
 ### Plan mode vs build mode
 
-`/plan` restricts the model to planning tools (`createPlan`, `editPlan`, `buildPlan`, skills search); `/build` enables shell, files (`readFile`, `editFile`, `find`), subagent, and web tools. Claude Code’s plan mode, Copilot’s `/plan`, and Codex review/plan flows address the same “think before you edit” workflow. Deep dive: [Plan vs build](architecture/plan-vs-build.md).
+`/plan` restricts the model to planning tools (`createPlan`, `editPlan`, `buildPlan`, skills search); `/build` enables shell, files (`readFile`, `editFile`, `find`), subagent, and web tools. Claude Code plan mode and Codex review/plan flows address the same “think before you edit” workflow. Deep dive: [Plan vs build](architecture/plan-vs-build.md).
 
 ### Project-scoped sessions and data
 
@@ -80,7 +80,7 @@ The canonical workspace root yields a stable 64-char project id; chats, plans, s
 
 ### Subagent delegation
 
-The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes`. Claude Code, Codex, and Copilot CLI `/fleet` or `/agent` flows parallelize work the same way. Subagent **file persistence** beyond in-memory transcripts is **(in the future)** — see [Subagent session persistence (in the future)](#subagent-session-persistence-in-the-future).
+The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). Nested runs always disable reasoning (`ForceDisableReasoning` in [`nested.go`](../internal/agent/runtime/nested.go)); `/reasoning` applies to the main chat only. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly. Subagent **file persistence** beyond in-memory transcripts is **(in the future)** — see [Subagent session persistence (in the future)](#subagent-session-persistence-in-the-future).
 
 ### Agent skills
 
@@ -92,19 +92,19 @@ Install skills with `solomon add` / `/add npx … skills add …`, list with `/s
 
 ### Custom rules (global and project)
 
-`/add rule`, `/add projectrule`, `/rules`, and `/remove` maintain numbered one-liners injected into the system prompt separately from `AGENTS.md`. IDE rule files and Copilot `AGENTS.md` + skills patterns overlap this “small habits vs architecture doc” split. See [Project instructions](user-guide/project-instructions.md).
+`/add rule`, `/add projectrule`, `/rules`, and `/remove` maintain numbered one-liners injected into the system prompt separately from `AGENTS.md`. The split between “short habits” and architecture docs matches how Claude Code rules and OpenCode project context are often kept separate from long instruction files. See [Project instructions](user-guide/project-instructions.md).
 
 ### Machine-readable CI output
 
-`solomon exec --json` emits one JSON report; `--jsonl` streams events for pipelines, with documented exit codes and `--fail-on-tool-error`. Codex `exec` and similar flags support automation without a TTY. Example workflow: [ci-github-actions.example.yml](development/ci-github-actions.example.yml).
+`solomon exec --json` emits one JSON report; `--jsonl` streams events for pipelines, with documented exit codes and `--fail-on-tool-error`. Event schema: [`internal/agent/cievents/`](../internal/agent/cievents/). Codex `exec` and similar flags support automation without a TTY. Example workflow: [ci-github-actions.example.yml](development/ci-github-actions.example.yml).
 
 ### Reasoning and thinking display
 
-`/reasoning` sets main-chat effort; `/thinking` toggles streamed reasoning preview (dim) and tool echo styling. Extended thinking blocks on Anthropic are **(in the future)** in [TODO.md](../TODO.md). Codex and Claude expose comparable “thinking” or effort controls.
+`/reasoning` sets main-chat effort (`none|low|med|high`); `/thinking` toggles streamed reasoning preview (dim) and tool echo styling. Subagent runs ignore `/reasoning` (always none). Extended thinking blocks on Anthropic are **(in the future)** in [TODO.md](../TODO.md). Codex and Claude Code expose comparable effort controls.
 
 ### Clipboard images in the REPL
 
-Ctrl+V (key 22) pastes a clipboard image into the session as `[img-n]` plus an on-disk PNG under the chat images directory, sent to vision-capable models. `/cleansessioncache` drops broken pasted PNG paths and strips orphaned `[img-*]` tokens from the transcript. Codex and Claude accept image inputs; macOS `Cmd+V` for images only is **(in the future)**. REPL: [Runtime and REPL](architecture/runtime-and-repl.md#repl-flow).
+Ctrl+V (key 22) pastes a clipboard image into the session as `[img-n]` plus an on-disk PNG under the chat images directory, sent to vision-capable models. `/cleansessioncache` drops broken pasted PNG paths and strips orphaned `[img-*]` tokens from the transcript. Codex and Claude Code accept image inputs; macOS `Cmd+V` for images only is **(in the future)**. REPL: [Runtime — REPL flow](architecture/runtime-repl.md#repl-flow).
 
 ### @ file and folder mentions in the REPL
 
@@ -124,7 +124,7 @@ Each user message advances a checkpoint sequence; `/goto` rewinds or forks the t
 
 ### Ephemeral sessions
 
-`solomon temp exec` and `/temp` (empty chat only) keep the transcript in memory without writing `chatstore` JSON. Useful for throwaway experiments analogous to temporary threads in other CLIs. See [Runtime and REPL — Ephemeral session](architecture/runtime-and-repl.md#ephemeral-session).
+`solomon temp exec` and `/temp` (empty chat only) keep the transcript in memory without writing `chatstore` JSON. Useful for throwaway experiments analogous to temporary threads in other CLIs. See [Runtime — Ephemeral session](architecture/runtime-repl.md#ephemeral-session).
 
 ### Legacy XML tool calling
 
@@ -140,7 +140,7 @@ Optional `[api_resilience]` configures retries, backoff, jitter, timeouts, and c
 
 ### Cursor integration sidecar
 
-`/integrations` reports the optional Cursor API sidecar URL, health, and install path for editor-adjacent workflows. Requires Node when enabled. Default **`cursor_internal_tools = false`**: Solomon executes tools on the repo; Cursor native tools are blocked or bridged. Details: [Configuration — Cursor integration](user-guide/configuration.md#cursor-integration-tool-execution).
+`/integrations` reports the optional Cursor API sidecar URL, health, and install path. Requires Node when enabled. Default **`cursor_internal_tools = false`**: Solomon executes tools on the repo. Details: [Configuration — Cursor integration](user-guide/configuration.md#cursor-integration-tool-execution), [Cursor integration (architecture)](architecture/cursor-integration.md).
 
 ### Shell-first REPL mode
 
@@ -166,7 +166,7 @@ Persisted REPL settings map to `config.toml` and slash commands: `/name` and `/l
 
 ## Solomon-only and distinctive features
 
-These entries are **not** ranked by fame. They describe behavior that is implemented today and either has no close equivalent among Claude Code, Codex, Copilot CLI, OpenCode, OpenClaw, Pi, Hermes-style agents, and Cursor CLI, or stitches together workflows that elsewhere live in separate products. If a capability also appears in the [Features](#features) list above, this section explains what is different about Solomon’s version.
+These entries are **not** ranked by fame. They describe behavior that is implemented today and either has no close equivalent among Claude Code, Codex, OpenCode, OpenClaw, Pi, Hermes-style agents, and Cursor CLI, or stitches together workflows that elsewhere live in separate products. If a capability also appears in the [Features](#features) list above, this section explains what is different about Solomon’s version.
 
 ### Checkpoint rewind with branch suffixes
 
@@ -174,7 +174,7 @@ Every user turn advances a numbered checkpoint; the REPL prompt and echoed lines
 
 ### Cursor sidecar with Solomon harness
 
-The optional Cursor integration runs a Node sidecar that speaks OpenAI-style HTTP while Solomon remains the tool executor on disk. With **`[tools].cursor_internal_tools = false`** (default), Cursor built-in tools are blocked or bridged to Solomon names; the sidecar does not execute MCP `solomon` calls on disk. The sidecar prefixes prompts so the remote model should use Solomon tools via the solomon MCP server or native API `tool_calls`. Cursor `Delete` is translated to `editFile` with `delete: true`. **`cursor_internal_tools = true` disables this fail-closed setup** — see [Configuration — Cursor integration](user-guide/configuration.md#cursor-integration-tool-execution). `/integrations` reports health, URL, and install path. See [`integrations/cursor/`](../integrations/cursor/) and [`internal/integrations/cursor/`](../internal/integrations/cursor/).
+The optional Cursor integration runs a Node sidecar (OpenAI-compatible HTTP) while Solomon remains the default tool executor on disk. With **`cursor_internal_tools = false`**, native Cursor tools are blocked or bridged to Solomon names; **`true`** lets Cursor run native tools on the project. Full design: [Cursor integration](architecture/cursor-integration.md). User setup: [Configuration](user-guide/configuration.md#cursor-integration-tool-execution).
 
 ### Dual transcript for forced skills
 
@@ -186,7 +186,7 @@ The optional Cursor integration runs a Node sidecar that speaks OpenAI-style HTT
 
 ### On-disk plan artifacts and buildPlan handoff
 
-Plan mode is not only read-only exploration: `createPlan` and `editPlan` write plan files under `~/.solomon/projects/<id>/plans/`, and `buildPlan` loads a named plan, switches to build mode, and starts an implementation pass. Claude Code and Copilot expose plan **modes**, but Solomon treats plans as durable artifacts with a native tool that promotes a plan into build work. See [Plan vs build](architecture/plan-vs-build.md).
+Plan mode is not only read-only exploration: `createPlan` and `editPlan` write plan files under `~/.solomon/projects/<id>/plans/`, and `buildPlan` loads a named plan, switches to build mode, and starts an implementation pass. Claude Code and OpenCode expose plan **modes**, but Solomon treats plans as durable artifacts with a native tool that promotes a plan into build work. See [Plan vs build](architecture/plan-vs-build.md).
 
 ### Shell-first REPL inversion
 
@@ -198,7 +198,7 @@ Plan mode is not only read-only exploration: `createPlan` and `editPlan` write p
 
 ### Stream integrity fail-closed on SSE
 
-During streaming, if `ChatCompletionAccumulator` rejects a chunk (for example inconsistent completion `id` across SSE events), Solomon aborts the turn and does **not** persist partial assistant text, reasoning, or usage from that stream. Output already painted on the terminal may remain visible, but the session file stays consistent. Vendor CLIs typically trust provider streams; this harness-side guard is uncommon. Implementation: [`internal/llm/stream.go`](../internal/llm/stream.go).
+Same behavior as [Stream integrity (fail-closed SSE)](#stream-integrity-fail-closed-sse) above. Distinctive angle: vendor CLIs typically trust provider SSE streams; Solomon rejects inconsistent completion chunks at the harness and keeps the on-disk transcript consistent even when terminal output was already painted.
 
 ### Tool output spill under project temp
 
@@ -224,11 +224,11 @@ Today only `plan` and `build` modes exist. A dedicated **code mode** would narro
 
 ### Full file-operation surface **(in the future)**
 
-`readFile`, `editFile` (including delete via `delete: true`), and `find` (glob + regexp) cover most filesystem work in build mode today; dedicated **rename** and unified **sandbox** semantics are not first-class yet. Agents with richer filesystem primitives (or stricter cages) may still expect parity here.
+`readFile`, `editFile` (create/overwrite, patch, delete via `delete: true`, rename/move via `renameTo`), and `find` (glob + regexp) cover filesystem work in build mode today. What remains **(in the future)** is a unified **sandbox** (path jail, symlink/`..` policy) and optional confirmations — not a separate rename tool. See [Security sandbox and path policy (in the future)](#security-sandbox-and-path-policy-in-the-future).
 
 ### LSP-backed code intelligence **(in the future)**
 
-Copilot CLI already experiments with LSP; Solomon would attach language servers for diagnostics, definitions, and errors without opening an IDE. Large surface area (process lifecycle, caching, per-language servers).
+Some IDE-integrated and terminal agents experiment with LSP; Solomon would attach language servers for diagnostics, definitions, and errors without opening an IDE. Large surface area (process lifecycle, caching, per-language servers).
 
 ### macOS Cmd+V image paste **(in the future)**
 
@@ -268,7 +268,7 @@ Stronger workspace path jail, command allowlists, and optional confirmations wou
 
 ### Subagent session persistence **(in the future)**
 
-Subagent runs today return consolidated text to the parent; durable subchat files matching main-session schema (resume, tool history, stable ids) are outlined in `SubchatsDir` but not complete.
+Subagent runs today return consolidated text to the parent; durable subchat files matching main-session schema (resume, tool history, stable ids) are outlined in `SubchatsDir` but not complete. Nested runs always use `ForceDisableReasoning: true` until optional per-subagent reasoning lands in [TODO.md](../TODO.md).
 
 ### Syntax highlighting in the terminal **(in the future)**
 
@@ -290,6 +290,7 @@ Beyond ChatGPT Sub, native OAuth/login flows for OpenAI, Anthropic, Google AI, a
 
 ## See also
 
+- [Package index](architecture/package-index.md)
 - [Usage and commands](user-guide/usage-and-commands.md)
 - [Overview](architecture/overview.md)
 - [TODO.md](../TODO.md) — backlog and priorities

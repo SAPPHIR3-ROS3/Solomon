@@ -8,7 +8,7 @@ Slash commands for session control, mode, config, and skills; skill registry at 
 
 | Area | Path |
 |------|------|
-| Slash dispatch | `internal/agent/slash.go` |
+| Slash dispatch | `internal/agent/slash/dispatch.go`, `internal/agent/slash_forward.go` |
 | Command registry | `internal/agent/commands/builtin_slash.go`, `help.go` |
 | Command impls | `internal/agent/commands/*.go` |
 | Skills registry | `internal/skills/registry.go`, `add.go`, `remove.go`, `locate.go` |
@@ -19,11 +19,11 @@ Slash commands for session control, mode, config, and skills; skill registry at 
 
 | Function | Behavior |
 |----------|----------|
-| `SlashDispatch` | Parse line, build name, lookup handler in registry |
-| `splitSlashArgs` | Shell-like quoting for slash args |
+| `SlashDispatch` / `slash.Dispatch` | Parse line, forced `/skill:`, builtin registry, dynamic skill slashes |
+| `splitSlashArgs` | Quote-aware slash argument split (`slash/dispatch.go`) |
 | `commands.Deps` | Context, IO, `ProjHex`, `ProjRoot`, runtime callbacks |
 
-Slash handlers live in `commands` package; the runtime bridge constructs `Deps` from `Runtime` state (`slash_bridge.go`).
+Slash handlers live in `commands` package; the runtime bridge constructs `Deps` from `Runtime` state ([`slash_deps.go`](../../internal/agent/runtime/slash_deps.go)).
 
 ## Registry
 
@@ -85,7 +85,7 @@ flowchart LR
 
 ## Related code
 
-- [`internal/agent/slash.go`](../../internal/agent/slash.go)
+- [`internal/agent/slash/dispatch.go`](../../internal/agent/slash/dispatch.go)
 - [`internal/skills/registry.go`](../../internal/skills/registry.go)
 
 ## See also

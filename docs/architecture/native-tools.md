@@ -15,7 +15,8 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `load_skill.go`, `search_skill.go` | Skill tools |
 | `fetch_web.go`, `web_search.go` | Web fetch and search |
 | `exec.go` | `Exec`, `resolveToolInvocation`, dispatch |
-| `env.go` | `Env` — project root, MCP manager, config, callbacks |
+| `env.go` | Type alias to [`internal/agent/toolenv/Env`](../../internal/agent/toolenv/env.go) |
+| `internal/agent/toolenv/` | Canonical `Env` definition (avoids import cycles) |
 | `dump_*.go` | Text descriptions for system prompt |
 | `internal/tooling/parse.go`, `reflect.go` | Invocation parse and reflection |
 
@@ -48,7 +49,7 @@ Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (
 | `renameTo` non-empty | Move/rename `path` to `renameTo`; `oldString`, `newString` empty; `delete` false; destination must not exist |
 | `oldString` and `newString` both empty, `delete` false/absent, `renameTo` empty | Rejected (`editFile refuses empty overwrite`) |
 
-All variants require non-empty `intent`. Paths are relative to the project root. The Cursor sidecar maps Cursor `Delete` to `editFile` with `delete: true` so Solomon remains the executor.
+All variants require non-empty `intent`. Paths are relative to the project root. With the Cursor sidecar, `Delete` maps to `editFile` with `delete: true` — see [Cursor integration](cursor-integration.md).
 
 `editFile` mutations are recorded for checkpoint file staging; `/goto` restores the workspace for staged paths (byte snapshots under the session `staging/` directory).
 
@@ -60,24 +61,7 @@ All variants require non-empty `intent`. Paths are relative to the project root.
 | `files=false`, `pattern` | Go regexp content search; optional `pathGlob`, `outputMode` (`content`, `files_with_matches`, `count`), context lines, `headLimit`, `caseInsensitive`, `multiline` |
 | `timeoutSeconds` | Optional per-call timeout (default 60s) |
 
-Cursor `Grep`, `Glob`, and `SemanticSearch` map to `find`; semantic queries today use the same regexp fallback as text search.
-
-## Cursor sidecar proxy
-
-When Solomon drives the optional Cursor API sidecar, **Solomon stays the tool executor** on the project root. Configuration: [`cursor_internal_tools`](../user-guide/configuration.md#cursor-integration-tool-execution) in `[tools]` (default **off**).
-
-| Layer | Role |
-|-------|------|
-| Deny hooks | Block Cursor built-in tool names before execution |
-| Guard `cwd` | Cursor agent workspace is `.solomon-cursor-guard/`, not the repo |
-| MCP `solomon` | Schema-only stub; no `tools/call` execution in the sidecar |
-| Stream bridge | Map or block tool events; stop Cursor run; emit Solomon `tool_calls` / legacy XML |
-
-Bridging examples: `Read` → `readFile`, `Grep`/`Glob`/`SemanticSearch` → `find`, `Task` → `subagent`, `WebFetch` → `fetchWeb`. Any tool name in the request `tools[]` list is accepted by exact name (dynamic pass-through). Unmapped Cursor-only tools are rejected with structured proxy correction, not executed by Solomon unless they map to an allowed tool.
-
-When [`cursor_internal_tools`](../user-guide/configuration.md#cursor-integration-tool-execution) is **true**, the sidecar forwards native Cursor tool events (`solomon_cursor_tool_event`) for live REPL display; Solomon does not bridge or execute them.
-
-Do **not** set `cursor_internal_tools = true` unless you intend Cursor to run its native tools on the project.
+Cursor `Grep`, `Glob`, and `SemanticSearch` map to `find` via the sidecar bridge ([Cursor integration](cursor-integration.md#tool-name-bridge)); semantic queries today use regexp fallback.
 
 ## Router flow
 
@@ -103,9 +87,21 @@ flowchart TD
   skill -->|no| unknown
 ```
 
-## `Env` struct
+## `toolenv`
 
-Passed into every tool: project hex/root, session reference, MCP manager, mode, stdout, config fragments for web search merge, nested run hook, etc. See [`env.go`](../../internal/agent/tools/env.go).
+Passed into every native tool via [`tools.Exec`](../../internal/agent/tools/exec.go). The struct is defined in [`internal/agent/toolenv/env.go`](../../internal/agent/toolenv/env.go) and re-exported as `tools.Env` in [`tools/env.go`](../../internal/agent/tools/env.go). Runtime builds it in [`Runtime.toolEnv()`](../../internal/agent/runtime/exec.go).
+
+| Field | Purpose |
+|-------|---------|
+| `ProjHex`, `ProjRoot` | Workspace identity and root for relative paths |
+| `Cfg` | Loaded TOML (web search, tool output limits) |
+| `MCP` | MCP manager for external tool calls |
+| `RunNested`, `RunNestedWithSystem` | `subagent` nested turn |
+| `SetMode`, `CurrentMode` | Plan vs build mode switches |
+| `Checkpoint*` callbacks | File staging for `/goto` after `editFile` |
+| `ActivateInstructions*`, `MergeInstructionBlock` | `AGENTS.md` activation from `readFile` / `shell` |
+
+To add a new callback: extend `toolenv.Env`, wire it in `runtime/exec.go`, use it from the tool handler. See [Package index — toolenv](package-index.md#toolenv--tool-execution-context).
 
 ## Extension points
 
@@ -124,5 +120,6 @@ Passed into every tool: project hex/root, session reference, MCP manager, mode, 
 - [Plan vs build](plan-vs-build.md)
 - [Agent turn pipeline](agent-turn-pipeline.md)
 - [MCP integration](mcp-integration.md)
+- [Cursor integration](cursor-integration.md)
 - [Skills and slash](skills-and-slash.md)
 - [Configuration — `[tools]`](../user-guide/configuration.md#tools-legacy-xml-tool-calling)
