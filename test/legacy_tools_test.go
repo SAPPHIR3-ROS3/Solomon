@@ -688,3 +688,40 @@ func TestLegacyToolsCommand(t *testing.T) {
 		t.Fatalf("off: err=%v legacy=%v force=%v saved=%v", err, cfg.Tools.Legacy, cfg.Tools.LegacyForce, saved)
 	}
 }
+
+func TestCursorToolsCommand(t *testing.T) {
+	cfg := &config.Root{}
+	var saved bool
+	buf := &bytes.Buffer{}
+	d := testDeps(nil)
+	d.Cfg = cfg
+	d.Out = buf
+	d.SaveCfg = func() error { saved = true; return nil }
+
+	if err := commands.CursorTools(d, []string{"cursortools", "on"}); err == nil {
+		t.Fatal("expected error without Cursor API configured")
+	}
+
+	cfg.Providers = map[string]*config.Provider{
+		config.ProviderNameCursorAPI: {
+			Name:     config.ProviderNameCursorAPI,
+			AuthKind: config.AuthKindCursorAPI,
+			BaseURL:  "http://127.0.0.1:8766/v1/",
+			APIKey:   "cursor-key",
+		},
+	}
+	saved = false
+	buf.Reset()
+	if err := commands.CursorTools(d, []string{"cursortools", "on"}); err != nil || !cfg.Tools.CursorInternalTools || !saved {
+		t.Fatalf("on: err=%v cursor_internal=%v saved=%v", err, cfg.Tools.CursorInternalTools, saved)
+	}
+	if !strings.Contains(buf.String(), "cursor native tools: on") {
+		t.Fatalf("msg: %q", buf.String())
+	}
+
+	saved = false
+	buf.Reset()
+	if err := commands.CursorTools(d, []string{"cursortools"}); err != nil || cfg.Tools.CursorInternalTools || !saved {
+		t.Fatalf("toggle off: err=%v cursor_internal=%v saved=%v", err, cfg.Tools.CursorInternalTools, saved)
+	}
+}

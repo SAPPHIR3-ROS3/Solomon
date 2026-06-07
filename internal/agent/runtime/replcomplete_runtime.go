@@ -1,6 +1,16 @@
 package agentruntime
 
-import "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+import (
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+)
+
+func (r *Runtime) ReplCompleteCfg() *config.Root {
+	if r == nil {
+		return nil
+	}
+	return r.Cfg
+}
 
 func (r *Runtime) ReplCompleteProjHex() string { return r.ProjHex }
 

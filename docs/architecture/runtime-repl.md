@@ -125,7 +125,7 @@ Clipboard images: Ctrl+V in editor → [`repl_run.go`](../../internal/agent/runt
 |-------|------|
 | `RL` | readline instance (writers/width) |
 | `Mode` | `plan` or `build` |
-| `Cfg.Tools` | Legacy XML flags (`/legacytools`) |
+| `Cfg.Tools` | Legacy XML flags (`/legacytools`); Cursor native tools (`/cursortools`, Cursor API configured) |
 | `ReplShellFirst` | Invert shell vs chat default |
 | `EphemeralSession` | In-memory transcript only |
 | `Out` | Assistant and tool stream |

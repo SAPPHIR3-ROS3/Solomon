@@ -56,6 +56,29 @@ func TestProviderIsCursorAPI(t *testing.T) {
 	}
 }
 
+func TestCursorAPIConfigured(t *testing.T) {
+	if config.CursorAPIConfigured(nil) {
+		t.Fatal("nil cfg")
+	}
+	cfg := &config.Root{Providers: map[string]*config.Provider{"p": {Name: "p", BaseURL: "http://x", APIKey: "k"}}}
+	if config.CursorAPIConfigured(cfg) {
+		t.Fatal("expected false without Cursor API provider")
+	}
+	cfg.Providers[config.ProviderNameCursorAPI] = &config.Provider{
+		Name:     config.ProviderNameCursorAPI,
+		AuthKind: config.AuthKindCursorAPI,
+		BaseURL:  cursorint.DefaultBaseURL(cursorint.DefaultPort),
+		APIKey:   "cursor-key",
+	}
+	if !config.CursorAPIConfigured(cfg) {
+		t.Fatal("expected true with Cursor API key")
+	}
+	cfg.Providers[config.ProviderNameCursorAPI].APIKey = ""
+	if config.CursorAPIConfigured(cfg) {
+		t.Fatal("expected false without API key")
+	}
+}
+
 func TestCursorFastModeDisplayDefaultAndDisabled(t *testing.T) {
 	cfg := &config.Root{ReasoningEffort: "high"}
 	p := &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI}

@@ -21,7 +21,7 @@ func SlashCommandNames(env ReplCompleteEnv) []string {
 		seen[name] = struct{}{}
 		out = append(out, name)
 	}
-	for _, n := range commands.SlashBuiltinNames() {
+	for _, n := range commands.SlashBuiltinNames(env.Cfg) {
 		add(n)
 	}
 	if env.ProjHex != "" || env.ProjRoot != "" {
