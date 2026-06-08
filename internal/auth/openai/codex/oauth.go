@@ -130,17 +130,18 @@ func postToken(ctx context.Context, form url.Values) (TokenSet, error) {
 }
 
 func openBrowser(url string) error {
+	url = strings.TrimSpace(url)
+	if url == "" {
+		return errors.New("open browser: empty URL")
+	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("powershell", "-NoProfile", "-Command", "Start-Process", url)
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	case "darwin":
 		cmd = exec.Command("open", url)
 	default:
 		cmd = exec.Command("xdg-open", url)
 	}
-	if cmd != nil {
-		return cmd.Start()
-	}
-	return nil
+	return cmd.Start()
 }

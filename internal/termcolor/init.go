@@ -12,10 +12,23 @@ import (
 )
 
 var (
-	initMu    sync.Mutex
-	colorOn   bool
-	ansiStrip = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
+	initMu         sync.Mutex
+	colorOn        bool
+	replRawStdout  bool
+	ansiStrip      = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
 )
+
+func SetREPLRawStdout(v bool) {
+	initMu.Lock()
+	replRawStdout = v
+	initMu.Unlock()
+}
+
+func REPLRawStdout() bool {
+	initMu.Lock()
+	defer initMu.Unlock()
+	return replRawStdout
+}
 
 type InitOptions struct {
 	Out        io.Writer

@@ -271,6 +271,12 @@ func parseSkillsInstallCommand(cmdLine string) (*validatedSkillsInstall, error) 
 	}
 	argv = append(argv, "add")
 	i++
+	seenSkill := false
+	seenGlobal := false
+	seenYes := false
+	for i < len(fields) && (isGlobalFlag(fields[i]) || isYesFlag(fields[i])) {
+		i++
+	}
 	if i >= len(fields) {
 		return nil, fmt.Errorf("install command missing repository target")
 	}
@@ -283,14 +289,6 @@ func parseSkillsInstallCommand(cmdLine string) (*validatedSkillsInstall, error) 
 	}
 	argv = append(argv, target)
 	i++
-	seenSkill := false
-	seenGlobal := false
-	seenYes := false
-	for _, a := range argv {
-		if isYesFlag(a) {
-			seenYes = true
-		}
-	}
 	for i < len(fields) {
 		tok := fields[i]
 		switch {
@@ -325,9 +323,6 @@ func parseSkillsInstallCommand(cmdLine string) (*validatedSkillsInstall, error) 
 		default:
 			return nil, fmt.Errorf("unsupported install command token: %q", tok)
 		}
-	}
-	if !seenGlobal {
-		argv = append(argv, "-g")
 	}
 	if !seenYes {
 		argv = append(argv, "-y")

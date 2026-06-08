@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt/shell"
 )
 
 var (
@@ -126,26 +128,27 @@ func executableStem(name string) string {
 }
 
 func ShellBuiltinsMap() map[string]struct{} {
+	return BuiltinsForShell(shell.Effective())
+}
+
+func BuiltinsForShell(effectivePath string) map[string]struct{} {
 	out := make(map[string]struct{})
-	shell := strings.ToLower(os.Getenv("SHELL"))
-	comspec := strings.ToLower(os.Getenv("ComSpec"))
+	sh := strings.ToLower(strings.TrimSpace(effectivePath))
+	base := strings.ToLower(filepath.Base(sh))
+	add := func(names ...string) {
+		for _, n := range names {
+			out[n] = struct{}{}
+		}
+	}
 	switch {
-	case strings.Contains(shell, "fish"):
-		for _, n := range []string{"cd", "pwd", "export", "set"} {
-			out[n] = struct{}{}
-		}
-	case strings.Contains(comspec, "cmd.exe") || comspec == "cmd":
-		for _, n := range []string{"cd", "dir", "echo", "set"} {
-			out[n] = struct{}{}
-		}
-	case strings.Contains(shell, "powershell") || strings.HasSuffix(shell, "pwsh"):
-		for _, n := range []string{"cd", "dir", "ls", "pwd"} {
-			out[n] = struct{}{}
-		}
+	case strings.Contains(sh, "fish"):
+		add("cd", "pwd", "export", "set")
+	case strings.Contains(sh, "powershell") || base == "pwsh.exe" || strings.HasSuffix(base, "pwsh"):
+		add("cd", "dir", "ls", "pwd", "echo", "cat", "cp", "mv", "rm", "clear")
+	case strings.Contains(sh, "cmd.exe") || base == "cmd.exe" || sh == "cmd":
+		add("cd", "dir", "echo", "set")
 	default:
-		for _, n := range []string{"alias", "bg", "cd", "echo", "export", "fg", "jobs", "pwd", "source", "type", "unset"} {
-			out[n] = struct{}{}
-		}
+		add("alias", "bg", "cd", "echo", "export", "fg", "jobs", "pwd", "source", "type", "unset")
 	}
 	return out
 }

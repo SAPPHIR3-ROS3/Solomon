@@ -62,9 +62,13 @@ func ParseAddArgs(parts []string) (*parsedAdd, error) {
 		p.NpmCommand = strings.Join(toks, " ")
 		return p, nil
 	}
-	if strings.HasPrefix(low, "https://skills.sh/") {
+	if IsSkillsShURL(first) {
+		pageURL, err := NormalizeSkillsShURL(first)
+		if err != nil {
+			return nil, err
+		}
 		p.FromSkillsSh = true
-		p.SkillsShURL = first
+		p.SkillsShURL = pageURL
 		switch len(toks) {
 		case 1:
 			break
@@ -80,8 +84,24 @@ func ParseAddArgs(parts []string) (*parsedAdd, error) {
 			return nil, fmt.Errorf(`usage: /add skill <.md path|URL> [name] [scope]`)
 		}
 		u := strings.TrimSpace(toks[1])
+		if IsSkillsShURL(u) {
+			pageURL, err := NormalizeSkillsShURL(u)
+			if err != nil {
+				return nil, err
+			}
+			p.FromSkillsSh = true
+			p.SkillsShURL = pageURL
+			switch len(toks) {
+			case 2:
+			case 3:
+				p.DisplayName = strings.TrimSpace(toks[2])
+			default:
+				return nil, fmt.Errorf("too many arguments for skills.sh URL")
+			}
+			return p, nil
+		}
 		if !IsSkillMarkdownSource(u) {
-			return nil, fmt.Errorf("/add skill: .md via https, file://, or local path")
+			return nil, fmt.Errorf("/add skill: .md via https, file://, or local path (for skills.sh use: /add https://skills.sh/...)")
 		}
 		p.FromRemoteMD = true
 		p.RemoteMDURL = u
