@@ -123,6 +123,7 @@ func TestSlashDispatch_fast(t *testing.T) {
 }
 
 func TestSlashDispatch_cursortools(t *testing.T) {
+	stopCursorSidecar(t)
 	d := testDeps(nil)
 	if err := agent.SlashDispatch(d, "/cursortools on"); err == nil {
 		t.Fatal("expected unknown command without Cursor API configured")
