@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="internal/logo/logo.png" alt="Solomon logo">
+</p>
+
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)
 ![Status](https://img.shields.io/badge/status-early%20release-orange)
