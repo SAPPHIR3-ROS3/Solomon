@@ -38,6 +38,7 @@ func WriteHelp(w io.Writer, projHex, projRoot string, cfg *config.Root) {
 	for _, row := range rows {
 		fmt.Fprintf(&buf, "%-*s\t%s\n", maxCmd, row[0], row[1])
 	}
+	skills.WriteSkillInstallHelpSection(&buf, maxCmd)
 	_ = skills.WriteSkillsHelpSection(&buf, maxCmd, projHex, projRoot)
 	termcolor.WriteSystem(w, buf.String())
 }

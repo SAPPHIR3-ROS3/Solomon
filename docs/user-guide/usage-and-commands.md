@@ -21,7 +21,7 @@
 | CI / automation (JSONL stream) | `solomon exec --jsonl … <prompt>` |
 | CI / automation (JSON report) | `solomon exec --json … <prompt>` |
 | Ephemeral session (REPL) | `/temp` on an empty chat (in memory only; not written to disk) |
-| Skill install | `solomon add npx ...` |
+| Skill install | `solomon add https://skills.sh/...` or `solomon add npx --yes skills add ...` |
 | Skill remove | `solomon remove skill <name>` |
 
 Exact usage strings: [`cmd/solomon/main.go`](../../cmd/solomon/main.go).
@@ -66,7 +66,7 @@ Highlights:
 | `/summarize`, `/compact` | Long-context hygiene |
 | `/connect` | Add provider and models |
 | `/legacytools` | Legacy XML tool calling — see below |
-| `/add rule`, `/add projectrule` | Add a short custom rule (global or project scope) |
+| `/add` | Install skills (skills.sh, npx, or local `.md`); `/add rule`, `/add projectrule` for custom rules |
 | `/skill:<name> [request]` | Force one installed skill into the next LLM turn while keeping `/skill:...` visible in the chat transcript |
 | `/remove rule`, `/remove projectrule` | Remove a rule by number (remaining rules renumbered) |
 | `/rules` | List custom rules (global + project) |
@@ -91,14 +91,51 @@ Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Pro
 
 Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → `[tools].cursor_internal_tools`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
 
+### Installing skills
+
+Solomon copies installed skills into one of three **scopes** (optional last argument; default **`global`**):
+
+| Scope | Storage | Visible when |
+| ----- | ------- | ------------ |
+| `global` | `~/.solomon/skills/` | Any project (default) |
+| `project` | `~/.solomon/projects/<project-id>/skills/` | Registered cwd tree for that project id |
+| `local` | `<workspace>/.solomon/skills/` | This workspace only |
+
+**skills.sh** — paste the catalog URL directly (no `skill` prefix before the URL):
+
+```text
+/add https://skills.sh/anthropics/skills/prd
+/add https://skills.sh/anthropics/skills/prd project
+```
+
+`https://www.skills.sh/...` is accepted. Solomon runs `npx --yes skills add <repo> --skill <pkg> -y`, stages under `~/.agents/skills/`, then copies into the chosen scope. The npm CLI may also create `.agents/` and `skills-lock.json` in the project cwd; Solomon removes those after a successful install (local skills live under `.solomon/skills/`, which is left intact).
+
+**npx** — explicit install command (same validation as CLI `solomon add`):
+
+```text
+/add npx --yes skills add anthropics/skills --skill prd
+/add npx --yes skills add anthropics/skills --skill prd local
+```
+
+**Local or remote SKILL.md**:
+
+```text
+/add skill ./path/to/SKILL.md
+/add skill https://example.com/SKILL.md "My Skill" project
+```
+
+List installed skills with `/skills` (sections Local → Project → Global). Remove with `/remove skill <name>`. Paths and registry: [Data layout — Skills](data-layout.md#skills).
+
 ### Skill install safety checks
 
 For `/add npx ...` (and the equivalent `npm exec ...`) Solomon validates the resulting install command before execution.
 
 Allowed shape:
 
-- `npx ... skills add <owner/repo|https://github.com/...> [--skill <pkg>] [--global|-g] [--yes|-y]`
-- `npm exec ... skills add <owner/repo|https://github.com/...> [--skill <pkg>] [--global|-g] [--yes|-y]`
+- `npx ... skills add <owner/repo|https://github.com/...> [--skill <pkg>] [--yes|-y]`
+- `npm exec ... skills add <owner/repo|https://github.com/...> [--skill <pkg>] [--yes|-y]`
+
+Optional npm flags `-g` / `--global` are accepted if you pass them manually; Solomon does **not** append them. Use Solomon’s `global|project|local` argument to choose where skills are stored.
 
 Rejected examples include:
 

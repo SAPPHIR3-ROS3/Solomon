@@ -364,6 +364,62 @@ func TestRunRemove_global(t *testing.T) {
 	}
 }
 
+func TestCleanupNPMCwdArtifacts_newAgentsDir(t *testing.T) {
+	root := t.TempDir()
+	snap, err := skills.SnapNPMCwdArtifacts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agents := filepath.Join(root, ".agents", "skills", "prd")
+	if err := os.MkdirAll(agents, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "skills-lock.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	solomonSkills := filepath.Join(root, ".solomon", "skills", "abc")
+	if err := os.MkdirAll(solomonSkills, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := skills.CleanupNPMCwdArtifacts(snap, "prd"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents")); !os.IsNotExist(err) {
+		t.Fatal(".agents should be removed")
+	}
+	if _, err := os.Stat(filepath.Join(root, "skills-lock.json")); !os.IsNotExist(err) {
+		t.Fatal("skills-lock.json should be removed")
+	}
+	if _, err := os.Stat(solomonSkills); err != nil {
+		t.Fatalf(".solomon/skills must remain: %v", err)
+	}
+}
+
+func TestCleanupNPMCwdArtifacts_existingAgentsDir(t *testing.T) {
+	root := t.TempDir()
+	keep := filepath.Join(root, ".agents", "skills", "keep")
+	if err := os.MkdirAll(keep, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := skills.SnapNPMCwdArtifacts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newSkill := filepath.Join(root, ".agents", "skills", "prd")
+	if err := os.MkdirAll(newSkill, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := skills.CleanupNPMCwdArtifacts(snap, "prd"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(newSkill); !os.IsNotExist(err) {
+		t.Fatal("new npm skill dir should be removed")
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Fatal("pre-existing skill dir should remain")
+	}
+}
+
 func TestWithRegistryLockHappyPath(t *testing.T) {
 	tmp := t.TempDir()
 	lockPath := filepath.Join(tmp, "registry.lock")

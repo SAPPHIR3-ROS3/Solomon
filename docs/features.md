@@ -84,7 +84,7 @@ The `subagent` tool spawns a nested agent turn with its own system prompt file a
 
 ### Agent skills
 
-Install skills with `solomon add` / `/add npx … skills add …`, list with `/skills`, load via `loadSkill` / `searchSkill` tools or dynamic `/skill` slashes. Cursor Skills and Claude Code skills directories follow the same “packaged expertise” idea. Forced invocation: `/skill:<name> [request]`. See [Skills and slash](architecture/skills-and-slash.md).
+Install skills with `/add` (skills.sh URL, `npx skills add …`, or local `SKILL.md`) into `global` (default), `project`, or `local` scope; list with `/skills`, load via `loadSkill` / `searchSkill` tools or dynamic `/skill` slashes. Cursor Skills and Claude Code skills directories follow the same “packaged expertise” idea. Forced invocation: `/skill:<name> [request]`. See [Installing skills](user-guide/usage-and-commands.md#installing-skills) and [Skills and slash](architecture/skills-and-slash.md).
 
 ### Context compaction and summarization
 

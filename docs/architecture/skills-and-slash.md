@@ -41,7 +41,17 @@ Common commands: `/plan`, `/build`, `/resume`, `/new`, `/temp`, `/summarize`, `/
 | `WithRegistryLock` | File lock around registry updates |
 | `commands.Add` / `commands.Remove` | CLI and slash-driven install paths |
 
-Scopes: global, project (`projects/<id>/skills/`), local workspace (`.solomon/skills/`). See [Data layout](../user-guide/data-layout.md).
+Scopes (last `/add` argument; default `global`):
+
+| Scope | Path |
+|-------|------|
+| `global` | `~/.solomon/skills/` |
+| `project` | `~/.solomon/projects/<id>/skills/` |
+| `local` | `<workspace>/.solomon/skills/` |
+
+See [Data layout](../user-guide/data-layout.md#skills).
+
+**skills.sh URLs** — `/add https://skills.sh/owner/repo/skill [scope]` (and `https://www.skills.sh/...`) are normalized and turned into `npx --yes skills add <repo> --skill <pkg> -y`. The npm `skills` CLI stages files under `~/.agents/skills/`; Solomon then copies into the scope above. Solomon does not auto-append npm `-g`/`--global`; scope is controlled by the Solomon argument, not the npm CLI global flag.
 
 ## Install command validation
 
@@ -50,7 +60,7 @@ Skill installation commands coming from `/add npx ...`, `npm exec ...`, or a gen
 Behavior:
 
 - Only the `skills` package with subcommand `add` is accepted.
-- Only the repository target plus `--skill`, `-g`/`--global`, and `-y`/`--yes` are accepted after `skills add`.
+- Only the repository target plus `--skill`, optional `-g`/`--global`, and `-y`/`--yes` are accepted after `skills add`.
 - Shell syntax is rejected instead of passed to `sh -c` / `cmd /c`.
 - Execution uses direct argv dispatch (`exec.CommandContext`) after validation, not a general-purpose shell string.
 

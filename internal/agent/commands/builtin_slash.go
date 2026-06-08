@@ -82,7 +82,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"name"}, "/name", "/name | /name <name> | /name clear — user name (saved; system prompt)", nil, func(d Deps, parts []string) error { return Name(d, parts) }},
 		{[]string{"language"}, "/language", "/language | /language <language> | /language clear — reply language (default English; saved; system prompt)", nil, func(d Deps, parts []string) error { return Language(d, parts) }},
 		{[]string{"legacytools", "legacy"}, "/legacytools", "/legacytools on|off | /legacytools force on|off — legacy XML tools (saved)", nil, func(d Deps, parts []string) error { return LegacyTools(d, parts) }},
-		{[]string{"add"}, "/add", "/add rule <phrase> | /add projectrule <phrase> | npx skills add ... | https://skills.sh/... | skill <path/to/.md> [name] [global|project|local]", nil, func(d Deps, parts []string) error {
+		{[]string{"add"}, "/add", "/add rule <phrase> | /add projectrule <phrase> | skills.sh URL | npx skills add ... | skill <.md> [name] [global|project|local] — scope default global", nil, func(d Deps, parts []string) error {
 			if len(parts) < 2 {
 				return fmt.Errorf(`usage: /add rule <phrase> | /add projectrule <phrase> | npx ... | skills.sh | skill <.md> [name] [scope]`)
 			}

@@ -163,6 +163,10 @@ func RunInstall(opts InstallOpts) (err error) {
 	if err := RequireNpm(ctx); err != nil {
 		return err
 	}
+	cwdSnap, err := SnapNPMCwdArtifacts(opts.ProjRoot)
+	if err != nil {
+		return err
+	}
 	agentsRoot, err := AgentsSkillsRoot()
 	if err != nil {
 		return err
@@ -268,6 +272,12 @@ func RunInstall(opts InstallOpts) (err error) {
 		return err
 	}
 	logging.Log(logging.INFO_LOG_LEVEL, "skill install complete", logging.LogOptions{Params: map[string]any{"scope": p.Scope, "repo": canonical, "folder": picked}})
+	if err := CleanupNPMCwdArtifacts(cwdSnap, picked); err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "skill install cwd cleanup failed", logging.LogOptions{Params: map[string]any{"err": err.Error(), "projRoot": opts.ProjRoot}})
+		if opts.Out != nil {
+			termcolor.WriteSystem(opts.Out, fmt.Sprintf("Skill installed; could not remove npm cwd artifacts: %v", err))
+		}
+	}
 	if opts.Out != nil {
 		termcolor.WriteSystem(opts.Out, fmt.Sprintf("Skill copied from ~/.agents/skills/%s into Solomon registry.", picked))
 	}

@@ -93,11 +93,13 @@ When a tool result exceeds `[tool_output]` limits (defaults in config), Solomon 
 
 ## Skills
 
-- Global: `~/.solomon/skills/` + `skills.json`
-- Per project: `projects/<project-id>/skills/`
-- Per workspace: `<workspace>/.solomon/skills/` with local `skills.json` mirror
+- Global (`/add ... global` or default): `~/.solomon/skills/` + `skills.json`
+- Per project (`/add ... project`): `projects/<project-id>/skills/`
+- Per workspace (`/add ... local`): `<workspace>/.solomon/skills/` with local `skills.json` mirror
 
-Registry and install paths: [Skills and slash](../architecture/skills-and-slash.md).
+npm `skills add` stages under `~/.agents/skills/`; Solomon copies into the scope above and removes npm cwd side-effects (`.agents/`, `skills-lock.json`) after a successful install.
+
+Registry and install paths: [Skills and slash](../architecture/skills-and-slash.md). User guide: [Installing skills](usage-and-commands.md#installing-skills).
 
 ## See also
 

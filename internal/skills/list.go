@@ -149,6 +149,31 @@ func SkillHelpCommand(name string) string {
 	return s
 }
 
+func WriteSkillInstallHelpSection(w io.Writer, cmdColMin int) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Skill install")
+	type row struct {
+		cmd, detail string
+	}
+	rows := []row{
+		{"/add", "skills.sh URL | npx skills add ... | skill <.md> [name] [scope]"},
+		{"global", "default — ~/.solomon/skills/ (all projects)"},
+		{"project", "~/.solomon/projects/<id>/skills/ (registered cwd tree)"},
+		{"local", "<workspace>/.solomon/skills/ (this repo only)"},
+		{"skills.sh", "https://skills.sh/owner/repo/pkg (www. accepted; no extra skill prefix)"},
+		{"example", "/add https://skills.sh/anthropics/skills/prd project"},
+	}
+	maxW := cmdColMin
+	for _, r := range rows {
+		if n := len(r.cmd); n > maxW {
+			maxW = n
+		}
+	}
+	for _, r := range rows {
+		fmt.Fprintf(w, "%-*s\t%s\n", maxW, r.cmd, r.detail)
+	}
+}
+
 func WriteSkillsHelpSection(w io.Writer, cmdColMin int, projHex, projRoot string) error {
 	regPath, err := paths.SkillsRegistryPath()
 	if err != nil {
