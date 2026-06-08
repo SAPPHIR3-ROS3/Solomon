@@ -1,4 +1,4 @@
-.PHONY: solomon build install test check-docs cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install test check-docs loc-chart cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -68,6 +68,9 @@ test: cursor-bundle
 check-docs:
 	go run scripts/check_doc_paths.go
 	go run scripts/check_package_index.go
+
+loc-chart:
+	go run scripts/loc_chart.go scripts/loc_chart_render.go
 
 # Full reinstall: stop sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
 install: cursor-stop
