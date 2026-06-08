@@ -49,7 +49,21 @@ func TestParseAddArgs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !p.FromSkillsSh || p.Scope != skills.ScopeGlobal {
+	if !p.FromSkillsSh || p.Scope != skills.ScopeGlobal || p.SkillsShURL != "https://skills.sh/foo/bar" {
+		t.Fatalf("%+v", p)
+	}
+	p, err = skills.ParseAddArgs([]string{"https://www.skills.sh/foo/bar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.FromSkillsSh || p.SkillsShURL != "https://skills.sh/foo/bar" {
+		t.Fatalf("%+v", p)
+	}
+	p, err = skills.ParseAddArgs([]string{"skill", "https://www.skills.sh/github/awesome-copilot/prd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.FromSkillsSh || p.SkillsShURL != "https://skills.sh/github/awesome-copilot/prd" {
 		t.Fatalf("%+v", p)
 	}
 	p, err = skills.ParseAddArgs([]string{"skill", "https://example.com/r/skill.md", "global"})
@@ -121,7 +135,7 @@ func TestInstallShellCommandMeta(t *testing.T) {
 	m := &skills.SkillsShMeta{RepoURL: "https://github.com/gh/awesome-copilot", PreferredSkill: "prd"}
 	got := m.InstallShellCommand()
 	if !strings.Contains(got, "github.com/gh/awesome-copilot") || !strings.Contains(got, "--skill prd") ||
-		!strings.Contains(got, "-g") || !strings.Contains(got, "-y") {
+		!strings.Contains(got, "-y") {
 		t.Fatalf("%q", got)
 	}
 }
@@ -129,12 +143,16 @@ func TestInstallShellCommandMeta(t *testing.T) {
 func TestEnsureSkillsAddGlobalYes(t *testing.T) {
 	raw := "npx skills add https://github.com/a/b --skill prd"
 	got := skills.EnsureSkillsAddGlobalYes(raw)
-	if !strings.Contains(got, "-g") || !strings.Contains(got, "-y") {
+	if !strings.Contains(got, "-y") || strings.Contains(got, " -g") {
 		t.Fatalf("%q", got)
 	}
-	complete := "npx --yes skills add -g -y https://github.com/a/b --skill prd"
-	if skills.EnsureSkillsAddGlobalYes(complete) != complete {
-		t.Fatalf("should not alter already-flagged command")
+	legacy := "npx --yes skills add -g -y https://github.com/a/b --skill prd"
+	want := "npx --yes skills add https://github.com/a/b --skill prd -y"
+	if got := skills.EnsureSkillsAddGlobalYes(legacy); got != want {
+		t.Fatalf("legacy order: got %q want %q", got, want)
+	}
+	if got := skills.EnsureSkillsAddGlobalYes(want); got != want {
+		t.Fatalf("should not alter normalized command: got %q", got)
 	}
 }
 
@@ -154,14 +172,14 @@ func TestValidateSkillsInstallCommand(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := skills.EnsureSkillsAddGlobalYes(tc.cmd)
-			bad := got == tc.cmd && !strings.Contains(got, "-g") && !strings.Contains(got, "-y")
+			bad := got == tc.cmd && !strings.Contains(got, "-y")
 			if tc.wantErr {
 				if !bad {
 					t.Fatalf("expected invalid command to remain unnormalized, got %q", got)
 				}
 				return
 			}
-			if !strings.Contains(got, "skills add") || !strings.Contains(got, "-g") || !strings.Contains(got, "-y") {
+			if !strings.Contains(got, "skills add") || !strings.Contains(got, "-y") {
 				t.Fatalf("unexpected normalized command %q", got)
 			}
 		})

@@ -34,7 +34,10 @@ func WrapUserReadline(s string) string {
 		if !colorOn {
 			return s
 		}
-		return "\033[96m" + s + resetANSI
+		if REPLRawStdout() {
+			return WrapUser(s)
+		}
+		return "\033[36m" + s + resetANSI
 	}
 	return WrapUser(s)
 }

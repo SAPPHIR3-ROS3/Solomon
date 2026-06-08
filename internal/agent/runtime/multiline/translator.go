@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/clipboard"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 const softNewlineRune = '\u2063'
@@ -430,9 +431,13 @@ func EnableReplInputModes(w io.Writer) func() {
 		return func() {}
 	}
 	restoreConsole := PrepareConsoleInput()
+	restoreOutput := PrepareConsoleOutput()
+	termcolor.SetREPLRawStdout(EditorUsesRawStdout())
 	WriteTerminalModeSequences(MouseReportDisable + BracketedPasteEnable)
 	return func() {
 		WriteTerminalModeSequences(BracketedPasteDisable)
+		restoreOutput()
 		restoreConsole()
+		termcolor.SetREPLRawStdout(false)
 	}
 }

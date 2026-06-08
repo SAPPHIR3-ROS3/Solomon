@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -115,6 +116,26 @@ func TestWrapUserReadlinePlainWhenDisabled(t *testing.T) {
 	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
 	if got := termcolor.WrapUserReadline("You: "); got != "You: " {
 		t.Fatalf("WrapUserReadline: got %q", got)
+	}
+}
+
+func TestWrapUserReadlineWhenEnabled(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	want := termcolor.WrapUser("You: ")
+	if runtime.GOOS == "windows" {
+		termcolor.SetREPLRawStdout(true)
+		defer termcolor.SetREPLRawStdout(false)
+	}
+	if got := termcolor.WrapUserReadline("You: "); got != want {
+		t.Fatalf("WrapUserReadline: got %q want %q", got, want)
+	}
+	if runtime.GOOS == "windows" {
+		termcolor.SetREPLRawStdout(false)
+		got := termcolor.WrapUserReadline("You: ")
+		want := "\x1b[36mYou: \x1b[0m"
+		if got != want {
+			t.Fatalf("WrapUserReadline fallback: got %q want %q", got, want)
+		}
 	}
 }
 

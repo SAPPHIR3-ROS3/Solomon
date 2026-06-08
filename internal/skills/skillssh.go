@@ -24,13 +24,40 @@ var reNpxSkills = regexp.MustCompile(`npx\s+skills\s+add\s+([^\s<\\]+)(?:\s+\\?\
 var reGitHubHTTPS = regexp.MustCompile(`https://github\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+`)
 var reTotalInstalls = regexp.MustCompile(`([\d.]+\s*[KMB]?)\s+total\s+installs`)
 
+func IsSkillsShURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	if !strings.EqualFold(u.Scheme, "https") {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSuffix(u.Host, "."))
+	return host == "skills.sh" || host == "www.skills.sh"
+}
+
+func NormalizeSkillsShURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", err
+	}
+	if !strings.EqualFold(u.Scheme, "https") {
+		return "", fmt.Errorf("skills.sh URL must be https://skills.sh/...")
+	}
+	host := strings.ToLower(strings.TrimSuffix(u.Host, "."))
+	if host != "skills.sh" && host != "www.skills.sh" {
+		return "", fmt.Errorf("skills.sh URL must be https://skills.sh/...")
+	}
+	u.Host = "skills.sh"
+	u.Fragment = ""
+	return u.String(), nil
+}
+
 func FetchSkillsShMeta(ctx context.Context, pageURL string) (*SkillsShMeta, error) {
-	u, err := url.Parse(strings.TrimSpace(pageURL))
+	pageURL, err := NormalizeSkillsShURL(pageURL)
 	if err != nil {
 		return nil, err
-	}
-	if !strings.EqualFold(u.Scheme, "https") || !strings.EqualFold(u.Host, "skills.sh") {
-		return nil, fmt.Errorf("skills.sh URL must be https://skills.sh/...")
 	}
 	client := &http.Client{Timeout: 45 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
@@ -95,9 +122,9 @@ func (m *SkillsShMeta) InstallShellCommand() string {
 	repo := strings.TrimSuffix(strings.TrimSpace(m.RepoURL), "/")
 	sk := strings.TrimSpace(m.PreferredSkill)
 	if sk != "" {
-		return fmt.Sprintf("npx --yes skills add -g -y %s --skill %s", repo, sk)
+		return fmt.Sprintf("npx --yes skills add %s --skill %s -y", repo, sk)
 	}
-	return fmt.Sprintf("npx --yes skills add -g -y %s", repo)
+	return fmt.Sprintf("npx --yes skills add %s -y", repo)
 }
 
 func ConfirmInstall(in io.Reader, out io.Writer, meta *SkillsShMeta) (bool, error) {

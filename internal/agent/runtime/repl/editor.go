@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
@@ -57,7 +58,7 @@ func readMultilineInput(loop *Loop, history *inputHistory) (string, error) {
 		history: history,
 		lines:   [][]rune{{}},
 		width:   width,
-		out:     loop.RL.Stdout(),
+		out:     multiline.EditorStdout(loop.RL.Stdout()),
 	}
 	defer e.finish()
 	e.refresh()
