@@ -4,15 +4,24 @@ import (
 	"context"
 	"io"
 	"strings"
+	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 )
+
+func stopCursorSidecar(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		cursorint.DefaultManager().Stop()
+	})
+}
 
 func testDeps(sess *chatstore.Session) commands.Deps {
 	if sess == nil {

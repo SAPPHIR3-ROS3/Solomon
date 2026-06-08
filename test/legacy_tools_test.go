@@ -690,6 +690,7 @@ func TestLegacyToolsCommand(t *testing.T) {
 }
 
 func TestCursorToolsCommand(t *testing.T) {
+	stopCursorSidecar(t)
 	cfg := &config.Root{}
 	var saved bool
 	buf := &bytes.Buffer{}

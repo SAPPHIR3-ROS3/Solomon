@@ -28,6 +28,7 @@ type processState struct {
 	apiKey                   string
 	cwd                      string
 	allowCursorInternalTools bool
+	logFile                  *os.File
 }
 
 type Manager struct {
@@ -73,7 +74,7 @@ func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, allowCursorInt
 			}
 			return DefaultBaseURL(port), nil
 		}
-		running = nil
+		stopLocked()
 	}
 	if running != nil {
 		stopLocked()
@@ -160,7 +161,9 @@ func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port in
 		"CURSOR_API_CWD="+cwd,
 		fmt.Sprintf("CURSOR_API_ALLOW_INTERNAL_TOOLS=%t", allowCursorInternalTools),
 	)
-	if logFile, err := sidecarLogFile(); err == nil {
+	var logFile *os.File
+	if f, err := sidecarLogFile(); err == nil {
+		logFile = f
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
 	} else {
@@ -168,9 +171,12 @@ func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port in
 		cmd.Stderr = io.Discard
 	}
 	if err := cmd.Start(); err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		return fmt.Errorf("start cursor proxy: %w", err)
 	}
-	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools}
+	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools, logFile: logFile}
 	go watchSidecarProcess(cmd, dir, apiKey, cwd, allowCursorInternalTools, port)
 	return nil
 }
@@ -180,7 +186,7 @@ func watchSidecarProcess(cmd *exec.Cmd, dir, apiKey, cwd string, allowCursorInte
 	mu.Lock()
 	shouldRestart := running != nil && running.cmd == cmd
 	if shouldRestart {
-		running = nil
+		stopLocked()
 	}
 	mu.Unlock()
 	if !shouldRestart {
@@ -199,12 +205,16 @@ func watchSidecarProcess(cmd *exec.Cmd, dir, apiKey, cwd string, allowCursorInte
 }
 
 func stopLocked() {
-	if running == nil || running.cmd == nil || running.cmd.Process == nil {
-		running = nil
+	if running == nil {
 		return
 	}
-	_ = running.cmd.Process.Kill()
-	_ = running.cmd.Wait()
+	if running.cmd != nil && running.cmd.Process != nil && running.cmd.ProcessState == nil {
+		_ = running.cmd.Process.Kill()
+		_ = running.cmd.Wait()
+	}
+	if running.logFile != nil {
+		_ = running.logFile.Close()
+	}
 	running = nil
 }
 
