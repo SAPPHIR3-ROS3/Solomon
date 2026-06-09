@@ -58,11 +58,11 @@ func FormatChatTranscript(msgs []chatstore.Message) string {
 	return b.String()
 }
 
-func summarizePromptFromTemplate(transcript string, disableThinking bool) (string, string) {
-	d := prompt.SummarizeData{Transcript: transcript, DisableThinking: disableThinking}
+func summarizePromptFromTemplate(transcript string, language string, disableThinking bool) (string, string) {
+	d := prompt.SummarizeData{Transcript: transcript, Language: language, DisableThinking: disableThinking}
 	sys, err := prompt.RenderSummarizeSystem(d)
 	if err != nil {
-		sys = prompt.SystemWithNoThink(disableThinking, prompt.SummarizeSystemFallback())
+		sys = prompt.SystemWithNoThink(disableThinking, prompt.SummarizeSystemFallback(language))
 	}
 	user, err := prompt.RenderSummarize(d)
 	if err != nil {
@@ -229,7 +229,7 @@ func SummarizeBody(d Deps) (string, error) {
 	}
 	progress := NewSummarizeProgress(d.Out)
 	transcript := FormatChatTranscript(msgs)
-	sys, userPrompt := summarizePromptFromTemplate(transcript, d.Cfg.ReasoningEffortIsNone())
+	sys, userPrompt := summarizePromptFromTemplate(transcript, d.Cfg.EffectiveResponseLanguage(), d.Cfg.ReasoningEffortIsNone())
 	const sep = "================================================================================"
 	if d.Backend == nil {
 		return "", fmt.Errorf("LLM backend not configured")

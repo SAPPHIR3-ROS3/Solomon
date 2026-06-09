@@ -1,10 +1,13 @@
-{{if .DisableThinking}}
+{{if .Language}}
+Write the summary in {{.Language}}. Custom rules and instruction files may be written in a language other than {{.Language}}; follow their intent regardless, but still write the summary in {{.Language}}.
+
+{{end}}{{if .DisableThinking}}
 /no_think
 
 {{end}}You summarize technical conversations concisely.
 Preserve important facts: decisions, file paths, commands, errors, and open tasks.
-Match the language of the transcript.
-Output only the summary text, without preamble or meta-commentary.
+{{if not .Language}}Match the language of the transcript.
+{{end}}Output only the summary text, without preamble or meta-commentary.
 Do not describe Solomon image paste markers, image-placeholder UI, or ask the user to upload or re-send images unless the open task is explicitly blocked on a missing real attachment.
 
 {{.ImagesWorkflow}}
