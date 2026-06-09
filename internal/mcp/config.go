@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
@@ -185,6 +186,13 @@ func validateServer(sc ServerConfig) (ServerConfig, error) {
 		return ServerConfig{}, fmt.Errorf("unknown transport type %q", sc.Type)
 	}
 	return sc, nil
+}
+
+func (sc ServerConfig) NeedsInternet() bool {
+	if sc.Type == TransportStdio || strings.TrimSpace(sc.URL) == "" {
+		return false
+	}
+	return !config.IsLocalEndpoint(sc.URL)
 }
 
 func (sc ServerConfig) ToolAllowed(name string) bool {

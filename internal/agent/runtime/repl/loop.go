@@ -21,6 +21,9 @@ type Loop struct {
 	Out io.Writer
 	Ctx context.Context
 
+	InputInterrupt         <-chan struct{}
+	PrepareStartupNotice   func()
+	TakeStartupNotice      func() bool
 	CompleteEnv            replcomplete.ReplCompleteEnv
 	FinishSessionLoad      func()
 	PromptPrimary          func() string
@@ -51,7 +54,16 @@ func Run(loop *Loop) error {
 		if loop.FinishSessionLoad != nil {
 			loop.FinishSessionLoad()
 		}
+		if loop.PrepareStartupNotice != nil {
+			loop.PrepareStartupNotice()
+		}
 		line, err := readMultilineInput(loop, history)
+		if errors.Is(err, ErrInputInterrupted) {
+			if loop.TakeStartupNotice != nil {
+				loop.TakeStartupNotice()
+			}
+			continue
+		}
 		if err != nil {
 			switch {
 			case errors.Is(err, io.EOF):

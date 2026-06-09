@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
@@ -83,6 +84,82 @@ func TestUserFacingAPIError_providerHTTPError(t *testing.T) {
 	got := llm.UserFacingAPIError(err)
 	if !strings.Contains(got, "type: usage_limit_reached") || !strings.Contains(got, "HTTP: 429") {
 		t.Fatalf("got:\n%s", got)
+	}
+}
+
+func TestUserFacingAPIError_nestedProxyError(t *testing.T) {
+	t.Parallel()
+	raw := `models API: 500 Internal Server Error: {"error":{"message":"Network request failed","type":"proxy_error"}}`
+	got := llm.UserFacingAPIError(errors.New(raw))
+	for _, want := range []string{
+		"source: models API",
+		"HTTP: 500",
+		"type: proxy_error",
+		"message: Network request failed",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "{") {
+		t.Fatalf("expected no raw JSON, got:\n%s", got)
+	}
+}
+
+func TestUserFacingAPIError_httpRequestError(t *testing.T) {
+	t.Parallel()
+	raw := `Get "https://openrouter.ai/api/v1/models": dial tcp: lookup openrouter.ai: no such host`
+	got := llm.UserFacingAPIError(errors.New(raw))
+	for _, want := range []string{
+		"request: GET https://openrouter.ai/api/v1/models",
+		"error: dial tcp: lookup openrouter.ai: no such host",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+}
+
+func TestIsLocalEndpoint(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		raw  string
+		want bool
+	}{
+		{"http://127.0.0.1:8766/v1/", true},
+		{"http://localhost:8080", true},
+		{"http://[::1]:8080", true},
+		{"http://api.openrouter.ai/v1", false},
+		{"https://example.com", false},
+	}
+	for _, tc := range cases {
+		if got := config.IsLocalEndpoint(tc.raw); got != tc.want {
+			t.Fatalf("%q: got %v want %v", tc.raw, got, tc.want)
+		}
+	}
+}
+
+func TestFormatOfflineNotice(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Root{
+		Providers: map[string]*config.Provider{
+			"Cursor API": {BaseURL: "http://127.0.0.1:8766/v1/"},
+			"OpenRouter": {BaseURL: "https://openrouter.ai/api/v1"},
+		},
+	}
+	got := commands.FormatOfflineNotice(cfg)
+	for _, want := range []string{
+		"No internet connection detected.",
+		"Until connectivity is restored",
+		"- web search",
+		"- remote providers: OpenRouter",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "Cursor API") {
+		t.Fatalf("local provider should not be listed:\n%s", got)
 	}
 }
 

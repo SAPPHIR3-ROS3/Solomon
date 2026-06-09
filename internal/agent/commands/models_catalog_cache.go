@@ -14,11 +14,25 @@ import (
 )
 
 type slashCatalogPrefetch struct {
-	key         string
-	done        chan struct{}
-	mixed       []ListedModel
-	byProvider  map[string][]ListedModel
-	fetchErr    error
+	key          string
+	done         chan struct{}
+	mixed        []ListedModel
+	byProvider   map[string][]ListedModel
+	fetchErr     error
+	providerErrs []ProviderCatalogError
+}
+
+type ProviderCatalogError struct {
+	Provider string
+	FullList bool
+	Err      error
+}
+
+func (e ProviderCatalogError) label() string {
+	if e.FullList {
+		return e.Provider + " (full list)"
+	}
+	return e.Provider
 }
 
 var slashCatalogCache struct {
@@ -78,21 +92,23 @@ func PrefetchSlashModelCatalog(ctx context.Context, cfg *config.Root, out io.Wri
 
 func runSlashCatalogPrefetch(ctx context.Context, cfg *config.Root, out io.Writer, p *slashCatalogPrefetch) {
 	defer close(p.done)
-	mixed, byProv, err := buildSlashModelCatalogs(ctx, Deps{Ctx: ctx, Cfg: cfg, Out: out})
+	mixed, byProv, err, provErrs := buildSlashModelCatalogs(ctx, Deps{Ctx: ctx, Cfg: cfg, Out: out})
 	p.mixed = mixed
 	p.byProvider = byProv
 	p.fetchErr = err
+	p.providerErrs = provErrs
 }
 
-func buildSlashModelCatalogs(ctx context.Context, d Deps) ([]ListedModel, map[string][]ListedModel, error) {
+func buildSlashModelCatalogs(ctx context.Context, d Deps) ([]ListedModel, map[string][]ListedModel, error, []ProviderCatalogError) {
 	providers := config.ProviderList(d.Cfg)
 	if len(providers) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	type providerBundle struct {
 		flagship []ListedModel
 		all      []ListedModel
 		err      error
+		fullList bool
 	}
 	results := make([]providerBundle, len(providers))
 	var wg sync.WaitGroup
@@ -105,7 +121,6 @@ func buildSlashModelCatalogs(ctx context.Context, d Deps) ([]ListedModel, map[st
 			ids, err := connect.ListModelsForProvider(ctx, d.Cfg, &pp)
 			if err != nil {
 				results[i].err = err
-				PrintSystemf(d.Out, "provider %s: error: %v", pp.Name, err)
 				return
 			}
 			flagship := make([]ListedModel, len(ids))
@@ -116,7 +131,7 @@ func buildSlashModelCatalogs(ctx context.Context, d Deps) ([]ListedModel, map[st
 			allIDs, err := connect.ListModelsForProviderAll(ctx, d.Cfg, &pp)
 			if err != nil {
 				results[i].err = err
-				PrintSystemf(d.Out, "provider %s (full list): error: %v", pp.Name, err)
+				results[i].fullList = true
 				return
 			}
 			results[i].all = orderListedModelsByProvider(orderListedModelsFromIDs(pp.Name, allIDs), pp.Name)
@@ -126,11 +141,17 @@ func buildSlashModelCatalogs(ctx context.Context, d Deps) ([]ListedModel, map[st
 	var mixed []ListedModel
 	byProv := make(map[string][]ListedModel, len(providers))
 	var firstErr error
+	var providerErrs []ProviderCatalogError
 	for i := range results {
 		if results[i].err != nil {
 			if firstErr == nil {
 				firstErr = results[i].err
 			}
+			providerErrs = append(providerErrs, ProviderCatalogError{
+				Provider: providers[i].Name,
+				FullList: results[i].fullList,
+				Err:      results[i].err,
+			})
 			continue
 		}
 		mixed = append(mixed, results[i].flagship...)
@@ -138,7 +159,7 @@ func buildSlashModelCatalogs(ctx context.Context, d Deps) ([]ListedModel, map[st
 			byProv[providers[i].Name] = results[i].all
 		}
 	}
-	return mixed, byProv, firstErr
+	return mixed, byProv, firstErr, providerErrs
 }
 
 func waitSlashCatalogPrefetch(ctx context.Context, cfg *config.Root) *slashCatalogPrefetch {
@@ -164,7 +185,11 @@ func fetchSlashModelCatalogCached(ctx context.Context, d Deps) ([]ListedModel, m
 	if p := waitSlashCatalogPrefetch(ctx, d.Cfg); p != nil {
 		return append([]ListedModel(nil), p.mixed...), cloneProviderCatalogMap(p.byProvider), p.fetchErr
 	}
-	return buildSlashModelCatalogs(ctx, d)
+	mixed, byProv, err, provErrs := buildSlashModelCatalogs(ctx, d)
+	if d.Out != nil && len(provErrs) > 0 {
+		PrintProviderCatalogErrors(d.Out, provErrs)
+	}
+	return mixed, byProv, err
 }
 
 func cloneProviderCatalogMap(in map[string][]ListedModel) map[string][]ListedModel {
