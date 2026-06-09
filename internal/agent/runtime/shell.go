@@ -21,6 +21,7 @@ func (r *Runtime) releaseTTYForSubprocess() func() {
 	return func() {
 		restoreConsole()
 		multiline.WriteTerminalModeSequences(multiline.BracketedPasteEnable)
+		multiline.EnsureCookedTTY()
 		r.RL.Refresh()
 	}
 }

@@ -174,7 +174,6 @@ func RunSystemInstall(ctx context.Context, tag string, progress io.Writer) error
 	if tag == "" {
 		return fmt.Errorf("empty release tag")
 	}
-	fmt.Fprintln(progress, "Stopping Solomon to install the update; restart follows...")
 	if err := scheduleInstallRestart(ctx, tag, progress); err == nil {
 		return ErrRestartScheduled
 	} else if progress != nil {

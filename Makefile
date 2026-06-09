@@ -28,8 +28,30 @@ BUILD_FLAGS := -trimpath -ldflags="$(LDFLAGS)"
 CURSOR_BUNDLER := go run scripts/cursor_bundler.go
 CURSOR_PROXY_DIR := integrations/cursor
 
+ifeq ($(GOOS),windows)
+FIX_TTY =
+define INSTALL_STEP
+	@echo.
+	@echo -- $(1) --
+	@echo     $(2)
+	@$(2)
+endef
+else
+FIX_TTY = stty sane opost onlcr icanon echo 2>/dev/null || true;
+define INSTALL_STEP
+	@$(FIX_TTY)
+	@echo ""
+	@echo "── $(1) ──"
+	@echo "    $$ $(2)"
+	@$(2)
+	@$(FIX_TTY)
+endef
+endif
+
 cursor-stop:
+	@$(FIX_TTY)
 	$(CURSOR_BUNDLER) stop
+	@$(FIX_TTY)
 
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
 cursor-proxy-build:
@@ -73,12 +95,19 @@ loc-chart:
 	go run scripts/loc_chart.go scripts/loc_chart_render.go
 
 # Full reinstall: stop sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
-install: cursor-stop
-	$(CURSOR_BUNDLER) build --force
-	$(CURSOR_BUNDLER) bundle
-	go install $(BUILD_FLAGS) ./cmd/solomon
-	$(CURSOR_BUNDLER) install
-	@echo installed $(INSTALL_BIN)
+install:
+	@$(FIX_TTY)
+	@echo ""
+	@echo "=== Solomon install ($(VERSION)) ==="
+	$(call INSTALL_STEP,1/5 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
+	$(call INSTALL_STEP,2/5 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
+	$(call INSTALL_STEP,3/5 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
+	$(call INSTALL_STEP,4/5 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
+	$(call INSTALL_STEP,5/5 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+	@$(FIX_TTY)
+	@echo ""
+	@echo "solomon -> $(INSTALL_BIN)"
+	@echo "=== Done ==="
 
 clean-cursor-bundle:
 ifeq ($(GOOS),windows)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -33,12 +34,18 @@ func StdinIsTerminal() bool {
 }
 
 func (r *Runtime) Run(ctx context.Context) error {
+	multiline.EnsureCookedTTY()
+	defer multiline.EnsureCookedTTY()
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
 	r.mutateSession(func(s *chatstore.Session) {
 		chatstore.FinishSessionLoad(s)
 	})
 	_, _ = r.refreshUpdateCheck(ctx, false)
 	repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst, r.cachedUpdateNotice())
+	if r.tryAutoUpdateInstall(ctx) {
+		r.shutdownForUpdateRestart()
+		return ErrRestartSolomon
+	}
 	go func() { r.InitMCP(ctx) }()
 	if !config.NeedsOnboard(r.Cfg) {
 		go commands.PrefetchSlashModelCatalog(ctx, r.Cfg, r.Out)
@@ -66,6 +73,13 @@ func (r *Runtime) Run(ctx context.Context) error {
 
 func (r *Runtime) shutdownForUpdateRestart() {
 	_ = r.persistSession()
+	if r.RL != nil {
+		r.RL.Clean()
+		_ = r.RL.Terminal.ExitRawMode()
+	}
+	multiline.WriteTerminalModeSequences(multiline.BracketedPasteDisable + multiline.MouseReportDisable)
+	multiline.EnsureCookedTTY()
+	commands.PrintSystem(r.Out, "Update will install after Solomon exits, then restart in this terminal.")
 	commands.PrintSystem(r.Out, "Exiting Solomon for update...")
 	if r.RL != nil {
 		_ = r.RL.Close()

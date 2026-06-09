@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
@@ -44,6 +45,10 @@ func (r *Runtime) Close() error {
 	if r != nil && r.MCP != nil {
 		errMCP = r.MCP.Close()
 	}
+	if r != nil && r.RL != nil {
+		_ = r.RL.Terminal.ExitRawMode()
+	}
+	multiline.EnsureCookedTTY()
 	if r != nil {
 		pid := tooloutput.CurrentPID()
 		projHex := r.ProjHex

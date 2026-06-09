@@ -71,6 +71,12 @@ func EditorStdout(fallback io.Writer) io.Writer {
 	return fallback
 }
 
+func EnsureCookedTTY() {}
+
+func EnterRawStdin() (restore func(), err error) {
+	return func() {}, nil
+}
+
 func PrepareConsoleInput() func() {
 	kernel32 := syscall.NewLazyDLL("kernel32.dll")
 	getMode := kernel32.NewProc("GetConsoleMode")
