@@ -61,7 +61,7 @@ The REPL prompt uses a Solomon-owned raw-mode editor instead of delegating the m
 | **Arrow Left / Arrow Right** | Move horizontally; image tags are treated as a single logical unit. |
 | **Backspace / Delete** | Edit the current buffer; Backspace at the start of a line joins it with the previous line. |
 | **Paste text** | Bracketed paste inserts multiline text into the current message without submitting it. |
-| **Paste image** | When the terminal exposes an image paste through the supported clipboard path, Solomon inserts an `[img-N]` tag. |
+| **Paste image** | **Ctrl+V** when the clipboard holds an image (raw-mode editor; Windows banner also hints this). Inserts an `[img-N]` tag. |
 | **@ file/folder** | Type `@` plus a name fragment to open a path picker under the prompt; Tab, Enter, or arrow keys select a match. Inserts the shortest unique `@path` tag (plain text, no SHA). Arrow Left/Right and Backspace/Delete treat each tag as one unit. On send, file or folder content is expanded for the model (visible transcript keeps the short tags). |
 
 ## Tab completion (interactive REPL)

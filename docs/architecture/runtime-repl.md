@@ -117,7 +117,19 @@ Tests: [`test/repl_highlight_test.go`](../../test/repl_highlight_test.go).
 | [`multiline/stdin_unix.go`](../../internal/agent/runtime/multiline/stdin_unix.go) | Unix console input restore |
 | [`multiline/stdin_windows.go`](../../internal/agent/runtime/multiline/stdin_windows.go) | Windows console input |
 
-Clipboard images: Ctrl+V in editor → [`repl_run.go`](../../internal/agent/runtime/repl_run.go) `saveReplClipboardImage` → session `[img-n]` tags. See [Usage and commands](../user-guide/usage-and-commands.md).
+Clipboard images: **Ctrl+V** in the raw-mode editor → [`repl_run.go`](../../internal/agent/runtime/repl_run.go) `saveReplClipboardImage` → session `[img-n]` tags. See [Terminal setup — Multiline input](../user-guide/terminal-setup.md#multiline-input-interactive-repl).
+
+## REPL startup
+
+| Step | Behavior |
+| ---- | -------- |
+| Update check | GitHub release compare before the banner; with `autoupdate=true` and a newer tag, install runs immediately and Solomon exits to restart in the same terminal |
+| Welcome banner | Clamped to terminal width; omits inline update hint when autoupdate will install |
+| MCP | `InitMCP` in a background goroutine; connection summary goes to the log file, not the REPL transcript |
+| Model catalog | `PrefetchSlashModelCatalog` when onboarding is complete |
+| Connectivity | `BeginStartupConnectivityCheck` — DuckDuckGo probe; offline notice deferred until the prompt is ready (input can interrupt the wait); first `/models` after offline startup refetches catalogs |
+
+Implementation: [`repl_run.go`](../../internal/agent/runtime/repl_run.go), [`commands/testweb.go`](../../internal/agent/commands/testweb.go).
 
 ## REPL-relevant `Runtime` fields
 

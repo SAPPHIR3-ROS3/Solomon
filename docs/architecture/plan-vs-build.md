@@ -9,7 +9,7 @@
 | Mode | Set by | Native tools (OpenAI) |
 |------|--------|------------------------|
 | `plan` | `/plan`, default after some slash flows | `createPlan`, `editPlan`, `buildPlan` |
-| `build` | `/build`, `NewRuntime` default | `shell`, `readFile`, `editFile`, `find`, `subagent`, `loadSkill`, `searchSkill`, `fetchWeb`, `webSearch` |
+| `build` | `/build`, `NewRuntime` default | `shell`, `readFile`, `editFile`, `find`, `subagent`, `loadSkill`, `searchSkill`, `fetchWeb`, `webSearch`, `docsRetrieval` |
 
 MCP tools append to both modes when connected ([`toolParams`](../../internal/agent/runtime/mcp.go)).
 

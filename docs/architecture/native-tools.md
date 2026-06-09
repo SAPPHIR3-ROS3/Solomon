@@ -14,6 +14,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `subagent.go` | Nested agent run |
 | `load_skill.go`, `search_skill.go` | Skill tools |
 | `fetch_web.go`, `web_search.go` | Web fetch and search |
+| `docs_retrieval.go` | Embedded docs BM25 search (`docsRetrieval`) |
 | `exec.go` | `Exec`, `resolveToolInvocation`, dispatch |
 | `env.go` | Type alias to [`internal/agent/toolenv/Env`](../../internal/agent/toolenv/env.go) |
 | `internal/agent/toolenv/` | Canonical `Env` definition (avoids import cycles) |
@@ -35,7 +36,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | Name | Mode |
 |------|------|
 | `createPlan`, `editPlan`, `buildPlan` | plan |
-| `shell`, `readFile`, `editFile`, `find`, `subagent`, `fetchWeb`, `webSearch` | build |
+| `shell`, `readFile`, `editFile`, `find`, `subagent`, `fetchWeb`, `webSearch`, `docsRetrieval` | build |
 
 Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
 

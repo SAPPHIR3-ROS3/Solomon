@@ -24,7 +24,9 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `tool_output.max_bytes`, `tool_output.max_lines` | Tool result truncation before LLM (defaults 65536 / 2048) |
 | `web_search_engine` | Default engine for the **`webSearch`** tool (omit for `duckduckgo`) |
 | `fast_mode` | Cursor fast mode when the active provider supports it (default on; toggle with `/fast`) |
-| `autoupdate` | Auto-install newer releases when `/update` finds one (toggle with `/autoupdate`) |
+| `autoupdate` | At REPL startup, auto-install a newer release when the GitHub check finds one, then restart in the same terminal (toggle with `/autoupdate`) |
+| `doc_search_min_normalized_score` | BM25 minimum for `/docs` and `docsRetrieval` (default `0.05`) |
+| `doc_search_full_article_score` | Normalized score threshold for returning a full article on short queries (default `0.9`) |
 
 ### `[tools]` (legacy XML tool calling)
 
@@ -112,7 +114,7 @@ Many slash commands write back to `config.toml` on save:
 | Slash command | Config field | Notes |
 |---------------|--------------|-------|
 | `/name` | `user_name` | `/name clear` removes |
-| `/language` | `response_language` | `/language clear` resets to English |
+| `/language` | `response_language` | `/language clear` resets to English; custom rules and instruction files may stay in another language — see [Project instructions](project-instructions.md) |
 | `/reasoning` | `reasoning_effort` | Main chat only; subagent reasoning stays off unless extended later |
 | `/thinking` | `show_thinking` | Streamed reasoning preview |
 | `/stats` | `show_usage_stats` | Token line after assistant turns |
@@ -123,7 +125,7 @@ Many slash commands write back to `config.toml` on save:
 | `/legacytools` | `[tools].legacy`, `[tools].legacy_force` | Global, not per session |
 | `/cursortools` | `[tools].cursor_internal_tools` | Visible only when Cursor API provider is configured; restarts sidecar on save |
 | `/fast` | `fast_mode` | Only when active provider supports Cursor fast mode |
-| `/autoupdate` | `autoupdate` | Auto-install on `/update` check |
+| `/autoupdate` | `autoupdate` | Auto-install at REPL startup when a newer release is available |
 
 Commands such as `/configbackup`, `/update`, `/upgrade`, and `/version` do not add new config keys; `/onboard` overwrites wizard-managed provider fields.
 

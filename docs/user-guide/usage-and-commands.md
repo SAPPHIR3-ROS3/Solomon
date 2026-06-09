@@ -9,7 +9,7 @@
 - **Skills**: `solomon add` / `solomon remove`; `/skills`, `/add`, dynamic skill slashes, and forced `/skill:<name> [request]` in-session (authoritative list: `/help`)
 - **Project instructions**: `AGENTS.md` (and fallbacks) plus numbered custom rules injected into the system prompt — see [Project instructions](project-instructions.md)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools
-- **Build tools**: `readFile`, `editFile`, `find`, `shell`, `subagent`, `fetchWeb`, `webSearch` (build mode); plan tools `createPlan`, `editPlan`, `buildPlan` (plan mode) — see [Native tools](../architecture/native-tools.md)
+- **Build tools**: `readFile`, `editFile`, `find`, `shell`, `subagent`, `fetchWeb`, `webSearch`, `docsRetrieval` (build mode); plan tools `createPlan`, `editPlan`, `buildPlan` (plan mode) — see [Native tools](../architecture/native-tools.md)
 
 ## CLI usage modes
 
@@ -74,6 +74,7 @@ Highlights:
 | `/goto`, `/checkpoint` | Rewind transcript to a checkpoint id; print current checkpoint tag |
 | `/exec` | Send one user message and run a turn (`/exec "prompt with spaces"`) |
 | `/models`, `/onboard` | Switch model; rerun setup wizard |
+| `/docs` | Search embedded Solomon docs (`/docs <query>`); keeps `/docs …` visible in chat |
 | `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
 | `/cursortools` | Cursor native tools on project (`cursor_internal_tools`) — only after `/connect` → Cursor API |
 | `/reasoning`, `/thinking` | Main-chat reasoning effort; streamed reasoning preview |
@@ -83,11 +84,15 @@ Highlights:
 | `/testweb` | Test web search config (OK / NOT OK + DuckDuckGo fallback) |
 | `/cleansessioncache` | Drop broken pasted PNG paths; strip orphaned `[img-*]` from transcript |
 | `/terminal` | Shell-first input: plain lines = shell; `!…` = AI message |
-| `/version`, `/update`, `/upgrade`, `/autoupdate` | Version; check releases; install update; toggle auto-update |
+| `/version`, `/update`, `/upgrade`, `/autoupdate` | Version; check releases and refresh banner; install update; toggle startup auto-install (`autoupdate=true` installs before the prompt and restarts in the same terminal) |
 | `/configbackup` | Copy `config.toml` to `~/.solomon/backup/config.toml.<isodate>.bak` |
 | `/clear`, `/exit`, `/quit` | Clear terminal; exit REPL with resume hint |
 
 Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Project instructions](project-instructions.md).
+
+### Startup connectivity notice
+
+After the welcome banner, Solomon runs a short DuckDuckGo reachability check in the background (skipped when onboarding is required). If the network looks offline, a single system notice lists affected remote features (web search, remote MCP servers, remote providers) instead of separate catalog errors. The notice appears when the prompt is ready; typing can interrupt the wait. After an offline startup, the first `/models` refetches provider catalogs once connectivity returns.
 
 Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → `[tools].cursor_internal_tools`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
 

@@ -16,7 +16,7 @@ Solomon exposes an `editFile` native tool in build mode that applies search-and-
 
 ### MCP server integration
 
-Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtime so remote tools appear next to native ones. Claude Code, Codex, OpenCode, and OpenClaw treat MCP as the standard extension plane for databases, GitHub, browsers, and custom servers. Use `/mcp` in the REPL to inspect configured servers (URLs redacted). Architecture: [MCP integration](architecture/mcp-integration.md).
+Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtime so remote tools appear next to native ones. Claude Code, Codex, OpenCode, and OpenClaw treat MCP as the standard extension plane for databases, GitHub, browsers, and custom servers. Use `/mcp` in the REPL to inspect configured servers (URLs redacted). Background connect status is written to the log file, not the REPL transcript. Architecture: [MCP integration](architecture/mcp-integration.md).
 
 ### Model and provider selection
 
@@ -49,6 +49,10 @@ The `webSearch` tool queries configured engines (DuckDuckGo default; SearxNG, Go
 ### Fetch URL content
 
 `fetchWeb` retrieves a URL and returns markdown-friendly content for the model (HTML conversion, fenced snippets). Web fetch complements search and appears in multiple agent stacks under similar names. Build-mode only alongside other build tools. See [Native tools](architecture/native-tools.md).
+
+### Embedded documentation search
+
+The `docsRetrieval` build tool and `/docs <query>` slash command search the embedded Solomon docs corpus (BM25 snippets or full articles by path). The visible chat line stays `/docs …` while the expanded article text goes to the API. Thresholds: `doc_search_min_normalized_score` and `doc_search_full_article_score` in [Configuration](user-guide/configuration.md). See [Native tools — `docsRetrieval`](architecture/native-tools.md).
 
 ### Headless one-shot execution
 
@@ -104,7 +108,7 @@ Install skills with `/add` (skills.sh URL, `npx skills add …`, or local `SKILL
 
 ### Clipboard images in the REPL
 
-Ctrl+V (key 22) pastes a clipboard image into the session as `[img-n]` plus an on-disk PNG under the chat images directory, sent to vision-capable models. `/cleansessioncache` drops broken pasted PNG paths and strips orphaned `[img-*]` tokens from the transcript. Codex and Claude Code accept image inputs; macOS `Cmd+V` for images only is **(in the future)**. REPL: [Runtime — REPL flow](architecture/runtime-repl.md#repl-flow).
+Ctrl+V in the raw-mode REPL editor pastes a clipboard image into the session as `[img-n]` plus an on-disk PNG under the chat images directory, sent to vision-capable models. `/cleansessioncache` drops broken pasted PNG paths and strips orphaned `[img-*]` tokens from the transcript. Codex and Claude Code accept image inputs; macOS `Cmd+V` for images only is **(in the future)**. REPL: [Runtime — REPL flow](architecture/runtime-repl.md#repl-flow).
 
 ### @ file and folder mentions in the REPL
 
@@ -156,11 +160,11 @@ If the SSE accumulator detects inconsistent completion chunks (e.g. mismatched `
 
 ### REPL display and session preferences
 
-Persisted REPL settings map to `config.toml` and slash commands: `/name` and `/language` inject user name and reply language into the system prompt; `/stats` toggles token usage after assistant turns; `/max_response` caps assistant output tokens; `/timeout` sets subagent segment minutes; `/log` sets visible log verbosity; `/fast` toggles Cursor fast mode when the active provider supports it; `/cursortools` toggles Cursor native tool execution when Cursor API is configured. See [Configuration](user-guide/configuration.md) and `/help`.
+Persisted REPL settings map to `config.toml` and slash commands: `/name` and `/language` inject user name and reply language into the system prompt (custom rules and instruction files may use another language — the model follows their intent but replies in the configured language); `/stats` toggles token usage after assistant turns; `/max_response` caps assistant output tokens; `/timeout` sets subagent segment minutes; `/log` sets visible log verbosity; `/fast` toggles Cursor fast mode when the active provider supports it; `/cursortools` toggles Cursor native tool execution when Cursor API is configured. See [Configuration](user-guide/configuration.md) and `/help`.
 
 ### Release updates and config backup
 
-`/version` prints the installed build; `/update` checks GitHub releases and refreshes the welcome banner; `/autoupdate` toggles automatic install of newer releases; `/upgrade` runs the OS install command for the available release; `/configbackup` copies `config.toml` to a dated file under `~/.solomon/backup/`. `/onboard` reruns the setup wizard (overwrites first-setup fields).
+`/version` prints the installed build; `/update` checks GitHub releases and refreshes the welcome banner; `/autoupdate` toggles startup auto-install (when enabled and a newer release exists, Solomon installs before the prompt and restarts in the same terminal); `/upgrade` runs the OS install command for the available release; `/configbackup` copies `config.toml` to a dated file under `~/.solomon/backup/`. `/onboard` reruns the setup wizard (overwrites first-setup fields).
 
 ---
 
@@ -237,10 +241,6 @@ Ctrl+V image paste works today; universal `Cmd+V` would need a macOS event-tap h
 ### MemPalace / Obsidian memory layer **(in the future)**
 
 External memory (MemPalace or similar) plus Obsidian vault conventions would extend chat + repo context with durable notes and links. No agent standard exists yet; ranking is speculative.
-
-### Model routing policies **(in the future)**
-
-Automatic model choice by task type, cost, or fallback on rate limits goes beyond manual `/models` and `/connect`. Some cloud agents route internally; local harnesses would need explicit configurable rules.
 
 ### Semantic code search **(in the future)**
 
