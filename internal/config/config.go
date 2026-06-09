@@ -455,6 +455,53 @@ func FirstProviderName(r *Root) string {
 	return list[0].Name
 }
 
+func IsLocalEndpoint(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	if host == "" {
+		return false
+	}
+	switch host {
+	case "localhost", "127.0.0.1", "::1", "0:0:0:0:0:0:0:1":
+		return true
+	}
+	return strings.HasSuffix(host, ".local")
+}
+
+func RemoteProviderNames(r *Root) []string {
+	list := ProviderList(r)
+	if len(list) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(list))
+	for _, p := range list {
+		if !IsLocalEndpoint(p.BaseURL) {
+			names = append(names, p.Name)
+		}
+	}
+	return names
+}
+
+func (r *Root) WebSearchNeedsInternet() bool {
+	if r == nil {
+		return true
+	}
+	engine := strings.ToLower(strings.TrimSpace(r.EffectiveWebSearchEngine()))
+	if engine == "searxng" || engine == "searx" {
+		if IsLocalEndpoint(r.WebSearchBaseURL) {
+			return false
+		}
+	}
+	return true
+}
+
 func RunWizardIfNeeded(stdin io.Reader) (*Root, error) {
 	_ = stdin
 	r, err := LoadOptional()

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
@@ -90,6 +91,24 @@ func PrintSystemErr(out io.Writer, err error) {
 		return
 	}
 	PrintSystem(out, llm.UserFacingAPIError(err))
+}
+
+func FormatProviderCatalogError(providerName string, err error) string {
+	detail := llm.UserFacingAPIError(err)
+	return fmt.Sprintf("provider %s:\n%s", providerName, detail)
+}
+
+const providerCatalogErrorSep = "======"
+
+func PrintProviderCatalogErrors(out io.Writer, errs []ProviderCatalogError) {
+	if out == nil || len(errs) == 0 {
+		return
+	}
+	parts := make([]string, len(errs))
+	for i, e := range errs {
+		parts[i] = FormatProviderCatalogError(e.label(), e.Err)
+	}
+	PrintSystem(out, strings.Join(parts, "\n"+providerCatalogErrorSep+"\n"))
 }
 
 func PromptIO(d Deps) config.PromptIO {

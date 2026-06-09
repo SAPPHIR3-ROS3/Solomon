@@ -54,12 +54,16 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 	go func() { r.InitMCP(ctx) }()
 	if !config.NeedsOnboard(r.Cfg) {
-		go commands.PrefetchSlashModelCatalog(ctx, r.Cfg, r.Out)
+		commands.PrefetchSlashModelCatalog(ctx, r.Cfg, nil)
+		commands.BeginStartupConnectivityCheck(ctx, r.Cfg)
 	}
 	err := repl.Run(&repl.Loop{
 		RL:                     r.RL,
 		Out:                    r.Out,
 		Ctx:                    ctx,
+		InputInterrupt:         commands.ReplStartupInterrupt(),
+		PrepareStartupNotice:   func() { commands.PrepareReplStartupNotice(r.Out) },
+		TakeStartupNotice:      func() bool { return commands.TakeReplStartupNotice(r.Out) },
 		CompleteEnv:            replcomplete.EnvFrom(r),
 		FinishSessionLoad:      r.finishReplSessionLoad,
 		PromptPrimary:          r.readlinePromptPrimary,

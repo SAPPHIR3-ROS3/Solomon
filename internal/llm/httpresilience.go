@@ -273,7 +273,20 @@ func UserFacingAPIError(err error) string {
 		msg = rest
 	}
 	if body, ok := extractAPIErrorJSON(msg); ok {
-		return formatAPIErrorLines(attempts, statusCodeFromMessage(msg), body)
+		formatted := formatAPIErrorLines(attempts, statusCodeFromMessage(msg), body)
+		if strings.HasPrefix(msg, "models API: ") {
+			formatted = "source: models API\n" + formatted
+		}
+		return formatted
+	}
+	if formatted, ok := formatModelsAPIPlainError(msg); ok {
+		return formatted
+	}
+	if formatted, ok := formatHTTPRequestError(msg); ok {
+		if attempts > 0 {
+			return fmt.Sprintf("attempts: %d\n%s", attempts, formatted)
+		}
+		return formatted
 	}
 	if attempts > 0 {
 		return fmt.Sprintf("attempts: %d\n%s", attempts, msg)
@@ -305,13 +318,21 @@ func extractAPIErrorJSON(msg string) (codexAPIErrorBody, bool) {
 	}
 	raw := strings.TrimSpace(msg[idx:])
 	var body codexAPIErrorBody
-	if err := json.Unmarshal([]byte(raw), &body); err != nil {
-		return codexAPIErrorBody{}, false
+	if err := json.Unmarshal([]byte(raw), &body); err == nil {
+		if body.Type != "" || body.Message != "" || body.Detail != "" || body.ResetsAt != 0 || body.ResetsInSeconds != 0 {
+			return body, true
+		}
 	}
-	if body.Type == "" && body.Message == "" && body.Detail == "" && body.ResetsAt == 0 && body.ResetsInSeconds == 0 {
-		return codexAPIErrorBody{}, false
+	var wrapped struct {
+		Error codexAPIErrorBody `json:"error"`
 	}
-	return body, true
+	if err := json.Unmarshal([]byte(raw), &wrapped); err == nil {
+		body = wrapped.Error
+		if body.Type != "" || body.Message != "" || body.Detail != "" {
+			return body, true
+		}
+	}
+	return codexAPIErrorBody{}, false
 }
 
 func chatGPTSubPrefixedError(err error) string {
@@ -372,6 +393,59 @@ func formatAPIErrorLines(attempts, statusCode int, payload any) string {
 		return fmt.Sprint(payload)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatHTTPRequestError(msg string) (string, bool) {
+	quote := strings.Index(msg, `"`)
+	if quote <= 0 {
+		return "", false
+	}
+	method := strings.TrimSpace(msg[:quote])
+	if method == "" {
+		return "", false
+	}
+	rest := msg[quote:]
+	end := strings.Index(rest[1:], `"`)
+	if end < 0 {
+		return "", false
+	}
+	url := rest[1 : 1+end]
+	tail := strings.TrimSpace(rest[1+end+1:])
+	if !strings.HasPrefix(tail, ":") {
+		return "", false
+	}
+	detail := strings.TrimSpace(tail[1:])
+	if detail == "" {
+		return "", false
+	}
+	return strings.Join([]string{
+		"request: " + strings.ToUpper(method) + " " + url,
+		"error: " + detail,
+	}, "\n"), true
+}
+
+func formatModelsAPIPlainError(msg string) (string, bool) {
+	const prefix = "models API: "
+	if !strings.HasPrefix(msg, prefix) {
+		return "", false
+	}
+	if strings.Contains(msg, "{") {
+		return "", false
+	}
+	rest := strings.TrimSpace(msg[len(prefix):])
+	if rest == "" {
+		return "", false
+	}
+	lines := []string{"source: models API"}
+	if i := strings.Index(rest, ": "); i >= 0 {
+		lines = append(lines, "HTTP: "+strings.TrimSpace(rest[:i]))
+		if tail := strings.TrimSpace(rest[i+2:]); tail != "" {
+			lines = append(lines, "message: "+tail)
+		}
+	} else {
+		lines = append(lines, "HTTP: "+rest)
+	}
+	return strings.Join(lines, "\n"), true
 }
 
 func extractHTTPStatusLine(msg string) string {

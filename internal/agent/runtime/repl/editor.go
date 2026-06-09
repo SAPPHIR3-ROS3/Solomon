@@ -19,6 +19,8 @@ import (
 	"golang.org/x/term"
 )
 
+var ErrInputInterrupted = errors.New("repl: input interrupted")
+
 type multilineEditor struct {
 	loop          *Loop
 	history       *inputHistory
@@ -63,8 +65,9 @@ func readMultilineInput(loop *Loop, history *inputHistory) (string, error) {
 	defer e.finish()
 	e.refresh()
 	reader := bufio.NewReader(os.Stdin)
+	interrupt := loop.InputInterrupt
 	for {
-		key, err := readEditorKey(reader)
+		key, err := readEditorKey(reader, interrupt)
 		if err != nil {
 			if errors.Is(err, io.EOF) && e.empty() {
 				return "", io.EOF
@@ -84,16 +87,32 @@ type editorKey struct {
 	paste bool
 }
 
-func readEditorKey(r *bufio.Reader) (editorKey, error) {
-	ch, _, err := r.ReadRune()
-	if err != nil {
-		return editorKey{}, err
+func readEditorKey(r *bufio.Reader, interrupt <-chan struct{}) (editorKey, error) {
+	for {
+		if interrupt != nil {
+			select {
+			case <-interrupt:
+				return editorKey{}, ErrInputInterrupted
+			default:
+			}
+		}
+		if !stdinReady(50 * time.Millisecond) {
+			continue
+		}
+		ch, _, err := r.ReadRune()
+		if err != nil {
+			return editorKey{}, err
+		}
+		if ch != readline.CharEsc {
+			return editorKey{r: ch}, nil
+		}
+		return readEditorKeyEscape(r, ch)
 	}
-	if ch != readline.CharEsc {
-		return editorKey{r: ch}, nil
-	}
+}
+
+func readEditorKeyEscape(r *bufio.Reader, first rune) (editorKey, error) {
 	var b strings.Builder
-	b.WriteRune(ch)
+	b.WriteRune(first)
 	for r.Buffered() > 0 || stdinReady(20*time.Millisecond) {
 		next, _, err := r.ReadRune()
 		if err != nil {
