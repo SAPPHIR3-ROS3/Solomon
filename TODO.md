@@ -5,21 +5,14 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 ---
 
 
-## 1 — Model routing
-
-- **Stato:** scelta **manuale** di provider/modello (`/connect`, config); nessuna policy automatica per tipo di task, costo, fallback o degradazione controllata.
-- **Cosa manca:** **miglior model routing** — regole o euristiche configurabili (es. modello leggero per passaggi meccanici, modello forte per refactor; fallback su errore rate-limit; profili nominati legati a contesto).
-
----
-
-## 2 — Code mode e altri tool
+## 1 — Code mode e altri tool
 
 - **Stato:** modalità `plan` / `build` e set tool attuale; nessuna "code mode" dedicata o set esteso come da design desiderato.
 - **Cosa manca:** definire **code mode** (tool permessi, system prompt, eventuale separazione da build); aggiungere gli **altri tool** concordati (nativi o via MCP) e aggiornare dump/help coerentemente.
 
 ---
 
-## 3 — Persistenza subagent
+## 2 — Persistenza subagent
 
 - **Stato:** esistono **directory e helper** per `subchats` (`SubchatsDir`, `SubchatPath`), ma la run annidata costruisce soprattutto **transcript in memoria** e restituisce una stringa al parent; non c'è un **file di sessione subagent** completo e riapribile come la chat principale (messaggi, tool, usage, id stabile, resume). Il tool `subagent` espone solo `sysPromptPath` + `task`; reasoning nested è **sempre disabilitato** (`ForceDisableReasoning: true` in `nested.go`). Il bridge Cursor `Task` → `subagent` ignora `resume`, `interrupt`, `run_in_background` e non ha equivalente per `subagent_type` / `readonly`.
 - **Cosa manca — persistenza:** modello di sessione allineato alla chat principale (stesso schema o sottoinsieme), **ID univoco** per sub-run (esposto al parent e riusabile come `resume`), salvataggio incrementale a ogni turno/tool, collegamento al messaggio/tool call che ha spawnato il subagent; riapertura con `/resume` o argomento `resume` sul tool.
@@ -33,28 +26,28 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ---
 
-## 4 — Oracolo
+## 3 — Oracolo
 
 - **Stato:** non presente nel prodotto.
 - **Cosa manca:** **aggiunta dell’Oracolo** — definire ruolo (consultazione, verifica, routing domande, output UX) e implementarlo nel flusso Solomon senza duplicare slash/tool esistenti.
 
 ---
 
-## 5 — Vault sicuro (informazioni sensibili)
+## 4 — Vault sicuro (informazioni sensibili)
 
 - **Stato:** API key e altri segreti rilevanti sono principalmente nel **TOML** di configurazione in chiaro; nessun **vault** dedicato né uso sistematico di **Keychain** (macOS), **Credential Manager** (Windows), **libsecret** (Linux), o equivalente unificato.
 - **Cosa manca:** progettare e implementare un **vault sicuro** centralizzato per tutte le info sensibili (chiavi provider, token OAuth quando introdotti, credenziali per ricerca web o MCP dove applicabile); API di lettura a runtime senza esporre plaintext su disco oltre il necessario; **migrazione** guidata da config legacy; chiarezza su headless/CI e backup/ripristino senza falle.
 
 ---
 
-## 6 — Autenticazione verso i major lab
+## 5 — Autenticazione verso i major lab
 
 - **Stato:** provider configurati in TOML con **base URL OpenAI-compatibile** e **API key** in chiaro (`internal/config`); client costruito con `option.WithAPIKey` / `WithBaseURL` (`internal/agent/runtime.go`). Nessun flusso OAuth né integrazione dedicata per singoli vendor.
 - **Cosa manca:** dove ha senso tecnico e legale, **auth ufficiale** verso i provider principali (OpenAI, Anthropic, Google AI, ecc.): gestione credenziali (incluso refresh o rotazione dove previsto), UX di login/chiave, profili multipli; appoggio al **vault** per token e chiavi invece del solo TOML; tabella/documentazione di quali lab sono supportati nativamente vs solo endpoint compatibili.
 
 ---
 
-## 7 — LSP
+## 6 — LSP
 
 - **Stato:** nessun aggancio LSP; Solomon resta **solo terminale** + tool file/shell/MCP.
 - **Cosa manca (se lo vorrai):** un client LSP (anche minimale) che alimenti il contesto: diagnostiche, simboli, "go to definition", errori di compilazione nel buffer del workspace — senza dover aprire l'IDE.
@@ -62,14 +55,14 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ---
 
-## 8 — Memoria (MemPalace) e Obsidian
+## 7 — Memoria (MemPalace) e Obsidian
 
 - **Stato:** non integrato; sessioni e contesto restano chat + file progetto come oggi.
 - **Cosa manca:** layer di **memoria esterna** basato su MemPalace (o equivalente scelto), con regole di lettura/scrittura; **integrazione Obsidian** (vault path, note come artefatti, sync convenzioni link/path) e confini tra memoria di progetto vs memoria personale.
 
 ---
 
-## 9 — Sicurezza
+## 8 — Sicurezza
 
 - **Stato:** `shell` è **comando reale** sulla macchina, nella working directory del progetto; `readFile`/`editFile` risolvono path senza **path jail** forte (path assoluti possono uscire dalla root; symlink/`..` non sono trattati come "cage" del workspace). MCP ha allow/deny per nome tool sul server, ma l'host resta potente.
 - **Integrità stream SSE (fail-closed):** in [`internal/llm/stream.go`](internal/llm/stream.go), `StreamText` e `StreamAssistantTurn` abortiscono il turno se `ChatCompletionAccumulator.AddChunk` rifiuta un chunk (tipicamente `id` completion incoerente nello stesso stream). Nessun salvage di `ReasoningText`, content o usage in sessione — possibile forgery / jailbreak surface, stessa filosofia del rifiuto delle completion forgiate lato provider. Errore: `llm.ErrStreamAccumulatorRejected`. Test: [`test/stream_integrity_test.go`](test/stream_integrity_test.go). Output già stampato sul terminale prima dell’abort può restare visibile ma non viene persistito.
