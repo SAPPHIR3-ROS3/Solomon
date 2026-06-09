@@ -182,6 +182,15 @@ func waitSlashCatalogPrefetch(ctx context.Context, cfg *config.Root) *slashCatal
 }
 
 func fetchSlashModelCatalogCached(ctx context.Context, d Deps) ([]ListedModel, map[string][]ListedModel, error) {
+	if StartupWasOffline() {
+		clearStartupOffline()
+		mixed, byProv, err, provErrs := buildSlashModelCatalogs(ctx, d)
+		updateActiveSlashCatalogPrefetch(mixed, byProv, err, provErrs)
+		if d.Out != nil && len(provErrs) > 0 {
+			PrintProviderCatalogErrors(d.Out, provErrs)
+		}
+		return mixed, byProv, err
+	}
 	if p := waitSlashCatalogPrefetch(ctx, d.Cfg); p != nil {
 		return append([]ListedModel(nil), p.mixed...), cloneProviderCatalogMap(p.byProvider), p.fetchErr
 	}
@@ -190,6 +199,18 @@ func fetchSlashModelCatalogCached(ctx context.Context, d Deps) ([]ListedModel, m
 		PrintProviderCatalogErrors(d.Out, provErrs)
 	}
 	return mixed, byProv, err
+}
+
+func updateActiveSlashCatalogPrefetch(mixed []ListedModel, byProv map[string][]ListedModel, err error, provErrs []ProviderCatalogError) {
+	slashCatalogCache.mu.Lock()
+	defer slashCatalogCache.mu.Unlock()
+	if slashCatalogCache.active == nil {
+		return
+	}
+	slashCatalogCache.active.mixed = mixed
+	slashCatalogCache.active.byProvider = byProv
+	slashCatalogCache.active.fetchErr = err
+	slashCatalogCache.active.providerErrs = provErrs
 }
 
 func cloneProviderCatalogMap(in map[string][]ListedModel) map[string][]ListedModel {

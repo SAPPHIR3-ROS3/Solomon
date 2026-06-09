@@ -23,6 +23,12 @@ var replStartupNotice struct {
 	interrupt chan struct{}
 }
 
+var startupConnectivity struct {
+	mu      sync.Mutex
+	offline bool
+	checked bool
+}
+
 func init() {
 	replStartupNotice.interrupt = make(chan struct{}, 1)
 }
@@ -78,13 +84,42 @@ func BeginStartupConnectivityCheck(ctx context.Context, cfg *config.Root) {
 		ctx = context.Background()
 	}
 	go func() {
-		if InternetReachable(ctx, cfg) {
+		offline := !InternetReachable(ctx, cfg)
+		setStartupOffline(offline)
+		if !offline {
 			return
 		}
 		if msg := FormatOfflineNotice(cfg); msg != "" {
 			notifyReplStartupNotice(msg)
 		}
 	}()
+}
+
+func setStartupOffline(offline bool) {
+	startupConnectivity.mu.Lock()
+	startupConnectivity.offline = offline
+	startupConnectivity.checked = true
+	startupConnectivity.mu.Unlock()
+}
+
+func StartupWasOffline() bool {
+	startupConnectivity.mu.Lock()
+	defer startupConnectivity.mu.Unlock()
+	return startupConnectivity.checked && startupConnectivity.offline
+}
+
+func clearStartupOffline() {
+	startupConnectivity.mu.Lock()
+	startupConnectivity.offline = false
+	startupConnectivity.mu.Unlock()
+}
+
+func SetStartupOfflineForTest(offline bool) {
+	setStartupOffline(offline)
+}
+
+func ClearStartupOfflineForTest() {
+	clearStartupOffline()
 }
 
 func InternetReachable(ctx context.Context, cfg *config.Root) bool {

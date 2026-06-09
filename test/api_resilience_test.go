@@ -163,6 +163,18 @@ func TestFormatOfflineNotice(t *testing.T) {
 	}
 }
 
+func TestStartupWasOfflineRetryOnce(t *testing.T) {
+	t.Parallel()
+	commands.SetStartupOfflineForTest(true)
+	if !commands.StartupWasOffline() {
+		t.Fatal("expected offline flag")
+	}
+	commands.ClearStartupOfflineForTest()
+	if commands.StartupWasOffline() {
+		t.Fatal("expected offline flag cleared")
+	}
+}
+
 func TestCircuitRegistry_ResetClosesBeforeExpiry(t *testing.T) {
 	c := llm.NewCircuitRegistry()
 	host := "api.example.com"
