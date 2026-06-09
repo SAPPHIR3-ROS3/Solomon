@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
@@ -25,6 +26,9 @@ func TestRunSystemInstallSchedulesRestart(t *testing.T) {
 }
 
 func TestUnixRestartScriptEmptyArgs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bash restart script")
+	}
 	t.Parallel()
 	dir := t.TempDir()
 	scriptPath := filepath.Join(dir, "restart.sh")
