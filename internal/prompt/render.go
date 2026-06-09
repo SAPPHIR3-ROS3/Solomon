@@ -82,6 +82,7 @@ type TitleData struct {
 
 type SummarizeData struct {
 	Transcript        string
+	Language          string
 	DisableThinking   bool
 	ImagesWorkflow    string
 }
@@ -304,14 +305,22 @@ func systemCPUFamily(arch string) string {
 	}
 }
 
-func SummarizeSystemFallback() string {
-	return strings.TrimSpace(`You summarize technical conversations concisely.
+func SummarizeSystemFallback(language string) string {
+	var langBlock string
+	if s := strings.TrimSpace(language); s != "" {
+		langBlock = "Write the summary in " + s + ". Custom rules and instruction files may be written in a language other than " + s + "; follow their intent regardless, but still write the summary in " + s + ".\n\n"
+	}
+	fallback := `You summarize technical conversations concisely.
 Preserve important facts: decisions, file paths, commands, errors, and open tasks.
-Match the language of the transcript.
-Output only the summary text, without preamble or meta-commentary.
+`
+	if langBlock == "" {
+		fallback += "Match the language of the transcript.\n"
+	}
+	fallback += `Output only the summary text, without preamble or meta-commentary.
 Do not describe Solomon image paste markers or ask the user to re-send images unless the open task is explicitly blocked on a missing real attachment.
 
-` + ImagesWorkflowSection())
+`
+	return strings.TrimSpace(langBlock + fallback + ImagesWorkflowSection())
 }
 
 func SystemWithNoThink(disableThinking bool, content string) string {
