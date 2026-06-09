@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="internal/logo/logo.png" alt="Solomon logo" width="200">
+  <img src="internal/logo/logo.png" alt="Solomon logo">
   <br/><br/>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
