@@ -1,10 +1,9 @@
 <p align="center">
-  <img src="internal/logo/logo.png" alt="Solomon logo">
+  <img src="internal/logo/logo.png" alt="Solomon logo"><br/>
+  ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+  ![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)
+  ![Status](https://img.shields.io/badge/status-early%20release-orange)
 </p>
-
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)
-![Status](https://img.shields.io/badge/status-early%20release-orange)
 
 > **Early release — preview software, not production-ready.** APIs, behavior, and on-disk formats may change without notice. Bring your own OpenAI-compatible endpoint · Expect rough edges · [Open an issue](https://github.com/SAPPHIR3-ROS3/Solomon/issues) with feedback
 
