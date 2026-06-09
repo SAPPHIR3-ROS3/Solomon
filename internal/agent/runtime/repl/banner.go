@@ -3,6 +3,7 @@ package repl
 import (
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
+	"golang.org/x/term"
 )
 
 var reStripANSI = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
@@ -69,6 +71,71 @@ func visibleCells(s string) int {
 	return displayCells(reStripANSI.ReplaceAllString(s, ""))
 }
 
+func writerWidth(out io.Writer) int {
+	f, ok := out.(*os.File)
+	if !ok {
+		return 0
+	}
+	fd := int(f.Fd())
+	if !term.IsTerminal(fd) {
+		return 0
+	}
+	w, _, err := term.GetSize(fd)
+	if err != nil || w < 20 {
+		return 0
+	}
+	return w
+}
+
+func ellipsizeVisible(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	plain := reStripANSI.ReplaceAllString(s, "")
+	if displayCells(plain) <= max {
+		return s
+	}
+	if max == 1 {
+		return "…"
+	}
+	target := max - 1
+	var b strings.Builder
+	n := 0
+	for _, r := range plain {
+		w := runeDisplayWidth(r)
+		if n+w > target {
+			break
+		}
+		b.WriteRune(r)
+		n += w
+	}
+	b.WriteRune('…')
+	return b.String()
+}
+
+func clampBannerColumns(innerW, colLeftW, termW int) (int, int, int) {
+	if termW <= 0 {
+		return innerW, colLeftW, innerW - colLeftW - 1
+	}
+	maxInner := termW - 2
+	if maxInner < 8 {
+		maxInner = 8
+	}
+	if innerW > maxInner {
+		innerW = maxInner
+	}
+	colRightW := innerW - colLeftW - 1
+	if colRightW < 1 {
+		colLeftW = innerW - 2
+		if colLeftW < 1 {
+			colLeftW = 1
+		}
+		colRightW = 1
+		innerW = colLeftW + 1 + colRightW
+	}
+	return innerW, colLeftW, colRightW
+}
+
 // logoDisplayWidth calcola la larghezza di una riga del logo ignorando il padding
 // a destra composto da Braille blank (U+2800) e spazi.
 func logoDisplayWidth(plain string) int {
@@ -83,6 +150,14 @@ func borderPaint(s string) string {
 }
 
 func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool, updateNotice *updater.Notice) {
+	printWelcomeBanner(out, writerWidth(out), cfg, model, projHex, projRoot, replShellFirst, updateNotice)
+}
+
+func PrintWelcomeBannerSized(out io.Writer, termW int, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool, updateNotice *updater.Notice) {
+	printWelcomeBanner(out, termW, cfg, model, projHex, projRoot, replShellFirst, updateNotice)
+}
+
+func printWelcomeBanner(out io.Writer, termW int, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool, updateNotice *updater.Notice) {
 	welcomeOut := termcolor.WrapWhite("Welcome to ") + termcolor.WrapBoldGold("Solomon")
 	wWel := visibleCells(welcomeOut)
 	logoLines := logo.WelcomeLogoLines()
@@ -147,6 +222,10 @@ func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 		colRightW = 1
 		innerW = colLeftW + 1 + colRightW
 	}
+	innerW, colLeftW, colRightW = clampBannerColumns(innerW, colLeftW, termW)
+	for i := range right {
+		right[i] = ellipsizeVisible(right[i], colRightW)
+	}
 	padL := colLeftW - 1 - wWel
 	if padL < 0 {
 		padL = 0
@@ -165,7 +244,7 @@ func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 		}
 		rpart := ""
 		if i < len(right) {
-			rpart = right[i]
+			rpart = ellipsizeVisible(right[i], colRightW)
 		}
 		lpad := colLeftW - lw
 		if lpad < 0 {
@@ -201,18 +280,20 @@ func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 		pathLine = fmt.Sprintf("%s (%s)", abs, br)
 	}
 	fmt.Fprintln(out, borderPaint("├"+strings.Repeat("─", colLeftW)+"┴"+strings.Repeat("─", colRightW)+"┤"))
+	modelLine = ellipsizeVisible(modelLine, innerW)
 	mpad := innerW - visibleCells(modelLine)
 	if mpad < 0 {
 		mpad = 0
 	}
 	fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), modelLine, strings.Repeat(" ", mpad), borderPaint("│"))
+	pathLine = ellipsizeVisible(pathLine, innerW)
 	ppad := innerW - visibleCells(pathLine)
 	if ppad < 0 {
 		ppad = 0
 	}
 	fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), pathLine, strings.Repeat(" ", ppad), borderPaint("│"))
 	if updateNotice != nil {
-		line1 := termcolor.WrapAssistant("Update available: ") + termcolor.WrapBoldGold(updateNotice.Latest)
+		line1 := ellipsizeVisible(termcolor.WrapAssistant("Update available: ")+termcolor.WrapBoldGold(updateNotice.Latest), innerW)
 		l1pad := innerW - visibleCells(line1)
 		if l1pad < 0 {
 			l1pad = 0
@@ -226,7 +307,7 @@ func PrintWelcomeBanner(out io.Writer, cfg *config.Root, model, projHex, projRoo
 		if cur != "" {
 			hint = fmt.Sprintf("%s (current %s)", hint, cur)
 		}
-		line2 := termcolor.WrapThinking(hint)
+		line2 := ellipsizeVisible(termcolor.WrapThinking(hint), innerW)
 		l2pad := innerW - visibleCells(line2)
 		if l2pad < 0 {
 			l2pad = 0

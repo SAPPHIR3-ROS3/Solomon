@@ -3,7 +3,7 @@ package agentruntime
 import (
 	"context"
 	"errors"
-	"os"
+	"io"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
@@ -30,22 +30,23 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 	r.updateCheckErr = res.Err
 	r.updateNotice = notice
 	r.updateMu.Unlock()
-
-	if res.Err == nil && res.Newer && r.Cfg != nil && r.Cfg.AutoUpdateEnabled() {
-		go r.installUpdate(context.Background(), res.LatestTag)
-	}
 	return notice, res.Err
 }
 
-func (r *Runtime) installUpdate(ctx context.Context, tag string) {
-	err := updater.RunSystemInstall(ctx, tag, r.Out)
+func (r *Runtime) tryAutoUpdateInstall(ctx context.Context) bool {
+	notice := r.cachedUpdateNotice()
+	if notice == nil || r.Cfg == nil || !r.Cfg.AutoUpdateEnabled() {
+		return false
+	}
+	commands.PrintSystemf(r.Out, "autoupdate: installing %s...", notice.Latest)
+	err := updater.RunSystemInstall(ctx, notice.Latest, io.Discard)
 	if errors.Is(err, updater.ErrRestartScheduled) {
-		r.shutdownForUpdateRestart()
-		os.Exit(0)
+		return true
 	}
 	if err != nil {
 		commands.PrintSystemErr(r.Out, err)
 	}
+	return false
 }
 
 func (r *Runtime) cachedUpdateNotice() *updater.Notice {

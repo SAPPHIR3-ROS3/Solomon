@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
+	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
@@ -236,11 +237,13 @@ func main() {
 		MainOrphans:            nil,
 		LastCommitOID:          "",
 	}
+	multiline.EnsureCookedTTY()
 	rt := agentruntime.NewRuntime(rl, cfg, prov, hex, root, sess)
 	defer rt.Close()
 	if err := rt.Run(ctx); err != nil {
 		if errors.Is(err, agentruntime.ErrRestartSolomon) {
-			os.Exit(0)
+			multiline.EnsureCookedTTY()
+			return
 		}
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "repl run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

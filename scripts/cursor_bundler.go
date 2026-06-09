@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
@@ -19,13 +20,21 @@ type lineIO struct{}
 
 func (lineIO) Print(msg string) { fmt.Println(msg) }
 
+func bundlerNote(msg string) {
+	fmt.Println("    →", msg)
+}
+
 func main() {
+	multiline.EnsureCookedTTY()
+	defer multiline.EnsureCookedTTY()
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)
 	}
 	var err error
 	switch os.Args[1] {
+	case "ttyfix":
+		return
 	case "stop":
 		err = cmdStop()
 	case "build":
@@ -45,7 +54,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run scripts/cursor_bundler.go <stop|build|build --force|bundle|install>")
+	fmt.Fprintln(os.Stderr, "usage: go run scripts/cursor_bundler.go <stop|build|build --force|bundle|install|ttyfix>")
 }
 
 func buildForce(args []string) bool {
@@ -73,7 +82,11 @@ Start-Sleep -Milliseconds 400`
 	cmd := exec.Command("sh", "-c", sh)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	bundlerNote("cursor sidecar stopped (or was not running)")
+	return nil
 }
 
 func cmdBuild(force bool) error {
@@ -83,7 +96,7 @@ func cmdBuild(force bool) error {
 	}
 	dir := filepath.Join(root, "integrations", "cursor")
 	if !force && !cursorDistStale(dir) {
-		fmt.Println("cursor integration dist up to date")
+		bundlerNote("cursor integration dist up to date")
 		return nil
 	}
 	if !cursorBuildDepsReady(dir) {
@@ -126,7 +139,7 @@ func cmdBundle() error {
 	if err := copyDir(distSrc, distDst); err != nil {
 		return fmt.Errorf("copy dist: %w", err)
 	}
-	fmt.Println("cursor bundle prepared at", bundle)
+	bundlerNote("cursor bundle prepared at " + bundle)
 	return nil
 }
 
@@ -152,11 +165,11 @@ func cmdInstall() error {
 	if err := copyDir(bundle, dir); err != nil {
 		return err
 	}
-	fmt.Println("installing Cursor integration with Cursor SDK")
+	bundlerNote("installing Cursor integration (npm production deps)")
 	if err := npmInstallProd(dir); err != nil {
 		return err
 	}
-	fmt.Println("cursor integration installed at", dir)
+	bundlerNote("cursor integration installed at " + dir)
 	return nil
 }
 
@@ -233,8 +246,10 @@ func runNPM(dir string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		multiline.EnsureCookedTTY()
 		return fmt.Errorf("npm %s in %s: %w", strings.Join(args, " "), dir, err)
 	}
+	multiline.EnsureCookedTTY()
 	return nil
 }
 

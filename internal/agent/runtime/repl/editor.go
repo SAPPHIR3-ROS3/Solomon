@@ -38,12 +38,12 @@ type multilineEditor struct {
 }
 
 func readMultilineInput(loop *Loop, history *inputHistory) (string, error) {
-	fd := int(os.Stdin.Fd())
-	state, err := term.MakeRaw(fd)
+	restoreRaw, err := multiline.EnterRawStdin()
 	if err != nil {
 		return "", err
 	}
-	defer term.Restore(fd, state)
+	defer restoreRaw()
+	fd := int(os.Stdin.Fd())
 
 	width := 80
 	if loop.RL != nil && loop.RL.Config != nil && loop.RL.Config.FuncGetWidth != nil {

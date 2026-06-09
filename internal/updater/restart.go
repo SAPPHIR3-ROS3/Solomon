@@ -72,24 +72,46 @@ func launchUnixInstallRestart(ctx context.Context, pid int, tag, cwd, exe string
 		return err
 	}
 	go func() { _ = cmd.Wait(); _ = os.Remove(scriptPath) }()
-	if progress != nil {
-		fmt.Fprintln(progress, "Update will install after Solomon exits, then restart in this terminal.")
-	}
 	return nil
 }
 
 func writeUnixInstallRestartScript(pid int, tag, cwd, exe string, args []string) (string, error) {
+	asset, err := releaseAssetName(tag)
+	if err != nil {
+		return "", err
+	}
+	target, err := installTargetPath()
+	if err != nil {
+		return "", err
+	}
+	url := releaseDownloadURL(tag, asset)
 	var b strings.Builder
 	b.WriteString("#!/usr/bin/env bash\nset -euo pipefail\n")
 	fmt.Fprintf(&b, "PARENT_PID=%d\n", pid)
 	fmt.Fprintf(&b, "TAG=%s\n", shellQuote(tag))
 	fmt.Fprintf(&b, "CWD=%s\n", shellQuote(cwd))
 	fmt.Fprintf(&b, "RESTART_EXE=%s\n", shellQuote(exe))
-	fmt.Fprintf(&b, "INSTALL_SCRIPT=%s\n", shellQuote(installScriptRawURL))
+	fmt.Fprintf(&b, "ASSET=%s\n", shellQuote(asset))
+	fmt.Fprintf(&b, "DOWNLOAD_URL=%s\n", shellQuote(url))
+	fmt.Fprintf(&b, "TARGET=%s\n", shellQuote(target))
 	b.WriteString("while kill -0 \"$PARENT_PID\" 2>/dev/null; do sleep 0.25; done\n")
 	b.WriteString("if [[ -n \"$CWD\" ]]; then cd \"$CWD\"; fi\n")
-	b.WriteString("export SOLOMON_VERSION=\"$TAG\"\n")
-	b.WriteString("curl -fsSL \"$INSTALL_SCRIPT\" | bash\n")
+	b.WriteString("echo \"\"\n")
+	b.WriteString("echo \"=== Solomon update ($TAG) ===\"\n")
+	b.WriteString("echo \"Downloading $ASSET...\"\n")
+	b.WriteString("tmp=\"$(mktemp)\"\n")
+	b.WriteString("curl -fsSL \"$DOWNLOAD_URL\" -o \"$tmp\"\n")
+	b.WriteString("mkdir -p \"$(dirname \"$TARGET\")\"\n")
+	b.WriteString("mv \"$tmp\" \"$TARGET\"\n")
+	b.WriteString("chmod +x \"$TARGET\"\n")
+	b.WriteString("echo \"Installed $TAG -> $TARGET\"\n")
+	b.WriteString("echo \"=== Restarting Solomon ===\"\n")
+	b.WriteString("echo \"\"\n")
+	writeUnixRestartArgsExec(&b, args)
+	return writeExecutableScript(b.String())
+}
+
+func writeUnixRestartArgsExec(b *strings.Builder, args []string) {
 	b.WriteString("RESTART_ARGS=(")
 	for i, a := range args {
 		if i > 0 {
@@ -97,8 +119,12 @@ func writeUnixInstallRestartScript(pid int, tag, cwd, exe string, args []string)
 		}
 		b.WriteString(shellQuote(a))
 	}
-	b.WriteString(")\nexec \"$RESTART_EXE\" \"${RESTART_ARGS[@]}\"\n")
-	return writeExecutableScript(b.String())
+	b.WriteString(")\n")
+	b.WriteString("if ((${#RESTART_ARGS[@]} > 0)); then\n")
+	b.WriteString("  exec \"$RESTART_EXE\" \"${RESTART_ARGS[@]}\"\n")
+	b.WriteString("else\n")
+	b.WriteString("  exec \"$RESTART_EXE\"\n")
+	b.WriteString("fi\n")
 }
 
 func launchWindowsInstallRestart(ctx context.Context, pid int, tag, cwd, exe string, args []string, progress io.Writer) error {
@@ -114,25 +140,46 @@ func launchWindowsInstallRestart(ctx context.Context, pid int, tag, cwd, exe str
 		return err
 	}
 	go func() { _ = cmd.Wait(); _ = os.Remove(scriptPath) }()
-	if progress != nil {
-		fmt.Fprintln(progress, "Update will install after Solomon exits, then restart in this terminal.")
-	}
 	return nil
 }
 
 func writeWindowsInstallRestartScript(pid int, tag, cwd, exe string, args []string) (string, error) {
+	asset, err := releaseAssetName(tag)
+	if err != nil {
+		return "", err
+	}
+	target, err := installTargetPath()
+	if err != nil {
+		return "", err
+	}
+	url := releaseDownloadURL(tag, asset)
+	restartLine := "& $RestartExe"
+	if len(args) > 0 {
+		restartLine = "& $RestartExe @RestartArgs"
+	}
 	script := fmt.Sprintf(`$ErrorActionPreference = 'Stop'
 $ParentPID = %d
 $Tag = '%s'
 $Cwd = '%s'
 $RestartExe = '%s'
 $RestartArgs = %s
+$Asset = '%s'
+$DownloadUrl = '%s'
+$Target = '%s'
 while (Get-Process -Id $ParentPID -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 250 }
 if ($Cwd) { Set-Location $Cwd }
-$env:SOLOMON_VERSION = $Tag
-irm '%s' | iex
-& $RestartExe @RestartArgs
-`, pid, psQuote(tag), psQuote(cwd), psQuote(exe), psArgList(args), installPS1RawURL)
+Write-Host ''
+Write-Host "=== Solomon update ($Tag) ==="
+Write-Host "Downloading $Asset..."
+$tmp = [System.IO.Path]::GetTempFileName()
+Invoke-WebRequest -Uri $DownloadUrl -OutFile $tmp -UseBasicParsing
+New-Item -ItemType Directory -Force -Path (Split-Path $Target) | Out-Null
+Move-Item -Force $tmp $Target
+Write-Host "Installed $Tag -> $Target"
+Write-Host '=== Restarting Solomon ==='
+Write-Host ''
+%s
+`, pid, psQuote(tag), psQuote(cwd), psQuote(exe), psArgList(args), psQuote(asset), psQuote(url), psQuote(target), restartLine)
 	return writePowerShellScript(script)
 }
 
@@ -167,9 +214,6 @@ func scheduleRestartOnly(ctx context.Context, pid int, cwd, exe string, args []s
 	default:
 		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
-	if progress != nil {
-		fmt.Fprintln(progress, "Restarting Solomon in this terminal...")
-	}
 	return nil
 }
 
@@ -181,14 +225,7 @@ func writeUnixRestartOnlyScript(pid int, cwd, exe string, args []string) (string
 	fmt.Fprintf(&b, "RESTART_EXE=%s\n", shellQuote(exe))
 	b.WriteString("while kill -0 \"$PARENT_PID\" 2>/dev/null; do sleep 0.25; done\n")
 	b.WriteString("if [[ -n \"$CWD\" ]]; then cd \"$CWD\"; fi\n")
-	b.WriteString("RESTART_ARGS=(")
-	for i, a := range args {
-		if i > 0 {
-			b.WriteByte(' ')
-		}
-		b.WriteString(shellQuote(a))
-	}
-	b.WriteString(")\nexec \"$RESTART_EXE\" \"${RESTART_ARGS[@]}\"\n")
+	writeUnixRestartArgsExec(&b, args)
 	return writeExecutableScript(b.String())
 }
 
