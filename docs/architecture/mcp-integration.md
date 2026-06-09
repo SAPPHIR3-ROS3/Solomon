@@ -77,6 +77,7 @@ sequenceDiagram
   RT->>MCP: Start stderr
   MCP->>MCP: LoadConfig connect each server
   MCP-->>RT: Manager on Runtime.MCP
+  Note over RT: connect status logged at INFO/WARNING, not printed in REPL
 ```
 
 ## Extension points

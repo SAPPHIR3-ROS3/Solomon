@@ -101,7 +101,7 @@ Full design, HTTP API, bridge table, debug playbook: **[Cursor integration](curs
 
 | File | Role |
 |------|------|
-| [`update.go`](../../internal/agent/runtime/update.go) | `refreshUpdateCheck`, `installUpdate` for `/update` and autoupdate |
+| [`update.go`](../../internal/agent/runtime/update.go) | `refreshUpdateCheck`, `tryAutoUpdateInstall` (startup install + restart), `/update` |
 | [`restart.go`](../../internal/agent/runtime/restart.go) | `ErrRestartSolomon` — `/upgrade` triggers re-exec in `cmd` |
 
 Backend: [`internal/updater/`](../../internal/updater/).

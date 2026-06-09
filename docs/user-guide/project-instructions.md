@@ -77,6 +77,8 @@ Avoid putting in rules what belongs in `AGENTS.md`: stack choices, folder layout
 
 Global and project rules appear together in one **Custom rules** section in the system prompt (global first, then project).
 
+Custom rules and instruction files may be written in any language. `/language` sets the assistant reply language (`response_language`); the model follows rule and instruction intent regardless, but natural-language assistant output stays in the configured language.
+
 Put **architecture and stack** in `AGENTS.md` (or repo/subdir instruction files); use rules only for the small stuff you want the assistant to remember every turn.
 
 ## Slash commands
