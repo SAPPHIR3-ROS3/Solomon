@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
@@ -42,8 +43,8 @@ func (r *Runtime) Run(ctx context.Context) error {
 	})
 	_, _ = r.refreshUpdateCheck(ctx, false)
 	repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst, r.cachedUpdateNotice())
-	if r.tryAutoUpdateInstall(ctx) {
-		r.shutdownForUpdateRestart()
+	if tag, ok := r.tryAutoUpdateInstall(ctx); ok {
+		r.shutdownForUpdateRestart(fmt.Sprintf("autoupdate: installing %s...", tag))
 		return ErrRestartSolomon
 	}
 	go func() { r.InitMCP(ctx) }()
@@ -65,13 +66,13 @@ func (r *Runtime) Run(ctx context.Context) error {
 		SaveClipboardImage:     r.saveReplClipboardImageTag,
 	})
 	if errors.Is(err, slash.ErrRestartSolomon) {
-		r.shutdownForUpdateRestart()
+		r.shutdownForUpdateRestart("")
 		return ErrRestartSolomon
 	}
 	return err
 }
 
-func (r *Runtime) shutdownForUpdateRestart() {
+func (r *Runtime) shutdownForUpdateRestart(leadLine string) {
 	_ = r.persistSession()
 	if r.RL != nil {
 		r.RL.Clean()
@@ -79,8 +80,14 @@ func (r *Runtime) shutdownForUpdateRestart() {
 	}
 	multiline.WriteTerminalModeSequences(multiline.BracketedPasteDisable + multiline.MouseReportDisable)
 	multiline.EnsureCookedTTY()
-	commands.PrintSystem(r.Out, "Update will install after Solomon exits, then restart in this terminal.")
-	commands.PrintSystem(r.Out, "Exiting Solomon for update...")
+	lines := []string{
+		"Update will install after Solomon exits, then restart in this terminal.",
+		"Exiting Solomon for update...",
+	}
+	if strings.TrimSpace(leadLine) != "" {
+		lines = append([]string{leadLine}, lines...)
+	}
+	commands.PrintSystem(r.Out, strings.Join(lines, "\n"))
 	if r.RL != nil {
 		_ = r.RL.Close()
 	}
