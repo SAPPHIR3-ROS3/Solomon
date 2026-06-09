@@ -36,16 +36,21 @@ func StdinIsTerminal() bool {
 
 func (r *Runtime) Run(ctx context.Context) error {
 	multiline.EnsureCookedTTY()
+	multiline.FlushStdin()
 	defer multiline.EnsureCookedTTY()
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
 	r.mutateSession(func(s *chatstore.Session) {
 		chatstore.FinishSessionLoad(s)
 	})
-	_, _ = r.refreshUpdateCheck(ctx, false)
-	repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst, r.cachedUpdateNotice())
+	notice, _ := r.refreshUpdateCheck(ctx, false)
+	bannerNotice := notice
+	if notice != nil && r.Cfg != nil && r.Cfg.AutoUpdateEnabled() {
+		bannerNotice = nil
+	}
+	repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst, bannerNotice)
 	if tag, ok := r.tryAutoUpdateInstall(ctx); ok {
-		r.shutdownForUpdateRestart(fmt.Sprintf("autoupdate: installing %s...", tag))
-		return ErrRestartSolomon
+		r.exitForUpdateRestart(fmt.Sprintf("autoupdate: installing %s...", tag), tag)
+		return nil
 	}
 	go func() { r.InitMCP(ctx) }()
 	if !config.NeedsOnboard(r.Cfg) {
@@ -66,8 +71,13 @@ func (r *Runtime) Run(ctx context.Context) error {
 		SaveClipboardImage:     r.saveReplClipboardImageTag,
 	})
 	if errors.Is(err, slash.ErrRestartSolomon) {
-		r.shutdownForUpdateRestart("")
-		return ErrRestartSolomon
+		tag := r.takePendingUpdateTag()
+		lead := ""
+		if tag != "" {
+			lead = fmt.Sprintf("Installing %s...", tag)
+		}
+		r.exitForUpdateRestart(lead, tag)
+		return nil
 	}
 	return err
 }
@@ -81,8 +91,7 @@ func (r *Runtime) shutdownForUpdateRestart(leadLine string) {
 	multiline.WriteTerminalModeSequences(multiline.BracketedPasteDisable + multiline.MouseReportDisable)
 	multiline.EnsureCookedTTY()
 	lines := []string{
-		"Update will install after Solomon exits, then restart in this terminal.",
-		"Exiting Solomon for update...",
+		"Installing update and restarting in this terminal...",
 	}
 	if strings.TrimSpace(leadLine) != "" {
 		lines = append([]string{leadLine}, lines...)

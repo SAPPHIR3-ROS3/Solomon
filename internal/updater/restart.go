@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"syscall"
 )
 
 var ErrRestartScheduled = errors.New("restart scheduled after update")
@@ -59,12 +60,56 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
+func ExecInstallRestart(ctx context.Context, tag string) error {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return fmt.Errorf("empty release tag")
+	}
+	switch runtime.GOOS {
+	case "linux", "darwin":
+		return execUnixInstallRestart(ctx, tag)
+	case "windows":
+		return launchWindowsInstallRestart(ctx, os.Getpid(), tag, "", "", nil, io.Discard)
+	default:
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+}
+
+func execUnixInstallRestart(ctx context.Context, tag string) error {
+	_ = ctx
+	exe, err := restartExecutable()
+	if err != nil {
+		return err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
+	}
+	args := append([]string(nil), os.Args[1:]...)
+	scriptPath, err := writeUnixInstallRestartScript(0, tag, cwd, exe, args)
+	if err != nil {
+		return err
+	}
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		_ = os.Remove(scriptPath)
+		return err
+	}
+	if err := syscall.Exec(bash, []string{"bash", scriptPath}, os.Environ()); err != nil {
+		_ = os.Remove(scriptPath)
+		return err
+	}
+	return nil
+}
+
 func launchUnixInstallRestart(ctx context.Context, pid int, tag, cwd, exe string, args []string, progress io.Writer) error {
+	_ = ctx
+	_ = progress
 	scriptPath, err := writeUnixInstallRestartScript(pid, tag, cwd, exe, args)
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "bash", scriptPath)
+	cmd := exec.Command("bash", scriptPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -94,7 +139,9 @@ func writeUnixInstallRestartScript(pid int, tag, cwd, exe string, args []string)
 	fmt.Fprintf(&b, "ASSET=%s\n", shellQuote(asset))
 	fmt.Fprintf(&b, "DOWNLOAD_URL=%s\n", shellQuote(url))
 	fmt.Fprintf(&b, "TARGET=%s\n", shellQuote(target))
-	b.WriteString("while kill -0 \"$PARENT_PID\" 2>/dev/null; do sleep 0.25; done\n")
+	if pid > 0 {
+		b.WriteString("while kill -0 \"$PARENT_PID\" 2>/dev/null; do sleep 0.25; done\n")
+	}
 	b.WriteString("if [[ -n \"$CWD\" ]]; then cd \"$CWD\"; fi\n")
 	b.WriteString("echo \"\"\n")
 	b.WriteString("echo \"=== Solomon update ($TAG) ===\"\n")
@@ -107,11 +154,12 @@ func writeUnixInstallRestartScript(pid int, tag, cwd, exe string, args []string)
 	b.WriteString("echo \"Installed $TAG -> $TARGET\"\n")
 	b.WriteString("echo \"=== Restarting Solomon ===\"\n")
 	b.WriteString("echo \"\"\n")
-	writeUnixRestartArgsExec(&b, args)
+	b.WriteString("stty sane opost onlcr icanon echo 2>/dev/null || true\n")
+	writeUnixRestartArgsExec(&b, args, true)
 	return writeExecutableScript(b.String())
 }
 
-func writeUnixRestartArgsExec(b *strings.Builder, args []string) {
+func writeUnixRestartArgsExec(b *strings.Builder, args []string, ttyStdin bool) {
 	b.WriteString("RESTART_ARGS=(")
 	for i, a := range args {
 		if i > 0 {
@@ -120,10 +168,14 @@ func writeUnixRestartArgsExec(b *strings.Builder, args []string) {
 		b.WriteString(shellQuote(a))
 	}
 	b.WriteString(")\n")
+	redirect := ""
+	if ttyStdin {
+		redirect = " </dev/tty"
+	}
 	b.WriteString("if ((${#RESTART_ARGS[@]} > 0)); then\n")
-	b.WriteString("  exec \"$RESTART_EXE\" \"${RESTART_ARGS[@]}\"\n")
+	b.WriteString("  exec \"$RESTART_EXE\" \"${RESTART_ARGS[@]}\"" + redirect + "\n")
 	b.WriteString("else\n")
-	b.WriteString("  exec \"$RESTART_EXE\"\n")
+	b.WriteString("  exec \"$RESTART_EXE\"" + redirect + "\n")
 	b.WriteString("fi\n")
 }
 
@@ -225,7 +277,7 @@ func writeUnixRestartOnlyScript(pid int, cwd, exe string, args []string) (string
 	fmt.Fprintf(&b, "RESTART_EXE=%s\n", shellQuote(exe))
 	b.WriteString("while kill -0 \"$PARENT_PID\" 2>/dev/null; do sleep 0.25; done\n")
 	b.WriteString("if [[ -n \"$CWD\" ]]; then cd \"$CWD\"; fi\n")
-	writeUnixRestartArgsExec(&b, args)
+	writeUnixRestartArgsExec(&b, args, false)
 	return writeExecutableScript(b.String())
 }
 

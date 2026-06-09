@@ -3,7 +3,11 @@ package agentruntime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"os"
+	"runtime"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
@@ -60,4 +64,31 @@ func (r *Runtime) resetUpdateCache() {
 	r.updateNotice = nil
 	r.updateCheckErr = nil
 	r.updateMu.Unlock()
+}
+
+func (r *Runtime) setPendingUpdateTag(tag string) {
+	r.pendingUpdateTag = strings.TrimSpace(tag)
+}
+
+func (r *Runtime) takePendingUpdateTag() string {
+	tag := r.pendingUpdateTag
+	r.pendingUpdateTag = ""
+	return tag
+}
+
+func (r *Runtime) exitForUpdateRestart(leadLine, tag string) {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		commands.PrintSystemErr(r.Out, fmt.Errorf("update restart: missing release tag"))
+		os.Exit(1)
+	}
+	r.shutdownForUpdateRestart(leadLine)
+	if err := updater.ExecInstallRestart(context.Background(), tag); err != nil {
+		commands.PrintSystemErr(r.Out, fmt.Errorf("update restart: %w", err))
+		os.Exit(1)
+	}
+	if runtime.GOOS != "windows" {
+		return
+	}
+	os.Exit(0)
 }

@@ -166,6 +166,15 @@ func InstallCommand(tag string) (string, error) {
 	}
 }
 
+func canExecInstallRestart() bool {
+	switch runtime.GOOS {
+	case "linux", "darwin":
+		return true
+	default:
+		return false
+	}
+}
+
 func RunSystemInstall(ctx context.Context, tag string, progress io.Writer) error {
 	if progress == nil {
 		progress = io.Discard
@@ -173,6 +182,9 @@ func RunSystemInstall(ctx context.Context, tag string, progress io.Writer) error
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return fmt.Errorf("empty release tag")
+	}
+	if canExecInstallRestart() {
+		return ErrRestartScheduled
 	}
 	if err := scheduleInstallRestart(ctx, tag, progress); err == nil {
 		return ErrRestartScheduled
