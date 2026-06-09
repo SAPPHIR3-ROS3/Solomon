@@ -207,6 +207,10 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 		e.up()
 	case key.r == readline.CharNext:
 		e.down()
+	case key.r == rune(multiline.PasteImageKey):
+		e.insertPaste("")
+		resetHistory = true
+		e.clearSuggest()
 	default:
 		if key.r >= 32 && key.r != utf8.RuneError {
 			e.insertRune(key.r)
