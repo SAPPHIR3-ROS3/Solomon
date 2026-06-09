@@ -101,6 +101,7 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 			return r.refreshUpdateCheck(ctx, force)
 		},
 		InstallUpdate: func(tag string) error {
+			r.setPendingUpdateTag(tag)
 			return updater.RunSystemInstall(ctx, tag, nil)
 		},
 

@@ -49,3 +49,30 @@ func EnterRawStdin() (restore func(), err error) {
 	}
 	return func() { _ = unix.IoctlSetTermios(fd, unix.TCSETS, &saved) }, nil
 }
+
+func FlushStdin() {
+	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) {
+		return
+	}
+	cur, err := unix.IoctlGetTermios(fd, unix.TCGETS)
+	if err != nil {
+		return
+	}
+	saved := *cur
+	flush := saved
+	flush.Lflag &^= unix.ICANON | unix.ISIG
+	flush.Cc[unix.VMIN] = 0
+	flush.Cc[unix.VTIME] = 0
+	if err := unix.IoctlSetTermios(fd, unix.TCSETS, &flush); err != nil {
+		return
+	}
+	buf := make([]byte, 256)
+	for {
+		n, err := unix.Read(fd, buf)
+		if n == 0 || err != nil {
+			break
+		}
+	}
+	_ = unix.IoctlSetTermios(fd, unix.TCSETS, &saved)
+}

@@ -73,6 +73,8 @@ func EditorStdout(fallback io.Writer) io.Writer {
 
 func EnsureCookedTTY() {}
 
+func FlushStdin() {}
+
 func EnterRawStdin() (restore func(), err error) {
 	return func() {}, nil
 }

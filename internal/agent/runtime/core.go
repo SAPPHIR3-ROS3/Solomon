@@ -90,6 +90,8 @@ type Runtime struct {
 	updateChecked  bool
 	updateNotice   *updater.Notice
 	updateCheckErr error
+
+	pendingUpdateTag string
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
