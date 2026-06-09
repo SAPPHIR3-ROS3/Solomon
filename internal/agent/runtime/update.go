@@ -33,20 +33,19 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 	return notice, res.Err
 }
 
-func (r *Runtime) tryAutoUpdateInstall(ctx context.Context) bool {
+func (r *Runtime) tryAutoUpdateInstall(ctx context.Context) (tag string, ok bool) {
 	notice := r.cachedUpdateNotice()
 	if notice == nil || r.Cfg == nil || !r.Cfg.AutoUpdateEnabled() {
-		return false
+		return "", false
 	}
-	commands.PrintSystemf(r.Out, "autoupdate: installing %s...", notice.Latest)
 	err := updater.RunSystemInstall(ctx, notice.Latest, io.Discard)
 	if errors.Is(err, updater.ErrRestartScheduled) {
-		return true
+		return notice.Latest, true
 	}
 	if err != nil {
 		commands.PrintSystemErr(r.Out, err)
 	}
-	return false
+	return "", false
 }
 
 func (r *Runtime) cachedUpdateNotice() *updater.Notice {
