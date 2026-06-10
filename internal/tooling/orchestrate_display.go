@@ -69,13 +69,6 @@ func orchestrateDisplayLines(lines []string) []orchestrateDisplayLine {
 
 func formatOrchestrateSourceLine(num int, src string, width int) string {
 	numPart := termcolor.WrapThinking(fmt.Sprintf("%*d", width, num))
-	sep := " "
-	if len(src) > 0 {
-		switch src[0] {
-		case '\t', ' ':
-			sep = "\t"
-		}
-	}
-	codePart := highlightGoLine(src)
-	return numPart + sep + codePart
+	codePart := highlightGoLine(expandDisplayTabs(src))
+	return numPart + " " + codePart
 }
