@@ -85,7 +85,19 @@ function Install-ReleaseAsset {
     $target = Join-Path $binDir 'solomon.exe'
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Write-Host "Downloading Solomon release asset $asset..."
-    Invoke-WebRequest -Uri $url -OutFile $target -UseBasicParsing
+    $maxAttempts = 15
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $target -UseBasicParsing
+            return
+        } catch {
+            if ($attempt -ge $maxAttempts) {
+                throw "Failed to download $asset after $maxAttempts attempts"
+            }
+            Write-Host "Download failed (attempt $attempt/$maxAttempts), retrying..."
+            Start-Sleep -Seconds 2
+        }
+    }
 }
 
 function Ensure-Go {
