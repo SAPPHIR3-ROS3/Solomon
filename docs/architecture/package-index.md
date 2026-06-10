@@ -51,6 +51,13 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/agent/commands/connect/` | `/connect` provider wizard | [Startup and CLI](startup-and-cli.md) |
 | `internal/agent/cievents/` | JSON/JSONL event schema for `exec --json` | [Runtime — orchestration](runtime-orchestration.md) |
 | `internal/tooling/` | `Invocation` type, legacy `<tool_calls>` XML | [Native tools](native-tools.md) |
+| `internal/sandbox/compile/` | Go source → WASM for `orchestrate` scripts | [Plan vs build](plan-vs-build.md) |
+| `internal/sandbox/host/` | wazero host module, SDK RPC bridge | [Plan vs build](plan-vs-build.md) |
+| `internal/sandbox/ipc/` | JSON line protocol for worker ↔ parent | [Plan vs build](plan-vs-build.md) |
+| `internal/sandbox/parent/` | Spawn and drive `sandbox-worker` subprocess | [Plan vs build](plan-vs-build.md) |
+| `internal/sandbox/run/` | wazero runtime, WASM module cache | [Plan vs build](plan-vs-build.md) |
+| `internal/sandbox/sdk/` | Script-facing API (`ReadFile`, `Shell`, …) | [Plan vs build](plan-vs-build.md) |
+| `internal/sandbox/worker/` | `solomon sandbox-worker` serve loop | [Plan vs build](plan-vs-build.md) |
 | `internal/tooloutput/` | Tool result truncation and spill to `temp/` | [Supporting packages](supporting-packages.md) |
 | `internal/tooloutput/process/` | Cross-process temp cleanup coordination | [Supporting packages](supporting-packages.md) |
 | `internal/mcp/` | MCP client manager and OpenAI adapter | [MCP integration](mcp-integration.md) |
@@ -153,6 +160,13 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/prompt/shell/` | Core |
 | `internal/providersetup/` | Support |
 | `internal/search/` | Feature |
+| `internal/sandbox/compile/` | Feature |
+| `internal/sandbox/host/` | Feature |
+| `internal/sandbox/ipc/` | Feature |
+| `internal/sandbox/parent/` | Feature |
+| `internal/sandbox/run/` | Feature |
+| `internal/sandbox/sdk/` | Feature |
+| `internal/sandbox/worker/` | Feature |
 | `internal/skills/` | Feature |
 | `internal/termcolor/` | Support |
 | `internal/title/` | Support |
