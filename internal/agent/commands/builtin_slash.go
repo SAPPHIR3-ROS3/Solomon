@@ -44,8 +44,10 @@ func getSlashBuiltins() []slashBuiltin {
 			}
 			return RunDocsSlash(d, strings.Join(parts, " "))
 		}},
-		{[]string{"plan"}, "/plan", "planning tools only", nil, func(d Deps, parts []string) error { return Plan(d) }},
-		{[]string{"build"}, "/build", "build tools (shell, files, subagent)", nil, func(d Deps, parts []string) error { return Build(d) }},
+		{[]string{"agent"}, "/agent", "agent mode (searchTools, orchestrate, switchMode)", nil, func(d Deps, parts []string) error { return Agent(d) }},
+		{[]string{"chat"}, "/chat", "chat mode (web search, docs, switchMode)", nil, func(d Deps, parts []string) error { return Chat(d) }},
+		{[]string{"plan"}, "/plan", "deprecated — switches to /agent", nil, func(d Deps, parts []string) error { return Plan(d) }},
+		{[]string{"build"}, "/build", "deprecated — switches to /agent", nil, func(d Deps, parts []string) error { return Build(d) }},
 		{[]string{"clear"}, "/clear", "clear terminal (ANSI)", nil, func(d Deps, parts []string) error { return Clear(d) }},
 		{[]string{"cleansessioncache"}, "/cleansessioncache", "/cleansessioncache — drop broken pasted PNG paths and strip orphaned [img-*] from transcript", nil, func(d Deps, parts []string) error {
 			return CleanSessionCache(d)

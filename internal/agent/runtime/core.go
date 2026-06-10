@@ -102,7 +102,7 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		Prov:                      prov,
 		ProjHex:                   projHex,
 		ProjRoot:                  projRoot,
-		Mode:                      "build",
+		Mode:                      "agent",
 		Session:                   sess,
 		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
 		Out:                       os.Stdout,
@@ -258,15 +258,20 @@ func (r *Runtime) readlinePromptContinue() string {
 func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	var dump string
 	var err error
-	if r.Mode == "plan" {
+	switch agenttools.NormalizeMode(r.Mode) {
+	case "chat":
+		dump, err = agenttools.BuildChatToolDump()
+	case "agent":
+		dump, err = agenttools.BuildAgentToolDump()
+	case "plan":
 		dump, err = agenttools.BuildPlanToolDump()
-	} else {
+	default:
 		dump, err = agenttools.BuildBuildToolDump()
 	}
 	if err != nil {
 		return "", err
 	}
-	if r.MCP != nil {
+	if r.MCP != nil && agenttools.NormalizeMode(r.Mode) == "agent" {
 		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
 			dump = strings.TrimSpace(dump + "\n---\n" + mcpDump)
 		}
@@ -312,14 +317,17 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		d.GlobalInstructions = sections.GlobalInstructions
 		d.RepoInstructions = sections.RepoInstructions
 	}
-	if r.Mode == "plan" {
-		s, err := prompt.RenderPlan(d)
-		if err != nil {
-			return "", err
-		}
-		return chatstore.ScrubLiteralImgPlaceholdersForAPI(s), nil
+	var s string
+	switch agenttools.NormalizeMode(r.Mode) {
+	case "chat":
+		s, err = prompt.RenderChat(d)
+	case "agent":
+		s, err = prompt.RenderAgent(d)
+	case "plan":
+		s, err = prompt.RenderPlan(d)
+	default:
+		s, err = prompt.RenderBuild(d)
 	}
-	s, err := prompt.RenderBuild(d)
 	if err != nil {
 		return "", err
 	}

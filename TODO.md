@@ -7,8 +7,8 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 1 — Code mode e altri tool
 
-- **Stato:** modalità `plan` / `build` e set tool attuale; nessuna "code mode" dedicata o set esteso come da design desiderato.
-- **Cosa manca:** definire **code mode** (tool permessi, system prompt, eventuale separazione da build); aggiungere gli **altri tool** concordati (nativi o via MCP) e aggiornare dump/help coerentemente.
+- **Stato:** implementati modalità **`/agent`** (default) e **`/chat`**, tool **`searchTools`**, **`orchestrate`** (Go→WASM→wazero in subprocess), **`switchMode`** (countdown 5s + Ctrl+C); `/plan` e `/build` alias deprecati verso `/agent`. Sandbox: SDK `internal/sandbox/sdk`, worker `solomon sandbox-worker`, compile slot sotto `.solomon/` nel module root, cache GOCACHE in `~/.solomon/cache/go-build`.
+- **Cosa manca (follow-up):** polish UX/display, MCP in chat mode, eventuali tool deferred aggiuntivi; documentazione utente estesa.
 
 ---
 

@@ -16,8 +16,15 @@ const (
 	colorGold      = "#FFD700"
 	colorImgBG          = "#00D1F0"
 	colorAtTagBG        = "#B8860B"
-	colorEditFileOldBG  = "#5c0000"
-	colorEditFileNewBG  = "#005c00"
+	colorEditFileOldBG     = "#5c0000"
+	colorEditFileNewBG     = "#005c00"
+	colorOrchestrateCodeFG = "#006400"
+	colorGoKeyword         = "#569CD6"
+	colorGoString          = "#CE9178"
+	colorGoComment         = "#6A9955"
+	colorGoFunction        = "#DCDCAA"
+	colorGoNumber          = "#B5CEA8"
+	colorGoPlain           = "#D4D4D4"
 )
 
 var dark struct {
@@ -33,8 +40,15 @@ var dark struct {
 	boldGold  lipgloss.Style
 	imgTag    lipgloss.Style
 	atTag     lipgloss.Style
-	editOld   lipgloss.Style
-	editNew   lipgloss.Style
+	editOld        lipgloss.Style
+	editNew        lipgloss.Style
+	orchestrateCode lipgloss.Style
+	goKeyword       lipgloss.Style
+	goString        lipgloss.Style
+	goComment       lipgloss.Style
+	goFunction      lipgloss.Style
+	goNumber        lipgloss.Style
+	goPlain         lipgloss.Style
 }
 
 func rebuildTheme() {
@@ -61,4 +75,11 @@ func rebuildTheme() {
 	dark.editNew = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorWhite)).
 		Background(lipgloss.Color(colorEditFileNewBG))
+	dark.orchestrateCode = lipgloss.NewStyle().Foreground(lipgloss.Color(colorOrchestrateCodeFG)).Bold(true)
+	dark.goKeyword = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoKeyword))
+	dark.goString = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoString))
+	dark.goComment = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoComment))
+	dark.goFunction = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoFunction))
+	dark.goNumber = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoNumber))
+	dark.goPlain = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoPlain))
 }

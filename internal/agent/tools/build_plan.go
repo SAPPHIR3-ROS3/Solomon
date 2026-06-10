@@ -52,7 +52,7 @@ func execBuildPlan(ctx context.Context, env *Env, raw json.RawMessage) (any, err
 		return nil, err
 	}
 	body := string(b)
-	env.SetMode("build")
+	env.SetMode("agent")
 	out, err := env.RunNested(ctx, body)
 	if err != nil {
 		return nil, err

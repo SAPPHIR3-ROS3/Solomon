@@ -1,7 +1,8 @@
 package commands
 
 func Build(d Deps) error {
-	d.SetMode("build")
-	PrintSystem(d.Out, "Mode: build")
+	PrintSystem(d.Out, modeMigrationMsg)
+	d.SetMode("agent")
+	PrintSystem(d.Out, "Mode: agent")
 	return nil
 }

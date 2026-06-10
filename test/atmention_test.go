@@ -97,6 +97,55 @@ func TestMatchQueryEmptyAndLimit(t *testing.T) {
 	}
 }
 
+func TestResolveTagAmbiguousReadmePicksRoot(t *testing.T) {
+	all := []atmention.Entry{
+		{RelPath: "README.md"},
+		{RelPath: "docs/README.md"},
+		{RelPath: "docs/architecture/README.md"},
+	}
+	e, ok := atmention.ResolveTag("README.md", all)
+	if !ok || e.RelPath != "README.md" {
+		t.Fatalf("root README: %#v %v", e, ok)
+	}
+	e, ok = atmention.ResolveTag("ReADME.md", all)
+	if !ok || e.RelPath != "README.md" {
+		t.Fatalf("case fold root README: %#v %v", e, ok)
+	}
+	e, ok = atmention.ResolveTag("docs/README.md", all)
+	if !ok || e.RelPath != "docs/README.md" {
+		t.Fatalf("nested README: %#v %v", e, ok)
+	}
+}
+
+func TestExpandLineReadmeAtRoot(t *testing.T) {
+	dir := t.TempDir()
+	rootReadme := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(rootReadme, []byte("root readme"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	docsDir := filepath.Join(dir, "docs")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(docsDir, "README.md"), []byte("docs readme"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	all := []atmention.Entry{
+		{RelPath: "README.md"},
+		{RelPath: "docs/README.md"},
+	}
+	got, err := atmention.ExpandLine(context.Background(), "count @README.md", dir, all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsStr(got, "could not resolve") {
+		t.Fatalf("should resolve: %q", got)
+	}
+	if !containsAll(got, "--- file README.md ---", "root readme") {
+		t.Fatalf("expand root: %q", got)
+	}
+}
+
 func TestExpandLineFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hello.txt")

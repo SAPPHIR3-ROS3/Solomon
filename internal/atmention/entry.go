@@ -33,6 +33,72 @@ func pathHasSuffix(path, suffix string) bool {
 	return strings.HasSuffix(path, "/"+suffix)
 }
 
+func pathHasSuffixFold(path, suffix string) bool {
+	path = normalizeRel(path)
+	suffix = normalizeRel(suffix)
+	if strings.EqualFold(path, suffix) {
+		return true
+	}
+	if suffix == "" {
+		return false
+	}
+	if len(path) > len(suffix) && strings.EqualFold(path[len(path)-len(suffix):], suffix) {
+		return path[len(path)-len(suffix)-1] == '/'
+	}
+	return false
+}
+
+func shortestPathEntry(entries []Entry) Entry {
+	best := entries[0]
+	bestLen := len(normalizeRel(best.RelPath))
+	for _, e := range entries[1:] {
+		if n := len(normalizeRel(e.RelPath)); n < bestLen {
+			best = e
+			bestLen = n
+		}
+	}
+	return best
+}
+
+func ResolveTag(tag string, all []Entry) (Entry, bool) {
+	tag = normalizeRel(tag)
+	if tag == "" {
+		return Entry{}, false
+	}
+	for _, pass := range []struct {
+		exactFold  bool
+		suffix     bool
+		suffixFold bool
+	}{
+		{false, false, false},
+		{true, false, false},
+		{false, true, false},
+		{false, false, true},
+	} {
+		var matches []Entry
+		for _, e := range all {
+			rel := normalizeRel(e.RelPath)
+			switch {
+			case !pass.exactFold && !pass.suffix && !pass.suffixFold && rel == tag:
+				matches = append(matches, e)
+			case pass.exactFold && !pass.suffix && !pass.suffixFold && strings.EqualFold(rel, tag):
+				matches = append(matches, e)
+			case pass.suffix && !pass.suffixFold && pathHasSuffix(rel, tag):
+				matches = append(matches, e)
+			case pass.suffixFold && pathHasSuffixFold(rel, tag):
+				matches = append(matches, e)
+			}
+		}
+		if len(matches) == 1 {
+			return matches[0], true
+		}
+		if len(matches) > 1 {
+			return shortestPathEntry(matches), true
+		}
+	}
+	return Entry{}, false
+}
+
 func ShortTag(relPath string, all []Entry) string {
 	relPath = normalizeRel(relPath)
 	parts := strings.Split(relPath, "/")
@@ -53,20 +119,6 @@ func suffixMatchCount(suffix string, all []Entry) int {
 		}
 	}
 	return n
-}
-
-func ResolveTag(tag string, all []Entry) (Entry, bool) {
-	tag = normalizeRel(tag)
-	var matches []Entry
-	for _, e := range all {
-		if pathHasSuffix(e.RelPath, tag) {
-			matches = append(matches, e)
-		}
-	}
-	if len(matches) != 1 {
-		return Entry{}, false
-	}
-	return matches[0], true
 }
 
 func entryMatchScore(query, rel string) (int, bool) {
