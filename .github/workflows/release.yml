@@ -143,6 +143,25 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Wait for release assets to be available
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+        run: |
+          set -euo pipefail
+          asset="solomon-${RELEASE_TAG}-linux-amd64"
+          url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${asset}"
+          for attempt in $(seq 1 30); do
+            if curl -fsI "$url" >/dev/null 2>&1; then
+              echo "Release assets available (attempt ${attempt})"
+              exit 0
+            fi
+            echo "Waiting for release assets... (${attempt}/30)"
+            sleep 2
+          done
+          echo "Release assets not available after 60s: ${url}" >&2
+          exit 1
+
       - name: Run README install command (macOS / Linux)
         if: runner.os != 'Windows'
         shell: bash

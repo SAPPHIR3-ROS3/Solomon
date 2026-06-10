@@ -81,7 +81,21 @@ install_release_asset() {
   tmp="$(mktemp)"
   mkdir -p "$bin_dir"
   echo "Downloading Solomon release asset ${asset}..."
-  curl -fsSL "$url" -o "$tmp"
+  attempt=1
+  max_attempts=15
+  while true; do
+    if curl -fsSL "$url" -o "$tmp"; then
+      break
+    fi
+    if (( attempt >= max_attempts )); then
+      echo "Failed to download ${asset} after ${max_attempts} attempts" >&2
+      rm -f "$tmp"
+      exit 1
+    fi
+    echo "Download failed (attempt ${attempt}/${max_attempts}), retrying..." >&2
+    sleep 2
+    attempt=$((attempt + 1))
+  done
   mv "$tmp" "$target"
   chmod +x "$target"
 }
