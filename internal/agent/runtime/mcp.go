@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	sandboxparent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -45,6 +46,7 @@ func (r *Runtime) Close() error {
 	if r != nil && r.MCP != nil {
 		errMCP = r.MCP.Close()
 	}
+	sandboxparent.CloseGlobal()
 	if r != nil && r.RL != nil {
 		_ = r.RL.Terminal.ExitRawMode()
 	}

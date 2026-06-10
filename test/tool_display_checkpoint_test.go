@@ -8,6 +8,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
@@ -173,6 +174,84 @@ func TestFormatToolDisplayLines_editFileSkipsEmptyNewBlock(t *testing.T) {
 	lines := tooling.FormatToolDisplayLines("editFile", args)
 	if len(lines) != 2 {
 		t.Fatalf("want header + old only, got %d: %#v", len(lines), lines)
+	}
+}
+
+func TestFormatToolDisplayLines_switchMode(t *testing.T) {
+	args, err := json.Marshal(map[string]string{"mode": "agent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("switchMode", args)
+	if len(lines) != 1 {
+		t.Fatalf("lines: %#v", lines)
+	}
+	plain := termcolor.Plain(lines[0])
+	if !strings.Contains(plain, "Tool: switchMode Agent") {
+		t.Fatalf("got %q", plain)
+	}
+	if strings.Contains(plain, "{") {
+		t.Fatalf("should not show JSON args: %q", plain)
+	}
+}
+
+func TestFormatToolDisplayLines_orchestrate(t *testing.T) {
+	src := "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"test\")\n}\n"
+	args, err := json.Marshal(map[string]string{
+		"source": src,
+		"intent": "count characters",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("orchestrate", args)
+	if len(lines) != 9 {
+		t.Fatalf("want header + 7 source + footer, got %d: %#v", len(lines), lines)
+	}
+	if !strings.Contains(lines[0], "orchestrate") || !strings.Contains(lines[0], "Code") {
+		t.Fatalf("header: %q", lines[0])
+	}
+	if !strings.Contains(termcolor.Plain(lines[1]), "1 package main") {
+		t.Fatalf("first code line: %q", lines[1])
+	}
+	if !strings.Contains(termcolor.Plain(lines[6]), "6") || !strings.Contains(termcolor.Plain(lines[6]), "fmt.Println") {
+		t.Fatalf("indented line: %q", lines[6])
+	}
+	if termcolor.Plain(lines[8]) != "Code" {
+		t.Fatalf("footer: %q", lines[8])
+	}
+}
+
+func TestFormatToolDisplayLines_orchestrateTruncatesLongSource(t *testing.T) {
+	body := strings.Repeat("fmt.Println(\"x\")\n", 60)
+	src := "package main\n\nfunc main() {\n" + body + "}\n"
+	args, err := json.Marshal(map[string]string{"source": src, "intent": "stress test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("orchestrate", args)
+	if len(lines) != 53 {
+		t.Fatalf("want header + 25 + truncated + 25 + footer = 53, got %d", len(lines))
+	}
+	if !strings.Contains(lines[26], "TRUNCATED") {
+		t.Fatalf("truncated marker: %q", lines[26])
+	}
+}
+
+func TestFormatToolDisplayLines_searchTools(t *testing.T) {
+	args, err := json.Marshal(map[string]any{"query": "edit file"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("searchTools", args)
+	if len(lines) != 1 {
+		t.Fatalf("lines: %#v", lines)
+	}
+	if !strings.Contains(lines[0], "searchTools edit file") {
+		t.Fatalf("got %q", lines[0])
+	}
+	if strings.Contains(lines[0], "{") {
+		t.Fatalf("should not show JSON args: %q", lines[0])
 	}
 }
 

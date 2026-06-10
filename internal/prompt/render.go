@@ -15,6 +15,12 @@ var planRaw string
 //go:embed templates/build.tmpl
 var buildRaw string
 
+//go:embed templates/agent.tmpl
+var agentRaw string
+
+//go:embed templates/chat.tmpl
+var chatRaw string
+
 //go:embed templates/title.tmpl
 var titleRaw string
 
@@ -250,6 +256,20 @@ func RenderBuild(d Data) (string, error) {
 		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
 	return render(buildRaw, d)
+}
+
+func RenderAgent(d Data) (string, error) {
+	if d.Syntax == "" && !d.ExternalToolBridge {
+		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
+	}
+	return render(agentRaw, d)
+}
+
+func RenderChat(d Data) (string, error) {
+	if d.Syntax == "" && !d.ExternalToolBridge {
+		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
+	}
+	return render(chatRaw, d)
 }
 
 func RenderTitle(d TitleData) (string, error) {

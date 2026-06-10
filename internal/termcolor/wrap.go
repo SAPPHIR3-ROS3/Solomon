@@ -76,6 +76,52 @@ func ToolLine(toolName, body string) string {
 	return out
 }
 
+func OrchestrateCodeLabel(s string) string {
+	return renderStyle(dark.orchestrateCode, s)
+}
+
+func OrchestrateToolHeaderLine() string {
+	if !colorOn {
+		return "Tool: orchestrate Code"
+	}
+	return dark.tool.Render("Tool: ") + dark.toolBold.Render("orchestrate ") + OrchestrateCodeLabel("Code")
+}
+
+func SwitchModeToolHeaderLine(modeLabel string) string {
+	if !colorOn {
+		return "Tool: switchMode " + modeLabel
+	}
+	return dark.tool.Render("Tool: ") + dark.toolBold.Render("switchMode ") + OrchestrateCodeLabel(modeLabel)
+}
+
+func OrchestrateCodeFooterLine() string {
+	return OrchestrateCodeLabel("Code")
+}
+
+func GoKeyword(s string) string {
+	return renderStyle(dark.goKeyword, s)
+}
+
+func GoString(s string) string {
+	return renderStyle(dark.goString, s)
+}
+
+func GoComment(s string) string {
+	return renderStyle(dark.goComment, s)
+}
+
+func GoFunction(s string) string {
+	return renderStyle(dark.goFunction, s)
+}
+
+func GoNumber(s string) string {
+	return renderStyle(dark.goNumber, s)
+}
+
+func GoPlain(s string) string {
+	return renderStyle(dark.goPlain, s)
+}
+
 func ToolHeaderLine(toolName, body string) string {
 	if !colorOn {
 		prefix := "Tool: " + toolName

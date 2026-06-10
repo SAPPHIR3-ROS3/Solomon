@@ -1,78 +1,55 @@
-# Plan vs build
+# Session modes: agent, chat, plan, build
 
 ## Purpose
 
-`Runtime.Mode` switches the native tool surface and the system prompt template between planning and implementation work.
+`Runtime.Mode` switches the native tool surface and the system prompt template.
 
-## Mode values
+## Current modes
 
 | Mode | Set by | Native tools (OpenAI) |
 |------|--------|------------------------|
-| `plan` | `/plan`, default after some slash flows | `createPlan`, `editPlan`, `buildPlan` |
-| `build` | `/build`, `NewRuntime` default | `shell`, `readFile`, `editFile`, `find`, `subagent`, `loadSkill`, `searchSkill`, `fetchWeb`, `webSearch`, `docsRetrieval` |
+| **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `switchMode` |
+| **`chat`** | `/chat` | `docsRetrieval`, `fetchWeb`, `webSearch`, `switchMode` |
+| `plan` | `/plan` (deprecated → agent) | Legacy: `createPlan`, `editPlan`, `buildPlan`, `docsRetrieval` |
+| `build` | `/build` (deprecated → agent) | Legacy: `shell`, `readFile`, `editFile`, `find`, `subagent`, skills, web, `docsRetrieval` |
 
-MCP tools append to both modes when connected ([`toolParams`](../../internal/agent/runtime/mcp.go)).
+MCP tools append in **agent** mode when connected ([`toolParams`](../../internal/agent/runtime/mcp.go)).
+
+## Code mode (orchestrate)
+
+Deferred tools (shell, readFile, editFile, plan tools, …) are **not** exposed directly in agent mode. The model uses **`searchTools`** to discover them and **`orchestrate`** to run Go scripts that call the sandbox SDK (`internal/sandbox/sdk`). Scripts compile to WASM (`GOOS=wasip1`) and execute in a long-lived **`solomon sandbox-worker`** subprocess.
+
+Internal tool calls from orchestrate scripts use the same checkpoint **`cp_seq`** as the parent `orchestrate` invocation (rollback via `/goto` restores all script edits atomically).
 
 ## Packages and files
 
 | File | Role |
 |------|------|
 | `internal/agent/tools/params.go` | `NativeToolParams(mode)` |
-| `internal/agent/tools/exec.go` | Mode guards in `dispatchInternal` |
-| `internal/agent/runtime/core.go` | `systemPrompt` chooses `RenderPlan` vs `RenderBuild` |
-| `internal/prompt/render.go` | Template render |
-| `internal/prompt/templates/*.tmpl` | plan, build, title, summarize bodies |
-| `internal/agent/commands/plan.go`, `build.go` | Slash mode switch |
+| `internal/agent/tools/exec.go` | Mode guards; `AllowDeferredTools` for orchestrate host |
+| `internal/agent/tools/orchestrate.go` | Compile + worker IPC |
+| `internal/agent/tools/search_tools.go` | Deferred catalog search |
+| `internal/agent/tools/switch_mode.go` | Mode switch tool |
+| `internal/agent/runtime/core.go` | `systemPrompt` → `RenderAgent` / `RenderChat` / legacy |
+| `internal/agent/runtime/switch_mode.go` | Countdown UX (5s, Ctrl+C cancel) |
+| `internal/sandbox/` | SDK, compile, worker, wazero host |
+| `internal/prompt/templates/agent.tmpl`, `chat.tmpl` | System prompts |
+
+## Legacy plan / build
+
+`/plan` and `/build` print a migration message and switch to **agent**. Existing sessions or tests may still use `plan` / `build` mode strings; `NativeToolParams` keeps legacy tool surfaces for compatibility.
 
 ## Key functions
 
 | Function | Behavior |
 |----------|----------|
 | `NativeToolParams` | Returns tool schema slice for mode |
-| `BuildPlanToolDump` / `BuildBuildToolDump` | Text dump embedded in system prompt |
-| `prompt.RenderPlan` / `RenderBuild` | Fill template with tools, syntax, workspace path, language |
-| `tools.Exec` | Rejects plan tools in build mode and vice versa |
-
-## System prompt data
-
-`prompt.Data` carries:
-
-- `Tools` — concatenated native + MCP tool documentation dump
-- `Syntax` — native invocation syntax; optional legacy XML append when `[tools].legacy` is enabled; legacy-only syntax when `[tools].legacy_force` is enabled
-- `WorkspaceAbsolutePath` — canonical project root
-- `Language`, `UserName`, `DisableThinking`
-- `CustomRules`, `GlobalInstructions`, `RepoInstructions` — optional sections from [`internal/instructions`](../../internal/instructions/) (empty sections omitted from the rendered prompt)
-
-Both plan and build templates include the same instruction sections when present. Subdirectory repo instructions appear only after session activation (build-mode tools: `readFile`, `editFile` including delete via `delete: true`, `find`, `shell`). Plan mode does not read arbitrary project files, so subdirectory activation typically happens after switching to `/build`.
-
-When `[tools].legacy_force` is enabled, native OpenAI tool schemas are omitted from LLM requests in both modes; the model must use legacy XML described in the system prompt. With `legacy` only (not force), native API calls are preferred and XML is a fallback.
-
-See [Project instructions](../user-guide/project-instructions.md).
-
-## Flow
-
-```mermaid
-flowchart LR
-  slash["/plan or /build"]
-  mode[Runtime.Mode]
-  params[NativeToolParams]
-  tmpl[RenderPlan or RenderBuild]
-  slash --> mode --> params
-  mode --> tmpl
-```
-
-## Extension points
-
-- Add a tool to one mode: extend `params.go`, `exec.go` switch, and matching `*_openai.go` schema; update dump builders in `dump_plan.go` / `dump_build.go`.
-- Template copy: edit `internal/prompt/templates/`.
-
-## Related code
-
-- [`internal/agent/tools/params.go`](../../internal/agent/tools/params.go)
-- [`internal/prompt/render.go`](../../internal/prompt/render.go)
+| `BuildAgentToolDump` / `BuildChatToolDump` | Prompt tool listings |
+| `tools.Exec` | Rejects tools outside mode unless `AllowDeferredTools` |
+| `switchMode` | Countdown then `Runtime.Mode` + next-turn system prompt |
 
 ## See also
 
 - [Native tools](native-tools.md)
+- [Checkpoints](checkpoints.md)
 - [Agent turn pipeline](agent-turn-pipeline.md)
-- [Usage and commands](../user-guide/usage-and-commands.md)

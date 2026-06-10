@@ -1,23 +1,32 @@
 package tools
 
 import (
-	"fmt"
-
 	"github.com/openai/openai-go/v2"
 )
 
 func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error) {
-	switch mode {
+	var tools []openai.ChatCompletionToolUnionParam
+	switch normalizeMode(mode) {
+	case "agent":
+		tools = []openai.ChatCompletionToolUnionParam{
+			searchToolsOpenAI(),
+			orchestrateOpenAI(),
+			switchModeOpenAI(),
+		}
+	case "chat":
+		tools = []openai.ChatCompletionToolUnionParam{
+			fetchWebOpenAI(),
+			webSearchOpenAI(),
+			switchModeOpenAI(),
+		}
 	case "plan":
-		return []openai.ChatCompletionToolUnionParam{
-			docsRetrievalOpenAI(),
+		tools = []openai.ChatCompletionToolUnionParam{
 			createPlanOpenAI(),
 			editPlanOpenAI(),
 			buildPlanOpenAI(),
-		}, nil
+		}
 	case "build":
-		return []openai.ChatCompletionToolUnionParam{
-			docsRetrievalOpenAI(),
+		tools = []openai.ChatCompletionToolUnionParam{
 			shellOpenAI(),
 			readFileOpenAI(),
 			editFileOpenAI(),
@@ -27,8 +36,9 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 			searchSkillOpenAI(),
 			fetchWebOpenAI(),
 			webSearchOpenAI(),
-		}, nil
+		}
 	default:
-		return nil, fmt.Errorf("unknown mode %q", mode)
+		return universalToolParams(), nil
 	}
+	return EnsureUniversalTools(tools), nil
 }

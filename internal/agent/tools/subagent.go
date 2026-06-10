@@ -52,7 +52,7 @@ func execSubagent(ctx context.Context, env *Env, raw json.RawMessage) (any, erro
 		sys = merged
 	}
 	prev := env.CurrentMode()
-	env.SetMode("build")
+	env.SetMode("agent")
 	out, err := env.RunNestedWithSystem(ctx, sys, a.Task)
 	env.SetMode(prev)
 	if err != nil {

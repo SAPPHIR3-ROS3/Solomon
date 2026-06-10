@@ -7,6 +7,9 @@
 /scripts/cursor-bundler.exe
 /scripts/cursor_bundler.exe
 
+# Orchestrate compile slots (under module root during dev)
+.solomon/
+
 # Cursor API integration (TypeScript / Node)
 integrations/cursor/node_modules/
 integrations/cursor/dist/

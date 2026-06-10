@@ -49,6 +49,12 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 		return []string{termcolor.ToolHeaderLine("loadSkill", jsonDisplayString(m["name"]))}
 	case "searchSkill":
 		return []string{termcolor.ToolHeaderLine("searchSkill", jsonDisplayString(m["query"]))}
+	case "searchTools":
+		return []string{termcolor.ToolHeaderLine("searchTools", jsonDisplayString(m["query"]))}
+	case "orchestrate":
+		return formatOrchestrateToolDisplayLines(m)
+	case "switchMode":
+		return formatSwitchModeToolDisplayLines(m)
 	case "fetchWeb":
 		return formatFetchWebToolDisplayLines(m)
 	case "webSearch":
@@ -290,6 +296,23 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 			return fmt.Sprintf("→ %d matches", n)
 		}
 		return "→ done"
+	case "orchestrate":
+		if out := strings.TrimSpace(jsonDisplayString(m["output"])); out != "" {
+			return "→ " + firstDisplayLine(out, 160)
+		}
+		if errMsg := jsonDisplayString(m["compile_error"]); errMsg != "" {
+			return "→ compile error"
+		}
+		if errMsg := jsonDisplayString(m["error"]); errMsg != "" {
+			return "→ " + firstDisplayLine(errMsg, 120)
+		}
+		if ok := jsonDisplayBool(m["ok"]); ok {
+			if n, ok := jsonDisplayInt(m["tool_calls"]); ok {
+				return fmt.Sprintf("→ ok (%d sdk calls)", n)
+			}
+			return "→ ok"
+		}
+		return ""
 	default:
 		return formatGenericToolResultBody(m)
 	}

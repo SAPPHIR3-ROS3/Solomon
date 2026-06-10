@@ -28,7 +28,8 @@ func isInternalToolName(name string) bool {
 	switch name {
 	case "docsRetrieval",
 		"createPlan", "editPlan", "buildPlan",
-		"shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch":
+		"shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch",
+		"searchTools", "orchestrate", "switchMode":
 		return true
 	default:
 		return false
@@ -39,80 +40,92 @@ func isSkillToolName(name string) bool {
 	return name == "loadSkill" || name == "searchSkill"
 }
 
+func modeAllowed(env *Env, mode, tool string) bool {
+	if IsUniversalTool(tool) {
+		return true
+	}
+	if env != nil && env.AllowDeferredTools {
+		switch tool {
+		case "searchTools", "orchestrate", "switchMode":
+			return false
+		default:
+			return isInternalToolName(tool) || isSkillToolName(tool)
+		}
+	}
+	m := normalizeMode(mode)
+	switch m {
+	case "agent":
+		switch tool {
+		case "searchTools", "orchestrate", "switchMode":
+			return true
+		default:
+			return false
+		}
+	case "chat":
+		switch tool {
+		case "fetchWeb", "webSearch", "switchMode":
+			return true
+		default:
+			return false
+		}
+	case "plan":
+		switch tool {
+		case "createPlan", "editPlan", "buildPlan":
+			return true
+		default:
+			return false
+		}
+	case "build":
+		switch tool {
+		case "shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch":
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+}
+
+func rejectMode(tool, mode string) error {
+	err := fmt.Errorf("tool %s not available in %s mode", tool, normalizeMode(mode))
+	logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": tool, "mode": mode}})
+	return err
+}
+
 func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (any, error) {
+	if !modeAllowed(env, mode, inv.Name) {
+		return nil, rejectMode(inv.Name, mode)
+	}
 	switch inv.Name {
 	case "docsRetrieval":
 		return execDocsRetrieval(env, inv.Args)
 	case "createPlan":
-		if mode != "plan" {
-			err := fmt.Errorf("tool %s only in /plan mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/plan"}})
-			return nil, err
-		}
 		return execCreatePlan(env, inv.Args)
 	case "editPlan":
-		if mode != "plan" {
-			err := fmt.Errorf("tool %s only in /plan mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/plan"}})
-			return nil, err
-		}
 		return execEditPlan(env, inv.Args)
 	case "buildPlan":
-		if mode != "plan" {
-			err := fmt.Errorf("tool %s only in /plan mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/plan"}})
-			return nil, err
-		}
 		return execBuildPlan(ctx, env, inv.Args)
 	case "shell":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execShell(ctx, env, inv.Args)
 	case "readFile":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execReadFile(env, inv.Args)
 	case "find":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execFind(ctx, env, inv.Args)
 	case "editFile":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execEditFile(env, inv.Args)
 	case "subagent":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execSubagent(ctx, env, inv.Args)
 	case "fetchWeb":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execFetchWeb(ctx, inv.Args)
 	case "webSearch":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execWebSearch(ctx, env, inv.Args)
+	case "searchTools":
+		return execSearchTools(env, inv.Args)
+	case "orchestrate":
+		return execOrchestrate(ctx, env, inv.Args)
+	case "switchMode":
+		return execSwitchMode(ctx, env, inv.Args)
 	default:
 		err := fmt.Errorf("unknown tool %q", inv.Name)
 		logging.Log(logging.WARNING_LOG_LEVEL, "unknown tool", logging.LogOptions{Params: map[string]any{"tool": inv.Name}})
@@ -125,6 +138,9 @@ func dispatchExternal(ctx context.Context, env *Env, mode string, inv tooling.In
 		return dispatchSkill(env, mode, inv)
 	}
 	if env.MCP != nil && env.MCP.HasTool(inv.Name) {
+		if !modeAllowed(env, mode, inv.Name) && !(env != nil && env.AllowDeferredTools) {
+			return nil, rejectMode(inv.Name, mode)
+		}
 		return env.MCP.CallTool(ctx, inv.Name, inv.Args)
 	}
 	err := fmt.Errorf("unknown tool %q", inv.Name)
@@ -133,20 +149,13 @@ func dispatchExternal(ctx context.Context, env *Env, mode string, inv tooling.In
 }
 
 func dispatchSkill(env *Env, mode string, inv tooling.Invocation) (any, error) {
+	if !modeAllowed(env, mode, inv.Name) {
+		return nil, rejectMode(inv.Name, mode)
+	}
 	switch inv.Name {
 	case "loadSkill":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execLoadSkill(env, inv.Args)
 	case "searchSkill":
-		if mode != "build" {
-			err := fmt.Errorf("tool %s only in /build mode", inv.Name)
-			logging.Log(logging.WARNING_LOG_LEVEL, "tool rejected: wrong session mode", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "mode": mode, "need": "/build"}})
-			return nil, err
-		}
 		return execSearchSkill(env, inv.Args)
 	default:
 		err := fmt.Errorf("unknown tool %q", inv.Name)

@@ -21,6 +21,8 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 		CheckpointBeforeProjAbs: r.checkpointBeforeProjAbs,
 		CheckpointRecordEdit:    r.checkpointRecordEdit,
 		CheckpointCpSeq:         func() int { return r.currentToolCpSeq },
+		AllowDeferredTools:      false,
+		SwitchModeCountdown:     r.switchModeCountdown,
 		ActivateInstructionsFromAbsPath: func(absPath string) {
 			r.activateInstructionsFromAbsPath(absPath)
 		},

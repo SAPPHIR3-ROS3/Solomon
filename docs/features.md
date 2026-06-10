@@ -222,9 +222,9 @@ The following are listed in [`TODO.md`](../TODO.md) only. They are ordered by th
 
 Modern shells show ghost-text suggestions from local history; coding-agent REPLs rarely do. Solomon would suggest prior prompts from session or project history without breaking slash dispatch or multiline input in the REPL editor.
 
-### Code mode and extended tool sets **(in the future)**
+### Code mode (`/agent`, `/chat`, orchestrate) **(implemented)**
 
-Today only `plan` and `build` modes exist. A dedicated **code mode** would narrow or expand native tools and system prompts for implementation-heavy work, similar to how some agents expose profile-specific tool allowlists.
+**Agent mode** (default) exposes `searchTools`, `orchestrate`, and `switchMode`. Deferred tools (shell, readFile, editFile, plan tools, …) are discovered via `searchTools` and invoked from Go scripts run by `orchestrate` (compiled to WASM, executed in a sandbox worker subprocess). **Chat mode** exposes web/docs tools plus `switchMode`. `/plan` and `/build` are deprecated aliases for `/agent`.
 
 ### Full file-operation surface **(in the future)**
 

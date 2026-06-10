@@ -62,10 +62,10 @@ func TestSlashDispatch_planBuildClear(t *testing.T) {
 	sess := &chatstore.Session{}
 	d := testDeps(sess)
 	d.SetMode = func(m string) { mode = m }
-	if err := agent.SlashDispatch(d, "/plan"); err != nil || mode != "plan" {
+	if err := agent.SlashDispatch(d, "/plan"); err != nil || mode != "agent" {
 		t.Fatalf("plan: err=%v mode=%s", err, mode)
 	}
-	if err := agent.SlashDispatch(d, "/build"); err != nil || mode != "build" {
+	if err := agent.SlashDispatch(d, "/build"); err != nil || mode != "agent" {
 		t.Fatalf("build: err=%v mode=%s", err, mode)
 	}
 	out := bytes.NewBuffer(nil)

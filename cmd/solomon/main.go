@@ -20,6 +20,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	sandboxworker "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/worker"
 
 )
 
@@ -61,6 +62,10 @@ func resolveREPLWorkingDir(args []string) (string, error) {
 func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "version" {
 		commands.WriteVersion(os.Stdout)
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "sandbox-worker" {
+		sandboxworker.Main()
 		return
 	}
 	ctx := context.Background()
