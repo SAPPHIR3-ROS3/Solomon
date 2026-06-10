@@ -19,19 +19,17 @@ type deferredTool struct {
 
 func deferredCatalog() []deferredTool {
 	return []deferredTool{
-		{Name: "docsRetrieval", Description: "Search embedded Solomon documentation (snippets or full article by path)", SDKCall: "DocsRetrieval(query string) (string, error)", Mode: "both"},
+		{Name: "docsRetrieval", Description: "Search embedded Solomon documentation (snippets or full article by path)", SDKCall: "DocsRetrieval/DocsSearch/DocsArticle (JSON string); DocsRetrievalInfo/... → DocsResult", Mode: "both"},
 		{Name: "createPlan", Description: "Create a markdown plan document under the project plans directory", Mode: "plan"},
 		{Name: "editPlan", Description: "Replace the first occurrence of old text in a plan file", Mode: "plan"},
 		{Name: "buildPlan", Description: "Hand off a plan to implementation mode", Mode: "plan"},
-		{Name: "shell", Description: "Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error", SDKCall: "Shell(command, intent string) (string, error)", Mode: "build"},
-		{Name: "readFile", Description: "Read a text file relative to project root; optional startLine/endLine in native tool only", SDKCall: "ReadFile(path string) (string, error)", Mode: "build"},
-		{Name: "editFile", Description: "Replace oldString once with newString; empty oldString creates/overwrites; delete=true removes; renameTo moves/renames", SDKCall: "EditFile(path, oldString, newString, intent string, delete bool) error", Mode: "build"},
-		{Name: "find", Description: "Search files by glob (files=true) or content regexp (files=false)", SDKCall: "Find(pattern string, files bool) (string, error)", Mode: "build"},
-		{Name: "subagent", Description: "Run a nested agent with system prompt from file and task string", Mode: "build"},
-		{Name: "loadSkill", Description: "Load an installed skill body by name", Mode: "build"},
-		{Name: "searchSkill", Description: "BM25 search over installed skills", Mode: "build"},
-		{Name: "fetchWeb", Description: "Fetch URL content as markdown", SDKCall: "FetchWeb(url string) (string, error)", Mode: "build"},
-		{Name: "webSearch", Description: "Web search via configured engine", SDKCall: "WebSearch(query string) (string, error)", Mode: "build"},
+		{Name: "shell", Description: "Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error", SDKCall: "Shell(command, intent string) (string, error); ShellWithTimeout; ShellResult/ShellResultWithTimeout → ShellOutput", Mode: "build"},
+		{Name: "readFile", Description: "Read a text file relative to project root; optional startLine/endLine (1-based, inclusive)", SDKCall: "ReadFile; ReadFileLines/ReadFileLinesInfo; ReadFileFromLine; ReadFileUntilLine; ReadFileInfo → ReadResult", Mode: "build"},
+		{Name: "editFile", Description: "Replace oldString once with newString; empty oldString creates/overwrites; delete=true removes; renameTo moves/renames", SDKCall: "ReplaceInFile/WriteFile/DeleteFile/RenameFile/EditFile (error); *Result variants → EditResult", Mode: "build"},
+		{Name: "find", Description: "Search files by glob (files=true) or content regexp (files=false)", SDKCall: "Glob*/Grep*/GrepLines*/GrepCountEntries*; FindInfo/FindInInfo/FindTimeoutInfo → FindResult", Mode: "build"},
+		{Name: "subagent", Description: "Run a nested agent with system prompt from file and task string. No SDK helper yet — deferred until TODO §2 (subagent persistence and resume/background params).", Mode: "build"},
+		{Name: "fetchWeb", Description: "Fetch URL content as markdown", SDKCall: "FetchWeb; FetchWebWithTimeout; FetchWebInfo/FetchWebInfoWithTimeout → FetchWebResult", Mode: "build"},
+		{Name: "webSearch", Description: "Web search via configured engine", SDKCall: "WebSearch (JSON string); WebSearchInfo/WebSearchNInfo/... → WebSearchResult", Mode: "build"},
 	}
 }
 
@@ -42,8 +40,11 @@ func sdkQuickReference() map[string]any {
 		"stdout":         "fmt.Print/Println/Printf output is captured and returned in orchestrate tool result field output",
 		"examples": []string{
 			`content, err := sdk.ReadFile("TODO.md")`,
+			`r, err := sdk.ReadFileLinesInfo("main.go", 10, 50)`,
+			`paths, err := sdk.Glob("**/*.go")`,
+			`err := sdk.WriteFile("f.txt", "hello", "create file")`,
 			`out, err := sdk.Shell("wc -m TODO.md", "count characters")`,
-			`err := sdk.EditFile("f.txt", "old", "new", "update file", false)`,
+			`res, err := sdk.ShellResult("go test ./...", "run tests")`,
 			`fmt.Println(len(content))`,
 		},
 	}

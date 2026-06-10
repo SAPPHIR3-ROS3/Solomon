@@ -34,6 +34,68 @@ func TestToolOutputNoTruncateUnderLimits(t *testing.T) {
 	}
 }
 
+func TestToolOutputTruncatesOrchestrateOutputField(t *testing.T) {
+	t.Cleanup(func() { _ = tooloutput.CleanupProjectTemp(testProjectHex) })
+	lim := tooloutput.Limits{MaxBytes: 200, MaxLines: 10}
+	svc := testToolOutputService(lim)
+	body := strings.Repeat("x", 500)
+	in := map[string]any{
+		"ok":          true,
+		"tool_calls":  2,
+		"duration_ms": 900,
+		"output":      body,
+	}
+	out := svc.Apply(in, tooloutput.Meta{SessionID: "sess-orch", ToolCallID: "call-orch", ToolName: "orchestrate"})
+	m, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map, got %T", out)
+	}
+	if m["truncated"] != true {
+		t.Fatal("expected truncated true")
+	}
+	if m["ok"] != true {
+		t.Fatal("expected ok preserved")
+	}
+	if m["tool_calls"] != 2 {
+		t.Fatalf("tool_calls: %v", m["tool_calls"])
+	}
+	spillPath, _ := m["spill_path"].(string)
+	if spillPath == "" {
+		t.Fatal("expected spill_path")
+	}
+	got, _ := os.ReadFile(spillPath)
+	if string(got) != body {
+		t.Fatalf("spill content mismatch: len=%d", len(got))
+	}
+	outText, _ := m["output"].(string)
+	if !strings.Contains(outText, spillPath) {
+		t.Fatalf("output should reference spill: %q", outText)
+	}
+}
+
+func TestToolOutputTruncatesReadFileContentField(t *testing.T) {
+	t.Cleanup(func() { _ = tooloutput.CleanupProjectTemp(testProjectHex) })
+	lim := tooloutput.Limits{MaxBytes: 100, MaxLines: 5}
+	svc := testToolOutputService(lim)
+	body := strings.Repeat("line\n", 20)
+	in := map[string]any{
+		"path":        "/proj/README.md",
+		"total_lines": 20,
+		"content":     body,
+	}
+	out := svc.Apply(in, tooloutput.Meta{SessionID: "sess-rf", ToolCallID: "call-rf", ToolName: "readFile"})
+	m := out.(map[string]any)
+	if m["truncated"] != true {
+		t.Fatal("expected truncated")
+	}
+	if m["total_lines"] != 20 {
+		t.Fatalf("total_lines: %v", m["total_lines"])
+	}
+	if _, ok := m["spill_path"].(string); !ok {
+		t.Fatal("expected spill_path")
+	}
+}
+
 func TestToolOutputTruncatesLargePayload(t *testing.T) {
 	t.Cleanup(func() { _ = tooloutput.CleanupProjectTemp(testProjectHex) })
 	lim := tooloutput.Limits{MaxBytes: 200, MaxLines: 10}
@@ -57,6 +119,9 @@ func TestToolOutputTruncatesLargePayload(t *testing.T) {
 	}
 	if _, err := os.Stat(spillPath); err != nil {
 		t.Fatalf("spill file missing: %v", err)
+	}
+	if m["exit"] != 0 {
+		t.Fatalf("exit should be preserved: %v", m["exit"])
 	}
 	msg, _ := m["output"].(string)
 	want := tooloutput.FormatTruncatedMessage(spillPath)

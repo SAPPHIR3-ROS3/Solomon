@@ -297,6 +297,16 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 		}
 		return "→ done"
 	case "orchestrate":
+		if jsonDisplayBool(m["truncated"]) {
+			if p := jsonDisplayString(m["spill_path"]); p != "" {
+				body := "→ truncated"
+				if n, ok := jsonDisplayInt(m["tool_calls"]); ok {
+					body += fmt.Sprintf(" (%d sdk calls)", n)
+				}
+				body += " • " + p
+				return body
+			}
+		}
 		if out := strings.TrimSpace(jsonDisplayString(m["output"])); out != "" {
 			return "→ " + firstDisplayLine(out, 160)
 		}

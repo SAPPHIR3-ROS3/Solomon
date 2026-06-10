@@ -30,7 +30,7 @@ func appendOrchestrateDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import solomon SDK (ReadFile, EditFile, Find, Shell, WebSearch, FetchWeb, DocsRetrieval). Use fmt.Println/Printf in main(); stdout is captured in the tool result output field. Shell(command, intent) and EditFile(path, oldString, newString, intent, delete) require all parameters.", sig)
+	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import solomon SDK helpers (ReadFile/ReadFileLinesInfo, ReplaceInFile/WriteFile/DeleteFile/RenameFile, Glob/Grep/GrepFiles, Shell/ShellResult, WebSearch/FetchWeb, DocsRetrieval). Use fmt.Print/Println/Printf in main(); stdout is captured in the tool result output field.", sig)
 	return nil
 }
 

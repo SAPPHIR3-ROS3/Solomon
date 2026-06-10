@@ -61,6 +61,14 @@ func (s *Service) Apply(v any, meta Meta) any {
 	if s == nil || v == nil {
 		return v
 	}
+	if m, ok := v.(map[string]any); ok {
+		if field, ok := toolPrimaryTextField[meta.ToolName]; ok {
+			if updated, changed := truncatePrimaryTextField(m, meta.ToolName, field, s.limits, meta, s.projectHex); changed {
+				s.MarkSpillGenerated()
+				return updated
+			}
+		}
+	}
 	b, err := json.Marshal(v)
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "tool output marshal failed", logging.LogOptions{Params: map[string]any{"tool": meta.ToolName, "err": err.Error()}})

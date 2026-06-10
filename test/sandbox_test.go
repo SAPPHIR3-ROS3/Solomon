@@ -61,6 +61,29 @@ func TestAgentModeRejectsDirectReadFile(t *testing.T) {
 	}
 }
 
+func TestAgentModeAllowsSearchSkill(t *testing.T) {
+	_, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
+		Name: "searchSkill",
+		Args: json.RawMessage(`{"query":"commit message"}`),
+	})
+	if err == nil {
+		return
+	}
+	if !strings.Contains(err.Error(), "no matching skill") && !strings.Contains(err.Error(), "no skill reaches") {
+		t.Fatalf("expected searchSkill to run in agent mode, got: %v", err)
+	}
+}
+
+func TestAgentModeRejectsLoadSkillInAgentWithoutSkill(t *testing.T) {
+	_, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
+		Name: "loadSkill",
+		Args: json.RawMessage(`{"name":"definitely-missing-skill-xyz"}`),
+	})
+	if err == nil {
+		t.Fatal("expected load error for missing skill")
+	}
+}
+
 func TestDeferredHostAllowsReadFile(t *testing.T) {
 	dir := t.TempDir()
 	env := &agenttools.Env{ProjRoot: dir, AllowDeferredTools: true}
@@ -95,6 +118,67 @@ func TestCompileMinimalWASM(t *testing.T) {
 	}
 	if len(wasm) < 1000 {
 		t.Fatalf("wasm too small: %d", len(wasm))
+	}
+}
+
+func TestCompileSDKHelpers(t *testing.T) {
+	src := `package main
+
+import (
+	sdk "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk"
+)
+
+func main() {
+	if err := sdk.WriteFile("a.txt", "line1\nline2\nline3", "seed"); err != nil {
+		panic(err)
+	}
+	if err := sdk.ReplaceInFile("a.txt", "line2", "LINE2", "patch"); err != nil {
+		panic(err)
+	}
+	r, err := sdk.ReadFileFromLineInfo("a.txt", 2)
+	if err != nil {
+		panic(err)
+	}
+	paths, err := sdk.GlobInLimit(".", "*.txt", 10)
+	if err != nil {
+		panic(err)
+	}
+	matches, err := sdk.GrepPathGlob("LINE2", "*.txt")
+	if err != nil {
+		panic(err)
+	}
+	lines, err := sdk.GrepLinesPathGlob("LINE2", "*.txt")
+	if err != nil {
+		panic(err)
+	}
+	er, err := sdk.WriteFileResult("a.txt", "line1\nLINE2\nline3", "seed")
+	if err != nil || !er.OK {
+		panic(err)
+	}
+	res, err := sdk.ShellResultWithTimeout("echo ok", "probe", 30)
+	if err != nil {
+		panic(err)
+	}
+	sdk.Printf("lines=%d paths=%d grep=%q grepLines=%d exit=%d action=%s\n", r.TotalLines, len(paths), matches, len(lines), res.Exit, er.Action)
+}
+`
+	if _, err := compile.BuildWASM(compile.Options{Source: src}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSearchToolsSDKHelpers(t *testing.T) {
+	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
+		Name: "searchTools",
+		Args: json.RawMessage(`{"query":"Glob"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := out.(map[string]any)
+	count, _ := m["count"].(int)
+	if count == 0 {
+		t.Fatal("expected sdk helper hits")
 	}
 }
 
@@ -381,11 +465,22 @@ func TestNativeToolParamsAgentChat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(agent) != 4 {
+	if len(agent) != 6 {
 		t.Fatalf("agent tools: %d", len(agent))
 	}
 	if agent[0].OfFunction.Function.Name != "docsRetrieval" {
 		t.Fatalf("first agent tool: %s", agent[0].OfFunction.Function.Name)
+	}
+	names := map[string]bool{}
+	for _, p := range agent {
+		if p.OfFunction != nil {
+			names[p.OfFunction.Function.Name] = true
+		}
+	}
+	for _, want := range []string{"searchSkill", "loadSkill", "searchTools", "orchestrate", "switchMode"} {
+		if !names[want] {
+			t.Fatalf("missing agent tool %s", want)
+		}
 	}
 	chat, err := agenttools.NativeToolParams("chat")
 	if err != nil {
