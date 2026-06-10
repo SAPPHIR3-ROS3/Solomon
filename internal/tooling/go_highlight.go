@@ -8,12 +8,40 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
+const codeDisplayTabWidth = 4
+
 var goKeywords = map[string]bool{
 	"break": true, "case": true, "chan": true, "const": true, "continue": true,
 	"default": true, "defer": true, "else": true, "fallthrough": true, "for": true,
 	"func": true, "go": true, "goto": true, "if": true, "import": true, "interface": true,
 	"map": true, "package": true, "range": true, "return": true, "select": true,
 	"struct": true, "switch": true, "type": true, "var": true,
+}
+
+func expandDisplayTabs(line string) string {
+	if !strings.Contains(line, "\t") {
+		return line
+	}
+	var b strings.Builder
+	b.Grow(len(line) + strings.Count(line, "\t")*(codeDisplayTabWidth-1))
+	col := 0
+	for i := 0; i < len(line); {
+		if line[i] == '\t' {
+			pad := codeDisplayTabWidth - (col % codeDisplayTabWidth)
+			if pad == 0 {
+				pad = codeDisplayTabWidth
+			}
+			b.WriteString(strings.Repeat(" ", pad))
+			col += pad
+			i++
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(line[i:])
+		b.WriteRune(r)
+		col++
+		i += size
+	}
+	return b.String()
 }
 
 func highlightGoLine(line string) string {

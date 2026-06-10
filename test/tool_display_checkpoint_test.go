@@ -222,6 +222,22 @@ func TestFormatToolDisplayLines_orchestrate(t *testing.T) {
 	}
 }
 
+func TestFormatToolDisplayLines_orchestrateExpandsTabs(t *testing.T) {
+	src := "func main() {\n\tfmt.Println(\"x\")\n}\n"
+	args, err := json.Marshal(map[string]string{"source": src, "intent": "tab test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("orchestrate", args)
+	plain := termcolor.Plain(lines[2])
+	if strings.Contains(plain, "\t") {
+		t.Fatalf("display should not contain tab chars: %q", plain)
+	}
+	if !strings.Contains(plain, "    fmt.Println") {
+		t.Fatalf("tab should expand to 4 spaces: %q", plain)
+	}
+}
+
 func TestFormatToolDisplayLines_orchestrateTruncatesLongSource(t *testing.T) {
 	body := strings.Repeat("fmt.Println(\"x\")\n", 60)
 	src := "package main\n\nfunc main() {\n" + body + "}\n"
