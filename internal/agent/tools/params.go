@@ -9,6 +9,8 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 	switch normalizeMode(mode) {
 	case "agent":
 		tools = []openai.ChatCompletionToolUnionParam{
+			searchSkillOpenAI(),
+			loadSkillOpenAI(),
 			searchToolsOpenAI(),
 			orchestrateOpenAI(),
 			switchModeOpenAI(),

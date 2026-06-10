@@ -5,6 +5,12 @@ func BuildAgentToolDump() (string, error) {
 	if err := appendDocsRetrievalDump(b); err != nil {
 		return "", err
 	}
+	if err := appendSearchSkillDump(b); err != nil {
+		return "", err
+	}
+	if err := appendLoadSkillDump(b); err != nil {
+		return "", err
+	}
 	if err := appendSearchToolsDump(b); err != nil {
 		return "", err
 	}

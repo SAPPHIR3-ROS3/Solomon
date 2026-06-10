@@ -56,7 +56,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 	switch m {
 	case "agent":
 		switch tool {
-		case "searchTools", "orchestrate", "switchMode":
+		case "searchTools", "orchestrate", "switchMode", "loadSkill", "searchSkill":
 			return true
 		default:
 			return false
@@ -77,7 +77,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 		}
 	case "build":
 		switch tool {
-		case "shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch":
+		case "shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch", "loadSkill", "searchSkill":
 			return true
 		default:
 			return false
