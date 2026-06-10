@@ -1,5 +1,21 @@
 # Overview
 
+> **Early release — preview software, not production-ready.** APIs, behavior, and on-disk formats may change without notice. Bring your own OpenAI-compatible endpoint · Expect rough edges · [Open an issue](https://github.com/SAPPHIR3-ROS3/Solomon/issues) with feedback
+
+## What is Solomon
+
+Solomon is a **local-first terminal agent**: one Go binary, your choice of LLM provider, project state under `~/.solomon`. It is not an IDE or a hosted service.
+
+Interactive terminal harness for LLMs over OpenAI-compatible APIs — project-aware sessions, skills, slash commands, planning, and tooling.
+
+- **Interactive REPL** — multiline input, slash commands, checkpoints, streaming output
+- **Plan and build modes** — research and plan first (`/plan`), then implement with shell and file tools (`/build`)
+- **Skills and MCP** — install skills with `solomon add`; optional MCP tools from `mcp.json`
+- **Headless runs** — `solomon exec` and `--json` / `--jsonl` for scripts and CI
+- **BYO API** — OpenAI-compatible HTTPS endpoints, Anthropic Messages API, or ChatGPT Sub via `/connect`
+
+Data (config, chats, plans, skills) lives outside your repo in `~/.solomon`, keyed by workspace root.
+
 ## Purpose
 
 Solomon is a terminal harness for OpenAI-compatible LLM APIs: project-scoped sessions, plan/build tool modes, skills, slash commands, optional MCP tools, and on-disk transcripts under `~/.solomon`.
@@ -99,6 +115,8 @@ flowchart TB
 
 ## See also
 
+- [Installation and PATH](../user-guide/installation.md)
+- [Usage and commands — Quickstart](../user-guide/usage-and-commands.md#quickstart)
 - [Package index](package-index.md)
 - [Runtime hub](runtime.md)
 - [Startup and CLI](startup-and-cli.md)

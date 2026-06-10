@@ -19,7 +19,7 @@ func normalizeQueryPath(q string) string {
 	return strings.ToLower(q)
 }
 
-func isRootReadmeQuery(q string) bool {
+func isDocsIndexQuery(q string) bool {
 	q = strings.TrimSpace(strings.ToLower(q))
 	q = strings.TrimPrefix(q, "docs/")
 	q = strings.TrimSuffix(q, ".md")
@@ -36,9 +36,9 @@ func queryWordCount(q string) int {
 }
 
 func matchPaths(c *corpus, query string) []string {
-	if isRootReadmeQuery(query) {
-		if _, ok := c.articles[rootReadmePath]; ok {
-			return []string{rootReadmePath}
+	if isDocsIndexQuery(query) {
+		if _, ok := c.articles[docsPortalPath]; ok {
+			return []string{docsPortalPath}
 		}
 		return nil
 	}
@@ -75,8 +75,8 @@ func matchPaths(c *corpus, query string) []string {
 
 func pickReadmeRoot(paths []string) []string {
 	for _, p := range paths {
-		if p == rootReadmePath {
-			return []string{rootReadmePath}
+		if p == docsPortalPath {
+			return []string{docsPortalPath}
 		}
 	}
 	if len(paths) == 1 {

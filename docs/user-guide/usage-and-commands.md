@@ -1,5 +1,33 @@
 # Usage and commands
 
+## Quickstart
+
+```bash
+cd /path/to/your/project
+solomon .
+```
+
+On first run, Solomon starts an **interactive setup** (provider URL, API key, model). Reconfigure later with `/onboard`; backup config with `/configbackup`.
+
+At the `You:` prompt:
+
+```
+/plan          # planning tools only — create and edit plans on disk
+/build         # shell, read/edit files, web search, subagent
+/help          # full slash command list
+```
+
+One-shot without the REPL:
+
+```bash
+solomon exec "summarize the README"
+solomon exec --jsonl "run go test ./..."   # CI / automation
+```
+
+You need network access and credentials for an **OpenAI-compatible** HTTPS API (`base_url` + API key), or configure a provider with `/connect` (Anthropic, ChatGPT Sub, Cursor).
+
+Install first: [Installation and PATH](installation.md). Provider and engine knobs: [Configuration](configuration.md).
+
 ## Features
 
 - Interactive readline REPL plus one-shot runs: [`exec`](../../cmd/solomon/main.go), [`temp exec`](../../cmd/solomon/main.go)
@@ -196,6 +224,7 @@ Implementation: [Skills and slash](../architecture/skills-and-slash.md).
 
 ## See also
 
+- [Installation and PATH](installation.md)
 - [Configuration](configuration.md)
 - [Project instructions](project-instructions.md)
 - [Terminal setup](terminal-setup.md)

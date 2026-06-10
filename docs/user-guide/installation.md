@@ -2,11 +2,56 @@
 
 How to install Solomon and ensure `solomon` is on your shell `PATH`.
 
-## Install methods
+## Requirements
 
-See the [project README](../../README.md#install) for install script, `go install`, and `make build`.
+- [Go](https://go.dev/) **1.25.0+** ([`go.mod`](../../go.mod))
+- Network access for `go install` or the install script
 
-After install, verify:
+The standard installer does **not** require Node.js. Node/npm are only needed for the optional Cursor integration.
+
+## Install script (recommended)
+
+Installs Go **1.25.0+** if needed, ensures `make` is available, configures your shell `PATH`, and runs `go install`.
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh | bash
+```
+
+From a clone: `./scripts/install.sh`
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex
+```
+
+From a clone: `powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1`
+
+Reload the terminal, then run `solomon version`.
+
+## `go install` (manual)
+
+```bash
+go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
+```
+
+Pin a [release tag](https://github.com/SAPPHIR3-ROS3/Solomon/tags): `@v2026.527.2`
+
+If `solomon` is not found after install, the binary is in `$(go env GOPATH)/bin` — see [Binary location](#binary-location) below.
+
+## Build from a clone
+
+```bash
+git clone https://github.com/SAPPHIR3-ROS3/Solomon.git
+cd Solomon
+make build
+```
+
+Produces `./solomon` (Unix/macOS) or `./solomon.exe` (Windows). Release workflow and CI checks: [Building and releases](../development/building-and-releases.md).
+
+## Verify install
 
 ```bash
 solomon version
@@ -101,5 +146,6 @@ On Windows, use a path already on your PATH (e.g. `%USERPROFILE%\.local\bin`) an
 
 ## See also
 
-- [Project README — Install](../../README.md#install)
+- [Quickstart](usage-and-commands.md#quickstart)
 - [Building and releases](../development/building-and-releases.md)
+- [Overview](../architecture/overview.md)

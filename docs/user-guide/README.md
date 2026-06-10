@@ -6,7 +6,7 @@ Practical guides for running Solomon, configuring providers, and understanding w
 
 | Article | Summary |
 |---------|---------|
-| [installation.md](installation.md) | `go install`, PATH setup (all shells) |
+| [installation.md](installation.md) | Install script, `go install`, `make build`, PATH setup |
 | [configuration.md](configuration.md) | `~/.solomon/config.toml`, web search engines, logs, `[tools]` legacy XML |
 | [usage-and-commands.md](usage-and-commands.md) | CLI modes, features, slash commands (incl. `/legacytools`, `/cursortools`) |
 | [terminal-setup.md](terminal-setup.md) | Monospace font, ligatures, colors, pipes |
