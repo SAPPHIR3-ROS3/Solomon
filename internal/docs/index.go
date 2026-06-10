@@ -7,11 +7,9 @@ import (
 	"sync"
 
 	docscorpus "github.com/SAPPHIR3-ROS3/Solomon/v2026/docs"
-	solomonembed "github.com/SAPPHIR3-ROS3/Solomon/v2026"
 )
 
 const (
-	rootReadmePath    = "README.md"
 	docsPortalPath    = "docs-index.md"
 	sectionSplitEvery = 4
 )
@@ -51,9 +49,6 @@ func loadCorpus() (*corpus, error) {
 
 func buildCorpus() (*corpus, error) {
 	c := &corpus{articles: map[string]*article{}}
-	if err := c.addArticle(rootReadmePath, solomonembed.RootReadme); err != nil {
-		return nil, err
-	}
 	err := fs.WalkDir(docscorpus.Corpus, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

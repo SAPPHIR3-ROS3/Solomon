@@ -12,7 +12,7 @@ import (
 
 func signatureDocsRetrieval(query string) {}
 
-const docsRetrievalDescription = `Search embedded Solomon documentation. Generic queries return BM25-ranked snippets with source paths (up to 5 articles). Specific path or filename queries return the full article. Short queries (<=5 words) with very high match score (>=0.9) also return the full winning article. Paths omit the docs/ prefix (e.g. user-guide/configuration.md); root README is README.md.`
+const docsRetrievalDescription = `Search embedded Solomon documentation. Generic queries return BM25-ranked snippets with source paths (up to 5 articles). Specific path or filename queries return the full article. Short queries (<=5 words) with very high match score (>=0.9) also return the full winning article. Paths omit the docs/ prefix (e.g. user-guide/configuration.md); docs wiki index is docs-index.md (query README.md or readme).`
 
 type docsRetrievalArgs struct {
 	Query string `json:"query"`

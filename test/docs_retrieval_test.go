@@ -35,16 +35,16 @@ func TestDocsRetrieval_pathArticle(t *testing.T) {
 	}
 }
 
-func TestDocsRetrieval_rootReadmeWins(t *testing.T) {
+func TestDocsRetrieval_readmeQueryResolvesDocsIndex(t *testing.T) {
 	res, err := docs.Retrieve("README.md", docOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Mode != "article" || res.Path != "README.md" {
+	if res.Mode != "article" || res.Path != "docs-index.md" {
 		t.Fatalf("got mode=%q path=%q", res.Mode, res.Path)
 	}
-	if !strings.Contains(res.Content, "Solomon") {
-		t.Fatalf("unexpected root readme content")
+	if !strings.Contains(res.Content, "documentation") {
+		t.Fatalf("unexpected docs index content")
 	}
 }
 

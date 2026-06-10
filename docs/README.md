@@ -1,6 +1,22 @@
 # Solomon documentation
 
-Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by topic into **portals** (folders). Each portal has an index page; articles end with a **See also** section for cross-links.
+Welcome to the in-repo wiki for Solomon. Articles are grouped by topic into **portals** (folders). Each portal has an index page; articles end with a **See also** section for cross-links.
+
+## Documentation map
+
+| If you want to… | Start here |
+|-----------------|------------|
+| Install Solomon | [Installation and PATH](user-guide/installation.md) |
+| First run and REPL basics | [Usage and commands — Quickstart](user-guide/usage-and-commands.md#quickstart) |
+| Configure providers, MCP, web search | [Configuration](user-guide/configuration.md) |
+| REPL, slash commands, CLI modes | [Usage and commands](user-guide/usage-and-commands.md) |
+| Find chats, plans, skills on disk | [Data layout](user-guide/data-layout.md) |
+| Automate in CI | [Machine output](user-guide/usage-and-commands.md#machine-readable-output---json---jsonl) · [GitHub Actions example](development/ci-github-actions.example.yml) |
+| Compare capabilities | [Feature catalog](features.md) |
+| What Solomon is and design tenets | [Overview](architecture/overview.md) |
+| Contribute or debug internals | [Package index](architecture/package-index.md) · [Agent turn pipeline](architecture/agent-turn-pipeline.md) · [Tests](development/building-and-releases.md#tests-quick-reference) |
+
+Development: [Testing](development/testing.md), [Cookbook](development/cookbook.md) · Startup flow: [Startup and CLI](architecture/startup-and-cli.md#startup-flow)
 
 ## Portals
 
@@ -14,12 +30,13 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 
 **New user**
 
-1. [Project README](../README.md) — install and quickstart
-2. [Installation and PATH](user-guide/installation.md) — if `solomon` is not on PATH after `go install`
-3. [Configuration](user-guide/configuration.md)
-4. [Usage and commands](user-guide/usage-and-commands.md)
-5. [Terminal setup](user-guide/terminal-setup.md) — monospace font and colors
-6. [Data layout](user-guide/data-layout.md)
+1. [Installation and PATH](user-guide/installation.md)
+2. [Usage and commands — Quickstart](user-guide/usage-and-commands.md#quickstart)
+3. [Installation and PATH — PATH setup](user-guide/installation.md#binary-location) — if `solomon` is not on PATH after `go install`
+4. [Configuration](user-guide/configuration.md)
+5. [Usage and commands](user-guide/usage-and-commands.md)
+6. [Terminal setup](user-guide/terminal-setup.md) — monospace font and colors
+7. [Data layout](user-guide/data-layout.md)
 
 **Backends without native tool calling**
 
@@ -74,4 +91,6 @@ Welcome to the in-repo wiki for [Solomon](../README.md). Articles are grouped by
 
 ## See also
 
-- [Project README](../README.md) — requirements, install, quickstart, philosophy
+- [Overview](architecture/overview.md) — what Solomon is, early-release status, design tenets
+- [Installation and PATH](user-guide/installation.md)
+- [Usage and commands — Quickstart](user-guide/usage-and-commands.md#quickstart)

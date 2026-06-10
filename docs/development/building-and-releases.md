@@ -80,6 +80,7 @@ Prebuilt binaries are attached per platform; the install scripts download those 
 
 ## See also
 
-- [Project README](../../README.md) — install and requirements
+- [Installation and PATH](../user-guide/installation.md)
+- [Overview](../architecture/overview.md)
 - [Testing](testing.md)
 - [Startup and CLI](../architecture/startup-and-cli.md)
