@@ -20,9 +20,15 @@ type deferredTool struct {
 func deferredCatalog() []deferredTool {
 	return []deferredTool{
 		{Name: "docsRetrieval", Description: "Search embedded Solomon documentation (snippets or full article by path)", SDKCall: "DocsRetrieval/DocsSearch/DocsArticle (JSON string); DocsRetrievalInfo/... → DocsResult", Mode: "both"},
-		{Name: "createPlan", Description: "Create a markdown plan document under the project plans directory", Mode: "plan"},
-		{Name: "editPlan", Description: "Replace the first occurrence of old text in a plan file", Mode: "plan"},
-		{Name: "buildPlan", Description: "Hand off a plan to implementation mode", Mode: "plan"},
+		{Name: "createPlan", Description: "Create a structured plan file with frontmatter and Goal section", SDKCall: "CreatePlan(name, goal string) (map, error)", Mode: "agent"},
+		{Name: "editPlan", Description: "Replace the first occurrence of old text in a plan file", SDKCall: "EditPlan(name, old, new, intent string) (map, error)", Mode: "agent"},
+		{Name: "buildPlan", Description: "Prepare structured implementation brief from a plan (no nested run)", SDKCall: "BuildPlan(name string) (map, error)", Mode: "agent"},
+		{Name: "addTodo", Description: "Append an open todo as the last line of the plan file", SDKCall: "AddTodo(name, todo string) (map, error)", Mode: "agent"},
+		{Name: "todoList", Description: "List open todos for a plan", SDKCall: "TodoList(name string) (map[string]string, error)", Mode: "agent"},
+		{Name: "checkTodo", Description: "Mark a todo done by SHA1", SDKCall: "CheckTodo(sha1 string) (map, error)", Mode: "agent"},
+		{Name: "removeTodo", Description: "Remove a todo line by SHA1", SDKCall: "RemoveTodo(sha1 string) (map, error)", Mode: "agent"},
+		{Name: "checkPlan", Description: "Inspect plan status and remaining todos or full body", SDKCall: "CheckPlan(name string, full bool) (map, error)", Mode: "agent"},
+		{Name: "deletePlan", Description: "Delete a plan file", SDKCall: "DeletePlan(name string) (map, error)", Mode: "agent"},
 		{Name: "shell", Description: "Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error", SDKCall: "Shell(command, intent string) (string, error); ShellWithTimeout; ShellResult/ShellResultWithTimeout → ShellOutput", Mode: "build"},
 		{Name: "readFile", Description: "Read a text file relative to project root; optional startLine/endLine (1-based, inclusive)", SDKCall: "ReadFile; ReadFileLines/ReadFileLinesInfo; ReadFileFromLine; ReadFileUntilLine; ReadFileInfo → ReadResult", Mode: "build"},
 		{Name: "editFile", Description: "Replace oldString once with newString; empty oldString creates/overwrites; delete=true removes; renameTo moves/renames", SDKCall: "ReplaceInFile/WriteFile/DeleteFile/RenameFile/EditFile (error); *Result variants → EditResult", Mode: "build"},

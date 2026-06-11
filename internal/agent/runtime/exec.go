@@ -4,6 +4,7 @@ import (
 	"context"
 
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
@@ -30,6 +31,29 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 			r.activateInstructionsFromShellCommand(command)
 		},
 		MergeInstructionBlock: r.mergeSystemWithInstructions,
+		PlanningActive: func() bool {
+			return r.Session != nil && r.Session.PlanningActive
+		},
+		ActivePlanName: func() string {
+			if r.Session == nil {
+				return ""
+			}
+			return r.Session.ActivePlanName
+		},
+		SetPlanningActive: func(planName string) {
+			r.mutateSession(func(s *chatstore.Session) {
+				s.PlanningActive = planName != ""
+				s.ActivePlanName = planName
+				if planName == "" {
+					s.PlanImplementing = false
+				}
+			})
+		},
+		SetPlanImplementing: func(v bool) {
+			r.mutateSession(func(s *chatstore.Session) {
+				s.PlanImplementing = v
+			})
+		},
 	}
 }
 

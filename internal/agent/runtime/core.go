@@ -263,6 +263,14 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		dump, err = agenttools.BuildChatToolDump()
 	case "agent":
 		dump, err = agenttools.BuildAgentToolDump()
+		if err == nil && r.Session != nil && r.Session.PlanningActive {
+			planDump, pdErr := agenttools.BuildPlanToolDump()
+			if pdErr != nil {
+				err = pdErr
+			} else if strings.TrimSpace(planDump) != "" {
+				dump = strings.TrimSpace(dump + "\n---\n" + planDump)
+			}
+		}
 	case "plan":
 		dump, err = agenttools.BuildPlanToolDump()
 	default:
@@ -307,6 +315,11 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
 		DisableThinking:       disableThinking,
 		WorkspaceAbsolutePath: absWorkspace,
+	}
+	if r.Session != nil {
+		d.PlanningActive = r.Session.PlanningActive
+		d.ActivePlanName = r.Session.ActivePlanName
+		d.PlanImplementing = r.Session.PlanImplementing
 	}
 	if r.Instructions != nil && r.Session != nil {
 		sections, err := r.Instructions.BuildPromptSections(r.ProjRoot, r.ProjHex, r.Session.ActivatedInstructionDirs)

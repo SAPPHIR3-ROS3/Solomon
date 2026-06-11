@@ -27,7 +27,7 @@ func resolveToolInvocation(ctx context.Context, env *Env, mode string, inv tooli
 func isInternalToolName(name string) bool {
 	switch name {
 	case "docsRetrieval",
-		"createPlan", "editPlan", "buildPlan",
+		"createPlan", "editPlan", "buildPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
 		"shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch",
 		"searchTools", "orchestrate", "switchMode":
 		return true
@@ -59,6 +59,9 @@ func modeAllowed(env *Env, mode, tool string) bool {
 		case "searchTools", "orchestrate", "switchMode", "loadSkill", "searchSkill":
 			return true
 		default:
+			if isPlanTool(tool) {
+				return planAllowed(env)
+			}
 			return false
 		}
 	case "chat":
@@ -69,12 +72,10 @@ func modeAllowed(env *Env, mode, tool string) bool {
 			return false
 		}
 	case "plan":
-		switch tool {
-		case "createPlan", "editPlan", "buildPlan":
+		if isPlanTool(tool) {
 			return true
-		default:
-			return false
 		}
+		return false
 	case "build":
 		switch tool {
 		case "shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch", "loadSkill", "searchSkill":
@@ -105,7 +106,19 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 	case "editPlan":
 		return execEditPlan(env, inv.Args)
 	case "buildPlan":
-		return execBuildPlan(ctx, env, inv.Args)
+		return execBuildPlan(env, inv.Args)
+	case "addTodo":
+		return execAddTodo(env, inv.Args)
+	case "todoList":
+		return execTodoList(env, inv.Args)
+	case "checkTodo":
+		return execCheckTodo(env, inv.Args)
+	case "removeTodo":
+		return execRemoveTodo(env, inv.Args)
+	case "checkPlan":
+		return execCheckPlan(env, inv.Args)
+	case "deletePlan":
+		return execDeletePlan(env, inv.Args)
 	case "shell":
 		return execShell(ctx, env, inv.Args)
 	case "readFile":

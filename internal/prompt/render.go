@@ -79,6 +79,10 @@ type Data struct {
 	Shell                 string
 	ImagesWorkflow        string
 	AtMentionWorkflow     string
+
+	PlanningActive    bool
+	ActivePlanName    string
+	PlanImplementing  bool
 }
 
 type TitleData struct {

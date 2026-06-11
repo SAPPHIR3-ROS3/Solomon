@@ -65,6 +65,9 @@ func TestSlashDispatch_planBuildClear(t *testing.T) {
 	if err := agent.SlashDispatch(d, "/plan"); err != nil || mode != "agent" {
 		t.Fatalf("plan: err=%v mode=%s", err, mode)
 	}
+	if !sess.PlanningActive {
+		t.Fatalf("plan: expected PlanningActive")
+	}
 	if err := agent.SlashDispatch(d, "/build"); err != nil || mode != "agent" {
 		t.Fatalf("build: err=%v mode=%s", err, mode)
 	}
