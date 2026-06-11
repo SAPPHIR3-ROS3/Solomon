@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
@@ -341,17 +341,6 @@ func assistantMessageHasStoredUsage(m Message) bool {
 	return m.TurnDisplaySaved || m.PromptTokens != 0 || m.UserPromptTokens != 0 || m.ReasoningTokens != 0 || m.ResponseTokens != 0 || m.TurnTotalTokens != 0 || m.TurnWallSecs != 0
 }
 
-func roughTokFromRunes(n int) int64 {
-	if n <= 0 {
-		return 0
-	}
-	return int64((n + 2) / 3)
-}
-
-func roughTokFromString(s string) int64 {
-	return roughTokFromRunes(utf8.RuneCountInString(s))
-}
-
 var thinkBlockRes = []*regexp.Regexp{
 	regexp.MustCompile(`(?is)<redacted_thinking>(.*?)</redacted_thinking>`),
 	regexp.MustCompile(`(?is)<thinking>(.*?)</thinking>`),
@@ -402,11 +391,12 @@ func estimateAssistantTurnTokens(msgs []Message, asstIdx int) (userTok, reasonTo
 	if rt := strings.TrimSpace(m.ReasoningText); rt != "" {
 		rText += rt
 	}
-	toolN := utf8.RuneCountInString(m.ToolCallID)
+	model := tokcount.DefaultModel
+	toolExtra := m.ToolCallID
 	for _, tc := range m.ToolCalls {
-		toolN += utf8.RuneCountInString(tc.ID) + utf8.RuneCountInString(tc.Name) + utf8.RuneCountInString(tc.Arguments)
+		toolExtra += tc.ID + tc.Name + tc.Arguments
 	}
-	return roughTokFromString(u), roughTokFromString(rText), roughTokFromRunes(utf8.RuneCountInString(vis) + toolN)
+	return tokcount.TextTokens(u, model), tokcount.TextTokens(rText, model), tokcount.TextTokens(vis+toolExtra, model)
 }
 
 func BackfillAssistantUsageFromTextIfEmpty(m *Message, prior []Message) {
