@@ -4,11 +4,14 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
@@ -26,11 +29,12 @@ type Client struct {
 }
 
 func Start(ctx context.Context) (*Client, error) {
+	_ = ctx
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.CommandContext(ctx, exe, "sandbox-worker")
+	cmd := exec.Command(exe, "sandbox-worker")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -54,6 +58,11 @@ func Start(ctx context.Context) (*Client, error) {
 }
 
 func (c *Client) ping() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return fmt.Errorf("worker closed")
+	}
 	if err := c.writeJSON(ipc.Ping{Type: ipc.TypePing}); err != nil {
 		return err
 	}
@@ -87,11 +96,13 @@ func (c *Client) Run(ctx context.Context, wasm []byte, mode string, exec ToolExe
 		TimeoutSec: 300,
 	}
 	if err := c.writeJSON(req); err != nil {
+		c.noteIPCDead(err)
 		return ipc.RunDone{}, err
 	}
 	for {
 		line, err := c.out.ReadBytes('\n')
 		if err != nil {
+			c.noteIPCDead(err)
 			return ipc.RunDone{}, err
 		}
 		var env ipc.Envelope
@@ -112,6 +123,7 @@ func (c *Client) Run(ctx context.Context, wasm []byte, mode string, exec ToolExe
 				resp.Result = result
 			}
 			if err := c.writeJSON(resp); err != nil {
+				c.noteIPCDead(err)
 				return ipc.RunDone{}, err
 			}
 		case ipc.TypeRunDone:
@@ -161,7 +173,11 @@ func Global(ctx context.Context) (*Client, error) {
 	globalMu.Lock()
 	defer globalMu.Unlock()
 	if globalClient != nil {
-		return globalClient, nil
+		if err := globalClient.ping(); err == nil {
+			return globalClient, nil
+		}
+		_ = globalClient.Close()
+		globalClient = nil
 	}
 	c, err := Start(ctx)
 	if err != nil {
@@ -169,6 +185,23 @@ func Global(ctx context.Context) (*Client, error) {
 	}
 	globalClient = c
 	return c, nil
+}
+
+func RunGlobal(ctx context.Context, wasm []byte, mode string, exec ToolExec) (ipc.RunDone, error) {
+	done, err := runOnce(ctx, wasm, mode, exec)
+	if err == nil || !isIPCDead(err) {
+		return done, err
+	}
+	CloseGlobal()
+	return runOnce(ctx, wasm, mode, exec)
+}
+
+func runOnce(ctx context.Context, wasm []byte, mode string, exec ToolExec) (ipc.RunDone, error) {
+	client, err := Global(ctx)
+	if err != nil {
+		return ipc.RunDone{}, err
+	}
+	return client.Run(ctx, wasm, mode, exec)
 }
 
 func Warm(ctx context.Context, version string) {
@@ -183,4 +216,62 @@ func CloseGlobal() {
 		_ = globalClient.Close()
 		globalClient = nil
 	}
+}
+
+func SimulateWorkerCrash() {
+	globalMu.Lock()
+	c := globalClient
+	globalMu.Unlock()
+	if c == nil {
+		return
+	}
+	c.forceKill()
+}
+
+func (c *Client) noteIPCDead(err error) {
+	if !isIPCDead(err) {
+		return
+	}
+	c.markBroken()
+	forgetGlobal(c)
+}
+
+func (c *Client) markBroken() {
+	if c.closed {
+		return
+	}
+	c.closed = true
+	if c.in != nil {
+		_ = c.in.Close()
+	}
+	if c.cmd != nil && c.cmd.Process != nil {
+		_ = c.cmd.Process.Kill()
+		_, _ = c.cmd.Process.Wait()
+	}
+}
+
+func (c *Client) forceKill() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.markBroken()
+	forgetGlobal(c)
+}
+
+func forgetGlobal(c *Client) {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	if globalClient == c {
+		globalClient = nil
+	}
+}
+
+func isIPCDead(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "broken pipe") || strings.Contains(msg, "file already closed")
 }

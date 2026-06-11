@@ -453,6 +453,39 @@ func TestOrchestrateGlobalClientReadThenCount(t *testing.T) {
 	}
 }
 
+func TestGlobalRecoversAfterWorkerCrash(t *testing.T) {
+	parent.CloseGlobal()
+	t.Cleanup(parent.CloseGlobal)
+	ctx := context.Background()
+	if _, err := parent.Global(ctx); err != nil {
+		t.Fatal(err)
+	}
+	parent.SimulateWorkerCrash()
+
+	src := `package main
+
+import "fmt"
+
+func main() {
+	fmt.Print("recovered")
+}
+`
+	wasm, err := compile.BuildWASM(compile.Options{Source: src})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done, err := parent.RunGlobal(ctx, wasm, "agent", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done.Error != "" {
+		t.Fatalf("run error: %s", done.Error)
+	}
+	if done.Output != "recovered" {
+		t.Fatalf("output=%q", done.Output)
+	}
+}
+
 func TestHostRPCRoundTrip(t *testing.T) {
 	mem := host.FormatRunError(nil)
 	if mem != "" {
