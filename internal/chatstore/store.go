@@ -108,6 +108,10 @@ type Session struct {
 	ImageFiles               map[int]string      `json:"image_files,omitempty"`
 	ActivatedInstructionDirs []string            `json:"activated_instruction_dirs,omitempty"`
 	UncompactedRaw           []UncompactedDump   `json:"uncompactedRaw,omitempty"`
+
+	PlanningActive   bool   `json:"planning_active,omitempty"`
+	ActivePlanName   string `json:"active_plan_name,omitempty"`
+	PlanImplementing bool   `json:"plan_implementing,omitempty"`
 }
 
 func ChatIDHex(title string, ts time.Time) string {

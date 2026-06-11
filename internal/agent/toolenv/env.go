@@ -25,4 +25,9 @@ type Env struct {
 	ActivateInstructionsFromAbsPath func(absPath string)
 	ActivateInstructionsFromShellCommand func(command string)
 	MergeInstructionBlock func(customSys string) (string, error)
+
+	PlanningActive      func() bool
+	ActivePlanName      func() string
+	SetPlanningActive   func(planName string)
+	SetPlanImplementing func(bool)
 }
