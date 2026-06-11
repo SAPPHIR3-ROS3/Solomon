@@ -1,6 +1,10 @@
 package chatstore
 
-import "unicode/utf8"
+import (
+	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
+)
 
 type turnUsageCall struct {
 	promptTokens       int64
@@ -132,43 +136,77 @@ func usagePromptPartsFromMessages(msgs []Message, promptTokens int64, cachedProm
 }
 
 func promptDisplaySplitFromMessages(msgs []Message, apiPromptTokens int64) (contextTok int64, lastUserTok int64) {
-	idx := -1
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == "user" {
-			idx = i
-			break
-		}
-	}
-	var contextChars, userChars int64
+	idx := lastUserMessageIndex(msgs)
+	contextW, userW := promptWireWeights(msgs, idx, tokcount.DefaultModel)
 	if idx < 0 {
-		for _, m := range msgs {
-			contextChars += messageCharWeight(m)
-		}
 		return apiPromptTokens, 0
 	}
-	userChars = messageCharWeight(msgs[idx])
-	for i, m := range msgs {
-		if i == idx {
-			continue
-		}
-		contextChars += messageCharWeight(m)
-	}
-	totalChars := contextChars + userChars
-	if totalChars <= 0 {
+	totalW := contextW + userW
+	if totalW <= 0 {
 		return apiPromptTokens, 0
 	}
-	contextTok = apiPromptTokens * contextChars / totalChars
+	contextTok = apiPromptTokens * contextW / totalW
 	lastUserTok = apiPromptTokens - contextTok
 	return contextTok, lastUserTok
 }
 
-func messageCharWeight(m Message) int64 {
-	n := int64(utf8.RuneCountInString(m.Content) + utf8.RuneCountInString(m.ReasoningText))
-	for _, tc := range m.ToolCalls {
-		n += int64(utf8.RuneCountInString(tc.ID) + utf8.RuneCountInString(tc.Name) + utf8.RuneCountInString(tc.Arguments))
+func lastUserMessageIndex(msgs []Message) int {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "user" {
+			return i
+		}
 	}
-	n += int64(utf8.RuneCountInString(m.ToolCallID))
+	return -1
+}
+
+func lastAssistantMessageIndex(msgs []Message) int {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "assistant" {
+			return i
+		}
+	}
+	return -1
+}
+
+func MessageWireWeight(m Message, includeReasoning bool, model string) int64 {
+	tpm, _ := tokcount.MessageOverhead(model)
+	var n int64
+	n += int64(tpm)
+	n += tokcount.TextTokens(m.Role, model)
+	content := m.Content
+	if strings.TrimSpace(m.APIContent) != "" {
+		content = m.APIContent
+	}
+	n += tokcount.TextTokens(content, model)
+	if includeReasoning {
+		n += tokcount.TextTokens(m.ReasoningText, model)
+	}
+	n += tokcount.TextTokens(m.ToolCallID, model)
+	for _, tc := range m.ToolCalls {
+		n += tokcount.TextTokens(tc.ID, model)
+		n += tokcount.TextTokens(tc.Name, model)
+		n += tokcount.TextTokens(tc.Arguments, model)
+	}
 	return n
+}
+
+func promptWireWeights(msgs []Message, lastUserIdx int, model string) (contextW int64, userW int64) {
+	if lastUserIdx < 0 {
+		lastAsst := lastAssistantMessageIndex(msgs)
+		for i, m := range msgs {
+			contextW += MessageWireWeight(m, i == lastAsst, model)
+		}
+		return contextW, 0
+	}
+	lastAsst := lastAssistantMessageIndex(msgs)
+	for i, m := range msgs {
+		if i == lastUserIdx {
+			continue
+		}
+		contextW += MessageWireWeight(m, i == lastAsst, model)
+	}
+	userW = MessageWireWeight(msgs[lastUserIdx], false, model)
+	return contextW, userW
 }
 
 // StoredUsageLineForTurnRange returns the usage line fields shown live at end of a user turn.

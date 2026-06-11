@@ -5,29 +5,16 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/packages/param"
 	"github.com/openai/openai-go/v2/shared"
 )
-
-func runeCount(s string) int64 {
-	return int64(utf8.RuneCountInString(s))
-}
-
-func messageCharWeight(m chatstore.Message) int64 {
-	n := runeCount(m.Content) + runeCount(m.ReasoningText)
-	for _, tc := range m.ToolCalls {
-		n += runeCount(tc.ID) + runeCount(tc.Name) + runeCount(tc.Arguments)
-	}
-	n += runeCount(m.ToolCallID)
-	return n
-}
 
 func lastUserMessageIndex(msgs []chatstore.Message) int {
 	for i := len(msgs) - 1; i >= 0; i-- {
@@ -42,27 +29,30 @@ func PromptDisplaySplit(system string, msgs []chatstore.Message, apiPromptTokens
 	if apiPromptTokens <= 0 {
 		return 0, 0
 	}
+	model := tokcount.DefaultModel
 	idx := lastUserMessageIndex(msgs)
-	contextChars := runeCount(system)
-	var userChars int64
+	tpm, _ := tokcount.MessageOverhead(model)
+	contextW := int64(tpm) + tokcount.TextTokens(system, model)
+	userW := int64(0)
+	lastAsst := LastAssistantIndex(msgs)
 	if idx < 0 {
-		for _, m := range msgs {
-			contextChars += messageCharWeight(m)
+		for i, m := range msgs {
+			contextW += chatstore.MessageWireWeight(m, i == lastAsst, model)
 		}
 		return apiPromptTokens, 0
 	}
-	userChars = messageCharWeight(msgs[idx])
+	userW = chatstore.MessageWireWeight(msgs[idx], false, model)
 	for i, m := range msgs {
 		if i == idx {
 			continue
 		}
-		contextChars += messageCharWeight(m)
+		contextW += chatstore.MessageWireWeight(m, i == lastAsst, model)
 	}
-	totalChars := contextChars + userChars
-	if totalChars <= 0 {
+	totalW := contextW + userW
+	if totalW <= 0 {
 		return apiPromptTokens, 0
 	}
-	contextTok = apiPromptTokens * contextChars / totalChars
+	contextTok = apiPromptTokens * contextW / totalW
 	lastUserTok = apiPromptTokens - contextTok
 	return contextTok, lastUserTok
 }
