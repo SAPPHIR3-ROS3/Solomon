@@ -138,26 +138,114 @@ ensure_go() {
   echo "Go ${ver} ready"
 }
 
+linux_install_packages() {
+  local id="" id_like="" pkgs=("$@")
+  if [[ -f /etc/os-release ]]; then
+    id="$(grep -E '^ID=' /etc/os-release | cut -d= -f2- | tr -d '"')"
+    id_like="$(grep -E '^ID_LIKE=' /etc/os-release | cut -d= -f2- | tr -d '"' || true)"
+  fi
+  id="$(echo "$id" | tr '[:upper:]' '[:lower:]')"
+  id_like="$(echo "$id_like" | tr '[:upper:]' '[:lower:]')"
+
+  case "$id" in
+    alpine)
+      sudo apk add "${pkgs[@]}"
+      ;;
+    arch | manjaro | endeavouros)
+      sudo pacman -S --needed --noconfirm "${pkgs[@]}"
+      ;;
+    fedora | rhel | centos | rocky | almalinux)
+      sudo dnf install -y "${pkgs[@]}"
+      ;;
+    opensuse-tumbleweed | opensuse-leap)
+      sudo zypper install -y "${pkgs[@]}"
+      ;;
+    ubuntu | debian | linuxmint | pop)
+      sudo apt-get update && sudo apt-get install -y "${pkgs[@]}"
+      ;;
+    *)
+      if [[ "$id" == opensuse* ]]; then
+        sudo zypper install -y "${pkgs[@]}"
+      elif [[ "$id_like" == *fedora* || "$id_like" == *rhel* ]]; then
+        sudo dnf install -y "${pkgs[@]}"
+      elif [[ "$id_like" == *debian* || "$id_like" == *ubuntu* ]]; then
+        sudo apt-get update && sudo apt-get install -y "${pkgs[@]}"
+      elif command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get update && sudo apt-get install -y "${pkgs[@]}"
+      elif command -v apt >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y "${pkgs[@]}"
+      elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y "${pkgs[@]}"
+      elif command -v yum >/dev/null 2>&1; then
+        sudo yum install -y "${pkgs[@]}"
+      elif command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S --needed --noconfirm "${pkgs[@]}"
+      elif command -v zypper >/dev/null 2>&1; then
+        sudo zypper install -y "${pkgs[@]}"
+      elif command -v apk >/dev/null 2>&1; then
+        sudo apk add "${pkgs[@]}"
+      else
+        return 1
+      fi
+      ;;
+  esac
+}
+
+install_make_darwin() {
+  local brew_prefix
+  if command -v brew >/dev/null 2>&1; then
+    echo "Installing make via Homebrew..."
+    if brew install make; then
+      brew_prefix="$(brew --prefix make 2>/dev/null || true)"
+      if [[ -n "$brew_prefix" && -d "${brew_prefix}/libexec/gnubin" ]]; then
+        export PATH="${brew_prefix}/libexec/gnubin:${PATH}"
+      fi
+      command -v make >/dev/null 2>&1 && return 0
+    fi
+  fi
+  if command -v port >/dev/null 2>&1; then
+    echo "Installing make via MacPorts..."
+    if sudo port install make; then
+      return 0
+    fi
+  fi
+  if ! xcode-select -p >/dev/null 2>&1; then
+    echo "Installing Xcode Command Line Tools (complete the dialog if shown, then rerun this script)..."
+    xcode-select --install 2>/dev/null || true
+    exit 1
+  fi
+  echo "make install failed; install via Homebrew, MacPorts, or Xcode Command Line Tools." >&2
+  exit 1
+}
+
+install_make_linux() {
+  if ! linux_install_packages make; then
+    echo "Unsupported Linux distro; install make with your package manager." >&2
+    exit 1
+  fi
+}
+
 ensure_make() {
   if command -v make > /dev/null 2>&1; then
     echo "make OK ($(command -v make))"
     return 0
   fi
-  echo "make not found; please install it and rerun this script." >&2
+  echo "make not found; installing..."
   local os
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   case "$os" in
-    darwin)
-      echo "macOS: install Xcode Command Line Tools with 'xcode-select --install', or install make via Homebrew/MacPorts." >&2
-      ;;
-    linux)
-      echo "Linux: install make with your package manager (e.g. 'sudo apt-get install -y make', 'sudo dnf install -y make', 'sudo pacman -S make')." >&2
-      ;;
+    darwin) install_make_darwin ;;
+    linux) install_make_linux ;;
     *)
-      echo "make is optional by itself; install it with your system package manager or manually if you want build tooling on $os." >&2
+      echo "unsupported OS for make install: $os (use scripts/install.ps1 on Windows)" >&2
+      exit 1
       ;;
   esac
-  exit 1
+  if ! command -v make >/dev/null 2>&1; then
+    echo "make install failed; make not in PATH" >&2
+    exit 1
+  fi
+  echo "make ready ($(command -v make))"
 }
 
 node_lts_major() {
@@ -214,58 +302,28 @@ install_node_darwin() {
   exit 1
 }
 
-install_node_linux() {
-  local id="" id_like=""
-  if [[ -f /etc/os-release ]]; then
-    id="$(grep -E '^ID=' /etc/os-release | cut -d= -f2- | tr -d '"')"
-    id_like="$(grep -E '^ID_LIKE=' /etc/os-release | cut -d= -f2- | tr -d '"' || true)"
+install_node_linux_fallback() {
+  if ! linux_install_packages nodejs npm; then
+    echo "Unsupported Linux distro; install Node.js LTS from https://nodejs.org/" >&2
+    exit 1
   fi
-  id="$(echo "$id" | tr '[:upper:]' '[:lower:]')"
-  id_like="$(echo "$id_like" | tr '[:upper:]' '[:lower:]')"
+}
 
-  case "$id" in
-    alpine)
-      sudo apk add nodejs npm
-      ;;
-    arch | manjaro | endeavouros)
-      sudo pacman -S --needed --noconfirm nodejs npm
-      ;;
-    fedora | rhel | centos | rocky | almalinux)
-      sudo dnf install -y nodejs npm
-      ;;
-    opensuse-tumbleweed | opensuse-leap)
-      sudo zypper install -y nodejs npm
-      ;;
-    ubuntu | debian | linuxmint | pop)
-      sudo apt-get update && sudo apt-get install -y nodejs npm
-      ;;
-    *)
-      if [[ "$id" == opensuse* ]]; then
-        sudo zypper install -y nodejs npm
-      elif [[ "$id_like" == *fedora* || "$id_like" == *rhel* ]]; then
-        sudo dnf install -y nodejs npm
-      elif [[ "$id_like" == *debian* || "$id_like" == *ubuntu* ]]; then
-        sudo apt-get update && sudo apt-get install -y nodejs npm
-      elif command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get update && sudo apt-get install -y nodejs npm
-      elif command -v apt >/dev/null 2>&1; then
-        sudo apt update && sudo apt install -y nodejs npm
-      elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y nodejs npm
-      elif command -v yum >/dev/null 2>&1; then
-        sudo yum install -y nodejs npm
-      elif command -v pacman >/dev/null 2>&1; then
-        sudo pacman -S --needed --noconfirm nodejs npm
-      elif command -v zypper >/dev/null 2>&1; then
-        sudo zypper install -y nodejs npm
-      elif command -v apk >/dev/null 2>&1; then
-        sudo apk add nodejs npm
-      else
-        echo "Unsupported Linux distro; install Node.js LTS from https://nodejs.org/" >&2
-        exit 1
+install_node_linux() {
+  local major
+  major="$(node_lts_major)"
+
+  if command -v curl >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+    echo "Installing Node.js LTS (${major}.x) via NodeSource..."
+    if curl -fsSL "https://deb.nodesource.com/setup_${major}.x" | sudo bash -; then
+      if sudo apt-get install -y nodejs && command -v node >/dev/null 2>&1; then
+        return 0
       fi
-      ;;
-  esac
+    fi
+    echo "NodeSource install failed; trying distro package manager..." >&2
+  fi
+
+  install_node_linux_fallback
 }
 
 ensure_node() {
