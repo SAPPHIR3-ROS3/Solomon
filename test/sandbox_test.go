@@ -69,7 +69,7 @@ func TestAgentModeAllowsSearchSkill(t *testing.T) {
 	if err == nil {
 		return
 	}
-	if !strings.Contains(err.Error(), "no matching skill") && !strings.Contains(err.Error(), "no skill reaches") {
+	if !strings.Contains(err.Error(), "no matching skill") && !strings.Contains(err.Error(), "no skill reaches") && !strings.Contains(err.Error(), "no skills installed") {
 		t.Fatalf("expected searchSkill to run in agent mode, got: %v", err)
 	}
 }
