@@ -32,6 +32,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/llm/images/` | Image part encoding for multimodal calls | [LLM layer](llm-layer.md) |
 | `internal/llm/streamio/` | Stream read/write utilities | [LLM layer](llm-layer.md) |
 | `internal/llm/transport/` | HTTP transport, retries, stream integrity | [LLM layer](llm-layer.md) |
+| `internal/tokcount/` | Tiktoken `o200k_base` prompt estimates (messages, tools, vision) | [LLM layer](llm-layer.md) |
 | `internal/chatstore/` | Session JSON read/write, images on disk | [Sessions and storage](sessions-and-storage.md) |
 | `internal/project/` | Project hex id, workspace root resolution | [Sessions and storage](sessions-and-storage.md) |
 | `internal/paths/` | `~/.solomon` layout helpers | [Sessions and storage](sessions-and-storage.md) |
@@ -172,6 +173,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/skills/` | Feature |
 | `internal/termcolor/` | Support |
 | `internal/title/` | Support |
+| `internal/tokcount/` | Core |
 | `internal/tooling/` | Feature |
 | `internal/tooloutput/` | Feature |
 | `internal/tooloutput/process/` | Feature |
