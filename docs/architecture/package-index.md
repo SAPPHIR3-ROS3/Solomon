@@ -67,6 +67,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/instructions/` | `AGENTS.md` / fallbacks loader | [Supporting packages](supporting-packages.md) |
 | `internal/search/` | Web search backends for `webSearch` | [Supporting packages](supporting-packages.md) |
 | `internal/pathglob/` | Glob `**` matching for `find` | [Native tools](native-tools.md) |
+| `internal/plan/` | Plan file read, write, sections, todos, status | [Plan vs build](plan-vs-build.md) |
 | `internal/gitignore/` | `.gitignore` matcher for `find` | [Native tools](native-tools.md) |
 | `internal/atmention/` | `@` file/folder tags and picker scoring | [Runtime — REPL](runtime-repl.md) |
 | `internal/docs/` | Embedded docs corpus, BM25 retrieval for `docsRetrieval` and `/docs` | [Supporting packages](supporting-packages.md) |
@@ -154,6 +155,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/mcp/` | Feature |
 | `internal/modelsapi/` | Support |
 | `internal/pathglob/` | Feature |
+| `internal/plan/` | Feature |
 | `internal/paths/` | Core |
 | `internal/project/` | Core |
 | `internal/prompt/` | Core |

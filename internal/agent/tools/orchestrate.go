@@ -45,11 +45,7 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 		return map[string]any{"ok": false, "compile_error": err.Error()}, nil
 	}
 	parent.Warm(ctx, "")
-	client, err := parent.Global(ctx)
-	if err != nil {
-		return nil, err
-	}
-	done, err := client.Run(ctx, wasm, deferredExecMode(env), func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
+	done, err := parent.RunGlobal(ctx, wasm, deferredExecMode(env), func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
 		return orchestrateHostCall(ctx, env, name, args)
 	})
 	if err != nil {
