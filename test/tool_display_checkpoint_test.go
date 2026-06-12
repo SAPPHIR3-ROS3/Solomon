@@ -68,12 +68,12 @@ func TestWriteLabeledTranscript_toolCallsUseStoredCheckpoints(t *testing.T) {
 		},
 	}
 	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
-	out := buf.String()
-	if !strings.Contains(out, "[#002]: Tool: readFile a.go") {
-		t.Fatalf("first tool display missing: %s", out)
+	plain := termcolor.Plain(buf.String())
+	if !strings.Contains(plain, "[#002]: Tool: readFile a.go") {
+		t.Fatalf("first tool display missing: %s", plain)
 	}
-	if !strings.Contains(out, "[#003]: Tool: readFile b.go") {
-		t.Fatalf("second tool display missing: %s", out)
+	if !strings.Contains(plain, "[#003]: Tool: readFile b.go") {
+		t.Fatalf("second tool display missing: %s", plain)
 	}
 }
 
@@ -132,16 +132,16 @@ func TestWriteLabeledTranscript_editFileMultilineContinuation(t *testing.T) {
 		}},
 	}
 	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
-	out := buf.String()
-	if !strings.Contains(out, "[#002]: Tool: editFile x.go") {
-		t.Fatalf("header line missing: %s", out)
+	plain := termcolor.Plain(buf.String())
+	if !strings.Contains(plain, "[#002]: Tool: editFile x.go") {
+		t.Fatalf("header line missing: %s", plain)
 	}
 	cont := checkpointContPlain(2, "")
-	if !strings.Contains(out, cont+"before") {
-		t.Fatalf("oldString continuation missing: %s", out)
+	if !strings.Contains(plain, cont+"before") {
+		t.Fatalf("oldString continuation missing: %s", plain)
 	}
-	if !strings.Contains(out, cont+"after") {
-		t.Fatalf("newString continuation missing: %s", out)
+	if !strings.Contains(plain, cont+"after") {
+		t.Fatalf("newString continuation missing: %s", plain)
 	}
 }
 
@@ -433,12 +433,12 @@ func TestWriteLabeledTranscript_toolResultNotRawJSON(t *testing.T) {
 		{Role: "tool", ToolCallID: "call_1", Content: `{"path":"x.go","total_lines":3,"content":"package main"}`},
 	}
 	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
-	out := buf.String()
-	if strings.Contains(out, `"content":"package main"`) {
-		t.Fatalf("transcript should not dump tool result JSON: %s", out)
+	plain := termcolor.Plain(buf.String())
+	if strings.Contains(plain, `"content":"package main"`) {
+		t.Fatalf("transcript should not dump tool result JSON: %s", plain)
 	}
-	if !strings.Contains(out, "Tool: readFile") || !strings.Contains(out, "x.go") {
-		t.Fatalf("want formatted tool lines: %s", out)
+	if !strings.Contains(plain, "Tool: readFile") || !strings.Contains(plain, "x.go") {
+		t.Fatalf("want formatted tool lines: %s", plain)
 	}
 }
 
@@ -456,12 +456,12 @@ func TestWriteLabeledTranscript_intentLineHasCheckpoint(t *testing.T) {
 		}},
 	}
 	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
-	out := buf.String()
-	if !strings.Contains(out, "[#002]: update test file") {
-		t.Fatalf("intent line should have checkpoint with colon: %s", out)
+	plain := termcolor.Plain(buf.String())
+	if !strings.Contains(plain, "[#002]: update test file") {
+		t.Fatalf("intent line should have checkpoint with colon: %s", plain)
 	}
-	if !strings.Contains(out, "[#002]: Tool: editFile x.go") {
-		t.Fatalf("tool header missing: %s", out)
+	if !strings.Contains(plain, "[#002]: Tool: editFile x.go") {
+		t.Fatalf("tool header missing: %s", plain)
 	}
 }
 
