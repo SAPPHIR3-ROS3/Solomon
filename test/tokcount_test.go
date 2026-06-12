@@ -2,6 +2,7 @@ package test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
@@ -105,7 +106,13 @@ func TestPromptDisplaySplit_tokenWeights(t *testing.T) {
 		{Role: "assistant", Content: stringsRepeat("x", 200)},
 		{Role: "user", Content: "last question"},
 	}
+	// Warm encoder cache; first split may load BPE tables.
+	llm.PromptDisplaySplit("sys", msgs, 1000)
+	start := time.Now()
 	ctx, usr := llm.PromptDisplaySplit("sys", msgs, 1000)
+	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+		t.Fatalf("PromptDisplaySplit took %v, want < 200ms", elapsed)
+	}
 	if ctx <= 0 || usr <= 0 {
 		t.Fatalf("split ctx=%d usr=%d, both want > 0", ctx, usr)
 	}

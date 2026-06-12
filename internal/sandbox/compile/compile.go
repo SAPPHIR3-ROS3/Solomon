@@ -45,7 +45,7 @@ func BuildWASM(opts Options) ([]byte, error) {
 	}
 	defer os.RemoveAll(slotDir)
 
-	src := opts.Source
+	src := RewriteSDKImports(opts.Source)
 	if !strings.Contains(src, "package main") {
 		return nil, fmt.Errorf("orchestrate: source must contain package main")
 	}

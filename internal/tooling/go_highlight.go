@@ -54,16 +54,35 @@ func highlightGoLine(line string) string {
 	return highlightGoCode(line)
 }
 
+func HighlightGoLineForTest(line string) string {
+	return highlightGoLine(line)
+}
+
 func highlightGoCode(s string) string {
 	var b strings.Builder
 	b.Grow(len(s) + 32)
 	i := 0
+	depth := 0
 	for i < len(s) {
 		r, size := utf8.DecodeRuneInString(s[i:])
 		if r == '"' || r == '`' {
 			end, chunk := readGoString(s[i:], r)
 			b.WriteString(termcolor.GoString(chunk))
 			i += end
+			continue
+		}
+		if isOpen, _ := goBracketPair(r); isOpen {
+			b.WriteString(termcolor.GoParen(string(r), depth))
+			depth++
+			i += size
+			continue
+		}
+		if _, isClose := goBracketPair(r); isClose {
+			if depth > 0 {
+				depth--
+			}
+			b.WriteString(termcolor.GoParen(string(r), depth))
+			i += size
 			continue
 		}
 		if unicode.IsLetter(r) || r == '_' {
@@ -106,14 +125,29 @@ func highlightGoCode(s string) string {
 	return b.String()
 }
 
+func goBracketPair(r rune) (open, close bool) {
+	switch r {
+	case '(', '[', '{':
+		return true, false
+	case ')', ']', '}':
+		return false, true
+	default:
+		return false, false
+	}
+}
+
 func readGoString(s string, quote rune) (advance int, lit string) {
 	if len(s) == 0 {
 		return 0, ""
 	}
-	i := 0
+	first, firstSize := utf8.DecodeRuneInString(s)
+	if first != quote {
+		return 0, ""
+	}
+	i := firstSize
 	for i < len(s) {
 		r, size := utf8.DecodeRuneInString(s[i:])
-		if r == '\\' && i+size < len(s) {
+		if quote == '"' && r == '\\' && i+size < len(s) {
 			i += size + 1
 			continue
 		}

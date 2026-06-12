@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"github.com/openai/openai-go/v2"
 )
@@ -41,7 +42,7 @@ func deferredCatalog() []deferredTool {
 
 func sdkQuickReference() map[string]any {
 	return map[string]any{
-		"import": "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk",
+		"imports": compile.SDKImportPathsForModel,
 		"script_shape": "package main with func main(); compile errors if source is incomplete",
 		"stdout":         "fmt.Print/Println/Printf output is captured and returned in orchestrate tool result field output",
 		"examples": []string{
@@ -73,7 +74,7 @@ func appendSearchToolsDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("searchTools", "Discover deferred tools and SDK signatures for orchestrate scripts. Always includes sdk quick reference (import path, stdout capture, Shell/EditFile parameter shapes).", sig)
+	b.addBlock("searchTools", "Discover deferred tools and SDK signatures for orchestrate scripts. Always includes sdk quick reference (import aliases, stdout capture, Shell/EditFile parameter shapes).", sig)
 	return nil
 }
 

@@ -6,6 +6,9 @@ import (
 )
 
 func nativeToolUnion(name, desc string, props map[string]any, required []string) openai.ChatCompletionToolUnionParam {
+	if required == nil {
+		required = []string{}
+	}
 	return openai.ChatCompletionToolUnionParam{
 		OfFunction: &openai.ChatCompletionFunctionToolParam{
 			Function: shared.FunctionDefinitionParam{

@@ -2,6 +2,7 @@ package checkpoint
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 )
@@ -38,6 +39,16 @@ func FormatCheckpointPrefix(cpSeq int, branch string) string {
 		return ""
 	}
 	return t + ": "
+}
+
+// FormatCheckpointContinuationPlain returns continuation dots whose count matches
+// FormatCheckpointTag width (including brackets), plus a trailing space.
+func FormatCheckpointContinuationPlain(cpSeq int, branch string) string {
+	tag := FormatCheckpointTag(cpSeq, branch)
+	if tag == "" {
+		return "..... "
+	}
+	return strings.Repeat(".", len(tag)) + " "
 }
 
 func FormatReplPromptPrefix(s *chatstore.Session) string {
