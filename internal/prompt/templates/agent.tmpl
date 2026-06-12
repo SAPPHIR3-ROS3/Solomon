@@ -49,7 +49,7 @@ Behaviors:
 - Prefer docsRetrieval for Solomon-specific questions before searching the deferred catalog.
 - Prefer orchestrate scripts for multi-step file and shell workflows.
 - Use searchTools before orchestrate when unsure which deferred tool to call from script SDK.
-- orchestrate scripts must be package main with func main(), importing github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk.
+- orchestrate scripts must be package main with func main(), importing the sandbox SDK (sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk).
 - SDK helpers: ReadFile, EditFile, Find, Shell, WebSearch, FetchWeb, DocsRetrieval.
 {{if .ExternalToolBridge}}
 - Use native API tool_calls only for docsRetrieval, searchTools, orchestrate, and switchMode.

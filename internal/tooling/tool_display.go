@@ -7,7 +7,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
@@ -17,19 +16,7 @@ const (
 )
 
 func WriteToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []string) {
-	first := true
-	cont := termcolor.WrapUserReadline("..... ")
-	for _, line := range lines {
-		parts := strings.Split(line, "\n")
-		for _, part := range parts {
-			if first {
-				fmt.Fprintf(out, "%s%s\n", checkpoint.FormatCheckpointPrefix(cpSeq, branchKey), part)
-			} else {
-				fmt.Fprintf(out, "%s%s\n", cont, part)
-			}
-			first = false
-		}
-	}
+	writeToolDisplayLines(out, cpSeq, branchKey, lines, terminalWidthForWriter(out))
 }
 
 func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
@@ -59,6 +46,24 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 		return formatFetchWebToolDisplayLines(m)
 	case "webSearch":
 		return formatWebSearchToolDisplayLines(m)
+	case "createPlan":
+		return formatCreatePlanToolDisplayLines(m)
+	case "editPlan":
+		return formatEditPlanToolDisplayLines(m)
+	case "buildPlan":
+		return formatBuildPlanToolDisplayLines(m)
+	case "addTodo":
+		return formatAddTodoToolDisplayLines(m)
+	case "todoList":
+		return formatTodoListToolDisplayLines(m)
+	case "checkTodo":
+		return formatCheckTodoToolDisplayLines(m)
+	case "removeTodo":
+		return formatRemoveTodoToolDisplayLines(m)
+	case "checkPlan":
+		return formatCheckPlanToolDisplayLines(m)
+	case "deletePlan":
+		return formatDeletePlanToolDisplayLines(m)
 	default:
 		return []string{termcolor.WrapTool(fallbackToolDisplayLine(name, rawArgs))}
 	}
@@ -249,11 +254,11 @@ func FormatToolResultDisplayLines(toolName string, payload string) []string {
 	if err := json.Unmarshal([]byte(payload), &m); err != nil {
 		return []string{termcolor.WrapThinking(truncateDisplayRunes(payload, 200))}
 	}
-	if body := formatToolResultBody(toolName, m); body != "" {
-		return []string{termcolor.ToolHeaderLine(label, body)}
-	}
 	if toolResultDisplaySuppressed(toolName, m) {
 		return nil
+	}
+	if body := formatToolResultBody(toolName, m); body != "" {
+		return []string{termcolor.ToolHeaderLine(label, body)}
 	}
 	return []string{termcolor.WrapThinking(compactToolResultJSON(m, 200))}
 }
@@ -291,6 +296,14 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 			return "→ failed"
 		}
 		return ""
+	case "createPlan", "buildPlan", "addTodo", "checkTodo", "removeTodo", "checkPlan", "deletePlan", "todoList":
+		if body := formatPlanToolResultBody(toolName, m); body != "" {
+			return body
+		}
+		if toolName == "todoList" || toolName == "editPlan" {
+			return ""
+		}
+		return formatGenericToolResultBody(m)
 	case "find":
 		if n, ok := jsonDisplayInt(m["matches"]); ok {
 			return fmt.Sprintf("→ %d matches", n)
@@ -329,13 +342,18 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 }
 
 func toolResultDisplaySuppressed(toolName string, m map[string]json.RawMessage) bool {
+	if jsonDisplayString(m["error"]) != "" {
+		return false
+	}
+	rawOK, hasOK := m["ok"]
+	if hasOK && len(rawOK) > 0 && !jsonDisplayBool(rawOK) {
+		return false
+	}
 	switch toolName {
-	case "editFile", "editPlan":
-		if jsonDisplayString(m["error"]) != "" {
-			return false
-		}
-		rawOK, hasOK := m["ok"]
+	case "editFile", "editPlan", "addTodo", "checkTodo", "removeTodo", "createPlan", "buildPlan", "checkPlan", "deletePlan":
 		return hasOK && len(rawOK) > 0 && jsonDisplayBool(rawOK)
+	case "todoList":
+		return true
 	default:
 		return false
 	}

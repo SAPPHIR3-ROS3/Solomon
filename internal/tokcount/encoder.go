@@ -17,6 +17,9 @@ var (
 	encOnce sync.Once
 	enc     *tiktoken.Tiktoken
 	encErr  error
+
+	modelEncMu sync.Mutex
+	modelEnc   = map[string]*tiktoken.Tiktoken{}
 )
 
 func defaultEncoder() (*tiktoken.Tiktoken, error) {
@@ -28,13 +31,19 @@ func defaultEncoder() (*tiktoken.Tiktoken, error) {
 
 func EncoderForModel(model string) (*tiktoken.Tiktoken, error) {
 	m := strings.TrimSpace(model)
-	if m == "" {
+	if m == "" || m == DefaultModel {
 		return defaultEncoder()
+	}
+	modelEncMu.Lock()
+	defer modelEncMu.Unlock()
+	if tkm, ok := modelEnc[m]; ok {
+		return tkm, nil
 	}
 	tkm, err := tiktoken.EncodingForModel(m)
 	if err != nil {
 		return defaultEncoder()
 	}
+	modelEnc[m] = tkm
 	return tkm, nil
 }
 

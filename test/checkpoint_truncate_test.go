@@ -8,6 +8,20 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 )
 
+func TestFormatCheckpointContinuationPlain(t *testing.T) {
+	if g := checkpoint.FormatCheckpointContinuationPlain(3, ""); g != "...... " {
+		t.Fatalf("got %q want 6 dots for [#003]", g)
+	}
+	g := checkpoint.FormatCheckpointContinuationPlain(43, "b")
+	if g != "....... " {
+		t.Fatalf("got %q want 7 dots for [#043b]", g)
+	}
+	tag := checkpoint.FormatCheckpointTag(43, "b")
+	if len(strings.TrimSuffix(g, " ")) != len(tag) {
+		t.Fatalf("dot count %d should match tag len %d", len(strings.TrimSuffix(g, " ")), len(tag))
+	}
+}
+
 func TestFormatCheckpointTagZero(t *testing.T) {
 	if g := checkpoint.FormatCheckpointTag(0, ""); g != "[#000]" {
 		t.Fatalf("got %q", g)

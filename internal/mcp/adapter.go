@@ -76,6 +76,9 @@ func adaptInputSchema(input any) (map[string]any, error) {
 	if _, ok := schema["additionalProperties"]; !ok {
 		schema["additionalProperties"] = false
 	}
+	if req, ok := schema["required"]; !ok || req == nil {
+		schema["required"] = []any{}
+	}
 	return schema, nil
 }
 

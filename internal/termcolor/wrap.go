@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 )
@@ -60,6 +61,74 @@ func WrapEditFileOldString(s string) string {
 
 func WrapEditFileNewString(s string) string {
 	return renderStyle(dark.editNew, s)
+}
+
+func WrapEditFileOldStringLine(s string) string {
+	return extendEditLineBackground(WrapEditFileOldString(s))
+}
+
+func WrapEditFileNewStringLine(s string) string {
+	return extendEditLineBackground(WrapEditFileNewString(s))
+}
+
+func extendEditLineBackground(styled string) string {
+	if !colorOn || styled == "" {
+		return styled
+	}
+	if strings.HasSuffix(styled, resetANSI) {
+		return styled[:len(styled)-len(resetANSI)] + "\x1b[K" + resetANSI
+	}
+	return styled + "\x1b[K"
+}
+
+func IsEditLineDisplay(s string) bool {
+	return strings.Contains(s, "\x1b[K")
+}
+
+var (
+	editStyleOnce      sync.Once
+	editOldStylePrefix string
+	editNewStylePrefix string
+)
+
+func initEditStylePrefixes() {
+	editStyleOnce.Do(func() {
+		editOldStylePrefix = editStylePrefix(WrapEditFileOldString(""))
+		editNewStylePrefix = editStylePrefix(WrapEditFileNewString(""))
+	})
+}
+
+func editStylePrefix(styled string) string {
+	s := styled
+	if strings.HasSuffix(s, resetANSI) {
+		s = strings.TrimSuffix(s, resetANSI)
+	}
+	if strings.HasSuffix(s, "\x1b[K") {
+		s = strings.TrimSuffix(s, "\x1b[K")
+	}
+	plain := Plain(s)
+	if plain != "" && strings.HasSuffix(s, plain) {
+		return strings.TrimSuffix(s, plain)
+	}
+	return s
+}
+
+func RewrapEditLineLike(sampleStyled, plainChunk string) string {
+	initEditStylePrefixes()
+	if plainChunk == "" {
+		plainChunk = " "
+	}
+	if editStylePrefix(sampleStyled) == editNewStylePrefix {
+		return WrapEditFileNewStringLine(plainChunk)
+	}
+	return WrapEditFileOldStringLine(plainChunk)
+}
+
+func GoParen(s string, depth int) string {
+	if depth < 0 {
+		depth = 0
+	}
+	return renderStyle(dark.goParen[depth%3], s)
 }
 
 func ToolLine(toolName, body string) string {
@@ -137,12 +206,23 @@ func ToolHeaderLine(toolName, body string) string {
 	return out
 }
 
-func EditFileDeleteToolLine(path string) string {
-	line := "editFile removed " + path
+func ToolHeaderRedArgLine(toolName, arg string) string {
 	if !colorOn {
-		return "Tool: " + line
+		prefix := "Tool: " + toolName
+		if arg == "" {
+			return prefix
+		}
+		return prefix + " " + arg
 	}
-	return dark.tool.Render("Tool: ") + dark.red.Render(line)
+	out := dark.tool.Render("Tool: ") + dark.toolBold.Render(toolName)
+	if arg != "" {
+		out += dark.tool.Render(" ") + dark.red.Render(arg)
+	}
+	return out
+}
+
+func EditFileDeleteToolLine(path string) string {
+	return ToolHeaderRedArgLine("editFile", path)
 }
 
 func WrapThinking(s string) string {

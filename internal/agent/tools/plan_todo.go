@@ -38,7 +38,7 @@ func addTodoOpenAI() openai.ChatCompletionToolUnionParam {
 func todoListOpenAI() openai.ChatCompletionToolUnionParam {
 	return nativeToolUnion("todoList", "List open todos for the active or named plan.", map[string]any{
 		"name": map[string]any{"type": "string", "description": "Optional plan filename; defaults to active plan"},
-	}, nil)
+	}, []string{})
 }
 
 func checkTodoOpenAI() openai.ChatCompletionToolUnionParam {

@@ -21,8 +21,8 @@ func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
 	newS := jsonDisplayString(m["newString"])
 	out := []string{termcolor.ToolHeaderLine("editFile", path)}
 	removed, added := editFileDiffRemovedAdded(oldS, newS)
-	out = append(out, formatEditFileDiffSide(removed, termcolor.WrapEditFileOldString)...)
-	out = append(out, formatEditFileDiffSide(added, termcolor.WrapEditFileNewString)...)
+	out = append(out, formatEditFileDiffSide(removed, termcolor.WrapEditFileOldStringLine)...)
+	out = append(out, formatEditFileDiffSide(added, termcolor.WrapEditFileNewStringLine)...)
 	return out
 }
 

@@ -20,11 +20,14 @@ const (
 	colorEditFileNewBG     = "#005c00"
 	colorOrchestrateCodeFG = "#006400"
 	colorGoKeyword         = "#569CD6"
-	colorGoString          = "#CE9178"
+	colorGoString          = "#FF79C6"
 	colorGoComment         = "#6A9955"
 	colorGoFunction        = "#DCDCAA"
 	colorGoNumber          = "#B5CEA8"
 	colorGoPlain           = "#D4D4D4"
+	colorGoParen0          = "#FFD700"
+	colorGoParen1          = "#FF55FF"
+	colorGoParen2          = "#5555FF"
 )
 
 var dark struct {
@@ -49,6 +52,7 @@ var dark struct {
 	goFunction      lipgloss.Style
 	goNumber        lipgloss.Style
 	goPlain         lipgloss.Style
+	goParen         [3]lipgloss.Style
 }
 
 func rebuildTheme() {
@@ -82,4 +86,7 @@ func rebuildTheme() {
 	dark.goFunction = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoFunction))
 	dark.goNumber = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoNumber))
 	dark.goPlain = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoPlain))
+	dark.goParen[0] = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoParen0))
+	dark.goParen[1] = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoParen1))
+	dark.goParen[2] = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGoParen2))
 }

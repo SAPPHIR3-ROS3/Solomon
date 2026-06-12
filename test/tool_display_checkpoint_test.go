@@ -3,14 +3,22 @@ package test
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
+
+func checkpointContPlain(cp int, branch string) string {
+	return checkpoint.FormatCheckpointContinuationPlain(cp, branch)
+}
 
 func TestWriteToolDisplayLines_multilineContinuation(t *testing.T) {
 	var buf bytes.Buffer
@@ -24,10 +32,11 @@ func TestWriteToolDisplayLines_multilineContinuation(t *testing.T) {
 	if !strings.HasPrefix(out, "[#003]: Tool: editFile path/to/file.go\n") {
 		t.Fatalf("first line should have checkpoint prefix: %q", out)
 	}
-	if !strings.Contains(out, "..... old content\n") {
+	cont := checkpointContPlain(3, "")
+	if !strings.Contains(out, cont+"old content\n") {
 		t.Fatalf("missing continuation prefix: %q", out)
 	}
-	if !strings.Contains(out, "..... new content\n") {
+	if !strings.Contains(out, cont+"new content\n") {
 		t.Fatalf("missing second continuation: %q", out)
 	}
 }
@@ -39,7 +48,7 @@ func TestWriteToolDisplayLines_embeddedNewline(t *testing.T) {
 	if !strings.HasPrefix(out, "[#001]: Tool: shell go test\n") {
 		t.Fatalf("first part should have checkpoint prefix: %q", out)
 	}
-	if !strings.Contains(out, "..... ./foo\n") {
+	if !strings.Contains(out, checkpointContPlain(1, "")+"./foo\n") {
 		t.Fatalf("embedded newline continuation: %q", out)
 	}
 }
@@ -127,10 +136,11 @@ func TestWriteLabeledTranscript_editFileMultilineContinuation(t *testing.T) {
 	if !strings.Contains(out, "[#002]: Tool: editFile x.go") {
 		t.Fatalf("header line missing: %s", out)
 	}
-	if !strings.Contains(out, "..... before") {
+	cont := checkpointContPlain(2, "")
+	if !strings.Contains(out, cont+"before") {
 		t.Fatalf("oldString continuation missing: %s", out)
 	}
-	if !strings.Contains(out, "..... after") {
+	if !strings.Contains(out, cont+"after") {
 		t.Fatalf("newString continuation missing: %s", out)
 	}
 }
@@ -148,7 +158,7 @@ func TestFormatToolDisplayLines_editFileSplitsBeforeWrap(t *testing.T) {
 	var buf bytes.Buffer
 	tooling.WriteToolDisplayLines(&buf, 1, "", lines)
 	out := buf.String()
-	if strings.Count(out, "..... \n") > 0 {
+	if strings.Count(out, checkpointContPlain(1, "")+"\n") > 0 {
 		t.Fatalf("spurious blank continuation lines: %q", out)
 	}
 }
@@ -320,6 +330,7 @@ func TestFormatToolDisplayLines_webSearch(t *testing.T) {
 }
 
 func TestFormatToolDisplayLines_editFileDelete(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
 	args, err := json.Marshal(map[string]any{
 		"path":   "obsolete.go",
 		"delete": true,
@@ -332,8 +343,25 @@ func TestFormatToolDisplayLines_editFileDelete(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("lines: %#v", lines)
 	}
-	if !strings.Contains(lines[0], "removed obsolete.go") || strings.Contains(lines[0], "(delete)") {
-		t.Fatalf("unexpected delete display: %q", lines[0])
+	if termcolor.Plain(lines[0]) != "Tool: editFile obsolete.go" {
+		t.Fatalf("unexpected delete display plain: %q", termcolor.Plain(lines[0]))
+	}
+	if !strings.Contains(lines[0], termcolor.WrapRed("obsolete.go")) {
+		t.Fatalf("delete path should be red: %q", lines[0])
+	}
+}
+
+func TestFormatToolDisplayLines_deleteRemoveRedArg(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	delArgs, _ := json.Marshal(map[string]string{"name": "old.md"})
+	lines := tooling.FormatToolDisplayLines("deletePlan", delArgs)
+	if !strings.Contains(lines[0], termcolor.WrapRed("old.md")) {
+		t.Fatalf("deletePlan arg should be red: %q", lines[0])
+	}
+	rmArgs, _ := json.Marshal(map[string]string{"sha1": "abc123deadbeef"})
+	lines = tooling.FormatToolDisplayLines("removeTodo", rmArgs)
+	if !strings.Contains(lines[0], termcolor.WrapRed("abc123deadbeef")) {
+		t.Fatalf("removeTodo arg should be red: %q", lines[0])
 	}
 }
 
@@ -347,6 +375,30 @@ func TestFormatToolResultDisplayLines_editFileSuccessSilent(t *testing.T) {
 		if len(lines) != 0 {
 			t.Fatalf("payload %s: want no result line, got %v", payload, lines)
 		}
+	}
+}
+
+func TestFormatToolResultDisplayLines_addTodoSuccessSilent(t *testing.T) {
+	payload := `{"ok":true,"sha":"89f93794061db4a04d4ba0f9c36915d8c073f7ad","status":"not_built"}`
+	lines := tooling.FormatToolResultDisplayLines("addTodo", payload)
+	if len(lines) != 0 {
+		t.Fatalf("want no addTodo result line, got %v", lines)
+	}
+}
+
+func TestFormatToolResultDisplayLines_addTodoFailureShowsReason(t *testing.T) {
+	payload := `{"error":"todo is required"}`
+	lines := tooling.FormatToolResultDisplayLines("addTodo", payload)
+	if len(lines) != 1 || !strings.Contains(lines[0], "todo is required") {
+		t.Fatalf("lines: %v", lines)
+	}
+}
+
+func TestFormatToolResultDisplayLines_todoListSilent(t *testing.T) {
+	payload := `{"abc123":"Do work","def456":"Other"}`
+	lines := tooling.FormatToolResultDisplayLines("todoList", payload)
+	if len(lines) != 0 {
+		t.Fatalf("want no todoList result line, got %v", lines)
 	}
 }
 
@@ -410,5 +462,313 @@ func TestWriteLabeledTranscript_intentLineHasCheckpoint(t *testing.T) {
 	}
 	if !strings.Contains(out, "[#002]: Tool: editFile x.go") {
 		t.Fatalf("tool header missing: %s", out)
+	}
+}
+
+func TestFormatToolDisplayLines_planTools(t *testing.T) {
+	createArgs, _ := json.Marshal(map[string]string{"name": "feat.md", "goal": "Add planning"})
+	lines := tooling.FormatToolDisplayLines("createPlan", createArgs)
+	if len(lines) != 1 || !strings.Contains(termcolor.Plain(lines[0]), "Tool: createPlan feat.md") {
+		t.Fatalf("createPlan: %#v", lines)
+	}
+
+	editArgs, _ := json.Marshal(map[string]string{
+		"name": "feat.md", "old": "old-only\n", "new": "new-only\n", "intent": "update design",
+	})
+	lines = tooling.FormatToolDisplayLines("editPlan", editArgs)
+	if len(lines) != 3 {
+		t.Fatalf("editPlan want header+2 diff lines, got %d: %#v", len(lines), lines)
+	}
+	if !strings.Contains(termcolor.Plain(lines[0]), "Tool: editPlan feat.md") {
+		t.Fatalf("editPlan header: %q", lines[0])
+	}
+
+	buildArgs, _ := json.Marshal(map[string]string{"name": "feat.md"})
+	lines = tooling.FormatToolDisplayLines("buildPlan", buildArgs)
+	if !strings.Contains(termcolor.Plain(lines[0]), "Tool: buildPlan feat.md") {
+		t.Fatalf("buildPlan: %#v", lines)
+	}
+
+	todoArgs, _ := json.Marshal(map[string]string{"name": "feat.md", "todo": "Write tests"})
+	lines = tooling.FormatToolDisplayLines("addTodo", todoArgs)
+	if !strings.Contains(termcolor.Plain(lines[0]), "Tool: addTodo feat.md") {
+		t.Fatalf("addTodo: %#v", lines)
+	}
+}
+
+func TestFormatToolDisplayLines_orchestrateNestedParensColored(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	src := "func f(a (int)) { x[(y)] }\n"
+	args, _ := json.Marshal(map[string]string{"source": src, "intent": "paren colors"})
+	lines := tooling.FormatToolDisplayLines("orchestrate", args)
+	if len(lines) < 2 {
+		t.Fatal("expected orchestrate lines")
+	}
+	code := lines[1]
+	if !strings.Contains(code, "\x1b[") {
+		t.Fatalf("expected ANSI highlights: %q", code)
+	}
+	if strings.Count(code, "\x1b[") < 4 {
+		t.Fatalf("expected multiple color spans for nested parens: %q", code)
+	}
+}
+
+func TestHighlightGoLine_stringLiteralInteriorColored(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	got := tooling.HighlightGoLineForTest(`import "fmt"`)
+	if !termcolor.Enabled() {
+		t.Skip("colors disabled")
+	}
+	if termcolor.Plain(got) != `import "fmt"` {
+		t.Fatalf("plain: %q", got)
+	}
+	wantLit := termcolor.GoString(`"fmt"`)
+	if !strings.Contains(got, wantLit) {
+		t.Fatalf("full string literal should be one pink span; got %q want substring %q", got, wantLit)
+	}
+}
+
+func TestWriteToolDisplayLines_orchestrateCodeVisualWrap(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	longLine := `out, _ := sdk.Shell('grep -rn "Task\|cursor\|Cursor" internal/agent/tools/ --include="*.go" | grep -i "bridge\|normalize\|task\|subagent" | head -30', "find cursor bridge")`
+	src := "package main\n\nfunc main() {\n\t" + longLine + "\n}\n"
+	args, _ := json.Marshal(map[string]string{"source": src, "intent": "wrap test"})
+	lines := tooling.FormatToolDisplayLines("orchestrate", args)
+	var buf bytes.Buffer
+	tooling.WriteToolDisplayLinesWithWidth(&buf, 1, "", lines, 72)
+	out := buf.String()
+	rows := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(rows) < 4 {
+		t.Fatalf("expected wrapped orchestrate code rows, got %d: %q", len(rows), out)
+	}
+	numRE := regexp.MustCompile(`^\d+ `)
+	var codeRows []string
+	var contRaw string
+	cont := checkpointContPlain(1, "")
+	for _, row := range rows[1:] {
+		plain := termcolor.Plain(row)
+		if !strings.HasPrefix(plain, cont) {
+			continue
+		}
+		body := strings.TrimPrefix(plain, cont)
+		if strings.Contains(body, "sdk.Shell") && len(codeRows) == 0 {
+			codeRows = append(codeRows, body)
+		} else if len(codeRows) == 1 && !numRE.MatchString(strings.TrimLeft(body, " ")) {
+			codeRows = append(codeRows, body)
+			contRaw = row
+			break
+		}
+	}
+	if len(codeRows) < 2 {
+		t.Fatalf("expected at least 2 visual rows for long line, got %v in %q", codeRows, out)
+	}
+	if contRaw == "" || !strings.Contains(termcolor.Plain(contRaw), cont) {
+		t.Fatalf("wrap continuation should keep checkpoint dots: %q", contRaw)
+	}
+	first := codeRows[0]
+	second := codeRows[1]
+	if !numRE.MatchString(first) {
+		t.Fatalf("first wrapped row should keep line number: %q", first)
+	}
+	if numRE.MatchString(strings.TrimLeft(second, " ")) {
+		t.Fatalf("continuation row should not repeat line number: %q", second)
+	}
+	gutter := numRE.FindStringIndex(first)
+	if gutter == nil {
+		t.Fatalf("unexpected first row shape: %q", first)
+	}
+	if !strings.HasPrefix(second, strings.Repeat(" ", gutter[1])) {
+		t.Fatalf("continuation should align after line-number gutter width %d: first=%q second=%q", gutter[1], first, second)
+	}
+}
+
+func TestOrchestrateCodeWrapPreservesHighlight(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	line := "    out3, _ := sdk.Shell(`grep -n foo | head -20`, \"find\")"
+	styled := tooling.HighlightGoLineForTest(line)
+	cut := strings.Index(line, "ead")
+	if cut < 0 {
+		t.Fatal("test line shape")
+	}
+	preserved := tooling.SplitStyledRangeForTest(styled, cut, len(line))
+	rerun := tooling.HighlightGoLineForTest(line[cut:])
+	if preserved == rerun {
+		t.Fatalf("wrap split should preserve mid-string highlight; preserved=%q rerun=%q", preserved, rerun)
+	}
+	if termcolor.Plain(preserved) != line[cut:] {
+		t.Fatalf("plain text mismatch: got %q want %q", termcolor.Plain(preserved), line[cut:])
+	}
+	if eIdx := strings.Index(preserved, "ead"); eIdx <= 0 || !strings.Contains(preserved[:eIdx], "\x1b[") {
+		t.Fatalf("continuation slice should carry active ANSI before ead: %q", preserved)
+	}
+}
+
+func TestWriteToolDisplayLines_orchestrateCodeWrapMidBacktickString(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	longLine := `out3, _ := sdk.Shell(` + "`grep -n \"WriteSession\\|saveSession\\|r\\\\.Session\" internal/agent/runtime/turns.go | head -20`, \"find session saves in turns\")"
+	src := "package main\n\nfunc main() {\n\t" + longLine + "\n}\n"
+	args, _ := json.Marshal(map[string]string{"source": src, "intent": "mid-backtick wrap"})
+	lines := tooling.FormatToolDisplayLines("orchestrate", args)
+	fullLine := ""
+	for _, ln := range lines {
+		if strings.Contains(termcolor.Plain(ln), "sdk.Shell") {
+			fullLine = ln
+			break
+		}
+	}
+	if fullLine == "" {
+		t.Fatal("missing shell line in display")
+	}
+	gutterLen := strings.Index(termcolor.Plain(fullLine), "out3")
+	if gutterLen < 0 {
+		t.Fatal("unexpected line shape")
+	}
+	codePlain := termcolor.Plain(fullLine)[gutterLen:]
+	codeStyled := tooling.HighlightGoLineForTest(codePlain)
+	cut := strings.Index(codePlain, "ead")
+	if cut < 0 {
+		t.Fatal("expected head split point in test line")
+	}
+	slice := tooling.SplitStyledRangeForTest(codeStyled, cut, len(codePlain))
+	if !strings.Contains(slice, "\x1b[") {
+		t.Fatalf("mid-backtick slice should include string color codes: %q", slice)
+	}
+	var buf bytes.Buffer
+	tooling.WriteToolDisplayLinesWithWidth(&buf, 1, "", lines, 72)
+	for _, row := range strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n") {
+		plain := termcolor.Plain(row)
+		if !strings.Contains(plain, "ead -20") {
+			continue
+		}
+		if strings.Count(row, "\x1b[") < 2 {
+			t.Fatalf("wrapped row with ead -20 should keep string highlighting: %q", row)
+		}
+		return
+	}
+	t.Fatalf("no wrapped row with ead -20 in %q", buf.String())
+}
+
+func TestWriteToolDisplayLines_toolHeaderVisualWrap(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	longBody := "subagent-persistence.md • Creare chatstore/subsession.go con ReadSubSession, WriteSubSession, ListSubSessions, DeleteSubSession"
+	header := termcolor.ToolHeaderLine("addTodo", longBody)
+	var buf bytes.Buffer
+	tooling.WriteToolDisplayLinesWithWidth(&buf, 45, "b", []string{header}, 72)
+	out := buf.String()
+	rows := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(rows) < 2 {
+		t.Fatalf("expected wrapped tool header rows, got %d: %q", len(rows), out)
+	}
+	if !strings.HasPrefix(termcolor.Plain(rows[0]), "[#045b]: Tool: addTodo") {
+		t.Fatalf("first row should keep checkpoint prefix: %q", rows[0])
+	}
+	cont := checkpointContPlain(45, "b")
+	if !strings.HasPrefix(termcolor.Plain(rows[1]), cont) {
+		t.Fatalf("wrapped tool header should use continuation dots: %q", rows[1])
+	}
+	if strings.Contains(termcolor.Plain(rows[1]), "[#045b]") {
+		t.Fatalf("wrapped row should not repeat checkpoint: %q", rows[1])
+	}
+}
+
+func TestWriteToolDisplayLines_toolHeaderWrapBulletAligned(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	body := "subagent-persistence.md • Estendere runtime/nested.go (NestedRunConfig/NestedRunResult), ID generation helpers"
+	header := termcolor.ToolHeaderLine("addTodo", body)
+	wantPlain := termcolor.Plain(header)
+	var buf bytes.Buffer
+	tooling.WriteToolDisplayLinesWithWidth(&buf, 47, "b", []string{header}, 72)
+	rows := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+	if len(rows) < 2 {
+		t.Fatalf("expected wrapped rows, got %d", len(rows))
+	}
+	gotPlain := reconstructWrappedToolPlain(rows)
+	if gotPlain != wantPlain {
+		t.Fatalf("wrapped plain mismatch:\nwant %q\ngot  %q", wantPlain, gotPlain)
+	}
+	cont := checkpointContPlain(47, "b")
+	start1 := toolRowBodyStartCells(termcolor.Plain(rows[1]))
+	if start1 != utf8.RuneCountInString(cont) {
+		t.Fatalf("wrapped row should start body right after dots, got cell %d: %q", start1, rows[1])
+	}
+	if strings.HasSuffix(strings.TrimRight(termcolor.Plain(rows[0]), " "), "ID g") {
+		t.Fatalf("should not orphan mid-word fragment before wrap: %q", rows[0])
+	}
+}
+
+func reconstructWrappedToolPlain(rows []string) string {
+	var b strings.Builder
+	for i, row := range rows {
+		plain := termcolor.Plain(row)
+		if i == 0 {
+			if idx := strings.Index(plain, ": "); idx >= 0 {
+				plain = plain[idx+2:]
+			}
+		} else {
+			plain = plain[toolRowBodyStartByte(plain):]
+		}
+		b.WriteString(plain)
+	}
+	return b.String()
+}
+
+func toolRowBodyStartByte(plain string) int {
+	if strings.HasPrefix(plain, "[#") {
+		if idx := strings.Index(plain, ": "); idx >= 0 {
+			return idx + 2
+		}
+	}
+	i := 0
+	for i < len(plain) {
+		r, sz := utf8.DecodeRuneInString(plain[i:])
+		if r == '.' || r == ' ' {
+			i += sz
+			continue
+		}
+		break
+	}
+	return i
+}
+
+func toolRowBodyStartCells(plain string) int {
+	return utf8.RuneCountInString(plain[:toolRowBodyStartByte(plain)])
+}
+
+func TestWriteToolDisplayLines_editLineVisualWrap(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	long := "- Ogni file <= 500 LoC; nessun nuovo modulo Go esterno; backward compat runNestedWithConfig subagent_registry.go"
+	styled := termcolor.WrapEditFileNewStringLine(long)
+	var buf bytes.Buffer
+	tooling.WriteToolDisplayLinesWithWidth(&buf, 43, "b", []string{
+		termcolor.ToolHeaderLine("editPlan", "subagent-persistence.md"),
+		styled,
+	}, 60)
+	out := buf.String()
+	rows := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(rows) < 3 {
+		t.Fatalf("expected visual wrap into multiple rows, got %d: %q", len(rows), out)
+	}
+	for i, row := range rows[1:] {
+		if !strings.Contains(row, "\x1b[K") {
+			t.Fatalf("wrapped edit row %d missing full-line background: %q", i+1, row)
+		}
+	}
+	if strings.Contains(rows[1], "subagen\n") || strings.Contains(out, "subagen\n") {
+		t.Fatalf("should not break mid-word: %q", out)
+	}
+	cont := checkpointContPlain(43, "b")
+	if !strings.HasPrefix(termcolor.Plain(rows[1]), cont) {
+		t.Fatalf("first edit row should use continuation prefix: %q", rows[1])
+	}
+	if !strings.HasPrefix(termcolor.Plain(rows[2]), cont) {
+		t.Fatalf("wrapped edit continuation should use dots prefix: %q", rows[2])
+	}
+}
+
+func TestWrapEditFileLineExtendsBackground(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	got := termcolor.WrapEditFileOldStringLine("removed")
+	if !strings.Contains(got, "\x1b[K") {
+		t.Fatalf("edit line should clear to EOL for full-row background: %q", got)
 	}
 }

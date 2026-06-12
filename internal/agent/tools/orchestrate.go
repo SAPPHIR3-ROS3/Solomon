@@ -20,7 +20,7 @@ type orchestrateArgs struct {
 
 func orchestrateOpenAI() openai.ChatCompletionToolUnionParam {
 	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and deferred tool catalog. Script stdout is returned in the tool result output field.", map[string]any{
-		"source": map[string]any{"type": "string", "description": "Complete Go source: package main, import github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk, func main()"},
+		"source": map[string]any{"type": "string", "description": "Complete Go source: package main, import sandbox SDK (sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk), func main()"},
 		"intent": map[string]any{"type": "string", "description": "Brief phrase describing what this script does"},
 	}, []string{"source", "intent"})
 }
@@ -30,7 +30,7 @@ func appendOrchestrateDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import solomon SDK helpers (ReadFile/ReadFileLinesInfo, ReplaceInFile/WriteFile/DeleteFile/RenameFile, Glob/Grep/GrepFiles, Shell/ShellResult, WebSearch/FetchWeb, DocsRetrieval). Use fmt.Print/Println/Printf in main(); stdout is captured in the tool result output field.", sig)
+	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk. Helpers: ReadFile, ReplaceInFile/WriteFile, Glob/Grep, Shell, WebSearch, FetchWeb, DocsRetrieval. Use fmt.Print/Println/Printf in main(); stdout is captured in the tool result output field.", sig)
 	return nil
 }
 
