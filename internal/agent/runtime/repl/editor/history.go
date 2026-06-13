@@ -1,4 +1,4 @@
-package repl
+package editor
 
 import (
 	"strings"
@@ -20,7 +20,7 @@ type historyEntry struct {
 	shell string
 }
 
-type inputHistory struct {
+type History struct {
 	items      []historyEntry
 	shellLines []string
 	slashLines []string
@@ -28,8 +28,8 @@ type inputHistory struct {
 	draft      string
 }
 
-func newInputHistory() *inputHistory {
-	return &inputHistory{idx: -1}
+func NewHistory() *History {
+	return &History{idx: -1}
 }
 
 func classifyReplLine(line string, shellFirst bool) historyEntry {
@@ -61,7 +61,7 @@ func classifyReplLine(line string, shellFirst bool) historyEntry {
 	return e
 }
 
-func (h *inputHistory) add(line string, shellFirst bool) {
+func (h *History) Add(line string, shellFirst bool) {
 	if strings.TrimSpace(line) == "" {
 		return
 	}
@@ -82,7 +82,7 @@ func (h *inputHistory) add(line string, shellFirst bool) {
 	h.draft = ""
 }
 
-func (h *inputHistory) prev(draft string) (string, bool) {
+func (h *History) prev(draft string) (string, bool) {
 	if len(h.items) == 0 {
 		return "", false
 	}
@@ -99,7 +99,7 @@ func (h *inputHistory) prev(draft string) (string, bool) {
 	return h.items[h.idx].raw, true
 }
 
-func (h *inputHistory) next() (string, bool) {
+func (h *History) next() (string, bool) {
 	if len(h.items) == 0 || h.idx < 0 || h.idx >= len(h.items) {
 		return "", false
 	}
@@ -110,12 +110,12 @@ func (h *inputHistory) next() (string, bool) {
 	return h.items[h.idx].raw, true
 }
 
-func (h *inputHistory) resetNav() {
+func (h *History) resetNav() {
 	h.idx = len(h.items)
 	h.draft = ""
 }
 
-func (h *inputHistory) shellMatch(prefix string) string {
+func (h *History) shellMatch(prefix string) string {
 	if prefix == "" {
 		return ""
 	}
@@ -131,7 +131,7 @@ func (h *inputHistory) shellMatch(prefix string) string {
 	return ""
 }
 
-func (h *inputHistory) slashLinesCopy() []string {
+func (h *History) slashLinesCopy() []string {
 	if len(h.slashLines) == 0 {
 		return nil
 	}

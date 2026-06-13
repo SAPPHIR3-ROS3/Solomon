@@ -1,4 +1,4 @@
-package repl
+package editor
 
 import (
 	"fmt"
@@ -11,15 +11,15 @@ import (
 const replGhostANSI = "\x1b[2m\x1b[90m"
 
 func (e *multilineEditor) primaryPrompt() string {
-	if e.loop.PromptPrimary != nil {
-		return e.loop.PromptPrimary()
+	if e.host.PromptPrimary != nil {
+		return e.host.PromptPrimary()
 	}
 	return "You: "
 }
 
 func (e *multilineEditor) continuePrompt() string {
-	if e.loop.PromptContinue != nil {
-		return e.loop.PromptContinue()
+	if e.host.PromptContinue != nil {
+		return e.host.PromptContinue()
 	}
 	return ".... "
 }
@@ -71,7 +71,7 @@ func (e *multilineEditor) render() int {
 		}
 		prompt := e.promptFor(i)
 		fmt.Fprint(e.out, prompt)
-		lineStr := replhl.HighlightInputLine(e.lines, i, e.loop.CompleteEnv.ReplShellFirst, e.loop.CompleteEnv)
+		lineStr := replhl.HighlightInputLine(e.lines, i, e.host.CompleteEnv.ReplShellFirst, e.host.CompleteEnv)
 		fmt.Fprint(e.out, termcolor.ColorizeReplInputTags(lineStr))
 		lineGhost := ""
 		if i == lineCount-1 && ghost != "" {

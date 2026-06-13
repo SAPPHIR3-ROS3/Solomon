@@ -9,6 +9,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl/editor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -49,7 +50,7 @@ func Run(loop *Loop) error {
 	defer multiline.SetReplImagePaste(nil)
 	restoreInput := multiline.EnableReplInputModes(loop.RL.Stdout())
 	defer restoreInput()
-	history := newInputHistory()
+	history := editor.NewHistory()
 	for {
 		if loop.FinishSessionLoad != nil {
 			loop.FinishSessionLoad()
@@ -57,7 +58,7 @@ func Run(loop *Loop) error {
 		if loop.PrepareStartupNotice != nil {
 			loop.PrepareStartupNotice()
 		}
-		line, err := readMultilineInput(loop, history)
+		line, err := editor.ReadMultiline(editorHostFromLoop(loop), history)
 		if errors.Is(err, ErrInputInterrupted) {
 			if loop.TakeStartupNotice != nil {
 				loop.TakeStartupNotice()
@@ -84,7 +85,7 @@ func Run(loop *Loop) error {
 		if line == "" {
 			continue
 		}
-		history.add(line, loop.CompleteEnv.ReplShellFirst)
+		history.Add(line, loop.CompleteEnv.ReplShellFirst)
 		if strings.HasPrefix(line, "/") {
 			if err := loop.HandleSlash(line); err != nil {
 				if errors.Is(err, slash.ErrExitChat) {

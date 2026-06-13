@@ -1,30 +1,30 @@
-package repl
+package editor
 
-type InputHistoryTest struct {
-	*inputHistory
+type HistoryTest struct {
+	*History
 }
 
-func NewInputHistoryForTest() *InputHistoryTest {
-	return &InputHistoryTest{inputHistory: newInputHistory()}
+func NewHistoryForTest() *HistoryTest {
+	return &HistoryTest{History: NewHistory()}
 }
 
-func (h *InputHistoryTest) Add(s string) {
-	h.add(s, false)
+func (h *HistoryTest) Add(s string) {
+	h.History.Add(s, false)
 }
 
-func (h *InputHistoryTest) AddWithMode(s string, shellFirst bool) {
-	h.add(s, shellFirst)
+func (h *HistoryTest) AddWithMode(s string, shellFirst bool) {
+	h.History.Add(s, shellFirst)
 }
 
-func (h *InputHistoryTest) ShellMatch(prefix string) string {
+func (h *HistoryTest) ShellMatch(prefix string) string {
 	return h.shellMatch(prefix)
 }
 
-func (h *InputHistoryTest) Prev(draft string) (string, bool) {
+func (h *HistoryTest) Prev(draft string) (string, bool) {
 	return h.prev(draft)
 }
 
-func (h *InputHistoryTest) Next() (string, bool) {
+func (h *HistoryTest) Next() (string, bool) {
 	return h.next()
 }
 
@@ -32,22 +32,19 @@ type MultilineEditorTest struct {
 	*multilineEditor
 }
 
-func NewMultilineEditorForTest(loop *Loop, history *InputHistoryTest, lines []string, row, col, width int) *MultilineEditorTest {
+func NewMultilineEditorForTest(host Host, history *HistoryTest, lines []string, row, col, width int) *MultilineEditorTest {
 	rlines := make([][]rune, len(lines))
 	for i, s := range lines {
 		rlines[i] = []rune(s)
 	}
-	var hist *inputHistory
+	var hist *History
 	if history != nil {
-		hist = history.inputHistory
+		hist = history.History
 	} else {
-		hist = newInputHistory()
-	}
-	if loop == nil {
-		loop = &Loop{}
+		hist = NewHistory()
 	}
 	return &MultilineEditorTest{multilineEditor: &multilineEditor{
-		loop:    loop,
+		host:    host,
 		history: hist,
 		lines:   rlines,
 		row:     row,

@@ -6,7 +6,7 @@ import type { ChatCompletionTool, ChatMessage } from "./openai-types.js";
 import type { AgentRun } from "./run-control.js";
 import type { ModelSelection } from "./model-selection.js";
 import { DEFAULT_SUBAGENT_SYS_PATH } from "./legacy.js";
-import type { ProxyConfig } from "./chat.js";
+import type { ProxyConfig } from "./chat/index.js";
 
 export type AgentSendOpts = {
   model: ModelSelection;

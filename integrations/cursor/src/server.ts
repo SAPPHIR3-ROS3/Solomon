@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } from "./chat.js";
+import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } from "./chat/index.js";
 import { sanitizeReflectedText, stripUnsafeControlChars, sanitizeModelId, isSafeToolName } from "./messages.js";
 import { clientAbortFromRequest } from "./run-control.js";
 import { sendJsonResponse } from "./openai-sse.js";

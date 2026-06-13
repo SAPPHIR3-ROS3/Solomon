@@ -1,6 +1,6 @@
 //go:build windows
 
-package repl
+package editor
 
 import (
 	"os"
