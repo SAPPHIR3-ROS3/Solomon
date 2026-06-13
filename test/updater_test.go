@@ -80,7 +80,6 @@ func TestInstall_verifiesChecksum(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("install target path layout")
 	}
-	t.Parallel()
 	payload := []byte("solomon-binary-payload")
 	sum := sha256.Sum256(payload)
 	hash := hex.EncodeToString(sum[:])
@@ -124,7 +123,6 @@ func TestInstall_checksumMismatch(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("install target path layout")
 	}
-	t.Parallel()
 	payload := []byte("solomon-binary-payload")
 	tag := "v2099.101.0"
 	asset, err := updater.ReleaseAssetName(tag)
