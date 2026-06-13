@@ -1,4 +1,4 @@
-package repl
+package editor
 
 import (
 	"context"
@@ -74,7 +74,7 @@ func (e *multilineEditor) clearSuggest() {
 
 func (e *multilineEditor) recomputeSuggest() {
 	e.suggestSuffix = nil
-	if AutosuggestDisabled() || e.loop == nil {
+	if AutosuggestDisabled() {
 		return
 	}
 	if !e.cursorAtBufferEnd() {
@@ -85,7 +85,7 @@ func (e *multilineEditor) recomputeSuggest() {
 		return
 	}
 	if e.atPickerActive() {
-		entries, err := replcomplete.AtIndexEntries(context.Background(), e.loop.CompleteEnv)
+		entries, err := replcomplete.AtIndexEntries(context.Background(), e.host.CompleteEnv)
 		if err == nil && len(entries) > 0 && len(e.atMatches) > 0 {
 			sel := e.atMatches[e.atSelected]
 			tag := "@" + atmention.ShortTag(sel.RelPath, entries)
@@ -99,7 +99,7 @@ func (e *multilineEditor) recomputeSuggest() {
 		}
 		return
 	}
-	env := e.loop.CompleteEnv
+	env := e.host.CompleteEnv
 	shellFirst := env.ReplShellFirst
 	trimmed := strings.TrimLeft(buf, " \t")
 	if strings.HasPrefix(trimmed, "/") {

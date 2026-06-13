@@ -1,4 +1,4 @@
-package repl
+package editor
 
 import (
 	"context"
@@ -11,16 +11,13 @@ func (e *multilineEditor) recomputeAtPicker() {
 	e.atMatches = nil
 	e.atSelected = 0
 	e.atCtx = atmention.AtContext{}
-	if e.loop == nil {
-		return
-	}
 	line := e.lines[e.row]
 	ctx := atmention.AtContextAt(line, e.col)
 	if !ctx.Active {
 		return
 	}
 	e.atCtx = ctx
-	entries, err := replcomplete.AtIndexEntries(context.Background(), e.loop.CompleteEnv)
+	entries, err := replcomplete.AtIndexEntries(context.Background(), e.host.CompleteEnv)
 	if err != nil || len(entries) == 0 {
 		return
 	}
@@ -77,10 +74,7 @@ func (e *multilineEditor) clearAtStateAfterInsert() {
 }
 
 func (e *multilineEditor) insertAtTag(sel atmention.Entry, withSpace bool) bool {
-	if e.loop == nil {
-		return false
-	}
-	entries, err := replcomplete.AtIndexEntries(context.Background(), e.loop.CompleteEnv)
+	entries, err := replcomplete.AtIndexEntries(context.Background(), e.host.CompleteEnv)
 	if err != nil {
 		return false
 	}
@@ -114,7 +108,7 @@ func (e *multilineEditor) completeAtMention() bool {
 	}
 
 	if len(e.atMatches) == 0 {
-		entries, err := replcomplete.AtIndexEntries(context.Background(), e.loop.CompleteEnv)
+		entries, err := replcomplete.AtIndexEntries(context.Background(), e.host.CompleteEnv)
 		if err != nil || len(entries) == 0 {
 			return false
 		}

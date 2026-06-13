@@ -1,168 +1,20 @@
-package llm
+package stream
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"time"
 
-	"github.com/openai/openai-go/v2"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/promptparts"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/streamio"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
+	"github.com/openai/openai-go/v2"
 )
 
-var ErrStreamAccumulatorRejected = errors.New("chat completion stream accumulator rejected chunk")
-
-func flushStreamOut(w io.Writer) {
-	_ = flushStreamOutErr(w)
-}
-
-func flushStreamOutErr(w io.Writer) error {
-	if f, ok := w.(interface{ Flush() error }); ok {
-		return f.Flush()
-	}
-	return nil
-}
-
-func writeThoughtForLine(sink io.Writer, secs float64) {
-	_, _ = fmt.Fprintf(sink, "\n%s\n", termcolor.ThoughtForSuffix(secs))
-}
-
-func writeStreamContent(w io.Writer, s string) error {
-	return streamio.WriteContent(w, s)
-}
-
-func writeStreamContentLegacy(w io.Writer, s string) (legacyStopped bool, err error) {
-	return streamio.WriteContentLegacy(w, s)
-}
-
-func streamTruncatedContent(w io.Writer, fallback string) string {
-	return streamio.TruncatedContent(w, fallback)
-}
-
-func writeReasoningDelta(sink io.Writer, s string) {
-	streamio.WriteReasoningDelta(sink, s)
-}
-
-func closeCompletionStream(stream any) {
-	if c, ok := stream.(interface{ Close() error }); ok {
-		_ = c.Close()
-	}
-}
-
-func legacyStreamStopErrOK(err error) bool {
-	if err == nil {
-		return true
-	}
-	if errors.Is(err, context.Canceled) {
-		return true
-	}
-	msg := strings.ToLower(err.Error())
-	for _, sub := range []string{
-		"forcibly closed",
-		"unexpected eof",
-		"context canceled",
-		"operation was canceled",
-	} {
-		if strings.Contains(msg, sub) {
-			return true
-		}
-	}
-	return false
-}
-
-func streamAccumulatorRejectErr(stream interface{ Err() error }) error {
-	if err := stream.Err(); err != nil {
-		return err
-	}
-	return ErrStreamAccumulatorRejected
-}
-
-func parseLooseReasoningTokensFromUsageRawJSON(raw string) int64 {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0
-	}
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(raw), &top); err != nil {
-		return 0
-	}
-	tryNum := func(msg json.RawMessage) int64 {
-		var n int64
-		if json.Unmarshal(msg, &n) == nil && n > 0 {
-			return n
-		}
-		var f float64
-		if json.Unmarshal(msg, &f) == nil && f > 0 {
-			return int64(f + 0.5)
-		}
-		return 0
-	}
-	if v, ok := top["reasoning_tokens"]; ok {
-		if n := tryNum(v); n > 0 {
-			return n
-		}
-	}
-	if v, ok := top["completion_tokens_details"]; ok {
-		var det map[string]json.RawMessage
-		if json.Unmarshal(v, &det) != nil {
-			return 0
-		}
-		if r, ok := det["reasoning_tokens"]; ok {
-			if n := tryNum(r); n > 0 {
-				return n
-			}
-		}
-	}
-	return 0
-}
-
-func parseProxyCorrectionFromChunkRawJSON(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(raw), &top); err != nil {
-		return ""
-	}
-	v, ok := top["solomon_proxy_correction"]
-	if !ok {
-		return ""
-	}
-	var s string
-	if err := json.Unmarshal(v, &s); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(s)
-}
-
-func ParseCursorToolEventFromChunkRawJSON(raw string) string {
-	return parseCursorToolEventFromChunkRawJSON(raw)
-}
-
-func parseCursorToolEventFromChunkRawJSON(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(raw), &top); err != nil {
-		return ""
-	}
-	v, ok := top["solomon_cursor_tool_event"]
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(string(v))
-}
-
-func StreamText(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {
+func StreamText(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts apitype.StreamOpts) (string, apitype.UsageStats, error) {
 	params.StreamOptions = openai.ChatCompletionStreamOptionsParam{IncludeUsage: openai.Bool(true)}
 	reasonSink := opts.ReasoningSink
 	if reasonSink == nil {
@@ -194,7 +46,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		}
 		if !acc.AddChunk(ch) {
 			flushStreamOut(contentOut)
-			return "", UsageStats{}, streamAccumulatorRejectErr(stream)
+			return "", apitype.UsageStats{}, streamAccumulatorRejectErr(stream)
 		}
 		if len(ch.Choices) == 0 {
 			continue
@@ -231,7 +83,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 			full = t
 			if stopped, err := writeStreamContentLegacy(contentOut, t); err != nil {
 				flushStreamOut(contentOut)
-				return full, UsageStats{}, err
+				return full, apitype.UsageStats{}, err
 			} else if stopped {
 				legacyStopped = true
 				full = streamTruncatedContent(contentOut, full)
@@ -242,7 +94,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		full += d
 		if stopped, err := writeStreamContentLegacy(contentOut, d); err != nil {
 			flushStreamOut(contentOut)
-			return full, UsageStats{}, err
+			return full, apitype.UsageStats{}, err
 		} else if stopped {
 			legacyStopped = true
 			full = streamTruncatedContent(contentOut, full)
@@ -256,11 +108,11 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		if f, ok := contentOut.(interface{ Flush() error }); ok {
 			_ = f.Flush()
 		}
-		return full, UsageStats{}, err
+		return full, apitype.UsageStats{}, err
 	}
 	if !legacyStopped {
 		if err := flushStreamOutErr(contentOut); err != nil {
-			return full, UsageStats{}, err
+			return full, apitype.UsageStats{}, err
 		}
 	}
 	tEnd := time.Now()
@@ -271,7 +123,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 	return full, u, nil
 }
 
-func StreamAssistantTurn(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts StreamOpts) (AssistantTurnResult, error) {
+func StreamAssistantTurn(ctx context.Context, client openai.Client, params openai.ChatCompletionNewParams, contentOut io.Writer, opts apitype.StreamOpts) (apitype.AssistantTurnResult, error) {
 	params.StreamOptions = openai.ChatCompletionStreamOptionsParam{IncludeUsage: openai.Bool(true)}
 	reasonSink := opts.ReasoningSink
 	if reasonSink == nil {
@@ -309,7 +161,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		}
 		if !acc.AddChunk(ch) {
 			flushStreamOut(contentOut)
-			return AssistantTurnResult{}, streamAccumulatorRejectErr(stream)
+			return apitype.AssistantTurnResult{}, streamAccumulatorRejectErr(stream)
 		}
 		if len(ch.Choices) == 0 {
 			continue
@@ -351,7 +203,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			}
 			if stopped, err := writeStreamContentLegacy(contentOut, t); err != nil {
 				flushStreamOut(contentOut)
-				return AssistantTurnResult{}, err
+				return apitype.AssistantTurnResult{}, err
 			} else if stopped {
 				legacyStopped = true
 				break
@@ -363,7 +215,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		}
 		if stopped, err := writeStreamContentLegacy(contentOut, d); err != nil {
 			flushStreamOut(contentOut)
-			return AssistantTurnResult{}, err
+			return apitype.AssistantTurnResult{}, err
 		} else if stopped {
 			legacyStopped = true
 			break
@@ -376,15 +228,15 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		if f, ok := contentOut.(interface{ Flush() error }); ok {
 			_ = f.Flush()
 		}
-		return AssistantTurnResult{}, err
+		return apitype.AssistantTurnResult{}, err
 	}
 	if !legacyStopped {
 		if err := flushStreamOutErr(contentOut); err != nil {
-			return AssistantTurnResult{}, err
+			return apitype.AssistantTurnResult{}, err
 		}
 	}
 	tEnd := time.Now()
-	var out AssistantTurnResult
+	var out apitype.AssistantTurnResult
 	out.ReasoningText = tooling.StripLegacyToolBlocks(strings.TrimSpace(streamio.NormalizeReasoningWhitespace(reasoningBuf.String())))
 	if legacyStopped {
 		out.Content = streamTruncatedContent(contentOut, "")
@@ -395,7 +247,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			if tc.Function.Name == "" {
 				continue
 			}
-			out.ToolCalls = append(out.ToolCalls, AssistantToolCall{
+			out.ToolCalls = append(out.ToolCalls, apitype.AssistantToolCall{
 				ID:        tc.ID,
 				Name:      tc.Function.Name,
 				Arguments: tc.Function.Arguments,
@@ -410,9 +262,9 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	return out, nil
 }
 
-func AggregateConsecutiveTurnUsage(usages []UsageStats) UsageStats {
+func AggregateConsecutiveTurnUsage(usages []apitype.UsageStats) apitype.UsageStats {
 	if len(usages) == 0 {
-		return UsageStats{}
+		return apitype.UsageStats{}
 	}
 	if len(usages) == 1 {
 		return usages[0]
@@ -439,10 +291,10 @@ func AggregateConsecutiveTurnUsage(usages []UsageStats) UsageStats {
 	return out
 }
 
-func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u UsageStats, turnCount int) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
+func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u apitype.UsageStats, turnCount int) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
 	reasoningTok = u.ReasoningTokens
 	responseTok = u.ResponseTokens
-	contextTok, lastUserTok, contextEstimated = UsagePromptParts(system, msgs, u.PromptTokens, u.CachedPromptTokens)
+	contextTok, lastUserTok, contextEstimated = promptparts.UsagePromptParts(system, msgs, u.PromptTokens, u.CachedPromptTokens)
 	if turnCount > 1 {
 		d := reasoningTok + responseTok
 		if contextTok > d {
@@ -460,13 +312,13 @@ func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u UsageSta
 	return
 }
 
-func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int64) UsageStats {
+func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int64) apitype.UsageStats {
 	comp := acc.Usage.CompletionTokens
 	resp := comp - reasoningTok
 	if resp < 0 {
 		resp = 0
 	}
-	return UsageStats{
+	return apitype.UsageStats{
 		PromptTokens:       acc.Usage.PromptTokens,
 		CachedPromptTokens: acc.Usage.PromptTokensDetails.CachedTokens,
 		ReasoningTokens:    reasoningTok,
@@ -475,7 +327,7 @@ func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int
 	}
 }
 
-func buildUsageStats(acc openai.ChatCompletionAccumulator, reasoningTok int64, tStart, tTTFT, tFirstVisible, tEnd time.Time) UsageStats {
+func buildUsageStats(acc openai.ChatCompletionAccumulator, reasoningTok int64, tStart, tTTFT, tFirstVisible, tEnd time.Time) apitype.UsageStats {
 	u := usageFromAccumulator(acc, reasoningTok)
 	u.TurnWallSecs = tEnd.Sub(tStart).Seconds()
 	if !tFirstVisible.IsZero() {
@@ -507,67 +359,4 @@ func buildUsageStats(acc openai.ChatCompletionAccumulator, reasoningTok int64, t
 		u.PromptTPS = float64(u.PromptTokens) / u.TTFTSecs
 	}
 	return u
-}
-
-func firstAssistDelta(delta openai.ChatCompletionChunkChoiceDelta, opts StreamOpts) bool {
-	if strings.TrimSpace(delta.Content) != "" {
-		return true
-	}
-	if strings.TrimSpace(delta.Refusal) != "" {
-		return true
-	}
-	for _, tc := range delta.ToolCalls {
-		if tc.Function.Name != "" || tc.Function.Arguments != "" {
-			return true
-		}
-	}
-	if opts.ShowThinking && deltaReasoningText(delta.RawJSON()) != "" {
-		return true
-	}
-	return false
-}
-
-func firstVisibleAssistDelta(delta openai.ChatCompletionChunkChoiceDelta) bool {
-	if strings.TrimSpace(delta.Content) != "" {
-		return true
-	}
-	if strings.TrimSpace(delta.Refusal) != "" {
-		return true
-	}
-	for _, tc := range delta.ToolCalls {
-		if tc.Function.Name != "" || tc.Function.Arguments != "" {
-			return true
-		}
-	}
-	return false
-}
-
-func deltaReasoningText(rawJSON string) string {
-	if rawJSON == "" {
-		return ""
-	}
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(rawJSON), &m); err != nil {
-		return ""
-	}
-	keys := []string{"reasoning_content", "reasoning", "thinking", "thought"}
-	for _, k := range keys {
-		v, ok := m[k]
-		if !ok {
-			continue
-		}
-		var s string
-		if err := json.Unmarshal(v, &s); err == nil && s != "" {
-			return s
-		}
-		var obj map[string]any
-		if json.Unmarshal(v, &obj) != nil || len(obj) == 0 {
-			continue
-		}
-		t, ok := obj["text"].(string)
-		if ok && t != "" {
-			return t
-		}
-	}
-	return ""
 }
