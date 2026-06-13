@@ -208,14 +208,14 @@ func stopLocked() {
 	if running == nil {
 		return
 	}
-	if running.cmd != nil && running.cmd.Process != nil && running.cmd.ProcessState == nil {
-		_ = running.cmd.Process.Kill()
-		_ = running.cmd.Wait()
-	}
-	if running.logFile != nil {
-		_ = running.logFile.Close()
-	}
+	ps := running
 	running = nil
+	if ps.cmd != nil && ps.cmd.Process != nil && ps.cmd.ProcessState == nil {
+		_ = ps.cmd.Process.Kill()
+	}
+	if ps.logFile != nil {
+		_ = ps.logFile.Close()
+	}
 }
 
 func processAlive(ps *processState) bool {
