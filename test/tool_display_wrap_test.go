@@ -257,3 +257,18 @@ func TestWrapEditFileLineExtendsBackground(t *testing.T) {
 		t.Fatalf("edit line should clear to EOL for full-row background: %q", got)
 	}
 }
+
+func TestHighlightGoLine_stringLiteralInteriorColored(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	got := tooling.HighlightGoLineForTest(`import "fmt"`)
+	if !termcolor.Enabled() {
+		t.Skip("colors disabled")
+	}
+	if termcolor.Plain(got) != `import "fmt"` {
+		t.Fatalf("plain: %q", got)
+	}
+	wantLit := termcolor.GoString(`"fmt"`)
+	if !strings.Contains(got, wantLit) {
+		t.Fatalf("full string literal should be one pink span; got %q want substring %q", got, wantLit)
+	}
+}

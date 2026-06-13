@@ -386,6 +386,12 @@ func (r *Runtime) persistSession() error {
 	return r.writeSessionLocked()
 }
 
+func (r *Runtime) persistSessionOrLog(context string) {
+	if err := r.persistSession(); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "persist session failed", logging.LogOptions{Params: map[string]any{"context": context, "err": err.Error()}})
+	}
+}
+
 func (r *Runtime) persistSessionUnsafe() error {
 	return r.writeSessionLocked()
 }
