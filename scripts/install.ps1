@@ -86,10 +86,11 @@ function Install-ReleaseAsset {
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Write-Host "Downloading Solomon release asset $asset..."
     $maxAttempts = 15
+    $tmp = Join-Path $env:TEMP ("solomon-" + [guid]::NewGuid().ToString('n'))
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         try {
-            Invoke-WebRequest -Uri $url -OutFile $target -UseBasicParsing
-            return
+            Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
+            break
         } catch {
             if ($attempt -ge $maxAttempts) {
                 throw "Failed to download $asset after $maxAttempts attempts"
@@ -98,6 +99,33 @@ function Install-ReleaseAsset {
             Start-Sleep -Seconds 2
         }
     }
+    $checksumsUrl = "https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/$Version/checksums.txt"
+    $checksumsPath = Join-Path $env:TEMP ("solomon-checksums-" + [guid]::NewGuid().ToString('n'))
+    try {
+        Invoke-WebRequest -Uri $checksumsUrl -OutFile $checksumsPath -UseBasicParsing
+        $expected = $null
+        Get-Content $checksumsPath | ForEach-Object {
+            if ($_ -match '^(\S+)\s+\*?(.+)$') {
+                if ($Matches[2].Trim() -eq $asset) { $expected = $Matches[1].ToLower() }
+            }
+        }
+        if (-not $expected) {
+            throw "checksums: no entry for $asset in checksums.txt"
+        }
+        $actual = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower()
+        if ($expected -ne $actual) {
+            throw "checksum mismatch for $asset (expected $expected, got $actual)"
+        }
+    } catch [System.Net.WebException] {
+        if ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 404) {
+            Write-Warning "no checksums.txt for $Version; skipping integrity check"
+        } else {
+            throw
+        }
+    } finally {
+        Remove-Item -Force $checksumsPath -ErrorAction SilentlyContinue
+    }
+    Move-Item -Force $tmp $target
 }
 
 function Ensure-Go {

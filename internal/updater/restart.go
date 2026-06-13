@@ -148,6 +148,7 @@ func writeUnixInstallRestartScript(pid int, tag, cwd, exe string, args []string)
 	b.WriteString("echo \"Downloading $ASSET...\"\n")
 	b.WriteString("tmp=\"$(mktemp)\"\n")
 	b.WriteString("curl -fsSL \"$DOWNLOAD_URL\" -o \"$tmp\"\n")
+	writeUnixChecksumVerify(&b)
 	b.WriteString("mkdir -p \"$(dirname \"$TARGET\")\"\n")
 	b.WriteString("mv \"$tmp\" \"$TARGET\"\n")
 	b.WriteString("chmod +x \"$TARGET\"\n")
@@ -157,6 +158,28 @@ func writeUnixInstallRestartScript(pid int, tag, cwd, exe string, args []string)
 	b.WriteString("stty sane opost onlcr icanon echo 2>/dev/null || true\n")
 	writeUnixRestartArgsExec(&b, args, true)
 	return writeExecutableScript(b.String())
+}
+
+func writeUnixChecksumVerify(b *strings.Builder) {
+	b.WriteString("CHECKSUMS_URL=\"https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/${TAG}/checksums.txt\"\n")
+	b.WriteString("checksums=\"$(mktemp)\"\n")
+	b.WriteString("if curl -fsSL \"$CHECKSUMS_URL\" -o \"$checksums\"; then\n")
+	b.WriteString("  expected=\"$(awk -v asset=\"$ASSET\" '$NF==asset {print $1; exit}' \"$checksums\")\"\n")
+	b.WriteString("  if [[ -z \"$expected\" ]]; then\n")
+	b.WriteString("    echo \"checksums: no entry for $ASSET in checksums.txt\" >&2\n")
+	b.WriteString("    rm -f \"$tmp\" \"$checksums\"\n")
+	b.WriteString("    exit 1\n")
+	b.WriteString("  fi\n")
+	b.WriteString("  actual=\"$(sha256sum \"$tmp\" | awk '{print $1}')\"\n")
+	b.WriteString("  if [[ \"$expected\" != \"$actual\" ]]; then\n")
+	b.WriteString("    echo \"checksum mismatch for $ASSET (expected $expected, got $actual)\" >&2\n")
+	b.WriteString("    rm -f \"$tmp\" \"$checksums\"\n")
+	b.WriteString("    exit 1\n")
+	b.WriteString("  fi\n")
+	b.WriteString("  rm -f \"$checksums\"\n")
+	b.WriteString("else\n")
+	b.WriteString("  echo \"Warning: no checksums.txt for $TAG; skipping integrity check\" >&2\n")
+	b.WriteString("fi\n")
 }
 
 func writeUnixRestartArgsExec(b *strings.Builder, args []string, ttyStdin bool) {
@@ -225,6 +248,28 @@ Write-Host "=== Solomon update ($Tag) ==="
 Write-Host "Downloading $Asset..."
 $tmp = [System.IO.Path]::GetTempFileName()
 Invoke-WebRequest -Uri $DownloadUrl -OutFile $tmp -UseBasicParsing
+$ChecksumsUrl = 'https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/' + $Tag + '/checksums.txt'
+$checksumsPath = [System.IO.Path]::GetTempFileName()
+try {
+  Invoke-WebRequest -Uri $ChecksumsUrl -OutFile $checksumsPath -UseBasicParsing
+  $expected = $null
+  Get-Content $checksumsPath | ForEach-Object {
+    if ($_ -match '^(\S+)\s+\*?(.+)$') {
+      if ($Matches[2].Trim() -eq $Asset) { $expected = $Matches[1].ToLower() }
+    }
+  }
+  if (-not $expected) { throw "checksums: no entry for $Asset in checksums.txt" }
+  $actual = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower()
+  if ($expected -ne $actual) { throw "checksum mismatch for $Asset (expected $expected, got $actual)" }
+} catch [System.Net.WebException] {
+  if ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 404) {
+    Write-Warning "no checksums.txt for $Tag; skipping integrity check"
+  } else {
+    throw
+  }
+} finally {
+  Remove-Item -Force $checksumsPath -ErrorAction SilentlyContinue
+}
 New-Item -ItemType Directory -Force -Path (Split-Path $Target) | Out-Null
 Move-Item -Force $tmp $Target
 Write-Host "Installed $Tag -> $Target"

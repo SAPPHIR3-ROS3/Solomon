@@ -77,6 +77,24 @@ var httpDownload = func(ctx context.Context, url string) (*http.Response, error)
 	return client.Do(req)
 }
 
+func SetHTTPDownload(fn func(context.Context, string) (*http.Response, error)) func() {
+	prev := httpDownload
+	if fn == nil {
+		httpDownload = func(ctx context.Context, url string) (*http.Response, error) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("User-Agent", "solomon-updater")
+			client := &http.Client{Timeout: 10 * time.Minute}
+			return client.Do(req)
+		}
+	} else {
+		httpDownload = fn
+	}
+	return func() { httpDownload = prev }
+}
+
 func Install(ctx context.Context, tag string, progress io.Writer) error {
 	if progress == nil {
 		progress = io.Discard
@@ -121,6 +139,9 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 		return err
 	}
 	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := verifyReleaseAsset(ctx, tag, asset, tmpPath, progress); err != nil {
 		return err
 	}
 	if runtime.GOOS != "windows" {

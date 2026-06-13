@@ -124,6 +124,16 @@ jobs:
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$VER -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(git rev-parse --short HEAD)" -o "$out" ./cmd/solomon
           done
 
+      - name: Generate release checksums
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          set -e
+          (
+            cd dist
+            sha256sum solomon-${VER}-* > checksums.txt
+          )
+
       - name: Create GitHub release
         env:
           VER: ${{ steps.version.outputs.ver }}

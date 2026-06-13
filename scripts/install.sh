@@ -81,7 +81,7 @@ install_release_asset() {
   tmp="$(mktemp)"
   mkdir -p "$bin_dir"
   echo "Downloading Solomon release asset ${asset}..."
-  attempt=1
+    attempt=1
   max_attempts=15
   while true; do
     if curl -fsSL "$url" -o "$tmp"; then
@@ -96,6 +96,25 @@ install_release_asset() {
     sleep 2
     attempt=$((attempt + 1))
   done
+  checksums_url="https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/${INSTALL_VERSION}/checksums.txt"
+  checksums="$(mktemp)"
+  if curl -fsSL "$checksums_url" -o "$checksums"; then
+    expected="$(awk -v asset="$asset" '$NF==asset {print $1; exit}' "$checksums")"
+    if [[ -z "$expected" ]]; then
+      echo "checksums: no entry for ${asset} in checksums.txt" >&2
+      rm -f "$tmp" "$checksums"
+      exit 1
+    fi
+    actual="$(sha256sum "$tmp" | awk '{print $1}')"
+    if [[ "$expected" != "$actual" ]]; then
+      echo "checksum mismatch for ${asset} (expected ${expected}, got ${actual})" >&2
+      rm -f "$tmp" "$checksums"
+      exit 1
+    fi
+    rm -f "$checksums"
+  else
+    echo "Warning: no checksums.txt for ${INSTALL_VERSION}; skipping integrity check" >&2
+  fi
   mv "$tmp" "$target"
   chmod +x "$target"
 }
