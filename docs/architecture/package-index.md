@@ -20,16 +20,20 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `cmd/solomon/` | Binary entry: CLI flags, wizard, `Runtime` bootstrap | [Startup and CLI](startup-and-cli.md) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |
 | `internal/agent/runtime/` | REPL, turns, session I/O, MCP init, Cursor hooks | [Runtime hub](runtime.md) |
-| `internal/agent/runtime/repl/` | Raw-mode editor, loop, readline wiring | [Runtime — REPL](runtime-repl.md) |
+| `internal/agent/runtime/repl/` | REPL loop, readline wiring | [Runtime — REPL](runtime-repl.md) |
+| `internal/agent/runtime/repl/editor/` | Multiline raw-mode editor (keys, render, history, `@` picker) | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/repl/replhl/` | Input syntax highlighting (`@`, shell lines) | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/repl/shellhist/` | Shell command history for `!` replay | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/repl/shelllex/` | Shell line lexer for highlighting/completion | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/replcomplete/` | Tab completion (slash, `@`, paths) | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/multiline/` | Bracket/quote-aware multiline terminal modes | [Runtime — REPL](runtime-repl.md) |
-| `internal/llm/` | Streaming chat, usage, backend factory | [LLM layer](llm-layer.md) |
+| `internal/llm/` | Streaming chat facade, usage, backend factory | [LLM layer](llm-layer.md) |
 | `internal/llm/anthropic/` | Anthropic Messages API adapter | [LLM layer](llm-layer.md) |
 | `internal/llm/apitype/` | Shared request/response type helpers | [LLM layer](llm-layer.md) |
 | `internal/llm/images/` | Image part encoding for multimodal calls | [LLM layer](llm-layer.md) |
+| `internal/llm/images/token/` | Image token encoding and `[img-N]` placeholder expansion | [LLM layer](llm-layer.md) |
+| `internal/llm/promptparts/` | Prompt token split helpers for usage display | [LLM layer](llm-layer.md) |
+| `internal/llm/stream/` | OpenAI completion streaming (`StreamText`, `StreamAssistantTurn`) | [LLM layer](llm-layer.md) |
 | `internal/llm/streamio/` | Stream read/write utilities | [LLM layer](llm-layer.md) |
 | `internal/llm/transport/` | HTTP transport, retries, stream integrity | [LLM layer](llm-layer.md) |
 | `internal/tokcount/` | Tiktoken `o200k_base` prompt estimates (messages, tools, vision) | [LLM layer](llm-layer.md) |
@@ -125,6 +129,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/agent/runtime/` | Core |
 | `internal/agent/runtime/multiline/` | Core |
 | `internal/agent/runtime/repl/` | Core |
+| `internal/agent/runtime/repl/editor/` | Core |
 | `internal/agent/runtime/repl/replhl/` | Core |
 | `internal/agent/runtime/repl/shellhist/` | Core |
 | `internal/agent/runtime/repl/shelllex/` | Core |
@@ -149,6 +154,9 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/llm/anthropic/` | Core |
 | `internal/llm/apitype/` | Core |
 | `internal/llm/images/` | Core |
+| `internal/llm/images/token/` | Core |
+| `internal/llm/promptparts/` | Core |
+| `internal/llm/stream/` | Core |
 | `internal/llm/streamio/` | Core |
 | `internal/llm/transport/` | Core |
 | `internal/logging/` | Support |
