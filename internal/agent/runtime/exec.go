@@ -58,5 +58,8 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 }
 
 func (r *Runtime) execTool(ctx context.Context, inv tooling.Invocation) (any, error) {
+	if execToolHook != nil {
+		return execToolHook(ctx, inv)
+	}
 	return agenttools.Exec(ctx, r.toolEnv(), r.Mode, inv)
 }
