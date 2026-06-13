@@ -20,6 +20,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `cmd/solomon/` | Binary entry: CLI flags, wizard, `Runtime` bootstrap | [Startup and CLI](startup-and-cli.md) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |
 | `internal/agent/runtime/` | REPL, turns, session I/O, MCP init, Cursor hooks | [Runtime hub](runtime.md) |
+| `internal/agent/runtime/turnloop/` | Agent turn loop: stream, tool exec, compaction, interrupt | [Agent turn pipeline](agent-turn-pipeline.md) |
 | `internal/agent/runtime/repl/` | REPL loop, readline wiring | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/repl/editor/` | Multiline raw-mode editor (keys, render, history, `@` picker) | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/repl/replhl/` | Input syntax highlighting (`@`, shell lines) | [Runtime — REPL](runtime-repl.md) |
@@ -127,6 +128,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/agent/commands/` | Feature |
 | `internal/agent/commands/connect/` | Feature |
 | `internal/agent/runtime/` | Core |
+| `internal/agent/runtime/turnloop/` | Core |
 | `internal/agent/runtime/multiline/` | Core |
 | `internal/agent/runtime/repl/` | Core |
 | `internal/agent/runtime/repl/editor/` | Core |
