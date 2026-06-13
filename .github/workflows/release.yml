@@ -33,7 +33,14 @@ jobs:
       - run: go vet ./...
       - run: go run scripts/check_doc_paths.go
       - run: go run scripts/check_package_index.go
-      - run: go test ./... -count=1
+      - name: Run tests
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            go test ./... -count=1 -race
+          else
+            go test ./... -count=1
+          fi
       - name: Build solomon with embedded version metadata
         shell: bash
         run: go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(git rev-parse --short HEAD)" ./cmd/solomon
