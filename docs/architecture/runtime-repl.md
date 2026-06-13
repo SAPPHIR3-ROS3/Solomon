@@ -21,14 +21,14 @@ Index: [Runtime hub](runtime.md).
 
 | File | Role |
 |------|------|
-| [`repl/editor.go`](../../internal/agent/runtime/repl/editor.go) | `multilineEditor` — buffer `[][]rune`, keys, history, completion, `@` picker hooks |
-| [`repl/editor_render.go`](../../internal/agent/runtime/repl/editor_render.go) | Redraw input block, cursor positioning |
-| [`repl/editor_stdin_unix.go`](../../internal/agent/runtime/repl/editor_stdin_unix.go) | Unix stdin for editor |
-| [`repl/editor_stdin_windows.go`](../../internal/agent/runtime/repl/editor_stdin_windows.go) | Windows stdin for editor |
-| [`repl/editor_testexport.go`](../../internal/agent/runtime/repl/editor_testexport.go) | Test exports for editor behavior (`test/repl_editor_test.go`) |
-| [`repl/history.go`](../../internal/agent/runtime/repl/history.go) | Per-session input history (Up/Down from first/last line) |
+| [`repl/editor/read.go`](../../internal/agent/runtime/repl/editor/read.go) | `multilineEditor` — buffer `[][]rune`, keys, history, completion, `@` picker hooks |
+| [`repl/editor/render.go`](../../internal/agent/runtime/repl/editor/render.go) | Redraw input block, cursor positioning |
+| [`repl/editor/stdin_unix.go`](../../internal/agent/runtime/repl/editor/stdin_unix.go) | Unix stdin for editor |
+| [`repl/editor/stdin_windows.go`](../../internal/agent/runtime/repl/editor/stdin_windows.go) | Windows stdin for editor |
+| [`repl/editor/testexport.go`](../../internal/agent/runtime/repl/editor/testexport.go) | Test exports for editor behavior (`test/repl_editor_test.go`) |
+| [`repl/editor/history.go`](../../internal/agent/runtime/repl/editor/history.go) | Per-session input history (Up/Down from first/last line) |
 | [`repl/paste.go`](../../internal/agent/runtime/repl/paste.go) | Bracketed paste and text insertion |
-| [`repl/autosuggest.go`](../../internal/agent/runtime/repl/autosuggest.go) | Ghost-text suggestions from history (disable: `SOLOMON_NO_AUTOSUGGEST=1`) |
+| [`repl/editor/autosuggest.go`](../../internal/agent/runtime/repl/editor/autosuggest.go) | Ghost-text suggestions from history (disable: `SOLOMON_NO_AUTOSUGGEST=1`) |
 
 The REPL does **not** use readline for the main prompt buffer. readline remains for terminal configuration and legacy prompt helpers.
 
@@ -92,7 +92,7 @@ Tab inserts the suffix into the editor buffer (not readline's renderer). Disable
 
 | File | Role |
 |------|------|
-| [`repl/at_picker.go`](../../internal/agent/runtime/repl/at_picker.go) | Picker UI in editor when cursor inside `@` token |
+| [`repl/editor/at_picker.go`](../../internal/agent/runtime/repl/editor/at_picker.go) | Picker UI in editor when cursor inside `@` token |
 | [`internal/atmention/`](../../internal/atmention/) | Tag parsing, `ShortTag`, query scoring |
 
 On send, runtime expands tags into `Message.APIContent`; visible transcript keeps short tags. Tests: [`test/atmention_test.go`](../../test/atmention_test.go), [`test/repl_complete_path_test.go`](../../test/repl_complete_path_test.go).
@@ -154,8 +154,8 @@ When `EphemeralSession` is true, `persistSession` skips disk writes ([Sessions a
 
 ## Extension points
 
-- Keys: `multilineEditor.handle` / `handleSeq` in [`editor.go`](../../internal/agent/runtime/repl/editor.go)
-- Redraw: [`editor_render.go`](../../internal/agent/runtime/repl/editor_render.go)
+- Keys: `multilineEditor.handle` / `handleSeq` in [`read.go`](../../internal/agent/runtime/repl/editor/read.go)
+- Redraw: [`render.go`](../../internal/agent/runtime/repl/editor/render.go)
 - Completion source: add candidate func under [`replcomplete/`](../../internal/agent/runtime/replcomplete/)
 
 ## See also
