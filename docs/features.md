@@ -152,7 +152,7 @@ Optional `[api_resilience]` configures retries, backoff, jitter, timeouts, and c
 
 ### Stream integrity (fail-closed SSE)
 
-If the SSE accumulator detects inconsistent completion chunks (e.g. mismatched `id`), the turn aborts without persisting partial assistant content. Reduces forgery/jailbreak surfaces on streamed completions. Implementation: [`internal/llm/stream.go`](../internal/llm/stream.go), tests in [`test/stream_integrity_test.go`](../test/stream_integrity_test.go).
+If the SSE accumulator detects inconsistent completion chunks (e.g. mismatched `id`), the turn aborts without persisting partial assistant content. Reduces forgery/jailbreak surfaces on streamed completions. Implementation: [`internal/llm/stream/completion.go`](../internal/llm/stream/completion.go), tests in [`test/stream_integrity_test.go`](../test/stream_integrity_test.go).
 
 ### Tool output limits
 

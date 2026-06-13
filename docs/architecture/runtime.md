@@ -96,9 +96,9 @@ Full struct: [`core.go`](../../internal/agent/runtime/core.go).
 
 | Symptom | Start here | Tests |
 |---------|------------|-------|
-| Tab completion wrong / missing | [`repl/editor.go`](../../internal/agent/runtime/repl/editor.go) `complete`, [`replcomplete/`](../../internal/agent/runtime/replcomplete/) | [`test/repl_complete_test.go`](../../test/repl_complete_test.go), [`test/repl_complete_path_test.go`](../../test/repl_complete_path_test.go), [`test/repl_complete_shell_test.go`](../../test/repl_complete_shell_test.go) |
-| `@` picker or expansion broken | [`repl/at_picker.go`](../../internal/agent/runtime/repl/at_picker.go), [`internal/atmention/`](../../internal/atmention/) | [`test/atmention_test.go`](../../test/atmention_test.go) |
-| Multiline / paste / image paste | [`repl/editor.go`](../../internal/agent/runtime/repl/editor.go), [`repl/paste.go`](../../internal/agent/runtime/repl/paste.go), [`multiline/`](../../internal/agent/runtime/multiline/) | [`test/repl_editor_test.go`](../../test/repl_editor_test.go), [`test/session_images_test.go`](../../test/session_images_test.go) |
+| Tab completion wrong / missing | [`repl/editor/read.go`](../../internal/agent/runtime/repl/editor/read.go) `complete`, [`replcomplete/`](../../internal/agent/runtime/replcomplete/) | [`test/repl_complete_test.go`](../../test/repl_complete_test.go), [`test/repl_complete_path_test.go`](../../test/repl_complete_path_test.go), [`test/repl_complete_shell_test.go`](../../test/repl_complete_shell_test.go) |
+| `@` picker or expansion broken | [`repl/editor/at_picker.go`](../../internal/agent/runtime/repl/editor/at_picker.go), [`internal/atmention/`](../../internal/atmention/) | [`test/atmention_test.go`](../../test/atmention_test.go) |
+| Multiline / paste / image paste | [`repl/editor/read.go`](../../internal/agent/runtime/repl/editor/read.go), [`repl/paste.go`](../../internal/agent/runtime/repl/paste.go), [`multiline/`](../../internal/agent/runtime/multiline/) | [`test/repl_editor_test.go`](../../test/repl_editor_test.go), [`test/session_images_test.go`](../../test/session_images_test.go) |
 | Slash unknown or `/skill:` wrong | [`slash/dispatch.go`](../../internal/agent/slash/dispatch.go), [`slash_deps.go`](../../internal/agent/runtime/slash_deps.go) | [`test/slash_dispatch_test.go`](../../test/slash_dispatch_test.go) |
 | Turn hangs / SIGINT odd | [`turns.go`](../../internal/agent/runtime/turns.go) `runAgentTurns` | [`test/legacy_runtime_test.go`](../../test/legacy_runtime_test.go) |
 | Legacy XML tools | [`legacy.go`](../../internal/agent/runtime/legacy.go), [`tool_print.go`](../../internal/agent/runtime/tool_print.go) | [`test/legacy_tools_test.go`](../../test/legacy_tools_test.go) |
@@ -114,12 +114,12 @@ Disable completion: `SOLOMON_NO_COMPLETE=1`. Disable autosuggest ghost text: `SO
 
 | Change | Where |
 |--------|-------|
-| REPL keys / redraw | [`repl/editor.go`](../../internal/agent/runtime/repl/editor.go), [`repl/editor_render.go`](../../internal/agent/runtime/repl/editor_render.go) |
+| REPL keys / redraw | [`repl/editor/read.go`](../../internal/agent/runtime/repl/editor/read.go), [`repl/editor/render.go`](../../internal/agent/runtime/repl/editor/render.go) |
 | New slash command | [`commands/builtin_slash.go`](../../internal/agent/commands/builtin_slash.go) — not runtime, wired via `slash_deps` |
 | Turn loop / tools | [`turns.go`](../../internal/agent/runtime/turns.go), [`exec.go`](../../internal/agent/runtime/exec.go) |
 | System prompt sections | [`core.go`](../../internal/agent/runtime/core.go) `systemPrompt` |
 
-REPL tests can import editor helpers via [`repl/editor_testexport.go`](../../internal/agent/runtime/repl/editor_testexport.go) (test-only exports).
+REPL tests can import editor helpers via [`repl/editor/testexport.go`](../../internal/agent/runtime/repl/editor/testexport.go) (test-only exports).
 
 ## See also
 

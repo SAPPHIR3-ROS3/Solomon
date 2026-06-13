@@ -34,7 +34,9 @@ Tokens are stored in `config.toml` today (secure vault is planned — see [TODO.
 | `internal/llm/backend.go` | `CompletionBackend`, `TurnRequest`, `ToolDef` |
 | `internal/llm/openai_backend.go` | OpenAI adapter |
 | `internal/llm/anthropic_*.go` | Anthropic mapper, stream, usage |
-| `internal/llm/stream.go` | Shared types, OpenAI stream helpers |
+| `internal/llm/stream/completion.go` | OpenAI completion streaming (`StreamText`, `StreamAssistantTurn`) |
+| `internal/llm/stream/helpers.go` | Stream I/O helpers and chunk JSON parsers |
+| `internal/llm/stream_api.go` | `llm` package facade over `stream` |
 | `internal/llm/params.go` | `MessageParams`, images `[img-N]`, token display |
 | `internal/llm/reasoning.go` | `MessagesForAPI` (reasoning only on last assistant) |
 | `internal/llm/httpresilience.go` | Error classification, backoff, circuit breaker, HTTP client |
