@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "Linux" ]; then
-            go test ./... -count=1 -race
+            CGO_ENABLED=1 go test ./... -count=1 -race
           else
             go test ./... -count=1
           fi
