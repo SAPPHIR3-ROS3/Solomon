@@ -3,9 +3,26 @@ package toolenv
 import (
 	"context"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 )
+
+type SubagentRequest struct {
+	SysPromptPath   string
+	SysPrompt       string
+	Task            string
+	Resume          string
+	RunInBackground bool
+	ReasoningEffort string
+	ToolCall        chatstore.ToolCall
+}
+
+type SubagentResponse struct {
+	Output    string
+	SubchatID string
+	Status    string
+}
 
 type Env struct {
 	ProjHex                string
@@ -14,6 +31,8 @@ type Env struct {
 	MCP                    *solomonmcp.Manager
 	RunNested              func(ctx context.Context, body string) (string, error)
 	RunNestedWithSystem    func(ctx context.Context, sys, task string) (string, error)
+	RunSubagent            func(ctx context.Context, req SubagentRequest) (SubagentResponse, error)
+	ParentToolCallID       string
 	SetMode                func(string)
 	CurrentMode            func() string
 	CheckpointStageProjAbs func(path string)

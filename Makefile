@@ -102,8 +102,9 @@ install:
 	$(call INSTALL_STEP,1/5 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
 	$(call INSTALL_STEP,2/5 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
 	$(call INSTALL_STEP,3/5 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,4/5 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
-	$(call INSTALL_STEP,5/5 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+	$(call INSTALL_STEP,4/6 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
+	$(call INSTALL_STEP,5/6 Install prompt templates,$(INSTALL_BIN) templates install)
+	$(call INSTALL_STEP,6/6 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
 	@$(FIX_TTY)
 	@echo ""
 	@echo "solomon -> $(INSTALL_BIN)"

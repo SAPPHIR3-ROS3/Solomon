@@ -44,7 +44,7 @@ Compared to IDE-hosted or vendor-locked CLIs, Solomon keeps backend and workspac
 | `internal/agent/cievents/` | CI event schema for `exec --json` / `--jsonl` |
 | `internal/llm/` | Streaming, message params, usage, provider backends |
 | `internal/auth/openai/codex/` | ChatGPT Sub OAuth (PKCE), token refresh, Codex middleware |
-| `internal/prompt/` | System prompt templates |
+| `internal/prompt/` | System prompt templates (embedded defaults + `~/.solomon/prompts/templates/`) |
 | `internal/chatstore/` | Session JSON I/O |
 | `internal/mcp/` | MCP client manager and adapter |
 | `internal/config/`, `internal/paths/`, `internal/project/` | Config and layout |
@@ -104,7 +104,7 @@ flowchart TB
 | Native tools | Add in `internal/agent/tools/` and wire in `params.go` / `exec.go` |
 | MCP tools | Configure `mcp.json`; adapter exposes `MCP<server>-<tool>` names |
 | Skills | `solomon add`, registry in `internal/skills/` |
-| System prompts | Templates in `internal/prompt/templates/` via `RenderPlan` / `RenderBuild`; legacy syntax from `[tools]` config |
+| System prompts | Embedded defaults in `internal/prompt/templates/`; runtime copies under `~/.solomon/prompts/templates/`; SHA checks at REPL startup (`[prompt_templates]` in config) |
 | Legacy tool calling | `[tools].legacy` / `legacy_force` in config or `/legacytools`; see [Agent turn pipeline](agent-turn-pipeline.md#legacy-xml-tool-calling) |
 | Cursor native tools | `[tools].cursor_internal_tools` in config or `/cursortools` (Cursor API configured); see [Cursor integration](cursor-integration.md) |
 

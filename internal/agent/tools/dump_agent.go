@@ -17,6 +17,9 @@ func BuildAgentToolDump() (string, error) {
 	if err := appendOrchestrateDump(b); err != nil {
 		return "", err
 	}
+	if err := appendSubagentDump(b); err != nil {
+		return "", err
+	}
 	if err := appendSwitchModeDump(b); err != nil {
 		return "", err
 	}

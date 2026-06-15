@@ -92,6 +92,10 @@ type Runtime struct {
 	updateCheckErr error
 
 	pendingUpdateTag string
+
+	nestedMu                  sync.Mutex
+	nestedState               *activeNestedState
+	currentSubagentToolCallID string
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
@@ -113,6 +117,7 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 	if err := tooloutput.Startup(os.Getpid()); err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "tool output instance register failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 	}
+	globalSubagentRegistry.reconcileOnStartup()
 	rt.ensureCursorAPISidecar(context.Background())
 	if prov != nil {
 		p := prov

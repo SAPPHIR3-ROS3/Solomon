@@ -128,6 +128,54 @@ func LocalSkillsMirrorPath(projRoot string) string {
 	return filepath.Join(LocalSkillsDir(projRoot), "skills.json")
 }
 
+func SubagentsDir() (string, error) {
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "subagents"), nil
+}
+
+func ActiveSubagentsPath() (string, error) {
+	d, err := SubagentsDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(d, "activeSubagents.json"), nil
+}
+
+func ScheduledSubagentPath(idHex string) (string, error) {
+	d, err := SubagentsDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(d, idHex+".json"), nil
+}
+
+func EnsureSubagentsDir() error {
+	d, err := SubagentsDir()
+	if err != nil {
+		return err
+	}
+	return os.MkdirAll(d, 0o700)
+}
+
+func PromptTemplatesDir() (string, error) {
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "prompts", "templates"), nil
+}
+
+func EnsurePromptTemplatesDir() error {
+	d, err := PromptTemplatesDir()
+	if err != nil {
+		return err
+	}
+	return os.MkdirAll(d, 0o700)
+}
+
 func ChatImagesDir(projectHex string) (string, error) {
 	proot, err := ProjectRoot(projectHex)
 	if err != nil {

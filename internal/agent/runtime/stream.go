@@ -24,26 +24,28 @@ func (r *Runtime) printToolLine(cpSeq int, branchKey, name string, rawArgs json.
 
 func (r *Runtime) streamOptsWithRetry(showThinking bool, reasonSink io.Writer) llm.StreamOpts {
 	opts := llm.StreamOpts{ShowThinking: showThinking, ReasoningSink: reasonSink}
-	if r.cursorNativeToolsEnabled() {
-		out := r.Out
+	if r.cursorNativeToolsEnabled() && reasonSink != io.Discard {
 		opts.OnDelta = func(channel, text string) {
-			if channel == "cursor_tool" && out != nil && !r.machineMode() {
+			if channel == "cursor_tool" && reasonSink != nil && !r.machineMode() {
 				r.printCursorNativeToolEvent(text)
 			}
 		}
 	}
-	r.bindAPIRetry(&opts)
+	r.bindAPIRetryTo(&opts, reasonSink)
 	return opts
 }
 
 func (r *Runtime) bindAPIRetry(opts *llm.StreamOpts) {
+	r.bindAPIRetryTo(opts, r.Out)
+}
+
+func (r *Runtime) bindAPIRetryTo(opts *llm.StreamOpts, out io.Writer) {
 	if opts == nil {
 		return
 	}
-	out := r.Out
 	opts.OnRetry = func(attempt, max int, err error, wait time.Duration) {
 		line := llm.RetryMessage(attempt, max, err, wait)
-		if out != nil && !r.machineMode() {
+		if out != nil && out != io.Discard && !r.machineMode() {
 			fmt.Fprintf(out, "\n%s\n", termcolor.WrapRed(line))
 			flushWriter(out)
 			return

@@ -13,6 +13,7 @@ flowchart LR
   globalSkillsDir["skills/<br/><small>global skill files</small>"]
   globalAgents["AGENTS.md<br/><small>global agent instructions</small>"]
   globalRules["rules/<br/><small>rule_NN.txt custom rules</small>"]
+  promptTemplates["prompts/templates/<br/><small>*.tmpl system prompts</small>"]
   skillsRegistry["skills.json<br/><small>global + per-project registry</small>"]
 
   projects["projects/<br/><small>per-project partitions</small>"]
@@ -44,6 +45,7 @@ flowchart LR
   home --> globalSkillsDir
   home --> globalAgents
   home --> globalRules
+  home --> promptTemplates
   home --> skillsRegistry
   home --> projects
   projects --> projectNode
@@ -63,7 +65,7 @@ flowchart LR
 
   classDef folder fill:#eef6ff,stroke:#5b8def,color:#102a43
   classDef file fill:#fff7e6,stroke:#d9822b,color:#3d2b1f
-  class home,logs,globalSkillsDir,globalRules,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
+  class home,logs,globalSkillsDir,globalRules,promptTemplates,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
   class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,planFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
 ```
 
@@ -100,6 +102,10 @@ When a tool result exceeds `[tool_output]` limits (defaults in config), Solomon 
 npm `skills add` stages under `~/.agents/skills/`; Solomon copies into the scope above and removes npm cwd side-effects (`.agents/`, `skills-lock.json`) after a successful install.
 
 Registry and install paths: [Skills and slash](../architecture/skills-and-slash.md). User guide: [Installing skills](usage-and-commands.md#installing-skills).
+
+## Prompt templates
+
+System prompt templates are installed under `~/.solomon/prompts/templates/` (`*.tmpl`). Accepted edits are tracked by SHA256 in `config.toml` under `[prompt_templates]`. See [Configuration — prompt_templates](configuration.md#prompt_templates-system-prompt-templates).
 
 ## See also
 

@@ -36,7 +36,10 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | Name | Mode |
 |------|------|
 | `createPlan`, `editPlan`, `buildPlan` | plan |
-| `shell`, `readFile`, `editFile`, `find`, `subagent`, `fetchWeb`, `webSearch`, `docsRetrieval` | build |
+| `subagent` | agent, build (native tool_call only; not deferred / orchestrate) |
+| `shell`, `readFile`, `editFile`, `find`, `fetchWeb`, `webSearch`, `docsRetrieval` | build (legacy direct surface) |
+| `searchTools`, `orchestrate`, `switchMode` | agent |
+| `fetchWeb`, `webSearch`, `switchMode` | chat |
 
 Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
 

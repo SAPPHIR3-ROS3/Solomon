@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
@@ -40,5 +41,24 @@ func WriteHelp(w io.Writer, projHex, projRoot string, cfg *config.Root) {
 	}
 	skills.WriteSkillInstallHelpSection(&buf, maxCmd)
 	_ = skills.WriteSkillsHelpSection(&buf, maxCmd, projHex, projRoot)
+	writePromptTemplatesHelpSection(&buf)
 	termcolor.WriteSystem(w, buf.String())
+}
+
+func writePromptTemplatesHelpSection(w io.Writer) {
+	tplDir, err := paths.PromptTemplatesDir()
+	if err != nil {
+		return
+	}
+	cfgPath, err := paths.ConfigPath()
+	if err != nil {
+		return
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Prompt templates")
+	fmt.Fprintf(w, "  %s/*.tmpl\tplan, build, agent, chat, title, summarize, images, …\n", tplDir)
+	fmt.Fprintf(w, "  %s\t[prompt_templates] SHA256 after you accept edits in an interactive session\n", cfgPath)
+	fmt.Fprintln(w, "  On startup, modified templates prompt yes(y) no(n) acceptAll(a) denyAll(d); deny resets to embedded default.")
+	fmt.Fprintln(w, "  make install runs solomon templates install (SHA check before writing files).")
+	fmt.Fprintln(w, "  Pipes/scripts/CI without a TTY exit with an error — run interactively or align [prompt_templates] SHAs in config.")
 }

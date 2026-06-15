@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/providersetup"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	sandboxworker "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/worker"
@@ -66,6 +68,10 @@ func main() {
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "sandbox-worker" {
 		sandboxworker.Main()
+		return
+	}
+	if len(os.Args) >= 3 && os.Args[1] == "templates" && os.Args[2] == "install" {
+		runTemplatesInstall()
 		return
 	}
 	ctx := context.Background()
@@ -186,6 +192,11 @@ func main() {
 		logging.Log(logging.ERROR_LOG_LEVEL, "initial setup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)
 	}
+	if err := prompt.StartupTemplates(cfg, os.Stdout, readLine); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		logging.Log(logging.ERROR_LOG_LEVEL, "prompt template startup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		os.Exit(1)
+	}
 	config.WriteConfigSetupWarning(os.Stderr, cfg)
 	var prov *config.Provider
 	if !config.NeedsOnboard(cfg) {
@@ -252,6 +263,29 @@ func main() {
 		}
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "repl run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		os.Exit(1)
+	}
+}
+
+func runTemplatesInstall() {
+	cfg, err := config.LoadOptional()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	var readLine func(string) (string, error)
+	if fi, err := os.Stdin.Stat(); err == nil && (fi.Mode()&os.ModeCharDevice) != 0 {
+		readLine = func(p string) (string, error) {
+			fmt.Fprint(os.Stdout, p)
+			line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+			if err != nil {
+				return "", err
+			}
+			return strings.TrimRight(line, "\r\n"), nil
+		}
+	}
+	if err := prompt.InstallTemplates(cfg, os.Stdout, readLine); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
