@@ -84,7 +84,7 @@ The canonical workspace root yields a stable 64-char project id; chats, plans, s
 
 ### Subagent delegation
 
-The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). Nested runs always disable reasoning (`ForceDisableReasoning` in [`nested.go`](../internal/agent/runtime/nested.go)); `/reasoning` applies to the main chat only. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly. Subagent **file persistence** beyond in-memory transcripts is **(in the future)** — see [Subagent session persistence (in the future)](#subagent-session-persistence-in-the-future).
+The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). It is a **native** tool in **agent** mode and legacy **build** mode only — not in the deferred `searchTools` catalog, not callable from orchestrate WASM scripts. Nested runs always disable reasoning (`ForceDisableReasoning` in [`nested.go`](../internal/agent/runtime/nested.go)); `/reasoning` applies to the main chat only. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly. Subagent **file persistence** beyond in-memory transcripts is **(in the future)** — see [Subagent session persistence (in the future)](#subagent-session-persistence-in-the-future).
 
 ### Agent skills
 

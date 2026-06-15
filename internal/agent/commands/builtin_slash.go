@@ -63,7 +63,8 @@ func getSlashBuiltins() []slashBuiltin {
 			return d.SubmitUserMessage(strings.Join(parts[1:], " "))
 		}},
 		{[]string{"log"}, "/log", "/log {error|warning|info|debug|result} visible log verbosity", nil, func(d Deps, parts []string) error { return SlashLog(d, parts) }},
-		{[]string{"reasoning"}, "/reasoning", "/reasoning | /reasoning {none|low|med|high} main chat; subagent always none", nil, func(d Deps, parts []string) error { return Reasoning(d, parts) }},
+		{[]string{"reasoning"}, "/reasoning", "/reasoning | /reasoning {none|low|med|high} main; /reasoning sub {none|low|med|high}", nil, func(d Deps, parts []string) error { return Reasoning(d, parts) }},
+		{[]string{"subagent"}, "/subagent", "/subagent | /subagent resume|stop|cancel <id|title>", nil, func(d Deps, parts []string) error { return Subagent(d, parts) }},
 		{[]string{"timeout"}, "/timeout", "/timeout <minutes> subagent segment (1–180)", nil, func(d Deps, parts []string) error { return Timeout(d, parts) }},
 		{[]string{"stats"}, "/stats", "toggle token usage line after assistant turns (saved)", nil, func(d Deps, parts []string) error { return Stats(d) }},
 		{[]string{"thinking"}, "/thinking", "/thinking toggles preview; /thinking on|off streamed reasoning (dim gray); tool echoes (yellow)", nil, func(d Deps, parts []string) error { return Thinking(d, parts) }},

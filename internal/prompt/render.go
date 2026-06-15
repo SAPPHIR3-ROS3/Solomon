@@ -45,16 +45,27 @@ var (
 
 func ImagesWorkflowSection() string {
 	imagesWorkflowOnce.Do(func() {
-		imagesWorkflowText = strings.TrimSpace(imagesWorkflowRaw)
+		imagesWorkflowText = strings.TrimSpace(templateRaw("images"))
 	})
 	return imagesWorkflowText
 }
 
 func AtMentionWorkflowSection() string {
 	atMentionOnce.Do(func() {
-		atMentionText = strings.TrimSpace(atMentionWorkflowRaw)
+		atMentionText = strings.TrimSpace(templateRaw("atmention"))
 	})
 	return atMentionText
+}
+
+func templateRaw(name string) string {
+	s, err := TemplateContent(name)
+	if err != nil {
+		if emb, ok := EmbeddedTemplate(name); ok {
+			return emb
+		}
+		return ""
+	}
+	return s
 }
 
 type Data struct {
@@ -252,49 +263,49 @@ func RenderPlan(d Data) (string, error) {
 	if d.Syntax == "" && !d.ExternalToolBridge {
 		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
-	return render(planRaw, d)
+	return render("plan", d)
 }
 
 func RenderBuild(d Data) (string, error) {
 	if d.Syntax == "" && !d.ExternalToolBridge {
 		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
-	return render(buildRaw, d)
+	return render("build", d)
 }
 
 func RenderAgent(d Data) (string, error) {
 	if d.Syntax == "" && !d.ExternalToolBridge {
 		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
-	return render(agentRaw, d)
+	return render("agent", d)
 }
 
 func RenderChat(d Data) (string, error) {
 	if d.Syntax == "" && !d.ExternalToolBridge {
 		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
 	}
-	return render(chatRaw, d)
+	return render("chat", d)
 }
 
 func RenderTitle(d TitleData) (string, error) {
-	return executeTemplate("title", titleRaw, d)
+	return executeTemplate("title", templateRaw("title"), d)
 }
 
 func RenderSummarize(d SummarizeData) (string, error) {
-	return executeTemplate("summarize", summarizeRaw, d)
+	return executeTemplate("summarize", templateRaw("summarize"), d)
 }
 
 func RenderSummarizeSystem(d SummarizeData) (string, error) {
 	d.ImagesWorkflow = ImagesWorkflowSection()
-	return executeTemplate("summarize_system", summarizeSystemRaw, d)
+	return executeTemplate("summarize_system", templateRaw("summarize_system"), d)
 }
 
-func render(raw string, d Data) (string, error) {
+func render(name string, d Data) (string, error) {
 	applyRuntimeSystem(&d)
 	d.Shell = EffectiveShell()
 	d.ImagesWorkflow = ImagesWorkflowSection()
 	d.AtMentionWorkflow = AtMentionWorkflowSection()
-	return executeTemplate("p", raw, d)
+	return executeTemplate(name, templateRaw(name), d)
 }
 
 func applyRuntimeSystem(d *Data) {

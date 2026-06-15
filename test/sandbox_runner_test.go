@@ -290,7 +290,7 @@ func TestNativeToolParamsAgentChat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(agent) != 6 {
+	if len(agent) != 7 {
 		t.Fatalf("agent tools: %d", len(agent))
 	}
 	if agent[0].OfFunction.Function.Name != "docsRetrieval" {
@@ -302,7 +302,7 @@ func TestNativeToolParamsAgentChat(t *testing.T) {
 			names[p.OfFunction.Function.Name] = true
 		}
 	}
-	for _, want := range []string{"searchSkill", "loadSkill", "searchTools", "orchestrate", "switchMode"} {
+	for _, want := range []string{"searchSkill", "loadSkill", "searchTools", "orchestrate", "subagent", "switchMode"} {
 		if !names[want] {
 			t.Fatalf("missing agent tool %s", want)
 		}

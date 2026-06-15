@@ -13,6 +13,7 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 			loadSkillOpenAI(),
 			searchToolsOpenAI(),
 			orchestrateOpenAI(),
+			subagentOpenAI(),
 			switchModeOpenAI(),
 		}
 	case "chat":

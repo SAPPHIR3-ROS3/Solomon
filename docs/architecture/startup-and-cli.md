@@ -12,7 +12,8 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 | `cmd/solomon/exec.go` | `exec` / `temp exec`, `--json` / `--jsonl`, headless config |
 | `internal/agent/cievents` | CI event schema, JSONL/collector sinks, exit codes |
 | `internal/config/exec_resolve.go` | TOML → env → env-file for machine exec |
-| `internal/paths` | `SolomonHome()` → `~/.solomon` |
+| `internal/prompt` | Embedded `.tmpl` defaults, disk store, startup SHA review |
+| `internal/paths` | `SolomonHome()` → `~/.solomon`, `PromptTemplatesDir()` |
 | `internal/config` | Load/save TOML, onboard setup, provider resolve, model pick |
 | `internal/project` | `Resolve(wd)` → canonical root + 64-char hex id |
 | `internal/logging` | File logs under `~/.solomon/logs` |
@@ -26,7 +27,8 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 | `main` | `cmd/solomon/main.go` | Init logging; `add`/`remove`; early `exec` path; initial setup + REPL |
 | `runExecCLI` | `cmd/solomon/exec.go` | One-shot exec with optional machine output |
 | `config.ResolveExecConfig` | `internal/config/exec_resolve.go` | Headless credentials for `--json`/`--jsonl` |
-| `paths.SolomonHome` | `internal/paths/paths.go` | User data root |
+| `prompt.InstallTemplates` | `internal/prompt/install.go` | SHA review + sync before writing `prompts/templates/` (`make install`) |
+| `paths.PromptTemplatesDir` | `internal/paths/paths.go` | `~/.solomon/prompts/templates/` |
 | `config.RunInitialSetup` | `internal/config/onboard_setup.go` | First-run / incomplete LLM setup (required provider) |
 | `config.RunOnboardWizard` | `internal/config/onboard.go` | Interactive `/onboard` wizard: OpenAI or Anthropic Compatible API (optional skips on re-run) |
 | `config.NeedsOnboard` | `internal/config/onboard.go` | True when provider, API key, or model is missing |
@@ -45,6 +47,7 @@ flowchart LR
   load[Load config]
   ok{LLM setup complete}
   setup[RunInitialSetup / onboard]
+  tpl[prompt.StartupTemplates]
   warn[Warn if still incomplete]
   proj[Resolve cwd]
   mode{CLI mode}
@@ -53,7 +56,7 @@ flowchart LR
   start --> load --> ok
   ok -->|no| setup --> ok
   ok -->|yes| warn
-  setup --> warn
+  setup --> tpl --> warn
   warn --> proj --> mode
   mode -->|default| repl
   mode -->|exec args| execOnce
@@ -65,7 +68,9 @@ Before initial setup, `main` handles:
 
 - `solomon add ...` → `commands.Add` with `project.Resolve` deps
 - `solomon remove skill <name>` → `commands.Remove`
-- `solomon exec` / `solomon temp exec` → `runExecCLI` (human or `--json` / `--jsonl`; readline skipped in machine mode)
+- `solomon exec` / `solomon temp exec` → `runExecCLI` (human or `--json` / `--jsonl`; readline skipped in machine mode; **no** `StartupTemplates` — use interactive REPL to accept template edits)
+
+After initial setup on the **interactive REPL path**, `prompt.StartupTemplates` runs before the session loop: copies missing `.tmpl` files, then prompts only when on-disk content diverges from a saved `[prompt_templates]` SHA (tampering after accept). Template upgrades from a new binary are synced during `make install` via `solomon templates install` (SHA check before writing files). See [Configuration](../user-guide/configuration.md#prompt_templates-system-prompt-templates).
 
 After runtime construction (REPL path only):
 

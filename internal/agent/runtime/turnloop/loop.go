@@ -46,6 +46,11 @@ func Run(ctx context.Context, h Host) error {
 		}
 	}()
 	out := h.Out()
+	defer func() {
+		if !h.MachineMode() {
+			FlushPendingSystem(out)
+		}
+	}()
 	var usageTurns []llm.UsageStats
 	var usageSys string
 	var usageMsgs []chatstore.Message
@@ -133,9 +138,16 @@ func Run(ctx context.Context, h Host) error {
 		if h.Backend() == nil {
 			return fmt.Errorf("LLM backend not configured")
 		}
+		streaming := !h.MachineMode()
+		if streaming {
+			EnterStreaming()
+		}
 		turn, err := h.Backend().StreamTurn(runCtx, turnReq, contentOut, streamOpts)
 		if !h.MachineMode() {
 			fmt.Fprintln(out)
+		}
+		if streaming {
+			LeaveStreaming(out)
 		}
 		if err != nil {
 			if interruptedDuringGeneration(ctx, runCtx, err, stopErr) {
@@ -264,6 +276,7 @@ func Run(ctx context.Context, h Host) error {
 				toolCpSeq = h.PrintToolInvocation(i, inv.Name, inv.Args)
 			}
 			h.SetCurrentToolCpSeq(toolCpSeq)
+			inv.ToolCallID = toolIDs[i]
 			res, err := h.ExecTool(runCtx, inv)
 			if interruptedDuringGeneration(ctx, runCtx, err, stopErr) {
 				if err2 := appendSyntheticToolResults(h, astSeq, invs, toolIDs, i); err2 != nil {

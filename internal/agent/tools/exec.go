@@ -46,7 +46,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 	}
 	if env != nil && env.AllowDeferredTools {
 		switch tool {
-		case "searchTools", "orchestrate", "switchMode":
+		case "searchTools", "orchestrate", "switchMode", "subagent":
 			return false
 		default:
 			return isInternalToolName(tool) || isSkillToolName(tool)
@@ -56,7 +56,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 	switch m {
 	case "agent":
 		switch tool {
-		case "searchTools", "orchestrate", "switchMode", "loadSkill", "searchSkill":
+		case "searchTools", "orchestrate", "switchMode", "loadSkill", "searchSkill", "subagent":
 			return true
 		default:
 			if isPlanTool(tool) {

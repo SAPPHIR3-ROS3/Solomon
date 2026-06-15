@@ -333,19 +333,34 @@ function normalizeSubagentArgsFromRaw(raw: unknown): Record<string, unknown> | n
   if (!obj) {
     return null;
   }
+  const resume = pickString(obj, ["resume", "subchatId", "subchat_id"]);
   const task =
     pickString(obj, ["task", "prompt", "description", "message", "user_query"]) ?? "";
-  if (!task) {
+  if (!task && !resume) {
     return null;
   }
   const sysPromptPath =
     pickString(obj, ["sysPromptPath", "sys_prompt_path", "systemPromptPath"]) ??
     DEFAULT_SUBAGENT_SYS_PATH;
-  const out: Record<string, unknown> = { sysPromptPath, task };
+  const out: Record<string, unknown> = { sysPromptPath };
+  if (task) {
+    out.task = task;
+  }
+  if (resume) {
+    out.resume = resume;
+  }
+  const bg = pickOptionalBool(obj, ["run_in_background", "runInBackground", "background"]);
+  if (bg !== undefined) {
+    out.run_in_background = bg;
+  }
+  const reasoning = pickString(obj, ["reasoningEffort", "reasoning_effort"]);
+  if (reasoning) {
+    out.reasoningEffort = reasoning;
+  }
   const intent = pickString(obj, ["intent", "description"]);
   if (intent && intent !== task) {
     out.intent = intent;
-  } else {
+  } else if (task) {
     out.intent = "nested task";
   }
   return out;
@@ -436,6 +451,16 @@ function pickNumber(obj: Record<string, unknown>, keys: string[]): number | unde
     const v = obj[k];
     if (typeof v === "number" && Number.isFinite(v)) {
       return Math.trunc(v);
+    }
+  }
+  return undefined;
+}
+
+function pickOptionalBool(obj: Record<string, unknown>, keys: string[]): boolean | undefined {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "boolean") {
+      return v;
     }
   }
   return undefined;

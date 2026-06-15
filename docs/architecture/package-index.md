@@ -43,7 +43,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/paths/` | `~/.solomon` layout helpers | [Sessions and storage](sessions-and-storage.md) |
 | `internal/config/` | TOML config load/merge | [Configuration](../user-guide/configuration.md) |
 | `internal/prompt/` | System prompt render (`RenderPlan`, `RenderBuild`) | [Plan vs build](plan-vs-build.md) |
-| `internal/prompt/templates/` | Embedded `.tmpl` files (not a Go package) | [Plan vs build](plan-vs-build.md) |
+| `internal/prompt/templates/` | Embedded `.tmpl` defaults (copied to `~/.solomon/prompts/templates/` at runtime) | [Plan vs build](plan-vs-build.md), [Configuration](../user-guide/configuration.md#prompt_templates-system-prompt-templates) |
 | `internal/prompt/shell/` | OS-specific shell hints in templates | [Supporting packages](supporting-packages.md) |
 
 ## Feature
