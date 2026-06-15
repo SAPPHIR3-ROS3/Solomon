@@ -21,6 +21,8 @@ Deferred tools (shell, readFile, editFile, plan tools, …) are **not** exposed 
 
 Internal tool calls from orchestrate scripts use the same checkpoint **`cp_seq`** as the parent `orchestrate` invocation (rollback via `/goto` restores all script edits atomically).
 
+**Orchestrate pitfalls:** invalid Go syntax (often unescaped `` ` `` inside raw string literals) prevents SDK import rewrite and surfaces misleading `package sdk is not in std` errors — fix syntax first. Large file bodies: `ReadFile` → transform → `WriteFile`/`ReplaceInFile(path,old,new,intent)`. Host shell: `sdk.Shell` only, not `os/exec`.
+
 ## Packages and files
 
 | File | Role |

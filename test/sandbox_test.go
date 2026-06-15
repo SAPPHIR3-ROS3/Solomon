@@ -32,6 +32,29 @@ func TestSearchToolsQuery(t *testing.T) {
 	}
 }
 
+func TestSearchToolsGlobReadFilesQuery(t *testing.T) {
+	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
+		Name: "searchTools",
+		Args: json.RawMessage(`{"query":"Find Glob read files"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("got %T", out)
+	}
+	count, _ := m["count"].(int)
+	if count < 2 {
+		t.Fatalf("expected readFile and find hits, got count=%d", count)
+	}
+	raw, _ := json.Marshal(m["tools"])
+	s := string(raw)
+	if !strings.Contains(s, "readFile") || !strings.Contains(s, "find") {
+		t.Fatalf("expected readFile and find in tools: %s", s)
+	}
+}
+
 func TestSearchToolsEmptyQueryRejected(t *testing.T) {
 	_, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",

@@ -45,7 +45,10 @@ func BuildWASM(opts Options) ([]byte, error) {
 	}
 	defer os.RemoveAll(slotDir)
 
-	src := RewriteSDKImports(opts.Source)
+	src, parseErr := RewriteSDKImports(opts.Source)
+	if parseErr != nil {
+		return nil, fmt.Errorf("compile: %s", orchestrateParseError(parseErr, opts.Source))
+	}
 	if !strings.Contains(src, "package main") {
 		return nil, fmt.Errorf("orchestrate: source must contain package main")
 	}
@@ -71,7 +74,7 @@ func BuildWASM(opts Options) ([]byte, error) {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return nil, fmt.Errorf("compile: %s", msg)
+		return nil, fmt.Errorf("compile: %s", clarifyCompileError(opts.Source, msg))
 	}
 	return os.ReadFile(outPath)
 }

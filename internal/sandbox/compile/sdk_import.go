@@ -1,9 +1,11 @@
 package compile
 
 import (
+	"fmt"
 	"go/parser"
 	"go/token"
 	"strconv"
+	"strings"
 )
 
 const SDKImportCanonical = "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk"
@@ -26,11 +28,11 @@ var sdkImportAliasPaths = map[string]struct{}{
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/sdk": {},
 }
 
-func RewriteSDKImports(src string) string {
+func RewriteSDKImports(src string) (string, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "main.go", src, 0)
 	if err != nil {
-		return src
+		return src, err
 	}
 	type span struct{ start, end int }
 	var reps []span
@@ -44,7 +46,7 @@ func RewriteSDKImports(src string) string {
 		reps = append(reps, span{start: start, end: end})
 	}
 	if len(reps) == 0 {
-		return src
+		return src, nil
 	}
 	b := []byte(src)
 	for i := len(reps) - 1; i >= 0; i-- {
@@ -54,7 +56,34 @@ func RewriteSDKImports(src string) string {
 		}
 		b = append(append(append([]byte(nil), b[:r.start]...), SDKImportCanonical...), b[r.end:]...)
 	}
-	return string(b)
+	return string(b), nil
+}
+
+func SourceReferencesSDKAlias(src string) bool {
+	lower := strings.ToLower(src)
+	for path := range sdkImportAliasPaths {
+		if strings.Contains(lower, `"`+strings.ToLower(path)+`"`) {
+			return true
+		}
+	}
+	return false
+}
+
+func orchestrateParseError(parseErr error, src string) string {
+	if parseErr == nil {
+		return ""
+	}
+	if SourceReferencesSDKAlias(src) {
+		return fmt.Sprintf("invalid Go source: %v (SDK import paths are rewritten only when the script parses; unescaped backticks inside `...` raw string literals are a common cause)", parseErr)
+	}
+	return fmt.Sprintf("invalid Go source: %v", parseErr)
+}
+
+func clarifyCompileError(src, msg string) string {
+	if strings.Contains(msg, "package sdk is not in std") && SourceReferencesSDKAlias(src) {
+		return msg + " (orchestrate: import \"sdk\" was not rewritten — fix Go syntax first, then retry)"
+	}
+	return msg
 }
 
 func isSDKImportAlias(path string) bool {
