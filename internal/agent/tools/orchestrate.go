@@ -19,7 +19,7 @@ type orchestrateArgs struct {
 }
 
 func orchestrateOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and deferred tool catalog. Script stdout is returned in the tool result output field.", map[string]any{
+	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and deferred tool catalog. Scripts run in WASM: use sdk.Shell for host commands (not os/exec). Read/transform/write files via SDK — do not paste large bodies with backticks into Go raw strings. Script stdout is returned in the tool result output field.", map[string]any{
 		"source": map[string]any{"type": "string", "description": "Complete Go source: package main, import sandbox SDK (sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk), func main()"},
 		"intent": map[string]any{"type": "string", "description": "Brief phrase describing what this script does"},
 	}, []string{"source", "intent"})
@@ -30,7 +30,7 @@ func appendOrchestrateDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk. Helpers: ReadFile, ReplaceInFile/WriteFile, Glob/Grep, Shell, WebSearch, FetchWeb, DocsRetrieval. Use fmt.Print/Println/Printf in main(); stdout is captured in the tool result output field.", sig)
+	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk. Helpers: ReadFile, ReplaceInFile(path,old,new,intent), WriteFile(path,content,intent), Glob/Grep, Shell (not os/exec), WebSearch, FetchWeb, DocsRetrieval. Do not embed markdown backticks in Go raw strings — ReadFile/transform/WriteFile instead. Use fmt.Print/Println/Printf in main(); stdout is captured in the tool result output field.", sig)
 	return nil
 }
 
