@@ -14,7 +14,6 @@ export async function forceStopRun(run: AgentRun | undefined): Promise<void> {
   try {
     await run.cancel();
   } catch {
-    /* ignore */
   }
 }
 
@@ -25,7 +24,6 @@ export async function waitRun(run: AgentRun | undefined): Promise<void> {
   try {
     await run.wait();
   } catch {
-    /* ignore */
   }
 }
 

@@ -48,7 +48,6 @@ export function finishSSE(res: ServerResponse): void {
     res.write("data: [DONE]\n\n");
     res.end();
   } catch {
-    /* ignore */
   }
 }
 
