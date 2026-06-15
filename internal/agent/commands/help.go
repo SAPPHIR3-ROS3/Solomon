@@ -56,7 +56,7 @@ func writePromptTemplatesHelpSection(w io.Writer) {
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Prompt templates")
-	fmt.Fprintf(w, "  %s/*.tmpl\tplan, build, agent, chat, title, summarize, images, …\n", tplDir)
+	fmt.Fprintf(w, "  %s/*.tmpl\tagent, chat, title, summarize, images, …\n", tplDir)
 	fmt.Fprintf(w, "  %s\t[prompt_templates] SHA256 after you accept edits in an interactive session\n", cfgPath)
 	fmt.Fprintln(w, "  On startup, modified templates prompt yes(y) no(n) acceptAll(a) denyAll(d); deny resets to embedded default.")
 	fmt.Fprintln(w, "  make install runs solomon templates install (SHA check before writing files).")

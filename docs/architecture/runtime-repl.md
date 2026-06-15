@@ -36,6 +36,8 @@ The REPL does **not** use readline for the main prompt buffer. readline remains 
 
 `multilineEditor` stores the draft as `[][]rune` with row/column cursor. Arrow keys edit the draft; history navigation only from the first or last line. Modified Enter (Alt/Ctrl+Enter) inserts newlines when the terminal sends a distinct sequence.
 
+Text editing in the REPL should behave like a normal text editor wherever the terminal allows it. Do not add custom internal scrolling or hidden viewports for message text; if inline terminal editing cannot provide a standard editor-like behavior for a large draft, use an explicit fallback such as opening the configured editor instead.
+
 ## REPL flow
 
 ```mermaid

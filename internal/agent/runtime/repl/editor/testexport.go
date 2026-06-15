@@ -1,5 +1,7 @@
 package editor
 
+import "bytes"
+
 type HistoryTest struct {
 	*History
 }
@@ -53,8 +55,64 @@ func NewMultilineEditorForTest(host Host, history *HistoryTest, lines []string, 
 	}}
 }
 
+func (e *MultilineEditorTest) SetHeight(height int) {
+	e.height = height
+}
+
+func (e *MultilineEditorTest) TotalVisualRows() int {
+	return e.totalContentVisualRows()
+}
+
+func (e *MultilineEditorTest) ViewportTop() int {
+	return e.viewportTop
+}
+
+func (e *MultilineEditorTest) RenderedRows() int {
+	return e.rendered
+}
+
+func (e *MultilineEditorTest) CursorLine() int {
+	return e.cursorLine
+}
+
+func (e *MultilineEditorTest) RefreshOutput() string {
+	var out bytes.Buffer
+	e.out = &out
+	e.refresh()
+	return out.String()
+}
+
+func (e *MultilineEditorTest) FinishOutput() string {
+	var out bytes.Buffer
+	e.out = &out
+	e.finish()
+	return out.String()
+}
+
+func (e *MultilineEditorTest) InsertPaste(s string) {
+	e.insertPaste(s)
+}
+
+func (e *MultilineEditorTest) InsertString(s string) {
+	e.insertString(s)
+}
+
+func (e *MultilineEditorTest) TypeString(s string) {
+	for _, r := range s {
+		e.insertRune(r)
+	}
+}
+
+func (e *MultilineEditorTest) Backspace() {
+	e.backspace()
+}
+
 func (e *MultilineEditorTest) Up() {
 	e.up()
+}
+
+func (e *MultilineEditorTest) Down() {
+	e.down()
 }
 
 func (e *MultilineEditorTest) String() string {

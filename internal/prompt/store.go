@@ -10,6 +10,21 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
+var RetiredTemplateNames = []string{"plan", "build"}
+
+func RemoveRetiredTemplates() error {
+	for _, name := range RetiredTemplateNames {
+		p, err := templateFilePath(name)
+		if err != nil {
+			return err
+		}
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 func TemplatesDir() (string, error) {
 	return paths.PromptTemplatesDir()
 }
@@ -56,6 +71,9 @@ func WriteTemplateFile(name, content string) error {
 
 func EnsureTemplatesInstalled() error {
 	if err := EnsureTemplatesInstalledOnlyDir(); err != nil {
+		return err
+	}
+	if err := RemoveRetiredTemplates(); err != nil {
 		return err
 	}
 	names := TemplateNames()

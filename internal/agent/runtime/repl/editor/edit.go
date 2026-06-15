@@ -8,20 +8,17 @@ import (
 )
 
 func (e *multilineEditor) insertPaste(s string) {
-	e.wrapDisabled = true
 	if s == "" {
 		if e.host.ClipboardPasteForStdin != nil {
 			if tag, ok := e.host.ClipboardPasteForStdin(); ok {
 				e.insertString(tag)
 			}
 		}
-		e.wrapDisabled = false
 		return
 	}
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	e.insertString(s)
-	e.wrapDisabled = false
 }
 
 func (e *multilineEditor) insertString(s string) {
@@ -35,6 +32,7 @@ func (e *multilineEditor) insertString(s string) {
 }
 
 func (e *multilineEditor) insertRuneRaw(r rune) {
+	e.invalidateCompletionState()
 	line := e.lines[e.row]
 	line = append(line[:e.col], append([]rune{r}, line[e.col:]...)...)
 	e.lines[e.row] = line
@@ -42,39 +40,11 @@ func (e *multilineEditor) insertRuneRaw(r rune) {
 }
 
 func (e *multilineEditor) insertRune(r rune) {
-	if !e.wrapDisabled && r != '\n' && e.col == len(e.lines[e.row]) && e.width > 0 {
-		prompt := e.promptFor(e.row)
-		cells := visibleCells(prompt) + runesCells(e.lines[e.row]) + runeDisplayWidth(r)
-		if cells > e.width {
-			splitAt := e.findWrapSplit(prompt)
-			if splitAt >= 0 {
-				e.wrapClearPrevRow = true
-				e.col = splitAt + 1
-				e.insertNewline()
-				e.col = len(e.lines[e.row])
-				e.insertRuneRaw(r)
-				e.suggestSuffix = nil
-				return
-			}
-		}
-	}
 	e.insertRuneRaw(r)
 }
 
-func (e *multilineEditor) findWrapSplit(prompt string) int {
-	line := e.lines[e.row]
-	promptCells := visibleCells(prompt)
-	for i := len(line) - 1; i >= 0; i-- {
-		if line[i] == ' ' {
-			if promptCells+runesCells(line[:i]) <= e.width {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
 func (e *multilineEditor) insertNewline() {
+	e.invalidateCompletionState()
 	line := e.lines[e.row]
 	next := append([]rune(nil), line[e.col:]...)
 	e.lines[e.row] = append([]rune(nil), line[:e.col]...)
@@ -84,6 +54,7 @@ func (e *multilineEditor) insertNewline() {
 }
 
 func (e *multilineEditor) backspace() {
+	e.invalidateCompletionState()
 	line := e.lines[e.row]
 	if newLine, newPos, ok := llm.BackspaceOverAtomicReplToken(line, e.col); ok {
 		e.lines[e.row] = newLine
@@ -106,6 +77,7 @@ func (e *multilineEditor) backspace() {
 }
 
 func (e *multilineEditor) deleteForward() {
+	e.invalidateCompletionState()
 	line := e.lines[e.row]
 	if newLine, newPos, ok := llm.DeleteForwardOverAtomicReplToken(line, e.col); ok {
 		e.lines[e.row] = newLine
@@ -123,6 +95,7 @@ func (e *multilineEditor) deleteForward() {
 }
 
 func (e *multilineEditor) left() {
+	e.invalidateCompletionState()
 	if newPos := llm.JumpLeftOverAtomicReplToken(e.lines[e.row], e.col); newPos >= 0 {
 		e.col = newPos
 		return
@@ -139,12 +112,13 @@ func (e *multilineEditor) left() {
 
 func (e *multilineEditor) right() {
 	if e.cursorAtBufferEnd() && len(e.suggestSuffix) > 0 {
-		if e.completeAtMention() {
+		if e.completeAtMentionTab() {
 			return
 		}
 		e.acceptSuggest(false)
 		return
 	}
+	e.invalidateCompletionState()
 	if newPos := llm.JumpRightOverAtomicReplToken(e.lines[e.row], e.col); newPos >= 0 {
 		e.col = newPos
 		return
@@ -201,22 +175,71 @@ func (e *multilineEditor) loadHistoryNext() {
 
 func (e *multilineEditor) complete() bool {
 	line := e.lines[e.row]
-	candidates, _ := replcomplete.ReplCompleteDo(e.host.CompleteEnv, line, e.col)
+	candidates, off := replcomplete.ReplCompleteDo(e.host.CompleteEnv, line, e.col)
+	wordStart := e.col - off
+	if wordStart < 0 {
+		wordStart = 0
+	}
+	if e.compActive && e.compRow == e.row && e.compWordStart == wordStart {
+		if len(e.compCandidates) <= 1 {
+			return false
+		}
+		e.compIndex = (e.compIndex + 1) % len(e.compCandidates)
+		e.applyCompCandidate(e.compCandidates[e.compIndex], e.compWordStart)
+		e.recomputeSuggest()
+		return true
+	}
 	if len(candidates) == 0 {
+		e.clearCompCycle()
 		return false
 	}
-	insert := candidates[0]
-	if len(candidates) > 1 {
-		insert = commonRunePrefix(candidates)
+	e.compActive = true
+	e.compRow = e.row
+	e.compWordStart = wordStart
+	e.compTypedPrefix = append([]rune(nil), line[wordStart:e.col]...)
+	e.compCandidates = candidates
+	e.compIndex = 0
+	if len(candidates) == 1 {
+		e.applyCompCandidate(candidates[0], wordStart)
+		e.clearCompCycle()
+		e.recomputeSuggest()
+		return true
 	}
-	if len(insert) == 0 {
-		return false
+	prefix := commonRunePrefix(candidates)
+	if len(prefix) > 0 {
+		line := e.lines[e.row]
+		for _, r := range prefix {
+			line = append(line[:e.col], append([]rune{r}, line[e.col:]...)...)
+			e.col++
+		}
+		e.lines[e.row] = line
+		e.recomputeSuggest()
+		return true
 	}
-	for _, r := range insert {
-		e.insertRuneRaw(r)
-	}
+	e.applyCompCandidate(candidates[0], wordStart)
 	e.recomputeSuggest()
 	return true
+}
+
+func (e *multilineEditor) clearCompCycle() {
+	e.compActive = false
+	e.compRow = 0
+	e.compWordStart = 0
+	e.compTypedPrefix = nil
+	e.compCandidates = nil
+	e.compIndex = 0
+}
+
+func (e *multilineEditor) invalidateCompletionState() {
+	e.clearCompCycle()
+	e.clearAtCycle()
+}
+
+func (e *multilineEditor) applyCompCandidate(suffix []rune, wordStart int) {
+	line := e.lines[e.row]
+	newWord := append(append([]rune(nil), e.compTypedPrefix...), suffix...)
+	e.lines[e.row] = append(append(line[:wordStart], newWord...), line[e.col:]...)
+	e.col = wordStart + len(newWord)
 }
 
 func commonRunePrefix(candidates [][]rune) []rune {
@@ -238,6 +261,7 @@ func commonRunePrefix(candidates [][]rune) []rune {
 }
 
 func (e *multilineEditor) setString(s string, row int) {
+	e.invalidateCompletionState()
 	parts := strings.Split(s, "\n")
 	e.lines = make([][]rune, len(parts))
 	for i, p := range parts {
