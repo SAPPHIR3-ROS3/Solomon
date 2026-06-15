@@ -34,14 +34,14 @@ func TestInstructionsPromptSectionsConditional(t *testing.T) {
 	if !strings.Contains(sections.RepoInstructions, "root agents") {
 		t.Fatalf("repo: %q", sections.RepoInstructions)
 	}
-	empty, err := prompt.RenderBuild(prompt.Data{Tools: "t", Syntax: "s"})
+	empty, err := prompt.RenderAgent(prompt.Data{Tools: "t", Syntax: "s"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(empty, "## Custom rules") || strings.Contains(empty, "## Global instructions") {
 		t.Fatalf("empty sections should be omitted: %q", empty)
 	}
-	withSections, err := prompt.RenderBuild(prompt.Data{
+	withSections, err := prompt.RenderAgent(prompt.Data{
 		Tools:              "t",
 		Syntax:             "s",
 		GlobalInstructions: sections.GlobalInstructions,
@@ -68,19 +68,22 @@ func TestImagesWorkflowSection_inPrompts(t *testing.T) {
 			t.Fatalf("missing %q in section", sub)
 		}
 	}
-	build, err := prompt.RenderBuild(prompt.Data{Tools: "t", Syntax: "s"})
+	agent, err := prompt.RenderAgent(prompt.Data{Tools: "t", Syntax: "s"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(build, "## Session images") {
-		t.Fatalf("build prompt missing images section")
+	if !strings.Contains(agent, "## Session images") {
+		t.Fatalf("agent prompt missing images section")
 	}
-	plan, err := prompt.RenderPlan(prompt.Data{Tools: "t", Syntax: "s"})
+	chat, err := prompt.RenderChat(prompt.Data{Tools: "t", Syntax: "s"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(plan, "PLAN mode cannot paste") {
-		t.Fatalf("plan prompt missing plan-specific images note")
+	if !strings.Contains(chat, "## Session images") {
+		t.Fatalf("chat prompt missing images section")
+	}
+	if !strings.Contains(agent, "PLAN mode cannot paste") {
+		t.Fatalf("images workflow missing plan-specific note: %q", agent)
 	}
 	sumSys, err := prompt.RenderSummarizeSystem(prompt.SummarizeData{})
 	if err != nil {

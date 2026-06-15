@@ -267,7 +267,7 @@ func TestOrchestrateHostRejectsSubagent(t *testing.T) {
 	env := &agenttools.Env{AllowDeferredTools: true}
 	_, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{
 		Name: "subagent",
-		Args: json.RawMessage(`{"sysPromptPath":"build.tmpl","task":"ok"}`),
+		Args: json.RawMessage(`{"sysPromptPath":"agent.tmpl","task":"ok"}`),
 	})
 	if err == nil {
 		t.Fatal("expected subagent rejected from orchestrate host")

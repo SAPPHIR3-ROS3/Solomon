@@ -31,7 +31,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 
 ### `[prompt_templates]` (system prompt templates)
 
-Editable copies of the embedded system prompts live under `~/.solomon/prompts/templates/` (`plan.tmpl`, `build.tmpl`, `agent.tmpl`, `chat.tmpl`, `title.tmpl`, `summarize.tmpl`, `summarize_system.tmpl`, `images.tmpl`, `atmention.tmpl`). Solomon copies missing files from the binary on first run.
+Editable copies of the embedded system prompts live under `~/.solomon/prompts/templates/` (`agent.tmpl`, `chat.tmpl`, `title.tmpl`, `summarize.tmpl`, `summarize_system.tmpl`, `images.tmpl`, `atmention.tmpl`). Solomon copies missing files from the binary on first run. Legacy `plan.tmpl` and `build.tmpl` are removed automatically on startup.
 
 | Situation | SHA compared against |
 |-----------|----------------------|
@@ -42,11 +42,11 @@ On **interactive** REPL startup, if a file on disk differs from its `[prompt_tem
 
 **Non-interactive** use (pipes, scripts, CI — stdin not a TTY): Solomon exits with an error listing modified templates and the absolute paths to `config.toml` and `prompts/templates/`. Fix by running `solomon` in a terminal to review changes, or update `[prompt_templates]` SHAs to match the files on disk.
 
-Example after accepting a custom `build.tmpl`:
+Example after accepting a custom `agent.tmpl`:
 
 ```toml
 [prompt_templates]
-build = "a1b2c3…"
+agent = "a1b2c3…"
 ```
 
 Architecture: [Startup and CLI](../architecture/startup-and-cli.md), [Plan vs build](../architecture/plan-vs-build.md). Data layout: [data-layout.md](data-layout.md).

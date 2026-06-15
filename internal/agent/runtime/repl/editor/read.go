@@ -3,7 +3,6 @@ package editor
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"unicode/utf8"
@@ -18,21 +17,31 @@ import (
 var ErrInputInterrupted = errors.New("repl: input interrupted")
 
 type multilineEditor struct {
-	host             Host
-	history          *History
-	lines            [][]rune
-	row              int
-	col              int
-	width            int
-	rendered         int
-	cursorLine       int
-	suggestSuffix    []rune
-	atMatches        []atmention.Entry
-	atSelected       int
-	atCtx            atmention.AtContext
-	out              io.Writer
-	wrapDisabled     bool
-	wrapClearPrevRow bool
+	host            Host
+	history         *History
+	lines           [][]rune
+	row             int
+	col             int
+	width           int
+	height          int
+	viewportTop     int
+	rendered        int
+	cursorLine      int
+	suggestSuffix   []rune
+	atMatches       []atmention.Entry
+	atSelected      int
+	atCtx           atmention.AtContext
+	atCycleActive   bool
+	atCycleStart    int
+	atCycleMatches  []atmention.Entry
+	atCycleIndex    int
+	compRow         int
+	compWordStart   int
+	compTypedPrefix []rune
+	compCandidates  [][]rune
+	compIndex       int
+	compActive      bool
+	out             io.Writer
 }
 
 func ReadMultiline(host Host, history *History) (string, error) {
@@ -44,12 +53,21 @@ func ReadMultiline(host Host, history *History) (string, error) {
 	fd := int(os.Stdin.Fd())
 
 	width := 80
+	height := 24
 	if host.RL != nil && host.RL.Config != nil && host.RL.Config.FuncGetWidth != nil {
 		if w := host.RL.Config.FuncGetWidth(); w > 8 {
 			width = w
 		}
-	} else if w, _, err := term.GetSize(fd); err == nil && w > 8 {
-		width = w
+	}
+	if w, h, err := term.GetSize(fd); err == nil {
+		if host.RL == nil || host.RL.Config == nil || host.RL.Config.FuncGetWidth == nil {
+			if w > 8 {
+				width = w
+			}
+		}
+		if h > 4 {
+			height = h
+		}
 	}
 	out := host.Out
 	if out == nil && host.RL != nil {
@@ -60,6 +78,7 @@ func ReadMultiline(host Host, history *History) (string, error) {
 		history: history,
 		lines:   [][]rune{{}},
 		width:   width,
+		height:  height,
 		out:     out,
 	}
 	defer e.finish()
@@ -96,7 +115,7 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 			return true, "", io.EOF
 		}
 	case key.r == '\r' || key.r == '\n':
-		if e.completeAtMention() {
+		if e.completeAtMentionAccept() {
 			e.recomputeAtPicker()
 			e.refresh()
 			return false, "", nil
@@ -109,7 +128,7 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 		e.deleteForward()
 		resetHistory = true
 	case key.r == readline.CharTab:
-		if e.completeAtMention() {
+		if e.completeAtMentionTab() {
 			resetHistory = true
 		} else {
 			resetHistory = e.complete()
@@ -145,12 +164,6 @@ func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
 	}
 	e.recomputeSuggest()
 	e.recomputeAtPicker()
-	if e.wrapClearPrevRow {
-		e.wrapClearPrevRow = false
-		fmt.Fprint(e.out, "\x1b[1A\x1b[2K\x1b[1B\r\x1b[2K")
-		e.cursorLine = 0
-		e.rendered = 0
-	}
 	e.refresh()
 	return false, "", nil
 }

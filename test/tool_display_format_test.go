@@ -36,7 +36,7 @@ func TestFormatToolDisplayLines_editFileLargePatchHeadTail(t *testing.T) {
 
 func TestFormatToolDisplayLines_editFileDiffStripsCommonLines(t *testing.T) {
 	args, _ := json.Marshal(map[string]string{
-		"path":      "plan.tmpl",
+		"path":      "agent.tmpl",
 		"oldString": "same\nold-only\nshared-tail\n",
 		"newString": "same\nnew-only\nshared-tail\n",
 	})
