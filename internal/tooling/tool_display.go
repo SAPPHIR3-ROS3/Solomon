@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
@@ -92,7 +94,19 @@ func jsonDisplayBool(raw json.RawMessage) bool {
 		return false
 	}
 	var b bool
-	return json.Unmarshal(raw, &b) == nil && b
+	if json.Unmarshal(raw, &b) == nil {
+		return b
+	}
+	var s string
+	if json.Unmarshal(raw, &s) != nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
@@ -121,11 +135,70 @@ func editDisplayLine(ln string) string {
 	return ln
 }
 
-func formatSubagentToolDisplayLines(m map[string]json.RawMessage) []string {
-	return []string{
-		termcolor.ToolHeaderLine("subagent", "• "+jsonDisplayString(m["sysPromptPath"])),
-		termcolor.ToolHeaderLine("subagent", jsonDisplayString(m["task"])),
+func subagentRunModeLabel(m map[string]json.RawMessage) string {
+	if jsonDisplayBool(m["run_in_background"]) {
+		return "async"
 	}
+	return "sync"
+}
+
+func subagentHeaderSuffix(m map[string]json.RawMessage) string {
+	mode := subagentRunModeLabel(m)
+	if re := jsonDisplayString(m["reasoningEffort"]); re != "" && re != "none" {
+		return mode + ", " + re
+	}
+	return mode
+}
+
+func formatSubagentToolDisplayLines(m map[string]json.RawMessage) []string {
+	sysPath := jsonDisplayString(m["sysPromptPath"])
+	task := jsonDisplayString(m["task"])
+	label := subagentSysPromptDisplay(sysPath)
+	suffix := subagentHeaderSuffix(m)
+	if label != "" {
+		label = label + " (" + suffix + ")"
+	} else {
+		label = suffix
+	}
+	lines := []string{termcolor.ToolHeaderLine("subagent", label)}
+	if task != "" {
+		lines = append(lines, termcolor.WrapTool(task))
+	}
+	if v := jsonDisplayString(m["resume"]); v != "" {
+		lines = append(lines, termcolor.ToolHeaderLine("subagent", "resume="+v))
+	}
+	return lines
+}
+
+func subagentSysPromptDisplay(sysPromptPath string) string {
+	p := strings.TrimSpace(sysPromptPath)
+	if p == "" {
+		return ""
+	}
+	tplDir, err := paths.PromptTemplatesDir()
+	if err != nil {
+		return p
+	}
+	absTplDir, err := filepath.Abs(tplDir)
+	if err != nil {
+		return p
+	}
+	candidates := []string{p}
+	if !filepath.IsAbs(p) {
+		candidates = append(candidates, filepath.Join(tplDir, p))
+	}
+	for _, c := range candidates {
+		abs, err := filepath.Abs(filepath.Clean(c))
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(absTplDir, abs)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		return strings.TrimSuffix(filepath.Base(rel), ".tmpl")
+	}
+	return p
 }
 
 func formatFetchWebToolDisplayLines(m map[string]json.RawMessage) []string {

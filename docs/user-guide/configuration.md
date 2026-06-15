@@ -27,6 +27,29 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `autoupdate` | At REPL startup, auto-install a newer release when the GitHub check finds one, then restart in the same terminal (toggle with `/autoupdate`) |
 | `doc_search_min_normalized_score` | BM25 minimum for `/docs` and `docsRetrieval` (default `0.05`) |
 | `doc_search_full_article_score` | Normalized score threshold for returning a full article on short queries (default `0.9`) |
+| `[prompt_templates]` | SHA256 per edited system prompt template (see below) |
+
+### `[prompt_templates]` (system prompt templates)
+
+Editable copies of the embedded system prompts live under `~/.solomon/prompts/templates/` (`plan.tmpl`, `build.tmpl`, `agent.tmpl`, `chat.tmpl`, `title.tmpl`, `summarize.tmpl`, `summarize_system.tmpl`, `images.tmpl`, `atmention.tmpl`). Solomon copies missing files from the binary on first run.
+
+| Situation | SHA compared against |
+|-----------|----------------------|
+| First edit (no entry in config) | SHA256 of the embedded default in the Solomon binary |
+| After you accept a prior edit | SHA256 stored under `[prompt_templates]` in this file |
+
+On **interactive** REPL startup, if a file on disk differs from its `[prompt_templates]` SHA (tampering after a prior accept), Solomon prints `&lt;name&gt; template has been modified` and prompts as above. Drift from a newer binary is handled during `make install` (`solomon templates install`) before files are written.
+
+**Non-interactive** use (pipes, scripts, CI — stdin not a TTY): Solomon exits with an error listing modified templates and the absolute paths to `config.toml` and `prompts/templates/`. Fix by running `solomon` in a terminal to review changes, or update `[prompt_templates]` SHAs to match the files on disk.
+
+Example after accepting a custom `build.tmpl`:
+
+```toml
+[prompt_templates]
+build = "a1b2c3…"
+```
+
+Architecture: [Startup and CLI](../architecture/startup-and-cli.md), [Plan vs build](../architecture/plan-vs-build.md). Data layout: [data-layout.md](data-layout.md).
 
 ### `[tools]` (legacy XML tool calling)
 

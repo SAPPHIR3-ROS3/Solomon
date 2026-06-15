@@ -115,7 +115,7 @@ func EnsureDirs(projectHex string) error {
 		}
 	}
 	_ = imgsDir
-	return nil
+	return paths.EnsureSubagentsDir()
 }
 
 func Resolve(absCwd string) (rootPath string, idHex string, err error) {

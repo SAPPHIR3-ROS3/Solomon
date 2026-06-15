@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -370,5 +371,49 @@ func TestFormatToolDisplayLines_orchestrateNestedParensColored(t *testing.T) {
 	}
 	if strings.Count(code, "\x1b[") < 4 {
 		t.Fatalf("expected multiple color spans for nested parens: %q", code)
+	}
+}
+
+func TestFormatToolDisplayLines_subagentDefaultTemplate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	tplDir := filepath.Join(home, "prompts", "templates")
+	if err := os.MkdirAll(tplDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	abs := filepath.Join(tplDir, "agent.tmpl")
+	args, _ := json.Marshal(map[string]string{
+		"sysPromptPath": abs,
+		"task":          "Rispondi solamente OK",
+	})
+	lines := tooling.FormatToolDisplayLines("subagent", args)
+	if len(lines) < 2 {
+		t.Fatalf("want at least 2 lines, got %d", len(lines))
+	}
+	plain0 := termcolor.Plain(lines[0])
+	if plain0 != "Tool: subagent agent (sync)" {
+		t.Fatalf("header %q", plain0)
+	}
+	if strings.Contains(plain0, ".tmpl") || strings.Contains(plain0, home) {
+		t.Fatalf("header should be template name only: %q", plain0)
+	}
+	plain1 := termcolor.Plain(lines[1])
+	if strings.Contains(plain1, "Tool: subagent") {
+		t.Fatalf("task line should not repeat tool header: %q", plain1)
+	}
+	if plain1 != "Rispondi solamente OK" {
+		t.Fatalf("task %q", plain1)
+	}
+}
+
+func TestFormatToolDisplayLines_subagentCustomPath(t *testing.T) {
+	args, _ := json.Marshal(map[string]string{
+		"sysPromptPath": "/tmp/custom-sys.txt",
+		"task":          "do thing",
+	})
+	lines := tooling.FormatToolDisplayLines("subagent", args)
+	plain0 := termcolor.Plain(lines[0])
+	if !strings.Contains(plain0, "/tmp/custom-sys.txt") {
+		t.Fatalf("custom path unchanged: %q", plain0)
 	}
 }

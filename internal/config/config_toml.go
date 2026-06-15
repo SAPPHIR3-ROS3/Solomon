@@ -38,6 +38,8 @@ type rootLegacyFile struct {
 
 	ReasoningEffort           string           `toml:"reasoning_effort"`
 
+	SubagentReasoningEffort     string           `toml:"subagent_reasoning_effort"`
+
 	FastMode                  *bool            `toml:"fast_mode,omitempty"`
 
 	LogLevel                  string           `toml:"log_level"`
@@ -96,6 +98,8 @@ type rootFile struct {
 
 	ReasoningEffort           string              `toml:"reasoning_effort"`
 
+	SubagentReasoningEffort   string              `toml:"subagent_reasoning_effort"`
+
 	FastMode                  *bool               `toml:"fast_mode,omitempty"`
 
 	LogLevel                  string              `toml:"log_level"`
@@ -135,6 +139,8 @@ type rootFile struct {
 	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
 
 	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
+
+	PromptTemplates           map[string]string     `toml:"prompt_templates,omitempty"`
 
 }
 
@@ -180,6 +186,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		ReasoningEffort:           f.ReasoningEffort,
 
+		SubagentReasoningEffort:   f.SubagentReasoningEffort,
+
 		FastMode:                  f.FastMode,
 
 		LogLevel:                  f.LogLevel,
@@ -216,6 +224,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		AutoUpdate:                f.AutoUpdate,
 
+		PromptTemplates:           f.PromptTemplates,
+
 	}
 
 	for name, p := range f.Providers {
@@ -249,6 +259,8 @@ func rootToFile(r *Root) *rootFile {
 		SubagentTimeoutMinutes:    r.SubagentTimeoutMinutes,
 
 		ReasoningEffort:           r.ReasoningEffort,
+
+		SubagentReasoningEffort:   r.SubagentReasoningEffort,
 
 		FastMode:                  r.FastMode,
 
@@ -285,6 +297,8 @@ func rootToFile(r *Root) *rootFile {
 		APIResilience:             r.APIResilience,
 
 		AutoUpdate:                r.AutoUpdate,
+
+		PromptTemplates:           r.PromptTemplates,
 
 	}
 
@@ -359,6 +373,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		SubagentTimeoutMinutes:    f.SubagentTimeoutMinutes,
 
 		ReasoningEffort:           f.ReasoningEffort,
+
+		SubagentReasoningEffort:   f.SubagentReasoningEffort,
 
 		FastMode:                  f.FastMode,
 

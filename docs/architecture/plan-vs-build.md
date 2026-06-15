@@ -8,7 +8,7 @@
 
 | Mode | Set by | Native tools (OpenAI) |
 |------|--------|------------------------|
-| **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `switchMode` |
+| **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `subagent`, `switchMode` |
 | **`chat`** | `/chat` | `docsRetrieval`, `fetchWeb`, `webSearch`, `switchMode` |
 | `plan` | `/plan` (deprecated → agent) | Legacy: `createPlan`, `editPlan`, `buildPlan`, `docsRetrieval` |
 | `build` | `/build` (deprecated → agent) | Legacy: `shell`, `readFile`, `editFile`, `find`, `subagent`, skills, web, `docsRetrieval` |
@@ -17,7 +17,7 @@ MCP tools append in **agent** mode when connected ([`toolParams`](../../internal
 
 ## Code mode (orchestrate)
 
-Deferred tools (shell, readFile, editFile, plan tools, …) are **not** exposed directly in agent mode. The model uses **`searchTools`** to discover them and **`orchestrate`** to run Go scripts that call the sandbox SDK (`internal/sandbox/sdk`). Scripts compile to WASM (`GOOS=wasip1`) and execute in a long-lived **`solomon sandbox-worker`** subprocess.
+Deferred tools (shell, readFile, editFile, plan tools, …) are **not** exposed directly in agent mode. The model uses **`searchTools`** to discover them and **`orchestrate`** to run Go scripts that call the sandbox SDK (`internal/sandbox/sdk`). **`subagent` is excluded** from the deferred catalog and cannot run inside orchestrate scripts; invoke it as a **native** tool_call in agent mode (or legacy build mode).
 
 Internal tool calls from orchestrate scripts use the same checkpoint **`cp_seq`** as the parent `orchestrate` invocation (rollback via `/goto` restores all script edits atomically).
 
