@@ -99,9 +99,9 @@ install:
 	@$(FIX_TTY)
 	@echo ""
 	@echo "=== Solomon install ($(VERSION)) ==="
-	$(call INSTALL_STEP,1/5 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
-	$(call INSTALL_STEP,2/5 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
-	$(call INSTALL_STEP,3/5 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
+	$(call INSTALL_STEP,1/6 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
+	$(call INSTALL_STEP,2/6 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
+	$(call INSTALL_STEP,3/6 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
 	$(call INSTALL_STEP,4/6 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
 	$(call INSTALL_STEP,5/6 Install prompt templates,$(INSTALL_BIN) templates install)
 	$(call INSTALL_STEP,6/6 Deploy Cursor integration,$(CURSOR_BUNDLER) install)

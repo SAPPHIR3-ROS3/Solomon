@@ -9,12 +9,6 @@ import (
 	"text/template"
 )
 
-//go:embed templates/plan.tmpl
-var planRaw string
-
-//go:embed templates/build.tmpl
-var buildRaw string
-
 //go:embed templates/agent.tmpl
 var agentRaw string
 
@@ -257,20 +251,6 @@ func legacyToolInvocationSyntaxBody(planMode bool) string {
 		return legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesPlan()
 	}
 	return legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesBuild()
-}
-
-func RenderPlan(d Data) (string, error) {
-	if d.Syntax == "" && !d.ExternalToolBridge {
-		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
-	}
-	return render("plan", d)
-}
-
-func RenderBuild(d Data) (string, error) {
-	if d.Syntax == "" && !d.ExternalToolBridge {
-		d.Syntax = NativeToolInvocationSyntax(d.LegacySyntax != "")
-	}
-	return render("build", d)
 }
 
 func RenderAgent(d Data) (string, error) {

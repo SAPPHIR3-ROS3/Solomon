@@ -1,8 +1,6 @@
 package prompt
 
 var embeddedTemplates = map[string]string{
-	"plan":             planRaw,
-	"build":            buildRaw,
 	"agent":            agentRaw,
 	"chat":             chatRaw,
 	"title":            titleRaw,

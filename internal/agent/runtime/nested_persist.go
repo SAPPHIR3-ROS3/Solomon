@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
-	"path/filepath"
 )
 
 func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
@@ -32,9 +32,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			p = sess.SysPromptPath
 		}
 		if p != "" {
-			if !filepath.IsAbs(p) {
-				p = filepath.Join(r.ProjRoot, p)
-			}
+			p = agenttools.ResolveSysPromptPath(r.ProjRoot, p)
 			b, err := os.ReadFile(p)
 			if err != nil {
 				return NestedRunResult{}, err

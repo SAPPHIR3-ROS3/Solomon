@@ -339,12 +339,8 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	switch agenttools.NormalizeMode(r.Mode) {
 	case "chat":
 		s, err = prompt.RenderChat(d)
-	case "agent":
-		s, err = prompt.RenderAgent(d)
-	case "plan":
-		s, err = prompt.RenderPlan(d)
 	default:
-		s, err = prompt.RenderBuild(d)
+		s, err = prompt.RenderAgent(d)
 	}
 	if err != nil {
 		return "", err

@@ -109,8 +109,8 @@ func TestResolveTurnInvocations_unknownToolName(t *testing.T) {
 	}
 }
 
-func TestRenderBuild_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
-	got, err := prompt.RenderBuild(prompt.Data{
+func TestRenderAgent_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
+	got, err := prompt.RenderAgent(prompt.Data{
 		Tools:              "name: readFile",
 		Syntax:             prompt.NativeToolInvocationSyntax(false),
 		ExternalToolBridge: true,
@@ -133,28 +133,8 @@ func TestRenderBuild_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
 	if !strings.Contains(got, "## Available tools") {
 		t.Fatalf("want tool dump: %q", got)
 	}
-}
-
-func TestRenderPlan_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
-	got, err := prompt.RenderPlan(prompt.Data{
-		Tools:              "name: createPlan",
-		Syntax:             prompt.NativeToolInvocationSyntax(false),
-		ExternalToolBridge: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(got, "Legacy text tools force is ON") {
-		t.Fatalf("bridge plan prompt must not include legacy_force section: %q", got)
-	}
-	if strings.Contains(got, "Preferred wrapper (Solomon canonical)") {
-		t.Fatalf("bridge plan prompt must not include legacy XML syntax section: %q", got)
-	}
-	if !strings.Contains(got, "native API tool_calls") {
-		t.Fatalf("bridge plan prompt must require native tool_calls: %q", got)
-	}
-	if !strings.Contains(got, "createPlan, editPlan, and buildPlan") {
-		t.Fatalf("bridge plan prompt must name plan tools: %q", got)
+	if !strings.Contains(got, "AGENT mode") {
+		t.Fatalf("want agent mode prompt: %q", got)
 	}
 }
 
