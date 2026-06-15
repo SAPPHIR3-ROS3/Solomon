@@ -106,7 +106,6 @@ func TestPromptDisplaySplit_tokenWeights(t *testing.T) {
 		{Role: "assistant", Content: stringsRepeat("x", 200)},
 		{Role: "user", Content: "last question"},
 	}
-	// Warm encoder cache; first split may load BPE tables.
 	llm.PromptDisplaySplit("sys", msgs, 1000)
 	start := time.Now()
 	ctx, usr := llm.PromptDisplaySplit("sys", msgs, 1000)

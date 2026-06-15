@@ -209,7 +209,6 @@ func promptWireWeights(msgs []Message, lastUserIdx int, model string) (contextW 
 	return contextW, userW
 }
 
-// StoredUsageLineForTurnRange returns the usage line fields shown live at end of a user turn.
 func StoredUsageLineForTurnRange(msgs []Message, start, end int) (contextTok, lastUserTok, reasoningTok, responseTok, totalTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64, contextEstimated bool, ok bool) {
 	if start < 0 || end > len(msgs) || start >= end {
 		return 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false

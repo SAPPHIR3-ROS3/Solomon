@@ -28,8 +28,6 @@ func FormatLinePrefix(cpSeq int, branch string) string {
 	return t + " "
 }
 
-// FormatCheckpointPrefix restituisce il checkpoint con due punti finali (es. "[#001]: ").
-// Usato per la prima riga di una tool call (l'intent).
 func FormatCheckpointPrefix(cpSeq int, branch string) string {
 	if cpSeq < 0 {
 		return ""
@@ -67,7 +65,6 @@ func NextForkSuffix(s *chatstore.Session, forkAtDisplay int) string {
 		return ""
 	}
 
-	// tutti i messaggi (main + orphans).
 	maxIdx := -1
 	for _, m := range s.Messages {
 		if m.CheckpointSeq == forkAtDisplay && m.CheckpointBranchKey != "" {
@@ -90,8 +87,6 @@ func NextForkSuffix(s *chatstore.Session, forkAtDisplay int) string {
 	return forkLetterIndex(maxIdx + 1)
 }
 
-// suffixToIndex converte un suffisso branch ("a"→0, "z"→25, "aa"→26, ...) in indice.
-// Usa lo stesso sistema base-26 senza zero di forkLetterIndex (come le colonne Excel).
 func suffixToIndex(s string) int {
 	idx := 0
 	for _, r := range s {

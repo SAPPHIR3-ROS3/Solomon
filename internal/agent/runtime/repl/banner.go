@@ -136,8 +136,6 @@ func clampBannerColumns(innerW, colLeftW, termW int) (int, int, int) {
 	return innerW, colLeftW, colRightW
 }
 
-// logoDisplayWidth calcola la larghezza di una riga del logo ignorando il padding
-// a destra composto da Braille blank (U+2800) e spazi.
 func logoDisplayWidth(plain string) int {
 	trimmed := strings.TrimRightFunc(plain, func(r rune) bool {
 		return r == '\u2800' || r == ' '
