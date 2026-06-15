@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"time"
 
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -16,6 +17,7 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 		MCP:                    r.MCP,
 		RunNested:              r.runNested,
 		RunNestedWithSystem:    r.runNestedWithSystem,
+		RunSubagent:            r.runSubagentFromTool,
 		SetMode:                func(m string) { r.Mode = m },
 		CurrentMode:            func() string { return r.Mode },
 		CheckpointStageProjAbs:  r.checkpointStageProjAbs,
@@ -61,5 +63,37 @@ func (r *Runtime) execTool(ctx context.Context, inv tooling.Invocation) (any, er
 	if execToolHook != nil {
 		return execToolHook(ctx, inv)
 	}
-	return agenttools.Exec(ctx, r.toolEnv(), r.Mode, inv)
+	env := r.toolEnv()
+	env.ParentToolCallID = inv.ToolCallID
+	return agenttools.Exec(ctx, env, r.Mode, inv)
+}
+
+func (r *Runtime) runSubagentFromTool(ctx context.Context, req agenttools.SubagentRequest) (agenttools.SubagentResponse, error) {
+	parentChatID := ""
+	if r.Session != nil {
+		parentChatID = r.Session.ID
+	}
+	cfg := NestedRunConfig{
+		SysPromptPath:    req.SysPromptPath,
+		SysPrompt:        req.SysPrompt,
+		Task:             req.Task,
+		ResumeID:         req.Resume,
+		RunInBackground:  req.RunInBackground,
+		ReasoningEffort:  req.ReasoningEffort,
+		ParentChatID:     parentChatID,
+		ParentToolCallID: req.ToolCall.ID,
+		ToolCall:         req.ToolCall,
+		SpawnTime:        time.Now().UTC(),
+		Origin:           chatstore.SubOriginParent,
+		ProjectHex:       r.ProjHex,
+	}
+	res, err := r.runSubagentTool(ctx, cfg)
+	if err != nil {
+		return agenttools.SubagentResponse{}, err
+	}
+	return agenttools.SubagentResponse{
+		Output:    res.Output,
+		SubchatID: res.SubchatID,
+		Status:    res.Status,
+	}, nil
 }

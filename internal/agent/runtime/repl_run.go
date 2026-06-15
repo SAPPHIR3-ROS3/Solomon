@@ -38,6 +38,8 @@ func (r *Runtime) Run(ctx context.Context) error {
 	multiline.EnsureCookedTTY()
 	multiline.FlushStdin()
 	defer multiline.EnsureCookedTTY()
+	registerActiveUserSession()
+	defer unregisterActiveUserSession()
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
 	r.mutateSession(func(s *chatstore.Session) {
 		chatstore.FinishSessionLoad(s)

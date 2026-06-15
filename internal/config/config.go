@@ -76,6 +76,7 @@ type Root struct {
 	RecentModels              map[string][]string  `toml:"recent_models,omitempty"`
 	SubagentTimeoutMinutes    int                  `toml:"subagent_timeout_minutes"`
 	ReasoningEffort           string               `toml:"reasoning_effort"`
+	SubagentReasoningEffort   string               `toml:"subagent_reasoning_effort"`
 	FastMode                  *bool                `toml:"fast_mode,omitempty"`
 	LogLevel                  string               `toml:"log_level"`
 	MaxResponseTokens         int                  `toml:"max_response_tokens"`
@@ -94,6 +95,7 @@ type Root struct {
 	ToolOutput                ToolOutput           `toml:"tool_output,omitempty"`
 	APIResilience             APIResilienceConfig  `toml:"api_resilience,omitempty"`
 	AutoUpdate                *bool                `toml:"autoupdate,omitempty"`
+	PromptTemplates           map[string]string    `toml:"prompt_templates,omitempty"`
 }
 
 func (r *Root) AutoUpdateEnabled() bool {
@@ -258,6 +260,53 @@ func (r *Root) ReasoningEffortDisplayLabel() string {
 		return lbl
 	}
 	return "none"
+}
+
+func (r *Root) SubagentReasoningEffortIsNone() bool {
+	if r == nil {
+		return true
+	}
+	if strings.TrimSpace(r.SubagentReasoningEffort) == "" {
+		return true
+	}
+	c, err := ParseReasoningEffortToken(r.SubagentReasoningEffort)
+	return err == nil && c == "none"
+}
+
+func (r *Root) SubagentReasoningEffortLabel() string {
+	if r == nil {
+		return ""
+	}
+	c, err := ParseReasoningEffortToken(r.SubagentReasoningEffort)
+	if err != nil {
+		return ""
+	}
+	return c
+}
+
+func (r *Root) SubagentReasoningEffortDisplayLabel() string {
+	if lbl := r.SubagentReasoningEffortLabel(); lbl != "" {
+		return lbl
+	}
+	return "none"
+}
+
+func (r *Root) EffectiveSubagentReasoningEffort(override string) (canonical string, forceDisable bool) {
+	if o := strings.TrimSpace(override); o != "" {
+		c, err := ParseReasoningEffortToken(o)
+		if err != nil {
+			return "none", true
+		}
+		return c, c == "none"
+	}
+	if r != nil && strings.TrimSpace(r.SubagentReasoningEffort) != "" {
+		c, err := ParseReasoningEffortToken(r.SubagentReasoningEffort)
+		if err != nil {
+			return "none", true
+		}
+		return c, c == "none"
+	}
+	return "none", true
 }
 
 func (r *Root) EffectiveFastMode() bool {

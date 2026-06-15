@@ -3,6 +3,8 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -220,3 +222,57 @@ func main() {
 	}
 }
 
+func TestSearchToolsExcludesSubagent(t *testing.T) {
+	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
+		Name: "searchTools",
+		Args: json.RawMessage(`{"query":"subagent"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("got %T", out)
+	}
+	count, _ := m["count"].(int)
+	if count != 0 {
+		t.Fatalf("subagent should not appear in deferred catalog, count=%d", count)
+	}
+}
+
+func TestOrchestrateHostRejectsSubagent(t *testing.T) {
+	env := &agenttools.Env{AllowDeferredTools: true}
+	_, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{
+		Name: "subagent",
+		Args: json.RawMessage(`{"sysPromptPath":"build.tmpl","task":"ok"}`),
+	})
+	if err == nil {
+		t.Fatal("expected subagent rejected from orchestrate host")
+	}
+	if !strings.Contains(err.Error(), "not available") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAgentModeAllowsSubagentWhenRuntimeWired(t *testing.T) {
+	dir := t.TempDir()
+	promptPath := filepath.Join(dir, "sys.txt")
+	if err := os.WriteFile(promptPath, []byte("test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env := &agenttools.Env{
+		ProjRoot: dir,
+		CurrentMode: func() string { return "agent" },
+		SetMode:     func(string) {},
+		RunSubagent: func(context.Context, agenttools.SubagentRequest) (agenttools.SubagentResponse, error) {
+			return agenttools.SubagentResponse{Output: "OK", Status: "completed"}, nil
+		},
+	}
+	_, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{
+		Name: "subagent",
+		Args: json.RawMessage(`{"sysPromptPath":"sys.txt","task":"ok"}`),
+	})
+	if err != nil {
+		t.Fatalf("agent native subagent: %v", err)
+	}
+}

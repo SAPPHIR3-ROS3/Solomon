@@ -34,7 +34,6 @@ func deferredCatalog() []deferredTool {
 		{Name: "readFile", Description: "Read a text file relative to project root; optional startLine/endLine (1-based, inclusive)", SDKCall: "ReadFile; ReadFileLines/ReadFileLinesInfo; ReadFileFromLine; ReadFileUntilLine; ReadFileInfo → ReadResult", Mode: "build"},
 		{Name: "editFile", Description: "Replace oldString once with newString; empty oldString creates/overwrites; delete=true removes; renameTo moves/renames", SDKCall: "ReplaceInFile/WriteFile/DeleteFile/RenameFile/EditFile (error); *Result variants → EditResult", Mode: "build"},
 		{Name: "find", Description: "Search files by glob (files=true) or content regexp (files=false)", SDKCall: "Glob*/Grep*/GrepLines*/GrepCountEntries*; FindInfo/FindInInfo/FindTimeoutInfo → FindResult", Mode: "build"},
-		{Name: "subagent", Description: "Run a nested agent with system prompt from file and task string. No SDK helper yet — deferred until TODO §2 (subagent persistence and resume/background params).", Mode: "build"},
 		{Name: "fetchWeb", Description: "Fetch URL content as markdown", SDKCall: "FetchWeb; FetchWebWithTimeout; FetchWebInfo/FetchWebInfoWithTimeout → FetchWebResult", Mode: "build"},
 		{Name: "webSearch", Description: "Web search via configured engine", SDKCall: "WebSearch (JSON string); WebSearchInfo/WebSearchNInfo/... → WebSearchResult", Mode: "build"},
 	}
