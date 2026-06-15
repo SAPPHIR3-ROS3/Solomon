@@ -31,7 +31,10 @@ import (
 func main() {}`, canon},
 	}
 	for _, tc := range cases {
-		got := compile.RewriteSDKImports(tc.in)
+		got, err := compile.RewriteSDKImports(tc.in)
+		if err != nil {
+			t.Fatalf("rewrite parse error for %q: %v", tc.in, err)
+		}
 		if !strings.Contains(got, `"`+canon+`"`) {
 			t.Fatalf("rewrite failed for %q:\n%s", tc.in, got)
 		}
@@ -54,6 +57,12 @@ func TestSearchToolsSDKImportsOmitCanonicalPath(t *testing.T) {
 	if !strings.Contains(s, "SAPPHIR3ROS3/Solomon/v2026/sdk") {
 		t.Fatalf("missing model import alias: %s", s)
 	}
+	if !strings.Contains(s, "ReplaceInFile") {
+		t.Fatalf("missing ReplaceInFile example: %s", s)
+	}
+	if !strings.Contains(s, "pitfalls") {
+		t.Fatalf("missing orchestrate pitfalls: %s", s)
+	}
 }
 
 func TestCompileSDKImportAlias(t *testing.T) {
@@ -73,5 +82,33 @@ func main() {
 `
 	if _, err := compile.BuildWASM(compile.Options{Source: src}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestBuildWASM_invalidSourceWithSDKImport(t *testing.T) {
+	src := `package main
+
+import (
+	"fmt"
+	"sdk"
+)
+
+func main() {
+	content := ` + "`" + `# TODO
+` + "`" + `webSearch` + "`" + `
+` + "`" + `
+	fmt.Print(content)
+}
+`
+	_, err := compile.BuildWASM(compile.Options{Source: src})
+	if err == nil {
+		t.Fatal("expected compile error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "invalid Go source") {
+		t.Fatalf("expected invalid Go source error, got: %s", msg)
+	}
+	if !strings.Contains(msg, "SDK import") {
+		t.Fatalf("expected SDK import hint, got: %s", msg)
 	}
 }
