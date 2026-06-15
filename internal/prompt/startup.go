@@ -67,6 +67,11 @@ func StartupTemplates(cfg *config.Root, out io.Writer, readLine func(string) (st
 	if cfg.PromptTemplates == nil {
 		cfg.PromptTemplates = map[string]string{}
 	}
+	if PurgeRetiredTemplateConfig(cfg) {
+		if err := config.Save(cfg); err != nil {
+			return err
+		}
+	}
 	tampered, err := findTamperedTemplates(cfg.PromptTemplates)
 	if err != nil {
 		return err
@@ -81,6 +86,20 @@ func StartupTemplates(cfg *config.Root, out io.Writer, readLine func(string) (st
 		return err
 	}
 	return config.Save(cfg)
+}
+
+func PurgeRetiredTemplateConfig(cfg *config.Root) bool {
+	if cfg == nil || cfg.PromptTemplates == nil {
+		return false
+	}
+	changed := false
+	for _, name := range RetiredTemplateNames {
+		if _, ok := cfg.PromptTemplates[name]; ok {
+			delete(cfg.PromptTemplates, name)
+			changed = true
+		}
+	}
+	return changed
 }
 
 func resolveTemplatePrompts(cfg *config.Root, names []string, out io.Writer, readLine func(string) (string, error)) error {

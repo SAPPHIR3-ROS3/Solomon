@@ -44,12 +44,12 @@ func subagentPromptTemplatesDir() string {
 
 func subagentToolSummary() string {
 	dir := subagentPromptTemplatesDir()
-	return fmt.Sprintf("Run a nested agent with system prompt from file and task string (native tool_call only — not via orchestrate). Solomon templates: %s/<name>.tmpl (plan, build, agent, chat, …). Default: synchronous (parent waits for output). Set run_in_background true for async: returns subchatId immediately while the subagent keeps running.", dir)
+	return fmt.Sprintf("Run a nested agent with system prompt from file and task string (native tool_call only — not via orchestrate). Solomon templates: %s/<name>.tmpl (agent, chat, …). Default: synchronous (parent waits for output). Set run_in_background true for async: returns subchatId immediately while the subagent keeps running.", dir)
 }
 
 func subagentSysPromptPathDescription() string {
 	dir := subagentPromptTemplatesDir()
-	return fmt.Sprintf("Path to system prompt file; editable templates under %s (e.g. %s/build.tmpl)", dir, dir)
+	return fmt.Sprintf("Path to system prompt file; editable templates under %s (e.g. %s/agent.tmpl)", dir, dir)
 }
 
 func subagentOpenAI() openai.ChatCompletionToolUnionParam {
@@ -81,7 +81,7 @@ func execSubagent(ctx context.Context, env *Env, raw json.RawMessage) (any, erro
 	}
 	var sys string
 	if a.SysPromptPath != "" {
-		p := resolveProjectPath(env.ProjRoot, a.SysPromptPath)
+		p := ResolveSysPromptPath(env.ProjRoot, a.SysPromptPath)
 		b, err := os.ReadFile(p)
 		if err != nil {
 			return nil, err

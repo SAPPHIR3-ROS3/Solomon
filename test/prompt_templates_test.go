@@ -15,8 +15,20 @@ import (
 func TestEnsureTemplatesInstalled(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SOLOMON_HOME", home)
+	if err := prompt.WriteTemplateFile("plan", "legacy plan\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := prompt.WriteTemplateFile("build", "legacy build\n"); err != nil {
+		t.Fatal(err)
+	}
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
+	}
+	for _, name := range prompt.RetiredTemplateNames {
+		p := filepath.Join(home, "prompts", "templates", name+".tmpl")
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Fatalf("retired template %s should be removed, stat err=%v", name, err)
+		}
 	}
 	for _, name := range prompt.TemplateNames() {
 		p := filepath.Join(home, "prompts", "templates", name+".tmpl")
@@ -45,22 +57,22 @@ func TestStartupTemplatesAcceptModification(t *testing.T) {
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}
-	modified := "custom build prompt\n"
-	if err := prompt.WriteTemplateFile("build", modified); err != nil {
+	modified := "custom agent prompt\n"
+	if err := prompt.WriteTemplateFile("agent", modified); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.EmptyRoot()
-	cfg.PromptTemplates = map[string]string{"build": "old-saved-sha"}
+	cfg.PromptTemplates = map[string]string{"agent": "old-saved-sha"}
 	var buf bytes.Buffer
 	if err := prompt.StartupTemplates(cfg, &buf, func(string) (string, error) {
 		return "y", nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "build template has been modified") {
+	if !strings.Contains(buf.String(), "agent template has been modified") {
 		t.Fatalf("output: %q", buf.String())
 	}
-	got := cfg.PromptTemplates["build"]
+	got := cfg.PromptTemplates["agent"]
 	want := prompt.SHA256Hex(modified)
 	if got != want {
 		t.Fatalf("sha %q want %q", got, want)
@@ -75,26 +87,49 @@ func TestStartupTemplatesDenyResetsEmbedded(t *testing.T) {
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}
-	if err := prompt.WriteTemplateFile("plan", "tampered\n"); err != nil {
+	if err := prompt.WriteTemplateFile("chat", "tampered\n"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.EmptyRoot()
-	cfg.PromptTemplates = map[string]string{"plan": "savedsha"}
+	cfg.PromptTemplates = map[string]string{"chat": "savedsha"}
 	if err := prompt.StartupTemplates(cfg, &bytes.Buffer{}, func(string) (string, error) {
 		return "n", nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := cfg.PromptTemplates["plan"]; ok {
-		t.Fatal("expected plan sha removed from config")
+	if _, ok := cfg.PromptTemplates["chat"]; ok {
+		t.Fatal("expected chat sha removed from config")
 	}
-	emb, _ := prompt.EmbeddedTemplate("plan")
-	disk, err := prompt.ReadTemplateFile("plan")
+	emb, _ := prompt.EmbeddedTemplate("chat")
+	disk, err := prompt.ReadTemplateFile("chat")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if disk != emb {
 		t.Fatalf("reset failed: disk len %d emb len %d", len(disk), len(emb))
+	}
+}
+
+func TestStartupTemplatesPurgeRetiredConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	if err := prompt.EnsureTemplatesInstalled(); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.EmptyRoot()
+	cfg.PromptTemplates = map[string]string{
+		"plan":  "stale",
+		"build": "stale",
+		"agent": prompt.SHA256Hex(mustEmbedded(t, "agent")),
+	}
+	if err := prompt.StartupTemplates(cfg, &bytes.Buffer{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cfg.PromptTemplates["plan"]; ok {
+		t.Fatal("plan sha should be purged")
+	}
+	if _, ok := cfg.PromptTemplates["build"]; ok {
+		t.Fatal("build sha should be purged")
 	}
 }
 
@@ -138,17 +173,17 @@ func TestStartupTemplatesNonInteractiveError(t *testing.T) {
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}
-	if err := prompt.WriteTemplateFile("build", "tampered\n"); err != nil {
+	if err := prompt.WriteTemplateFile("agent", "tampered\n"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.EmptyRoot()
-	cfg.PromptTemplates = map[string]string{"build": "savedsha"}
+	cfg.PromptTemplates = map[string]string{"agent": "savedsha"}
 	err := prompt.StartupTemplates(cfg, &bytes.Buffer{}, nil)
 	if err == nil {
 		t.Fatal("expected error for non-interactive modified templates")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "build") {
+	if !strings.Contains(msg, "agent") {
 		t.Fatalf("error should name template: %q", msg)
 	}
 	cfgPath := filepath.Join(home, "config.toml")
@@ -167,15 +202,15 @@ func TestStartupTemplatesNonInteractiveError(t *testing.T) {
 func TestInstallTemplatesAutoUpgradeStaleDisk(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SOLOMON_HOME", home)
-	if err := prompt.WriteTemplateFile("build", "old embedded copy\n"); err != nil {
+	if err := prompt.WriteTemplateFile("agent", "old embedded copy\n"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.EmptyRoot()
 	if err := prompt.InstallTemplates(cfg, &bytes.Buffer{}, nil); err != nil {
 		t.Fatal(err)
 	}
-	emb, _ := prompt.EmbeddedTemplate("build")
-	disk, err := prompt.ReadTemplateFile("build")
+	emb, _ := prompt.EmbeddedTemplate("agent")
+	disk, err := prompt.ReadTemplateFile("agent")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +222,7 @@ func TestInstallTemplatesAutoUpgradeStaleDisk(t *testing.T) {
 func TestInstallTemplatesSkipsStartupPromptForStaleWithoutConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SOLOMON_HOME", home)
-	if err := prompt.WriteTemplateFile("plan", "old copy\n"); err != nil {
+	if err := prompt.WriteTemplateFile("chat", "old copy\n"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.EmptyRoot()
@@ -226,4 +261,13 @@ func TestEmbeddedSHAStable(t *testing.T) {
 	if a != b {
 		t.Fatalf("sha unstable: %q vs %q", a, b)
 	}
+}
+
+func mustEmbedded(t *testing.T, name string) string {
+	t.Helper()
+	emb, ok := prompt.EmbeddedTemplate(name)
+	if !ok {
+		t.Fatalf("no embedded %s", name)
+	}
+	return emb
 }

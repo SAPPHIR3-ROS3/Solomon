@@ -261,7 +261,7 @@ test("internal tools mode forwards completed unmapped tool results with displayL
 test("unwraps solomon MCP find and subagent tool calls", () => {
   for (const [toolName, args, expected] of [
     ["find", { pattern: "foo", files: false }, { name: "find", args: { pattern: "foo", files: false } }],
-    ["subagent", { task: "explore auth", sysPromptPath: "build.tmpl" }, { name: "subagent", args: { task: "explore auth", sysPromptPath: "build.tmpl" }, intent: "nested task" }],
+    ["subagent", { task: "explore auth", sysPromptPath: "agent.tmpl" }, { name: "subagent", args: { task: "explore auth", sysPromptPath: "agent.tmpl" }, intent: "nested task" }],
   ] as const) {
     const pending = [];
     let detected = false;

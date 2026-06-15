@@ -12,17 +12,24 @@ func InstallTemplates(cfg *config.Root, out io.Writer, readLine func(string) (st
 	if err := EnsureTemplatesInstalledOnlyDir(); err != nil {
 		return err
 	}
+	if err := RemoveRetiredTemplates(); err != nil {
+		return err
+	}
 	if cfg == nil {
 		cfg = config.EmptyRoot()
 	}
 	if cfg.PromptTemplates == nil {
 		cfg.PromptTemplates = map[string]string{}
 	}
+	purged := PurgeRetiredTemplateConfig(cfg)
 	toCreate, toUpgrade, toPrompt, err := planTemplateInstall(cfg.PromptTemplates)
 	if err != nil {
 		return err
 	}
 	if len(toCreate)+len(toUpgrade)+len(toPrompt) == 0 {
+		if purged {
+			return config.Save(cfg)
+		}
 		return nil
 	}
 	if len(toPrompt) > 0 {

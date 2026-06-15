@@ -9,14 +9,6 @@ import (
 	"strings"
 )
 
-func ModuleDir() (string, error) {
-	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/SAPPHIR3-ROS3/Solomon/v2026").Output()
-	if err != nil {
-		return "", fmt.Errorf("resolve module dir: %w", err)
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
 type Options struct {
 	Source     string
 	ModuleRoot string

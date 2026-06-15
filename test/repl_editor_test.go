@@ -1,6 +1,10 @@
 package test
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl"
@@ -57,6 +61,146 @@ func TestMultilineEditorCompletionUsesReplCompleter(t *testing.T) {
 	}
 	if got := e.Line(0); got != "/models" {
 		t.Fatalf("completion got %q", got)
+	}
+}
+
+func TestMultilineEditorCompletionCyclesOnTab(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "foo1.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "foo2.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := replcomplete.ReplCompleteEnv{ProjRoot: root}
+	e := repl.NewMultilineEditorForTest(&repl.Loop{CompleteEnv: env}, nil, []string{"!cat foo"}, 0, len("!cat foo"), 80)
+	if !e.Complete() {
+		t.Fatal("expected first completion")
+	}
+	if got := e.Line(0); got != "!cat foo1.txt" {
+		t.Fatalf("first completion got %q", got)
+	}
+	if !e.Complete() {
+		t.Fatal("expected second completion")
+	}
+	if got := e.Line(0); got != "!cat foo2.txt" {
+		t.Fatalf("second completion got %q", got)
+	}
+	if !e.Complete() {
+		t.Fatal("expected third completion")
+	}
+	if got := e.Line(0); got != "!cat foo1.txt" {
+		t.Fatalf("cycled completion got %q", got)
+	}
+}
+
+func TestMultilineEditorRendersAllLogicalLines(t *testing.T) {
+	lines := make([]string, 40)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %02d", i)
+	}
+	e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, lines, 39, len(lines[39]), 80)
+	if got := e.TotalVisualRows(); got != 40 {
+		t.Fatalf("visual rows got %d want 40", got)
+	}
+	for i := 0; i < 30; i++ {
+		e.Up()
+	}
+	if got := e.Row(); got != 9 {
+		t.Fatalf("row got %d want 9", got)
+	}
+}
+
+func TestMultilineEditorPasteViewportKeepsFullBufferAndNavigates(t *testing.T) {
+	h := repl.NewInputHistoryForTest()
+	h.Add("history")
+	lines := make([]string, 20)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %02d", i)
+	}
+	paste := strings.Join(lines, "\n")
+	e := repl.NewMultilineEditorForTest(&repl.Loop{}, h, []string{""}, 0, 0, 80)
+	e.SetHeight(6)
+	e.InsertPaste(paste)
+	e.RefreshOutput()
+	if e.String() != paste {
+		t.Fatalf("paste changed buffer: %q", e.String())
+	}
+	if e.RenderedRows() != 5 {
+		t.Fatalf("rendered rows got %d want 5", e.RenderedRows())
+	}
+	if e.ViewportTop() == 0 {
+		t.Fatal("expected viewport to follow cursor near end")
+	}
+	for i := 0; i < len(lines)-1; i++ {
+		e.Up()
+	}
+	if e.Row() != 0 || e.String() != paste {
+		t.Fatalf("up through paste row=%d text=%q", e.Row(), e.String())
+	}
+	e.RefreshOutput()
+	if e.ViewportTop() != 0 {
+		t.Fatalf("viewport top got %d want 0", e.ViewportTop())
+	}
+	e.Up()
+	if e.String() != "history" {
+		t.Fatalf("history loaded before first logical row: %q", e.String())
+	}
+}
+
+func TestMultilineEditorTypingWrapIsVisualOnly(t *testing.T) {
+	text := strings.Repeat("word ", 10)
+	e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, []string{""}, 0, 0, 20)
+	e.TypeString(text)
+	if got := e.String(); got != text {
+		t.Fatalf("typed text got %q want %q", got, text)
+	}
+	if strings.Contains(e.String(), "\n") {
+		t.Fatalf("typing inserted logical newline: %q", e.String())
+	}
+	if got := e.TotalVisualRows(); got <= 1 {
+		t.Fatalf("visual rows got %d want wrapped rows", got)
+	}
+}
+
+func TestMultilineEditorRefreshShrinksRenderedRows(t *testing.T) {
+	e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, []string{"one", "two", "three"}, 2, 0, 80)
+	e.RefreshOutput()
+	if e.RenderedRows() != 3 {
+		t.Fatalf("initial rendered rows got %d want 3", e.RenderedRows())
+	}
+	out := e.RefreshOutput()
+	if strings.Count(out, "\x1b[2K") != 3 {
+		t.Fatalf("initial clear count got %d want 3", strings.Count(out, "\x1b[2K"))
+	}
+	e.Backspace()
+	out = e.RefreshOutput()
+	if e.RenderedRows() != 2 {
+		t.Fatalf("rendered rows after shrink got %d want 2", e.RenderedRows())
+	}
+	if strings.Count(out, "\x1b[2K") < 3 {
+		t.Fatalf("expected shrink refresh to clear stale tail, output %q", out)
+	}
+}
+
+func TestMultilineEditorFinishPrintsFullViewportedDraft(t *testing.T) {
+	lines := make([]string, 12)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %02d", i)
+	}
+	e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, []string{""}, 0, 0, 80)
+	e.SetHeight(5)
+	e.InsertPaste(strings.Join(lines, "\n"))
+	e.RefreshOutput()
+	if e.ViewportTop() == 0 {
+		t.Fatal("expected viewport before finish")
+	}
+	out := e.FinishOutput()
+	if !strings.Contains(out, "line 00") || !strings.Contains(out, "line 11") {
+		t.Fatalf("finish did not print full draft: %q", out)
+	}
+	if e.RenderedRows() != 0 || e.ViewportTop() != 0 || e.CursorLine() != 0 {
+		t.Fatalf("finish left state rendered=%d viewport=%d cursor=%d", e.RenderedRows(), e.ViewportTop(), e.CursorLine())
 	}
 }
 
