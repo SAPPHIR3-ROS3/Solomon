@@ -193,12 +193,29 @@ func subagentSysPromptDisplay(sysPromptPath string) string {
 			continue
 		}
 		rel, err := filepath.Rel(absTplDir, abs)
-		if err != nil || strings.HasPrefix(rel, "..") {
+		if err != nil || !pathWithinDir(absTplDir, abs) {
+			continue
+		}
+		if !strings.EqualFold(filepath.Ext(abs), ".tmpl") {
 			continue
 		}
 		return strings.TrimSuffix(filepath.Base(rel), ".tmpl")
 	}
 	return p
+}
+
+func pathWithinDir(dir, target string) bool {
+	dir = filepath.Clean(dir)
+	target = filepath.Clean(target)
+	if dir == target {
+		return true
+	}
+	sep := string(filepath.Separator)
+	prefix := dir + sep
+	if len(target) <= len(prefix) {
+		return false
+	}
+	return strings.EqualFold(target[:len(prefix)], prefix)
 }
 
 func formatFetchWebToolDisplayLines(m map[string]json.RawMessage) []string {
