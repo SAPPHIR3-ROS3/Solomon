@@ -17,7 +17,6 @@ const (
 	psLoadDrawing  = `Add-Type -AssemblyName System.Drawing; `
 )
 
-// HasImage checks whether the system clipboard currently holds an image.
 func HasImage() bool {
 	switch runtime.GOOS {
 	case "darwin":
@@ -62,8 +61,6 @@ func hasImageWindows() bool {
 	return err == nil
 }
 
-// PasteImage grabs an image from the system clipboard and saves it as PNG
-// into dir. The filename is built from chatID and seq. Returns the full path.
 func PasteImage(dir, chatID string, seq int) (string, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("create images dir: %w", err)
