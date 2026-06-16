@@ -69,6 +69,8 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 - **Allineamento esperienza Windows con Linux/macOS:** oggi Solomon gira su Windows ma con compromessi e fork per OS (es. `termcolor.WrapUserReadline` e limiti ANSI readline, `/clear` assente in cmd.exe, input console/multiline, clipboard via PowerShell, rilevamento shell, banner e test spesso saltati su `GOOS=windows`). **Cosa manca:** audit delle divergenze UX tra piattaforme; parità per terminale interattivo (colori, pulizia schermo, paste immagini, hotkey REPL) su Windows Terminal e PowerShell; riduzione dei percorsi `*_windows.go` / `*_unix.go` dove fattibile; test e documentazione setup Windows allineati al flusso macOS/Linux.
 
+- **REPL input multilinea — parità scroll con shell normale:** oggi l'editor custom in [`internal/agent/runtime/repl/editor`](internal/agent/runtime/repl/editor) è **usabile** (paste multilinea, wrap visivo, commit su Invio) ma non replica l'UX di una shell/readline nativa: con input più alto dello schermo il messaggio dovrebbe restare **intero nello scrollback del terminale** e lo scroll (rotella / freccia su) dovrebbe far scorrere la vista del terminale, non ridisegnare una "finestra" interna né corrompere la history (righe duplicate/sovrascritte quando si naviga oltre le ultime righe visibili). **Cosa manca (opzionale):** modello render che non faccia full-redraw oltre l'altezza del TTY; scroll naturale del buffer già stampato; niente scrollbar interna al blocco input; invariante "dopo Invio il testo inviato è immutabile". Stato attuale accettato come sufficiente; riprendere solo se serve parità totale con Ghostty/zsh su paste lunghi.
+
 ---
 
 ## EXTREMELY LOW PRIORITY
