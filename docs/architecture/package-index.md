@@ -72,6 +72,8 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/checkpoint/staging/` | Byte snapshots for file restore | [Checkpoints](checkpoints.md) |
 | `internal/instructions/` | `AGENTS.md` / fallbacks loader | [Supporting packages](supporting-packages.md) |
 | `internal/search/` | Web search backends for `webSearch` | [Supporting packages](supporting-packages.md) |
+| `internal/research/` | Research engine: web jobs, parsing, quality checks, LLM integration | [Supporting packages](supporting-packages.md) |
+| `internal/research/html/` | HTML rendering templates for research results | [Supporting packages](supporting-packages.md) |
 | `internal/pathglob/` | Glob `**` matching for `find` | [Native tools](native-tools.md) |
 | `internal/plan/` | Plan file read, write, sections, todos, status | [Plan vs build](plan-vs-build.md) |
 | `internal/gitignore/` | `.gitignore` matcher for `find` | [Native tools](native-tools.md) |
@@ -91,6 +93,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/auth/openai/codex/` | ChatGPT Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
 | `internal/auth/openai/codex/chat/` | Codex chat request shaping | [LLM layer](llm-layer.md) |
 | `internal/providersetup/` | Provider onboard during `/connect` | [Supporting packages](supporting-packages.md) |
+| `internal/webfetch/` | HTTP client for fetching web content (cookie jar, user agent) | [Supporting packages](supporting-packages.md) |
 
 ## Integration
 
@@ -172,6 +175,8 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/prompt/` | Core |
 | `internal/prompt/shell/` | Core |
 | `internal/providersetup/` | Support |
+| `internal/research/` | Feature |
+| `internal/research/html/` | Feature |
 | `internal/search/` | Feature |
 | `internal/sandbox/compile/` | Feature |
 | `internal/sandbox/host/` | Feature |
@@ -184,6 +189,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/termcolor/` | Support |
 | `internal/title/` | Support |
 | `internal/tokcount/` | Core |
+| `internal/webfetch/` | Support |
 | `internal/tooling/` | Feature |
 | `internal/tooloutput/` | Feature |
 | `internal/tooloutput/process/` | Feature |
