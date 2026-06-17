@@ -148,15 +148,24 @@ func TestMultilineEditorPasteViewportKeepsFullBufferAndNavigates(t *testing.T) {
 	}
 }
 
-func TestMultilineEditorTypingWrapIsVisualOnly(t *testing.T) {
-	text := strings.Repeat("word ", 10)
-	e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, []string{""}, 0, 0, 20)
+func TestMultilineEditorTypingAutoWrapsAtSpace(t *testing.T) {
+	e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, []string{""}, 0, 0, 12)
+	e.TypeString("hi foob")
+	if got := e.String(); got != "hi \nfoob" {
+		t.Fatalf("auto wrap got %q want %q", got, "hi \nfoob")
+	}
+}
+
+func TestMultilineEditorTypingLongWordStaysOnOneLine(t *testing.T) {
+	text := strings.Repeat("x", 30)
+	e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, []string{""}, 0, 0, 15)
 	e.TypeString(text)
-	if got := e.String(); got != text {
+	got := e.String()
+	if got != text {
 		t.Fatalf("typed text got %q want %q", got, text)
 	}
-	if strings.Contains(e.String(), "\n") {
-		t.Fatalf("typing inserted logical newline: %q", e.String())
+	if strings.Contains(got, "\n") {
+		t.Fatalf("typing inserted logical newline without split point: %q", got)
 	}
 	if got := e.TotalVisualRows(); got <= 1 {
 		t.Fatalf("visual rows got %d want wrapped rows", got)
