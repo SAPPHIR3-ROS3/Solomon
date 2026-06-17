@@ -13,8 +13,8 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 2 — Deep research (stile Odysseus)
 
-- **Stato:** non presente; Solomon ha ricerca web (`webSearch`), tool nativi, subagent persistiti (`resume`, `run_in_background`) e stima token (`internal/tokcount`), ma nessun **modo dedicato** a ricerche lunghe multi-step con piano, fonti e sintesi strutturata.
-- **Cosa manca:** flusso **deep research** ispirato a Odysseus — decomposizione query, passi di ricerca/lettura (web + file progetto + MCP dove utile), accumulo evidenze con citazioni, budget token/tempo configurabile, output finale (report o risposta) senza riempire la chat principale; possibile slash (`/research` o simile) e/o tool dedicato; UX chiara su stato avanzamento e costi stimati vs `usage` API.
+- **Stato:** **MVP parziale in corso** — presenti `internal/research` (loop multi-round), tool `deepResearch` / `researchStatus`, slash `/research` (`list`, `status`, `stop`, `delete`, `resume`), job JSON persistiti in `projects/<id>/research/`, report HTML con TLDR, progress in REPL, pause su errore LLM e resume, tracking fallimenti URL/search (no silenziosi), stats in list. Fonti **solo web** (via `webfetch` + `internal/search`). Fetch web migliorato (UA browser, retry 429/503, cookie jar, `[web_fetch]` in config).
+- **Cosa manca:** integrazione **file progetto** e **MCP** oltre al web; budget **token/tempo** più esplicito in UX e config; stima costi vs `usage` API più chiara; qualità estrazione (readability, meno `low_quality`); retry URL fallite al resume; eventuale `robots.txt` / delay per host; polish report HTML; test end-to-end su job lunghi con LLM locale.
 - **Dipende da:** credenziali ricerca web più sane dopo **§3** vault, ma non bloccante per un MVP.
 
 ---

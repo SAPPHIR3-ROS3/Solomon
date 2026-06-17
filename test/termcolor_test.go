@@ -92,6 +92,15 @@ func TestFormatSystemBlockPlain(t *testing.T) {
 	}
 }
 
+func TestFormatRedBlockPlain(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
+	got := termcolor.FormatRedBlock("rewind to [#001]: will delete 2 message(s).")
+	want := "===\nrewind to [#001]: will delete 2 message(s).\n===\n"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
 func TestFormatSystemBlockMultilineBordersUnpadded(t *testing.T) {
 	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, NoColor: true})
 	got := termcolor.FormatSystemBlock("short\n4\tgpt-4o[ChatGPT Sub]\n5\tgpt-4o-mini with a very long model id")

@@ -44,6 +44,8 @@ func SlashSuggest(env ReplCompleteEnv, buffer string, slashHistory []string) str
 			candidates = c.resumeCandidates()
 		case "goto":
 			candidates = c.gotoCandidates()
+		case "rewind":
+			candidates = c.rewindCandidates()
 		default:
 			return ""
 		}
