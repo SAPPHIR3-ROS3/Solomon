@@ -9,7 +9,7 @@ Solomon is a **local-first terminal agent**: one Go binary, your choice of LLM p
 Interactive terminal harness for LLMs over OpenAI-compatible APIs — project-aware sessions, skills, slash commands, planning, and tooling.
 
 - **Interactive REPL** — multiline input, slash commands, checkpoints, streaming output
-- **Plan and build modes** — research and plan first (`/plan`), then implement with shell and file tools (`/build`)
+- **Agent and chat modes** — agent uses orchestrate for filesystem/shell; chat for web/docs
 - **Skills and MCP** — install skills with `solomon add`; optional MCP tools from `mcp.json`
 - **Headless runs** — `solomon exec` and `--json` / `--jsonl` for scripts and CI
 - **BYO API** — OpenAI-compatible HTTPS endpoints, Anthropic Messages API, or ChatGPT Sub via `/connect`

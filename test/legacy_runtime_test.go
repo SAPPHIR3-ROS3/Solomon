@@ -14,7 +14,7 @@ import (
 
 func TestResolveTurnInvocations_nativePreferredWhenOptional(t *testing.T) {
 	r := &agentruntime.Runtime{
-		Mode: "build",
+		Mode: "agent",
 		Cfg:  &config.Root{Tools: config.Tools{Legacy: true}},
 	}
 	turn := llm.AssistantTurnResult{
@@ -32,7 +32,7 @@ func TestResolveTurnInvocations_nativePreferredWhenOptional(t *testing.T) {
 
 func TestResolveTurnInvocations_cursorProviderUsesNativeWithoutForce(t *testing.T) {
 	r := &agentruntime.Runtime{
-		Mode: "build",
+		Mode: "agent",
 		Cfg:  &config.Root{},
 		Prov: &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI},
 	}
@@ -50,7 +50,7 @@ func TestResolveTurnInvocations_cursorProviderUsesNativeWithoutForce(t *testing.
 
 func TestResolveTurnInvocations_nonCursorCleanConfigUsesNative(t *testing.T) {
 	r := &agentruntime.Runtime{
-		Mode: "build",
+		Mode: "agent",
 		Cfg:  &config.Root{},
 		Prov: &config.Provider{Name: "openai", AuthKind: config.AuthKindAPIKey},
 	}
@@ -65,7 +65,7 @@ func TestResolveTurnInvocations_nonCursorCleanConfigUsesNative(t *testing.T) {
 
 func TestResolveTurnInvocations_forceRejectsNative(t *testing.T) {
 	r := &agentruntime.Runtime{
-		Mode: "build",
+		Mode: "agent",
 		Cfg:  &config.Root{Tools: config.Tools{Legacy: true, LegacyForce: true}},
 	}
 	turn := llm.AssistantTurnResult{
@@ -79,7 +79,7 @@ func TestResolveTurnInvocations_forceRejectsNative(t *testing.T) {
 
 func TestResolveTurnInvocations_legacyXML(t *testing.T) {
 	r := &agentruntime.Runtime{
-		Mode: "build",
+		Mode: "agent",
 		Cfg:  &config.Root{Tools: config.Tools{Legacy: true, LegacyForce: true}},
 	}
 	block := `<tool_calls><tool name="shell"><args>{"command":"go test"}</args></tool></tool_calls>`
@@ -98,7 +98,7 @@ func TestResolveTurnInvocations_legacyXML(t *testing.T) {
 
 func TestResolveTurnInvocations_unknownToolName(t *testing.T) {
 	r := &agentruntime.Runtime{
-		Mode: "build",
+		Mode: "agent",
 		Cfg:  &config.Root{Tools: config.Tools{Legacy: true, LegacyForce: true}},
 	}
 	block := `<tool_calls><tool name="notRegistered"><args>{}</args></tool></tool_calls>`
@@ -179,7 +179,7 @@ func TestToolInvocationSyntaxSection(t *testing.T) {
 		t.Fatalf("forced: %q", forced)
 	}
 	if strings.Contains(forced, "createPlan") {
-		t.Fatalf("build forced must not include plan examples: %q", forced)
+		t.Fatalf("deferred forced must not include plan examples: %q", forced)
 	}
 	optional := prompt.ToolInvocationSyntaxSection(true, false, false)
 	if !strings.Contains(optional, "Optional legacy") || !strings.Contains(optional, "native API tool_calls") {
@@ -220,6 +220,6 @@ func TestAugmentNestedCustomSystem_legacyForce(t *testing.T) {
 		t.Fatalf("got=%q", got)
 	}
 	if !strings.Contains(got, "name: shell") {
-		t.Fatalf("want build tool dump: %q", got)
+		t.Fatalf("want deferred tool dump: %q", got)
 	}
 }

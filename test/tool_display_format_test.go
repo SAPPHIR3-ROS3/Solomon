@@ -417,3 +417,92 @@ func TestFormatToolDisplayLines_subagentCustomPath(t *testing.T) {
 		t.Fatalf("custom path unchanged: %q", plain0)
 	}
 }
+
+func TestFormatToolDisplayLines_deepResearch(t *testing.T) {
+	args, err := json.Marshal(map[string]any{
+		"query":    "Best GGUF model for 8GB VRAM",
+		"category": "comparison",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("deepResearch", args)
+	if len(lines) != 2 {
+		t.Fatalf("lines: %#v", lines)
+	}
+	plain0 := termcolor.Plain(lines[0])
+	if plain0 != "Tool: deepResearch" {
+		t.Fatalf("header %q", plain0)
+	}
+	plain1 := termcolor.Plain(lines[1])
+	if plain1 != "Best GGUF model for 8GB VRAM" {
+		t.Fatalf("query %q", plain1)
+	}
+	if strings.Contains(plain0, "comparison") || strings.Contains(plain1, "category") {
+		t.Fatalf("category must not appear: %#v", lines)
+	}
+	if strings.Contains(plain1, "{") {
+		t.Fatalf("should not show JSON: %q", plain1)
+	}
+}
+
+func TestFormatToolDisplayLines_researchStatus(t *testing.T) {
+	jobID := "64da012117308a315b713589fd2b483b688ddb5199736f7524b727573c8093d1"
+	args, err := json.Marshal(map[string]string{"jobId": jobID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolDisplayLines("researchStatus", args)
+	if len(lines) != 1 {
+		t.Fatalf("lines: %#v", lines)
+	}
+	plain := termcolor.Plain(lines[0])
+	want := "Tool: researchStatus " + jobID
+	if plain != want {
+		t.Fatalf("got %q, want %q", plain, want)
+	}
+	if strings.Contains(plain, "{") {
+		t.Fatalf("should not show JSON args: %q", plain)
+	}
+}
+
+func TestFormatToolResultDisplayLines_deepResearch(t *testing.T) {
+	result, err := json.Marshal(map[string]any{
+		"ok":     true,
+		"jobId":  "abc123",
+		"title":  "GGUF models comparison",
+		"status": "running",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolResultDisplayLines("deepResearch", string(result))
+	if len(lines) != 1 {
+		t.Fatalf("lines: %#v", lines)
+	}
+	plain := termcolor.Plain(lines[0])
+	if !strings.Contains(plain, "GGUF models comparison") || !strings.Contains(plain, "running") {
+		t.Fatalf("got %q", plain)
+	}
+}
+
+func TestFormatToolResultDisplayLines_researchStatus(t *testing.T) {
+	result, err := json.Marshal(map[string]any{
+		"status":    "running",
+		"phase":     "search",
+		"round":     2,
+		"maxRounds": 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := tooling.FormatToolResultDisplayLines("researchStatus", string(result))
+	if len(lines) != 1 {
+		t.Fatalf("lines: %#v", lines)
+	}
+	plain := termcolor.Plain(lines[0])
+	want := "running • search • round 2/5"
+	if !strings.Contains(plain, want) {
+		t.Fatalf("got %q, want substring %q", plain, want)
+	}
+}

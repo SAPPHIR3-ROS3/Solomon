@@ -82,11 +82,14 @@ func newTurnLoopRuntime(t *testing.T, backend llm.CompletionBackend, sess *chats
 	}
 	rt := agentruntime.NewTestRuntime(cfg, prov, testProjectHex, projRoot, sess, io.Discard)
 	rt.Backend = backend
-	rt.Mode = "build"
 	if tune != nil {
 		tune(rt)
 	}
 	return rt
+}
+
+func searchToolsArgs() string {
+	return `{"query":"shell"}`
 }
 
 func shellEchoArgs() string {
@@ -114,7 +117,7 @@ func TestRunAgentTurns_toolCallRoundTrip(t *testing.T) {
 	backend := &turnScriptBackend{
 		protocol: llm.ProtocolOpenAI,
 		turns: []llm.AssistantTurnResult{
-			{ToolCalls: []llm.AssistantToolCall{{ID: "tc1", Name: "shell", Arguments: shellEchoArgs()}}},
+			{ToolCalls: []llm.AssistantToolCall{{ID: "tc1", Name: "searchTools", Arguments: searchToolsArgs()}}},
 			{Content: "done"},
 		},
 	}

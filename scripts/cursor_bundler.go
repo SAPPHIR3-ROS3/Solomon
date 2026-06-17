@@ -78,7 +78,7 @@ Start-Sleep -Milliseconds 400`
 		cmd.Stderr = os.Stderr
 		return cmd.Run()
 	}
-	sh := `pkill -f '[/\\]integrations[/\\]cursor[/\\]' 2>/dev/null || true; pkill -f '[/\\]\.solomon[/\\]integrations[/\\]cursor[/\\]' 2>/dev/null || true`
+	sh := `pkill -f '[/\\]integrations[/\\]cursor[/\\]' 2>/dev/null || true; pkill -f '[/\\]\.solomon[/\\]integrations[/\\]cursor[/\\]' 2>/dev/null || true; sleep 0.4`
 	cmd := exec.Command("sh", "-c", sh)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -159,7 +159,7 @@ func cmdInstall() error {
 	if err != nil {
 		return err
 	}
-	if err := os.RemoveAll(dir); err != nil {
+	if err := removeDirRobust(dir); err != nil {
 		return err
 	}
 	if err := copyDir(bundle, dir); err != nil {
@@ -318,4 +318,26 @@ func copyDir(src, dst string) error {
 		}
 		return copyFile(path, target)
 	})
+}
+
+func removeDirRobust(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil
+	}
+	var last error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 300 * time.Millisecond)
+		}
+		last = os.RemoveAll(dir)
+		if last == nil {
+			return nil
+		}
+	}
+	stale := dir + ".replacing-" + fmt.Sprint(time.Now().UnixNano())
+	if err := os.Rename(dir, stale); err != nil {
+		return fmt.Errorf("%w (could not remove or rename %s)", last, dir)
+	}
+	go func() { _ = os.RemoveAll(stale) }()
+	return nil
 }

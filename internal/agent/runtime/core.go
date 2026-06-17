@@ -261,6 +261,7 @@ func (r *Runtime) readlinePromptContinue() string {
 }
 
 func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
+	legacyForced := r.legacyToolsForcedInPrompt()
 	var dump string
 	var err error
 	switch agenttools.NormalizeMode(r.Mode) {
@@ -269,24 +270,31 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	case "agent":
 		dump, err = agenttools.BuildAgentToolDump()
 		if err == nil && r.Session != nil && r.Session.PlanningActive {
-			planDump, pdErr := agenttools.BuildPlanToolDump()
+			planDump, pdErr := agenttools.BuildPlanningNativeToolDump()
 			if pdErr != nil {
 				err = pdErr
 			} else if strings.TrimSpace(planDump) != "" {
 				dump = strings.TrimSpace(dump + "\n---\n" + planDump)
 			}
 		}
-	case "plan":
-		dump, err = agenttools.BuildPlanToolDump()
+		if err == nil && legacyForced {
+			defDump, dErr := agenttools.BuildDeferredToolDump()
+			if dErr != nil {
+				err = dErr
+			} else if strings.TrimSpace(defDump) != "" {
+				dump = strings.TrimSpace(dump + "\n---\n" + defDump)
+			}
+		}
 	default:
-		dump, err = agenttools.BuildBuildToolDump()
+		dump, err = agenttools.BuildAgentToolDump()
 	}
 	if err != nil {
 		return "", err
 	}
 	if r.MCP != nil && agenttools.NormalizeMode(r.Mode) == "agent" {
 		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
-			dump = strings.TrimSpace(dump + "\n---\n" + mcpDump)
+			section := "MCP tools (native tool_call, names MCP.<server>.<tool>):\n" + mcpDump
+			dump = strings.TrimSpace(dump + "\n---\n" + section)
 		}
 	}
 	absWorkspace := r.ProjRoot
@@ -295,18 +303,17 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	}
 	bridge := r.externalToolBridge()
 	legacyEnabled := r.legacyToolsEnabledInPrompt()
-	legacyForced := r.legacyToolsForcedInPrompt()
-	planMode := r.Mode == "plan"
+	planningActive := r.Session != nil && r.Session.PlanningActive
 	var syntax string
 	var legacySyntax string
 	if legacyForced {
-		syntax = prompt.LegacyOnlyToolInvocationSyntax(planMode)
+		syntax = prompt.LegacyOnlyToolInvocationSyntax(planningActive)
 	} else if bridge {
 		syntax = prompt.NativeToolInvocationSyntax(false)
 	} else {
 		syntax = prompt.NativeToolInvocationSyntax(legacyEnabled)
 		if legacyEnabled {
-			legacySyntax = prompt.LegacyToolInvocationSyntaxAppend(planMode)
+			legacySyntax = prompt.LegacyToolInvocationSyntaxAppend(planningActive)
 		}
 	}
 	d := prompt.Data{

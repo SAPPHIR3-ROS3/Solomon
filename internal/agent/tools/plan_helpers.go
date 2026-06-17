@@ -9,17 +9,17 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 )
 
-func planAllowed(env *Env) bool {
+func planAllowed(env *Env, tool string) bool {
 	if env != nil && env.AllowDeferredTools {
-		return true
+		return isPlanTool(tool)
 	}
-	if env != nil && env.PlanningActive != nil && env.PlanningActive() {
+	if tool == "buildPlan" && env != nil && env.PlanningActive != nil && env.PlanningActive() {
 		return true
 	}
 	return false
 }
 
-func planTools() []string {
+func PlanToolNames() []string {
 	return []string{
 		"createPlan", "editPlan", "buildPlan",
 		"addTodo", "todoList", "checkTodo", "removeTodo",
@@ -28,7 +28,7 @@ func planTools() []string {
 }
 
 func isPlanTool(name string) bool {
-	for _, t := range planTools() {
+	for _, t := range PlanToolNames() {
 		if t == name {
 			return true
 		}

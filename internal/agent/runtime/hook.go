@@ -24,7 +24,7 @@ func NewTestRuntime(cfg *config.Root, prov *config.Provider, projHex, projRoot s
 		Prov:                      prov,
 		ProjHex:                   projHex,
 		ProjRoot:                  projRoot,
-		Mode:                      "build",
+		Mode:                      "agent",
 		Session:                   sess,
 		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
 		Out:                       out,

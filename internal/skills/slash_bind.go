@@ -20,7 +20,7 @@ type SkillSlashBinding struct {
 
 func ReservedSlashCommandNames() map[string]struct{} {
 	return map[string]struct{}{
-		"plan": {}, "build": {}, "clear": {}, "exec": {}, "log": {},
+		"clear": {}, "exec": {}, "log": {},
 		"reasoning": {}, "timeout": {}, "stats": {}, "thinking": {},
 		"max_response": {}, "threshold": {}, "models": {}, "connect": {},
 		"new": {}, "temp": {}, "resume": {}, "summarize": {}, "compact": {}, "cleansessioncache": {},

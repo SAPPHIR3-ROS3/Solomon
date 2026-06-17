@@ -143,7 +143,18 @@ func (m *Manager) IsReady() bool {
 }
 
 func NewManagerWithRemoteTools(tools []RemoteTool) *Manager {
-	return &Manager{tools: tools}
+	m := &Manager{
+		tools:    tools,
+		registry: map[string]*remoteBinding{},
+		ready:    make(chan struct{}),
+	}
+	close(m.ready)
+	m.connected = true
+	for i := range tools {
+		t := tools[i]
+		m.registry[t.OpenAIName] = &remoteBinding{tool: t}
+	}
+	return m
 }
 
 func (m *Manager) connectServer(ctx context.Context, sc ServerConfig, stderr io.Writer, usedNames map[string]bool) {

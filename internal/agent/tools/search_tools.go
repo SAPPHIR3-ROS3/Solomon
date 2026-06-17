@@ -31,12 +31,16 @@ func deferredCatalog() []deferredTool {
 		{Name: "removeTodo", Description: "Remove a todo line by SHA1", SDKCall: "RemoveTodo(sha1 string) (map, error)", Mode: "agent", SearchTerms: "plan todo remove delete"},
 		{Name: "checkPlan", Description: "Inspect plan status and remaining todos or full body", SDKCall: "CheckPlan(name string, full bool) (map, error)", Mode: "agent", SearchTerms: "plan status inspect"},
 		{Name: "deletePlan", Description: "Delete a plan file", SDKCall: "DeletePlan(name string) (map, error)", Mode: "agent", SearchTerms: "plan delete remove"},
-		{Name: "shell", Description: "Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error", SDKCall: "Shell(command, intent string) (string, error); ShellWithTimeout; ShellResult/ShellResultWithTimeout → ShellOutput", Mode: "build", SearchTerms: "shell command bash zsh exec terminal run"},
-		{Name: "readFile", Description: "Read a text file relative to project root; optional startLine/endLine (1-based, inclusive)", SDKCall: "ReadFile(path); ReadFileLines/ReadFileLinesInfo; ReadFileFromLine; ReadFileUntilLine; ReadFileInfo → ReadResult", Mode: "build", SearchTerms: "read file files content text open load"},
-		{Name: "editFile", Description: "Replace oldString once with newString; empty oldString creates/overwrites; delete=true removes; renameTo moves/renames", SDKCall: "ReplaceInFile(path, old, new, intent string); WriteFile(path, content, intent string); DeleteFile(path, intent string); RenameFile(path, renameTo, intent string); *Result variants → EditResult", Mode: "build", SearchTerms: "write edit replace patch file save overwrite"},
-		{Name: "find", Description: "Search files by glob (files=true) or content regexp (files=false)", SDKCall: "Glob/GlobInfo; Grep/GrepLines/GrepCountEntries; FindInfo/FindInInfo/FindTimeoutInfo → FindResult", Mode: "build", SearchTerms: "glob find grep search pattern files list"},
-		{Name: "fetchWeb", Description: "Fetch URL content as markdown", SDKCall: "FetchWeb; FetchWebWithTimeout; FetchWebInfo/FetchWebInfoWithTimeout → FetchWebResult", Mode: "build", SearchTerms: "fetch web url http download"},
-		{Name: "webSearch", Description: "Web search via configured engine", SDKCall: "WebSearch (JSON string); WebSearchInfo/WebSearchNInfo/... → WebSearchResult", Mode: "build", SearchTerms: "web search internet query"},
+		{Name: "shell", Description: "Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error", SDKCall: "Shell(command, intent string) (string, error); ShellWithTimeout; ShellResult/ShellResultWithTimeout → ShellOutput", Mode: "deferred", SearchTerms: "shell command bash zsh exec terminal run"},
+		{Name: "readFile", Description: "Read a text file relative to project root; optional startLine/endLine (1-based, inclusive)", SDKCall: "ReadFile(path); ReadFileLines/ReadFileLinesInfo; ReadFileFromLine; ReadFileUntilLine; ReadFileInfo → ReadResult", Mode: "deferred", SearchTerms: "read file files content text open load"},
+		{Name: "editFile", Description: "Replace oldString once with newString; empty oldString creates/overwrites; delete=true removes; renameTo moves/renames", SDKCall: "ReplaceInFile(path, old, new, intent string); WriteFile(path, content, intent string); DeleteFile(path, intent string); RenameFile(path, renameTo, intent string); *Result variants → EditResult", Mode: "deferred", SearchTerms: "write edit replace patch file save overwrite"},
+		{Name: "find", Description: "Search files by glob (files=true) or content regexp (files=false)", SDKCall: "Glob/GlobInfo; Grep/GrepLines/GrepCountEntries; FindInfo/FindInInfo/FindTimeoutInfo → FindResult", Mode: "deferred", SearchTerms: "glob find grep search pattern files list"},
+		{Name: "listDir", Description: "List files and immediate subdirectories in one directory (non-recursive)", SDKCall: "ListDir(path string); ListDirInfo(path string) → ListDirResult", Mode: "deferred", SearchTerms: "list directory folder ls dir entries files folders"},
+		{Name: "tree", Description: "Render ASCII directory tree under a path", SDKCall: "Tree(path string); TreeDepth(path string, maxDepth int); TreeInfo(path string) → TreeResult", Mode: "deferred", SearchTerms: "tree directory structure hierarchy folders files ascii"},
+		{Name: "fetchWeb", Description: "Fetch URL content as markdown", SDKCall: "FetchWeb; FetchWebWithTimeout; FetchWebInfo/FetchWebInfoWithTimeout → FetchWebResult", Mode: "deferred", SearchTerms: "fetch web url http download"},
+		{Name: "webSearch", Description: "Web search via configured engine", SDKCall: "WebSearch (JSON string); WebSearchInfo/WebSearchNInfo/... → WebSearchResult", Mode: "deferred", SearchTerms: "web search internet query"},
+		{Name: "deepResearch", Description: "Start a background deep research job with structured HTML report", SDKCall: "DeepResearch(query, category string) (map, error)", Mode: "deferred", SearchTerms: "research deep web report investigation"},
+		{Name: "researchStatus", Description: "Get status of a deep research job by jobId", SDKCall: "ResearchStatus(jobID string) (map, error)", Mode: "deferred", SearchTerms: "research status job progress report"},
 	}
 }
 
@@ -54,6 +58,8 @@ func sdkQuickReference() map[string]any {
 			`content, err := sdk.ReadFile("TODO.md")`,
 			`r, err := sdk.ReadFileLinesInfo("main.go", 10, 50)`,
 			`paths, err := sdk.Glob("**/*.go")`,
+			`entries, err := sdk.ListDir(".")`,
+			`tree, err := sdk.Tree("internal")`,
 			`err := sdk.WriteFile("f.txt", "hello", "create file")`,
 			`err := sdk.ReplaceInFile("f.md", "old", "new", "replace section")`,
 			`out, err := sdk.Shell("wc -m TODO.md", "count characters")`,
@@ -70,7 +76,7 @@ type searchToolsArgs struct {
 }
 
 func searchToolsOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("searchTools", "Search deferred tools callable from orchestrate Go scripts via the sandbox SDK. Returns tool names, descriptions, SDK call signatures when available, and a compact SDK quick reference.", map[string]any{
+	return nativeToolUnion("searchTools", "Search deferred tools for orchestrate scripts and connected MCP native tools (MCP.<server>.<tool>). Returns descriptions, SDK signatures for deferred tools, and parameter schemas for MCP tools.", map[string]any{
 		"query": map[string]any{"type": "string", "description": "Search query (matches name, description, and SDK signature text)"},
 	}, []string{"query"})
 }
@@ -80,7 +86,7 @@ func appendSearchToolsDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("searchTools", "Discover deferred tools and SDK signatures for orchestrate scripts. Always includes sdk quick reference (import aliases, stdout capture, Shell/EditFile parameter shapes).", sig)
+	b.addBlock("searchTools", "Discover deferred tools, SDK signatures for orchestrate scripts, and connected MCP native tools (MCP.<server>.<tool>).", sig)
 	return nil
 }
 
@@ -101,7 +107,9 @@ func execSearchTools(env *Env, raw json.RawMessage) (any, error) {
 			hits = append(hits, t)
 		}
 	}
-	return formatCatalog(hits), nil
+	out := formatCatalog(hits)
+	appendMCPSearchHits(env, qLower, out)
+	return out, nil
 }
 
 func matchDeferred(q string, t deferredTool) bool {

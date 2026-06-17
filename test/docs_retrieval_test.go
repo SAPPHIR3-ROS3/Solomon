@@ -78,7 +78,7 @@ func TestDocsRetrieval_toolExec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := tools.Exec(t.Context(), &tools.Env{Cfg: config.EmptyRoot()}, "build", tooling.Invocation{Name: "docsRetrieval", Args: args})
+	out, err := tools.Exec(t.Context(), &tools.Env{Cfg: config.EmptyRoot()}, "agent", tooling.Invocation{Name: "docsRetrieval", Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestSlashDispatch_docsVisibleAndAPIContent(t *testing.T) {
 }
 
 func TestNativeToolParams_docsRetrievalFirst(t *testing.T) {
-	params, err := tools.NativeToolParams("build")
+	params, err := tools.NativeToolParams("agent")
 	if err != nil {
 		t.Fatal(err)
 	}

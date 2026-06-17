@@ -52,19 +52,12 @@ func TestSlashDispatch_terminal(t *testing.T) {
 	}
 }
 
-func TestSlashDispatch_planBuildClear(t *testing.T) {
+func TestSlashDispatch_agentClear(t *testing.T) {
 	var mode string
-	sess := &chatstore.Session{}
-	d := testDeps(sess)
+	d := testDeps(&chatstore.Session{})
 	d.SetMode = func(m string) { mode = m }
-	if err := agent.SlashDispatch(d, "/plan"); err != nil || mode != "agent" {
-		t.Fatalf("plan: err=%v mode=%s", err, mode)
-	}
-	if !sess.PlanningActive {
-		t.Fatalf("plan: expected PlanningActive")
-	}
-	if err := agent.SlashDispatch(d, "/build"); err != nil || mode != "agent" {
-		t.Fatalf("build: err=%v mode=%s", err, mode)
+	if err := agent.SlashDispatch(d, "/agent"); err != nil || mode != "agent" {
+		t.Fatalf("agent: err=%v mode=%s", err, mode)
 	}
 	out := bytes.NewBuffer(nil)
 	d.Out = out

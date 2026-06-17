@@ -28,7 +28,7 @@ Code mode (orchestrate) chains multiple deferred tool steps inside one Go script
 
 ## Planning
 
-For work beyond a single-turn file edit, use structured planning. Entry: createPlan (via /plan native tools, or searchTools + orchestrate SDK). Four phases map to plan file sections:
+For work beyond a single-turn file edit, use structured planning. Entry: createPlan via searchTools + orchestrate SDK (or native buildPlan when planning is active). Four phases map to plan file sections:
 - Goal — one sentence; createPlan once
 - Context (Understanding) — editPlan on ## Context; may alternate with Design
 - Design — editPlan on ## Design; subtasks and technical breakdown
@@ -39,12 +39,12 @@ Todo section order: structural rules/notes, mermaid flowchart, checklist `- [ ] 
 After todos are ready, use buildPlan for a structured implementation brief, then implement via orchestrate and checkTodo per completed item. status built means all todos checked.
 
 {{if .PlanningActive}}
-Planning session is active{{if .ActivePlanName}} for plan {{.ActivePlanName}}{{end}}. Plan tools are available as native API tools below.
+Planning session is active{{if .ActivePlanName}} for plan {{.ActivePlanName}}{{end}}. buildPlan is available as a native API tool below.
 {{if .PlanImplementing}}
 Implementing plan: follow the mermaid graph, use orchestrate per todo, call checkTodo when done.
 {{end}}
 {{else}}
-When the user wants to design a feature or task is multi-step, suggest /plan or discover createPlan via searchTools.
+When the user wants to design a feature or task is multi-step, discover createPlan via searchTools + orchestrate.
 {{end}}
 
 Behaviors:
