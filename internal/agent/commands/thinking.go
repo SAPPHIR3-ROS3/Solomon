@@ -159,3 +159,30 @@ func CursorTools(d Deps, parts []string) error {
 	PrintSystemf(d.Out, "cursor native tools: %s", onOff)
 	return nil
 }
+
+func AnonymizePrompt(d Deps, parts []string) error {
+	if d.Cfg == nil {
+		return fmt.Errorf("config not loaded")
+	}
+	next := !d.Cfg.Anonymize
+	if len(parts) >= 2 {
+		switch strings.ToLower(parts[1]) {
+		case "on", "yes", "true", "1":
+			next = true
+		case "off", "no", "false", "0":
+			next = false
+		default:
+			return fmt.Errorf("usage: /anonymizeprompt | /anonymizeprompt on|off")
+		}
+	}
+	d.Cfg.Anonymize = next
+	if err := d.SaveCfg(); err != nil {
+		return err
+	}
+	onOff := "off"
+	if next {
+		onOff = "on"
+	}
+	PrintSystemf(d.Out, "anonymize prompt: %s", onOff)
+	return nil
+}

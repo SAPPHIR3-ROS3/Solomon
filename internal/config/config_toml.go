@@ -48,6 +48,8 @@ type rootLegacyFile struct {
 
 	ShowThinking              bool             `toml:"show_thinking"`
 
+	Anonymize                 bool             `toml:"anonymize,omitempty"`
+
 	Tools                     Tools            `toml:"tools,omitempty"`
 
 	LegacyTools               bool             `toml:"legacy_tools,omitempty"`
@@ -109,6 +111,8 @@ type rootFile struct {
 	MaxResponseTokens         int                 `toml:"max_response_tokens"`
 
 	ShowThinking              bool                `toml:"show_thinking"`
+
+	Anonymize                 bool                `toml:"anonymize,omitempty"`
 
 	Tools                     Tools               `toml:"tools,omitempty"`
 
@@ -200,6 +204,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		ShowThinking:              f.ShowThinking,
 
+		Anonymize:                 f.Anonymize,
+
 		Tools:                     mergeToolsSection(f.Tools, f.LegacyTools, f.LegacyToolsForce),
 
 		ShowUsageStats:            f.ShowUsageStats,
@@ -275,6 +281,8 @@ func rootToFile(r *Root) *rootFile {
 		MaxResponseTokens:         r.MaxResponseTokens,
 
 		ShowThinking:              r.ShowThinking,
+
+		Anonymize:                 r.Anonymize,
 
 		Tools:                     r.Tools,
 
@@ -391,6 +399,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		MaxResponseTokens:         f.MaxResponseTokens,
 
 		ShowThinking:              f.ShowThinking,
+
+		Anonymize:                 f.Anonymize,
 
 		Tools:                     mergeToolsSection(f.Tools, f.LegacyTools, f.LegacyToolsForce),
 

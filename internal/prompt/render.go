@@ -88,6 +88,8 @@ type Data struct {
 	PlanningActive    bool
 	ActivePlanName    string
 	PlanImplementing  bool
+
+	Anonymize bool
 }
 
 type TitleData struct {
@@ -100,6 +102,10 @@ type SummarizeData struct {
 	Language          string
 	DisableThinking   bool
 	ImagesWorkflow    string
+}
+
+func AnonymizeNativeToolInvocationSyntax() string {
+	return strings.TrimSpace(`Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations.`)
 }
 
 func NativeToolInvocationSyntax(legacyFallbackEnabled bool) string {
@@ -285,7 +291,82 @@ func render(name string, d Data) (string, error) {
 	d.Shell = EffectiveShell()
 	d.ImagesWorkflow = ImagesWorkflowSection()
 	d.AtMentionWorkflow = AtMentionWorkflowSection()
-	return executeTemplate(name, templateRaw(name), d)
+	if d.Anonymize {
+		d.ImagesWorkflow = anonymizeImagesWorkflowSection()
+		d.AtMentionWorkflow = anonymizeAtMentionWorkflowSection()
+	}
+	s, err := executeTemplate(name, templateRaw(name), d)
+	if err != nil {
+		return "", err
+	}
+	if d.Anonymize {
+		s = sanitizeAnonymizePrompt(s)
+	}
+	return s, nil
+}
+
+func anonymizeImagesWorkflowSection() string {
+	return strings.TrimSpace(`## Session images
+
+The user can paste a clipboard image in the REPL with Ctrl+V (readline key 22). PNG, JPEG, or GIF bytes are stored under the chat images directory and recorded with path plus index N in session ImageFiles (N is a non-negative integer, usually 0 for the first paste in the session).
+
+Visible paste label (REPL input and echoed user lines): a short bracketed token whose inner text is the word img, a hyphen, and the index N. The REPL buffer stores only this visible label.
+
+Wire token (user message JSON on disk; basis for API attach): the same visible prefix, then U+200B (zero-width space), then exactly 32 Unicode private-use runes (U+E000–U+E0FF) each encoding one byte of the raw SHA-256 digest of the image file, then a closing bracket. Legacy transcripts may use 64 lowercase hex digits instead of PUA for the digest payload.
+
+When the user sends a line, bare visible labels with a valid ImageFiles entry are expanded to the wire token. Vision is attached only if the wire digest matches the file on disk and the bytes are a recognized image; otherwise the marker is removed from the API payload (no image part and no literal marker sent upstream).
+
+You receive image bytes in a user turn only when that attach succeeded. The same visible label appearing in assistant text, tool output, plans, quoted code, or summaries is UI or documentation—not a missing upload. Do not ask the user to re-send an image unless their current turn clearly needs a screenshot and you received no vision content.
+
+PLAN mode cannot paste or attach images; apply the rules above when reading markers in transcript history.`)
+}
+
+func anonymizeAtMentionWorkflowSection() string {
+	return strings.TrimSpace(`## @ file and folder mentions (REPL)
+
+The user can cite workspace files or folders with @path tags in the REPL (tab completion and a path picker). Tags use the shortest project-relative path that uniquely identifies the entry (for example @c.txt or @a/b/c.txt). Tags are plain path text only — no SHA or image-style wire tokens.
+
+When the user sends a message, each @ tag is expanded into file text or a folder tree in the API payload while the visible transcript keeps the short @ tags. Expansion reads the current file contents from disk at send time. If a path is missing or binary/too large, expansion notes the failure in the API payload without removing the visible tag from the transcript.
+
+Treat @ tags in assistant text, tool output, or history as references to workspace paths, not missing uploads.`)
+}
+
+func sanitizeAnonymizePrompt(s string) string {
+	r := strings.NewReplacer(
+		"The Solomon process is running on:", "This session is running on:",
+		"You operate in AGENT mode.", "You are a coding assistant in an interactive terminal environment.",
+		"You operate in CHAT mode.", "You are a coding assistant in chat mode.",
+		"Use docsRetrieval for Solomon documentation anytime.", "Use docsRetrieval for documentation when needed.",
+		"docsRetrieval is always available for Solomon documentation.", "docsRetrieval is available for documentation.",
+		"Prefer docsRetrieval for Solomon-specific questions", "Prefer docsRetrieval for documentation questions",
+		"## Session images (Solomon paste)", "## Session images",
+		"Solomon writes", "The session writes",
+		"Solomon expands", "Each @ tag is expanded",
+		"Solomon canonical", "canonical",
+		"The harness may echo", "Executed tool calls may be echoed",
+		"Deferred tools (readFile, shell, editFile, find, plan tools, …) are not exposed as separate native tool_calls — use searchTools to discover them and orchestrate to run them.", "Additional tools beyond the native API set are discovered with searchTools and run via orchestrate scripts.",
+		"chains multiple deferred tool steps", "chains multiple tool steps",
+		"when a task needs several deferred tools", "when a task needs several tools",
+		"searching the deferred catalog", "searching the tool catalog",
+		`importing the sandbox SDK (sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk)`, `importing the sandbox SDK via import "sdk" only`,
+		`importing the sandbox SDK via import "sdk" only.`, `importing the sandbox SDK via import "sdk" only`,
+	)
+	s = r.Replace(s)
+	for _, pair := range [][2]string{
+		{"SAPPHIR3ROS3/Solomon/sdk", "sdk"},
+		{"SAPPHIR3ROS3/Solomon/v2026/sdk", "sdk"},
+		{"SAPPHIR3-ROS3/Solomon/v2026/sdk", "sdk"},
+	} {
+		s = strings.ReplaceAll(s, pair[0], pair[1])
+	}
+	lower := strings.ToLower(s)
+	if strings.Contains(lower, "solomon") || strings.Contains(lower, "harness") {
+		s = strings.ReplaceAll(s, "Solomon ", "")
+		s = strings.ReplaceAll(s, "solomon ", "")
+		s = strings.ReplaceAll(s, " harness", " session")
+		s = strings.ReplaceAll(s, "Harness", "Session")
+	}
+	return s
 }
 
 func applyRuntimeSystem(d *Data) {

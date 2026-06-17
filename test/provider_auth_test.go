@@ -108,6 +108,37 @@ func TestIsClaudeSub(t *testing.T) {
 	}
 }
 
+func TestIsAnthropicClaudeCodeOAuthToken(t *testing.T) {
+	tests := []struct {
+		token string
+		want  bool
+	}{
+		{"sk-ant-oat01-abc", true},
+		{"  sk-ant-oat-xyz", true},
+		{"sk-ant-api03-key", false},
+		{"sk-x", false},
+		{"", false},
+	}
+	for _, tc := range tests {
+		got := config.IsAnthropicClaudeCodeOAuthToken(tc.token)
+		if got != tc.want {
+			t.Errorf("IsAnthropicClaudeCodeOAuthToken(%q) = %v, want %v", tc.token, got, tc.want)
+		}
+	}
+}
+
+func TestUsesAnthropicOAuthBearer_ClaudeCodeTokenInAPIKey(t *testing.T) {
+	p := config.Provider{
+		BaseURL:     "https://api.anthropic.com",
+		APIKey:      "sk-ant-oat01-test",
+		APIProtocol: config.APIProtocolAnthropic,
+		AuthKind:    config.AuthKindAPIKey,
+	}
+	if !p.UsesAnthropicOAuthBearer() {
+		t.Fatal("expected oauth bearer for Claude Code token in api_key field")
+	}
+}
+
 func TestResolveProviderBearer_ClaudeSubNotAvailable(t *testing.T) {
 	p := config.Provider{
 		Name:        config.ProviderNameClaudeSub,

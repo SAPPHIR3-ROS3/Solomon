@@ -306,7 +306,11 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	planningActive := r.Session != nil && r.Session.PlanningActive
 	var syntax string
 	var legacySyntax string
-	if legacyForced {
+	anonymize := r.Cfg != nil && r.Cfg.Anonymize
+	if anonymize {
+		syntax = prompt.AnonymizeNativeToolInvocationSyntax()
+		legacySyntax = ""
+	} else if legacyForced {
 		syntax = prompt.LegacyOnlyToolInvocationSyntax(planningActive)
 	} else if bridge {
 		syntax = prompt.NativeToolInvocationSyntax(false)
@@ -325,8 +329,9 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		ExternalToolBridge:    bridge,
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
-		DisableThinking:       disableThinking,
-		WorkspaceAbsolutePath: absWorkspace,
+		DisableThinking:        disableThinking,
+		WorkspaceAbsolutePath:  absWorkspace,
+		Anonymize:              anonymize,
 	}
 	if r.Session != nil {
 		d.PlanningActive = r.Session.PlanningActive

@@ -152,6 +152,9 @@ func setupAnthropicCompatibleAPI(pio PromptIO, cfg *Root, existing *Root, opts P
 	if err != nil {
 		return nil, err
 	}
+	if IsAnthropicClaudeCodeOAuthToken(prov.APIKey) {
+		WriteAnthropicClaudeCodeOAuthWarning(out)
+	}
 	fmt.Fprint(out, "Using curated Anthropic model list…\n")
 	return FinalizeProviderSetup(pio, cfg, existing, opts, prov, ids)
 }
