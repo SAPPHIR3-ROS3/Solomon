@@ -5,6 +5,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 )
 
@@ -44,6 +45,9 @@ type Env struct {
 	ActivateInstructionsFromAbsPath func(absPath string)
 	ActivateInstructionsFromShellCommand func(command string)
 	MergeInstructionBlock func(customSys string) (string, error)
+
+	StartResearch   func(ctx context.Context, query, category string) (research.JobRecord, error)
+	ResearchStatus  func(jobID string) (research.JobRecord, error)
 
 	PlanningActive      func() bool
 	ActivePlanName      func() string

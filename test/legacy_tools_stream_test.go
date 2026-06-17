@@ -32,7 +32,7 @@ func TestLegacyStreamWriter_completeBlock(t *testing.T) {
 	format := func(name string, args json.RawMessage) []string {
 		return []string{"FMT:" + name}
 	}
-	w := tooling.NewLegacyStreamWriter(&out, format, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&out, format, allowedDeferredLegacyTools())
 	prefix := "Hello\n"
 	block := `<tool_calls>
 <tool name="shell">
@@ -63,7 +63,7 @@ func TestLegacyStreamWriter_completeBlock(t *testing.T) {
 
 func TestLegacyStreamWriter_splitOpenTag(t *testing.T) {
 	var out strings.Builder
-	w := tooling.NewLegacyStreamWriter(&out, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
 	if err := writeStreamParts(t, w, "before ", "<tool", "_calls>", `<tool name="shell"><args>{"command":"x"}</args></tool></tool_calls>`); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestLegacyStreamWriter_splitOpenTag(t *testing.T) {
 
 func TestLegacyStreamWriter_splitCloseTag(t *testing.T) {
 	var out strings.Builder
-	w := tooling.NewLegacyStreamWriter(&out, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
 	block := `<tool_calls><tool name="shell"><args>{"command":"x"}</args></tool></tool_calls>`
 	parts := []string{"pre ", "<tool_calls><tool name=\"shell\"><args>{\"command\":\"x\"}</args></tool></tool", "_calls>"}
 	if err := writeStreamParts(t, w, parts...); err != nil {
@@ -93,7 +93,7 @@ func TestLegacyStreamWriter_splitCloseTag(t *testing.T) {
 
 func TestLegacyStreamWriter_splitPerByte(t *testing.T) {
 	var out strings.Builder
-	w := tooling.NewLegacyStreamWriter(&out, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
 	payload := "x" + sampleMultiLegacyToolCalls
 	for i := 0; i < len(payload); i++ {
 		if _, err := w.Write([]byte{payload[i]}); err != nil && !errors.Is(err, tooling.ErrLegacyToolBlockComplete) {
@@ -107,7 +107,7 @@ func TestLegacyStreamWriter_splitPerByte(t *testing.T) {
 
 func TestLegacyStreamWriter_splitMidSecondTool(t *testing.T) {
 	var out strings.Builder
-	w := tooling.NewLegacyStreamWriter(&out, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
 	part1 := `<tool_calls>
 <tool name="shell">
 <args>{"command":"a"}</args>
@@ -126,7 +126,7 @@ func TestLegacyStreamWriter_splitMidSecondTool(t *testing.T) {
 }
 
 func TestLegacyStreamWriter_hasOpenToolCalls(t *testing.T) {
-	w := tooling.NewLegacyStreamWriter(&strings.Builder{}, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&strings.Builder{}, nil, allowedDeferredLegacyTools())
 	if w.HasOpenToolCalls() {
 		t.Fatal("expected false initially")
 	}
@@ -139,14 +139,14 @@ func TestLegacyStreamWriter_hasOpenToolCalls(t *testing.T) {
 }
 
 func TestLegacyStreamWriter_malformedBlockReturnsError(t *testing.T) {
-	w := tooling.NewLegacyStreamWriter(&strings.Builder{}, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&strings.Builder{}, nil, allowedDeferredLegacyTools())
 	_, err := w.Write([]byte(`<tool_calls><tool name="shell"><args>{bad</args></tool></tool_calls>`))
 	assertMalformedLegacyTool(t, err)
 }
 
 func TestLegacyStreamWriter_ignoresAfterComplete(t *testing.T) {
 	var out strings.Builder
-	w := tooling.NewLegacyStreamWriter(&out, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
 	block := `<tool_calls><tool name="shell"><args>{"command":"x"}</args></tool></tool_calls>`
 	if err := writeStreamParts(t, w, block); err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestLegacyStreamWriter_ignoresAfterComplete(t *testing.T) {
 
 func TestLegacyStreamWriter_flushEmitsHeldOutsideSuffix(t *testing.T) {
 	var out strings.Builder
-	w := tooling.NewLegacyStreamWriter(&out, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
 	if _, err := w.Write([]byte("hello <tool")); err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestLegacyStreamWriter_multiToolFormatted(t *testing.T) {
 		names = append(names, name)
 		return []string{"FMT:" + name}
 	}
-	w := tooling.NewLegacyStreamWriter(&out, format, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&out, format, allowedDeferredLegacyTools())
 	if err := writeStreamParts(t, w, sampleMultiLegacyToolCalls); err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestValidateLegacyToolLines(t *testing.T) {
 
 func TestValidateInvocationNames_unknownTool(t *testing.T) {
 	invs := []tooling.Invocation{{Name: "notARealTool", Args: json.RawMessage(`{}`)}}
-	err := tooling.ValidateInvocationNames(invs, allowedBuildLegacyTools())
+	err := tooling.ValidateInvocationNames(invs, allowedDeferredLegacyTools())
 	if !errors.Is(err, tooling.ErrUnknownLegacyTool) {
 		t.Fatalf("got %v", err)
 	}
@@ -215,7 +215,7 @@ func TestValidateInvocationNames_unknownTool(t *testing.T) {
 
 func TestLegacyStreamWriter_unknownToolName(t *testing.T) {
 	block := `<tool_calls><tool name="notARealTool"><args>{}</args></tool></tool_calls>`
-	w := tooling.NewLegacyStreamWriter(&strings.Builder{}, nil, allowedBuildLegacyTools())
+	w := tooling.NewLegacyStreamWriter(&strings.Builder{}, nil, allowedDeferredLegacyTools())
 	_, err := w.Write([]byte(block))
 	if !errors.Is(err, tooling.ErrUnknownLegacyTool) {
 		t.Fatalf("got %v", err)

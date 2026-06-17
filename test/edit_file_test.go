@@ -1,7 +1,6 @@
 package test
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -13,7 +12,7 @@ import (
 
 func execEditFileForTest(t *testing.T, dir string, args json.RawMessage) (any, error) {
 	t.Helper()
-	return tools.Exec(context.Background(), &tools.Env{ProjRoot: dir, CheckpointStageProjAbs: func(string) {}}, "build", tooling.Invocation{Name: "editFile", Args: args})
+	return execDeferredToolForTest(&tools.Env{ProjRoot: dir, CheckpointStageProjAbs: func(string) {}}, tooling.Invocation{Name: "editFile", Args: args})
 }
 
 func TestExecEditFileRejectsEmptyOverwrite(t *testing.T) {
@@ -160,8 +159,8 @@ func TestExecEditFileRename(t *testing.T) {
 	}
 }
 
-func TestBuildBuildToolDumpMentionsEditFileDelete(t *testing.T) {
-	dump, err := tools.BuildBuildToolDump()
+func TestBuildDeferredToolDumpMentionsEditFileDelete(t *testing.T) {
+	dump, err := tools.BuildDeferredToolDump()
 	if err != nil {
 		t.Fatal(err)
 	}

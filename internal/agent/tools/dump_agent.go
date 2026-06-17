@@ -37,6 +37,12 @@ func BuildChatToolDump() (string, error) {
 	if err := appendWebSearchDump(b); err != nil {
 		return "", err
 	}
+	if err := appendDeepResearchDump(b); err != nil {
+		return "", err
+	}
+	if err := appendResearchStatusDump(b); err != nil {
+		return "", err
+	}
 	if err := appendSwitchModeDump(b); err != nil {
 		return "", err
 	}

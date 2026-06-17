@@ -6,6 +6,7 @@ import (
 
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
@@ -18,6 +19,8 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 		RunNested:              r.runNested,
 		RunNestedWithSystem:    r.runNestedWithSystem,
 		RunSubagent:            r.runSubagentFromTool,
+		StartResearch:          r.startResearchFromTool,
+		ResearchStatus:         r.researchStatusFromTool,
 		SetMode:                func(m string) { r.Mode = m },
 		CurrentMode:            func() string { return r.Mode },
 		CheckpointStageProjAbs:  r.checkpointStageProjAbs,
@@ -96,4 +99,12 @@ func (r *Runtime) runSubagentFromTool(ctx context.Context, req agenttools.Subage
 		SubchatID: res.SubchatID,
 		Status:    res.Status,
 	}, nil
+}
+
+func (r *Runtime) startResearchFromTool(_ context.Context, query, category string) (research.JobRecord, error) {
+	return r.startResearchJob(context.Background(), query, category)
+}
+
+func (r *Runtime) researchStatusFromTool(jobID string) (research.JobRecord, error) {
+	return r.ResearchStatus(jobID)
 }

@@ -27,16 +27,7 @@ func (r *Runtime) runNested(ctx context.Context, task string) (string, error) {
 const nestedFullSystemMarker = "## Available tools"
 
 func (r *Runtime) buildNestedToolDump() (string, error) {
-	dump, err := agenttools.BuildBuildToolDump()
-	if err != nil {
-		return "", err
-	}
-	if r.MCP != nil {
-		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
-			dump = strings.TrimSpace(dump + "\n---\n" + mcpDump)
-		}
-	}
-	return dump, nil
+	return agenttools.BuildDeferredToolDump()
 }
 
 func (r *Runtime) AugmentNestedCustomSystem(system string) (string, error) {
@@ -51,7 +42,7 @@ func (r *Runtime) AugmentNestedCustomSystem(system string) (string, error) {
 		return system, nil
 	}
 	blocks := []string{system}
-	if section := prompt.ToolInvocationSyntaxSection(r.legacyToolsEnabled(), r.legacyToolsForced(), false); section != "" {
+	if section := prompt.ToolInvocationSyntaxSection(r.legacyToolsEnabled(), r.legacyToolsForced(), r.Session != nil && r.Session.PlanningActive); section != "" {
 		blocks = append(blocks, section)
 	}
 	if r.legacyToolsForced() {
@@ -82,7 +73,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, system string, msgs []chatstore.Message, imageFiles map[int]string, forceDisableReasoning bool) (llm.AssistantTurnResult, *tooling.LegacyStreamWriter, error) {
 	var toolDefs []llm.ToolDef
 	if !r.legacyToolsForced() {
-		toolParams, err := agenttools.NativeToolParams("build")
+		toolParams, err := agenttools.NativeToolParams("agent")
 		if err != nil {
 			return llm.AssistantTurnResult{}, nil, err
 		}
@@ -108,7 +99,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, syst
 	var legacySW *tooling.LegacyStreamWriter
 	var contentOut io.Writer = termcolor.NewErrorLineWriter(out)
 	if r.legacyToolsEnabled() {
-		allowed, err := r.allowedToolNamesForMode("build")
+		allowed, err := r.allowedToolNames()
 		if err != nil {
 			return llm.AssistantTurnResult{}, nil, err
 		}

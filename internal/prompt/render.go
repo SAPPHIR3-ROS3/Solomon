@@ -117,24 +117,24 @@ for readability after execution; those echoes are not a substitute for native to
 `)
 }
 
-func LegacyOnlyToolInvocationSyntax(planMode bool) string {
+func LegacyOnlyToolInvocationSyntax(planningActive bool) string {
 	return strings.TrimSpace(`
 Legacy text tools force is ON. Native API tool_calls are disabled; you must invoke every tool via XML (no function calling):
-` + legacyToolInvocationSyntaxBody(planMode))
+` + legacyToolInvocationSyntaxBody(planningActive))
 }
 
-func LegacyToolInvocationSyntaxAppend(planMode bool) string {
+func LegacyToolInvocationSyntaxAppend(planningActive bool) string {
 	return strings.TrimSpace(`
 Optional legacy text tools are enabled: you may invoke tools with native API tool_calls (preferred) or wrap invocations in XML when helpful:
-` + legacyToolInvocationSyntaxBody(planMode))
+` + legacyToolInvocationSyntaxBody(planningActive))
 }
 
-func ToolInvocationSyntaxSection(legacyEnabled, legacyForced, planMode bool) string {
+func ToolInvocationSyntaxSection(legacyEnabled, legacyForced, planningActive bool) string {
 	if legacyForced {
-		return LegacyOnlyToolInvocationSyntax(planMode)
+		return LegacyOnlyToolInvocationSyntax(planningActive)
 	}
 	if legacyEnabled {
-		return strings.TrimSpace(NativeToolInvocationSyntax(true) + "\n\n" + LegacyToolInvocationSyntaxAppend(planMode))
+		return strings.TrimSpace(NativeToolInvocationSyntax(true) + "\n\n" + LegacyToolInvocationSyntaxAppend(planningActive))
 	}
 	return ""
 }
@@ -185,7 +185,7 @@ Examples (PLAN):
 `
 }
 
-func legacyToolInvocationSyntaxExamplesBuild() string {
+func legacyToolInvocationSyntaxExamplesDeferred() string {
 	return `
 Examples (BUILD):
 <tool_calls>
@@ -246,11 +246,11 @@ Examples (BUILD, multiple tools):
 `
 }
 
-func legacyToolInvocationSyntaxBody(planMode bool) string {
-	if planMode {
+func legacyToolInvocationSyntaxBody(planningActive bool) string {
+	if planningActive {
 		return legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesPlan()
 	}
-	return legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesBuild()
+	return legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesDeferred()
 }
 
 func RenderAgent(d Data) (string, error) {
