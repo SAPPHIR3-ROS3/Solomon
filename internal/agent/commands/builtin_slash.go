@@ -68,6 +68,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"stats"}, "/stats", "toggle token usage line after assistant turns (saved)", nil, func(d Deps, parts []string) error { return Stats(d) }},
 		{[]string{"thinking"}, "/thinking", "/thinking toggles preview; /thinking on|off streamed reasoning (dim gray); tool echoes (yellow)", nil, func(d Deps, parts []string) error { return Thinking(d, parts) }},
 		{[]string{"fast"}, "/fast", "/fast | /fast on|off Cursor fast mode (saved)", nil, func(d Deps, parts []string) error { return Fast(d, parts) }},
+		{[]string{"anonymizeprompt"}, "/anonymizeprompt", "/anonymizeprompt | /anonymizeprompt on|off — neutral system prompt without product identity (saved)", nil, func(d Deps, parts []string) error { return AnonymizePrompt(d, parts) }},
 		{[]string{"cursortools"}, "/cursortools", "/cursortools | /cursortools on|off — Cursor native tools on project (saved; Cursor API only)", config.CursorAPIConfigured, func(d Deps, parts []string) error { return CursorTools(d, parts) }},
 		{[]string{"max_response"}, "/max_response", "/max_response | /max_response <n> assistant output cap (tokens, n>=1)", nil, func(d Deps, parts []string) error { return MaxResponse(d, parts) }},
 		{[]string{"threshold"}, "/threshold", "/threshold | /threshold <n> auto /summarize when prompt_tokens >= n (n>=32768; default 131072; needs API usage)", nil, func(d Deps, parts []string) error { return Threshold(d, parts) }},
