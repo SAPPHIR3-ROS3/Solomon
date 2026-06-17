@@ -150,7 +150,7 @@ func TestApplyCompaction_archivesUncompactedRaw(t *testing.T) {
 		CheckpointLast:         3,
 		CheckpointBranchSuffix: "a",
 		ForkChildCount:         map[int]int{3: 1},
-		MainOrphans: []chatstore.MainOrphanSegment{{
+		Branches: []chatstore.BranchSegment{{
 			ForkAtInclusive: 4,
 			Messages:        []chatstore.Message{{Role: "tool", Content: "ok", ToolCallID: "c1"}},
 		}},
@@ -174,11 +174,11 @@ func TestApplyCompaction_archivesUncompactedRaw(t *testing.T) {
 	if dump.CheckpointLast != 3 || dump.CheckpointBranchSuffix != "a" {
 		t.Fatalf("checkpoint fields not archived: %+v", dump)
 	}
-	if dump.ForkChildCount[3] != 1 || len(dump.MainOrphans) != 1 || dump.LastCommitOID != "abc123" {
+	if dump.ForkChildCount[3] != 1 || len(dump.Branches) != 1 || dump.LastCommitOID != "abc123" {
 		t.Fatalf("branch metadata not archived: %+v", dump)
 	}
-	if len(sess.MainOrphans) != 0 || sess.CheckpointLast != -1 {
-		t.Fatalf("live branch state not cleared: orphans=%+v cp=%d", sess.MainOrphans, sess.CheckpointLast)
+	if len(sess.Branches) != 0 || sess.CheckpointLast != -1 {
+		t.Fatalf("live branch state not cleared: branches=%+v cp=%d", sess.Branches, sess.CheckpointLast)
 	}
 }
 

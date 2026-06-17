@@ -16,13 +16,13 @@ func cloneMessages(msgs []Message) []Message {
 	return out
 }
 
-func cloneMainOrphans(segs []MainOrphanSegment) []MainOrphanSegment {
+func cloneBranches(segs []BranchSegment) []BranchSegment {
 	if len(segs) == 0 {
 		return nil
 	}
-	out := make([]MainOrphanSegment, len(segs))
+	out := make([]BranchSegment, len(segs))
 	for i, seg := range segs {
-		out[i] = MainOrphanSegment{
+		out[i] = BranchSegment{
 			ForkAtInclusive: seg.ForkAtInclusive,
 			Messages:        cloneMessages(seg.Messages),
 		}
@@ -52,7 +52,7 @@ func ArchiveUncompactedState(sess *Session, at time.Time) {
 		CheckpointCP0:          sess.CheckpointCP0,
 		CheckpointBranchSuffix: sess.CheckpointBranchSuffix,
 		ForkChildCount:         cloneForkChildCount(sess.ForkChildCount),
-		MainOrphans:            cloneMainOrphans(sess.MainOrphans),
+		Branches:               cloneBranches(sess.Branches),
 		LastCommitOID:          sess.LastCommitOID,
 	})
 }
@@ -60,7 +60,7 @@ func ArchiveUncompactedState(sess *Session, at time.Time) {
 func ApplyCompaction(sess *Session, body string, at time.Time) {
 	ArchiveUncompactedState(sess, at)
 	sess.Messages = []Message{{Role: "assistant", Content: body}}
-	sess.MainOrphans = nil
+	sess.Branches = nil
 	sess.CheckpointBranchSuffix = ""
 	sess.ForkChildCount = nil
 	sess.CheckpointLast = -1

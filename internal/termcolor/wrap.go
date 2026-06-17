@@ -18,6 +18,7 @@ var replImgVisibleRE = regexp.MustCompile(`\[img-\d+\]`)
 const resetANSI = "\x1b[0m"
 
 const SystemBorder = "===SYSTEM==="
+const RedBlockBorder = "==="
 
 func ResetSeq() string {
 	if !colorOn {
@@ -265,6 +266,29 @@ func FormatSystemBlock(message string) string {
 
 func WriteSystem(w io.Writer, message string) {
 	if s := FormatSystemBlock(message); s != "" {
+		_, _ = io.WriteString(w, s)
+	}
+}
+
+func FormatRedBlock(message string) string {
+	message = strings.TrimRight(message, "\n")
+	if strings.TrimSpace(message) == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(RedBlockBorder)
+	b.WriteByte('\n')
+	for _, line := range strings.Split(message, "\n") {
+		b.WriteString(WrapRed(line))
+		b.WriteByte('\n')
+	}
+	b.WriteString(RedBlockBorder)
+	b.WriteByte('\n')
+	return b.String()
+}
+
+func WriteRedBlock(w io.Writer, message string) {
+	if s := FormatRedBlock(message); s != "" {
 		_, _ = io.WriteString(w, s)
 	}
 }

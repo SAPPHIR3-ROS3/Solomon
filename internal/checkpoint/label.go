@@ -74,7 +74,7 @@ func NextForkSuffix(s *chatstore.Session, forkAtDisplay int) string {
 			}
 		}
 	}
-	for _, seg := range s.MainOrphans {
+	for _, seg := range s.Branches {
 		for _, m := range seg.Messages {
 			if m.CheckpointSeq == forkAtDisplay && m.CheckpointBranchKey != "" {
 				idx := suffixToIndex(m.CheckpointBranchKey)
