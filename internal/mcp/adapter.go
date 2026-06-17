@@ -87,7 +87,7 @@ var toolNamePart = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 func ExposedToolName(serverName, toolName string) string {
 	server := sanitizeToolPart(serverName, "server")
 	tool := sanitizeToolPart(toolName, "tool")
-	return "MCP" + server + "-" + tool
+	return "MCP." + server + "." + tool
 }
 
 func sanitizeToolPart(s, fallback string) string {

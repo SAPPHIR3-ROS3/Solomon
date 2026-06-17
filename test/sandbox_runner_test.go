@@ -311,7 +311,7 @@ func TestNativeToolParamsAgentChat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chat) != 4 {
+	if len(chat) != 6 {
 		t.Fatalf("chat tools: %d", len(chat))
 	}
 	if chat[0].OfFunction.Function.Name != "docsRetrieval" {

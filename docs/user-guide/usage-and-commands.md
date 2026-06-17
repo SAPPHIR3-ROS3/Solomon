@@ -12,9 +12,9 @@ On first run, Solomon starts an **interactive setup** (provider URL, API key, mo
 At the `You:` prompt:
 
 ```
-/plan          # planning tools only — create and edit plans on disk
-/build         # shell, read/edit files, web search, subagent
-/help          # full slash command list
+/agent          # agent mode (orchestrate, searchTools, subagent)
+/chat           # chat mode (web, docs)
+/help           # full slash command list
 ```
 
 One-shot without the REPL:
@@ -37,7 +37,7 @@ Install first: [Installation and PATH](installation.md). Provider and engine kno
 - **Skills**: `solomon add` / `solomon remove`; `/skills`, `/add`, dynamic skill slashes, and forced `/skill:<name> [request]` in-session (authoritative list: `/help`)
 - **Project instructions**: `AGENTS.md` (and fallbacks) plus numbered custom rules injected into the system prompt — see [Project instructions](project-instructions.md)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools
-- **Build tools**: `readFile`, `editFile`, `find`, `shell`, `subagent`, `fetchWeb`, `webSearch`, `docsRetrieval` (build mode); plan tools `createPlan`, `editPlan`, `buildPlan` (plan mode) — see [Native tools](../architecture/native-tools.md)
+- **Deferred tools**: `readFile`, `editFile`, `find`, `shell`, `fetchWeb`, `webSearch` via orchestrate; plan tools when planning is active — see [Native tools](../architecture/native-tools.md)
 
 ## CLI usage modes
 
@@ -88,8 +88,7 @@ Highlights:
 
 | Command | Role |
 | ------- | ---- |
-| `/plan` | Planning-only tooling |
-| `/build` | Build tools (shell, files, subagent) |
+| `/agent`, `/chat` | Switch session mode |
 | `/resume`, `/new`, `/temp` | Session switching (`/temp` = ephemeral, empty chat only) |
 | `/summarize`, `/compact` | Long-context hygiene |
 | `/connect` | Add provider and models |

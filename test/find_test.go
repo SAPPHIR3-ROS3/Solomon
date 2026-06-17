@@ -1,13 +1,11 @@
 package test
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -25,9 +23,7 @@ func TestFind_filesGlob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	out, err := agenttools.Exec(ctx, &agenttools.Env{ProjRoot: dir}, "build", tooling.Invocation{Name: "find", Args: args})
+	out, err := execDeferredToolForTest(&agenttools.Env{ProjRoot: dir}, tooling.Invocation{Name: "find", Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,9 +43,7 @@ func TestFind_textSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	out, err := agenttools.Exec(ctx, &agenttools.Env{ProjRoot: dir}, "build", tooling.Invocation{Name: "find", Args: args})
+	out, err := execDeferredToolForTest(&agenttools.Env{ProjRoot: dir}, tooling.Invocation{Name: "find", Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,9 +69,7 @@ func TestFind_respectsGitignore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	out, err := agenttools.Exec(ctx, &agenttools.Env{ProjRoot: root}, "build", tooling.Invocation{Name: "find", Args: args})
+	out, err := execDeferredToolForTest(&agenttools.Env{ProjRoot: root}, tooling.Invocation{Name: "find", Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}

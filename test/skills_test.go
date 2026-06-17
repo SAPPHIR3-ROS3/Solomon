@@ -285,9 +285,9 @@ func TestDescriptionFromFrontMatter(t *testing.T) {
 }
 
 func TestAssignSkillSlash_reservedBuiltin(t *testing.T) {
-	refs := []skills.SkillRefWithKey{{RegistryKey: "k1", Entry: skills.SkillEntry{Name: "plan"}}}
+	refs := []skills.SkillRefWithKey{{RegistryKey: "k1", Entry: skills.SkillEntry{Name: "clear"}}}
 	b := skills.AssignSkillSlashCommands(refs)
-	if len(b) != 1 || b[0].Slash != "skill-plan" {
+	if len(b) != 1 || b[0].Slash != "skill-clear" {
 		t.Fatalf("%+v", b)
 	}
 }

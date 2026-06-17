@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type BootstrapIO interface {
@@ -42,7 +43,7 @@ func InstallRuntime(out BootstrapIO, dir string) error {
 }
 
 func InstallRuntimeClean(out BootstrapIO, dir string) error {
-	if err := os.RemoveAll(dir); err != nil {
+	if err := removeInstallDirRobust(dir); err != nil {
 		return err
 	}
 	return InstallRuntime(out, dir)
@@ -131,6 +132,28 @@ func npmEnsureProdDeps(dir string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("npm install failed in %s: %w", dir, err)
 	}
+	return nil
+}
+
+func removeInstallDirRobust(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil
+	}
+	var last error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 300 * time.Millisecond)
+		}
+		last = os.RemoveAll(dir)
+		if last == nil {
+			return nil
+		}
+	}
+	stale := dir + ".replacing-" + fmt.Sprint(time.Now().UnixNano())
+	if err := os.Rename(dir, stale); err != nil {
+		return fmt.Errorf("%w (could not remove or rename %s)", last, dir)
+	}
+	go func() { _ = os.RemoveAll(stale) }()
 	return nil
 }
 

@@ -14,6 +14,14 @@ import (
 
 const DefaultSubagentTimeoutMinutes = 20
 
+const DefaultResearchMaxRounds = 8
+
+const DefaultResearchMaxURLsPerRound = 3
+
+const DefaultResearchMaxContentChars = 15000
+
+const DefaultResearchMinRounds = 2
+
 const DefaultResponseLanguage = "English"
 
 const DefaultCompactionThresholdTokens int64 = 131072
@@ -92,8 +100,12 @@ type Root struct {
 	WebSearchAPIKey           string               `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string               `toml:"web_search_base_url,omitempty"`
 	WebSearchCX               string               `toml:"web_search_cx,omitempty"`
+	ResearchMaxRounds         int                  `toml:"research_max_rounds,omitempty"`
+	ResearchMaxURLsPerRound   int                  `toml:"research_max_urls_per_round,omitempty"`
+	ResearchMaxContentChars   int                  `toml:"research_max_content_chars,omitempty"`
 	ToolOutput                ToolOutput           `toml:"tool_output,omitempty"`
 	APIResilience             APIResilienceConfig  `toml:"api_resilience,omitempty"`
+	WebFetch                  WebFetchConfig       `toml:"web_fetch,omitempty"`
 	AutoUpdate                *bool                `toml:"autoupdate,omitempty"`
 	PromptTemplates           map[string]string    `toml:"prompt_templates,omitempty"`
 }
@@ -145,6 +157,31 @@ func SubagentTimeout(r *Root) int {
 		return DefaultSubagentTimeoutMinutes
 	}
 	return n
+}
+
+func EffectiveResearchMaxRounds(r *Root) int {
+	if r == nil || r.ResearchMaxRounds <= 0 {
+		return DefaultResearchMaxRounds
+	}
+	return r.ResearchMaxRounds
+}
+
+func EffectiveResearchMaxURLsPerRound(r *Root) int {
+	if r == nil || r.ResearchMaxURLsPerRound <= 0 {
+		return DefaultResearchMaxURLsPerRound
+	}
+	return r.ResearchMaxURLsPerRound
+}
+
+func EffectiveResearchMaxContentChars(r *Root) int {
+	if r == nil || r.ResearchMaxContentChars <= 0 {
+		return DefaultResearchMaxContentChars
+	}
+	return r.ResearchMaxContentChars
+}
+
+func ResearchMaxTimeSeconds(r *Root) int {
+	return SubagentTimeout(r) * 60
 }
 
 func EffectiveCompactionThresholdTokens(r *Root) int64 {

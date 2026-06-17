@@ -30,6 +30,10 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 		return []string{termcolor.ToolHeaderLine("readFile", jsonDisplayString(m["path"]))}
 	case "find":
 		return formatFindToolDisplayLines(m)
+	case "listDir":
+		return []string{termcolor.ToolHeaderLine("listDir", jsonDisplayString(m["path"]))}
+	case "tree":
+		return []string{termcolor.ToolHeaderLine("tree", jsonDisplayString(m["path"]))}
 	case "editFile":
 		return formatEditFileToolDisplayLines(m)
 	case "subagent":
@@ -66,6 +70,10 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 		return formatCheckPlanToolDisplayLines(m)
 	case "deletePlan":
 		return formatDeletePlanToolDisplayLines(m)
+	case "deepResearch":
+		return formatDeepResearchToolDisplayLines(m)
+	case "researchStatus":
+		return formatResearchStatusToolDisplayLines(m)
 	default:
 		return []string{termcolor.WrapTool(fallbackToolDisplayLine(name, rawArgs))}
 	}
@@ -399,6 +407,19 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 			return fmt.Sprintf("→ %d matches", n)
 		}
 		return "→ done"
+	case "listDir":
+		if n, ok := jsonDisplayInt(m["count"]); ok {
+			return fmt.Sprintf("→ %d entries", n)
+		}
+		return "→ done"
+	case "tree":
+		if jsonDisplayBool(m["truncated"]) {
+			return "→ truncated"
+		}
+		if n, ok := jsonDisplayInt(m["entries"]); ok {
+			return fmt.Sprintf("→ %d nodes", n)
+		}
+		return "→ done"
 	case "orchestrate":
 		if jsonDisplayBool(m["truncated"]) {
 			if p := jsonDisplayString(m["spill_path"]); p != "" {
@@ -426,6 +447,16 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 			return "→ ok"
 		}
 		return ""
+	case "deepResearch":
+		if body := formatResearchToolResultBody(m); body != "" {
+			return body
+		}
+		return formatGenericToolResultBody(m)
+	case "researchStatus":
+		if body := formatResearchStatusResultBody(m); body != "" {
+			return body
+		}
+		return formatGenericToolResultBody(m)
 	default:
 		return formatGenericToolResultBody(m)
 	}

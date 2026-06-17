@@ -74,6 +74,25 @@ type DocsResult struct {
 	Results []DocsSnippet `json:"results,omitempty"`
 }
 
+type ListDirEntry struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+	Size int64  `json:"size,omitempty"`
+}
+
+type ListDirResult struct {
+	Path    string         `json:"path"`
+	Entries []ListDirEntry `json:"entries"`
+	Count   int            `json:"count"`
+}
+
+type TreeResult struct {
+	Path      string `json:"path"`
+	Tree      string `json:"tree"`
+	Entries   int    `json:"entries"`
+	Truncated bool   `json:"truncated,omitempty"`
+}
+
 type EditResult struct {
 	OK     bool
 	Action string

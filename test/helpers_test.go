@@ -7,10 +7,12 @@ import (
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
@@ -48,7 +50,7 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		MutateSession: func(fn func(*chatstore.Session)) { fn(sess) },
 
 		SetMode: func(string) {},
-		GetMode: func() string { return "build" },
+		GetMode: func() string { return "agent" },
 
 		ApplyCurrentModel: func(_, _ string) error { return nil },
 		Model:             func() string { return "m" },
@@ -63,4 +65,12 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		GetReplShellFirst: func() bool { return shellFirst },
 		SetReplShellFirst: func(v bool) { shellFirst = v },
 	}
+}
+
+func execDeferredToolForTest(env *agenttools.Env, inv tooling.Invocation) (any, error) {
+	if env == nil {
+		env = &agenttools.Env{}
+	}
+	env.AllowDeferredTools = true
+	return agenttools.Exec(context.Background(), env, "agent", inv)
 }

@@ -3,6 +3,7 @@ package tooling
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
@@ -116,4 +117,54 @@ func formatPlanToolResultBody(toolName string, m map[string]json.RawMessage) str
 		return ""
 	}
 	return ""
+}
+
+func formatDeepResearchToolDisplayLines(m map[string]json.RawMessage) []string {
+	query := strings.TrimSpace(jsonDisplayString(m["query"]))
+	lines := []string{termcolor.ToolHeaderLine("deepResearch", "")}
+	if query != "" {
+		lines = append(lines, termcolor.WrapTool(query))
+	}
+	return lines
+}
+
+func formatResearchStatusToolDisplayLines(m map[string]json.RawMessage) []string {
+	jobID := strings.TrimSpace(jsonDisplayString(m["jobId"]))
+	return []string{termcolor.ToolHeaderLine("researchStatus", jobID)}
+}
+
+func formatResearchToolResultBody(m map[string]json.RawMessage) string {
+	if err := jsonDisplayString(m["error"]); err != "" {
+		return "→ " + firstDisplayLine(err, 120)
+	}
+	if title := jsonDisplayString(m["title"]); title != "" {
+		st := jsonDisplayString(m["status"])
+		if st != "" {
+			return "→ " + firstDisplayLine(title, 80) + " (" + st + ")"
+		}
+		return "→ " + firstDisplayLine(title, 120)
+	}
+	return ""
+}
+
+func formatResearchStatusResultBody(m map[string]json.RawMessage) string {
+	if err := jsonDisplayString(m["error"]); err != "" {
+		return "→ " + firstDisplayLine(err, 120)
+	}
+	var parts []string
+	if st := jsonDisplayString(m["status"]); st != "" {
+		parts = append(parts, st)
+	}
+	if ph := jsonDisplayString(m["phase"]); ph != "" {
+		parts = append(parts, ph)
+	}
+	if round, okR := jsonDisplayInt(m["round"]); okR {
+		if maxR, okM := jsonDisplayInt(m["maxRounds"]); okM {
+			parts = append(parts, fmt.Sprintf("round %d/%d", round, maxR))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "→ " + strings.Join(parts, " • ")
 }

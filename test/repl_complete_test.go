@@ -50,7 +50,7 @@ func TestReplComplete_nonSlashLine(t *testing.T) {
 
 func TestReplComplete_commandOnlyNoArgComplete(t *testing.T) {
 	env := replcomplete.ReplCompleteEnv{}
-	suffixes, off := replcomplete.ReplCompleteDo(env, []rune("/plan arg"), len("/plan arg"))
+	suffixes, off := replcomplete.ReplCompleteDo(env, []rune("/agent arg"), len("/agent arg"))
 	if suffixes != nil || off != 0 {
 		t.Fatalf("got suffixes=%v off=%d want nil,0", suffixes, off)
 	}
