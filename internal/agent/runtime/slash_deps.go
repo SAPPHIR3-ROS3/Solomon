@@ -107,7 +107,8 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 
 		PersistSession: r.persistSession,
 
-		CheckpointGoto: r.ApplyGotoCheckpoint,
+		CheckpointGoto:   r.ApplyGotoCheckpoint,
+		CheckpointRewind: r.ApplyRewindCheckpoint,
 
 		GetReplShellFirst: func() bool { return r.ReplShellFirst },
 		SetReplShellFirst: func(v bool) { r.ReplShellFirst = v },

@@ -161,9 +161,9 @@ func StripStaleUserImgPlaceholdersFromSession(s *Session) int {
 	for i := range s.Messages {
 		patch(&s.Messages[i])
 	}
-	for si := range s.MainOrphans {
-		for mi := range s.MainOrphans[si].Messages {
-			patch(&s.MainOrphans[si].Messages[mi])
+	for si := range s.Branches {
+		for mi := range s.Branches[si].Messages {
+			patch(&s.Branches[si].Messages[mi])
 		}
 	}
 	return n
@@ -188,9 +188,9 @@ func RewriteEmptyUserMsgsAfterImageRepair(s *Session) int {
 	for i := range s.Messages {
 		patch(&s.Messages[i])
 	}
-	for si := range s.MainOrphans {
-		for mi := range s.MainOrphans[si].Messages {
-			patch(&s.MainOrphans[si].Messages[mi])
+	for si := range s.Branches {
+		for mi := range s.Branches[si].Messages {
+			patch(&s.Branches[si].Messages[mi])
 		}
 	}
 	return n
@@ -235,9 +235,9 @@ func StripFalseImgPlaceholdersFromNonUserSession(s *Session) int {
 	for i := range s.Messages {
 		patch(&s.Messages[i])
 	}
-	for si := range s.MainOrphans {
-		for mi := range s.MainOrphans[si].Messages {
-			patch(&s.MainOrphans[si].Messages[mi])
+	for si := range s.Branches {
+		for mi := range s.Branches[si].Messages {
+			patch(&s.Branches[si].Messages[mi])
 		}
 	}
 	return n
@@ -261,7 +261,7 @@ func SessionValidImageTokenCount(s *Session) int {
 	for _, m := range s.Messages {
 		count(m)
 	}
-	for _, seg := range s.MainOrphans {
+	for _, seg := range s.Branches {
 		for _, m := range seg.Messages {
 			count(m)
 		}
@@ -284,7 +284,7 @@ func SessionImgFragmentCount(s *Session) int {
 	for _, m := range s.Messages {
 		countMsg(m)
 	}
-	for _, seg := range s.MainOrphans {
+	for _, seg := range s.Branches {
 		for _, m := range seg.Messages {
 			countMsg(m)
 		}
@@ -363,7 +363,7 @@ func collectReferencedImageSeqs(s *Session) map[int]struct{} {
 			add(msg.Content)
 		}
 	}
-	for _, seg := range s.MainOrphans {
+	for _, seg := range s.Branches {
 		for _, msg := range seg.Messages {
 			if msg.Role == "user" {
 				add(msg.Content)

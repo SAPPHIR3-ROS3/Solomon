@@ -74,20 +74,20 @@ type Message struct {
 	TurnWallDisplay   float64 `json:"turn_wall_display_secs,omitempty"`
 }
 
-type MainOrphanSegment struct {
+type BranchSegment struct {
 	ForkAtInclusive int       `json:"fork_at"`
 	Messages        []Message `json:"messages"`
 }
 
 type UncompactedDump struct {
-	CompactAt              time.Time           `json:"compact_at"`
-	Messages               []Message           `json:"messages"`
-	CheckpointLast         int                 `json:"checkpoint_last"`
-	CheckpointCP0          bool                `json:"cp0,omitempty"`
-	CheckpointBranchSuffix string              `json:"cp_branch_suffix,omitempty"`
-	ForkChildCount         map[int]int         `json:"fork_child_count,omitempty"`
-	MainOrphans            []MainOrphanSegment `json:"main_orphans,omitempty"`
-	LastCommitOID          string              `json:"last_commit_oid,omitempty"`
+	CompactAt              time.Time       `json:"compact_at"`
+	Messages               []Message       `json:"messages"`
+	CheckpointLast         int             `json:"checkpoint_last"`
+	CheckpointCP0          bool            `json:"cp0,omitempty"`
+	CheckpointBranchSuffix string          `json:"cp_branch_suffix,omitempty"`
+	ForkChildCount         map[int]int     `json:"fork_child_count,omitempty"`
+	Branches               []BranchSegment `json:"branches,omitempty"`
+	LastCommitOID          string          `json:"last_commit_oid,omitempty"`
 }
 
 type Session struct {
@@ -98,12 +98,12 @@ type Session struct {
 	LastUserMessageAt time.Time `json:"last_user_message_at,omitempty"`
 	Messages          []Message `json:"messages"`
 
-	CheckpointLast           int                 `json:"checkpoint_last"`
-	CheckpointCP0            bool                `json:"cp0,omitempty"`
-	CheckpointBranchSuffix   string              `json:"cp_branch_suffix,omitempty"`
-	ForkChildCount           map[int]int         `json:"fork_child_count,omitempty"`
-	MainOrphans              []MainOrphanSegment `json:"main_orphans,omitempty"`
-	LastCommitOID            string              `json:"last_commit_oid,omitempty"`
+	CheckpointLast           int             `json:"checkpoint_last"`
+	CheckpointCP0            bool            `json:"cp0,omitempty"`
+	CheckpointBranchSuffix   string          `json:"cp_branch_suffix,omitempty"`
+	ForkChildCount           map[int]int     `json:"fork_child_count,omitempty"`
+	Branches                 []BranchSegment `json:"branches,omitempty"`
+	LastCommitOID            string          `json:"last_commit_oid,omitempty"`
 	ImageSeq                 int                 `json:"image_seq,omitempty"`
 	ImageFiles               map[int]string      `json:"image_files,omitempty"`
 	ActivatedInstructionDirs []string            `json:"activated_instruction_dirs,omitempty"`
@@ -112,6 +112,41 @@ type Session struct {
 	PlanningActive   bool   `json:"planning_active,omitempty"`
 	ActivePlanName   string `json:"active_plan_name,omitempty"`
 	PlanImplementing bool   `json:"plan_implementing,omitempty"`
+}
+
+func migrateLegacyBranches(branches []BranchSegment, legacy []BranchSegment) []BranchSegment {
+	if len(branches) > 0 {
+		return branches
+	}
+	return legacy
+}
+
+func (s *Session) UnmarshalJSON(data []byte) error {
+	type sessionFields Session
+	aux := struct {
+		sessionFields
+		LegacyBranches []BranchSegment `json:"main_orphans,omitempty"`
+	}{}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*s = Session(aux.sessionFields)
+	s.Branches = migrateLegacyBranches(s.Branches, aux.LegacyBranches)
+	return nil
+}
+
+func (d *UncompactedDump) UnmarshalJSON(data []byte) error {
+	type dumpFields UncompactedDump
+	aux := struct {
+		dumpFields
+		LegacyBranches []BranchSegment `json:"main_orphans,omitempty"`
+	}{}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*d = UncompactedDump(aux.dumpFields)
+	d.Branches = migrateLegacyBranches(d.Branches, aux.LegacyBranches)
+	return nil
 }
 
 func ChatIDHex(title string, ts time.Time) string {
