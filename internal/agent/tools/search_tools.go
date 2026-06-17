@@ -31,7 +31,7 @@ func deferredCatalog() []deferredTool {
 		{Name: "removeTodo", Description: "Remove a todo line by SHA1", SDKCall: "RemoveTodo(sha1 string) (map, error)", Mode: "agent", SearchTerms: "plan todo remove delete"},
 		{Name: "checkPlan", Description: "Inspect plan status and remaining todos or full body", SDKCall: "CheckPlan(name string, full bool) (map, error)", Mode: "agent", SearchTerms: "plan status inspect"},
 		{Name: "deletePlan", Description: "Delete a plan file", SDKCall: "DeletePlan(name string) (map, error)", Mode: "agent", SearchTerms: "plan delete remove"},
-		{Name: "shell", Description: "Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error", SDKCall: "Shell(command, intent string) (string, error); ShellWithTimeout; ShellResult/ShellResultWithTimeout → ShellOutput", Mode: "deferred", SearchTerms: "shell command bash zsh exec terminal run"},
+		{Name: "shell", Description: "Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error. In orchestrate scripts assign the return value to a variable and fmt.Println it — output is not auto-included in the tool result.", SDKCall: "out, err := Shell(command, intent string) (string, error); fmt.Println(out); ShellWithTimeout; ShellResult/ShellResultWithTimeout → ShellOutput{Output, Exit, Intent}", Mode: "deferred", SearchTerms: "shell command bash zsh exec terminal run"},
 		{Name: "readFile", Description: "Read a text file relative to project root; optional startLine/endLine (1-based, inclusive)", SDKCall: "ReadFile(path); ReadFileLines/ReadFileLinesInfo; ReadFileFromLine; ReadFileUntilLine; ReadFileInfo → ReadResult", Mode: "deferred", SearchTerms: "read file files content text open load"},
 		{Name: "editFile", Description: "Replace oldString once with newString; empty oldString creates/overwrites; delete=true removes; renameTo moves/renames", SDKCall: "ReplaceInFile(path, old, new, intent string); WriteFile(path, content, intent string); DeleteFile(path, intent string); RenameFile(path, renameTo, intent string); *Result variants → EditResult", Mode: "deferred", SearchTerms: "write edit replace patch file save overwrite"},
 		{Name: "find", Description: "Search files by glob (files=true) or content regexp (files=false)", SDKCall: "Glob/GlobInfo; Grep/GrepLines/GrepCountEntries; FindInfo/FindInInfo/FindTimeoutInfo → FindResult", Mode: "deferred", SearchTerms: "glob find grep search pattern files list"},
@@ -48,10 +48,11 @@ func sdkQuickReference() map[string]any {
 	return map[string]any{
 		"imports": compile.SDKImportPathsForModel,
 		"script_shape": "package main with func main(); compile errors if source is incomplete",
-		"stdout":         "fmt.Print/Println/Printf output is captured and returned in orchestrate tool result field output",
+		"stdout":         "fmt.Print/Println/Printf output is captured and returned in orchestrate tool result field output; sdk.Shell return values are not — assign to a variable and fmt.Println it",
 		"pitfalls": []string{
 			"Do not embed large file bodies with markdown backticks inside Go raw string literals (`...`); read with sdk.ReadFile, transform in memory, write with sdk.WriteFile or sdk.ReplaceInFile",
 			"Host shell commands use sdk.Shell(command, intent), not os/exec — orchestrate runs in WASM (no python3/zsh/bash on PATH)",
+			"sdk.Shell returns (string, error); assign output to a variable and fmt.Println it — bare sdk.Shell(...) calls do not appear in orchestrate output",
 			"ReplaceInFile and WriteFile require an intent string (4th and 3rd args respectively)",
 		},
 		"examples": []string{
@@ -63,7 +64,9 @@ func sdkQuickReference() map[string]any {
 			`err := sdk.WriteFile("f.txt", "hello", "create file")`,
 			`err := sdk.ReplaceInFile("f.md", "old", "new", "replace section")`,
 			`out, err := sdk.Shell("wc -m TODO.md", "count characters")`,
+			`fmt.Println(out)`,
 			`res, err := sdk.ShellResult("go test ./...", "run tests")`,
+			`fmt.Println(res.Output)`,
 			`fmt.Println(len(content))`,
 		},
 	}

@@ -52,7 +52,7 @@ Behaviors:
 - Prefer orchestrate over repeated native tool_calls when a task needs several deferred tools in sequence or with logic between steps.
 - Use searchTools before orchestrate when unsure which deferred tool to call from script SDK.
 - Explore the workspace with language-neutral patterns (sdk.Glob("**/*"), sdk.ReadFile on paths found); do not assume .go or go.mod unless they appear in the tree.
-- orchestrate scripts must be package main with func main(), importing the sandbox SDK (sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk).
+- orchestrate scripts must be package main with func main(), importing the sandbox SDK via import "sdk" only.
 - For file edits in orchestrate: sdk.ReadFile → transform in memory → sdk.WriteFile or sdk.ReplaceInFile(path, old, new, intent). Never embed markdown backticks inside Go raw string literals (`...`).
 - Host shell from orchestrate: sdk.Shell(command, intent) only — os/exec and heredocs do not reach the project shell (WASM sandbox).
 - SDK helpers: ReadFile, WriteFile, ReplaceInFile, Glob/Grep, Shell, WebSearch, FetchWeb, DocsRetrieval.

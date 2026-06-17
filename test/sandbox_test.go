@@ -140,7 +140,7 @@ func TestCompileSDKHelpers(t *testing.T) {
 	src := `package main
 
 import (
-	sdk "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk"
+	"sdk"
 )
 
 func main() {
@@ -211,7 +211,7 @@ func TestRunnerExecutesMinimalWASM(t *testing.T) {
 
 import (
 	"fmt"
-	sdk "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk"
+	"sdk"
 )
 
 func main() {
