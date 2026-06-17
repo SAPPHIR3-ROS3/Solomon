@@ -19,8 +19,8 @@ type orchestrateArgs struct {
 }
 
 func orchestrateOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and deferred tool catalog. Scripts run in WASM: use sdk.Shell for host commands (not os/exec). Read/transform/write files via SDK — do not paste large bodies with backticks into Go raw strings. Script stdout is returned in the tool result output field.", map[string]any{
-		"source": map[string]any{"type": "string", "description": "Complete Go source: package main, import sandbox SDK (sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk), func main()"},
+	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and deferred tool catalog. Scripts run in WASM: use sdk.Shell for host commands (not os/exec). sdk.Shell returns (string, error) — assign output to a variable and fmt.Println it; bare sdk.Shell calls do not appear in the tool result. Read/transform/write files via SDK — do not paste large bodies with backticks into Go raw strings. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", map[string]any{
+		"source": map[string]any{"type": "string", "description": "Complete Go source: package main, import sandbox SDK via import \"sdk\", func main()"},
 		"intent": map[string]any{"type": "string", "description": "Brief phrase describing what this script does"},
 	}, []string{"source", "intent"})
 }
@@ -30,7 +30,7 @@ func appendOrchestrateDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via sdk, SAPPHIR3ROS3/Solomon/sdk, or SAPPHIR3ROS3/Solomon/v2026/sdk. Helpers: ReadFile, ReplaceInFile(path,old,new,intent), WriteFile(path,content,intent), Glob/Grep, Shell (not os/exec), WebSearch, FetchWeb, DocsRetrieval. Do not embed markdown backticks in Go raw strings — ReadFile/transform/WriteFile instead. Use fmt.Print/Println/Printf in main(); stdout is captured in the tool result output field.", sig)
+	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via import \"sdk\" only. Helpers: ReadFile, ReplaceInFile(path,old,new,intent), WriteFile(path,content,intent), Glob/Grep, Shell (not os/exec), WebSearch, FetchWeb, DocsRetrieval. Do not embed markdown backticks in Go raw strings — ReadFile/transform/WriteFile instead. sdk.Shell returns (string, error): assign to a variable and fmt.Println it — bare calls are invisible in the tool result. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", sig)
 	return nil
 }
 

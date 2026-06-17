@@ -12,20 +12,10 @@ const SDKImportCanonical = "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sand
 
 var SDKImportPathsForModel = []string{
 	"sdk",
-	"SAPPHIR3ROS3/Solomon/sdk",
-	"SAPPHIR3ROS3/Solomon/v2026/sdk",
 }
 
 var sdkImportAliasPaths = map[string]struct{}{
 	"sdk": {},
-	"SAPPHIR3ROS3/Solomon/sdk":                   {},
-	"SAPPHIR3ROS3/Solomon/v2026/sdk":             {},
-	"github.com/SAPPHIR3ROS3/Solomon/sdk":          {},
-	"github.com/SAPPHIR3ROS3/Solomon/v2026/sdk":    {},
-	"SAPPHIR3-ROS3/Solomon/sdk":                  {},
-	"SAPPHIR3-ROS3/Solomon/v2026/sdk":            {},
-	"github.com/SAPPHIR3-ROS3/Solomon/sdk":       {},
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/sdk": {},
 }
 
 func RewriteSDKImports(src string) (string, error) {
