@@ -93,3 +93,23 @@ func TestImagesWorkflowSection_inPrompts(t *testing.T) {
 		t.Fatalf("summarize system missing wire token description")
 	}
 }
+
+func TestRenderAgent_AnonymizeOmitsSolomon(t *testing.T) {
+	got, err := prompt.RenderAgent(prompt.Data{
+		Tools:     "t",
+		Syntax:    prompt.AnonymizeNativeToolInvocationSyntax(),
+		Anonymize: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lower := strings.ToLower(got)
+	for _, forbidden := range []string{"solomon", "harness", "you operate in agent mode"} {
+		if strings.Contains(lower, forbidden) {
+			t.Fatalf("compat prompt must not mention %q:\n%s", forbidden, got)
+		}
+	}
+	if !strings.Contains(got, "coding assistant") {
+		t.Fatalf("compat prompt missing neutral intro: %q", got)
+	}
+}

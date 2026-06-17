@@ -89,6 +89,7 @@ type Root struct {
 	LogLevel                  string               `toml:"log_level"`
 	MaxResponseTokens         int                  `toml:"max_response_tokens"`
 	ShowThinking              bool                 `toml:"show_thinking"`
+	Anonymize                 bool                 `toml:"anonymize,omitempty"`
 	Tools                     Tools                `toml:"tools,omitempty"`
 	ShowUsageStats            *bool                `toml:"show_usage_stats"`
 	ResponseLanguage          string               `toml:"response_language"`
