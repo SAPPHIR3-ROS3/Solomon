@@ -46,8 +46,6 @@ func getSlashBuiltins() []slashBuiltin {
 		}},
 		{[]string{"agent"}, "/agent", "agent mode (searchTools, orchestrate, switchMode)", nil, func(d Deps, parts []string) error { return Agent(d) }},
 		{[]string{"chat"}, "/chat", "chat mode (web search, docs, switchMode)", nil, func(d Deps, parts []string) error { return Chat(d) }},
-		{[]string{"plan"}, "/plan", "deprecated — switches to /agent", nil, func(d Deps, parts []string) error { return Plan(d) }},
-		{[]string{"build"}, "/build", "deprecated — switches to /agent", nil, func(d Deps, parts []string) error { return Build(d) }},
 		{[]string{"clear"}, "/clear", "clear terminal (ANSI)", nil, func(d Deps, parts []string) error { return Clear(d) }},
 		{[]string{"cleansessioncache"}, "/cleansessioncache", "/cleansessioncache — drop broken pasted PNG paths and strip orphaned [img-*] from transcript", nil, func(d Deps, parts []string) error {
 			return CleanSessionCache(d)
@@ -65,6 +63,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"log"}, "/log", "/log {error|warning|info|debug|result} visible log verbosity", nil, func(d Deps, parts []string) error { return SlashLog(d, parts) }},
 		{[]string{"reasoning"}, "/reasoning", "/reasoning | /reasoning {none|low|med|high} main; /reasoning sub {none|low|med|high}", nil, func(d Deps, parts []string) error { return Reasoning(d, parts) }},
 		{[]string{"subagent"}, "/subagent", "/subagent | /subagent resume|stop|cancel <id|title>", nil, func(d Deps, parts []string) error { return Subagent(d, parts) }},
+		{[]string{"research"}, "/research", "/research <query> | /research list|status|resume|stop|cancel|delete — deep web research (HTML report)", nil, func(d Deps, parts []string) error { return Research(d, parts) }},
 		{[]string{"timeout"}, "/timeout", "/timeout <minutes> subagent segment (1–180)", nil, func(d Deps, parts []string) error { return Timeout(d, parts) }},
 		{[]string{"stats"}, "/stats", "toggle token usage line after assistant turns (saved)", nil, func(d Deps, parts []string) error { return Stats(d) }},
 		{[]string{"thinking"}, "/thinking", "/thinking toggles preview; /thinking on|off streamed reasoning (dim gray); tool echoes (yellow)", nil, func(d Deps, parts []string) error { return Thinking(d, parts) }},

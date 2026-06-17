@@ -16,7 +16,7 @@ func resolveToolInvocation(ctx context.Context, env *Env, mode string, inv tooli
 	if isInternalToolName(inv.Name) {
 		return dispatchInternal(ctx, env, mode, inv)
 	}
-	if isSkillToolName(inv.Name) || (env.MCP != nil && env.MCP.HasTool(inv.Name)) {
+	if isSkillToolName(inv.Name) || mcpToolAllowed(env, inv.Name) {
 		return dispatchExternal(ctx, env, mode, inv)
 	}
 	err := fmt.Errorf("unknown tool %q", inv.Name)
@@ -28,7 +28,8 @@ func isInternalToolName(name string) bool {
 	switch name {
 	case "docsRetrieval",
 		"createPlan", "editPlan", "buildPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
-		"shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch",
+		"shell", "readFile", "editFile", "find", "listDir", "tree", "subagent", "fetchWeb", "webSearch",
+		"deepResearch", "researchStatus",
 		"searchTools", "orchestrate", "switchMode":
 		return true
 	default:
@@ -60,25 +61,16 @@ func modeAllowed(env *Env, mode, tool string) bool {
 			return true
 		default:
 			if isPlanTool(tool) {
-				return planAllowed(env)
+				return planAllowed(env, tool)
+			}
+			if mcpToolAllowed(env, tool) {
+				return true
 			}
 			return false
 		}
 	case "chat":
 		switch tool {
-		case "fetchWeb", "webSearch", "switchMode":
-			return true
-		default:
-			return false
-		}
-	case "plan":
-		if isPlanTool(tool) {
-			return true
-		}
-		return false
-	case "build":
-		switch tool {
-		case "shell", "readFile", "editFile", "find", "subagent", "fetchWeb", "webSearch", "loadSkill", "searchSkill":
+		case "fetchWeb", "webSearch", "switchMode", "deepResearch", "researchStatus":
 			return true
 		default:
 			return false
@@ -125,14 +117,22 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 		return execReadFile(env, inv.Args)
 	case "find":
 		return execFind(ctx, env, inv.Args)
+	case "listDir":
+		return execListDir(env, inv.Args)
+	case "tree":
+		return execTree(env, inv.Args)
 	case "editFile":
 		return execEditFile(env, inv.Args)
 	case "subagent":
 		return execSubagent(ctx, env, inv.Args)
 	case "fetchWeb":
-		return execFetchWeb(ctx, inv.Args)
+		return execFetchWeb(ctx, env, inv.Args)
 	case "webSearch":
 		return execWebSearch(ctx, env, inv.Args)
+	case "deepResearch":
+		return execDeepResearch(ctx, env, inv.Args)
+	case "researchStatus":
+		return execResearchStatus(env, inv.Args)
 	case "searchTools":
 		return execSearchTools(env, inv.Args)
 	case "orchestrate":

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/plan"
@@ -114,7 +113,7 @@ func TestCreatePlanSkeleton(t *testing.T) {
 	env := planTestEnv(t, sess)
 
 	raw, _ := json.Marshal(map[string]string{"name": "feature.md", "goal": "Add planning"})
-	out, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "createPlan", Args: raw})
+	out, err := execDeferredToolForTest(env, tooling.Invocation{Name: "createPlan", Args: raw})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +147,7 @@ func TestAddTodoCheckTodoAppendEnd(t *testing.T) {
 	env.SetPlanningActive("feature.md")
 
 	createRaw, _ := json.Marshal(map[string]string{"name": "feature.md", "goal": "G"})
-	if _, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "createPlan", Args: createRaw}); err != nil {
+	if _, err := execDeferredToolForTest(env, tooling.Invocation{Name: "createPlan", Args: createRaw}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -161,7 +160,7 @@ func TestAddTodoCheckTodoAppendEnd(t *testing.T) {
 	_ = plan.WriteFile(p, doc)
 
 	addRaw, _ := json.Marshal(map[string]string{"name": "feature.md", "todo": "First task"})
-	out, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "addTodo", Args: addRaw})
+	out, err := execDeferredToolForTest(env, tooling.Invocation{Name: "addTodo", Args: addRaw})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +172,7 @@ func TestAddTodoCheckTodoAppendEnd(t *testing.T) {
 	}
 
 	chkRaw, _ := json.Marshal(map[string]string{"sha1": sha})
-	out2, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "checkTodo", Args: chkRaw})
+	out2, err := execDeferredToolForTest(env, tooling.Invocation{Name: "checkTodo", Args: chkRaw})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,25 +210,12 @@ func TestBuildPlanBriefNoNested(t *testing.T) {
 	}
 }
 
-func TestSlashPlanActivatesPlanning(t *testing.T) {
-	sess := &chatstore.Session{}
-	d := testDeps(sess)
-	var mode string
-	d.SetMode = func(m string) { mode = m }
-	if err := agent.SlashDispatch(d, "/plan"); err != nil {
-		t.Fatal(err)
-	}
-	if mode != "agent" || !sess.PlanningActive {
-		t.Fatalf("mode=%s planning=%v", mode, sess.PlanningActive)
-	}
-}
-
 func TestPlanNativeToolsWhenPlanningActive(t *testing.T) {
 	params, err := tools.NativeToolParams("agent")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"createPlan", "addTodo"} {
+	for _, name := range []string{"createPlan", "addTodo", "deepResearch"} {
 		found := false
 		for _, p := range params {
 			if p.GetFunction().Name == name {
@@ -240,9 +226,9 @@ func TestPlanNativeToolsWhenPlanningActive(t *testing.T) {
 			t.Fatalf("%s should not be in default agent params", name)
 		}
 	}
-	planParams := tools.PlanNativeToolParams()
-	if len(planParams) < 9 {
-		t.Fatalf("plan params %d", len(planParams))
+	planParams := tools.PlanningNativeToolParams()
+	if len(planParams) != 1 || planParams[0].GetFunction().Name != "buildPlan" {
+		t.Fatalf("planning native params: %+v", planParams)
 	}
 }
 
@@ -257,7 +243,7 @@ func TestCheckPlanFullAndDelete(t *testing.T) {
 
 	full := true
 	chkRaw, _ := json.Marshal(map[string]any{"name": "x.md", "full": full})
-	out, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "checkPlan", Args: chkRaw})
+	out, err := execDeferredToolForTest(env, tooling.Invocation{Name: "checkPlan", Args: chkRaw})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +252,7 @@ func TestCheckPlanFullAndDelete(t *testing.T) {
 	}
 
 	delRaw, _ := json.Marshal(map[string]string{"name": "x.md"})
-	if _, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "deletePlan", Args: delRaw}); err != nil {
+	if _, err := execDeferredToolForTest(env, tooling.Invocation{Name: "deletePlan", Args: delRaw}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(p); !os.IsNotExist(err) {

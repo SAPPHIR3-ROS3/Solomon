@@ -245,7 +245,7 @@ func TestAutosuggestShellFromHistory(t *testing.T) {
 
 func TestSlashSuggestUnique(t *testing.T) {
 	env := replcomplete.ReplCompleteEnv{}
-	got := replcomplete.SlashSuggest(env, "/res", nil)
+	got := replcomplete.SlashSuggest(env, "/resu", nil)
 	if got != "/resume" {
 		t.Fatalf("slash suggest got %q", got)
 	}
@@ -284,9 +284,9 @@ func TestGhostVisualRowsSameLine(t *testing.T) {
 }
 
 func TestAutosuggestSlashGhost(t *testing.T) {
-	e := repl.NewMultilineEditorForTest(&repl.Loop{CompleteEnv: replcomplete.ReplCompleteEnv{}}, nil, []string{"/res"}, 0, len("/res"), 80)
+	e := repl.NewMultilineEditorForTest(&repl.Loop{CompleteEnv: replcomplete.ReplCompleteEnv{}}, nil, []string{"/resu"}, 0, len("/resu"), 80)
 	e.RecomputeSuggest()
-	if got := e.SuggestSuffix(); got != "ume" {
+	if got := e.SuggestSuffix(); got != "me" {
 		t.Fatalf("ghost got %q", got)
 	}
 }

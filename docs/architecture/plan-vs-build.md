@@ -1,27 +1,29 @@
-# Session modes: agent, chat, plan, build
+# Session modes: agent and chat
 
 ## Purpose
 
-`Runtime.Mode` switches the native tool surface and the system prompt template.
+`Runtime.Mode` is either **`agent`** (default) or **`chat`**. It switches the native tool surface and the system prompt template.
 
-## Current modes
+## Modes
 
 | Mode | Set by | Native tools (OpenAI) |
 |------|--------|------------------------|
-| **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `subagent`, `switchMode` |
-| **`chat`** | `/chat` | `docsRetrieval`, `fetchWeb`, `webSearch`, `switchMode` |
-| `plan` | `/plan` (deprecated → agent) | Legacy: `createPlan`, `editPlan`, `buildPlan`, `docsRetrieval` |
-| `build` | `/build` (deprecated → agent) | Legacy: `shell`, `readFile`, `editFile`, `find`, `subagent`, skills, web, `docsRetrieval` |
+| **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `subagent`, skills, research, `switchMode`, `docsRetrieval` |
+| **`chat`** | `/chat` | `fetchWeb`, `webSearch`, research, `switchMode`, `docsRetrieval` |
 
 MCP tools append in **agent** mode when connected ([`toolParams`](../../internal/agent/runtime/mcp.go)).
 
-## Code mode (orchestrate)
+**Planning** is not a separate mode: `Session.PlanningActive` (set when a plan is created via plan tools) appends native plan tools until cleared.
 
-Deferred tools (shell, readFile, editFile, plan tools, …) are **not** exposed directly in agent mode. The model uses **`searchTools`** to discover them and **`orchestrate`** to run Go scripts that call the sandbox SDK (`internal/sandbox/sdk`). **`subagent` is excluded** from the deferred catalog and cannot run inside orchestrate scripts; invoke it as a **native** tool_call in agent mode (or legacy build mode).
+## Deferred tools (orchestrate)
 
-Internal tool calls from orchestrate scripts use the same checkpoint **`cp_seq`** as the parent `orchestrate` invocation (rollback via `/goto` restores all script edits atomically).
+Filesystem, shell, and most plan tools are **deferred** in agent mode. The model uses **`searchTools`** to discover them and **`orchestrate`** to run Go scripts that call the sandbox SDK (`internal/sandbox/sdk`). **`subagent` is excluded** from the deferred catalog and cannot run inside orchestrate scripts; invoke it as a **native** tool_call.
 
-**Orchestrate pitfalls:** invalid Go syntax (often unescaped `` ` `` inside raw string literals) prevents SDK import rewrite and surfaces misleading `package sdk is not in std` errors — fix syntax first. Large file bodies: `ReadFile` → transform → `WriteFile`/`ReplaceInFile(path,old,new,intent)`. Host shell: `sdk.Shell` only, not `os/exec`.
+`AllowDeferredTools` on the tool env (set by orchestrate host) allows deferred handlers without exposing them in the API tool list.
+
+## Legacy XML tools
+
+When `[tools].legacy` is enabled, deferred tool names are also allowed via `<tool_calls>` XML. With `legacy_force`, the deferred tool dump is appended to the agent system prompt and native API tool schemas are omitted.
 
 ## Packages and files
 
@@ -32,23 +34,10 @@ Internal tool calls from orchestrate scripts use the same checkpoint **`cp_seq`*
 | `internal/agent/tools/orchestrate.go` | Compile + worker IPC |
 | `internal/agent/tools/search_tools.go` | Deferred catalog search |
 | `internal/agent/tools/switch_mode.go` | Mode switch tool |
-| `internal/agent/runtime/core.go` | `systemPrompt` → `RenderAgent` / `RenderChat` / legacy |
-| `internal/agent/runtime/switch_mode.go` | Countdown UX (5s, Ctrl+C cancel) |
+| `internal/agent/runtime/core.go` | `systemPrompt` → `RenderAgent` / `RenderChat` |
+| `internal/agent/runtime/mcp.go` | Plan tools when `PlanningActive` |
 | `internal/sandbox/` | SDK, compile, worker, wazero host |
 | `internal/prompt/templates/agent.tmpl`, `chat.tmpl` | System prompts |
-
-## Legacy plan / build
-
-`/plan` and `/build` print a migration message and switch to **agent**. Existing sessions or tests may still use `plan` / `build` mode strings; `NativeToolParams` keeps legacy tool surfaces for compatibility.
-
-## Key functions
-
-| Function | Behavior |
-|----------|----------|
-| `NativeToolParams` | Returns tool schema slice for mode |
-| `BuildAgentToolDump` / `BuildChatToolDump` | Prompt tool listings |
-| `tools.Exec` | Rejects tools outside mode unless `AllowDeferredTools` |
-| `switchMode` | Countdown then `Runtime.Mode` + next-turn system prompt |
 
 ## See also
 

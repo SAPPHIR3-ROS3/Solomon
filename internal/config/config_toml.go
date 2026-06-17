@@ -78,6 +78,8 @@ type rootLegacyFile struct {
 
 	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
 
+	WebFetch                  WebFetchConfig        `toml:"web_fetch,omitempty"`
+
 	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
 
 }
@@ -137,6 +139,8 @@ type rootFile struct {
 	ToolOutput                ToolOutput            `toml:"tool_output,omitempty"`
 
 	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
+
+	WebFetch                  WebFetchConfig        `toml:"web_fetch,omitempty"`
 
 	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
 
@@ -222,6 +226,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		APIResilience:             f.APIResilience,
 
+		WebFetch:                  f.WebFetch,
+
 		AutoUpdate:                f.AutoUpdate,
 
 		PromptTemplates:           f.PromptTemplates,
@@ -295,6 +301,8 @@ func rootToFile(r *Root) *rootFile {
 		ToolOutput:                r.ToolOutput,
 
 		APIResilience:             r.APIResilience,
+
+		WebFetch:                  r.WebFetch,
 
 		AutoUpdate:                r.AutoUpdate,
 
@@ -409,6 +417,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		ToolOutput:                f.ToolOutput,
 
 		APIResilience:             f.APIResilience,
+
+		WebFetch:                  f.WebFetch,
 
 		AutoUpdate:                f.AutoUpdate,
 

@@ -7,7 +7,15 @@ import (
 func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error) {
 	var tools []openai.ChatCompletionToolUnionParam
 	switch normalizeMode(mode) {
-	case "agent":
+	case "chat":
+		tools = []openai.ChatCompletionToolUnionParam{
+			fetchWebOpenAI(),
+			webSearchOpenAI(),
+			deepResearchOpenAI(),
+			researchStatusOpenAI(),
+			switchModeOpenAI(),
+		}
+	default:
 		tools = []openai.ChatCompletionToolUnionParam{
 			searchSkillOpenAI(),
 			loadSkillOpenAI(),
@@ -16,32 +24,6 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 			subagentOpenAI(),
 			switchModeOpenAI(),
 		}
-	case "chat":
-		tools = []openai.ChatCompletionToolUnionParam{
-			fetchWebOpenAI(),
-			webSearchOpenAI(),
-			switchModeOpenAI(),
-		}
-	case "plan":
-		tools = []openai.ChatCompletionToolUnionParam{
-			createPlanOpenAI(),
-			editPlanOpenAI(),
-			buildPlanOpenAI(),
-		}
-	case "build":
-		tools = []openai.ChatCompletionToolUnionParam{
-			shellOpenAI(),
-			readFileOpenAI(),
-			editFileOpenAI(),
-			findOpenAI(),
-			subagentOpenAI(),
-			loadSkillOpenAI(),
-			searchSkillOpenAI(),
-			fetchWebOpenAI(),
-			webSearchOpenAI(),
-		}
-	default:
-		return universalToolParams(), nil
 	}
 	return EnsureUniversalTools(tools), nil
 }

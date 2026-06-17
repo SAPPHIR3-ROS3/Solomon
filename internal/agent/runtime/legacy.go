@@ -44,7 +44,19 @@ func (r *Runtime) legacyToolsForced() bool {
 }
 
 func (r *Runtime) allowedToolNames() (map[string]struct{}, error) {
-	return r.allowedToolNamesForMode(r.Mode)
+	names, err := r.allowedToolNamesForMode(r.Mode)
+	if err != nil {
+		return nil, err
+	}
+	if r.legacyToolsEnabled() {
+		for _, n := range agenttools.AgentDeferredToolNames() {
+			names[n] = struct{}{}
+		}
+	}
+	if r.Session != nil && r.Session.PlanningActive {
+		names["buildPlan"] = struct{}{}
+	}
+	return names, nil
 }
 
 func (r *Runtime) allowedToolNamesForMode(mode string) (map[string]struct{}, error) {
@@ -52,7 +64,7 @@ func (r *Runtime) allowedToolNamesForMode(mode string) (map[string]struct{}, err
 	if err != nil {
 		return nil, err
 	}
-	if r != nil && r.MCP != nil && mode == r.Mode {
+	if r != nil && r.MCP != nil && agenttools.NormalizeMode(mode) == "agent" {
 		tools = append(tools, r.MCP.OpenAITools()...)
 	}
 	names := make(map[string]struct{}, len(tools))

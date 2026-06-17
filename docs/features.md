@@ -70,9 +70,9 @@ Paste and author multi-line prompts without premature send. Solomon owns the REP
 
 `/exec <prompt>` or `/exec "prompt with spaces"` sends one user message and runs a full agent turn without leaving the REPL — the REPL counterpart to headless `solomon exec`. Useful when you want a single automated turn while keeping session context and checkpoint tags.
 
-### Plan mode vs build mode
+### Agent vs chat mode
 
-`/plan` restricts the model to planning tools (`createPlan`, `editPlan`, `buildPlan`, skills search); `/build` enables shell, files (`readFile`, `editFile`, `find`), subagent, and web tools. Claude Code plan mode and Codex review/plan flows address the same “think before you edit” workflow. Deep dive: [Plan vs build](architecture/plan-vs-build.md).
+**Agent** (default) uses `searchTools`, `orchestrate`, and deferred filesystem/shell tools. **Chat** exposes web/docs tools only. Planning tools appear natively when `PlanningActive`. See [Plan vs build](architecture/plan-vs-build.md).
 
 ### Project-scoped sessions and data
 
@@ -224,7 +224,7 @@ Modern shells show ghost-text suggestions from local history; coding-agent REPLs
 
 ### Code mode (`/agent`, `/chat`, orchestrate) **(implemented)**
 
-**Agent mode** (default) exposes `searchTools`, `orchestrate`, and `switchMode`. Deferred tools (shell, readFile, editFile, plan tools, …) are discovered via `searchTools` and invoked from Go scripts run by `orchestrate` (compiled to WASM, executed in a sandbox worker subprocess). **Chat mode** exposes web/docs tools plus `switchMode`. `/plan` and `/build` are deprecated aliases for `/agent`.
+**Agent mode** (default) exposes `searchTools`, `orchestrate`, and `switchMode`. Deferred tools (shell, readFile, editFile, plan tools, …) are discovered via `searchTools` and invoked from Go scripts run by `orchestrate`. **Chat mode** exposes web/docs tools plus `switchMode`.
 
 ### Full file-operation surface **(in the future)**
 

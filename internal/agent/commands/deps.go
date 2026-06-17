@@ -10,6 +10,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 
@@ -69,6 +70,15 @@ type Deps struct {
 
 	GetEphemeralSession func() bool
 	SetEphemeralSession func(bool)
+
+	Research interface {
+		StartResearchJob(query, category string) (research.JobRecord, error)
+		ListResearch() ([]research.JobRecord, error)
+		ResearchStatus(target string) (research.JobRecord, error)
+		CancelResearch(target string) error
+		DeleteResearch(target string) error
+		ResumeResearch(target string) (research.JobRecord, error)
+	}
 }
 
 func PrintSystem(out io.Writer, msg string) {

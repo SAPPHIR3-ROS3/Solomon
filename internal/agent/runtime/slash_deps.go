@@ -114,5 +114,7 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 
 		GetEphemeralSession: func() bool { return r.EphemeralSession },
 		SetEphemeralSession: func(v bool) { r.EphemeralSession = v },
+
+		Research: r,
 	}
 }

@@ -2,6 +2,7 @@ package turnloop
 
 import (
 	"io"
+	"strings"
 	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
@@ -60,6 +61,14 @@ func LeaveStreaming(w io.Writer) {
 	}
 }
 
+func writeSystemImmediate(w io.Writer, message string) {
+	if strings.TrimSpace(message) == "" {
+		return
+	}
+	_, _ = io.WriteString(w, "\n")
+	termcolor.WriteSystem(w, message)
+}
+
 func WriteSystemDeferred(w io.Writer, message string) {
 	message = termcolor.SystemMessageText(message)
 	if message == "" {
@@ -72,7 +81,7 @@ func WriteSystemDeferred(w io.Writer, message string) {
 		return
 	}
 	streamGuardMu.Unlock()
-	termcolor.WriteSystem(w, message)
+	writeSystemImmediate(w, message)
 }
 
 func FlushPendingSystem(w io.Writer) {

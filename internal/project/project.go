@@ -107,6 +107,7 @@ func EnsureDirs(projectHex string) error {
 		filepath.Join(proot, "chats", "subchats"),
 		filepath.Join(proot, "chats", paths.ImagesDirName),
 		filepath.Join(proot, "plans"),
+		filepath.Join(proot, "research"),
 		filepath.Join(proot, "skills"),
 	}
 	for _, d := range dirs {

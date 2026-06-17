@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -24,12 +25,12 @@ const sampleMultiLegacyToolCalls = `<tool_calls>
 </tool>
 </tool_calls>`
 
-func allowedBuildLegacyTools() map[string]struct{} {
-	names := []string{"shell", "readFile", "editFile", "subagent", "loadSkill", "searchSkill", "fetchWeb", "webSearch"}
-	out := make(map[string]struct{}, len(names))
-	for _, n := range names {
+func allowedDeferredLegacyTools() map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, n := range agenttools.AgentDeferredToolNames() {
 		out[n] = struct{}{}
 	}
+	out["buildPlan"] = struct{}{}
 	return out
 }
 

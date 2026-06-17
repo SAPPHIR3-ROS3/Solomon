@@ -9,10 +9,10 @@ import (
 )
 
 func TestExposedToolNameSanitizesAndFallsBack(t *testing.T) {
-	if got, want := mcp.ExposedToolName("file system", "read.file"), "MCPfile_system-read_file"; got != want {
+	if got, want := mcp.ExposedToolName("file system", "read.file"), "MCP.file_system.read_file"; got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
-	if got, want := mcp.ExposedToolName("", ""), "MCPserver-tool"; got != want {
+	if got, want := mcp.ExposedToolName("", ""), "MCP.server.tool"; got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
@@ -51,12 +51,12 @@ func TestAdaptToolRejectsInvalidSchema(t *testing.T) {
 
 func TestManagerToolDumpIncludesRemoteTools(t *testing.T) {
 	mgr := mcp.NewManagerWithRemoteTools([]mcp.RemoteTool{{
-		OpenAIName:  "MCPserver-search",
+		OpenAIName:  "MCP.server.search",
 		Description: "Search remote data",
 		Schema:      map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}},
 	}})
 	dump := mgr.ToolDump()
-	if !strings.Contains(dump, "name: MCPserver-search") || !strings.Contains(dump, "Search remote data") || !strings.Contains(dump, `"q"`) {
+	if !strings.Contains(dump, "name: MCP.server.search") || !strings.Contains(dump, "Search remote data") || !strings.Contains(dump, `"q"`) {
 		t.Fatalf("unexpected dump: %s", dump)
 	}
 }

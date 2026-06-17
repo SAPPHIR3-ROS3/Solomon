@@ -34,7 +34,7 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 | `config.NeedsOnboard` | `internal/config/onboard.go` | True when provider, API key, or model is missing |
 | `config.ResolveProvider` | `internal/config/config.go` | Active provider from `current.*` |
 | `project.Resolve` | `internal/project/project.go` | Map cwd → `(root, hex)` |
-| `agentruntime.NewRuntime` | `runtime/core.go` | OpenAI client, default `Mode: "build"` |
+| `agentruntime.NewRuntime` | `runtime/core.go` | OpenAI client, default `Mode: "agent"` |
 | `Runtime.InitMCP` | `runtime/mcp.go` | Start MCP manager from config |
 | `Runtime.Run` | `runtime/repl_run.go` + `runtime/repl/` | Interactive loop |
 | `Runtime.RunPromptOnce` | `runtime/core.go` | Single user message + turns |

@@ -35,9 +35,9 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 
 | Name | Mode |
 |------|------|
-| `createPlan`, `editPlan`, `buildPlan` | plan |
-| `subagent` | agent, build (native tool_call only; not deferred / orchestrate) |
-| `shell`, `readFile`, `editFile`, `find`, `fetchWeb`, `webSearch`, `docsRetrieval` | build (legacy direct surface) |
+| `createPlan`, `editPlan`, `buildPlan`, todos | agent when `PlanningActive` (or deferred via orchestrate) |
+| `subagent` | agent (native tool_call only; not deferred / orchestrate) |
+| `shell`, `readFile`, `editFile`, `find`, `fetchWeb`, `webSearch`, skills | deferred (orchestrate / legacy XML) |
 | `searchTools`, `orchestrate`, `switchMode` | agent |
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
 
@@ -121,7 +121,7 @@ To add a new callback: extend `toolenv.Env`, wire it in `runtime/exec.go`, use i
 
 ## See also
 
-- [Plan vs build](plan-vs-build.md)
+- [Plan vs build](plan-vs-build.md) — agent/chat modes and deferred tools
 - [Agent turn pipeline](agent-turn-pipeline.md)
 - [MCP integration](mcp-integration.md)
 - [Cursor integration](cursor-integration.md)
