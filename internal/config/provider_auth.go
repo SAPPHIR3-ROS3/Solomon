@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
 const (
@@ -25,6 +27,10 @@ const (
 	AuthKindCursorAPI    = "cursor_api"
 
 	ClaudeSubExpectedDate = "2026-06-15"
+
+	AnthropicClaudeCodeOAuthTokenPrefix = "sk-ant-oat"
+
+	AnthropicClaudeCodeOAuthSetupWarning = "Claude Code OAuth tokens (sk-ant-oat…) are not recommended as API keys."
 )
 
 var chatGPTSubModelDenylistPrefixes = []string{
@@ -95,8 +101,25 @@ func (p *Provider) IsClaudeSub() bool {
 	return p != nil && p.Name == ProviderNameClaudeSub && p.EffectiveAuthKind() == AuthKindOAuthClaude
 }
 
+func IsAnthropicClaudeCodeOAuthToken(token string) bool {
+	return strings.HasPrefix(strings.TrimSpace(token), AnthropicClaudeCodeOAuthTokenPrefix)
+}
+
 func (p *Provider) UsesAnthropicOAuthBearer() bool {
-	return p != nil && p.IsAnthropic() && p.EffectiveAuthKind() == AuthKindOAuthClaude
+	if p == nil || !p.IsAnthropic() {
+		return false
+	}
+	if p.EffectiveAuthKind() == AuthKindOAuthClaude {
+		return true
+	}
+	return IsAnthropicClaudeCodeOAuthToken(p.APIKey)
+}
+
+func WriteAnthropicClaudeCodeOAuthWarning(out io.Writer) {
+	if out == nil {
+		return
+	}
+	termcolor.WriteSystem(out, AnthropicClaudeCodeOAuthSetupWarning)
 }
 
 func oauthCredentialsReady(p *Provider) bool {
