@@ -250,7 +250,7 @@ func main() {
 		CheckpointCP0:          true,
 		CheckpointBranchSuffix: "",
 		ForkChildCount:         nil,
-		MainOrphans:            nil,
+		Branches:               nil,
 		LastCommitOID:          "",
 	}
 	multiline.EnsureCookedTTY()

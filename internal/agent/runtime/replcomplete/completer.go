@@ -103,6 +103,8 @@ func (c *replCompleter) completeArg(cmd string, line []rune, pos, argStart int, 
 			candidates = c.resumeCandidates()
 		case "goto":
 			candidates = c.gotoCandidates()
+		case "rewind":
+			candidates = c.rewindCandidates()
 		default:
 			return nil, 0
 		}
@@ -170,9 +172,57 @@ func (c *replCompleter) gotoCandidates() []string {
 			add(m.CheckpointSeq, m.CheckpointBranchKey)
 		}
 	}
+	for _, seg := range sess.Branches {
+		for _, m := range seg.Messages {
+			if m.CpSeqSet || m.CheckpointSeq >= 0 {
+				add(m.CheckpointSeq, m.CheckpointBranchKey)
+			}
+			for _, tc := range m.ToolCalls {
+				if tc.CpSeqSet {
+					add(tc.CheckpointSeq, tc.CheckpointBranchKey)
+				}
+			}
+		}
+	}
 	for i := 0; i <= sess.CheckpointLast; i++ {
 		add(i, "")
 		add(i, sess.CheckpointBranchSuffix)
+	}
+	return out
+}
+
+func (c *replCompleter) rewindCandidates() []string {
+	sess := c.env.Session()
+	if sess == nil || sess.CheckpointLast < 0 {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var out []string
+	add := func(seq int, suffix string) {
+		if seq >= sess.CheckpointLast {
+			return
+		}
+		tag := checkpoint.FormatCheckpointTag(seq, suffix)
+		tag = strings.Trim(tag, "[]")
+		if tag == "" {
+			return
+		}
+		if _, ok := seen[tag]; ok {
+			return
+		}
+		seen[tag] = struct{}{}
+		out = append(out, tag)
+		if n := strconv.Itoa(seq); n != "" {
+			if _, ok := seen[n]; !ok {
+				seen[n] = struct{}{}
+				out = append(out, n)
+			}
+		}
+	}
+	for _, m := range sess.Messages {
+		if m.CpSeqSet || m.CheckpointSeq >= 0 {
+			add(m.CheckpointSeq, m.CheckpointBranchKey)
+		}
 	}
 	return out
 }

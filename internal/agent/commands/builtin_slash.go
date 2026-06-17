@@ -110,7 +110,8 @@ func getSlashBuiltins() []slashBuiltin {
 			WriteHelp(d.Out, d.ProjHex, d.ProjRoot, d.Cfg)
 			return nil
 		}},
-		{[]string{"goto"}, "/goto", "/goto <checkpoint-id> rewind transcript to checkpoint (e.g. 5, #006a); fork suffix on new lines", nil, func(d Deps, parts []string) error { return SlashGoto(d, parts) }},
+		{[]string{"goto"}, "/goto", "/goto <checkpoint-id> jump to checkpoint (e.g. 5, #006a); keeps alternate branches", nil, func(d Deps, parts []string) error { return SlashGoto(d, parts) }},
+		{[]string{"rewind"}, "/rewind", "/rewind <checkpoint-id> destructive rewind on current branch only; drops later messages and branches (confirm [y/N])", nil, func(d Deps, parts []string) error { return SlashRewind(d, parts) }},
 		{[]string{"checkpoint"}, "/checkpoint", "print current checkpoint tag", nil, func(d Deps, parts []string) error {
 			SlashCheckpointAck(d)
 			return nil

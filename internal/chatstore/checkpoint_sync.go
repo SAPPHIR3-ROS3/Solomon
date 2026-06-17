@@ -32,9 +32,9 @@ func MigrateLegacyCheckpointsToBase0(s *Session) {
 		}
 	}
 	if !hasLegacyPositive {
-		for i := range s.MainOrphans {
-			for _, om := range s.MainOrphans[i].Messages {
-				if om.CheckpointSeq > 0 {
+		for i := range s.Branches {
+			for _, bm := range s.Branches[i].Messages {
+				if bm.CheckpointSeq > 0 {
 					hasLegacyPositive = true
 					break
 				}
@@ -54,14 +54,14 @@ func MigrateLegacyCheckpointsToBase0(s *Session) {
 			s.Messages[i].CpSeqSet = true
 		}
 	}
-	for i := range s.MainOrphans {
-		if s.MainOrphans[i].ForkAtInclusive > 0 {
-			s.MainOrphans[i].ForkAtInclusive--
+	for i := range s.Branches {
+		if s.Branches[i].ForkAtInclusive > 0 {
+			s.Branches[i].ForkAtInclusive--
 		}
-		for j := range s.MainOrphans[i].Messages {
-			if s.MainOrphans[i].Messages[j].CheckpointSeq > 0 {
-				s.MainOrphans[i].Messages[j].CheckpointSeq--
-				s.MainOrphans[i].Messages[j].CpSeqSet = true
+		for j := range s.Branches[i].Messages {
+			if s.Branches[i].Messages[j].CheckpointSeq > 0 {
+				s.Branches[i].Messages[j].CheckpointSeq--
+				s.Branches[i].Messages[j].CpSeqSet = true
 			}
 		}
 	}

@@ -60,7 +60,8 @@ type Deps struct {
 	CheckForUpdate func(force bool) (*updater.Notice, error)
 	InstallUpdate    func(tag string) error
 
-	CheckpointGoto func(*checkpoint.FullCheckpointID) error
+	CheckpointGoto   func(*checkpoint.FullCheckpointID) error
+	CheckpointRewind func(*checkpoint.RewindPlan) error
 
 	PersistSession func() error
 	MutateSession  func(fn func(*chatstore.Session))

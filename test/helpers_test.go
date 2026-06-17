@@ -60,7 +60,8 @@ func testDeps(sess *chatstore.Session) commands.Deps {
 		CompactionThresholdTokens:    func() int64 { return thresh },
 		SetCompactionThresholdTokens: func(n int64) { thresh = n },
 		Client: openai.NewClient(option.WithAPIKey("x"), option.WithBaseURL("http://127.0.0.1:9/")),
-		CheckpointGoto: func(*checkpoint.FullCheckpointID) error { return nil },
+		CheckpointGoto:   func(*checkpoint.FullCheckpointID) error { return nil },
+		CheckpointRewind: func(*checkpoint.RewindPlan) error { return nil },
 
 		GetReplShellFirst: func() bool { return shellFirst },
 		SetReplShellFirst: func(v bool) { shellFirst = v },

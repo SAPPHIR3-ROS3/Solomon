@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -71,23 +72,25 @@ func (r *Runtime) ApplyGotoCheckpoint(id *checkpoint.FullCheckpointID) error {
 		}
 	}
 	var splitErr error
-	var dropCopy []chatstore.Message
 	var truncLen int
+	var restoredFromBranch bool
 	r.mutateSession(func(s *chatstore.Session) {
-		keep, drop, err := checkpoint.SplitAtFullID(s.Messages, id)
+		prevLen := len(s.Messages)
+		keep, branches, err := checkpoint.ResolveSessionGoto(s, id)
 		if err != nil {
 			splitErr = err
 			return
 		}
-		dropCopy = append([]chatstore.Message(nil), drop...)
-		s.MainOrphans = append(s.MainOrphans, chatstore.MainOrphanSegment{
-			ForkAtInclusive: id.Seq,
-			Messages:        dropCopy,
-		})
+		restoredFromBranch = len(keep) > prevLen
 		s.Messages = keep
+		s.Branches = branches
 		s.CheckpointBranchSuffix = checkpoint.NextForkSuffix(s, id.Seq)
 		chatstore.FinishSessionLoad(s)
-		truncLen = len(dropCopy)
+		if restoredFromBranch {
+			truncLen = len(keep) - prevLen
+		} else if len(keep) < prevLen {
+			truncLen = prevLen - len(keep)
+		}
 	})
 	if splitErr != nil {
 		return splitErr
@@ -106,6 +109,52 @@ func (r *Runtime) ApplyGotoCheckpoint(id *checkpoint.FullCheckpointID) error {
 	}
 	commands.WriteLabeledTranscript(r.Out, msgs, model, r.Cfg != nil && r.Cfg.UsageStatsEnabled())
 	tag := checkpoint.FormatCheckpointTag(id.Seq, id.Suffix)
-	commands.PrintSystemf(r.Out, "goto %s: transcript truncated (%d messages moved to orphan main).", tag, truncLen)
+	if restoredFromBranch {
+		commands.PrintSystemf(r.Out, "goto %s: restored branch (%d messages).", tag, truncLen)
+	} else {
+		commands.PrintSystemf(r.Out, "goto %s: transcript truncated (%d messages moved to another branch).", tag, truncLen)
+	}
+	return r.persistSession()
+}
+
+func (r *Runtime) ApplyRewindCheckpoint(plan *checkpoint.RewindPlan) error {
+	if plan == nil || plan.Target == nil {
+		return fmt.Errorf("invalid rewind plan")
+	}
+	id := plan.Target
+	store, _ := r.stagingStore()
+	if store != nil && r.ProjRoot != "" {
+		res, err := store.RestoreToCheckpoint(id.Seq, r.ProjRoot)
+		if err != nil {
+			commands.PrintSystemf(r.Out, "rewind: file restore warning: %v", err)
+		} else if res.FilesWritten > 0 || res.FilesRemoved > 0 {
+			commands.PrintSystemf(r.Out, "rewind: restored workspace (%d written, %d removed).", res.FilesWritten, res.FilesRemoved)
+		}
+		for _, w := range res.Warnings {
+			commands.PrintSystemf(r.Out, "rewind: %s", w)
+		}
+	}
+	r.mutateSession(func(s *chatstore.Session) {
+		s.Messages = append([]chatstore.Message(nil), plan.Messages...)
+		s.Branches = append([]chatstore.BranchSegment(nil), plan.Branches...)
+		s.ForkChildCount = checkpoint.PruneForkChildCount(s.ForkChildCount, id.Seq)
+		s.CheckpointBranchSuffix = checkpoint.NextForkSuffix(s, id.Seq)
+		chatstore.FinishSessionLoad(s)
+	})
+	cmds := r.slashDeps(context.Background())
+	if err := commands.Clear(cmds); err != nil {
+		return err
+	}
+	var msgs []chatstore.Message
+	r.mutateSession(func(s *chatstore.Session) {
+		msgs = append([]chatstore.Message(nil), s.Messages...)
+	})
+	model := r.Model
+	if r.Cfg != nil {
+		model = r.Cfg.ModelDisplayName(r.Prov, r.Model)
+	}
+	commands.WriteLabeledTranscript(r.Out, msgs, model, r.Cfg != nil && r.Cfg.UsageStatsEnabled())
+	tag := checkpoint.FormatCheckpointTag(id.Seq, id.Suffix)
+	commands.PrintSystemf(r.Out, "rewind %s: deleted %d message(s) and %d alternate branch(es) (%d message(s)).", tag, plan.DroppedMsgs, plan.RemovedBranches, plan.RemovedBranchMsgs)
 	return r.persistSession()
 }
