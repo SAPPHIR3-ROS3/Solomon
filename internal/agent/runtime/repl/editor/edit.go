@@ -40,7 +40,31 @@ func (e *multilineEditor) insertRuneRaw(r rune) {
 }
 
 func (e *multilineEditor) insertRune(r rune) {
+	if r != '\n' && e.col == len(e.lines[e.row]) && e.width > 0 {
+		prompt := e.promptFor(e.row)
+		budget := e.textCellsFor(prompt)
+		if runesCells(e.lines[e.row])+runeDisplayWidth(r) > budget {
+			if splitAt := e.findWrapSplit(budget); splitAt >= 0 {
+				e.col = splitAt + 1
+				e.insertNewline()
+				e.col = len(e.lines[e.row])
+				e.insertRuneRaw(r)
+				e.suggestSuffix = nil
+				return
+			}
+		}
+	}
 	e.insertRuneRaw(r)
+}
+
+func (e *multilineEditor) findWrapSplit(maxCells int) int {
+	line := e.lines[e.row]
+	for i := len(line) - 1; i >= 0; i-- {
+		if line[i] == ' ' && runesCells(line[:i]) <= maxCells {
+			return i
+		}
+	}
+	return -1
 }
 
 func (e *multilineEditor) insertNewline() {
