@@ -11,33 +11,33 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
-func TestRewriteSDKImports_aliases(t *testing.T) {
+func TestRewriteSDKImports_sdkOnly(t *testing.T) {
 	canon := compile.SDKImportCanonical
-	cases := []struct {
-		in   string
-		want string
-	}{
-		{`package main
+	src := `package main
 import "sdk"
-func main() {}`, canon},
-		{`package main
-import "SAPPHIR3ROS3/Solomon/v2026/sdk"
-func main() {}`, canon},
-		{`package main
-import (
-	"fmt"
-	"SAPPHIR3ROS3/Solomon/sdk"
-)
-func main() {}`, canon},
+func main() {}`
+	got, err := compile.RewriteSDKImports(src)
+	if err != nil {
+		t.Fatalf("rewrite parse error: %v", err)
 	}
-	for _, tc := range cases {
-		got, err := compile.RewriteSDKImports(tc.in)
-		if err != nil {
-			t.Fatalf("rewrite parse error for %q: %v", tc.in, err)
-		}
-		if !strings.Contains(got, `"`+canon+`"`) {
-			t.Fatalf("rewrite failed for %q:\n%s", tc.in, got)
-		}
+	if !strings.Contains(got, `"`+canon+`"`) {
+		t.Fatalf("rewrite failed:\n%s", got)
+	}
+}
+
+func TestRewriteSDKImports_ignoresLegacyAliases(t *testing.T) {
+	legacy := `package main
+import "SAPPHIR3ROS3/Solomon/v2026/sdk"
+func main() {}`
+	got, err := compile.RewriteSDKImports(legacy)
+	if err != nil {
+		t.Fatalf("rewrite parse error: %v", err)
+	}
+	if strings.Contains(got, compile.SDKImportCanonical) {
+		t.Fatalf("legacy alias should not be rewritten:\n%s", got)
+	}
+	if !strings.Contains(got, `SAPPHIR3ROS3/Solomon/v2026/sdk`) {
+		t.Fatalf("legacy import path changed unexpectedly:\n%s", got)
 	}
 }
 
@@ -54,8 +54,11 @@ func TestSearchToolsSDKImportsOmitCanonicalPath(t *testing.T) {
 	if strings.Contains(s, compile.SDKImportCanonical) {
 		t.Fatalf("searchTools sdk ref should not expose canonical import path: %s", s)
 	}
-	if !strings.Contains(s, "SAPPHIR3ROS3/Solomon/v2026/sdk") {
-		t.Fatalf("missing model import alias: %s", s)
+	if !strings.Contains(s, `"sdk"`) {
+		t.Fatalf("missing sdk import alias: %s", s)
+	}
+	if strings.Contains(s, "SAPPHIR3ROS3/Solomon") {
+		t.Fatalf("searchTools should not list legacy sdk import aliases: %s", s)
 	}
 	if !strings.Contains(s, "ReplaceInFile") {
 		t.Fatalf("missing ReplaceInFile example: %s", s)
@@ -70,7 +73,7 @@ func TestCompileSDKImportAlias(t *testing.T) {
 
 import (
 	"fmt"
-	"SAPPHIR3ROS3/Solomon/v2026/sdk"
+	"sdk"
 )
 
 func main() {

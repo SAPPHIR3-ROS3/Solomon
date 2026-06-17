@@ -65,7 +65,7 @@ func TestWorkerIPCSequentialRunsCaptureStdout(t *testing.T) {
 
 import (
 	"fmt"
-	sdk "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk"
+	"sdk"
 )
 
 func main() {
@@ -141,7 +141,7 @@ func TestWorkerIPCLargeOutputThenSecondRun(t *testing.T) {
 	srcPrintAll := `package main
 import (
 	"fmt"
-	sdk "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk"
+	"sdk"
 )
 func main() {
 	c, err := sdk.ReadFile("README.md")
@@ -167,7 +167,7 @@ func main() {
 	srcCount := `package main
 import (
 	"fmt"
-	sdk "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk"
+	"sdk"
 )
 func main() {
 	c, err := sdk.ReadFile("README.md")
@@ -204,7 +204,7 @@ func TestOrchestrateGlobalClientReadThenCount(t *testing.T) {
 
 	src1, _ := json.Marshal(map[string]string{
 		"intent": "read README.md",
-		"source": "package main\n\nimport (\n\t\"fmt\"\n\tsdk \"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk\"\n)\n\nfunc main() {\n\tcontent, err := sdk.ReadFile(\"README.md\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Println(content)\n}",
+		"source": "package main\n\nimport (\n\t\"fmt\"\n\t\"sdk\"\n)\n\nfunc main() {\n\tcontent, err := sdk.ReadFile(\"README.md\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Println(content)\n}",
 	})
 	out1, err := agenttools.Exec(ctx, env, "agent", tooling.Invocation{Name: "orchestrate", Args: src1})
 	if err != nil {
@@ -225,7 +225,7 @@ func TestOrchestrateGlobalClientReadThenCount(t *testing.T) {
 
 	src2, _ := json.Marshal(map[string]string{
 		"intent": "count characters in README.md",
-		"source": "package main\n\nimport (\n\t\"fmt\"\n\tsdk \"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk\"\n)\n\nfunc main() {\n\tcontent, err := sdk.ReadFile(\"README.md\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"Caratteri totali: %d\\n\", len(content))\n}",
+		"source": "package main\n\nimport (\n\t\"fmt\"\n\t\"sdk\"\n)\n\nfunc main() {\n\tcontent, err := sdk.ReadFile(\"README.md\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"Caratteri totali: %d\\n\", len(content))\n}",
 	})
 	out2, err := agenttools.Exec(ctx, env, "agent", tooling.Invocation{Name: "orchestrate", Args: src2})
 	if err != nil {
