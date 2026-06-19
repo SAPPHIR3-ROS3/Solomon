@@ -55,6 +55,9 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 		}
 		fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapUser("You:"), m.Content)
 	case "assistant":
+		if messagePrecededByUser(msgs, idx) {
+			termcolor.PrintChatSeparator(out)
+		}
 		if strings.Contains(m.Content, "[Conversation summary]") {
 			fmt.Fprintf(out, "%s%s\n", prefix, RenderCompactSummaryBody(m.Content))
 			break
@@ -100,6 +103,17 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 		termcolor.WriteSystem(out, m.Content)
 	default:
 	}
+}
+
+func messagePrecededByUser(msgs []chatstore.Message, idx int) bool {
+	if idx <= 0 {
+		return false
+	}
+	prev := msgs[idx-1]
+	if prev.Role != "user" {
+		return false
+	}
+	return !strings.HasPrefix(strings.TrimSpace(prev.Content), "tool_result(")
 }
 
 func toolNameForResult(msgs []chatstore.Message, toolIdx int) string {
