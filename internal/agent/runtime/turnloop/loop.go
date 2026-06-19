@@ -68,6 +68,7 @@ func Run(ctx context.Context, h Host) error {
 		h.PersistSessionOrLog("flushUsageStats")
 		usageTurns = nil
 	}
+	turnSeparatorPending := !h.MachineMode()
 	for {
 		sys, err := h.SystemPrompt(h.Config().ReasoningEffortIsNone())
 		if err != nil {
@@ -103,6 +104,10 @@ func Run(ctx context.Context, h Host) error {
 			branchKey = s.CheckpointBranchSuffix
 		})
 		turnIdx := h.CITurn()
+		if turnSeparatorPending {
+			termcolor.PrintChatSeparator(out)
+			turnSeparatorPending = false
+		}
 		if h.MachineMode() {
 			h.CIEmit(cievents.AssistantStart(turnIdx, astSeq))
 		} else {
