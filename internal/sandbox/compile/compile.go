@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 type Options struct {
@@ -66,9 +68,16 @@ func BuildWASM(opts Options) ([]byte, error) {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return nil, fmt.Errorf("compile: %s", clarifyCompileError(opts.Source, msg))
+		compileErr := fmt.Errorf("compile: %s", clarifyCompileError(opts.Source, msg))
+		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": compileErr.Error()}})
+		return nil, compileErr
 	}
-	return os.ReadFile(outPath)
+	wasm, err := os.ReadFile(outPath)
+	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox wasm read failed", logging.LogOptions{Params: map[string]any{"path": outPath, "err": err.Error()}})
+		return nil, err
+	}
+	return wasm, nil
 }
 
 func CacheDir() (string, error) {

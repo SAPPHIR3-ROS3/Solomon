@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 const checksumsAsset = "checksums.txt"
@@ -60,6 +62,7 @@ func verifyReleaseAsset(ctx context.Context, tag, asset, filePath string, progre
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
+		logging.Log(logging.WARNING_LOG_LEVEL, "updater checksums missing; skipping verify", logging.LogOptions{Params: map[string]any{"tag": tag}})
 		fmt.Fprintf(progress, "Warning: release %s has no %s; skipping integrity check\n", tag, checksumsAsset)
 		return nil
 	}
@@ -79,7 +82,9 @@ func verifyReleaseAsset(ctx context.Context, tag, asset, filePath string, progre
 		return err
 	}
 	if !strings.EqualFold(expected, actual) {
-		return fmt.Errorf("checksum mismatch for %s (expected %s, got %s)", asset, expected, actual)
+		err := fmt.Errorf("checksum mismatch for %s (expected %s, got %s)", asset, expected, actual)
+		logging.Log(logging.ERROR_LOG_LEVEL, "updater checksum mismatch", logging.LogOptions{Params: map[string]any{"tag": tag, "asset": asset, "expected": expected, "actual": actual}})
+		return err
 	}
 	return nil
 }

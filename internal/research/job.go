@@ -15,6 +15,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
 )
 
@@ -76,9 +77,11 @@ func (m *Manager) Start(parentCtx context.Context, req StartRequest) (JobRecord,
 		StartedAt:    time.Now().UTC(),
 	}
 	if _, err := chatstore.EnsureResearchDir(req.ProjectHex); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "research ensure dir failed", logging.LogOptions{Params: map[string]any{"project": req.ProjectHex, "err": err.Error()}})
 		return JobRecord{}, err
 	}
 	if err := m.persist(rec); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "research persist job failed", logging.LogOptions{Params: map[string]any{"job_id": id, "err": err.Error()}})
 		return JobRecord{}, err
 	}
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -178,6 +181,7 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 		rec.Error = ctx.Err().Error()
 		rec.Stats = stats
 		rec.FinishedAt = time.Now().UTC()
+		logging.Log(logging.INFO_LOG_LEVEL, "research job cancelled", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug}})
 		_ = m.persist(rec)
 		if req.OnDone != nil {
 			req.OnDone(*rec)
@@ -194,6 +198,7 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 		if errors.Is(err, ErrPausedLLM) {
 			rec.Status = StatusPaused
 			rec.Error = pauseDetail(err)
+			logging.Log(logging.WARNING_LOG_LEVEL, "research job paused", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug, "err": rec.Error}})
 			_ = m.persist(rec)
 			if req.OnDone != nil {
 				req.OnDone(*rec)
@@ -203,6 +208,7 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 		rec.Status = StatusFailed
 		rec.Error = err.Error()
 		rec.FinishedAt = time.Now().UTC()
+		logging.Log(logging.ERROR_LOG_LEVEL, "research job failed", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug, "err": rec.Error}})
 		_ = m.persist(rec)
 		if req.OnDone != nil {
 			req.OnDone(*rec)
@@ -215,6 +221,7 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 		rec.Status = StatusFailed
 		rec.Error = htmlErr.Error()
 		rec.FinishedAt = time.Now().UTC()
+		logging.Log(logging.ERROR_LOG_LEVEL, "research HTML render failed", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug, "err": rec.Error}})
 		_ = m.persist(rec)
 		if req.OnDone != nil {
 			req.OnDone(*rec)
@@ -256,6 +263,7 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 	rec.Status = StatusDone
 	rec.Phase = PhaseWriting
 	rec.FinishedAt = time.Now().UTC()
+	logging.Log(logging.INFO_LOG_LEVEL, "research job complete", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug, "html_path": rec.HTMLPath}})
 	_ = m.persist(rec)
 	if req.OnDone != nil {
 		req.OnDone(*rec)

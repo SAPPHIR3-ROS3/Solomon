@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
@@ -89,6 +90,7 @@ func execShell(ctx context.Context, env *Env, raw json.RawMessage) (any, error) 
 	}
 	m := map[string]any{"exit": exit, "output": string(out), "intent": intent}
 	if err != nil && !errors.As(err, new(*exec.ExitError)) {
+		logging.Log(logging.WARNING_LOG_LEVEL, "shell command failed", logging.LogOptions{Params: map[string]any{"command": command, "err": err.Error()}})
 		m["shell_error"] = err.Error()
 	}
 	return m, nil

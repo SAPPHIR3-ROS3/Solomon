@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	researchhtml "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research/html"
 )
 
@@ -128,6 +129,7 @@ func (e *Engine) Run(ctx context.Context) (markdown string, findings []Finding, 
 		e.roundCount = round
 		if e.cancelled() {
 			meta := RunMeta{Plan: e.plan, Category: e.category, Report: e.report}
+			logging.Log(logging.INFO_LOG_LEVEL, "research engine cancelled")
 			return e.report, e.findings, e.buildStats(), meta, context.Canceled
 		}
 		if e.timeExceeded() {
@@ -161,6 +163,7 @@ func (e *Engine) Run(ctx context.Context) (markdown string, findings []Finding, 
 					if e.lastSearchErr != "" {
 						errMsg += ": " + e.lastSearchErr
 					}
+					logging.Log(logging.WARNING_LOG_LEVEL, "research engine no search results", logging.LogOptions{Params: map[string]any{"err": errMsg}})
 					return "", nil, e.buildStats(), meta, fmt.Errorf("%s", errMsg)
 				}
 				break
