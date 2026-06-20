@@ -66,6 +66,13 @@ func main() {
 		commands.WriteVersion(os.Stdout)
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "init" {
+		if err := config.EnsureDefaultFile(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "sandbox-worker" {
 		sandboxworker.Main()
 		return
@@ -77,6 +84,10 @@ func main() {
 	ctx := context.Background()
 	lroot, err := paths.SolomonHome()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := config.EnsureDefaultFile(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -268,6 +279,10 @@ func main() {
 }
 
 func runTemplatesInstall() {
+	if err := config.EnsureDefaultFile(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	cfg, err := config.LoadOptional()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

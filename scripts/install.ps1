@@ -1,6 +1,7 @@
 #Requires -Version 5.1
 param(
-    [string]$Version = $(if ($env:SOLOMON_VERSION) { $env:SOLOMON_VERSION } else { 'latest' })
+    [string]$Version = $(if ($env:SOLOMON_VERSION) { $env:SOLOMON_VERSION } else { 'latest' }),
+    [switch]$SetupPathOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -81,7 +82,7 @@ function Install-ReleaseAsset {
     $arch = Get-GoArch
     $asset = "solomon-$Version-windows-$arch.exe"
     $url = "https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/$Version/$asset"
-    $binDir = Join-Path (go env GOPATH) 'bin'
+    $binDir = Get-GoInstallBinDir
     $target = Join-Path $binDir 'solomon.exe'
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Write-Host "Downloading Solomon release asset $asset..."
@@ -134,6 +135,7 @@ function Ensure-Go {
         $ver = Get-GoSemVer
         if (Test-VersionGe -Have $ver -Want $GoRequired) {
             Write-Host "Go $ver OK (>= $GoRequired)"
+            Ensure-GoBinInPath
             return
         }
         Write-Host "Go $ver is older than $GoRequired; upgrading..."
@@ -147,6 +149,7 @@ function Ensure-Go {
         throw "Go install failed (got $ver)"
     }
     Write-Host "Go $ver ready"
+    Ensure-GoBinInPath
 }
 
 function Ensure-Node {
@@ -193,18 +196,40 @@ function Ensure-Node {
     Write-Host "Node $((node --version).Trim()) ready"
 }
 
+function Get-GoInstallBinDir {
+    $gobin = (go env GOBIN).Trim()
+    if ($gobin) {
+        return $gobin
+    }
+    return Join-Path (go env GOPATH) 'bin'
+}
+
+function Ensure-GoBinInPath {
+    $binDir = Get-GoInstallBinDir
+    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+    Add-UserPathEntry $binDir
+    $sessionParts = $env:Path -split ';' | Where-Object {
+        $_ -and $_.Trim() -ne '' -and $_.Trim().TrimEnd('\') -ine $binDir
+    }
+    $env:Path = if ($sessionParts.Count -gt 0) { "$binDir;" + ($sessionParts -join ';') } else { $binDir }
+}
+
 function Add-UserPathEntry {
     param([string]$Entry)
     if ([string]::IsNullOrWhiteSpace($Entry)) { return }
+    $Entry = $Entry.Trim().TrimEnd('\')
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    $parts = $userPath -split ';' | Where-Object { $_ -and $_.Trim() -ne '' }
-    if ($parts -contains $Entry) { return }
-    $newPath = if ($userPath) { "$userPath;$Entry" } else { $Entry }
-    [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
-    if ($env:Path -notlike "*$Entry*") {
-        $env:Path = "$Entry;$env:Path"
+    $userParts = @()
+    if ($userPath) {
+        $userParts = $userPath -split ';' | Where-Object {
+            $_ -and $_.Trim() -ne '' -and $_.Trim().TrimEnd('\') -ine $Entry
+        }
     }
-    Write-Host "Added to user PATH: $Entry"
+    $newUserPath = if ($userParts.Count -gt 0) { "$Entry;" + ($userParts -join ';') } else { $Entry }
+    if ($userPath -ne $newUserPath) {
+        [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
+        Write-Host "Ensured user PATH includes: $Entry"
+    }
 }
 
 function Ensure-Make {
@@ -239,13 +264,56 @@ function Ensure-Make {
     Write-Host "make ready ($($makeCmd.Source))"
 }
 
+function Get-GoInstallBinProfileBlock {
+    return @"
+$Marker
+`$goBin = Join-Path `$env:USERPROFILE '.local\go\bin'
+if ((Test-Path `$goBin) -and (`$env:Path -notlike "*`$goBin*")) { `$env:Path = "`$goBin;" + `$env:Path }
+`$goInstallBin = (go env GOBIN).Trim()
+if (-not `$goInstallBin) {
+    `$goInstallBin = Join-Path (go env GOPATH) 'bin'
+}
+if (Test-Path `$goInstallBin) {
+    `$sessionParts = `$env:Path -split ';' | Where-Object {
+        `$_ -and `$_.Trim() -ne '' -and `$_.Trim().TrimEnd('\') -ine `$goInstallBin
+    }
+    `$env:Path = if (`$sessionParts.Count -gt 0) { "`$goInstallBin;" + (`$sessionParts -join ';') } else { `$goInstallBin }
+}
+"@
+}
+
+function Install-GoInstallBinProfileBlock {
+    param([string]$ProfilePath)
+
+    $block = Get-GoInstallBinProfileBlock
+    $content = Get-Content -Path $ProfilePath -Raw -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrEmpty($content)) {
+        Set-Content -Path $ProfilePath -Value $block.TrimStart("`n") -NoNewline
+        Write-Host "Updated PowerShell profile: $ProfilePath"
+        return
+    }
+    if ($content.Contains($Marker)) {
+        $pattern = '(?s)\r?\n' + [regex]::Escape($Marker) + '.*'
+        $updated = [regex]::Replace($content, $pattern, "`n$($block.Trim())", 1)
+        Set-Content -Path $ProfilePath -Value $updated.TrimEnd() -NoNewline
+        Write-Host "Updated PowerShell profile: $ProfilePath"
+        return
+    }
+    Add-Content -Path $ProfilePath -Value "`n$block"
+    Write-Host "Updated PowerShell profile: $ProfilePath"
+}
+
 function Setup-Shell {
     if ($script:InstalledLocalGo) {
         Add-UserPathEntry (Join-Path $GoRoot 'bin')
+        $goBin = Join-Path $GoRoot 'bin'
+        $sessionParts = $env:Path -split ';' | Where-Object {
+            $_ -and $_.Trim() -ne '' -and $_.Trim().TrimEnd('\') -ine $goBin
+        }
+        $env:Path = if ($sessionParts.Count -gt 0) { "$goBin;" + ($sessionParts -join ';') } else { $goBin }
     }
 
-    $gopathBin = Join-Path (go env GOPATH) 'bin'
-    Add-UserPathEntry $gopathBin
+    Ensure-GoBinInPath
 
     $profile = $PROFILE.CurrentUserAllHosts
     if (-not $profile) {
@@ -259,38 +327,36 @@ function Setup-Shell {
         New-Item -ItemType File -Force -Path $profile | Out-Null
     }
 
-    $block = @"
-$Marker
-`$goBin = Join-Path `$env:USERPROFILE '.local\go\bin'
-if (Test-Path `$goBin) { `$env:Path = "`$goBin;" + `$env:Path }
-`$gopathBin = Join-Path (go env GOPATH) 'bin'
-if ((Test-Path `$gopathBin) -and (`$env:Path -notlike "*`$gopathBin*")) { `$env:Path += ";`$gopathBin" }
-"@
-
-    $content = Get-Content -Path $profile -Raw -ErrorAction SilentlyContinue
-    if ($content -and $content.Contains($Marker)) {
-        Write-Host "PowerShell profile already configured: $profile"
-    }
-    else {
-        Add-Content -Path $profile -Value "`n$block"
-        Write-Host "Updated PowerShell profile: $profile"
-    }
+    Install-GoInstallBinProfileBlock -ProfilePath $profile
 
     Write-Host 'Restart the terminal or run: . $PROFILE'
 }
 
 function Install-Solomon {
     Resolve-InstallVersion
+    Ensure-GoBinInPath
     Write-Host "Installing solomon ($Version)..."
     Install-ReleaseAsset
-    $bin = Join-Path (go env GOPATH) 'bin\solomon.exe'
+    $binDir = Get-GoInstallBinDir
+    $bin = Join-Path $binDir 'solomon.exe'
     if (Test-Path $bin) {
         Write-Host "solomon installed: $bin"
+        & $bin init 2>$null
         & $bin version 2>$null
+        $cmd = Get-Command solomon -ErrorAction SilentlyContinue
+        if ($cmd) {
+            Write-Host "solomon on PATH: $($cmd.Source)"
+        }
     }
     else {
-        Write-Host "solomon binary expected at $bin"
+        throw "solomon binary expected at $bin"
     }
+}
+
+if ($SetupPathOnly) {
+    Ensure-Go
+    Setup-Shell
+    return
 }
 
 Ensure-Go

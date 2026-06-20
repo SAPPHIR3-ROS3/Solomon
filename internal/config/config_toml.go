@@ -508,7 +508,11 @@ func Load() (*Root, error) {
 
 	if err != nil {
 
-		logging.Log(logging.ERROR_LOG_LEVEL, "config read failed", logging.LogOptions{Params: map[string]any{"path": cfgPath, "err": err.Error()}})
+		if !os.IsNotExist(err) {
+
+			logging.Log(logging.ERROR_LOG_LEVEL, "config read failed", logging.LogOptions{Params: map[string]any{"path": cfgPath, "err": err.Error()}})
+
+		}
 
 		return nil, err
 
