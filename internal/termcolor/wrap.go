@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
+	"github.com/charmbracelet/lipgloss"
 )
 
 var replImgVisibleRE = regexp.MustCompile(`\[img-\d+\]`)
@@ -21,19 +22,19 @@ const SystemBorder = "===SYSTEM==="
 const RedBlockBorder = "==="
 
 func ResetSeq() string {
-	if !colorOn {
+	if !colorEnabled() {
 		return ""
 	}
 	return resetANSI
 }
 
 func WrapUser(s string) string {
-	return renderStyle(dark.user, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.user }, s)
 }
 
 func WrapUserReadline(s string) string {
 	if runtime.GOOS == "windows" {
-		if !colorOn {
+		if !colorEnabled() {
 			return s
 		}
 		if REPLRawStdout() {
@@ -45,23 +46,23 @@ func WrapUserReadline(s string) string {
 }
 
 func WrapRed(s string) string {
-	return renderStyle(dark.red, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.red }, s)
 }
 
 func WrapAssistant(s string) string {
-	return renderStyle(dark.assistant, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.assistant }, s)
 }
 
 func WrapTool(s string) string {
-	return renderStyle(dark.tool, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.tool }, s)
 }
 
 func WrapEditFileOldString(s string) string {
-	return renderStyle(dark.editOld, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.editOld }, s)
 }
 
 func WrapEditFileNewString(s string) string {
-	return renderStyle(dark.editNew, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.editNew }, s)
 }
 
 func WrapEditFileOldStringLine(s string) string {
@@ -73,7 +74,7 @@ func WrapEditFileNewStringLine(s string) string {
 }
 
 func extendEditLineBackground(styled string) string {
-	if !colorOn || styled == "" {
+	if !colorEnabled() || styled == "" {
 		return styled
 	}
 	if strings.HasSuffix(styled, resetANSI) {
@@ -129,16 +130,19 @@ func GoParen(s string, depth int) string {
 	if depth < 0 {
 		depth = 0
 	}
-	return renderStyle(dark.goParen[depth%3], s)
+	idx := depth % 3
+	return renderThemeStyle(func() lipgloss.Style { return dark.goParen[idx] }, s)
 }
 
 func ToolLine(toolName, body string) string {
-	if !colorOn {
+	if !colorEnabled() {
 		if body == "" {
 			return toolName
 		}
 		return toolName + " " + body
 	}
+	initMu.Lock()
+	defer initMu.Unlock()
 	out := dark.toolBold.Render(toolName)
 	if body != "" {
 		out += dark.tool.Render(" " + body)
@@ -147,21 +151,25 @@ func ToolLine(toolName, body string) string {
 }
 
 func OrchestrateCodeLabel(s string) string {
-	return renderStyle(dark.orchestrateCode, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.orchestrateCode }, s)
 }
 
 func OrchestrateToolHeaderLine() string {
-	if !colorOn {
+	if !colorEnabled() {
 		return "Tool: orchestrate Code"
 	}
-	return dark.tool.Render("Tool: ") + dark.toolBold.Render("orchestrate ") + OrchestrateCodeLabel("Code")
+	initMu.Lock()
+	defer initMu.Unlock()
+	return dark.tool.Render("Tool: ") + dark.toolBold.Render("orchestrate ") + dark.orchestrateCode.Render("Code")
 }
 
 func SwitchModeToolHeaderLine(modeLabel string) string {
-	if !colorOn {
+	if !colorEnabled() {
 		return "Tool: switchMode " + modeLabel
 	}
-	return dark.tool.Render("Tool: ") + dark.toolBold.Render("switchMode ") + OrchestrateCodeLabel(modeLabel)
+	initMu.Lock()
+	defer initMu.Unlock()
+	return dark.tool.Render("Tool: ") + dark.toolBold.Render("switchMode ") + dark.orchestrateCode.Render(modeLabel)
 }
 
 func OrchestrateCodeFooterLine() string {
@@ -169,37 +177,39 @@ func OrchestrateCodeFooterLine() string {
 }
 
 func GoKeyword(s string) string {
-	return renderStyle(dark.goKeyword, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.goKeyword }, s)
 }
 
 func GoString(s string) string {
-	return renderStyle(dark.goString, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.goString }, s)
 }
 
 func GoComment(s string) string {
-	return renderStyle(dark.goComment, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.goComment }, s)
 }
 
 func GoFunction(s string) string {
-	return renderStyle(dark.goFunction, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.goFunction }, s)
 }
 
 func GoNumber(s string) string {
-	return renderStyle(dark.goNumber, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.goNumber }, s)
 }
 
 func GoPlain(s string) string {
-	return renderStyle(dark.goPlain, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.goPlain }, s)
 }
 
 func ToolHeaderLine(toolName, body string) string {
-	if !colorOn {
+	if !colorEnabled() {
 		prefix := "Tool: " + toolName
 		if body == "" {
 			return prefix
 		}
 		return prefix + " " + body
 	}
+	initMu.Lock()
+	defer initMu.Unlock()
 	out := dark.tool.Render("Tool: ") + dark.toolBold.Render(toolName)
 	if body != "" {
 		out += dark.tool.Render(" " + body)
@@ -208,13 +218,15 @@ func ToolHeaderLine(toolName, body string) string {
 }
 
 func ToolHeaderRedArgLine(toolName, arg string) string {
-	if !colorOn {
+	if !colorEnabled() {
 		prefix := "Tool: " + toolName
 		if arg == "" {
 			return prefix
 		}
 		return prefix + " " + arg
 	}
+	initMu.Lock()
+	defer initMu.Unlock()
 	out := dark.tool.Render("Tool: ") + dark.toolBold.Render(toolName)
 	if arg != "" {
 		out += dark.tool.Render(" ") + dark.red.Render(arg)
@@ -227,23 +239,23 @@ func EditFileDeleteToolLine(path string) string {
 }
 
 func WrapThinking(s string) string {
-	return renderStyle(dark.thinking, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.thinking }, s)
 }
 
 func WrapWhite(s string) string {
-	return renderStyle(dark.white, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.white }, s)
 }
 
 func WrapBoldGold(s string) string {
-	return renderStyle(dark.boldGold, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.boldGold }, s)
 }
 
 func WrapContext(s string) string {
-	return renderStyle(dark.context, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.context }, s)
 }
 
 func WrapSystem(s string) string {
-	return renderStyle(dark.system, s)
+	return renderThemeStyle(func() lipgloss.Style { return dark.system }, s)
 }
 
 func FormatSystemBlock(message string) string {
@@ -361,7 +373,7 @@ func formatSystemValue(v any) string {
 }
 
 func ForegroundRGB(r, g, b uint8) string {
-	if !colorOn {
+	if !colorEnabled() {
 		return ""
 	}
 	c := profile().Color(fmt.Sprintf("#%02x%02x%02x", r, g, b))
@@ -376,7 +388,7 @@ func ForegroundRGB(r, g, b uint8) string {
 }
 
 func BackgroundRGB(r, g, b uint8) string {
-	if !colorOn {
+	if !colorEnabled() {
 		return ""
 	}
 	c := profile().Color(fmt.Sprintf("#%02x%02x%02x", r, g, b))
@@ -391,12 +403,12 @@ func BackgroundRGB(r, g, b uint8) string {
 }
 
 func WrapImgTag(tag string) string {
-	return renderStyle(dark.imgTag, tag)
+	return renderThemeStyle(func() lipgloss.Style { return dark.imgTag }, tag)
 }
 
 func wrapImgTagReplInput(tag string) string {
 	if runtime.GOOS == "windows" {
-		if !colorOn {
+		if !colorEnabled() {
 			return tag
 		}
 		return "\033[37m\033[46m" + tag + resetANSI
@@ -416,12 +428,12 @@ var replAtTagRE = regexp.MustCompile(`@[^\s@]+`)
 
 func wrapAtTagReplInput(tag string) string {
 	if runtime.GOOS == "windows" {
-		if !colorOn {
+		if !colorEnabled() {
 			return tag
 		}
 		return "\033[30m\033[43m" + tag + resetANSI
 	}
-	return renderStyle(dark.atTag, tag)
+	return renderThemeStyle(func() lipgloss.Style { return dark.atTag }, tag)
 }
 
 func ColorizeAtTagsReplInput(s string) string {

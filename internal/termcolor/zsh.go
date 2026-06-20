@@ -5,20 +5,20 @@ import "github.com/charmbracelet/lipgloss"
 type ZshStyleKey string
 
 const (
-	ZshUnknownToken              ZshStyleKey = "unknown-token"
-	ZshReservedWord              ZshStyleKey = "reserved-word"
-	ZshArg0                      ZshStyleKey = "arg0"
-	ZshBuiltin                   ZshStyleKey = "builtin"
-	ZshPath                      ZshStyleKey = "path"
-	ZshPathPrefix                ZshStyleKey = "path_prefix"
-	ZshGlobbing                  ZshStyleKey = "globbing"
-	ZshSingleQuoted              ZshStyleKey = "single-quoted-argument"
-	ZshDoubleQuoted              ZshStyleKey = "double-quoted-argument"
-	ZshDollarDoubleQuoted        ZshStyleKey = "dollar-double-quoted-argument"
-	ZshRedirection               ZshStyleKey = "redirection"
-	ZshCommandSeparator          ZshStyleKey = "commandseparator"
-	ZshComment                   ZshStyleKey = "comment"
-	ZshDefault                   ZshStyleKey = "default"
+	ZshUnknownToken       ZshStyleKey = "unknown-token"
+	ZshReservedWord       ZshStyleKey = "reserved-word"
+	ZshArg0               ZshStyleKey = "arg0"
+	ZshBuiltin            ZshStyleKey = "builtin"
+	ZshPath               ZshStyleKey = "path"
+	ZshPathPrefix         ZshStyleKey = "path_prefix"
+	ZshGlobbing           ZshStyleKey = "globbing"
+	ZshSingleQuoted       ZshStyleKey = "single-quoted-argument"
+	ZshDoubleQuoted       ZshStyleKey = "double-quoted-argument"
+	ZshDollarDoubleQuoted ZshStyleKey = "dollar-double-quoted-argument"
+	ZshRedirection        ZshStyleKey = "redirection"
+	ZshCommandSeparator   ZshStyleKey = "commandseparator"
+	ZshComment            ZshStyleKey = "comment"
+	ZshDefault            ZshStyleKey = "default"
 )
 
 var zshStyles map[ZshStyleKey]lipgloss.Style
@@ -46,11 +46,13 @@ func ZshStyle(key ZshStyleKey, s string) string {
 	if s == "" || key == ZshDefault {
 		return s
 	}
+	initMu.Lock()
+	defer initMu.Unlock()
 	if zshStyles == nil {
 		rebuildZshStyles()
 	}
 	st, ok := zshStyles[key]
-	if !ok || !colorOn {
+	if !ok || !colorOn.Load() {
 		return s
 	}
 	return st.Render(s)
