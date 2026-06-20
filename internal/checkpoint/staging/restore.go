@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 type RestoreResult struct {
@@ -19,6 +21,7 @@ func (s *Store) RestoreToCheckpoint(seq int, projRoot string) (RestoreResult, er
 	}
 	projRoot, err := filepath.Abs(projRoot)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint restore project root failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return res, err
 	}
 	type fileState struct {
@@ -116,6 +119,12 @@ func (s *Store) RestoreToCheckpoint(seq int, projRoot string) (RestoreResult, er
 			}
 			res.FilesRemoved++
 		}
+	}
+	for _, w := range res.Warnings {
+		logging.Log(logging.WARNING_LOG_LEVEL, "checkpoint restore warning", logging.LogOptions{Params: map[string]any{"seq": seq, "warning": w}})
+	}
+	if res.FilesWritten > 0 || res.FilesRemoved > 0 {
+		logging.Log(logging.INFO_LOG_LEVEL, "checkpoint restore complete", logging.LogOptions{Params: map[string]any{"seq": seq, "written": res.FilesWritten, "removed": res.FilesRemoved}})
 	}
 	return res, nil
 }

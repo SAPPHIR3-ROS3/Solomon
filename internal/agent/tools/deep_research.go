@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
@@ -59,8 +60,10 @@ func execDeepResearch(ctx context.Context, env *Env, raw json.RawMessage) (any, 
 	}
 	rec, err := env.StartResearch(ctx, a.Query, strings.TrimSpace(a.Category))
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "deepResearch start failed", logging.LogOptions{Params: map[string]any{"query": a.Query, "err": err.Error()}})
 		return deepResearchResult{OK: false, Error: err.Error()}, nil
 	}
+	logging.Log(logging.INFO_LOG_LEVEL, "deepResearch job started", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "title": rec.Title}})
 	return deepResearchResult{
 		OK:     true,
 		JobID:  rec.ID,

@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/ipc"
 )
@@ -32,6 +33,7 @@ func Start(ctx context.Context) (*Client, error) {
 	_ = ctx
 	exe, err := os.Executable()
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox worker executable resolve failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	cmd := exec.Command(exe, "sandbox-worker")
@@ -47,11 +49,13 @@ func Start(ctx context.Context) (*Client, error) {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		stdin.Close()
+		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox worker start failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	c := &Client{cmd: cmd, in: stdin, out: bufio.NewReader(stdout)}
 	if err := c.ping(); err != nil {
 		c.Close()
+		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox worker ping failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	return c, nil
@@ -103,6 +107,7 @@ func (c *Client) Run(ctx context.Context, wasm []byte, mode string, exec ToolExe
 		line, err := c.out.ReadBytes('\n')
 		if err != nil {
 			c.noteIPCDead(err)
+			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker ipc read failed", logging.LogOptions{Params: map[string]any{"run_id": id, "err": err.Error()}})
 			return ipc.RunDone{}, err
 		}
 		var env ipc.Envelope
@@ -133,6 +138,7 @@ func (c *Client) Run(ctx context.Context, wasm []byte, mode string, exec ToolExe
 			}
 			return done, nil
 		default:
+			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker unexpected ipc message", logging.LogOptions{Params: map[string]any{"type": env.Type, "run_id": id}})
 			return ipc.RunDone{}, fmt.Errorf("unexpected ipc %q during run", env.Type)
 		}
 	}
@@ -173,8 +179,10 @@ func Global(ctx context.Context) (*Client, error) {
 	globalMu.Lock()
 	defer globalMu.Unlock()
 	if globalClient != nil {
-		if err := globalClient.ping(); err == nil {
+		if pingErr := globalClient.ping(); pingErr == nil {
 			return globalClient, nil
+		} else {
+			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker reconnecting after ping failure", logging.LogOptions{Params: map[string]any{"err": pingErr.Error()}})
 		}
 		_ = globalClient.Close()
 		globalClient = nil
@@ -190,8 +198,14 @@ func Global(ctx context.Context) (*Client, error) {
 func RunGlobal(ctx context.Context, wasm []byte, mode string, exec ToolExec) (ipc.RunDone, error) {
 	done, err := runOnce(ctx, wasm, mode, exec)
 	if err == nil || !isIPCDead(err) {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		} else if strings.TrimSpace(done.Error) != "" {
+			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox script run error", logging.LogOptions{Params: map[string]any{"error": done.Error, "tool_calls": done.ToolCalls}})
+		}
 		return done, err
 	}
+	logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker ipc dead; retrying run", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 	CloseGlobal()
 	return runOnce(ctx, wasm, mode, exec)
 }

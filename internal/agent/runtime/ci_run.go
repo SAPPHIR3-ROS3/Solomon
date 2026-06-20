@@ -7,6 +7,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 func (r *Runtime) machineMode() bool {
@@ -92,6 +93,7 @@ func (r *Runtime) runPromptOnceCI(ctx context.Context, line string) (err error) 
 	defer func() {
 		if err != nil {
 			code, msg := cievents.ClassifyExit(err)
+			logging.Log(logging.ERROR_LOG_LEVEL, "CI run failed", logging.LogOptions{Params: map[string]any{"code": code, "reason": msg, "err": err.Error()}})
 			r.ciEmit(cievents.ErrorEvent(code, msg))
 		}
 		exitCode, exitReason := cievents.ClassifyExit(err)
@@ -103,6 +105,7 @@ func (r *Runtime) runPromptOnceCI(ctx context.Context, line string) (err error) 
 		r.ciEmit(cievents.RunEnd(exitCode, exitReason, r.ciFinalContent, nil))
 		meta := r.ciReportMeta()
 		if flushErr := r.EventSink.FlushReport(meta, exitCode, exitReason, r.ciFinalContent, nil); flushErr != nil && err == nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "CI report flush failed", logging.LogOptions{Params: map[string]any{"err": flushErr.Error()}})
 			err = flushErr
 		}
 	}()

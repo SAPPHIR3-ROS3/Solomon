@@ -7,6 +7,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
 )
 
@@ -34,6 +35,7 @@ func (b *backendLLM) Complete(userPrompt string, maxTokens int) (string, apitype
 		ForceDisableReasoning: true,
 	})
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "research LLM completion failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", apitype.UsageStats{}, err
 	}
 	text = strings.TrimSpace(text)
