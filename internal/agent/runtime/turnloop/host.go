@@ -29,6 +29,9 @@ type Host interface {
 	PersistSessionOrLog(context string)
 	PersistSession() error
 	SystemPrompt(disableThinking bool) (string, error)
+	SystemPromptBtw(disableThinking bool) (string, error)
+	BtwLinePrefixes() (userPrefix, assistantPrefix string)
+	ReadBtwInput(out io.Writer, userPrefix, initial string) (string, error)
 	LegacyToolsEnabled() bool
 	LegacyToolsForced() bool
 	ToolParams() ([]openai.ChatCompletionToolUnionParam, error)
@@ -60,4 +63,5 @@ type Host interface {
 	GenerationStoppedMessage() string
 	ShowGenerationStopped(out io.Writer)
 	IsMalformedLegacyToolErr(err error) bool
+	BindTurnOut(w io.Writer) func()
 }

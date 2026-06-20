@@ -79,6 +79,12 @@ func EnterRawStdin() (restore func(), err error) {
 	return func() {}, nil
 }
 
+func EnterCbreakFD(fd int) (restore func(), err error) {
+	return func() {}, nil
+}
+
+func EnsureCookedFD(fd int) {}
+
 func PrepareConsoleInput() func() {
 	kernel32 := syscall.NewLazyDLL("kernel32.dll")
 	getMode := kernel32.NewProc("GetConsoleMode")

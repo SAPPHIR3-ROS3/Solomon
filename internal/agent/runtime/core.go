@@ -360,6 +360,40 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	return chatstore.ScrubLiteralImgPlaceholdersForAPI(s), nil
 }
 
+func (r *Runtime) systemPromptBtw(disableThinking bool) (string, error) {
+	absWorkspace := r.ProjRoot
+	if p, err := filepath.Abs(r.ProjRoot); err == nil {
+		absWorkspace = p
+	}
+	anonymize := r.Cfg != nil && r.Cfg.Anonymize
+	d := prompt.Data{
+		Language:              r.Cfg.EffectiveResponseLanguage(),
+		UserName:              strings.TrimSpace(r.Cfg.UserName),
+		DisableThinking:       disableThinking,
+		WorkspaceAbsolutePath: absWorkspace,
+		Anonymize:             anonymize,
+	}
+	if r.Session != nil {
+		d.PlanningActive = r.Session.PlanningActive
+		d.ActivePlanName = r.Session.ActivePlanName
+		d.PlanImplementing = r.Session.PlanImplementing
+	}
+	if r.Instructions != nil && r.Session != nil {
+		sections, err := r.Instructions.BuildPromptSections(r.ProjRoot, r.ProjHex, r.Session.ActivatedInstructionDirs)
+		if err != nil {
+			return "", err
+		}
+		d.CustomRules = sections.CustomRules
+		d.GlobalInstructions = sections.GlobalInstructions
+		d.RepoInstructions = sections.RepoInstructions
+	}
+	s, err := prompt.RenderBtwSystem(d)
+	if err != nil {
+		return "", err
+	}
+	return chatstore.ScrubLiteralImgPlaceholdersForAPI(s), nil
+}
+
 func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
 	clean, _ := multiline.ParseMultilineControlRunes(line)
 	line = multiline.TrimMessageEdges(clean)

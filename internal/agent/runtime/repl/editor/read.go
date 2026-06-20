@@ -45,6 +45,10 @@ type multilineEditor struct {
 }
 
 func ReadMultiline(host Host, history *History) (string, error) {
+	return ReadMultilineInitial(host, history, "")
+}
+
+func ReadMultilineInitial(host Host, history *History, initial string) (string, error) {
 	restoreRaw, err := multiline.EnterRawStdin()
 	if err != nil {
 		return "", err
@@ -80,6 +84,9 @@ func ReadMultiline(host Host, history *History) (string, error) {
 		width:   width,
 		height:  height,
 		out:     out,
+	}
+	if initial != "" {
+		e.setString(initial, 0)
 	}
 	defer e.finish()
 	e.refresh()
