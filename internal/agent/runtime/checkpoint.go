@@ -8,6 +8,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint/staging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 func (r *Runtime) stagingStore() (*staging.Store, error) {
@@ -23,6 +24,7 @@ func (r *Runtime) stagingStore() (*staging.Store, error) {
 	}
 	store, err := staging.Load(dir)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint staging load failed", logging.LogOptions{Params: map[string]any{"dir": dir, "err": err.Error()}})
 		return nil, err
 	}
 	r.stagingCache = store
@@ -42,6 +44,9 @@ func (r *Runtime) checkpointBeforeProjAbs(absResolved string) {
 	}
 	store, err := r.stagingStore()
 	if err != nil || store == nil {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "checkpoint staging unavailable", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
 		return
 	}
 	_ = store.RecordBefore(absResolved)
@@ -53,6 +58,9 @@ func (r *Runtime) checkpointRecordEdit(kind, absPath, renameTo string, content [
 	}
 	store, err := r.stagingStore()
 	if err != nil || store == nil {
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "checkpoint staging unavailable", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
 		return
 	}
 	_ = store.RecordOp(r.currentToolCpSeq, kind, absPath, renameTo, content)
@@ -93,6 +101,7 @@ func (r *Runtime) ApplyGotoCheckpoint(id *checkpoint.FullCheckpointID) error {
 		}
 	})
 	if splitErr != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "checkpoint goto failed", logging.LogOptions{Params: map[string]any{"checkpoint": checkpoint.FormatCheckpointTag(id.Seq, id.Suffix), "err": splitErr.Error()}})
 		return splitErr
 	}
 	cmds := r.slashDeps(context.Background())

@@ -9,6 +9,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
 
@@ -49,6 +50,7 @@ func setupCursorAPI(ctx context.Context, pio config.PromptIO, cfg *config.Root, 
 	}
 	rawURL, err := mgr.Ensure(ctx, k, cwd, false, bootstrapOut{out: out})
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "cursor API provider setup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	baseURL, err := config.NormalizeAPIBase(rawURL)
@@ -64,6 +66,7 @@ func setupCursorAPI(ctx context.Context, pio config.PromptIO, cfg *config.Root, 
 	}
 	ids, err := modelsapi.List(prov.BaseURL, k)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "cursor API connection check failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, fmt.Errorf("connection check failed: %w", err)
 	}
 	ids = cursorint.FilterModelIDs(ids)

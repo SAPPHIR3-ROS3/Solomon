@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 type Baseline struct {
@@ -35,6 +37,7 @@ func Load(dir string) (*Store, error) {
 		return nil, os.ErrInvalid
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint staging mkdir failed", logging.LogOptions{Params: map[string]any{"dir": dir, "err": err.Error()}})
 		return nil, err
 	}
 	meta := filepath.Join(dir, "staging.json")
@@ -43,10 +46,12 @@ func Load(dir string) (*Store, error) {
 		if os.IsNotExist(err) {
 			return &Store{Dir: dir, Baselines: make(map[string]Baseline)}, nil
 		}
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint staging read failed", logging.LogOptions{Params: map[string]any{"path": meta, "err": err.Error()}})
 		return nil, err
 	}
 	var s Store
 	if err := json.Unmarshal(b, &s); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint staging unmarshal failed", logging.LogOptions{Params: map[string]any{"path": meta, "err": err.Error()}})
 		return nil, err
 	}
 	s.Dir = dir
@@ -63,13 +68,19 @@ func (s *Store) Save() error {
 	meta := filepath.Join(s.Dir, "staging.json")
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint staging marshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
 	tmp := meta + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint staging write temp failed", logging.LogOptions{Params: map[string]any{"path": tmp, "err": err.Error()}})
 		return err
 	}
-	return os.Rename(tmp, meta)
+	if err := os.Rename(tmp, meta); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint staging rename failed", logging.LogOptions{Params: map[string]any{"path": meta, "err": err.Error()}})
+		return err
+	}
+	return nil
 }
 
 func (s *Store) RecordBefore(absPath string) error {

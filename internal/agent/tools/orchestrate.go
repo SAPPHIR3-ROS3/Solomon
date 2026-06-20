@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -42,6 +43,7 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 	cacheDir, _ := compile.CacheDir()
 	wasm, err := compile.BuildWASM(compile.Options{Source: a.Source, CacheDir: cacheDir})
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return map[string]any{"ok": false, "compile_error": err.Error()}, nil
 	}
 	parent.Warm(ctx, "")
@@ -49,6 +51,7 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 		return orchestrateHostCall(ctx, env, name, args)
 	})
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "orchestrate sandbox run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	out := map[string]any{
