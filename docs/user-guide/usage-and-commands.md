@@ -93,6 +93,7 @@ Highlights:
 | `/summarize`, `/compact` | Long-context hygiene |
 | `/connect` | Add provider and models |
 | `/legacytools` | Legacy XML tool calling — see below |
+| `/btw <question>` | Temporary side question while the assistant is already streaming; not saved to the transcript |
 | `/add` | Install skills (skills.sh, npx, or local `.md`); `/add rule`, `/add projectrule` for custom rules |
 | `/skill:<name> [request]` | Force one installed skill into the next LLM turn while keeping `/skill:...` visible in the chat transcript |
 | `/remove rule`, `/remove projectrule` | Remove a rule by number (remaining rules renumbered) |
@@ -122,6 +123,12 @@ Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Pro
 After the welcome banner, Solomon runs a short DuckDuckGo reachability check in the background (skipped when onboarding is required). If the network looks offline, a single system notice lists affected remote features (web search, remote MCP servers, remote providers) instead of separate catalog errors. The notice appears when the prompt is ready; typing can interrupt the wait. After an offline startup, the first `/models` refetches provider catalogs once connectivity returns.
 
 Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → `[tools].cursor_internal_tools`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
+
+### `/btw` side questions
+
+While the assistant is streaming in the interactive REPL, press `/` to open a temporary `/btw ` prompt. Solomon pauses visible main-stream output, prints a side-question separator, lets you edit the `/btw` line with the normal multiline editor, then streams a one-shot answer. The main assistant turn keeps running in the background; after the `/btw` answer finishes, Solomon waits briefly before dumping the buffered main output and resuming normal streaming.
+
+`/btw` uses the conversation context up to the latest complete turn and a dedicated no-tools system prompt. The side question and answer are not persisted, do not appear in saved transcripts, and are not restored when the chat is reloaded. If `/btw` was opened accidentally, delete the line and submit/cancel to resume the main stream.
 
 ### Installing skills
 

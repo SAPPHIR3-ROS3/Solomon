@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"sync/atomic"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
@@ -12,10 +13,10 @@ import (
 )
 
 var (
-	initMu         sync.Mutex
-	colorOn        bool
-	replRawStdout  bool
-	ansiStrip      = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
+	initMu        sync.Mutex
+	colorOn       atomic.Bool
+	replRawStdout bool
+	ansiStrip     = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
 )
 
 func SetREPLRawStdout(v bool) {
@@ -43,9 +44,10 @@ func Init(opts InitOptions) {
 	if out == nil {
 		out = os.Stdout
 	}
-	colorOn = colorsEnabled(out, opts.NoColor, opts.ForceColor)
+	enabled := colorsEnabled(out, opts.NoColor, opts.ForceColor)
+	colorOn.Store(enabled)
 	r := lipgloss.NewRenderer(out)
-	if !colorOn {
+	if !enabled {
 		r.SetColorProfile(termenv.Ascii)
 	} else {
 		r.SetColorProfile(termenv.ANSI256)
@@ -55,7 +57,7 @@ func Init(opts InitOptions) {
 }
 
 func Enabled() bool {
-	return colorOn
+	return colorOn.Load()
 }
 
 func Plain(s string) string {
@@ -93,15 +95,41 @@ func writerIsTerminal(w io.Writer) bool {
 }
 
 func profile() termenv.Profile {
-	if !colorOn {
+	initMu.Lock()
+	defer initMu.Unlock()
+	if !colorOn.Load() {
 		return termenv.Ascii
 	}
 	return lipgloss.DefaultRenderer().ColorProfile()
 }
 
 func renderStyle(st lipgloss.Style, s string) string {
-	if !colorOn {
+	initMu.Lock()
+	defer initMu.Unlock()
+	if !colorOn.Load() {
 		return s
 	}
 	return st.Render(s)
+}
+
+func renderThemeStyle(style func() lipgloss.Style, s string) string {
+	initMu.Lock()
+	defer initMu.Unlock()
+	if !colorOn.Load() {
+		return s
+	}
+	return style().Render(s)
+}
+
+func colorEnabled() bool {
+	return colorOn.Load()
+}
+
+func renderStyles(fn func() string) string {
+	initMu.Lock()
+	defer initMu.Unlock()
+	if !colorOn.Load() {
+		return ""
+	}
+	return fn()
 }
