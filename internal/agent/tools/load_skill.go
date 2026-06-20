@@ -1,9 +1,11 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
@@ -40,7 +42,7 @@ func execLoadSkill(env *Env, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	body, err := skills.SkillMarkdownBody(e.SkillMdPath)
+	body, err := skills.SkillExpandedBody(context.Background(), e.SkillMdPath, env.ProjRoot, atmention.NewNotifier())
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint/staging"
@@ -92,6 +93,10 @@ type Runtime struct {
 	updateCheckErr error
 
 	pendingUpdateTag string
+
+	atSkipMu     sync.Mutex
+	atSkipNotify *atmention.Notifier
+	atSkipShown  bool
 
 	nestedMu                  sync.Mutex
 	nestedState               *activeNestedState
@@ -339,7 +344,8 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		d.PlanImplementing = r.Session.PlanImplementing
 	}
 	if r.Instructions != nil && r.Session != nil {
-		sections, err := r.Instructions.BuildPromptSections(r.ProjRoot, r.ProjHex, r.Session.ActivatedInstructionDirs)
+		notify := r.atIncludeNotifier()
+		sections, err := r.Instructions.BuildPromptSections(context.Background(), r.ProjRoot, r.ProjHex, r.Session.ActivatedInstructionDirs, notify)
 		if err != nil {
 			return "", err
 		}
@@ -357,6 +363,7 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	r.flushAtIncludeNotices()
 	return chatstore.ScrubLiteralImgPlaceholdersForAPI(s), nil
 }
 
@@ -379,7 +386,8 @@ func (r *Runtime) systemPromptBtw(disableThinking bool) (string, error) {
 		d.PlanImplementing = r.Session.PlanImplementing
 	}
 	if r.Instructions != nil && r.Session != nil {
-		sections, err := r.Instructions.BuildPromptSections(r.ProjRoot, r.ProjHex, r.Session.ActivatedInstructionDirs)
+		notify := r.atIncludeNotifier()
+		sections, err := r.Instructions.BuildPromptSections(context.Background(), r.ProjRoot, r.ProjHex, r.Session.ActivatedInstructionDirs, notify)
 		if err != nil {
 			return "", err
 		}
@@ -391,6 +399,7 @@ func (r *Runtime) systemPromptBtw(disableThinking bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	r.flushAtIncludeNotices()
 	return chatstore.ScrubLiteralImgPlaceholdersForAPI(s), nil
 }
 

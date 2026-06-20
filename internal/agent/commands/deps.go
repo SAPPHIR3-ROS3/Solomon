@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -54,6 +55,7 @@ type Deps struct {
 	PrefillInput             func(string)
 	SubmitUserMessage        func(string) error
 	SubmitVisibleUserMessage func(visible, api string) error
+	AtIncludeNotifier        func() *atmention.Notifier
 
 	PrintWelcomeBanner func()
 
