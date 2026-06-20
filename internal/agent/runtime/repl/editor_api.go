@@ -1,6 +1,8 @@
 package repl
 
 import (
+	"bufio"
+
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl/editor"
 )
 
@@ -32,6 +34,10 @@ func ShellPrefixNormalizedForTest(buffer string, shellFirst bool) string {
 
 func VisualRowsWithGhostForTest(width int, prompt, line, ghost string) int {
 	return editor.VisualRowsWithGhostForTest(width, prompt, line, ghost)
+}
+
+func ReadInputRuneForTest(r *bufio.Reader) (rune, error) {
+	return editor.ReadInputRuneForTest(r)
 }
 
 func editorHostFromLoop(loop *Loop) editor.Host {

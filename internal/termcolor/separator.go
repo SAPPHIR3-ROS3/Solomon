@@ -30,7 +30,17 @@ func PrintChatSeparator(out io.Writer) {
 
 func PrintChatSeparatorSized(out io.Writer, termW int) {
 	n := ChatSeparatorWidth(termW)
-	fmt.Fprintln(out, WrapBoldGold(strings.Repeat("━", n)))
+	fmt.Fprint(out, WrapBoldGold(strings.Repeat("━", n))+"\n")
+	flushOut(out)
+}
+
+func PrintBtwSeparator(out io.Writer) {
+	PrintBtwSeparatorSized(out, terminalWidth(out))
+}
+
+func PrintBtwSeparatorSized(out io.Writer, termW int) {
+	n := ChatSeparatorWidth(termW)
+	fmt.Fprint(out, WrapContext(strings.Repeat("━", n))+"\n")
 	flushOut(out)
 }
 

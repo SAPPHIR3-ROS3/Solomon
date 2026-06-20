@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -98,17 +98,11 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 	if firstUserLine != "" {
 		go r.refineEphemeralTitle(ctx, firstUserLine)
 	}
-	if !r.machineMode() {
-		if fromReadline {
-			fmt.Fprintln(r.Out)
-		} else {
-			fmt.Fprintln(r.Out)
-			echoLine := termcolor.ColorizeAtTagsReplInput(termcolor.ColorizeImgTags(line))
-			cpPref := checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey)
-			youLbl := termcolor.WrapUser("You:")
-			fmt.Fprintf(r.Out, "%s%s %s\n", cpPref, youLbl, echoLine)
-			fmt.Fprintln(r.Out)
-		}
+	if !r.machineMode() && !fromReadline {
+		echoLine := termcolor.ColorizeAtTagsReplInput(termcolor.ColorizeImgTags(line))
+		cpPref := checkpoint.FormatLinePrefix(um.CheckpointSeq, um.CheckpointBranchKey)
+		youLbl := termcolor.WrapUser("You:")
+		fmt.Fprintf(r.Out, "%s%s %s\n", cpPref, youLbl, echoLine)
 	}
 	if err := r.persistSession(); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "persist session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
