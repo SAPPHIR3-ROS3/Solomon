@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	docscorpus "github.com/SAPPHIR3-ROS3/Solomon/v2026/docs"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 const (
@@ -43,6 +44,9 @@ var (
 func loadCorpus() (*corpus, error) {
 	corpusOnce.Do(func() {
 		corpusData, corpusErr = buildCorpus()
+		if corpusErr != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "docs corpus build failed", logging.LogOptions{Params: map[string]any{"err": corpusErr.Error()}})
+		}
 	})
 	return corpusData, corpusErr
 }

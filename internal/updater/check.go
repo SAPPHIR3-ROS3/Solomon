@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 const (
@@ -67,12 +69,14 @@ func Check(ctx context.Context, currentVersion string) CheckResult {
 
 	resp, err := httpGetLatest(cctx, latestReleaseAPI)
 	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "updater check failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		res.Err = err
 		return res
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		res.Err = fmt.Errorf("github releases API: %s", resp.Status)
+		logging.Log(logging.WARNING_LOG_LEVEL, "updater check github API failed", logging.LogOptions{Params: map[string]any{"status": resp.Status}})
 		return res
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -92,5 +96,8 @@ func Check(ctx context.Context, currentVersion string) CheckResult {
 	}
 	res.LatestTag = tag
 	res.Newer = IsNewerRelease(tag, current)
+	if res.Newer {
+		logging.Log(logging.INFO_LOG_LEVEL, "updater newer release available", logging.LogOptions{Params: map[string]any{"current": current, "latest": tag}})
+	}
 	return res
 }

@@ -1,6 +1,10 @@
 package chatstore
 
-import "time"
+import (
+	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+)
 
 func cloneMessages(msgs []Message) []Message {
 	if len(msgs) == 0 {
@@ -58,6 +62,10 @@ func ArchiveUncompactedState(sess *Session, at time.Time) {
 }
 
 func ApplyCompaction(sess *Session, body string, at time.Time) {
+	prev := 0
+	if sess != nil {
+		prev = len(sess.Messages)
+	}
 	ArchiveUncompactedState(sess, at)
 	sess.Messages = []Message{{Role: "assistant", Content: body}}
 	sess.Branches = nil
@@ -68,4 +76,5 @@ func ApplyCompaction(sess *Session, body string, at time.Time) {
 	sess.LastCommitOID = ""
 	sess.LastMessageAt = at
 	RepairSessionMalformedImages(sess)
+	logging.Log(logging.INFO_LOG_LEVEL, "session compacted", logging.LogOptions{Params: map[string]any{"archived_messages": prev}})
 }

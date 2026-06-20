@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 func ReleaseAssetName(tag string) (string, error) {
@@ -114,6 +116,7 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 	fmt.Fprintf(progress, "Downloading %s...\n", asset)
 	resp, err := httpDownload(ctx, url)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "updater download failed", logging.LogOptions{Params: map[string]any{"tag": tag, "url": url, "err": err.Error()}})
 		return err
 	}
 	defer resp.Body.Close()
@@ -142,6 +145,7 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 		return err
 	}
 	if err := verifyReleaseAsset(ctx, tag, asset, tmpPath, progress); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "updater verify release failed", logging.LogOptions{Params: map[string]any{"tag": tag, "asset": asset, "err": err.Error()}})
 		return err
 	}
 	if runtime.GOOS != "windows" {
@@ -162,6 +166,7 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 	}
 	ok = true
 	_ = os.Remove(backup)
+	logging.Log(logging.INFO_LOG_LEVEL, "updater install complete", logging.LogOptions{Params: map[string]any{"tag": tag, "path": target}})
 	fmt.Fprintf(progress, "Installed %s to %s\n", tag, target)
 	return nil
 }

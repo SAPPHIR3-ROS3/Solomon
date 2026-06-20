@@ -3,6 +3,8 @@ package docs
 import (
 	"fmt"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 const (
@@ -41,6 +43,7 @@ func Retrieve(query string, opts Options) (*RetrievalResult, error) {
 	}
 	c, err := loadCorpus()
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "docs corpus load failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	if paths := matchPaths(c, q); len(paths) == 1 {
@@ -57,7 +60,9 @@ func Retrieve(query string, opts Options) (*RetrievalResult, error) {
 	corp := newBM25Corpus(texts)
 	ranked := corp.rankedDocs(qterms)
 	if len(ranked) == 0 {
-		return nil, suggestError(q, c)
+		err := suggestError(q, c)
+		logging.Log(logging.WARNING_LOG_LEVEL, "docs retrieval no match", logging.LogOptions{Params: map[string]any{"query": q, "err": err.Error()}})
+		return nil, err
 	}
 	ceil := corp.scoreCeiling(qterms)
 	topNorm := normalizeBM25Score(ranked[0].raw, ceil)

@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/host"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/ipc"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/run"
@@ -22,6 +23,7 @@ func Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 			if err == io.EOF {
 				return nil
 			}
+			logging.Log(logging.ERROR_LOG_LEVEL, "sandbox worker ipc read failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			return err
 		}
 		var env ipc.Envelope
@@ -44,6 +46,7 @@ func Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 				return err
 			}
 		default:
+			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker unknown ipc type", logging.LogOptions{Params: map[string]any{"type": env.Type}})
 			return fmt.Errorf("unknown ipc type %q", env.Type)
 		}
 	}
@@ -79,8 +82,10 @@ func handleRun(ctx context.Context, br *bufio.Reader, out io.Writer, req ipc.Run
 	}
 	if runErr != nil {
 		done.Error = runErr.Error()
+		logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker script run failed", logging.LogOptions{Params: map[string]any{"run_id": req.ID, "err": runErr.Error()}})
 	} else if caller.LastError != nil {
 		done.Error = caller.LastError.Error()
+		logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker tool call failed", logging.LogOptions{Params: map[string]any{"run_id": req.ID, "err": caller.LastError.Error()}})
 	}
 	return writeJSON(out, done)
 }
@@ -95,8 +100,10 @@ func writeJSON(w io.Writer, v any) error {
 }
 
 func Main() {
+	logging.LogInit(logging.INFO_LOG_LEVEL)
 	ctx := context.Background()
 	if err := Serve(ctx, os.Stdin, os.Stdout); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox worker exited with error", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		fmt.Fprintf(os.Stderr, "sandbox worker: %v\n", err)
 		os.Exit(1)
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 func RunOnboardProviderSetup(pio config.PromptIO, existing *config.Root, opts config.OnboardOpts, res *config.OnboardResult) error {
@@ -31,6 +32,8 @@ func RunOnboardProviderSetup(pio config.PromptIO, existing *config.Root, opts co
 	if err != nil {
 		if errors.Is(err, config.ErrOnboardProviderSkipped) {
 			config.PrintConfigSkipHint(out, "provider")
+		} else {
+			logging.Log(logging.ERROR_LOG_LEVEL, "onboard provider setup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		}
 		return err
 	}
@@ -82,6 +85,7 @@ func RunInitialSetup(pio config.PromptIO, errOut io.Writer, cfg *config.Root, co
 	for config.NeedsOnboard(cfg) {
 		res, err := RunOnboardWizard(pio, cfg, opts)
 		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "initial setup wizard failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 			fmt.Fprintf(errOut, "%v\n", err)
 			if strings.Contains(err.Error(), "unexpected end of input") {
 				return err

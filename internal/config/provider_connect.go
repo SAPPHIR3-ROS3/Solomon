@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
 
@@ -118,6 +119,7 @@ func setupChatGPTSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Roo
 	}
 	tokens, err := codex.Login(ctx, pio.promptOut())
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT Sub login failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	prov, err := NewChatGPTSubProvider(codex.ChatGPTSubAPIBase, tokens)
@@ -140,6 +142,7 @@ func setupOpenAICompatibleAPI(ctx context.Context, pio PromptIO, cfg *Root, exis
 	}
 	ids, err = listModelsForNewProvider(pio, &prov, ids)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "OpenAI compatible provider model list failed", logging.LogOptions{Params: map[string]any{"provider": prov.Name, "err": err.Error()}})
 		return nil, err
 	}
 	return FinalizeProviderSetup(pio, cfg, existing, opts, prov, ids)
@@ -233,6 +236,7 @@ func listModelsForNewProvider(pio PromptIO, p *Provider, curated []string) ([]st
 	fmt.Fprint(pio.promptOut(), "Fetching models…\n")
 	ids, err := modelsapi.List(p.BaseURL, p.APIKey)
 	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "provider model list failed", logging.LogOptions{Params: map[string]any{"base_url": p.BaseURL, "err": err.Error()}})
 		return nil, err
 	}
 	if len(ids) == 0 {

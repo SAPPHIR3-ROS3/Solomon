@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 type DiscardBootstrap struct{}
@@ -57,6 +58,9 @@ func WaitSidecarIfConfigured(ctx context.Context, cfg *config.Root, cwd string, 
 	allowCursorInternalTools := cfg.Tools.CursorInternalTools
 	mgr := DefaultManager()
 	_, err := mgr.Ensure(ctx, apiKey, sidecarCWD(cwd), allowCursorInternalTools, out)
+	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "cursor sidecar ensure failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+	}
 	return err
 }
 

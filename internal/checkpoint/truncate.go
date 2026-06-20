@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 func SplitAtInclusiveDisplay(msgs []chatstore.Message, displayN int) (keep, drop []chatstore.Message, err error) {
@@ -176,6 +177,7 @@ func prefixThroughCheckpoint(active []chatstore.Message, branches []chatstore.Br
 // truncated checkpoints remain reachable.
 func ResolveSessionGoto(s *chatstore.Session, id *FullCheckpointID) (messages []chatstore.Message, branches []chatstore.BranchSegment, err error) {
 	if s == nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint goto nil session")
 		return nil, nil, fmt.Errorf("nil session")
 	}
 	tag := FormatCheckpointTag(id.Seq, id.Suffix)
@@ -197,6 +199,7 @@ func ResolveSessionGoto(s *chatstore.Session, id *FullCheckpointID) (messages []
 
 	segIdx := findCheckpointInBranches(s.Branches, id)
 	if segIdx < 0 {
+		logging.Log(logging.WARNING_LOG_LEVEL, "checkpoint goto not found", logging.LogOptions{Params: map[string]any{"checkpoint": tag}})
 		return nil, nil, fmt.Errorf("checkpoint %s not found in transcript", tag)
 	}
 	targetSeg := s.Branches[segIdx]
@@ -287,10 +290,12 @@ func PruneForkChildCount(m map[int]int, from int) map[int]int {
 // Messages after id and every stored branch forked at id or later are dropped.
 func PlanSessionRewind(s *chatstore.Session, id *FullCheckpointID) (*RewindPlan, error) {
 	if s == nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "checkpoint rewind nil session")
 		return nil, fmt.Errorf("nil session")
 	}
 	tag := FormatCheckpointTag(id.Seq, id.Suffix)
 	if findCheckpointSplitIndex(s.Messages, id) < 0 {
+		logging.Log(logging.WARNING_LOG_LEVEL, "checkpoint rewind not on current branch", logging.LogOptions{Params: map[string]any{"checkpoint": tag}})
 		return nil, fmt.Errorf("checkpoint %s not found on current branch", tag)
 	}
 	curTag := FormatCheckpointTag(s.CheckpointLast, s.CheckpointBranchSuffix)
