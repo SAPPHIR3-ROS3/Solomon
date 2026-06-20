@@ -70,6 +70,10 @@ Paste and author multi-line prompts without premature send. Solomon owns the REP
 
 `/exec <prompt>` or `/exec "prompt with spaces"` sends one user message and runs a full agent turn without leaving the REPL — the REPL counterpart to headless `solomon exec`. Useful when you want a single automated turn while keeping session context and checkpoint tags.
 
+### Streaming side questions
+
+During an assistant stream, press `/` to open `/btw ` and ask a temporary side question without stopping or saving the main turn. Solomon buffers main output, answers the side question with a no-tools prompt, waits briefly after the side answer finishes, then dumps buffered output and resumes live streaming. The `/btw` exchange is not saved in transcripts. See [Usage and commands — `/btw` side questions](user-guide/usage-and-commands.md#btw-side-questions).
+
 ### Agent vs chat mode
 
 **Agent** (default) uses `searchTools`, `orchestrate`, and deferred filesystem/shell tools. **Chat** exposes web/docs tools only. Planning tools appear natively when `PlanningActive`. See [Plan vs build](architecture/plan-vs-build.md).
