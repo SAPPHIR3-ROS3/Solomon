@@ -9,20 +9,10 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@cursor/sdk": "1.0.13"
+    "@cursor/sdk": "1.0.19"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
     "typescript": "^5.8.3"
-  },
-  "overrides": {
-    "sqlite3": "6.0.1",
-    "tar": "7.5.16",
-    "undici": "6.24.0",
-    "@tootallnate/once": "2.0.1",
-    "node-gyp": "12.2.0",
-    "http-proxy-agent": "7.0.6",
-    "make-fetch-happen": "14.0.3",
-    "cacache": "19.0.1"
   }
 }
