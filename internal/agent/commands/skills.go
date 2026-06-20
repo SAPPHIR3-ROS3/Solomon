@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 )
 
@@ -12,7 +13,11 @@ func Skills(d Deps) error {
 }
 
 func RunSkillSlash(d Deps, e skills.SkillEntry) error {
-	text, err := skills.SkillInputPrefillText(e)
+	var notify *atmention.Notifier
+	if d.AtIncludeNotifier != nil {
+		notify = d.AtIncludeNotifier()
+	}
+	text, err := skills.SkillInputPrefillText(e, d.ProjRoot, notify)
 	if err != nil {
 		return err
 	}
@@ -23,7 +28,7 @@ func RunSkillSlash(d Deps, e skills.SkillEntry) error {
 	if d.SubmitUserMessage == nil {
 		return fmt.Errorf("skill command unavailable in this context")
 	}
-	msg, err := skills.SkillUserMessagePayload(e)
+	msg, err := skills.SkillUserMessagePayload(e, d.ProjRoot, notify)
 	if err != nil {
 		return err
 	}
@@ -35,7 +40,11 @@ func RunForcedSkillSlash(d Deps, line string) error {
 	if err != nil {
 		return err
 	}
-	apiMsg, err := skills.ForcedSkillUserMessagePayload(*e, remainder)
+	var notify *atmention.Notifier
+	if d.AtIncludeNotifier != nil {
+		notify = d.AtIncludeNotifier()
+	}
+	apiMsg, err := skills.ForcedSkillUserMessagePayload(*e, remainder, d.ProjRoot, notify)
 	if err != nil {
 		return err
 	}
