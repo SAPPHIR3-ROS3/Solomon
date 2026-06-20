@@ -34,6 +34,17 @@ func ConfigExists() (bool, error) {
 	return false, err
 }
 
+func EnsureDefaultFile() error {
+	exists, err := ConfigExists()
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return Save(EmptyRoot())
+}
+
 func LoadOptional() (*Root, error) {
 	cfgPath, err := paths.ConfigPath()
 	if err != nil {

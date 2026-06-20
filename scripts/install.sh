@@ -8,6 +8,106 @@ INSTALL_VERSION="${SOLOMON_VERSION:-${1:-latest}}"
 GITHUB_RELEASES_API="https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest"
 MARKER="# solomon-installer"
 
+go_install_bin_dir() {
+  local gobin
+  gobin="$(go env GOBIN 2>/dev/null || true)"
+  gobin="${gobin//$'\r'/}"
+  gobin="${gobin//$'\n'/}"
+  if [[ -n "$gobin" ]]; then
+    printf '%s\n' "$gobin"
+    return
+  fi
+  printf '%s/bin\n' "$(go env GOPATH)"
+}
+
+ensure_local_go_in_path() {
+  if [[ "$INSTALLED_LOCAL_GO" != 1 ]]; then
+    return 0
+  fi
+  local go_bin="${HOME}/.local/go/bin"
+  case ":${PATH}:" in
+    *":${go_bin}:"*) ;;
+    *) export PATH="${go_bin}:${PATH}" ;;
+  esac
+}
+
+ensure_go_bin_in_path() {
+  local bin_dir
+  ensure_local_go_in_path
+  bin_dir="$(go_install_bin_dir)"
+  mkdir -p "$bin_dir"
+  case ":${PATH}:" in
+    *":${bin_dir}:"*) ;;
+    *) export PATH="${bin_dir}:${PATH}" ;;
+  esac
+}
+
+go_install_bin_export_line() {
+  cat <<'EOF'
+if command -v go >/dev/null 2>&1; then
+  _solomon_gobin="$(go env GOBIN 2>/dev/null | tr -d '\r\n')"
+  if [[ -n "$_solomon_gobin" ]]; then
+    _solomon_go_bin="$_solomon_gobin"
+  else
+    _solomon_go_bin="$(go env GOPATH)/bin"
+  fi
+  case ":${PATH}:" in
+    *":${_solomon_go_bin}:"*) ;;
+    *) export PATH="${_solomon_go_bin}:${PATH}" ;;
+  esac
+  unset _solomon_gobin _solomon_go_bin
+fi
+EOF
+}
+
+go_install_bin_fish_line() {
+  cat <<'EOF'
+if command -q go
+  set -l _solomon_gobin (go env GOBIN 2>/dev/null | string trim)
+  if test -n "$_solomon_gobin"
+    fish_add_path --prepend $_solomon_gobin
+  else
+    fish_add_path --prepend (go env GOPATH)/bin
+  end
+end
+EOF
+}
+
+GOPATH_MARKER="${MARKER}-gopath"
+
+remove_rc_block_after_marker() {
+  local rc="$1" marker="$2"
+  [[ -f "$rc" ]] || return 0
+  local tmp
+  tmp="$(mktemp)"
+  awk -v marker="$marker" '
+    $0 == marker { skip=1; next }
+    skip && /^[[:space:]]*$/ { skip=0; next }
+    skip { next }
+    { print }
+  ' "$rc" > "$tmp" && mv "$tmp" "$rc"
+}
+
+ensure_gopath_rc_block() {
+  local rc="$1" line body_fn
+  body_fn="$2"
+  line="$("$body_fn")"
+  if line_in_file "$rc" "$GOPATH_MARKER" && line_in_file "$rc" 'go env GOBIN'; then
+    return 0
+  fi
+  if line_in_file "$rc" "$GOPATH_MARKER"; then
+    remove_rc_block_after_marker "$rc" "$GOPATH_MARKER"
+    echo "Updated Go install bin directory in ${rc}"
+  else
+    echo "Added Go install bin directory to ${rc}"
+  fi
+  {
+    echo ""
+    echo "$GOPATH_MARKER"
+    printf '%s\n' "$line"
+  } >>"$rc"
+}
+
 version_ge() {
   local have="$1" want="$2"
   if [[ "$(printf '%s\n%s\n' "$want" "$have" | sort -V | head -n1)" == "$want" ]]; then
@@ -76,7 +176,7 @@ install_release_asset() {
   goarch="${platform#*-}"
   asset="solomon-${INSTALL_VERSION}-${goos}-${goarch}"
   url="https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/${INSTALL_VERSION}/${asset}"
-  bin_dir="$(go env GOPATH)/bin"
+  bin_dir="$(go_install_bin_dir)"
   target="${bin_dir}/solomon"
   tmp="$(mktemp)"
   mkdir -p "$bin_dir"
@@ -142,6 +242,7 @@ ensure_go() {
     ver="$(go_semver)"
     if version_ge "$ver" "$GO_REQUIRED"; then
       echo "Go ${ver} OK (>= ${GO_REQUIRED})"
+      ensure_go_bin_in_path
       return 0
     fi
     echo "Go ${ver} is older than ${GO_REQUIRED}; upgrading..."
@@ -155,6 +256,7 @@ ensure_go() {
     exit 1
   fi
   echo "Go ${ver} ready"
+  ensure_go_bin_in_path
 }
 
 linux_install_packages() {
@@ -390,15 +492,26 @@ line_in_file() {
   [[ -f "$file" ]] && grep -Fq "$line" "$file"
 }
 
-append_unix_path() {
-  local rc go_bin gopath_bin
-  rc="$(rc_file)"
+unix_rc_files() {
+  echo "${HOME}/.zshrc"
+  if [[ "$(uname -s)" == Darwin ]]; then
+    echo "${HOME}/.bash_profile"
+  else
+    echo "${HOME}/.bashrc"
+  fi
+  echo "${HOME}/.profile"
+}
+
+configure_unix_rc() {
+  local rc go_bin
+  rc="$1"
+  [[ -n "$rc" ]] || return 0
   mkdir -p "$(dirname "$rc")"
   touch "$rc"
 
   if [[ "$INSTALLED_LOCAL_GO" == 1 ]]; then
     go_bin='export PATH="$HOME/.local/go/bin:$PATH"'
-    if ! line_in_file "$rc" "$go_bin" && ! line_in_file "$rc" "$MARKER-go"; then
+    if ! line_in_file "$rc" "$MARKER-go"; then
       {
         echo ""
         echo "$MARKER-go"
@@ -408,22 +521,13 @@ append_unix_path() {
     fi
   fi
 
-  gopath_bin='export PATH="$PATH:$(go env GOPATH)/bin"'
-  if ! line_in_file "$rc" '$(go env GOPATH)/bin' && ! line_in_file "$rc" "$MARKER-gopath"; then
-    {
-      echo ""
-      echo "$MARKER-gopath"
-      echo "$gopath_bin"
-    } >>"$rc"
-    echo "Added GOPATH/bin to ${rc}"
-  fi
-
-  export PATH="${PATH}:$(go env GOPATH)/bin"
+  ensure_gopath_rc_block "$rc" go_install_bin_export_line
 }
 
-append_fish_path() {
+configure_fish_rc() {
   local rc
-  rc="$(rc_file)"
+  rc="$1"
+  [[ -n "$rc" ]] || return 0
   mkdir -p "$(dirname "$rc")"
   touch "$rc"
 
@@ -432,45 +536,53 @@ append_fish_path() {
       {
         echo ""
         echo "$MARKER-go"
-        echo 'fish_add_path $HOME/.local/go/bin'
+        echo 'fish_add_path --prepend $HOME/.local/go/bin'
       } >>"$rc"
       echo "Added Go binary path to ${rc}"
     fi
   fi
 
-  if ! line_in_file "$rc" "$MARKER-gopath"; then
-    {
-      echo ""
-      echo "$MARKER-gopath"
-      echo 'fish_add_path (go env GOPATH)/bin'
-    } >>"$rc"
-    echo "Added GOPATH/bin to ${rc}"
-  fi
-
-  export PATH="${PATH}:$(go env GOPATH)/bin"
+  ensure_gopath_rc_block "$rc" go_install_bin_fish_line
 }
 
 setup_shell() {
-  local shell_name="${SHELL:-}"
+  local shell_name="${SHELL:-}" rc
   shell_name="${shell_name##*/}"
   if [[ "$shell_name" == fish ]]; then
-    append_fish_path
-  else
-    append_unix_path
+    configure_fish_rc "${HOME}/.config/fish/config.fish"
   fi
+  while IFS= read -r rc; do
+    configure_unix_rc "$rc"
+  done < <(unix_rc_files)
+  ensure_go_bin_in_path
   echo "Reload your shell or run: source $(rc_file)"
 }
 
 install_solomon() {
   resolve_install_version
+  ensure_go_bin_in_path
   echo "Installing solomon (${INSTALL_VERSION})..."
   install_release_asset
+  local bin_dir solomon_bin
+  bin_dir="$(go_install_bin_dir)"
+  solomon_bin="${bin_dir}/solomon"
   if command -v solomon >/dev/null 2>&1; then
     echo "solomon installed: $(command -v solomon)"
+    solomon init 2>/dev/null || true
     solomon version 2>/dev/null || true
+  elif [[ -x "$solomon_bin" ]]; then
+    echo "solomon installed: ${solomon_bin}"
+    "$solomon_bin" init 2>/dev/null || true
+    "$solomon_bin" version 2>/dev/null || true
   else
-    echo "solomon binary is in $(go env GOPATH)/bin (add to PATH if needed)"
+    echo "solomon binary is in ${bin_dir} (add to PATH if needed)" >&2
+    exit 1
   fi
+}
+
+setup_path_only() {
+  ensure_go
+  setup_shell
 }
 
 main() {
@@ -481,4 +593,11 @@ main() {
   echo "Done."
 }
 
-main "$@"
+if [[ "${1:-}" == "--setup-path-only" ]]; then
+  setup_path_only
+  exit 0
+fi
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

@@ -33,6 +33,14 @@ jobs:
       - run: go vet ./...
       - run: go run scripts/check_doc_paths.go
       - run: go run scripts/check_package_index.go
+      - name: Verify install script GOPATH bin PATH setup (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/check_install_path.sh
+      - name: Verify install script GOPATH bin PATH setup (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/check_install_path.ps1
       - name: Run tests
         shell: bash
         run: |
@@ -203,7 +211,52 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          exe="$HOME/go/bin/solomon"
+          gopath_bin="$(go env GOPATH)/bin"
+          gobin="$(go env GOBIN 2>/dev/null | tr -d '\r\n')"
+          if [[ -n "$gobin" ]]; then
+            expected_bin="$gobin"
+          else
+            expected_bin="$gopath_bin"
+          fi
+          case ":${PATH}:" in
+            *":${expected_bin}:"*) ;;
+            *)
+              echo "Go install bin not in PATH: ${expected_bin}" >&2
+              echo "PATH=${PATH}" >&2
+              exit 1
+              ;;
+          esac
+          if ! command -v solomon >/dev/null 2>&1; then
+            echo "solomon not found in PATH" >&2
+            exit 1
+          fi
+          solomon version
+          for rc in "$HOME/.zshrc" "$HOME/.profile"; do
+            [[ -f "$rc" ]] || { echo "missing ${rc}" >&2; exit 1; }
+            grep -Fq '# solomon-installer-gopath' "$rc" || {
+              echo "missing gopath marker in ${rc}" >&2
+              exit 1
+            }
+            grep -Fq 'go env GOBIN' "$rc" || {
+              echo "missing GOBIN handling in ${rc}" >&2
+              exit 1
+            }
+          done
+          if [[ "$(uname -s)" == Darwin ]]; then
+            bash_rc="$HOME/.bash_profile"
+          else
+            bash_rc="$HOME/.bashrc"
+          fi
+          [[ -f "$bash_rc" ]] || { echo "missing ${bash_rc}" >&2; exit 1; }
+          grep -Fq '# solomon-installer-gopath' "$bash_rc" || {
+            echo "missing gopath marker in ${bash_rc}" >&2
+            exit 1
+          }
+          grep -Fq 'go env GOBIN' "$bash_rc" || {
+            echo "missing GOBIN handling in ${bash_rc}" >&2
+            exit 1
+          }
+          exe="$expected_bin/solomon"
           if [[ ! -x "$exe" ]]; then
             echo "Installed binary not found at $exe" >&2
             exit 1
@@ -214,7 +267,36 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $exe = Join-Path $env:USERPROFILE 'go\bin\solomon.exe'
+          $gobin = (go env GOBIN).Trim()
+          if ($gobin) {
+            $expectedBin = $gobin
+          } else {
+            $expectedBin = Join-Path (go env GOPATH) 'bin'
+          }
+          if ($env:Path -notlike "*$expectedBin*") {
+            throw "Go install bin not in session PATH: $expectedBin"
+          }
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          if ($userPath -notlike "*$expectedBin*") {
+            throw "Go install bin not in user PATH: $expectedBin"
+          }
+          $cmd = Get-Command solomon -ErrorAction SilentlyContinue
+          if (-not $cmd) {
+            throw 'solomon not found in PATH'
+          }
+          & solomon version
+          $profile = $PROFILE.CurrentUserAllHosts
+          if (-not $profile) {
+            $profile = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'PowerShell\profile.ps1'
+          }
+          if (-not (Test-Path $profile)) {
+            throw "PowerShell profile not found: $profile"
+          }
+          $content = Get-Content -Path $profile -Raw
+          if (-not $content.Contains('go env GOBIN')) {
+            throw 'missing GOBIN handling in PowerShell profile'
+          }
+          $exe = Join-Path $expectedBin 'solomon.exe'
           if (-not (Test-Path $exe)) {
             throw "Installed binary not found at $exe"
           }
