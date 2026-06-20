@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
@@ -159,6 +160,85 @@ func TestExpandLineFile(t *testing.T) {
 	}
 	if !containsAll(got, "check @hello.txt", "--- file hello.txt ---", "hi") {
 		t.Fatalf("expand: %q", got)
+	}
+}
+
+func TestExpandLineFolderAbsolutePath(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "pkg")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	all := []atmention.Entry{{RelPath: "pkg", IsDir: true}}
+	got, err := atmention.ExpandLine(context.Background(), "see @pkg", dir, all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	abs, err := filepath.Abs(sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsAll(got, "see @pkg", "--- folder pkg ---", abs) {
+		t.Fatalf("folder expand: %q", got)
+	}
+}
+
+func TestFindDocumentTagsSkipsCodeFence(t *testing.T) {
+	src := "use @docs/a.md\n\n```\n@docs/b.md\n```\n\nalso `@docs/c.md`"
+	tags := atmention.FindDocumentTags(src)
+	if len(tags) != 1 || tags[0].Path != "docs/a.md" {
+		t.Fatalf("tags: %#v", tags)
+	}
+}
+
+func TestExpandDocumentIncludeRelative(t *testing.T) {
+	dir := t.TempDir()
+	docs := filepath.Join(dir, "docs")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(docs, "child.md"), []byte("child body"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	agents := filepath.Join(dir, "AGENTS.md")
+	if err := os.WriteFile(agents, []byte("see @docs/child.md"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := atmention.ExpandDocument(context.Background(), "see @docs/child.md", agents, dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsAll(got, "see @docs/child.md", "--- file docs/child.md ---", "child body") {
+		t.Fatalf("document expand: %q", got)
+	}
+}
+
+func TestExpandDocumentGitignoredSkipped(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".secret"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	agents := filepath.Join(dir, "AGENTS.md")
+	if err := os.WriteFile(agents, []byte("x @.secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	n := atmention.NewNotifier()
+	got, err := atmention.ExpandDocument(context.Background(), "x @.secret", agents, dir, n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "--- file") {
+		t.Fatalf("gitignored file should not expand: %q", got)
+	}
+	if got != "x @.secret" {
+		t.Fatalf("unexpected expand output: %q", got)
+	}
+	msgs := n.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("notifier messages: %#v", msgs)
 	}
 }
 

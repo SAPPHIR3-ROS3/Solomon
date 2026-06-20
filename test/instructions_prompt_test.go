@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +22,7 @@ func TestInstructionsPromptSectionsConditional(t *testing.T) {
 		t.Fatal(err)
 	}
 	loader := instructions.NewLoader()
-	sections, err := loader.BuildPromptSections(root, "hex", nil)
+	sections, err := loader.BuildPromptSections(context.Background(), root, "hex", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

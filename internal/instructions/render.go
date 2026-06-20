@@ -1,8 +1,11 @@
 package instructions
 
 import (
+	"context"
 	"fmt"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 )
 
 type PromptSections struct {
@@ -11,7 +14,7 @@ type PromptSections struct {
 	RepoInstructions   string
 }
 
-func (l *Loader) BuildPromptSections(projRoot, projHex string, activatedDirs []string) (PromptSections, error) {
+func (l *Loader) BuildPromptSections(ctx context.Context, projRoot, projHex string, activatedDirs []string, notify *atmention.Notifier) (PromptSections, error) {
 	var out PromptSections
 	rules, err := LoadAllRulesText(projHex)
 	if err != nil {
@@ -19,14 +22,14 @@ func (l *Loader) BuildPromptSections(projRoot, projHex string, activatedDirs []s
 	}
 	out.CustomRules = strings.TrimSpace(rules)
 
-	if _, content, ok := l.LoadGlobal(); ok {
-		out.GlobalInstructions = strings.TrimSpace(content)
+	if path, content, ok := l.LoadGlobal(); ok {
+		out.GlobalInstructions = strings.TrimSpace(l.expandAtIncludes(ctx, content, path, projRoot, notify))
 	}
 
 	var repo strings.Builder
-	if _, rootContent, ok := l.LoadRepoRoot(projRoot); ok {
+	if path, rootContent, ok := l.LoadRepoRoot(projRoot); ok {
 		repo.WriteString("### /\n\n")
-		repo.WriteString(strings.TrimSpace(rootContent))
+		repo.WriteString(strings.TrimSpace(l.expandAtIncludes(ctx, rootContent, path, projRoot, notify)))
 		repo.WriteByte('\n')
 	}
 	for _, rel := range activatedDirs {
@@ -34,17 +37,28 @@ func (l *Loader) BuildPromptSections(projRoot, projHex string, activatedDirs []s
 		if rel == "" || rel == "." || rel == "/" {
 			continue
 		}
-		if _, content, ok := l.LoadRepoDir(projRoot, rel); ok {
+		if path, content, ok := l.LoadRepoDir(projRoot, rel); ok {
 			if repo.Len() > 0 {
 				repo.WriteByte('\n')
 			}
 			fmt.Fprintf(&repo, "### %s/\n\n", rel)
-			repo.WriteString(strings.TrimSpace(content))
+			repo.WriteString(strings.TrimSpace(l.expandAtIncludes(ctx, content, path, projRoot, notify)))
 			repo.WriteByte('\n')
 		}
 	}
 	out.RepoInstructions = strings.TrimSpace(repo.String())
 	return out, nil
+}
+
+func (l *Loader) expandAtIncludes(ctx context.Context, raw, sourcePath, projRoot string, notify *atmention.Notifier) string {
+	if !strings.Contains(raw, "@") {
+		return raw
+	}
+	expanded, err := atmention.ExpandDocumentWithMax(ctx, raw, sourcePath, projRoot, l.maxBytes(), notify)
+	if err != nil {
+		return raw
+	}
+	return expanded
 }
 
 func filepathToSlash(s string) string {
