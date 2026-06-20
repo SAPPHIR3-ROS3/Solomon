@@ -12,6 +12,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/btw"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
@@ -46,6 +47,20 @@ func Run(ctx context.Context, h Host) error {
 		}
 	}()
 	out := h.Out()
+	var mux *btw.OutputMux
+	var btwSvc *btw.Service
+	var restoreOut func()
+	if !h.MachineMode() {
+		mux = btw.NewOutputMux(out)
+		out = mux
+		restoreOut = h.BindTurnOut(mux)
+		btwSvc = btw.NewService(h, mux, runCtx, stopRun, stopErr)
+		btwSvc.Start()
+		defer btwSvc.Stop()
+	}
+	if restoreOut != nil {
+		defer restoreOut()
+	}
 	defer func() {
 		if !h.MachineMode() {
 			FlushPendingSystem(out)

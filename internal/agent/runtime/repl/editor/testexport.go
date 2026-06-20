@@ -1,6 +1,9 @@
 package editor
 
-import "bytes"
+import (
+	"bufio"
+	"bytes"
+)
 
 type HistoryTest struct {
 	*History
@@ -162,4 +165,8 @@ func VisualRowsWithGhostForTest(width int, prompt, line, ghost string) int {
 	}
 	combined := append(append([]rune(nil), []rune(line)...), []rune(ghost)...)
 	return e.visualRows(prompt, combined)
+}
+
+func ReadInputRuneForTest(r *bufio.Reader) (rune, error) {
+	return readInputRune(r)
 }
