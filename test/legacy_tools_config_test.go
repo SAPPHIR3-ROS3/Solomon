@@ -9,6 +9,35 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 )
 
+func TestEnsureDefaultFileCreatesConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	exists, err := config.ConfigExists()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Fatal("expected no config before EnsureDefaultFile")
+	}
+	if err := config.EnsureDefaultFile(); err != nil {
+		t.Fatal(err)
+	}
+	exists, err = config.ConfigExists()
+	if err != nil || !exists {
+		t.Fatalf("config should exist after EnsureDefaultFile: exists=%v err=%v", exists, err)
+	}
+	if err := config.EnsureDefaultFile(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.SubagentTimeoutMinutes != config.DefaultSubagentTimeoutMinutes {
+		t.Fatalf("unexpected subagent_timeout_minutes: %d", r.SubagentTimeoutMinutes)
+	}
+}
+
 func writeTestConfig(t *testing.T, home, body string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte(body), 0o600); err != nil {
