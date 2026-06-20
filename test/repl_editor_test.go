@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,6 +32,17 @@ func TestInputHistoryPrevNextKeepsDraft(t *testing.T) {
 	got, ok = h.Next()
 	if !ok || got != "draft" {
 		t.Fatalf("draft got %q ok=%v", got, ok)
+	}
+}
+
+func TestEditorReadsUTF8Rune(t *testing.T) {
+	r := bufio.NewReader(strings.NewReader("è"))
+	got, err := repl.ReadInputRuneForTest(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 'è' {
+		t.Fatalf("got %q, want è", got)
 	}
 }
 

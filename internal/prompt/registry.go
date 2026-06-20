@@ -6,6 +6,8 @@ var embeddedTemplates = map[string]string{
 	"title":            titleRaw,
 	"summarize":        summarizeRaw,
 	"summarize_system": summarizeSystemRaw,
+	"btw":              btwRaw,
+	"btw_system":       btwSystemRaw,
 	"images":           imagesWorkflowRaw,
 	"atmention":        atMentionWorkflowRaw,
 }

@@ -30,6 +30,12 @@ var imagesWorkflowRaw string
 //go:embed templates/atmention.tmpl
 var atMentionWorkflowRaw string
 
+//go:embed templates/btw.tmpl
+var btwRaw string
+
+//go:embed templates/btw_system.tmpl
+var btwSystemRaw string
+
 var (
 	imagesWorkflowOnce sync.Once
 	imagesWorkflowText string
@@ -102,6 +108,13 @@ type SummarizeData struct {
 	Language          string
 	DisableThinking   bool
 	ImagesWorkflow    string
+}
+
+type BtwData struct {
+	Transcript      string
+	Question        string
+	Language        string
+	DisableThinking bool
 }
 
 func AnonymizeNativeToolInvocationSyntax() string {
@@ -284,6 +297,29 @@ func RenderSummarize(d SummarizeData) (string, error) {
 func RenderSummarizeSystem(d SummarizeData) (string, error) {
 	d.ImagesWorkflow = ImagesWorkflowSection()
 	return executeTemplate("summarize_system", templateRaw("summarize_system"), d)
+}
+
+func RenderBtw(d BtwData) (string, error) {
+	return executeTemplate("btw", templateRaw("btw"), d)
+}
+
+func RenderBtwSystem(d Data) (string, error) {
+	applyRuntimeSystem(&d)
+	d.Shell = EffectiveShell()
+	d.ImagesWorkflow = ImagesWorkflowSection()
+	d.AtMentionWorkflow = AtMentionWorkflowSection()
+	if d.Anonymize {
+		d.ImagesWorkflow = anonymizeImagesWorkflowSection()
+		d.AtMentionWorkflow = anonymizeAtMentionWorkflowSection()
+	}
+	s, err := executeTemplate("btw_system", templateRaw("btw_system"), d)
+	if err != nil {
+		return "", err
+	}
+	if d.Anonymize {
+		s = sanitizeAnonymizePrompt(s)
+	}
+	return s, nil
 }
 
 func render(name string, d Data) (string, error) {

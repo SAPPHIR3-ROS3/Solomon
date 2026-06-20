@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	readline "github.com/chzyer/readline"
 )
@@ -27,7 +28,7 @@ func readEditorKey(r *bufio.Reader, interrupt <-chan struct{}) (editorKey, error
 		if !stdinReady(50 * time.Millisecond) {
 			continue
 		}
-		ch, _, err := r.ReadRune()
+		ch, err := readInputRune(r)
 		if err != nil {
 			return editorKey{}, err
 		}
@@ -42,7 +43,7 @@ func readEditorKeyEscape(r *bufio.Reader, first rune) (editorKey, error) {
 	var b strings.Builder
 	b.WriteRune(first)
 	for r.Buffered() > 0 || stdinReady(20*time.Millisecond) {
-		next, _, err := r.ReadRune()
+		next, err := readInputRune(r)
 		if err != nil {
 			return editorKey{}, err
 		}
@@ -73,7 +74,7 @@ func isCompleteEscape(s string) bool {
 func readBracketedPaste(r *bufio.Reader) (editorKey, error) {
 	var b strings.Builder
 	for {
-		ch, _, err := r.ReadRune()
+		ch, err := readInputRune(r)
 		if err != nil {
 			return editorKey{}, err
 		}
@@ -83,4 +84,27 @@ func readBracketedPaste(r *bufio.Reader) (editorKey, error) {
 			return editorKey{text: strings.TrimSuffix(s, "\x1b[201~"), paste: true}, nil
 		}
 	}
+}
+
+func readInputRune(r *bufio.Reader) (rune, error) {
+	b, err := r.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+	if b < utf8.RuneSelf {
+		return rune(b), nil
+	}
+	buf := []byte{b}
+	for len(buf) < utf8.UTFMax && !utf8.FullRune(buf) {
+		if r.Buffered() == 0 && !stdinReady(20*time.Millisecond) {
+			break
+		}
+		next, err := r.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		buf = append(buf, next)
+	}
+	ch, _ := utf8.DecodeRune(buf)
+	return ch, nil
 }
