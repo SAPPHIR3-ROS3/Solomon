@@ -2,10 +2,12 @@ package skills
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"gopkg.in/yaml.v3"
 )
 
@@ -137,12 +139,23 @@ func SkillMarkdownBody(mdPath string) (string, error) {
 	return strings.TrimSpace(string(body)), nil
 }
 
-func SkillUserMessagePayload(entry SkillEntry) (string, error) {
+func SkillExpandedBody(ctx context.Context, mdPath, projRoot string, notify *atmention.Notifier) (string, error) {
+	body, err := SkillMarkdownBody(mdPath)
+	if err != nil {
+		return "", err
+	}
+	if projRoot == "" || !strings.Contains(body, "@") {
+		return body, nil
+	}
+	return atmention.ExpandDocument(ctx, body, mdPath, projRoot, notify)
+}
+
+func SkillUserMessagePayload(entry SkillEntry, projRoot string, notify *atmention.Notifier) (string, error) {
 	p := strings.TrimSpace(entry.SkillMdPath)
 	if p == "" {
 		return "", fmt.Errorf("skill %q has no SKILL.md path", strings.TrimSpace(entry.Name))
 	}
-	body, err := SkillMarkdownBody(p)
+	body, err := SkillExpandedBody(context.Background(), p, projRoot, notify)
 	if err != nil {
 		return "", fmt.Errorf("read skill %q: %w", strings.TrimSpace(entry.Name), err)
 	}
@@ -152,12 +165,12 @@ func SkillUserMessagePayload(entry SkillEntry) (string, error) {
 	return fmt.Sprintf("Apply the agent skill %q:\n\n%s", strings.TrimSpace(entry.Name), body), nil
 }
 
-func ForcedSkillUserMessagePayload(entry SkillEntry, userText string) (string, error) {
+func ForcedSkillUserMessagePayload(entry SkillEntry, userText, projRoot string, notify *atmention.Notifier) (string, error) {
 	p := strings.TrimSpace(entry.SkillMdPath)
 	if p == "" {
 		return "", fmt.Errorf("skill %q has no SKILL.md path", strings.TrimSpace(entry.Name))
 	}
-	body, err := SkillMarkdownBody(p)
+	body, err := SkillExpandedBody(context.Background(), p, projRoot, notify)
 	if err != nil {
 		return "", fmt.Errorf("read skill %q: %w", strings.TrimSpace(entry.Name), err)
 	}
@@ -171,12 +184,12 @@ func ForcedSkillUserMessagePayload(entry SkillEntry, userText string) (string, e
 	return fmt.Sprintf("You must use the following installed skill for this turn.\n\nSkill: %q\n\n--- SKILL START ---\n%s\n--- SKILL END ---\n\nUser request:\n%s", strings.TrimSpace(entry.Name), body, userText), nil
 }
 
-func SkillInputPrefillText(entry SkillEntry) (string, error) {
+func SkillInputPrefillText(entry SkillEntry, projRoot string, notify *atmention.Notifier) (string, error) {
 	p := strings.TrimSpace(entry.SkillMdPath)
 	if p == "" {
 		return "", fmt.Errorf("skill %q has no SKILL.md path", strings.TrimSpace(entry.Name))
 	}
-	body, err := SkillMarkdownBody(p)
+	body, err := SkillExpandedBody(context.Background(), p, projRoot, notify)
 	if err != nil {
 		return "", fmt.Errorf("read skill %q: %w", strings.TrimSpace(entry.Name), err)
 	}

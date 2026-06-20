@@ -93,6 +93,7 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		},
 		SubmitUserMessage:        func(s string) error { return r.onUserMessage(ctx, s, false) },
 		SubmitVisibleUserMessage: func(visible, api string) error { return r.onUserMessageWithAPIContent(ctx, visible, api, false) },
+		AtIncludeNotifier:        r.atIncludeNotifier,
 
 		PrintWelcomeBanner: func() {
 			repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst, r.cachedUpdateNotice())
