@@ -41,6 +41,9 @@ func TestUpdateDoesNotInstall(t *testing.T) {
 	if !strings.Contains(out, "/upgrade") {
 		t.Fatalf("expected upgrade hint, got %q", out)
 	}
+	if !strings.Contains(out, "If automatic upgrade fails") {
+		t.Fatalf("expected install fallback disclaimer, got %q", out)
+	}
 }
 
 func TestUpdateUpToDateKeepsScreen(t *testing.T) {

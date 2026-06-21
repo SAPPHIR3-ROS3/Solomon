@@ -192,6 +192,15 @@ func InstallCommand(tag string) (string, error) {
 	}
 }
 
+func InstallFallbackMessage(tag string) string {
+	tag = strings.TrimSpace(tag)
+	cmd, err := InstallCommand(tag)
+	if err != nil {
+		return "If automatic upgrade fails, retry with your platform install command."
+	}
+	return fmt.Sprintf("If automatic upgrade fails, retry with your platform install command:\n%s", cmd)
+}
+
 func canExecInstallRestart() bool {
 	switch runtime.GOOS {
 	case "linux", "darwin":
@@ -208,6 +217,16 @@ func RunSystemInstall(ctx context.Context, tag string, progress io.Writer) error
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return fmt.Errorf("empty release tag")
+	}
+	if runtime.GOOS == "windows" {
+		if err := runWindowsProfileSetup(ctx, progress); err != nil {
+			msg := fmt.Sprintf("Warning: PowerShell profile update failed: %v\n", err)
+			if progress != io.Discard {
+				fmt.Fprint(progress, msg)
+			} else {
+				fmt.Fprint(os.Stderr, msg)
+			}
+		}
 	}
 	if canExecInstallRestart() {
 		return ErrRestartScheduled
