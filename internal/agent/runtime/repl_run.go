@@ -18,6 +18,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 
 	readline "github.com/chzyer/readline"
 )
@@ -88,7 +89,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	return err
 }
 
-func (r *Runtime) shutdownForUpdateRestart(leadLine string) {
+func (r *Runtime) shutdownForUpdateRestart(leadLine, tag string) {
 	_ = r.persistSession()
 	if r.RL != nil {
 		r.RL.Clean()
@@ -98,6 +99,7 @@ func (r *Runtime) shutdownForUpdateRestart(leadLine string) {
 	multiline.EnsureCookedTTY()
 	lines := []string{
 		"Installing update and restarting in this terminal...",
+		updater.InstallFallbackMessage(tag),
 	}
 	if strings.TrimSpace(leadLine) != "" {
 		lines = append([]string{leadLine}, lines...)

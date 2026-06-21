@@ -62,6 +62,27 @@ func TestReleaseAssetName(t *testing.T) {
 	}
 }
 
+func TestInstallFallbackMessage(t *testing.T) {
+	t.Parallel()
+	msg := updater.InstallFallbackMessage("v2026.602.1")
+	if !strings.Contains(msg, "If automatic upgrade fails") {
+		t.Fatalf("missing disclaimer: %q", msg)
+	}
+	if !strings.Contains(msg, "v2026.602.1") {
+		t.Fatalf("tag missing from %q", msg)
+	}
+	switch runtime.GOOS {
+	case "windows":
+		if !strings.Contains(msg, "irm") {
+			t.Fatalf("expected Windows install command in %q", msg)
+		}
+	case "linux", "darwin":
+		if !strings.Contains(msg, "curl") {
+			t.Fatalf("expected Unix install command in %q", msg)
+		}
+	}
+}
+
 func TestInstallCommand(t *testing.T) {
 	t.Parallel()
 	cmd, err := updater.InstallCommand("v2026.602.1")

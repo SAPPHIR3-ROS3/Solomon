@@ -207,7 +207,7 @@ func launchWindowsInstallRestart(ctx context.Context, pid int, tag, cwd, exe str
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath)
+	cmd := exec.CommandContext(ctx, windowsPowerShellExe(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -243,7 +243,7 @@ $DownloadUrl = '%s'
 $Target = '%s'
 while (Get-Process -Id $ParentPID -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 250 }
 if ($Cwd) { Set-Location $Cwd }
-Write-Host ''
+%sWrite-Host ''
 Write-Host "=== Solomon update ($Tag) ==="
 Write-Host "Downloading $Asset..."
 $tmp = [System.IO.Path]::GetTempFileName()
@@ -276,7 +276,7 @@ Write-Host "Installed $Tag -> $Target"
 Write-Host '=== Restarting Solomon ==='
 Write-Host ''
 %s
-`, pid, psQuote(tag), psQuote(cwd), psQuote(exe), psArgList(args), psQuote(asset), psQuote(url), psQuote(target), restartLine)
+`, pid, psQuote(tag), psQuote(cwd), psQuote(exe), psArgList(args), psQuote(asset), psQuote(url), psQuote(target), windowsProfileSetupScriptLines(), restartLine)
 	return writePowerShellScript(script)
 }
 
@@ -300,7 +300,7 @@ func scheduleRestartOnly(ctx context.Context, pid int, cwd, exe string, args []s
 		if err != nil {
 			return err
 		}
-		cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath)
+		cmd := exec.CommandContext(ctx, windowsPowerShellExe(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {

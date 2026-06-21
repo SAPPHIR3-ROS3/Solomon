@@ -1,7 +1,8 @@
 #Requires -Version 5.1
 param(
     [string]$Version = $(if ($env:SOLOMON_VERSION) { $env:SOLOMON_VERSION } else { 'latest' }),
-    [switch]$SetupPathOnly
+    [switch]$SetupPathOnly,
+    [switch]$ProfileOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +12,7 @@ $GoRoot = Join-Path $env:USERPROFILE '.local\go'
 $script:InstalledLocalGo = $false
 $GithubReleasesLatest = 'https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest'
 $Marker = '# solomon-installer'
+$MarkerEnd = '# /solomon-installer'
 
 function Get-GoSemVer {
     if ((go version 2>$null) -match 'go version go(\S+)') {
@@ -279,28 +281,76 @@ if (Test-Path `$goInstallBin) {
     }
     `$env:Path = if (`$sessionParts.Count -gt 0) { "`$goInstallBin;" + (`$sessionParts -join ';') } else { `$goInstallBin }
 }
+$MarkerEnd
 "@
+}
+
+function Remove-SolomonInstallerProfileBlocks {
+    param([string]$Content)
+
+    if ([string]::IsNullOrEmpty($Content)) {
+        return ''
+    }
+    $begin = [regex]::Escape($Marker)
+    $end = [regex]::Escape($MarkerEnd)
+    while ($Content -match [regex]::Escape($Marker)) {
+        if ($Content -match "(?s)(?:^|\r?\n)${begin}[\s\S]*?${end}") {
+            $Content = [regex]::Replace($Content, "(?s)(?:^|\r?\n)${begin}[\s\S]*?${end}", '', 1)
+            continue
+        }
+        $Content = [regex]::Replace($Content, "(?s)(?:^|\r?\n)${begin}.*", '', 1)
+    }
+    return $Content.TrimEnd()
+}
+
+function Test-SolomonInstallerProfileBlockCurrent {
+    param([string]$ProfilePath)
+
+    $expected = (Get-GoInstallBinProfileBlock).Trim()
+    $content = Get-Content -Path $ProfilePath -Raw -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrEmpty($content)) {
+        return $false
+    }
+    $begin = [regex]::Escape($Marker)
+    $end = [regex]::Escape($MarkerEnd)
+    if ($content -match "(?s)${begin}[\s\S]*?${end}") {
+        return ($Matches[0].Trim() -eq $expected)
+    }
+    return $false
 }
 
 function Install-GoInstallBinProfileBlock {
     param([string]$ProfilePath)
 
-    $block = Get-GoInstallBinProfileBlock
-    $content = Get-Content -Path $ProfilePath -Raw -ErrorAction SilentlyContinue
-    if ([string]::IsNullOrEmpty($content)) {
-        Set-Content -Path $ProfilePath -Value $block.TrimStart("`n") -NoNewline
-        Write-Host "Updated PowerShell profile: $ProfilePath"
+    if (Test-SolomonInstallerProfileBlockCurrent -ProfilePath $ProfilePath) {
+        Write-Host "PowerShell profile already includes Solomon PATH block: $ProfilePath"
         return
     }
-    if ($content.Contains($Marker)) {
-        $pattern = '(?s)\r?\n' + [regex]::Escape($Marker) + '.*'
-        $updated = [regex]::Replace($content, $pattern, "`n$($block.Trim())", 1)
-        Set-Content -Path $ProfilePath -Value $updated.TrimEnd() -NoNewline
-        Write-Host "Updated PowerShell profile: $ProfilePath"
-        return
+
+    $block = (Get-GoInstallBinProfileBlock).Trim()
+    $content = Remove-SolomonInstallerProfileBlocks (Get-Content -Path $ProfilePath -Raw -ErrorAction SilentlyContinue)
+    if ([string]::IsNullOrWhiteSpace($content)) {
+        Set-Content -Path $ProfilePath -Value $block -NoNewline
+    } else {
+        Set-Content -Path $ProfilePath -Value ($content.TrimEnd() + "`n`n" + $block) -NoNewline
     }
-    Add-Content -Path $ProfilePath -Value "`n$block"
     Write-Host "Updated PowerShell profile: $ProfilePath"
+}
+
+function Update-PowerShellProfile {
+    $profile = $PROFILE.CurrentUserAllHosts
+    if (-not $profile) {
+        $profile = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'PowerShell\profile.ps1'
+    }
+    $profileDir = Split-Path $profile -Parent
+    if (-not (Test-Path $profileDir)) {
+        New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
+    }
+    if (-not (Test-Path $profile)) {
+        New-Item -ItemType File -Force -Path $profile | Out-Null
+    }
+
+    Install-GoInstallBinProfileBlock -ProfilePath $profile
 }
 
 function Setup-Shell {
@@ -315,19 +365,7 @@ function Setup-Shell {
 
     Ensure-GoBinInPath
 
-    $profile = $PROFILE.CurrentUserAllHosts
-    if (-not $profile) {
-        $profile = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'PowerShell\profile.ps1'
-    }
-    $profileDir = Split-Path $profile -Parent
-    if (-not (Test-Path $profileDir)) {
-        New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
-    }
-    if (-not (Test-Path $profile)) {
-        New-Item -ItemType File -Force -Path $profile | Out-Null
-    }
-
-    Install-GoInstallBinProfileBlock -ProfilePath $profile
+    Update-PowerShellProfile
 
     Write-Host 'Restart the terminal or run: . $PROFILE'
 }
@@ -351,6 +389,11 @@ function Install-Solomon {
     else {
         throw "solomon binary expected at $bin"
     }
+}
+
+if ($ProfileOnly) {
+    Update-PowerShellProfile
+    return
 }
 
 if ($SetupPathOnly) {
