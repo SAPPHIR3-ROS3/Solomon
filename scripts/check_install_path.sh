@@ -73,15 +73,36 @@ verify_go_bin_in_path() {
   }
 }
 
+verify_github_path_entry() {
+  local bin_dir="$1"
+  [[ -n "${GITHUB_PATH:-}" && -f "$GITHUB_PATH" ]] || {
+    echo "GITHUB_PATH file missing" >&2
+    exit 1
+  }
+  grep -Fxq "$bin_dir" "$GITHUB_PATH" || {
+    echo "Go install bin not persisted to GITHUB_PATH: ${bin_dir}" >&2
+    echo "GITHUB_PATH=$(cat "$GITHUB_PATH")" >&2
+    exit 1
+  }
+}
+
 run_path_setup_case() {
-  local label="$1"
+  local label="$1" local_go_bin
   shift
   echo "Checking install PATH setup (${label})..."
   "$@"
+  export GITHUB_PATH="${HOME}/github-path"
+  : >"$GITHUB_PATH"
   # shellcheck source=/dev/null
   source "${root}/scripts/install.sh"
   setup_path_only
   verify_go_bin_in_path "$expected_bin_dir"
+  verify_github_path_entry "$expected_bin_dir"
+  local_go_bin="${HOME}/.local/go/bin"
+  mkdir -p "$local_go_bin"
+  INSTALLED_LOCAL_GO=1
+  ensure_local_go_in_path
+  verify_github_path_entry "$local_go_bin"
   verify_unix_rc_files
 }
 
