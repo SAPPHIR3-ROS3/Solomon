@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claudeoauth"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
@@ -25,7 +26,7 @@ func ProviderConnectMenuLines() []string {
 		"  1) ChatGPT Sub (browser sign-in)",
 		"  2) OpenAI Compatible API (base URL + API key)",
 		"  3) Anthropic Compatible API (base URL + API key)",
-		"  4) Claude Sub (OAuth, coming soon)",
+		"  4) Claude Sub (browser sign-in)",
 		"  5) Cursor API (API key)",
 	}
 }
@@ -97,20 +98,41 @@ func RunProviderSetupByKind(ctx context.Context, pio PromptIO, cfg *Root, existi
 	case ProviderKindAnthropicCompatible:
 		return setupAnthropicCompatibleAPI(pio, cfg, existing, opts)
 	case ProviderKindClaudeSub:
-		return nil, printClaudeSubComingSoon(pio)
+		return setupClaudeSub(ctx, pio, cfg, existing, opts)
 	default:
 		return nil, fmt.Errorf("internal error: unknown provider kind %d", kind)
 	}
 }
 
-func printClaudeSubComingSoon(pio PromptIO) error {
+func setupClaudeSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root, opts ProviderSetupOpts) (*ProviderSetupResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	out := pio.promptOut()
-	fmt.Fprintln(out, strings.Join([]string{
-		"Claude Sub (OAuth via Agent SDK) is not available yet.",
-		fmt.Sprintf("Expected after %s when Anthropic enables subscription auth for third-party apps.", ClaudeSubExpectedDate),
-		"Use option 3 (Anthropic API key) until then.",
-	}, "\n"))
-	return nil
+	fmt.Fprintln(out, "Third-party harness usage may draw from Anthropic extra usage instead of plan limits.")
+	tokens, err := claudeoauth.Login(ctx, out)
+	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub login failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		return nil, err
+	}
+	prov, err := NewClaudeSubProvider(tokens)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := listAnthropicModelsForSetup(&prov, tokens.AccessToken)
+	if err != nil {
+		return nil, err
+	}
+	return FinalizeProviderSetup(pio, cfg, existing, opts, prov, ids)
+}
+
+func listAnthropicModelsForSetup(p *Provider, bearer string) ([]string, error) {
+	ids, err := modelsapi.ListAnthropic(p.BaseURL, bearer, true)
+	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "anthropic model list failed during Claude Sub setup; using curated list", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		ids = modelsapi.CuratedAnthropicModels()
+	}
+	return modelsapi.PickAnthropicFlagshipModels(ids), nil
 }
 
 func setupChatGPTSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root, opts ProviderSetupOpts) (*ProviderSetupResult, error) {
@@ -218,7 +240,13 @@ func readCompatibleAPIProvider(pio PromptIO, opts ProviderSetupOpts, protocol, d
 			return Provider{}, nil, normErr
 		}
 		p.BaseURL = norm
-		return p, modelsapi.CuratedAnthropicModels(), nil
+		oauth := IsAnthropicClaudeCodeOAuthToken(key)
+		ids, err := modelsapi.ListAnthropic(norm, key, oauth)
+		if err != nil {
+			logging.Log(logging.WARNING_LOG_LEVEL, "anthropic model list failed during setup; using curated list", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			ids = modelsapi.CuratedAnthropicModels()
+		}
+		return p, modelsapi.PickAnthropicFlagshipModels(ids), nil
 	}
 	p.APIProtocol = APIProtocolOpenAI
 	norm, normErr := NormalizeAPIBase(base)

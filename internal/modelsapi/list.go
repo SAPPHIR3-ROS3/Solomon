@@ -31,7 +31,11 @@ func List(baseURL, bearer string) ([]string, error) {
 
 func ListForProvider(baseURL, bearer string, apiProtocol string) ([]string, error) {
 	if strings.TrimSpace(apiProtocol) == "anthropic" {
-		return CuratedAnthropicModels(), nil
+		ids, err := ListAnthropic(baseURL, bearer, false)
+		if err != nil {
+			return CuratedAnthropicModels(), nil
+		}
+		return ids, nil
 	}
 	return List(baseURL, bearer)
 }
