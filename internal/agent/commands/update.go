@@ -81,6 +81,9 @@ func Upgrade(d Deps) error {
 	if errors.Is(err, updater.ErrRestartScheduled) {
 		return ErrRestartSolomon
 	}
+	if err != nil {
+		PrintSystem(d.Out, updater.InstallFallbackMessage(notice.Latest))
+	}
 	return err
 }
 
@@ -106,7 +109,5 @@ func printUpdateHints(d Deps, notice *updater.Notice) {
 	if notice == nil {
 		return
 	}
-	if cmd, err := updater.InstallCommand(notice.Latest); err == nil {
-		PrintSystemf(d.Out, "Manual install: %s", cmd)
-	}
+	PrintSystem(d.Out, updater.InstallFallbackMessage(notice.Latest))
 }

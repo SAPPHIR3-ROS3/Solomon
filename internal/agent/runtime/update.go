@@ -48,6 +48,7 @@ func (r *Runtime) tryAutoUpdateInstall(ctx context.Context) (tag string, ok bool
 	}
 	if err != nil {
 		commands.PrintSystemErr(r.Out, err)
+		commands.PrintSystem(r.Out, updater.InstallFallbackMessage(notice.Latest))
 	}
 	return "", false
 }
@@ -82,9 +83,10 @@ func (r *Runtime) exitForUpdateRestart(leadLine, tag string) {
 		commands.PrintSystemErr(r.Out, fmt.Errorf("update restart: missing release tag"))
 		os.Exit(1)
 	}
-	r.shutdownForUpdateRestart(leadLine)
+	r.shutdownForUpdateRestart(leadLine, tag)
 	if err := updater.ExecInstallRestart(context.Background(), tag); err != nil {
 		commands.PrintSystemErr(r.Out, fmt.Errorf("update restart: %w", err))
+		commands.PrintSystem(r.Out, updater.InstallFallbackMessage(tag))
 		os.Exit(1)
 	}
 	if runtime.GOOS != "windows" {
