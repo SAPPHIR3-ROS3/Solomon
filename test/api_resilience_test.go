@@ -56,6 +56,49 @@ func TestBackoffDelay_CappedAndRetryAfter(t *testing.T) {
 	}
 }
 
+func TestUserFacingAPIError_anthropicRateLimit(t *testing.T) {
+	t.Parallel()
+	raw := `after 3 attempt(s): API HTTP 429: {"type":"error","error":{"type":"rate_limit_error","message":"Error"},"request_id":"req_011CcFQoxsGHhq6pAfiourBe"}`
+	got := llm.UserFacingAPIError(errors.New(raw))
+	for _, want := range []string{
+		"summary: rate limit reached",
+		"attempts: 3",
+		"HTTP: 429",
+		"type: rate_limit_error",
+		"message: too many requests",
+		"request_id: req_011CcFQoxsGHhq6pAfiourBe",
+		"hint:",
+		"sk-ant-oat",
+		"paused this provider",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "{") {
+		t.Fatalf("expected no raw JSON, got:\n%s", got)
+	}
+}
+
+func TestUserFacingAPIError_anthropicModelNotFound(t *testing.T) {
+	t.Parallel()
+	raw := `API HTTP 404: {"type":"error","error":{"type":"not_found_error","message":"model: claude-sonnet-4-20250514"},"request_id":"req_011CcFPUd4zYMvr59S1Zw8CZ"}`
+	got := llm.UserFacingAPIError(errors.New(raw))
+	for _, want := range []string{
+		"summary: model not found",
+		"HTTP: 404",
+		"type: not_found_error",
+		"model: claude-sonnet-4-20250514",
+		"retired",
+		"claude-sonnet-4-6",
+		"/models",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+}
+
 func TestUserFacingAPIError_usageLimitReached(t *testing.T) {
 	t.Parallel()
 	raw := `after 3 attempt(s): POST "https://chatgpt.com/backend-api/codex/v1/chat/completions": 429 Too Many Requests {"type":"usage_limit_reached","message":"The usage limit has been reached","plan_type":"free","resets_at":1779966197,"eligible_promo":null,"resets_in_seconds":133272}`
