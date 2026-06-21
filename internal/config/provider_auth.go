@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claudeoauth"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
@@ -25,8 +26,6 @@ const (
 	AuthKindOAuthChatGPT = "oauth_chatgpt"
 	AuthKindOAuthClaude  = "oauth_claude"
 	AuthKindCursorAPI    = "cursor_api"
-
-	ClaudeSubExpectedDate = "2026-06-15"
 
 	AnthropicClaudeCodeOAuthTokenPrefix = "sk-ant-oat"
 
@@ -232,6 +231,14 @@ func ApplyOAuthTokens(p *Provider, t codex.TokenSet) {
 	})
 }
 
+func ApplyClaudeOAuthTokens(p *Provider, t claudeoauth.TokenSet) {
+	applyOAuthTokens(p, AuthKindOAuthClaude, OAuthTokenSet{
+		AccessToken:  t.AccessToken,
+		RefreshToken: t.RefreshToken,
+		ExpiresAt:    t.ExpiresAt,
+	})
+}
+
 func ResolveProviderBearer(ctx context.Context, r *Root, p *Provider) (string, error) {
 	if p == nil {
 		return "", errors.New("nil provider")
@@ -240,7 +247,7 @@ func ResolveProviderBearer(ctx context.Context, r *Root, p *Provider) (string, e
 	case AuthKindOAuthChatGPT:
 		return resolveChatGPTOAuthBearer(ctx, r, p)
 	case AuthKindOAuthClaude:
-		return "", fmt.Errorf("Claude Sub is not available yet (expected %s)", ClaudeSubExpectedDate)
+		return resolveClaudeOAuthBearer(ctx, r, p)
 	default:
 		key := strings.TrimSpace(p.APIKey)
 		if key == "" {
@@ -278,6 +285,34 @@ func resolveChatGPTOAuthBearer(ctx context.Context, r *Root, p *Provider) (strin
 	return tokens.AccessToken, nil
 }
 
+func resolveClaudeOAuthBearer(ctx context.Context, r *Root, p *Provider) (string, error) {
+	now := time.Now()
+	if !p.oauthAccessExpired(now) {
+		tok := strings.TrimSpace(p.OAuthAccessToken)
+		if tok != "" {
+			return tok, nil
+		}
+	}
+	refresh := strings.TrimSpace(p.OAuthRefreshToken)
+	if refresh == "" {
+		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub OAuth refresh token missing", logging.LogOptions{Params: map[string]any{"provider": p.Name}})
+		return "", errors.New("Claude Sub: missing OAuth tokens; run /connect")
+	}
+	tokens, err := claudeoauth.Refresh(ctx, refresh)
+	if err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub OAuth token refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
+		return "", fmt.Errorf("Claude Sub token refresh: %w", err)
+	}
+	ApplyClaudeOAuthTokens(p, tokens)
+	if r != nil {
+		if err := Save(r); err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "save config after Claude OAuth refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
+			return "", err
+		}
+	}
+	return tokens.AccessToken, nil
+}
+
 func EnsureChatGPTSubBaseURL(p *Provider) {
 	if p == nil || !p.IsChatGPTSub() {
 		return
@@ -296,6 +331,20 @@ func EnsureClaudeSubBaseURL(p *Provider) {
 	if norm, err := NormalizeAnthropicBase(AnthropicPlatformBase); err == nil {
 		p.BaseURL = norm
 	}
+}
+
+func NewClaudeSubProvider(tokens claudeoauth.TokenSet) (Provider, error) {
+	norm, err := NormalizeAnthropicBase(AnthropicPlatformBase)
+	if err != nil {
+		return Provider{}, err
+	}
+	p := Provider{
+		Name:        ProviderNameClaudeSub,
+		BaseURL:     norm,
+		APIProtocol: APIProtocolAnthropic,
+	}
+	ApplyClaudeOAuthTokens(&p, tokens)
+	return p, nil
 }
 
 func NewChatGPTSubProvider(baseURL string, tokens codex.TokenSet) (Provider, error) {

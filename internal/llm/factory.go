@@ -20,6 +20,7 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 		logging.Log(logging.ERROR_LOG_LEVEL, "completion backend nil provider", logging.LogOptions{Params: nil})
 		return nil, fmt.Errorf("nil provider")
 	}
+	config.EnsureClaudeSubBaseURL(p)
 	policy := config.EffectiveAPIResilience(cfg)
 	hostKey := HostKeyFromBaseURL(p.BaseURL)
 	httpClient := NewResilientHTTPClient(policy)

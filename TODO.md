@@ -28,8 +28,12 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 4 — Autenticazione verso i major lab
 
-- **Stato:** provider configurati in TOML con **base URL OpenAI-compatibile** e **API key** in chiaro (`internal/config`); client costruito con `option.WithAPIKey` / `WithBaseURL` (`internal/agent/runtime.go`). Nessun flusso OAuth né integrazione dedicata per singoli vendor.
-- **Cosa manca:** dove ha senso tecnico e legale, **auth ufficiale** verso i provider principali (OpenAI, Anthropic, Google AI, ecc.): gestione credenziali (incluso refresh o rotazione dove previsto), UX di login/chiave, profili multipli; appoggio al **vault** per token e chiavi invece del solo TOML; tabella/documentazione di quali lab sono supportati nativamente vs solo endpoint compatibili.
+- **Stato:** **ChatGPT Sub** via browser OAuth PKCE + callback locale (`internal/auth/openai/codex/`). **Claude Sub** via browser OAuth PKCE + callback locale (`internal/auth/anthropic/claudeoauth/`, stesso modello Pi: `localhost:53692/callback`, token su `platform.claude.com`). **Anthropic API key** e endpoint compatibili OpenAI. **Cursor API** con sidecar. Token OAuth ancora in TOML (non vault).
+- **Cosa manca:**
+  - **Claude Sub via Agent SDK sidecar** — percorso ToS-allineato alternativo al browser OAuth diretto (pattern `internal/integrations/cursor/`).
+  - **Google AI** e altri lab: login nativo dove ha senso.
+  - **Vault (§3)** per token/chiavi invece del solo TOML; refresh/rotazione già parziale su ChatGPT Sub e Claude Sub.
+  - Tabella/documentazione lab supportati nativamente vs solo endpoint compatibili.
 
 ---
 

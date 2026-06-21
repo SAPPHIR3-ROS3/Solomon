@@ -7,18 +7,35 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
 
+func listAnthropicModels(p *config.Provider, bearer string) ([]string, error) {
+	if p == nil {
+		return modelsapi.CuratedAnthropicModels(), nil
+	}
+	ids, err := modelsapi.ListAnthropic(p.BaseURL, bearer, p.UsesAnthropicOAuthBearer())
+	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "anthropic model list failed; using curated list", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
+		ids = modelsapi.CuratedAnthropicModels()
+	}
+	return modelsapi.PickAnthropicFlagshipModels(ids), nil
+}
+
 func ListModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {
 	if p.IsClaudeSub() {
-		return modelsapi.CuratedClaudeSubModels(), nil
+		return modelsapi.PickAnthropicFlagshipModels(modelsapi.CuratedAnthropicModels()), nil
 	}
 	if p.EffectiveAuthKind() == config.AuthKindOAuthChatGPT {
 		return codex.SubModelCatalog(), nil
 	}
 	if p.IsAnthropic() {
-		return modelsapi.CuratedAnthropicModels(), nil
+		bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
+		if err != nil {
+			return nil, err
+		}
+		return listAnthropicModels(p, bearer)
 	}
 	if p.IsCursorAPI() {
 		cwd, _ := os.Getwd()
@@ -45,13 +62,17 @@ func ListModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Prov
 
 func ListModelsForProviderAll(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {
 	if p.IsClaudeSub() {
-		return modelsapi.CuratedClaudeSubModels(), nil
+		return modelsapi.PickAnthropicFlagshipModels(modelsapi.CuratedAnthropicModels()), nil
 	}
 	if p.EffectiveAuthKind() == config.AuthKindOAuthChatGPT {
 		return codex.SubModelCatalog(), nil
 	}
 	if p.IsAnthropic() {
-		return modelsapi.CuratedAnthropicModels(), nil
+		bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
+		if err != nil {
+			return nil, err
+		}
+		return listAnthropicModels(p, bearer)
 	}
 	if p.IsCursorAPI() {
 		cwd, _ := os.Getwd()
