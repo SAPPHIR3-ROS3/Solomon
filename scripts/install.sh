@@ -20,6 +20,14 @@ go_install_bin_dir() {
   printf '%s/bin\n' "$(go env GOPATH)"
 }
 
+persist_github_path() {
+  local dir="$1"
+  if [[ -z "${GITHUB_PATH:-}" || -z "$dir" ]]; then
+    return 0
+  fi
+  printf '%s\n' "$dir" >>"$GITHUB_PATH"
+}
+
 ensure_local_go_in_path() {
   if [[ "$INSTALLED_LOCAL_GO" != 1 ]]; then
     return 0
@@ -29,6 +37,7 @@ ensure_local_go_in_path() {
     *":${go_bin}:"*) ;;
     *) export PATH="${go_bin}:${PATH}" ;;
   esac
+  persist_github_path "$go_bin"
 }
 
 ensure_go_bin_in_path() {
@@ -40,6 +49,7 @@ ensure_go_bin_in_path() {
     *":${bin_dir}:"*) ;;
     *) export PATH="${bin_dir}:${PATH}" ;;
   esac
+  persist_github_path "$bin_dir"
 }
 
 go_install_bin_export_line() {
