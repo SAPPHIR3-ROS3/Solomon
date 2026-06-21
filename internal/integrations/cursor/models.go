@@ -8,6 +8,10 @@ import (
 
 const DefaultModelID = "composer-2.5"
 
+func DefaultModelIDs() []string {
+	return []string{DefaultModelID, "auto"}
+}
+
 type cursorLab int
 
 const (
@@ -22,7 +26,7 @@ const (
 
 func FilterModelIDs(ids []string) []string {
 	if len(ids) == 0 {
-		return []string{DefaultModelID, "auto"}
+		return DefaultModelIDs()
 	}
 	byLab := make(map[cursorLab][]string)
 	for _, id := range ids {
@@ -44,7 +48,7 @@ func FilterModelIDs(ids []string) []string {
 		}
 	}
 	if len(out) == 0 {
-		return []string{DefaultModelID, "auto"}
+		return DefaultModelIDs()
 	}
 	return ensureAutoLast(out)
 }
@@ -221,7 +225,6 @@ func scoreComposer(id string) flagshipScore {
 	}
 	return flagshipScore{ver: ver, tier: composerVariantTier(parts[1:]), ok: true}
 }
-
 
 func scoreGPT(id string) flagshipScore {
 	m := strings.ToLower(strings.TrimSpace(id))

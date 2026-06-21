@@ -1,9 +1,13 @@
 package test
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 )
@@ -76,6 +80,28 @@ func TestCursorAPIConfigured(t *testing.T) {
 	cfg.Providers[config.ProviderNameCursorAPI].APIKey = ""
 	if config.CursorAPIConfigured(cfg) {
 		t.Fatal("expected false without API key")
+	}
+}
+
+func TestCursorModelsFallbackWhenProxyHasNoModelsEndpoint(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+
+	p := &config.Provider{
+		Name:     "Cursor test",
+		AuthKind: config.AuthKindCursorAPI,
+		BaseURL:  srv.URL + "/v1/",
+		APIKey:   "cursor-key",
+	}
+	cfg := &config.Root{}
+	got, err := connect.ListModelsForProvider(context.Background(), cfg, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := cursorint.DefaultModelIDs()
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("models=%v, want %v", got, want)
 	}
 }
 
