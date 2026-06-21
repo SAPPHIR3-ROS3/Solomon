@@ -14,3 +14,7 @@ func runWindowsProfileSetup(context.Context, io.Writer) error {
 func windowsProfileSetupScriptLines() string {
 	return ""
 }
+
+func windowsPowerShellExe() string {
+	return "powershell"
+}
