@@ -139,17 +139,21 @@ func TestUsesAnthropicOAuthBearer_ClaudeCodeTokenInAPIKey(t *testing.T) {
 	}
 }
 
-func TestResolveProviderBearer_ClaudeSubNotAvailable(t *testing.T) {
+func TestResolveProviderBearer_ClaudeSub(t *testing.T) {
 	p := config.Provider{
-		Name:        config.ProviderNameClaudeSub,
-		BaseURL:     "https://api.anthropic.com",
-		AuthKind:    config.AuthKindOAuthClaude,
-		APIProtocol: config.APIProtocolAnthropic,
-		OAuthAccessToken: "at",
+		Name:             config.ProviderNameClaudeSub,
+		BaseURL:          "https://api.anthropic.com",
+		AuthKind:         config.AuthKindOAuthClaude,
+		APIProtocol:      config.APIProtocolAnthropic,
+		OAuthAccessToken: "sk-ant-oat-test",
+		OAuthExpiresAt:   "2099-01-01T00:00:00Z",
 	}
-	_, err := config.ResolveProviderBearer(t.Context(), nil, &p)
-	if err == nil {
-		t.Fatal("expected error for Claude Sub bearer resolution")
+	bearer, err := config.ResolveProviderBearer(t.Context(), nil, &p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bearer != "sk-ant-oat-test" {
+		t.Fatalf("bearer = %q", bearer)
 	}
 }
 
