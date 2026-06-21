@@ -32,6 +32,9 @@ func ListModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Prov
 	}
 	ids, err := modelsapi.List(p.BaseURL, bearer)
 	if err != nil {
+		if p.IsCursorAPI() {
+			return cursorint.DefaultModelIDs(), nil
+		}
 		return nil, err
 	}
 	if p.IsCursorAPI() {
@@ -62,6 +65,9 @@ func ListModelsForProviderAll(ctx context.Context, cfg *config.Root, p *config.P
 	}
 	ids, err := modelsapi.ListWithOpts(p.BaseURL, bearer, modelsapi.ListOpts{AllModels: true})
 	if err != nil {
+		if p.IsCursorAPI() {
+			return cursorint.DefaultModelIDs(), nil
+		}
 		return nil, err
 	}
 	if p.IsCursorAPI() {

@@ -71,7 +71,7 @@ sequenceDiagram
 
 In interactive non-machine mode, `runAgentTurns` wraps terminal output in `btw.OutputMux` and starts a `/btw` listener. Pressing `/` during streaming switches the mux to buffer main output, restores the terminal to the normal multiline editor with `/btw ` prefilled, and then runs a transient `StreamText` request with `systemPromptBtw` and no tools. The side question is built from a snapshot of completed chat messages and is not appended to `chatstore`.
 
-After the side stream finishes, Solomon waits `btw.CatchUpPause` seconds, unless another `/btw` is queued, then flushes the buffered main output and resumes live streaming. The listener and terminal acquisition live in `internal/agent/runtime/btw/listener` and `internal/agent/runtime/btw/input`. Windows currently has only placeholder readiness for the listener; a real Windows console implementation is still required.
+After the side stream finishes, Solomon waits `btw.CatchUpPause` seconds, unless another `/btw` is queued, then flushes the buffered main output and resumes live streaming. The listener and terminal acquisition live in `internal/agent/runtime/btw/listener` and `internal/agent/runtime/btw/input`, with platform-specific readiness checks for Unix and Windows consoles.
 
 ## Machine-readable output (`exec --json` / `--jsonl`)
 
