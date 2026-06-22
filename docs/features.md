@@ -20,7 +20,7 @@ Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtim
 
 ### Model and provider selection
 
-Switch models and backends with `/models`, add providers with `/connect`, or rerun setup via `/onboard` and first-run wizard. `/connect` supports ChatGPT Sub (OAuth), OpenAI-compatible API keys, Anthropic API keys, and Cursor API; **Claude Sub** is listed in the wizard as coming soon. Every major terminal agent exposes equivalent controls (`/model`, provider pickers, or config files). Solomon stores providers in `config.toml` with OpenAI-compatible or native Anthropic Messages API modes. See [Configuration](user-guide/configuration.md).
+Switch models and backends with `/models`, add providers with `/connect`, or rerun setup via `/onboard` and first-run wizard. `/connect` supports **ChatGPT Sub** and **Claude Sub** (browser OAuth), OpenAI-compatible API keys, Anthropic API keys, and Cursor API. Every major terminal agent exposes equivalent controls (`/model`, provider pickers, or config files). Solomon stores providers in `config.toml` with OpenAI-compatible or native Anthropic Messages API modes. See [Configuration](user-guide/configuration.md).
 
 ### Read project files
 
@@ -121,6 +121,10 @@ Type `@` in the prompt to cite workspace files or directories: a path picker lis
 ### OAuth ChatGPT subscription provider
 
 `/connect` can add **ChatGPT Sub** with browser OAuth and Codex-oriented request middleware for OpenAI’s subscription endpoint. Codex CLI’s “Sign in with ChatGPT” is the closest peer. Tokens today live in config TOML; secure vault storage is **(in the future)**.
+
+### OAuth Claude subscription provider
+
+`/connect` can add **Claude Sub** with browser OAuth PKCE (`internal/auth/anthropic/claude/`), native Anthropic Messages API, and request shaping aligned with Claude Code for subscription models. Tokens today live in config TOML; secure vault storage is **(in the future)**.
 
 ### Anthropic Messages API provider
 
@@ -260,7 +264,7 @@ Replace visible `[img-n]` tokens with robust invisible Unicode delimiters to avo
 
 ### Secure credential vault **(in the future)**
 
-API keys and OAuth tokens would move from plain `config.toml` into OS keychains (Keychain, Credential Manager, libsecret) with migration and headless/CI guidance. Prerequisite for richer [Major-lab OAuth (in the future)](#major-lab-oauth-in-the-future).
+API keys and OAuth tokens would move from plain `config.toml` into OS keychains (Keychain, Credential Manager, libsecret) with migration and headless/CI guidance.
 
 ### Security sandbox and path policy **(in the future)**
 
@@ -285,10 +289,6 @@ System templates in `internal/prompt` would document image placeholders and atta
 ### Anthropic extended thinking blocks **(in the future)**
 
 Persist `ThinkingBlocks` and enable API `thinking` budgets once the Anthropic backend path is complete—beyond today’s `ReasoningText` display-only path.
-
-### Major-lab OAuth **(in the future)**
-
-Beyond ChatGPT Sub, native OAuth/login flows for OpenAI, Anthropic, Google AI, and similar vendors with refresh rotation stored in the vault.
 
 ---
 
