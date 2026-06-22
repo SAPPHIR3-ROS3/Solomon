@@ -125,7 +125,7 @@ You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic
 | `/onboard` or `/connect` → OpenAI Compatible API | `openai` (default) | Any OpenAI Chat Completions-compatible `base_url` |
 | `/onboard` or `/connect` → Anthropic Compatible API | `anthropic` | Messages API (`POST …/v1/messages`); curated model list |
 | `/connect` → ChatGPT Sub | `openai` | OAuth; Codex middleware |
-| `/connect` → Claude Sub | — | Listed in wizard as **coming soon** (not available yet) |
+| `/connect` → Claude Sub | `anthropic` | OAuth; native Messages API |
 | `/connect` → Cursor API | `openai` | Optional sidecar; see [Cursor integration](#cursor-integration-tool-execution) |
 
 Provider block fields: `base_url`, `api_key`, optional `api_protocol` (`openai` | `anthropic`). Anthropic official base: `https://api.anthropic.com` (normalized on save).

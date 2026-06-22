@@ -1,6 +1,6 @@
 # TODO
 
-Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci che non bloccano altre e non sono bloccate da prerequisiti interni salvo dove indicato; (2) **velocità di implementazione** e **facilità** relativa dentro ogni fascia; (3) **dipendenze esplicite** — **vault** prima di **auth ai major lab** che deve appoggiarci i token/chiavi.
+Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci che non bloccano altre e non sono bloccate da prerequisiti interni salvo dove indicato; (2) **velocità di implementazione** e **facilità** relativa dentro ogni fascia; (3) **dipendenze esplicite** — dove indicate in ogni voce.
 
 ---
 
@@ -22,22 +22,11 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 ## 3 — Vault sicuro (informazioni sensibili)
 
 - **Stato:** API key e altri segreti rilevanti sono principalmente nel **TOML** di configurazione in chiaro; nessun **vault** dedicato né uso sistematico di **Keychain** (macOS), **Credential Manager** (Windows), **libsecret** (Linux), o equivalente unificato.
-- **Cosa manca:** progettare e implementare un **vault sicuro** centralizzato per tutte le info sensibili (chiavi provider, token OAuth quando introdotti, credenziali per ricerca web o MCP dove applicabile); API di lettura a runtime senza esporre plaintext su disco oltre il necessario; **migrazione** guidata da config legacy; chiarezza su headless/CI e backup/ripristino senza falle.
+- **Cosa manca:** progettare e implementare un **vault sicuro** centralizzato per tutte le info sensibili (chiavi provider, token OAuth ChatGPT Sub / Claude Sub, credenziali per ricerca web o MCP dove applicabile); API di lettura a runtime senza esporre plaintext su disco oltre il necessario; **migrazione** guidata da config legacy; chiarezza su headless/CI e backup/ripristino senza falle.
 
 ---
 
-## 4 — Autenticazione verso i major lab
-
-- **Stato:** **ChatGPT Sub** via browser OAuth PKCE + callback locale (`internal/auth/openai/codex/`). **Claude Sub** via browser OAuth PKCE + callback locale (`internal/auth/anthropic/claude/`, stesso modello Pi: `localhost:53692/callback`, token su `platform.claude.com`). **Anthropic API key** e endpoint compatibili OpenAI. **Cursor API** con sidecar. Token OAuth ancora in TOML (non vault).
-- **Cosa manca:**
-  - **Claude Sub via Agent SDK sidecar** — percorso ToS-allineato alternativo al browser OAuth diretto (pattern `internal/integrations/cursor/`).
-  - **Google AI** e altri lab: login nativo dove ha senso.
-  - **Vault (§3)** per token/chiavi invece del solo TOML; refresh/rotazione già parziale su ChatGPT Sub e Claude Sub.
-  - Tabella/documentazione lab supportati nativamente vs solo endpoint compatibili.
-
----
-
-## 5 — LSP
+## 4 — LSP
 
 - **Stato:** nessun aggancio LSP; Solomon resta **solo terminale** + tool file/shell/MCP.
 - **Cosa manca (se lo vorrai):** un client LSP (anche minimale) che alimenti il contesto: diagnostiche, simboli, "go to definition", errori di compilazione nel buffer del workspace — senza dover aprire l'IDE.
@@ -45,14 +34,14 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ---
 
-## 6 — Memoria (MemPalace) e Obsidian
+## 5 — Memoria (MemPalace) e Obsidian
 
 - **Stato:** non integrato; sessioni e contesto restano chat + file progetto come oggi.
 - **Cosa manca:** layer di **memoria esterna** basato su MemPalace (o equivalente scelto), con regole di lettura/scrittura; **integrazione Obsidian** (vault path, note come artefatti, sync convenzioni link/path) e confini tra memoria di progetto vs memoria personale.
 
 ---
 
-## 7 — Sicurezza
+## 6 — Sicurezza
 
 - **Stato:** `shell` è **comando reale** sulla macchina, nella working directory del progetto; `readFile`/`editFile` risolvono path senza **path jail** forte (path assoluti possono uscire dalla root; symlink/`..` non sono trattati come "cage" del workspace). MCP ha allow/deny per nome tool sul server, ma l'host resta potente.
 - **Integrità stream SSE (fail-closed):** in [`internal/llm/stream/completion.go`](internal/llm/stream/completion.go), `StreamText` e `StreamAssistantTurn` abortiscono il turno se `ChatCompletionAccumulator.AddChunk` rifiuta un chunk (tipicamente `id` completion incoerente nello stesso stream). Nessun salvage di `ReasoningText`, content o usage in sessione — possibile forgery / jailbreak surface, stessa filosofia del rifiuto delle completion forgiate lato provider. Errore: `llm.ErrStreamAccumulatorRejected`. Test: [`test/stream_integrity_test.go`](test/stream_integrity_test.go). Output già stampato sul terminale prima dell'abort può restare visibile ma non viene persistito.
@@ -63,7 +52,7 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## LOW PRIORITY
 
-- **Web UI minimale:** Solomon è **solo terminale** (REPL + slash + tool); nessuna superficie HTTP/browser per sessioni o turni. **Cosa manca (opzionale):** web UI minimale che sfrutti le feature esistenti — avvio sessione, invio messaggi, stream risposta/reasoning, visualizzazione tool call e risultati, usage/token, immagini, slash essenziali; backend locale (es. API su loopback) sullo stesso runtime/agent senza duplicare logica; bind solo localhost di default; scope iniziale chat + stato, senza sostituire REPL per shell/edit finché non serve. **Dipende da:** **§7** Sicurezza (o policy equivalente) prima di esporre tool potenti oltre il TTY; ampliamento di superficie simile a LSP (§5).
+- **Web UI minimale:** Solomon è **solo terminale** (REPL + slash + tool); nessuna superficie HTTP/browser per sessioni o turni. **Cosa manca (opzionale):** web UI minimale che sfrutti le feature esistenti — avvio sessione, invio messaggi, stream risposta/reasoning, visualizzazione tool call e risultati, usage/token, immagini, slash essenziali; backend locale (es. API su loopback) sullo stesso runtime/agent senza duplicare logica; bind solo localhost di default; scope iniziale chat + stato, senza sostituire REPL per shell/edit finché non serve. **Dipende da:** **§6** Sicurezza (o policy equivalente) prima di esporre tool potenti oltre il TTY; ampliamento di superficie simile a LSP (§4).
 
 - **`chzyer/readline` su Windows — sequenze ANSI estese nel prompt:** il parser ANSI di readline v1.5.1 (`ansi_windows.go`) tratta erroneamente i codici SGR `38`/`48` (true color / 256 color) come indici colore base 30–37 e va in panic (`index out of range [8]`). Workaround attuale: `termcolor.WrapUserReadline` usa solo sequenze basic (`\033[96m`) nei prompt passati a readline su Windows. **Cosa manca (opzionale):** patch upstream o fork di readline con supporto `38;2;…` / `38;5;…`, oppure sostituire readline con una libreria TTY cross-platform che gestisca il true color; finché resta readline, evitare lipgloss/true color su qualsiasi stringa che passa da `SetPrompt` / `Readline` su Windows.
 
