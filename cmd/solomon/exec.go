@@ -36,7 +36,7 @@ func detectExecSubcommand(args []string) (execKind, []string) {
 	return execNone, nil
 }
 
-func runExecCLI(ctx context.Context, kind execKind, argRest []string) {
+func runExecCLI(ctx context.Context, kind execKind, argRest []string, preloaded *config.Root) {
 	opts, err := cievents.ParseExecCLIArgs(argRest)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -58,21 +58,13 @@ func runExecCLI(ctx context.Context, kind execKind, argRest []string) {
 	var cfg *config.Root
 	var prov *config.Provider
 	if machine {
-		loaded, loadErr := config.Load()
-		if loadErr != nil {
-			loaded = nil
-		}
-		cfg, prov, err = config.ResolveExecConfig(loaded, config.ExecResolveOpts{EnvFile: opts.EnvFile})
+		cfg, prov, err = config.ResolveExecConfig(preloaded, config.ExecResolveOpts{EnvFile: opts.EnvFile})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			exitExec(cievents.ExitConfig, "config")
 		}
 	} else {
-		cfg, err = config.LoadOptional()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			exitExec(cievents.ExitConfig, "config")
-		}
+		cfg = preloaded
 		if config.NeedsOnboard(cfg) {
 			fmt.Fprintln(os.Stderr, "config not set up; run solomon and use /onboard")
 			exitExec(cievents.ExitConfig, "config")

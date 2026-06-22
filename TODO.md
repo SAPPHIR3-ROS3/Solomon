@@ -28,7 +28,7 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 4 — Autenticazione verso i major lab
 
-- **Stato:** **ChatGPT Sub** via browser OAuth PKCE + callback locale (`internal/auth/openai/codex/`). **Claude Sub** via browser OAuth PKCE + callback locale (`internal/auth/anthropic/claudeoauth/`, stesso modello Pi: `localhost:53692/callback`, token su `platform.claude.com`). **Anthropic API key** e endpoint compatibili OpenAI. **Cursor API** con sidecar. Token OAuth ancora in TOML (non vault).
+- **Stato:** **ChatGPT Sub** via browser OAuth PKCE + callback locale (`internal/auth/openai/codex/`). **Claude Sub** via browser OAuth PKCE + callback locale (`internal/auth/anthropic/claude/`, stesso modello Pi: `localhost:53692/callback`, token su `platform.claude.com`). **Anthropic API key** e endpoint compatibili OpenAI. **Cursor API** con sidecar. Token OAuth ancora in TOML (non vault).
 - **Cosa manca:**
   - **Claude Sub via Agent SDK sidecar** — percorso ToS-allineato alternativo al browser OAuth diretto (pattern `internal/integrations/cursor/`).
   - **Google AI** e altri lab: login nativo dove ha senso.

@@ -4,16 +4,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claudeoauth"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 )
 
 func TestClaudeOAuthBuildAuthorizeURL(t *testing.T) {
-	pkce, err := claudeoauth.NewPKCE()
+	pkce, err := claude.NewPKCE()
 	if err != nil {
 		t.Fatal(err)
 	}
-	u := claudeoauth.BuildAuthorizeURL(pkce)
+	u := claude.BuildAuthorizeURL(pkce)
 	for _, want := range []string{
 		"https://claude.ai/oauth/authorize?",
 		"code=true",
@@ -29,7 +29,7 @@ func TestClaudeOAuthBuildAuthorizeURL(t *testing.T) {
 }
 
 func TestNewClaudeSubProvider(t *testing.T) {
-	p, err := config.NewClaudeSubProvider(claudeoauth.TokenSet{
+	p, err := config.NewClaudeSubProvider(claude.TokenSet{
 		AccessToken:  "at",
 		RefreshToken: "rt",
 	})

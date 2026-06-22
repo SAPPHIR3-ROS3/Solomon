@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claudeoauth"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
@@ -110,7 +110,7 @@ func setupClaudeSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root
 	}
 	out := pio.promptOut()
 	fmt.Fprintln(out, "Third-party harness usage may draw from Anthropic extra usage instead of plan limits.")
-	tokens, err := claudeoauth.Login(ctx, out)
+	tokens, err := claude.Login(ctx, out)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub login failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
