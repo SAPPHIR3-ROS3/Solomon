@@ -120,3 +120,9 @@ func postToken(ctx context.Context, body map[string]string) (TokenSet, error) {
 		ExpiresAt:    expires,
 	}, nil
 }
+
+func SetTokenEndpointForTest(url string) func() {
+	old := tokenEndpoint
+	tokenEndpoint = url
+	return func() { tokenEndpoint = old }
+}

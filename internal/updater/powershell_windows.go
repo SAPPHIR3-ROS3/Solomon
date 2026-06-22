@@ -47,3 +47,7 @@ func findPwshExe() string {
 	}
 	return ""
 }
+
+func WindowsPowerShellExeForTest() string {
+	return windowsPowerShellExe()
+}
