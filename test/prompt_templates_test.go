@@ -251,6 +251,58 @@ func TestWriteHelpIncludesPromptTemplates(t *testing.T) {
 	}
 }
 
+func TestStartupTemplatesSkipsReadWhenMtimeUnchanged(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	if err := prompt.EnsureTemplatesInstalled(); err != nil {
+		t.Fatal(err)
+	}
+	content, err := prompt.ReadTemplateFile("agent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mod, err := os.Stat(filepath.Join(home, "prompts", "templates", "agent.tmpl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.EmptyRoot()
+	cfg.PromptTemplates = map[string]string{"agent": "wrong-sha-on-purpose"}
+	cfg.PromptTemplateModTime = map[string]int64{"agent": mod.ModTime().Unix()}
+	if err := prompt.StartupTemplates(cfg, &bytes.Buffer{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PromptTemplates["agent"] != "wrong-sha-on-purpose" {
+		t.Fatalf("expected mtime fast-path to skip hash verify, got sha %q", cfg.PromptTemplates["agent"])
+	}
+	disk, err := prompt.ReadTemplateFile("agent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disk != content {
+		t.Fatal("disk content changed unexpectedly")
+	}
+}
+
+func TestStartupTemplatesBackfillsMtimeWhenSHAStillMatches(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	if err := prompt.EnsureTemplatesInstalled(); err != nil {
+		t.Fatal(err)
+	}
+	content, err := prompt.ReadTemplateFile("chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.EmptyRoot()
+	cfg.PromptTemplates = map[string]string{"chat": prompt.SHA256Hex(content)}
+	if err := prompt.StartupTemplates(cfg, &bytes.Buffer{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PromptTemplateModTime["chat"] == 0 {
+		t.Fatal("expected mtime backfill")
+	}
+}
+
 func TestEmbeddedSHAStable(t *testing.T) {
 	emb, ok := prompt.EmbeddedTemplate("title")
 	if !ok {

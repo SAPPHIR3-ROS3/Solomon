@@ -1,4 +1,4 @@
-package claudeoauth
+package claude
 
 import (
 	"bytes"
