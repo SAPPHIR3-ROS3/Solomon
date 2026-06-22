@@ -47,6 +47,9 @@ func InstallTemplates(cfg *config.Root, out io.Writer, readLine func(string) (st
 			return err
 		}
 		delete(cfg.PromptTemplates, name)
+		if cfg.PromptTemplateModTime != nil {
+			delete(cfg.PromptTemplateModTime, name)
+		}
 	}
 	return config.Save(cfg)
 }

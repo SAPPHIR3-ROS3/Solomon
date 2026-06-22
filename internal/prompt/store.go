@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
@@ -108,6 +109,47 @@ func TemplateContent(name string) (string, error) {
 		return "", os.ErrNotExist
 	}
 	return emb, nil
+}
+
+func templateFileModTime(name string) (int64, error) {
+	p, err := templateFilePath(name)
+	if err != nil {
+		return 0, err
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		return 0, err
+	}
+	return info.ModTime().Unix(), nil
+}
+
+func recordTemplateAccepted(cfg *config.Root, name string) error {
+	content, err := ReadTemplateFile(name)
+	if err != nil {
+		return err
+	}
+	if cfg.PromptTemplates == nil {
+		cfg.PromptTemplates = map[string]string{}
+	}
+	if cfg.PromptTemplateModTime == nil {
+		cfg.PromptTemplateModTime = map[string]int64{}
+	}
+	cfg.PromptTemplates[name] = SHA256Hex(content)
+	mod, err := templateFileModTime(name)
+	if err != nil {
+		return err
+	}
+	cfg.PromptTemplateModTime[name] = mod
+	return nil
+}
+
+func clearTemplateTracking(cfg *config.Root, name string) {
+	if cfg.PromptTemplates != nil {
+		delete(cfg.PromptTemplates, name)
+	}
+	if cfg.PromptTemplateModTime != nil {
+		delete(cfg.PromptTemplateModTime, name)
+	}
 }
 
 func ResetTemplateToEmbedded(name string) error {
