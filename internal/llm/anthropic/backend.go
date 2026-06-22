@@ -38,7 +38,7 @@ func (b *Backend) CompleteText(ctx context.Context, req apitype.SimpleCompletion
 		logging.Log(logging.ERROR_LOG_LEVEL, "anthropic complete marshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
-	httpReq, err := httpNew(ctx, MessagesURL(b.baseURL), raw, b.auth)
+	httpReq, err := httpNew(ctx, MessagesURLForAuth(b.baseURL, b.auth), raw, b.auth, false)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "anthropic complete request build failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err

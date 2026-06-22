@@ -30,7 +30,7 @@ func (b *Backend) postStream(ctx context.Context, body map[string]any) (*http.Re
 	if err != nil {
 		return nil, err
 	}
-	req, err := httpNew(ctx, MessagesURL(b.baseURL), raw, b.auth)
+	req, err := httpNew(ctx, MessagesURLForAuth(b.baseURL, b.auth), raw, b.auth, true)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +62,7 @@ func (b *Backend) buildBody(req apitype.TurnRequest, stream bool) map[string]any
 	if tools := buildTools(req.Tools); len(tools) > 0 {
 		body["tools"] = tools
 	}
+	shapeOAuthBody(body, req, b.auth)
 	return body
 }
 
@@ -77,6 +78,7 @@ func (b *Backend) buildSimpleBody(req apitype.SimpleCompletionRequest, stream bo
 	if s := strings.TrimSpace(req.System); s != "" {
 		body["system"] = s
 	}
+	shapeOAuthSimpleBody(body, req, b.auth)
 	return body
 }
 
