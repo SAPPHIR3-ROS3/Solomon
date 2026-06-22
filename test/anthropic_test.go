@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/claudecode"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/anthropic"
 )
 
 func TestMessagesForAPI_OnlyLastAssistantKeepsReasoning(t *testing.T) {
@@ -34,6 +36,9 @@ func TestAnthropicMessagesURL(t *testing.T) {
 		if got := llm.AnthropicMessagesURL(in); got != want {
 			t.Fatalf("%q: got %q want %q", in, got, want)
 		}
+	}
+	if got := anthropic.MessagesURLForAuth("https://api.anthropic.com", anthropic.AuthFromOAuthBearer("t")); got != "https://api.anthropic.com/v1/messages?beta=true" {
+		t.Fatalf("oauth url: got %q", got)
 	}
 }
 
@@ -77,6 +82,15 @@ func TestAnthropicAuth_applyTo(t *testing.T) {
 	}
 	if got := req.Header.Get("anthropic-beta"); got != llm.AnthropicOAuthBeta {
 		t.Fatalf("anthropic-beta: got %q want %q", got, llm.AnthropicOAuthBeta)
+	}
+	if got := req.Header.Get("user-agent"); got != "claude-cli/"+claudecode.Version() {
+		t.Fatalf("user-agent: got %q", got)
+	}
+	if got := req.Header.Get("x-app"); got != "cli" {
+		t.Fatalf("x-app: got %q", got)
+	}
+	if got := req.Header.Get("x-stainless-lang"); got != "js" {
+		t.Fatalf("x-stainless-lang: got %q", got)
 	}
 	if got := req.Header.Get("x-api-key"); got != "" {
 		t.Fatalf("x-api-key should be empty for oauth bearer, got %q", got)
