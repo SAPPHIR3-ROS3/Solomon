@@ -327,6 +327,24 @@ func TestAnthropicBackend_StreamText_OAuthBearer_MockHTTP(t *testing.T) {
 		if got := r.Header.Get("anthropic-beta"); got != llm.AnthropicOAuthBeta {
 			t.Fatalf("anthropic-beta: got %q want %q", got, llm.AnthropicOAuthBeta)
 		}
+		if got := r.Header.Get("x-stainless-helper-method"); got != "stream" {
+			t.Fatalf("x-stainless-helper-method: got %q want stream", got)
+		}
+		if !strings.Contains(r.URL.RawQuery, "beta=true") {
+			t.Fatalf("expected beta=true query, got %q", r.URL.RawQuery)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		sys, ok := body["system"].([]any)
+		if !ok || len(sys) == 0 {
+			t.Fatalf("oauth system blocks: got %T %#v", body["system"], body["system"])
+		}
+		first, _ := sys[0].(map[string]any)
+		if text, _ := first["text"].(string); !strings.Contains(text, "x-anthropic-billing-header:") {
+			t.Fatalf("billing header missing in system[0]: %q", text)
+		}
 		if got := r.Header.Get("x-api-key"); got != "" {
 			t.Fatalf("x-api-key should be empty, got %q", got)
 		}

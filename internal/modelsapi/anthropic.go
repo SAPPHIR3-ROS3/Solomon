@@ -10,10 +10,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/claudecode"
 )
 
 const anthropicAPIVersion = "2023-06-01"
-const anthropicOAuthBeta = "oauth-2025-04-20"
+
+const anthropicOAuthBeta = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14"
 
 func CuratedAnthropicModels() []string {
 	return []string{
@@ -72,6 +75,10 @@ func ListAnthropic(baseURL, token string, oauthBearer bool) ([]string, error) {
 		if oauthBearer {
 			req.Header.Set("Authorization", "Bearer "+token)
 			req.Header.Set("anthropic-beta", anthropicOAuthBeta)
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("user-agent", "claude-cli/"+claudecode.Version())
+			req.Header.Set("x-app", "cli")
+			req.Header.Set("anthropic-dangerous-direct-browser-access", "true")
 		} else {
 			req.Header.Set("x-api-key", token)
 		}
