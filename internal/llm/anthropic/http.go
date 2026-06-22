@@ -20,12 +20,16 @@ func httpError(resp *http.Response, body []byte) error {
 	return transport.NewProviderHTTPError(resp.StatusCode, strings.TrimSpace(string(body)), transport.ParseRetryAfterHeader(resp))
 }
 
-func httpNew(ctx context.Context, url string, body []byte, auth Auth) (*http.Request, error) {
+func httpNew(ctx context.Context, url string, body []byte, auth Auth, stream bool) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	auth.ApplyTo(req)
+	if stream {
+		auth.ApplyStreamTo(req)
+	} else {
+		auth.ApplyTo(req)
+	}
 	return req, nil
 }

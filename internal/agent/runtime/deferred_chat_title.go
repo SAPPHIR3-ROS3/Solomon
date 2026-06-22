@@ -3,6 +3,7 @@ package agentruntime
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -34,6 +35,12 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 		r.deferredTitleWorkerRunning = false
 		r.deferredTitleScheduleMu.Unlock()
 	}()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(5 * time.Second):
+	}
 
 	var firstUser string
 	var oldID string

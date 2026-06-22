@@ -55,7 +55,7 @@ func TestListAnthropic_OAuthBearer_MockHTTP(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Bearer oat-test" {
 			t.Fatalf("Authorization: got %q", got)
 		}
-		if got := r.Header.Get("anthropic-beta"); got != "oauth-2025-04-20" {
+		if got := r.Header.Get("anthropic-beta"); got != "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14" {
 			t.Fatalf("anthropic-beta: got %q", got)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
