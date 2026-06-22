@@ -93,6 +93,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/title/` | Chat title slug and LLM refinement | [Supporting packages](supporting-packages.md) |
 | `internal/modelsapi/` | List models from provider API | [Supporting packages](supporting-packages.md) |
 | `internal/logo/` | ASCII banner | [Supporting packages](supporting-packages.md) |
+| `internal/auth/anthropic/claude/` | Claude Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
 | `internal/auth/openai/codex/` | ChatGPT Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
 | `internal/auth/openai/codex/chat/` | Codex chat request shaping | [LLM layer](llm-layer.md) |
 | `internal/providersetup/` | Provider onboard during `/connect` | [Supporting packages](supporting-packages.md) |
@@ -149,6 +150,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/agent/toolenv/` | Feature |
 | `internal/agent/tools/` | Feature |
 | `internal/atmention/` | Feature |
+| `internal/auth/anthropic/claude/` | Support |
 | `internal/auth/openai/codex/` | Support |
 | `internal/auth/openai/codex/chat/` | Support |
 | `internal/chatstore/` | Core |

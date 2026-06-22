@@ -87,13 +87,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := config.EnsureDefaultFile(); err != nil {
+	cfg, configExisted, err := config.LoadStartup()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	logging.LogInit(logging.INFO_LOG_LEVEL)
-	if cfg0, err := config.Load(); err == nil && cfg0.LogLevel != "" {
-		if lvl, err := logging.ParseLevel(cfg0.LogLevel); err == nil {
+	if cfg != nil && cfg.LogLevel != "" {
+		if lvl, err := logging.ParseLevel(cfg.LogLevel); err == nil {
 			_ = logging.SetGlobalLevel(lvl)
 		}
 	}
@@ -107,7 +108,7 @@ func main() {
 	}
 	logging.Log(logging.INFO_LOG_LEVEL, "Solomon starting")
 	if kind, rest := detectExecSubcommand(os.Args); kind != execNone {
-		runExecCLI(ctx, kind, rest)
+		runExecCLI(ctx, kind, rest, cfg)
 		return
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "add" {
@@ -176,18 +177,6 @@ func main() {
 		}
 		return
 	}
-	cfg, err := config.LoadOptional()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		logging.Log(logging.ERROR_LOG_LEVEL, "config load failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		os.Exit(1)
-	}
-	configExists, err := config.ConfigExists()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		logging.Log(logging.ERROR_LOG_LEVEL, "config path check failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		os.Exit(1)
-	}
 	rl, readLine, rlErr := agentruntime.NewREPLReadline(termcolor.WrapUserReadline("You: "))
 	if rlErr != nil {
 		fmt.Fprintln(os.Stderr, rlErr)
@@ -198,7 +187,7 @@ func main() {
 		defer rl.Close()
 	}
 	setupIO := config.PromptIO{Stdin: os.Stdin, Out: os.Stdout, ReadLine: readLine}
-	if err := providersetup.RunInitialSetup(setupIO, os.Stderr, cfg, configExists); err != nil {
+	if err := providersetup.RunInitialSetup(setupIO, os.Stderr, cfg, configExisted); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "initial setup failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		os.Exit(1)

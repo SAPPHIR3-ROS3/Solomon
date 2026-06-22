@@ -45,6 +45,18 @@ func EnsureDefaultFile() error {
 	return Save(EmptyRoot())
 }
 
+func LoadStartup() (*Root, bool, error) {
+	existed, err := ConfigExists()
+	if err != nil {
+		return nil, false, err
+	}
+	if err := EnsureDefaultFile(); err != nil {
+		return nil, existed, err
+	}
+	cfg, err := LoadOptional()
+	return cfg, existed, err
+}
+
 func LoadOptional() (*Root, error) {
 	cfgPath, err := paths.ConfigPath()
 	if err != nil {

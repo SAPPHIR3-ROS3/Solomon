@@ -109,6 +109,7 @@ type Root struct {
 	WebFetch                  WebFetchConfig       `toml:"web_fetch,omitempty"`
 	AutoUpdate                *bool                `toml:"autoupdate,omitempty"`
 	PromptTemplates           map[string]string    `toml:"prompt_templates,omitempty"`
+	PromptTemplateModTime   map[string]int64     `toml:"prompt_template_mtime,omitempty"`
 }
 
 func (r *Root) AutoUpdateEnabled() bool {

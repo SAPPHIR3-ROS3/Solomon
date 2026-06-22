@@ -1,4 +1,4 @@
-package claudeoauth
+package claude
 
 const (
 	AuthorizeURL = "https://claude.ai/oauth/authorize"

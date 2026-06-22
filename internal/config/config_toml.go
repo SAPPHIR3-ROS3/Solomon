@@ -150,6 +150,8 @@ type rootFile struct {
 
 	PromptTemplates           map[string]string     `toml:"prompt_templates,omitempty"`
 
+	PromptTemplateModTime   map[string]int64 `toml:"prompt_template_mtime,omitempty"`
+
 }
 
 
@@ -238,6 +240,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		PromptTemplates:           f.PromptTemplates,
 
+		PromptTemplateModTime:   f.PromptTemplateModTime,
+
 	}
 
 	for name, p := range f.Providers {
@@ -315,6 +319,8 @@ func rootToFile(r *Root) *rootFile {
 		AutoUpdate:                r.AutoUpdate,
 
 		PromptTemplates:           r.PromptTemplates,
+
+		PromptTemplateModTime:   r.PromptTemplateModTime,
 
 	}
 

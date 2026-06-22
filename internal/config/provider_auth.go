@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claudeoauth"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
@@ -231,7 +231,7 @@ func ApplyOAuthTokens(p *Provider, t codex.TokenSet) {
 	})
 }
 
-func ApplyClaudeOAuthTokens(p *Provider, t claudeoauth.TokenSet) {
+func ApplyClaudeOAuthTokens(p *Provider, t claude.TokenSet) {
 	applyOAuthTokens(p, AuthKindOAuthClaude, OAuthTokenSet{
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,
@@ -298,7 +298,7 @@ func resolveClaudeOAuthBearer(ctx context.Context, r *Root, p *Provider) (string
 		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub OAuth refresh token missing", logging.LogOptions{Params: map[string]any{"provider": p.Name}})
 		return "", errors.New("Claude Sub: missing OAuth tokens; run /connect")
 	}
-	tokens, err := claudeoauth.Refresh(ctx, refresh)
+	tokens, err := claude.Refresh(ctx, refresh)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub OAuth token refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
 		return "", fmt.Errorf("Claude Sub token refresh: %w", err)
@@ -333,7 +333,7 @@ func EnsureClaudeSubBaseURL(p *Provider) {
 	}
 }
 
-func NewClaudeSubProvider(tokens claudeoauth.TokenSet) (Provider, error) {
+func NewClaudeSubProvider(tokens claude.TokenSet) (Provider, error) {
 	norm, err := NormalizeAnthropicBase(AnthropicPlatformBase)
 	if err != nil {
 		return Provider{}, err
