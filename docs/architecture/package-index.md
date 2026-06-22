@@ -90,6 +90,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/logging/` | File logs under `~/.solomon/logs` | [Supporting packages](supporting-packages.md) |
 | `internal/termcolor/` | Lipgloss palette, usage line, `NO_COLOR` | [Supporting packages](supporting-packages.md) |
 | `internal/clipboard/` | Cross-platform image paste in REPL | [Supporting packages](supporting-packages.md) |
+| `internal/claudecode/` | Claude Code version lookup (GitHub releases, disk cache) for OAuth headers | [LLM layer](llm-layer.md) |
 | `internal/title/` | Chat title slug and LLM refinement | [Supporting packages](supporting-packages.md) |
 | `internal/modelsapi/` | List models from provider API | [Supporting packages](supporting-packages.md) |
 | `internal/logo/` | ASCII banner | [Supporting packages](supporting-packages.md) |
@@ -156,6 +157,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/chatstore/` | Core |
 | `internal/checkpoint/` | Feature |
 | `internal/checkpoint/staging/` | Feature |
+| `internal/claudecode/` | Support |
 | `internal/clipboard/` | Support |
 | `internal/config/` | Core |
 | `internal/docs/` | Feature |
