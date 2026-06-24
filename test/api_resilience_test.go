@@ -1,9 +1,11 @@
 package test
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -215,6 +217,40 @@ func TestStartupWasOfflineRetryOnce(t *testing.T) {
 	commands.ClearStartupOfflineForTest()
 	if commands.StartupWasOffline() {
 		t.Fatal("expected offline flag cleared")
+	}
+}
+
+func TestInternetReachable_probe(t *testing.T) {
+	okSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer okSrv.Close()
+	failSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer failSrv.Close()
+
+	commands.SetInternetProbeURLsForTest([]string{failSrv.URL, okSrv.URL})
+	t.Cleanup(commands.ResetInternetProbeURLsForTest)
+
+	if !commands.InternetReachable(context.Background(), nil) {
+		t.Fatal("expected reachable when a probe succeeds")
+	}
+
+	commands.SetInternetProbeURLsForTest([]string{failSrv.URL})
+	if commands.InternetReachable(context.Background(), nil) {
+		t.Fatal("expected unreachable when all probes fail")
+	}
+}
+
+func TestInternetReachable_unreachableHost(t *testing.T) {
+	commands.SetInternetProbeURLsForTest([]string{"http://127.0.0.1:1"})
+	t.Cleanup(commands.ResetInternetProbeURLsForTest)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if commands.InternetReachable(ctx, nil) {
+		t.Fatal("expected unreachable for dead endpoint")
 	}
 }
 

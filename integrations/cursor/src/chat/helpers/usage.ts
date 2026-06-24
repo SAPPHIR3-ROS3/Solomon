@@ -9,6 +9,7 @@ import {
   limitInvocations,
   parseToolInvocationsFromText,
 } from "../../openai-tools.js";
+import { shouldBlockDeferredSolomonTool, shouldHardDenyCursorTool } from "../../tool-policy.js";
 import type { ChatMessage } from "../../openai-types.js";
 import type { CursorTurnUsage, OpenAIFinishReason } from "../../run-control.js";
 import type { OpenAIUsagePayload } from "../../openai-sse.js";
@@ -36,6 +37,14 @@ export function nativeInvocationsFromText(text: string, turnOpts: TurnToolOpts):
   const parsed = parseToolInvocationsFromText(text);
   const blockedTools: string[] = [];
   const valid = parsed.invocations.filter((inv) => {
+    if (shouldHardDenyCursorTool(inv.name)) {
+      blockedTools.push(inv.name);
+      return false;
+    }
+    if (shouldBlockDeferredSolomonTool(inv.name)) {
+      blockedTools.push(inv.name);
+      return false;
+    }
     if (isValidInvocation(inv)) {
       return true;
     }

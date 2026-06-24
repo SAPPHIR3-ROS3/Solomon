@@ -120,7 +120,7 @@ Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Pro
 
 ### Startup connectivity notice
 
-After the welcome banner, Solomon runs a short DuckDuckGo reachability check in the background (skipped when onboarding is required). If the network looks offline, a single system notice lists affected remote features (web search, remote MCP servers, remote providers) instead of separate catalog errors. The notice appears when the prompt is ready; typing can interrupt the wait. After an offline startup, the first `/models` refetches provider catalogs once connectivity returns.
+After the welcome banner, Solomon runs a short HTTPS reachability check in the background (skipped when onboarding is required). If the network looks offline, a single system notice lists affected remote features (web search, remote MCP servers, remote providers) instead of separate catalog errors. The notice appears when the prompt is ready; typing can interrupt the wait. After an offline startup, the first `/models` refetches provider catalogs once connectivity returns.
 
 Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → `[tools].cursor_internal_tools`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
 

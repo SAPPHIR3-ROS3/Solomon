@@ -14,6 +14,9 @@ import {
 import {
   BLOCKED_MCP_EXTERNAL_LABEL,
   blockedMcpToolLabel,
+  shouldHardDenyCursorTool,
+  shouldRedirectCursorTool,
+  shouldStopProxyOnBlockedTool,
 } from "../../tool-policy.js";
 
 function wouldBridgeTool(name: string, rawArgs: unknown, bridgeCtx: BridgedToolContext): boolean {
@@ -39,8 +42,19 @@ export function processStreamEvent(
     if (onBlockedTool) {
       onBlockedTool(name);
     }
+    if (shouldStopProxyOnBlockedTool(name)) {
+      onToolDetected();
+    }
   };
   const handleToolProposal = (name: string, rawArgs: unknown, callId?: string): void => {
+    if (shouldHardDenyCursorTool(name)) {
+      reportBlocked(name);
+      return;
+    }
+    if (shouldRedirectCursorTool(name)) {
+      reportBlocked(name);
+      return;
+    }
     const mcp = unwrapSolomonMcpCall(name, rawArgs);
     if (mcp) {
       if (tryCollectBridgedTool(pendingBridged, mcp.toolName, mcp.args, bridgeCtx)) {
@@ -94,10 +108,24 @@ export function processStreamEvent(
       }
       return;
     }
-    if (!allowCursorInternalTools) {
-      if (event.status === "completed") {
+    if (event.status === "completed" || event.status === "error") {
+      if (shouldHardDenyCursorTool(event.name)) {
+        reportBlocked(event.name);
         return;
       }
+      if (allowCursorInternalTools && onUnmappedToolEvent) {
+        onUnmappedToolEvent(unmappedToolEventFromToolCall(event));
+      }
+      return;
+    }
+    const mcp = unwrapSolomonMcpCall(event.name, event.args);
+    const enforcePolicy =
+      !allowCursorInternalTools ||
+      shouldHardDenyCursorTool(event.name) ||
+      shouldRedirectCursorTool(event.name) ||
+      mcp !== null ||
+      event.name === "mcp";
+    if (enforcePolicy) {
       if (event.args !== undefined) {
         handleToolProposal(event.name, event.args, event.call_id);
       } else {

@@ -12,7 +12,6 @@ import {
 import { collapseExactRepeat, nextTextChunk, processStreamEvent, proxyToolCorrectionMessage } from "../src/chat-helpers.js";
 import { bridgeToolInvocation } from "../src/legacy.js";
 import { harnessToolsClause } from "../src/harness-prompt.js";
-import type { CursorNativeToolEvent } from "../src/cursor-native-tools.js";
 import type { ChatCompletionTool } from "../src/openai-types.js";
 
 function bridgeCtx(...names: string[]) {
@@ -23,6 +22,17 @@ const tools: ChatCompletionTool[] = [
   { type: "function", function: { name: "readFile" } },
   { type: "function", function: { name: "shell" } },
 ];
+
+test("parses native orchestrate XML for prompt-driven tool exposure (2.2)", () => {
+  const parsed = parseToolInvocationsFromText(
+    '<tool_calls><tool name="orchestrate"><intent>list files</intent><args>{"source":"package main\\n\\nfunc main() {}","intent":"noop"}</args></tool></tool_calls>',
+  );
+  assert.equal(parsed.content, "");
+  assert.equal(parsed.invocations.length, 1);
+  assert.equal(parsed.invocations[0]?.name, "orchestrate");
+  assert.equal(parsed.invocations[0]?.intent, "list files");
+  assert.equal(parsed.invocations[0]?.args.intent, "noop");
+});
 
 test("parses proxy XML tool blocks from assistant text", () => {
   const parsed = parseToolInvocationsFromText(
@@ -118,10 +128,10 @@ test("collapses repeated text inside a single cursor block", () => {
   assert.equal(collapseExactRepeat("ciao mondo"), "ciao mondo");
 });
 
-test("unwraps solomon MCP tool_call events into proxy tools", () => {
+test("blocks solomon MCP deferred editFile tool calls (2.3)", () => {
   const pending = [];
   let detected = false;
-  let text = "";
+  const blocked: string[] = [];
   processStreamEvent(
     {
       type: "tool_call",
@@ -134,16 +144,15 @@ test("unwraps solomon MCP tool_call events into proxy tools", () => {
       },
     } as any,
     false,
-    (s) => { text += s; },
+    () => {},
     () => {},
     pending,
     () => { detected = true; },
+    (name) => { blocked.push(name); },
   );
-  assert.equal(text, "");
   assert.equal(detected, true);
-  assert.deepEqual(pending, [
-    { name: "editFile", args: { path: "PLAN.md", oldString: "a", newString: "b" }, intent: "demo" },
-  ]);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["mcp:editFile"]);
 });
 
 test("ignores MCP tool_call events from other providers", () => {
@@ -164,14 +173,15 @@ test("ignores MCP tool_call events from other providers", () => {
     () => { detected = true; },
     (name) => { blocked.push(name); },
   );
-  assert.equal(detected, false);
+  assert.equal(detected, true);
   assert.deepEqual(pending, []);
   assert.deepEqual(blocked, ["mcp:external"]);
 });
 
-test("maps Cursor Task tool events into subagent", () => {
+test("blocks Cursor Task tool instead of bridging to subagent (2.3)", () => {
   const pending = [];
   let detected = false;
+  const blocked: string[] = [];
   processStreamEvent(
     {
       type: "assistant",
@@ -188,16 +198,17 @@ test("maps Cursor Task tool events into subagent", () => {
     () => {},
     pending,
     () => { detected = true; },
+    (name) => { blocked.push(name); },
   );
   assert.equal(detected, true);
-  assert.equal(pending[0]?.name, "subagent");
-  assert.equal(pending[0]?.args.task, "find login flow");
-  assert.equal(pending[0]?.args.sysPromptPath, ".solomon/cursor-task-sys.txt");
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["Task"]);
 });
 
-test("maps Cursor SemanticSearch tool events into find", () => {
+test("blocks Cursor SemanticSearch instead of bridging to find (2.3)", () => {
   const pending = [];
   let detected = false;
+  const blocked: string[] = [];
   processStreamEvent(
     {
       type: "tool_call",
@@ -210,17 +221,17 @@ test("maps Cursor SemanticSearch tool events into find", () => {
     () => {},
     pending,
     () => { detected = true; },
+    (name) => { blocked.push(name); },
   );
   assert.equal(detected, true);
-  assert.deepEqual(pending, [{
-    name: "find",
-    args: { pattern: "auth middleware", files: false, path: "internal" },
-  }]);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["SemanticSearch"]);
 });
 
-test("maps Cursor Delete tool events into editFile delete", () => {
+test("blocks Cursor Delete instead of bridging to editFile (2.3)", () => {
   const pending = [];
   let detected = false;
+  const blocked: string[] = [];
   processStreamEvent(
     {
       type: "tool_call",
@@ -233,13 +244,11 @@ test("maps Cursor Delete tool events into editFile delete", () => {
     () => {},
     pending,
     () => { detected = true; },
+    (name) => { blocked.push(name); },
   );
   assert.equal(detected, true);
-  assert.deepEqual(pending, [{
-    name: "editFile",
-    args: { path: "tmp/old.txt", delete: true },
-    intent: "delete file",
-  }]);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["Delete"]);
 });
 
 test("accepts editFile delete invocations for native tool emission", () => {
@@ -260,9 +269,37 @@ test("rejects editFile delete invocations with oldString or newString", () => {
   }), false);
 });
 
-test("unwraps solomon MCP editFile delete tool calls", () => {
+test("blocks SDK custom-user-tools MCP calls as external (customTools spike)", () => {
   const pending = [];
   let detected = false;
+  const blocked: string[] = [];
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "mcp",
+      status: "running",
+      args: {
+        providerIdentifier: "custom-user-tools",
+        toolName: "orchestrate",
+        args: { task: "read README" },
+      },
+    } as any,
+    false,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+    (name) => { blocked.push(name); },
+  );
+  assert.equal(detected, true);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["mcp:external"]);
+});
+
+test("blocks solomon MCP editFile delete tool calls (2.3)", () => {
+  const pending = [];
+  let detected = false;
+  const blocked: string[] = [];
   processStreamEvent(
     {
       type: "tool_call",
@@ -279,12 +316,10 @@ test("unwraps solomon MCP editFile delete tool calls", () => {
     () => {},
     pending,
     () => { detected = true; },
+    (name) => { blocked.push(name); },
   );
   assert.equal(detected, true);
-  assert.deepEqual(pending, [{
-    name: "editFile",
-    args: { path: "tmp/old.txt", delete: true },
-    intent: "cleanup",
-  }]);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["mcp:editFile"]);
 });
 

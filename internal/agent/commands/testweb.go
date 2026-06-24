@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +16,26 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
 )
 
-const startupConnectivityTimeout = 8 * time.Second
+const (
+	startupConnectivityTimeout = 12 * time.Second
+	connectivityProbeTimeout   = 4 * time.Second
+	connectivityProbeRetries   = 2
+)
+
+var defaultInternetProbeURLs = []string{
+	"https://connectivitycheck.gstatic.com/generate_204",
+	"https://www.msftconnecttest.com/connecttest.txt",
+	"https://cloudflare.com/cdn-cgi/trace",
+}
+
+var internetProbeURLsMu sync.Mutex
+var internetProbeURLs = append([]string(nil), defaultInternetProbeURLs...)
+
+func internetProbeURLList() []string {
+	internetProbeURLsMu.Lock()
+	defer internetProbeURLsMu.Unlock()
+	return append([]string(nil), internetProbeURLs...)
+}
 
 var replStartupNotice struct {
 	mu        sync.Mutex
@@ -123,14 +143,57 @@ func ClearStartupOfflineForTest() {
 }
 
 func InternetReachable(ctx context.Context, cfg *config.Root) bool {
+	_ = cfg
 	pctx, cancel := context.WithTimeout(ctx, startupConnectivityTimeout)
 	defer cancel()
-	_, err := search.Run(pctx, "duckduckgo", search.Request{
-		Query:      "test",
-		MaxResults: 1,
-		Extras:     nil,
-	})
-	return err == nil
+	for attempt := 0; attempt < connectivityProbeRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-pctx.Done():
+				return false
+			case <-time.After(400 * time.Millisecond):
+			}
+		}
+		for _, rawURL := range internetProbeURLList() {
+			if probeURLReachable(pctx, rawURL) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func probeURLReachable(ctx context.Context, rawURL string) bool {
+	probeCtx, cancel := context.WithTimeout(ctx, connectivityProbeTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(probeCtx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 512))
+	code := resp.StatusCode
+	return code >= 200 && code < 400
+}
+
+func SetInternetProbeURLsForTest(urls []string) {
+	internetProbeURLsMu.Lock()
+	defer internetProbeURLsMu.Unlock()
+	if len(urls) == 0 {
+		internetProbeURLs = append([]string(nil), defaultInternetProbeURLs...)
+		return
+	}
+	internetProbeURLs = append([]string(nil), urls...)
+}
+
+func ResetInternetProbeURLsForTest() {
+	internetProbeURLsMu.Lock()
+	defer internetProbeURLsMu.Unlock()
+	internetProbeURLs = append([]string(nil), defaultInternetProbeURLs...)
 }
 
 func RemoteMCPServerNames() []string {

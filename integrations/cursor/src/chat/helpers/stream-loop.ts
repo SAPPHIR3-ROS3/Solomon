@@ -1,6 +1,7 @@
 import { forceStopRun, type AgentRun } from "../../run-control.js";
 import type { CursorNativeToolEvent } from "../../cursor-native-tools.js";
 import type { BridgedToolContext, BridgedToolInvocation } from "../../legacy.js";
+import { shouldStopProxyOnBlockedTool } from "../../tool-policy.js";
 import { processStreamEvent } from "./stream-events.js";
 
 export type AgentToolStreamState = {
@@ -22,6 +23,13 @@ export type AgentToolStreamOptions = {
 
 export function createAgentToolStreamState(): AgentToolStreamState {
   return { pendingBridged: [], blockedTools: [], toolDetected: false };
+}
+
+export function shouldForceStopProxyRun(state: AgentToolStreamState): boolean {
+  if (state.toolDetected && state.pendingBridged.length > 0) {
+    return true;
+  }
+  return state.blockedTools.some(shouldStopProxyOnBlockedTool);
 }
 
 export async function drainAgentToolStream(
@@ -47,12 +55,17 @@ export async function drainAgentToolStream(
       },
       (name) => {
         state.blockedTools.push(name);
+        if (shouldStopProxyOnBlockedTool(name)) {
+          state.toolDetected = true;
+        }
       },
       bridgeCtx,
       handlers.onUnmappedToolEvent,
     );
-    if (state.toolDetected && state.pendingBridged.length > 0) {
-      options.onBridgedCollected?.();
+    if (shouldForceStopProxyRun(state)) {
+      if (state.pendingBridged.length > 0) {
+        options.onBridgedCollected?.();
+      }
       await forceStopRun(run);
       break;
     }

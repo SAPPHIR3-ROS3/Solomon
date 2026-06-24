@@ -110,9 +110,14 @@ func TestResolveTurnInvocations_unknownToolName(t *testing.T) {
 }
 
 func TestRenderAgent_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	if err := prompt.EnsureTemplatesInstalled(); err != nil {
+		t.Fatal(err)
+	}
 	got, err := prompt.RenderAgent(prompt.Data{
-		Tools:              "name: readFile",
-		Syntax:             prompt.NativeToolInvocationSyntax(false),
+		Tools:              "name: orchestrate",
+		Syntax:             prompt.ExternalToolBridgeInvocationSyntax(),
 		ExternalToolBridge: true,
 	})
 	if err != nil {
@@ -121,11 +126,19 @@ func TestRenderAgent_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
 	if strings.Contains(got, "Legacy text tools force is ON") {
 		t.Fatalf("bridge prompt must not include legacy_force section: %q", got)
 	}
-	if strings.Contains(got, "Preferred wrapper (Solomon canonical)") {
-		t.Fatalf("bridge prompt must not include legacy XML syntax section: %q", got)
+	if strings.Contains(got, `name="readFile"`) || strings.Contains(got, `name="shell"`) {
+		t.Fatalf("bridge prompt must not include deferred-tool XML examples: %q", got)
 	}
-	if !strings.Contains(got, "native API tool_calls") {
-		t.Fatalf("bridge prompt must require native tool_calls: %q", got)
+	if !strings.Contains(got, "<tool_calls>") || !strings.Contains(got, `name="orchestrate"`) {
+		t.Fatalf("bridge prompt must describe native XML invocation with orchestrate example: %q", got)
+	}
+	for _, tool := range []string{"orchestrate", "searchTools", "subagent", "switchMode", "searchSkill", "loadSkill"} {
+		if !strings.Contains(got, tool) {
+			t.Fatalf("bridge prompt must describe native tool %q in ExternalToolBridge clause: %q", tool, got)
+		}
+	}
+	if !strings.Contains(got, "blocked by the sidecar") || !strings.Contains(got, "orchestrate SDK use only") {
+		t.Fatalf("bridge prompt must block Cursor built-ins and deferred direct calls: %q", got)
 	}
 	if strings.Contains(got, "[Harness]") || strings.Contains(got, "host harness") {
 		t.Fatalf("bridge prompt must not reference external transport: %q", got)
@@ -135,6 +148,20 @@ func TestRenderAgent_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
 	}
 	if !strings.Contains(got, "AGENT mode") {
 		t.Fatalf("want agent mode prompt: %q", got)
+	}
+}
+
+func TestExternalToolBridgeInvocationSyntax(t *testing.T) {
+	got := prompt.ExternalToolBridgeInvocationSyntax()
+	for _, want := range []string{"<tool_calls>", "orchestrate", "searchTools", "subagent", "switchMode", "searchSkill", "loadSkill"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in bridge syntax: %q", want, got)
+		}
+	}
+	for _, omit := range []string{`name="readFile"`, `name="editFile"`, `name="shell"`, "Legacy text tools"} {
+		if strings.Contains(got, omit) {
+			t.Fatalf("bridge syntax must not include %q: %q", omit, got)
+		}
 	}
 }
 

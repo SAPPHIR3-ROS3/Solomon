@@ -3,31 +3,26 @@ import type { ServerResponse } from "node:http";
 import { formatBridgedToolCallsBlock } from "../legacy.js";
 import type { ChatMessage } from "../openai-types.js";
 import {
-  filterInvocations,
-  limitInvocations,
-  openAIToolCallsFromInvocations,
-} from "../openai-tools.js";
+  buildOpenAIUsage,
+  finishReasonForTools,
+  nextTextChunk,
+} from "../chat-helpers.js";
+import { createAgentToolStreamState, drainAgentToolStream } from "../chat/helpers/stream-loop.js";
+import type { CursorNativeToolEvent } from "../cursor-native-tools.js";
+import { openAIToolCallsFromInvocations } from "../openai-tools.js";
 import { sendJsonResponse } from "../openai-sse.js";
 import type { ModelSelection } from "../model-selection.js";
 import {
   type AgentRun,
   type ClientAbortHandle,
-  forceStopRun,
   finalizeAgentRun,
   wireClientAbort,
   type CursorTurnUsage,
 } from "../run-control.js";
 import { disposeAgent, sendStateless, type AgentSendOpts } from "../cursor-agent.js";
-import {
-  buildOpenAIUsage,
-  finishReasonForTools,
-  nativeInvocationsFromText,
-  nextTextChunk,
-} from "../chat-helpers.js";
-import { createAgentToolStreamState, drainAgentToolStream } from "../chat/helpers/stream-loop.js";
-import type { CursorNativeToolEvent } from "../cursor-native-tools.js";
+import { observeProxyTurn } from "../proxy-observability.js";
 import type { ProxyConfig } from "./index.js";
-import { resolveProxyCorrection, type TurnOpts } from "./turn.js";
+import { finalizeTurnToolResults, type TurnOpts } from "./turn.js";
 
 export async function handleNonStream(
   cfg: ProxyConfig,
@@ -81,33 +76,27 @@ export async function handleNonStream(
       streamState,
       { shouldStop: () => clientAborted },
     );
-    const { pendingBridged, blockedTools, toolDetected } = streamState;
+    const { toolDetected } = streamState;
     if (clientAborted) {
       return;
     }
-    if (toolDetected && pendingBridged.length > 0) {
-      await forceStopRun(run);
-    }
-    const parsedNative = turnOpts.nativeTools
-      ? nativeInvocationsFromText(content, turnOpts)
-      : { content, invocations: [], blockedTools: [] as string[] };
-    if (turnOpts.nativeTools) {
-      content = parsedNative.content;
-      blockedTools.push(...parsedNative.blockedTools);
-    }
-    const bridged = limitInvocations(
-      filterInvocations([...parsedNative.invocations, ...pendingBridged], turnOpts.allowedNames),
-      turnOpts.parallelToolCalls,
-    );
-    const toolCalls = openAIToolCallsFromInvocations(bridged);
-    const proxyCorrection = resolveProxyCorrection(blockedTools, bridged.length, turnOpts);
-    if (bridged.length > 0 && !turnOpts.nativeTools) {
-      content = (toolDetected ? "" : content) + formatBridgedToolCallsBlock(bridged);
+    const finalized = finalizeTurnToolResults(streamState, content, turnOpts);
+    observeProxyTurn({
+      stream: false,
+      bridgedTools: finalized.bridged.map((b) => b.name),
+      blockedTools: finalized.blockedTools,
+      proxyCorrection: finalized.proxyCorrection !== undefined,
+    });
+    content = finalized.content;
+    const toolCalls = openAIToolCallsFromInvocations(finalized.bridged);
+    const proxyCorrection = finalized.proxyCorrection;
+    if (finalized.bridged.length > 0 && !turnOpts.nativeTools) {
+      content = (toolDetected ? "" : content) + formatBridgedToolCallsBlock(finalized.bridged);
     }
     if (res.writableEnded || res.destroyed) {
       return;
     }
-    const finishReason = finishReasonForTools(bridged.length, turnOpts.nativeTools);
+    const finishReason = finishReasonForTools(finalized.bridged.length, turnOpts.nativeTools);
     let messageContent: string | null = content;
     if (turnOpts.nativeTools && toolCalls.length > 0) {
       messageContent = toolDetected ? content.trim() || null : content || null;
