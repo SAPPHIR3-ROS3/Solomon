@@ -195,6 +195,10 @@ Runtime display when native tools enabled: [`cursor_native_display.go`](../../in
 
 Native MCP unwrap (`mcp` provider `solomon`): deferred tool names in MCP calls are blocked; native entry tools (e.g. `subagent`) still pass through when allowed.
 
+### Tool name bridge
+
+[`CURSOR_NATIVE_ALIASES`](../../integrations/cursor/src/tool-policy.ts) maps Cursor search/list names to Solomon `find`: `Grep`, `Glob`, `SemanticSearch`, `ListDir`, `rg`, and similar → `find`. `SemanticSearch` uses regexp fallback today (no vector index). Under orchestrate-first policy, redirect-class Cursor tools are corrected toward `orchestrate` rather than bridged transparently; the alias map still drives tests and legacy paths when internal tools are enabled.
+
 ## SSE extensions
 
 | Field | When | Consumer |
