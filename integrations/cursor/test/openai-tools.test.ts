@@ -5,7 +5,6 @@ import {
   filterInvocations,
   isValidInvocation,
   limitInvocations,
-  openAIToolsToMcpTools,
   parseToolInvocationsFromText,
   requestUsesNativeTools,
   toolArgumentsJSON,
