@@ -18,6 +18,9 @@ import (
 
 // AgentsSkillsRoot is ~/.agents/skills, where the npm "skills" CLI installs. That package does not allow choosing another directory, so Solomon runs installs there and copies the resulting folder into ~/.solomon/skills (or project/local paths) for the registry.
 
+// skillsDefaultGlobalAgent targets one global-capable agent so npm -g staging skips project-only agents (e.g. PromptScript).
+const skillsDefaultGlobalAgent = "cursor"
+
 func AgentsSkillsRoot() (string, error) {
 	h, err := os.UserHomeDir()
 	if err != nil {
@@ -274,7 +277,21 @@ func parseSkillsInstallCommand(cmdLine string) (*validatedSkillsInstall, error) 
 	seenSkill := false
 	seenGlobal := false
 	seenYes := false
+	seenAgent := false
 	for i < len(fields) && (isGlobalFlag(fields[i]) || isYesFlag(fields[i])) {
+		if isGlobalFlag(fields[i]) {
+			if seenGlobal {
+				return nil, fmt.Errorf("duplicate global flag in install command")
+			}
+			seenGlobal = true
+			argv = append(argv, fields[i])
+		} else {
+			if seenYes {
+				return nil, fmt.Errorf("duplicate yes flag in install command")
+			}
+			seenYes = true
+			argv = append(argv, fields[i])
+		}
 		i++
 	}
 	if i >= len(fields) {
@@ -306,6 +323,17 @@ func parseSkillsInstallCommand(cmdLine string) (*validatedSkillsInstall, error) 
 			seenYes = true
 			argv = append(argv, tok)
 			i++
+		case tok == "-a", tok == "--agent":
+			if i+1 >= len(fields) {
+				return nil, fmt.Errorf("--agent requires a value")
+			}
+			name := strings.TrimSpace(fields[i+1])
+			if name == "" || strings.HasPrefix(name, "-") {
+				return nil, fmt.Errorf("invalid --agent value")
+			}
+			seenAgent = true
+			argv = append(argv, tok, name)
+			i += 2
 		case tok == "--skill":
 			if seenSkill {
 				return nil, fmt.Errorf("duplicate --skill in install command")
@@ -324,10 +352,42 @@ func parseSkillsInstallCommand(cmdLine string) (*validatedSkillsInstall, error) 
 			return nil, fmt.Errorf("unsupported install command token: %q", tok)
 		}
 	}
+	if !seenGlobal {
+		argv = append(argv, "-g")
+	}
 	if !seenYes {
 		argv = append(argv, "-y")
 	}
+	if !seenAgent {
+		argv = append(argv, "-a", skillsDefaultGlobalAgent)
+	}
 	return &validatedSkillsInstall{Display: strings.Join(argv, " "), Argv: argv, Target: target}, nil
+}
+
+func resolveInstalledSkillDir(agentsRoot string, beforeAgents, afterAgents map[string]int64, cwdSnap npmCwdArtifactSnap, preferred string) (srcDir, picked string, err error) {
+	picked, err = pickImportedSkillDir(beforeAgents, afterAgents, preferred)
+	if err == nil {
+		return filepath.Join(agentsRoot, picked), picked, nil
+	}
+	preferred = strings.TrimSpace(preferred)
+	if preferred != "" {
+		candidate := filepath.Join(agentsRoot, preferred)
+		if st, statErr := os.Stat(candidate); statErr == nil && st.IsDir() {
+			return candidate, preferred, nil
+		}
+	}
+	if cwdSnap.projRoot == "" {
+		return "", "", err
+	}
+	afterCwd, snapErr := snapAgentsSkills(cwdSnap.cwdAgentsSkills)
+	if snapErr != nil {
+		return "", "", err
+	}
+	picked, cwdErr := pickImportedSkillDir(cwdSnap.beforeCwdSkills, afterCwd, preferred)
+	if cwdErr != nil {
+		return "", "", err
+	}
+	return filepath.Join(cwdSnap.cwdAgentsSkills, picked), picked, nil
 }
 
 func isYesFlag(s string) bool {

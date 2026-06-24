@@ -122,9 +122,9 @@ func (m *SkillsShMeta) InstallShellCommand() string {
 	repo := strings.TrimSuffix(strings.TrimSpace(m.RepoURL), "/")
 	sk := strings.TrimSpace(m.PreferredSkill)
 	if sk != "" {
-		return fmt.Sprintf("npx --yes skills add %s --skill %s -y", repo, sk)
+		return fmt.Sprintf("npx --yes skills add -g %s --skill %s -y", repo, sk)
 	}
-	return fmt.Sprintf("npx --yes skills add %s -y", repo)
+	return fmt.Sprintf("npx --yes skills add -g %s -y", repo)
 }
 
 func ConfirmInstall(in io.Reader, out io.Writer, meta *SkillsShMeta) (bool, error) {

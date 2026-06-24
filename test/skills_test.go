@@ -135,7 +135,7 @@ func TestInstallShellCommandMeta(t *testing.T) {
 	m := &skills.SkillsShMeta{RepoURL: "https://github.com/gh/awesome-copilot", PreferredSkill: "prd"}
 	got := m.InstallShellCommand()
 	if !strings.Contains(got, "github.com/gh/awesome-copilot") || !strings.Contains(got, "--skill prd") ||
-		!strings.Contains(got, "-y") {
+		!strings.Contains(got, "-g") || !strings.Contains(got, "-y") {
 		t.Fatalf("%q", got)
 	}
 }
@@ -143,16 +143,21 @@ func TestInstallShellCommandMeta(t *testing.T) {
 func TestEnsureSkillsAddGlobalYes(t *testing.T) {
 	raw := "npx skills add https://github.com/a/b --skill prd"
 	got := skills.EnsureSkillsAddGlobalYes(raw)
-	if !strings.Contains(got, "-y") || strings.Contains(got, " -g") {
+	if !strings.Contains(got, "-y") || !strings.Contains(got, "-g") || !strings.Contains(got, "-a cursor") {
 		t.Fatalf("%q", got)
 	}
 	legacy := "npx --yes skills add -g -y https://github.com/a/b --skill prd"
-	want := "npx --yes skills add https://github.com/a/b --skill prd -y"
+	want := "npx --yes skills add -g -y https://github.com/a/b --skill prd -a cursor"
 	if got := skills.EnsureSkillsAddGlobalYes(legacy); got != want {
 		t.Fatalf("legacy order: got %q want %q", got, want)
 	}
-	if got := skills.EnsureSkillsAddGlobalYes(want); got != want {
+	normalized := "npx --yes skills add -g https://github.com/a/b --skill prd -y -a cursor"
+	if got := skills.EnsureSkillsAddGlobalYes(normalized); got != normalized {
 		t.Fatalf("should not alter normalized command: got %q", got)
+	}
+	customAgent := "npx --yes skills add -g https://github.com/a/b --skill prd -y -a codex"
+	if got := skills.EnsureSkillsAddGlobalYes(customAgent); got != customAgent {
+		t.Fatalf("should keep explicit agent: got %q", got)
 	}
 }
 
@@ -179,7 +184,7 @@ func TestValidateSkillsInstallCommand(t *testing.T) {
 				}
 				return
 			}
-			if !strings.Contains(got, "skills add") || !strings.Contains(got, "-y") {
+			if !strings.Contains(got, "skills add") || !strings.Contains(got, "-y") || !strings.Contains(got, "-g") || !strings.Contains(got, "-a cursor") {
 				t.Fatalf("unexpected normalized command %q", got)
 			}
 		})
