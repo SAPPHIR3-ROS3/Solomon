@@ -6,17 +6,21 @@ Optional **Cursor API** provider: Solomon talks to a local **Node sidecar** (Ope
 
 User setup (TOML, `/connect`, `/integrations`, `/cursortools`): [Configuration — Cursor integration](../user-guide/configuration.md#cursor-integration-tool-execution).
 
+Product requirements and full policy tables: [`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md).
+
 ## Mental model
 
 ```
 Solomon Runtime  --OpenAI HTTP-->  sidecar (:8766/v1/)  --Cursor SDK-->  remote model
        |                                    |
-       +-------- tools.Exec (Go) -----------+  (bridge: default mode)
+       +-------- tools.Exec (Go) -----------+  (orchestrate-first proxy: default)
 ```
 
-- **Sidecar** = thin proxy + stream bridge (`integrations/cursor/`).
+- **Sidecar** = policy gate + stream bridge (`integrations/cursor/`).
 - **Go integration** = install bundle, start process, health, `/integrations` (`internal/integrations/cursor/`).
 - **Executor** = always Solomon `tools.Exec` on `ProjRoot` when `cursor_internal_tools = false` (default).
+
+Composer is steered toward **Solomon native entry tools** (`orchestrate`, `searchTools`, `subagent`, …). Cursor IDE built-ins (`Read`, `StrReplace`, `Shell`, `Task`, …) are **blocked** and corrected — not bridged to deferred `readFile` / `editFile` / `shell` `tool_calls`. Workspace read/edit/shell/find/MCP work goes through **`orchestrate`** (sandbox SDK inside Go code mode).
 
 ## End-to-end flow
 
@@ -28,20 +32,22 @@ sequenceDiagram
   participant SDK as Cursor Agent SDK
   participant Go as tools.Exec
 
-  RT->>LLM: StreamTurn base_url=127.0.0.1:8766/v1
-  LLM->>Side: POST /v1/chat/completions + tools[]
+  RT->>LLM: StreamTurn base_url=127.0.0.1:8766/v1 + tools[]
+  LLM->>Side: POST /v1/chat/completions
   Side->>SDK: agent run on project cwd
-  SDK-->>Side: stream deltas + Cursor native tool events
-  alt cursor_internal_tools=false
-    Side->>Side: map Read/StrReplace/Grep to Solomon names
-    Side->>Side: forceStopRun
-    Side-->>LLM: SSE OpenAI tool_calls Solomon names
+  SDK-->>Side: stream deltas + Cursor tool proposals
+  alt native Solomon tool (orchestrate, subagent, …)
+    Side->>Side: bridge invocation, forceStopRun
+    Side-->>LLM: SSE OpenAI tool_calls (native names)
     LLM-->>RT: native tool_calls
     RT->>Go: execTool on ProjRoot
+  else blocked Cursor built-in (Read, Shell, …)
+    Side->>Side: policy block, forceStopRun
+    Side-->>LLM: solomon_proxy_correction (orchestrate-first)
+    LLM-->>RT: model retries with orchestrate / searchTools
   else cursor_internal_tools=true
     Side-->>LLM: solomon_cursor_tool_event chunks
-    LLM-->>RT: display via cursor_native_display
-    Note over SDK,Go: Cursor executes native tools on project cwd
+    Note over SDK,Go: Cursor executes native tools on cwd (debug only; not Composer target)
   end
 ```
 
@@ -56,22 +62,44 @@ Sidecar startup: [`manager.go`](../../internal/integrations/cursor/manager.go) s
 
 Recommended production default: **`false`**. Solomon sets sidecar env `CURSOR_API_ALLOW_INTERNAL_TOOLS=true` only when config is `true`.
 
+**`cursor_internal_tools = true` is incompatible with orchestrate-first Composer** — it lets Cursor built-ins run on the repo and bypasses the policy gate. Keep it for debug/experimentation only; production Composer sessions should leave it `false`.
+
 Toggle in-session: `/cursortools on|off` (listed in `/help` only when Cursor API is configured). Implementation: [`thinking.go`](../../internal/agent/commands/thinking.go) (`CursorTools`). Inspect status: `/integrations` ([`integrations_slash.go`](../../internal/agent/commands/integrations_slash.go)).
 
-## Transparent bridge (`cursor_internal_tools = false`)
+## Orchestrate-first proxy (`cursor_internal_tools = false`)
 
-The model uses **normal Cursor built-in tools** (Read, StrReplace, Write, Grep, Glob, Shell, Delete, SemanticSearch, Task, etc.). It does not call Solomon tool names directly.
+Default path for Composer via Cursor API.
 
-Layers (see [`cursor-agent.ts`](../../integrations/cursor/src/cursor-agent.ts), [`chat.ts`](../../integrations/cursor/src/chat.ts)):
+### Native tool exposure
 
-1. **Native SDK surface** — `Agent.create` with `local.cwd = project root` and Cursor's default tool catalog (no MCP `solomon` stub).
-2. **SDK sandbox** — `sandboxOptions.enabled` blocks Cursor from writing to disk when the SDK supports it.
-3. **Stream bridge** — map Cursor tool events → Solomon names ([`legacy.ts`](../../integrations/cursor/src/legacy.ts)) → OpenAI `tool_calls` SSE; stop Cursor run (`forceStopRun`).
-4. **Reject unmappable tools** — `solomon_proxy_correction` on the SSE stream; suggests **Shell** as default fallback when `shell` is in the host allowlist.
+**Mechanism (decided 2.1):** prompt-driven native XML + harness + Go `tools[]` / system prompt — **not** SDK `local.customTools`.
 
-Solomon then runs `readFile`, `shell`, `editFile`, etc. on **`ProjRoot`**. Tool results return on the next turn via the normal OpenAI message history loop.
+| Layer | Role |
+|-------|------|
+| Go system prompt | [`agent.tmpl`](../../internal/prompt/templates/agent.tmpl) `ExternalToolBridge` — lists native entry tools, blocks Cursor built-ins |
+| Sidecar harness | [`harness-clauses.txt`](../../integrations/cursor/prompts/harness-clauses.txt), [`harness-prompt.ts`](../../integrations/cursor/src/harness-prompt.ts) — orchestrate-first workflow |
+| OpenAI `tools[]` on request | Passed through for harness catalog; model learns schemas from prompt + request |
+| Invocation wire | Model emits `<tool_calls>` XML or native `tool_calls`; sidecar parses ([`openai-tools.ts`](../../integrations/cursor/src/openai-tools.ts)), bridges allowed native names, returns OpenAI `tool_calls` to Go |
 
-Harness prompts ([`harness-clauses.txt`](../../integrations/cursor/prompts/harness-clauses.txt), [`harness-tools-clause.txt`](../../integrations/cursor/prompts/harness-tools-clause.txt)) steer the model to use Cursor built-in tools and explain host interception.
+`Agent.create` in [`cursor-agent.ts`](../../integrations/cursor/src/cursor-agent.ts) does **not** register `local.customTools` — that path would execute tools in Node and race `forceStopRun`.
+
+### Policy gate
+
+Central module: [`tool-policy.ts`](../../integrations/cursor/src/tool-policy.ts). Applied on stream and non-stream paths ([`chat/stream.ts`](../../integrations/cursor/src/chat/stream.ts), [`chat/nonstream.ts`](../../integrations/cursor/src/chat/nonstream.ts)) via [`finalizeTurnToolResults`](../../integrations/cursor/src/chat/turn.ts).
+
+| Class | Examples | Sidecar action |
+|-------|----------|----------------|
+| **Native pass-through** | `orchestrate`, `searchTools`, `subagent`, `switchMode`, `searchSkill`, `loadSkill` | Bridge → OpenAI `tool_calls` → Go `tools.Exec` |
+| **Block — redirect** | `Read`, `StrReplace`, `Shell`, `Grep`, `Task`, `WebFetch`, deferred `mcp:editFile`, … | `solomon_proxy_correction` → `searchTools` + `orchestrate`; **no** bridge to `readFile`/`editFile`/`shell` |
+| **Hard deny** | `AskQuestion`, `browser_*`, `mcp:external`, `GenerateImage`, `Await`, `ApplyPatch` | Deny with class-specific correction; no host execution |
+
+Full mapping tables: [`CURSOR-PROXY-FIX.md` §3](../../CURSOR-PROXY-FIX.md#tool-policy). Matrix tests: [`policy-matrix.test.ts`](../../integrations/cursor/test/policy-matrix.test.ts).
+
+### Run control
+
+On bridged native invocation or policy-blocked tool, the sidecar calls **`forceStopRun`** so the Cursor SDK does not continue executing tools on disk ([`stream-loop.ts`](../../integrations/cursor/src/chat/helpers/stream-loop.ts), [`run-control.ts`](../../integrations/cursor/src/run-control.ts)). SDK sandbox remains a secondary layer when enabled.
+
+Correction copy (orchestrate-first, no “use Read/StrReplace”): [`proxy-correction.ts`](../../integrations/cursor/src/chat/helpers/proxy-correction.ts). Go-side mirror: [`tool_print.go`](../../internal/agent/runtime/tool_print.go).
 
 ## HTTP API (sidecar)
 
@@ -97,14 +125,24 @@ Set by Go when starting the process ([`manager.go`](../../internal/integrations/
 | `CURSOR_API_CWD` | Project root |
 | `CURSOR_API_ALLOW_INTERNAL_TOOLS` | `"true"` only when `cursor_internal_tools = true` |
 
-Optional: `SOLOMON_NODE` — path to `node` binary; `SOLOMON_CURSOR_API_ROOT` — override install dir ([`paths.go`](../../internal/integrations/cursor/paths.go)).
+Optional:
 
-Logs: `~/.solomon/logs/cursor-sidecar.log`.
+| Variable | Role |
+|----------|------|
+| `SOLOMON_NODE` | Path to `node` binary |
+| `SOLOMON_CURSOR_API_ROOT` | Override install dir ([`paths.go`](../../internal/integrations/cursor/paths.go)) |
+| `CURSOR_API_PROXY_OBS` | `"1"` / `"true"` — emit JSON proxy observability lines to stderr (default off) |
+
+Logs: `~/.solomon/logs/cursor-sidecar.log` (stdout/stderr from the sidecar process).
+
+### Observability
+
+[`proxy-observability.ts`](../../integrations/cursor/src/proxy-observability.ts) records per-turn counters (native bridged vs blocked by policy class, correction streaks, deferred-direct blocks). Structured `proxy_turn` / `proxy_correction_loop` events are written only when `CURSOR_API_PROXY_OBS` is enabled — supports success criteria in [`CURSOR-PROXY-FIX.md` §1](../../CURSOR-PROXY-FIX.md#1-executive-summary) (correction loops, orchestrate vs direct deferred usage).
 
 ## Install and lifecycle
 
 | Step | Where |
-|------|-------|
+|------|------|
 | Embed + extract bundle | [`bootstrap.go`](../../internal/integrations/cursor/bootstrap.go), [`embed.go`](../../internal/integrations/cursor/embed.go) |
 | Install dir | `~/.solomon/integrations/cursor/` (`dist/index.js`, `node_modules/@cursor/sdk`) |
 | First use / missing SDK | `Bootstrap` runs `npm` prod deps |
@@ -132,54 +170,47 @@ Runtime display when native tools enabled: [`cursor_native_display.go`](../../in
 | File | Role |
 |------|------|
 | [`server.ts`](../../integrations/cursor/src/server.ts) | HTTP router, request validation |
-| [`chat.ts`](../../integrations/cursor/src/chat.ts) | Chat completions handler, stream loop |
-| [`chat-helpers.ts`](../../integrations/cursor/src/chat-helpers.ts) | Stream events, proxy correction text |
-| [`cursor-agent.ts`](../../integrations/cursor/src/cursor-agent.ts) | SDK agent create (native surface + sandbox) |
-| [`legacy.ts`](../../integrations/cursor/src/legacy.ts) | Cursor name → Solomon name bridge |
-| [`legacy-normalize.ts`](../../integrations/cursor/src/legacy-normalize.ts) | Argument normalization per tool |
-| [`openai-tools.ts`](../../integrations/cursor/src/openai-tools.ts) | OpenAI `tool_calls` SSE encoding |
-| [`openai-sse.ts`](../../integrations/cursor/src/openai-sse.ts) | SSE chunks, `solomon_proxy_correction` |
+| [`chat/index.ts`](../../integrations/cursor/src/chat/index.ts) | Chat completions entry |
+| [`chat/stream.ts`](../../integrations/cursor/src/chat/stream.ts) | Streaming completion path |
+| [`chat/nonstream.ts`](../../integrations/cursor/src/chat/nonstream.ts) | Non-streaming completion path |
+| [`chat/turn.ts`](../../integrations/cursor/src/chat/turn.ts) | Turn finalization, proxy correction resolution |
+| [`chat/helpers/stream-loop.ts`](../../integrations/cursor/src/chat/helpers/stream-loop.ts) | SDK stream drain, `forceStopRun` |
+| [`chat/helpers/stream-events.ts`](../../integrations/cursor/src/chat/helpers/stream-events.ts) | Per-event policy enforcement |
+| [`chat/helpers/proxy-correction.ts`](../../integrations/cursor/src/chat/helpers/proxy-correction.ts) | `solomon_proxy_correction` text |
+| [`tool-policy.ts`](../../integrations/cursor/src/tool-policy.ts) | Block / redirect / hard-deny policy |
+| [`proxy-observability.ts`](../../integrations/cursor/src/proxy-observability.ts) | Turn counters and optional JSON logs |
+| [`bridge/invocation.ts`](../../integrations/cursor/src/bridge/invocation.ts) | Native tool bridging |
+| [`legacy.ts`](../../integrations/cursor/src/legacy.ts) | Re-exports bridge + legacy alias map |
+| [`legacy-normalize.ts`](../../integrations/cursor/src/legacy-normalize.ts) | Argument normalization (legacy paths) |
+| [`openai-tools.ts`](../../integrations/cursor/src/openai-tools.ts) | OpenAI `tool_calls` SSE, XML parsing |
+| [`openai-sse.ts`](../../integrations/cursor/src/openai-sse.ts) | SSE chunks |
+| [`cursor-agent.ts`](../../integrations/cursor/src/cursor-agent.ts) | SDK agent create (sandbox, harness) |
 | [`cursor-native-tools.ts`](../../integrations/cursor/src/cursor-native-tools.ts) | `solomon_cursor_tool_event` chunks |
-| [`harness-prompt.ts`](../../integrations/cursor/src/harness-prompt.ts) | Prompt clauses for transparent bridge |
+| [`harness-prompt.ts`](../../integrations/cursor/src/harness-prompt.ts) | Orchestrate-first harness clauses |
 | [`run-control.ts`](../../integrations/cursor/src/run-control.ts) | Abort, usage, `forceStopRun` |
 
-## Tool name bridge
+## Legacy alias map
 
-Canonical map in [`legacy.ts`](../../integrations/cursor/src/legacy.ts) (`CURSOR_NATIVE_ALIASES`). Summary:
+[`tool-policy.ts`](../../integrations/cursor/src/tool-policy.ts) `CURSOR_NATIVE_ALIASES` (also in [`legacy.ts`](../../integrations/cursor/src/legacy.ts)) documents how Cursor names *would* map to Solomon deferred tools. Under orchestrate-first policy, **redirect-class Cursor tools are not bridged** — the map drives correction hints and tests, not transparent `Read` → `readFile` handoff.
 
-| Cursor / alias | Solomon tool | Notes |
-|----------------|--------------|-------|
-| `Read`, `read`, `ReadFile` | `readFile` | |
-| `Shell`, `bash`, `run_terminal_cmd` | `shell` | |
-| `Edit`, `Write`, `StrReplace`, `str_replace`, `ApplyPatch`* | `editFile` | patch args normalized |
-| `Delete`, `delete` | `editFile` | `delete: true` |
-| `Grep`, `Glob`, `SemanticSearch`, `ListDir`, `rg` | `find` | semantic = regexp fallback today |
-| `Task`, `task` | `subagent` | |
-| `WebFetch`, `fetch` | `fetchWeb` | |
-| `WebSearch`, `web_search` | `webSearch` | |
-| MCP provider `solomon` | unwrap `toolName` | legacy; bridged if still emitted |
-| Exact name in request `tools[]` | pass-through | dynamic allowlist |
-
-\*Unified-diff `ApplyPatch` is rejected (unmappable); full-file patch content maps to create/overwrite.
-
-Bridging is **recognition + handoff**, not Cursor executing Solomon tools. Unmapped or disallowed tools → `solomon_proxy_correction` on the SSE stream ([`openai-sse.ts`](../../integrations/cursor/src/openai-sse.ts)), with Shell as default fallback when allowed.
+Native MCP unwrap (`mcp` provider `solomon`): deferred tool names in MCP calls are blocked; native entry tools (e.g. `subagent`) still pass through when allowed.
 
 ## SSE extensions
 
 | Field | When | Consumer |
 |-------|------|----------|
-| `solomon_proxy_correction` | Blocked/unmapped Cursor tool | Model retry guidance |
+| `solomon_proxy_correction` | Blocked Cursor / deferred-direct tool | Model retry guidance (orchestrate-first) |
 | `solomon_cursor_tool_event` | `cursor_internal_tools = true` | [`cursor_native_display.go`](../../internal/agent/runtime/cursor_native_display.go) — REPL `Tool: Read (cursor) …` |
 
 Native event shape: [`cursor-native-tools.ts`](../../integrations/cursor/src/cursor-native-tools.ts) (`name`, `status`, `args`, `result`, `error`).
 
 ## Limits and caveats
 
-- Stream proxy is the primary execution gate; SDK sandbox is a secondary layer when enabled.
-- External MCP from Cursor blocked (`mcp:external`).
-- Guarantees depend on sidecar + Cursor SDK versions — keep **`cursor_internal_tools = false`** for production.
-- Requires **Node.js** when Cursor provider is enabled (install script does not require Node otherwise).
-- Manual check after upgrades: Composer with default bridge should use `StrReplace`/`Grep` and complete edits without `/cursortools on`.
+- Policy enforcement + `forceStopRun` is the primary execution gate; SDK sandbox is secondary when enabled.
+- Chat mode with Cursor provider is **Phase 3** — agent orchestrate-first is MVP ([`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md)).
+- Guarantees depend on sidecar + Cursor SDK versions — keep **`cursor_internal_tools = false`** for Composer.
+- Requires **Node.js** when Cursor provider is enabled.
+- Manual check after upgrades: Composer should use `orchestrate` for file/shell work; `Read`/`StrReplace` attempts should yield correction then recovery.
 
 ## Debug playbook
 
@@ -187,14 +218,15 @@ Native event shape: [`cursor-native-tools.ts`](../../integrations/cursor/src/cur
 |---------|------------|-------|
 | Sidecar won't start | [`manager.go`](../../internal/integrations/cursor/manager.go), [`bootstrap.go`](../../internal/integrations/cursor/bootstrap.go), `~/.solomon/logs/cursor-sidecar.log` | [`test/cursor_paths_test.go`](../../test/cursor_paths_test.go) |
 | `/integrations` health fail | Port 8766, `CURSOR_API_KEY`, firewall | — |
-| Cursor tool ran on repo (bridge bug) | [`cursor-agent.ts`](../../integrations/cursor/src/cursor-agent.ts) sandbox, `[tools].cursor_internal_tools` | — |
-| Wrong bridged tool name/args | [`legacy.ts`](../../integrations/cursor/src/legacy.ts), [`legacy-normalize.ts`](../../integrations/cursor/src/legacy-normalize.ts) | [`integrations/cursor/test/openai-tools.test.ts`](../../integrations/cursor/test/openai-tools.test.ts) |
+| Cursor tool ran on repo (policy bug) | [`tool-policy.ts`](../../integrations/cursor/src/tool-policy.ts), `forceStopRun` in [`stream-loop.ts`](../../integrations/cursor/src/chat/helpers/stream-loop.ts), `[tools].cursor_internal_tools` | [`policy-matrix.test.ts`](../../integrations/cursor/test/policy-matrix.test.ts) |
+| Correction loop (>3 same class) | Enable `CURSOR_API_PROXY_OBS=1`, inspect `proxy_correction_loop` in sidecar log | [`proxy-observability.test.ts`](../../integrations/cursor/test/proxy-observability.test.ts) |
+| Model still tries Read/StrReplace | [`harness-prompt.ts`](../../integrations/cursor/src/harness-prompt.ts), [`proxy-correction.ts`](../../integrations/cursor/src/chat/helpers/proxy-correction.ts), Go [`tool_print.go`](../../internal/agent/runtime/tool_print.go) | [`openai-tools-mapping.test.ts`](../../integrations/cursor/test/openai-tools-mapping.test.ts) |
 | No REPL display for native tools | [`cursor_native_display.go`](../../internal/agent/runtime/cursor_native_display.go) | [`test/cursor_native_display_test.go`](../../test/cursor_native_display_test.go) |
-| Model avoids edit/search tools | [`harness-prompt.ts`](../../integrations/cursor/src/harness-prompt.ts), proxy correction text | — |
 | Provider config / base URL | [`config`](../../internal/config/config.go), `/connect` Cursor flow | [`test/config_provider_cursor_test.go`](../../test/config_provider_cursor_test.go) |
 
 ## See also
 
+- [`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md) — product requirements, policy tables, roadmap
 - [Configuration — Cursor integration](../user-guide/configuration.md#cursor-integration-tool-execution)
 - [Native tools](native-tools.md)
 - [Runtime — orchestration](runtime-orchestration.md#cursor-integration-runtime-hooks)

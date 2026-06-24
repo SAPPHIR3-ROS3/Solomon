@@ -15,13 +15,15 @@ export type AgentSendOpts = {
   }) => Promise<void>;
 };
 
-const DEFAULT_SUBAGENT_SYS_PROMPT = [
-  "You are a nested Solomon build agent running a scoped sub-task.",
-  "Use normal Cursor built-in tools (Read, StrReplace, Grep, Glob, Shell); the host bridge executes on the real workspace.",
+export const DEFAULT_SUBAGENT_SYS_PROMPT = [
+  "You are a nested Solomon agent running a scoped sub-task behind the remote host harness.",
+  "Use searchTools to discover deferred tools and MCP schemas, then orchestrate (package main, import \"sdk\") for workspace read/edit/shell/find/MCP work.",
+  "Emit native Solomon tools (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via <tool_calls> XML or native tool_calls per the parent system prompt.",
+  "Cursor built-ins (Read, StrReplace, Shell, Task, browser_*, ApplyPatch, …) are blocked on this host.",
   "Stay focused on the assigned task and return a concise result.",
 ].join("\n");
 
-function ensureDefaultSubagentSysPrompt(projRoot: string): void {
+export function ensureDefaultSubagentSysPrompt(projRoot: string): void {
   const file = path.join(projRoot, DEFAULT_SUBAGENT_SYS_PATH);
   if (fs.existsSync(file)) {
     return;

@@ -12,8 +12,9 @@ import {
   type BridgedToolInvocation,
 } from "../legacy.js";
 import { writeSSEToolCalls } from "../openai-tools.js";
-import { buildOpenAIUsage, proxyToolCorrectionMessage } from "../chat-helpers.js";
+import { buildOpenAIUsage, nativeInvocationsFromText, proxyToolCorrectionMessage } from "../chat-helpers.js";
 import type { CursorTurnUsage, StreamUsageInput } from "../run-control.js";
+import type { AgentToolStreamState } from "./helpers/stream-loop.js";
 
 export type TurnOpts = {
   tools?: ChatCompletionTool[];
@@ -67,6 +68,39 @@ export function resolveProxyCorrection(
   }
   const msg = proxyToolCorrectionMessage(blockedTools, turnOpts.allowedNames);
   return msg || undefined;
+}
+
+export type FinalizedTurnToolResults = {
+  content: string;
+  bridged: BridgedToolInvocation[];
+  blockedTools: string[];
+  proxyCorrection: string | undefined;
+};
+
+export function finalizeTurnToolResults(
+  state: Pick<AgentToolStreamState, "pendingBridged" | "blockedTools">,
+  content: string,
+  turnOpts: TurnOpts,
+): FinalizedTurnToolResults {
+  const blockedTools = [...state.blockedTools];
+  let mergedContent = content;
+  let nativeInvocations: BridgedToolInvocation[] = [];
+  if (turnOpts.nativeTools) {
+    const parsed = nativeInvocationsFromText(content, turnOpts);
+    mergedContent = parsed.content;
+    nativeInvocations = parsed.invocations;
+    blockedTools.push(...parsed.blockedTools);
+  }
+  const bridged = limitInvocations(
+    filterInvocations([...nativeInvocations, ...state.pendingBridged], turnOpts.allowedNames),
+    turnOpts.parallelToolCalls,
+  );
+  return {
+    content: mergedContent,
+    bridged,
+    blockedTools,
+    proxyCorrection: resolveProxyCorrection(blockedTools, bridged.length, turnOpts),
+  };
 }
 
 export function emitBridgedTools(

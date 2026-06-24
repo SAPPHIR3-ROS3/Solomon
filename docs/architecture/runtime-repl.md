@@ -129,7 +129,7 @@ Clipboard images: **Ctrl+V** in the raw-mode editor → [`repl_run.go`](../../in
 | Welcome banner | Clamped to terminal width; omits inline update hint when autoupdate will install |
 | MCP | `InitMCP` in a background goroutine; connection summary goes to the log file, not the REPL transcript |
 | Model catalog | `PrefetchSlashModelCatalog` when onboarding is complete |
-| Connectivity | `BeginStartupConnectivityCheck` — DuckDuckGo probe; offline notice deferred until the prompt is ready (input can interrupt the wait); first `/models` after offline startup refetches catalogs |
+| Connectivity | `BeginStartupConnectivityCheck` — HTTPS reachability probes; offline notice deferred until the prompt is ready (input can interrupt the wait); first `/models` after offline startup refetches catalogs |
 
 Implementation: [`repl_run.go`](../../internal/agent/runtime/repl_run.go), [`commands/testweb.go`](../../internal/agent/commands/testweb.go).
 
