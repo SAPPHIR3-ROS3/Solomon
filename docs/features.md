@@ -152,7 +152,7 @@ Optional `[api_resilience]` configures retries, backoff, jitter, timeouts, and c
 
 ### Cursor integration sidecar
 
-`/integrations` reports the optional Cursor API sidecar URL, health, and install path. Requires Node when enabled. Default **`cursor_internal_tools = false`**: Solomon executes tools on the repo; toggle with **`/cursortools`** when Cursor API is configured. Details: [Configuration — Cursor integration](user-guide/configuration.md#cursor-integration-tool-execution), [Cursor integration (architecture)](architecture/cursor-integration.md).
+`/integrations` reports the optional Cursor API sidecar URL, health, and install path. Requires Node when enabled. Solomon registers native tools with the Cursor SDK and executes them in Go; Cursor built-ins are blocked. **`cursor_internal_tools` is deprecated** (always off). Proxy observability JSON is written to `cursor-sidecar.log` automatically. Details: [Configuration — Cursor integration](user-guide/configuration.md#cursor-integration-tool-execution), [Cursor integration (architecture)](architecture/cursor-integration.md).
 
 ### Shell-first REPL mode
 
@@ -168,7 +168,7 @@ If the SSE accumulator detects inconsistent completion chunks (e.g. mismatched `
 
 ### REPL display and session preferences
 
-Persisted REPL settings map to `config.toml` and slash commands: `/name` and `/language` inject user name and reply language into the system prompt (custom rules and instruction files may use another language — the model follows their intent but replies in the configured language); `/stats` toggles token usage after assistant turns; `/max_response` caps assistant output tokens; `/timeout` sets subagent segment minutes; `/log` sets visible log verbosity; `/fast` toggles Cursor fast mode when the active provider supports it; `/cursortools` toggles Cursor native tool execution when Cursor API is configured. See [Configuration](user-guide/configuration.md) and `/help`.
+Persisted REPL settings map to `config.toml` and slash commands: `/name` and `/language` inject user name and reply language into the system prompt (custom rules and instruction files may use another language — the model follows their intent but replies in the configured language); `/stats` toggles token usage after assistant turns; `/max_response` caps assistant output tokens; `/timeout` sets subagent segment minutes; `/log` sets visible log verbosity; `/fast` toggles Cursor fast mode when the active provider supports it; `/cursortools` confirms deprecated Cursor native tools stay off when Cursor API is configured. See [Configuration](user-guide/configuration.md) and `/help`.
 
 ### Release updates and config backup
 
@@ -186,7 +186,7 @@ Every user turn advances a numbered checkpoint; the REPL prompt and echoed lines
 
 ### Cursor sidecar with Solomon harness
 
-The optional Cursor integration runs a Node sidecar (OpenAI-compatible HTTP) while Solomon remains the default tool executor on disk. With **`cursor_internal_tools = false`**, native Cursor tools are blocked or bridged to Solomon names; **`true`** lets Cursor run native tools on the project. Toggle at runtime with **`/cursortools`** (visible only after Cursor API setup). Full design: [Cursor integration](architecture/cursor-integration.md). User setup: [Configuration](user-guide/configuration.md#cursor-integration-tool-execution).
+The optional Cursor integration runs a Node sidecar (OpenAI-compatible HTTP) while Solomon remains the tool executor on disk. Solomon tools are registered as Cursor SDK `customTools` and bridged to Go; Cursor built-ins are blocked with orchestrate-first corrections. **`cursor_internal_tools` is deprecated** (always off). Full design: [Cursor integration](architecture/cursor-integration.md). User setup: [Configuration](user-guide/configuration.md#cursor-integration-tool-execution).
 
 ### Dual transcript for forced skills
 

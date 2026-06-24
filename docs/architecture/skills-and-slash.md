@@ -31,7 +31,7 @@ Slash handlers live in `commands` package; the runtime bridge constructs `Deps` 
 
 Common commands: `/agent`, `/chat`, `/resume`, `/new`, `/temp`, `/summarize`, `/connect`, `/models`, `/legacytools`, `/btw`, `/cursortools` (Cursor API configured only), `/skills`, forced `/skill:<name> [request]`, and MCP-related slashes in `mcp_slash.go`.
 
-`/legacytools` persists `[tools].legacy` and `[tools].legacy_force` to `config.toml` (global). `/cursortools` persists `[tools].cursor_internal_tools` and restarts the Cursor sidecar; visibility is gated by `config.CursorAPIConfigured`. Both are implemented in [`thinking.go`](../../internal/agent/commands/thinking.go). User guide: [Usage and commands — `/legacytools`](../user-guide/usage-and-commands.md#legacytools), [`/cursortools`](../user-guide/usage-and-commands.md#cursortools).
+`/legacytools` persists `[tools].legacy` and `[tools].legacy_force` to `config.toml` (global). `/cursortools` forces `[tools].cursor_internal_tools = false` (deprecated) and restarts the Cursor sidecar; visibility is gated by `config.CursorAPIConfigured`. Both are implemented in [`thinking.go`](../../internal/agent/commands/thinking.go). User guide: [Usage and commands — `/legacytools`](../user-guide/usage-and-commands.md#legacytools), [`/cursortools`](../user-guide/usage-and-commands.md#cursortools).
 
 `/btw` is a builtin reserved slash name, but unlike normal slash commands it is meant for the active generation window. The idle handler only prints usage; the runtime listener intercepts `/` during streaming and queues a transient no-tools side question. User guide: [Usage and commands — `/btw` side questions](../user-guide/usage-and-commands.md#btw-side-questions).
 

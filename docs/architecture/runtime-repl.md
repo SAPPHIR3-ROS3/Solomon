@@ -84,11 +84,12 @@ Forced `/skill:<name> [request]` keeps the visible transcript line; expanded bod
 | [`replcomplete/path.go`](../../internal/agent/runtime/replcomplete/path.go) | Workspace file paths |
 | [`replcomplete/atmention.go`](../../internal/agent/runtime/replcomplete/atmention.go) | Workspace index for `@` picker |
 | [`replcomplete/completer.go`](../../internal/agent/runtime/replcomplete/completer.go) | Shared completion merge |
-| [`replcomplete/suggest.go`](../../internal/agent/runtime/replcomplete/suggest.go) | Suggestion list helper |
+| [`replcomplete/suggest.go`](../../internal/agent/runtime/replcomplete/suggest.go) | Slash suggestion at cursor (`SlashSuggestAt`, `SlashContextAt`) |
+| [`replcomplete/slash_context.go`](../../internal/agent/runtime/replcomplete/slash_context.go) | Parse slash command at cursor; enumerate slash tokens in a line |
 | [`replcomplete/env.go`](../../internal/agent/runtime/replcomplete/env.go) | `ReplCompleteEnv` struct |
 | [`replcomplete_runtime.go`](../../internal/agent/runtime/replcomplete_runtime.go) | `EnvFrom(Runtime)` wiring |
 
-Tab inserts the suffix into the editor buffer (not readline's renderer). Disable: `SOLOMON_NO_COMPLETE=1`.
+Tab inserts the suffix into the editor buffer (not readline's renderer). Slash completion resolves the `/command` under the cursor (mid-line text before the cursor is preserved). Disable: `SOLOMON_NO_COMPLETE=1`.
 
 ## `@` file and folder mentions
 
@@ -106,7 +107,7 @@ On send, runtime expands tags into `Message.APIContent`; visible transcript keep
 | [`repl/replhl/classify.go`](../../internal/agent/runtime/repl/replhl/classify.go) | Classify line: slash, shell, `@`, chat |
 | [`repl/replhl/highlight.go`](../../internal/agent/runtime/repl/replhl/highlight.go) | Apply dim ANSI spans |
 | [`repl/replhl/shell.go`](../../internal/agent/runtime/repl/replhl/shell.go) | Shell lexical highlight |
-| [`repl/replhl/slash.go`](../../internal/agent/runtime/repl/replhl/slash.go) | Slash highlight |
+| [`repl/replhl/slash.go`](../../internal/agent/runtime/repl/replhl/slash.go) | Slash highlight (all slash tokens in line, cursor-aware args) |
 | [`repl/replhl/span.go`](../../internal/agent/runtime/repl/replhl/span.go) | Span utilities |
 
 Tests: [`test/repl_highlight_test.go`](../../test/repl_highlight_test.go).
@@ -139,7 +140,8 @@ Implementation: [`repl_run.go`](../../internal/agent/runtime/repl_run.go), [`com
 |-------|------|
 | `RL` | readline instance (writers/width) |
 | `Mode` | `plan` or `build` |
-| `Cfg.Tools` | Legacy XML flags (`/legacytools`); Cursor native tools (`/cursortools`, Cursor API configured) |
+| `Cfg.Tools` | Legacy XML flags (`/legacytools`); deprecated Cursor native tools (`/cursortools`, Cursor API configured) |
+| `replInputPrefill` | Deferred slash prefill applied on next prompt read ([`repl_input.go`](../../internal/agent/runtime/repl_input.go)) |
 | `ReplShellFirst` | Invert shell vs chat default |
 | `EphemeralSession` | In-memory transcript only |
 | `Out` | Assistant and tool stream |
