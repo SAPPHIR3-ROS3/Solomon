@@ -1,3 +1,5 @@
+import { parseArgsObject } from "./json-args.js";
+
 export const DEFAULT_SUBAGENT_SYS_PATH = ".solomon/cursor-task-sys.txt";
 
 export function normalizeSolomonToolArgs(
@@ -39,19 +41,8 @@ function normalizeArgs(
   solomonName: string,
   raw: unknown,
 ): Record<string, unknown> | null {
-  if (raw === null || raw === undefined) {
-    return {};
-  }
-  let obj: Record<string, unknown>;
-  if (typeof raw === "string") {
-    try {
-      obj = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  } else if (typeof raw === "object") {
-    obj = { ...(raw as Record<string, unknown>) };
-  } else {
+  const obj = parseArgsObject(raw);
+  if (obj === null) {
     return null;
   }
   if (solomonName === "readFile") {
@@ -375,23 +366,6 @@ function normalizeFindArgsFromRaw(
     return null;
   }
   return normalizeFindArgs(cursorName, obj);
-}
-
-function parseArgsObject(raw: unknown): Record<string, unknown> | null {
-  if (raw === null || raw === undefined) {
-    return {};
-  }
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-  if (typeof raw === "object") {
-    return { ...(raw as Record<string, unknown>) };
-  }
-  return null;
 }
 
 function normalizeFindArgs(cursorName: string, obj: Record<string, unknown>): Record<string, unknown> | null {
