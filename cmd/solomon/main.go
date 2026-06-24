@@ -268,6 +268,7 @@ func main() {
 }
 
 func runTemplatesInstall() {
+	logging.LogInit(logging.INFO_LOG_LEVEL)
 	if err := config.EnsureDefaultFile(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

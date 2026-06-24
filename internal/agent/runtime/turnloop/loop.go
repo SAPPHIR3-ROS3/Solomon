@@ -21,6 +21,10 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
+const maxConsecutiveProxyCorrections = 3
+
+const proxyCorrectionLoopBailoutMsg = "Cursor proxy correction loop (%d attempts). Cursor built-ins are disabled — use native tool_calls only: searchTools (discover deferred SDK), orchestrate (run workspace scripts), searchSkill and loadSkill (skills). Reply in plain text or emit a corrected native invocation."
+
 func Run(ctx context.Context, h Host) error {
 	if err := h.WaitProviderReady(ctx); err != nil {
 		return err
@@ -84,6 +88,7 @@ func Run(ctx context.Context, h Host) error {
 		usageTurns = nil
 	}
 	turnSeparatorPending := !h.MachineMode()
+	consecutiveProxyCorrections := 0
 	for {
 		sys, err := h.SystemPrompt(h.Config().ReasoningEffortIsNone())
 		if err != nil {
@@ -242,11 +247,20 @@ func Run(ctx context.Context, h Host) error {
 		h.PersistSessionOrLog("toolInvocations")
 		if len(invs) == 0 {
 			if proxyCorrection != "" {
+				consecutiveProxyCorrections++
+				if consecutiveProxyCorrections > maxConsecutiveProxyCorrections {
+					flushUsageStats()
+					if !h.MachineMode() {
+						commands.PrintSystemf(out, proxyCorrectionLoopBailoutMsg, consecutiveProxyCorrections)
+					}
+					return nil
+				}
 				if err2 := h.HandleProxyToolCorrection(proxyCorrection); err2 != nil {
 					return err2
 				}
 				continue
 			}
+			consecutiveProxyCorrections = 0
 			flushUsageStats()
 			if h.MachineMode() {
 				h.SetCIFinalContent(turn.Content)

@@ -23,7 +23,7 @@ func TestNativeBridgeToolCorrectionUserMsg_orchestrateFirst(t *testing.T) {
 
 func TestCursorProxyToolCorrectionMessage_redirectOrchestrateFirst(t *testing.T) {
 	msg := agentruntime.CursorProxyToolCorrectionMessageForTest([]string{"Read", "Shell"})
-	for _, want := range []string{"Blocked by Solomon proxy", "Read", "orchestrate", "searchTools", "sdk.ReadFile", "sdk.Shell"} {
+	for _, want := range []string{"Blocked by Solomon proxy", "Read", "searchTools", "orchestrate", "sdk.ReadFile"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("missing %q in %q", want, msg)
 		}
@@ -51,6 +51,9 @@ func TestCursorProxyToolCorrectionMessage_hardDenyOmitsFooter(t *testing.T) {
 		t.Fatalf("missing hard-deny hint in %q", msg)
 	}
 	if strings.Contains(msg, "never Cursor built-ins") {
+		t.Fatalf("unexpected old footer in %q", msg)
+	}
+	if strings.Contains(msg, "searchTools") || strings.Contains(msg, "orchestrate") {
 		t.Fatalf("hard-deny should omit orchestrate footer in %q", msg)
 	}
 }

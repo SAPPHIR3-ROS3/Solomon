@@ -494,6 +494,8 @@ func normalizeRoot(r *Root) {
 
 	}
 
+	r.Tools.CursorInternalTools = false
+
 }
 
 
@@ -595,6 +597,8 @@ func Load() (*Root, error) {
 
 
 func Save(r *Root) error {
+
+	normalizeRoot(r)
 
 	cfgPath, err := paths.ConfigPath()
 

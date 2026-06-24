@@ -21,6 +21,8 @@ var (
 	running *processState
 )
 
+const sidecarProxyObsEnabled = true
+
 type processState struct {
 	cmd                      *exec.Cmd
 	port                     int
@@ -28,6 +30,7 @@ type processState struct {
 	apiKey                   string
 	cwd                      string
 	allowCursorInternalTools bool
+	proxyObservability       bool
 	logFile                  *os.File
 }
 
@@ -64,7 +67,7 @@ func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, allowCursorInt
 	cwd = sidecarCWD(cwd)
 	mu.Lock()
 	defer mu.Unlock()
-	if running != nil && running.apiKey == apiKey && running.dir == dir && running.port == port && running.allowCursorInternalTools == allowCursorInternalTools {
+	if running != nil && running.apiKey == apiKey && running.dir == dir && running.port == port && running.allowCursorInternalTools == allowCursorInternalTools && running.proxyObservability == sidecarProxyObsEnabled {
 		if healthOK(ctx, port) {
 			return DefaultBaseURL(port), nil
 		}
@@ -81,7 +84,7 @@ func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, allowCursorInt
 	}
 	if healthOK(ctx, port) {
 		if running == nil {
-			running = &processState{port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools}
+			running = &processState{port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools, proxyObservability: sidecarProxyObsEnabled}
 		}
 		return DefaultBaseURL(port), nil
 	}
@@ -155,12 +158,16 @@ func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port in
 	entry := EntryScript(dir)
 	cmd := exec.Command(node, entry)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"CURSOR_API_KEY="+apiKey,
+	env := []string{
+		"CURSOR_API_KEY=" + apiKey,
 		fmt.Sprintf("CURSOR_API_PORT=%d", port),
-		"CURSOR_API_CWD="+cwd,
+		"CURSOR_API_CWD=" + cwd,
 		fmt.Sprintf("CURSOR_API_ALLOW_INTERNAL_TOOLS=%t", allowCursorInternalTools),
-	)
+	}
+	if sidecarProxyObsEnabled {
+		env = append(env, "CURSOR_API_PROXY_OBS=1")
+	}
+	cmd.Env = append(os.Environ(), env...)
 	var logFile *os.File
 	if f, err := sidecarLogFile(); err == nil {
 		logFile = f
@@ -176,7 +183,7 @@ func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port in
 		}
 		return fmt.Errorf("start cursor proxy: %w", err)
 	}
-	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools, logFile: logFile}
+	running = &processState{cmd: cmd, port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools, proxyObservability: sidecarProxyObsEnabled, logFile: logFile}
 	go watchSidecarProcess(cmd, dir, apiKey, cwd, allowCursorInternalTools, port)
 	return nil
 }
