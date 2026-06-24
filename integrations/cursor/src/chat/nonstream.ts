@@ -1,6 +1,6 @@
 import { type SDKAgent } from "@cursor/sdk";
 import type { ServerResponse } from "node:http";
-import { formatLegacyToolCallsBlock, type LegacyToolInvocation } from "../legacy.js";
+import { formatBridgedToolCallsBlock } from "../legacy.js";
 import type { ChatMessage } from "../openai-types.js";
 import {
   filterInvocations,
@@ -23,8 +23,8 @@ import {
   finishReasonForTools,
   nativeInvocationsFromText,
   nextTextChunk,
-  processStreamEvent,
 } from "../chat-helpers.js";
+import { createAgentToolStreamState, drainAgentToolStream } from "../chat/helpers/stream-loop.js";
 import type { CursorNativeToolEvent } from "../cursor-native-tools.js";
 import type { ProxyConfig } from "./index.js";
 import { resolveProxyCorrection, type TurnOpts } from "./turn.js";
@@ -65,36 +65,27 @@ export async function handleNonStream(
     run = sent.run;
     let content = "";
     let reasoning = "";
-    const pendingLegacy: LegacyToolInvocation[] = [];
-    const blockedTools: string[] = [];
+    const streamState = createAgentToolStreamState();
     const nativeToolEvents: CursorNativeToolEvent[] = [];
-    let toolDetected = false;
-    for await (const event of run.stream()) {
-      if (clientAborted) {
-        break;
-      }
-      processStreamEvent(
-        event,
-        cfg.allowCursorInternalTools,
-        (t) => { content += nextTextChunk(content, t); },
-        (t) => { reasoning += t; },
-        pendingLegacy,
-        () => { toolDetected = true; },
-        (name) => { blockedTools.push(name); },
-        { allowedNames: turnOpts.allowedNames },
-        cfg.allowCursorInternalTools
+    await drainAgentToolStream(
+      run,
+      cfg.allowCursorInternalTools,
+      { allowedNames: turnOpts.allowedNames },
+      {
+        onText: (t) => { content += nextTextChunk(content, t); },
+        onThinking: (t) => { reasoning += t; },
+        onUnmappedToolEvent: cfg.allowCursorInternalTools
           ? (ev) => { nativeToolEvents.push(ev); }
           : undefined,
-      );
-      if (toolDetected && pendingLegacy.length > 0) {
-        await forceStopRun(run);
-        break;
-      }
-    }
+      },
+      streamState,
+      { shouldStop: () => clientAborted },
+    );
+    const { pendingBridged, blockedTools, toolDetected } = streamState;
     if (clientAborted) {
       return;
     }
-    if (toolDetected && pendingLegacy.length > 0) {
+    if (toolDetected && pendingBridged.length > 0) {
       await forceStopRun(run);
     }
     const parsedNative = turnOpts.nativeTools
@@ -105,13 +96,13 @@ export async function handleNonStream(
       blockedTools.push(...parsedNative.blockedTools);
     }
     const bridged = limitInvocations(
-      filterInvocations([...parsedNative.invocations, ...pendingLegacy], turnOpts.allowedNames),
+      filterInvocations([...parsedNative.invocations, ...pendingBridged], turnOpts.allowedNames),
       turnOpts.parallelToolCalls,
     );
     const toolCalls = openAIToolCallsFromInvocations(bridged);
     const proxyCorrection = resolveProxyCorrection(blockedTools, bridged.length, turnOpts);
     if (bridged.length > 0 && !turnOpts.nativeTools) {
-      content = (toolDetected ? "" : content) + formatLegacyToolCallsBlock(bridged);
+      content = (toolDetected ? "" : content) + formatBridgedToolCallsBlock(bridged);
     }
     if (res.writableEnded || res.destroyed) {
       return;
