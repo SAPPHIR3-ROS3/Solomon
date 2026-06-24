@@ -269,7 +269,7 @@ test("rejects editFile delete invocations with oldString or newString", () => {
   }), false);
 });
 
-test("blocks SDK custom-user-tools MCP calls as external (customTools spike)", () => {
+test("bridges SDK custom-user-tools MCP calls to Solomon (customTools)", () => {
   const pending = [];
   let detected = false;
   const blocked: string[] = [];
@@ -281,7 +281,7 @@ test("blocks SDK custom-user-tools MCP calls as external (customTools spike)", (
       args: {
         providerIdentifier: "custom-user-tools",
         toolName: "orchestrate",
-        args: { task: "read README" },
+        args: { source: "package main", intent: "read README" },
       },
     } as any,
     false,
@@ -290,10 +290,40 @@ test("blocks SDK custom-user-tools MCP calls as external (customTools spike)", (
     pending,
     () => { detected = true; },
     (name) => { blocked.push(name); },
+    { allowedNames: new Set(["orchestrate", "searchTools"]) },
+  );
+  assert.equal(detected, true);
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0]!.name, "orchestrate");
+  assert.deepEqual(blocked, []);
+});
+
+test("blocks unknown custom-user-tools when not in allowlist", () => {
+  const pending = [];
+  let detected = false;
+  const blocked: string[] = [];
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "mcp",
+      status: "running",
+      args: {
+        providerIdentifier: "custom-user-tools",
+        toolName: "readFile",
+        args: { path: "TODO.md" },
+      },
+    } as any,
+    false,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+    (name) => { blocked.push(name); },
+    { allowedNames: new Set(["orchestrate", "searchTools"]) },
   );
   assert.equal(detected, true);
   assert.deepEqual(pending, []);
-  assert.deepEqual(blocked, ["mcp:external"]);
+  assert.ok(blocked.some((b) => b.includes("readFile")));
 });
 
 test("blocks solomon MCP editFile delete tool calls (2.3)", () => {
