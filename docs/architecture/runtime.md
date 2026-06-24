@@ -56,7 +56,7 @@ flowchart TB
 | [`ci_run.go`](../../internal/agent/runtime/ci_run.go) | `exec --json` / `--jsonl` event emission, machine-mode stream opts | `RunPromptOnce`, `turns` |
 | [`deferred_chat_title.go`](../../internal/agent/runtime/deferred_chat_title.go) | Background chat title finalize after first turn | `turns` |
 | [`cursor_sidecar.go`](../../internal/agent/runtime/cursor_sidecar.go) | `ensureCursorSidecar` for Cursor API provider | `/connect`, tool env |
-| [`cursor_native_display.go`](../../internal/agent/runtime/cursor_native_display.go) | Print Cursor native tool events when `cursor_internal_tools` | stream callbacks |
+| [`cursor_native_display.go`](../../internal/agent/runtime/cursor_native_display.go) | Legacy Cursor native tool event display (deprecated with `cursor_internal_tools`) | stream callbacks |
 | [`update.go`](../../internal/agent/runtime/update.go) | GitHub release check, startup autoupdate install, `/update` | `Run`, `/update` |
 | [`restart.go`](../../internal/agent/runtime/restart.go) | `ErrRestartSolomon` for in-process restart after upgrade | slash `/upgrade` → `cmd` |
 | [`replcomplete_runtime.go`](../../internal/agent/runtime/replcomplete_runtime.go) | Build `replcomplete.ReplCompleteEnv` from `Runtime` | `repl_run` |
