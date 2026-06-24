@@ -2,7 +2,7 @@
 
 Reference: [`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md) §3 Evaluation Strategy.
 
-**Model:** `composer-2.5` via **Cursor API** provider (`cursor_internal_tools = false`).
+**Model:** `composer-2.5` via **Cursor API** provider (orchestrate-first; `cursor_internal_tools` deprecated).
 
 **Run command (per task):**
 
@@ -11,7 +11,7 @@ cd <eval-workspace>
 solomon temp exec --jsonl --no-color "<prompt>"
 ```
 
-Optional sidecar observability: set `CURSOR_API_PROXY_OBS=1` in the sidecar process env before runs (see [`cursor-integration.md`](../architecture/cursor-integration.md)).
+Sidecar observability: Solomon sets `CURSOR_API_PROXY_OBS=1` when starting the sidecar — inspect `proxy_turn` / `proxy_correction_loop` JSON in `~/.solomon/logs/cursor-sidecar.log` (see [`cursor-integration.md`](../architecture/cursor-integration.md)).
 
 **Metrics to record per task:**
 
@@ -112,7 +112,7 @@ cd /tmp/solomon-cursor-eval-EqK3Hv
 1. **Refresh sidecar bundle:** `npm --prefix integrations/cursor run build` then `go run scripts/cursor_bundler.go bundle` (or copy `dist/` into `~/.solomon/integrations/cursor/`).
 2. **Restart sidecar:** Stop the process on port 8766; next `solomon` session starts a managed sidecar with the refreshed bundle and current API key.
 3. **Verify Cursor API:** `solomon exec --jsonl "reply ok"` from a tiny workspace; confirm no `api_error` in `~/.solomon/logs/`.
-4. **Enable observability:** `CURSOR_API_PROXY_OBS=1` on sidecar for `proxy_turn` / `proxy_correction_loop` JSON in `cursor-sidecar.log`.
+4. **Observability:** `proxy_turn` / `proxy_correction_loop` JSON should appear in `cursor-sidecar.log` (Solomon sets `CURSOR_API_PROXY_OBS=1` on managed sidecar start).
 5. **Re-run this protocol** — fill the results table above; target ≤1 correction on task 1 and zero loops across all five.
 
 ---

@@ -104,7 +104,7 @@ Highlights:
 | `/models`, `/onboard` | Switch model; rerun setup wizard |
 | `/docs` | Search embedded Solomon docs (`/docs <query>`); keeps `/docs …` visible in chat |
 | `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
-| `/cursortools` | Cursor native tools on project (`cursor_internal_tools`) — only after `/connect` → Cursor API |
+| `/cursortools` | Confirm deprecated Cursor native tools stay off — only after `/connect` → Cursor API |
 | `/reasoning`, `/thinking` | Main-chat reasoning effort; streamed reasoning preview |
 | `/log`, `/stats`, `/max_response`, `/timeout` | Log verbosity; token footer; output cap; subagent minutes |
 | `/name`, `/language` | User name and reply language in system prompt (saved) |
@@ -122,7 +122,7 @@ Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Pro
 
 After the welcome banner, Solomon runs a short HTTPS reachability check in the background (skipped when onboarding is required). If the network looks offline, a single system notice lists affected remote features (web search, remote MCP servers, remote providers) instead of separate catalog errors. The notice appears when the prompt is ready; typing can interrupt the wait. After an offline startup, the first `/models` refetches provider catalogs once connectivity returns.
 
-Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → `[tools].cursor_internal_tools`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
+Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → forces `cursor_internal_tools = false`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
 
 ### `/btw` side questions
 
@@ -216,15 +216,16 @@ Useful for text-only or unreliable native function-calling backends. Details: [C
 
 ### `/cursortools`
 
-Persists to `[tools].cursor_internal_tools` in `config.toml`. The command appears in `/help`, tab completion, and dispatch **only after** Cursor API is configured (provider block with API key via `/connect`).
+**Deprecated.** Cursor built-in tools (Read, Shell, Edit, …) no longer run on your project. Solomon registers native tools (`orchestrate`, `searchTools`, `searchSkill`, `loadSkill`, …) with the Cursor SDK and executes them in Go.
+
+The command appears in `/help`, tab completion, and dispatch **only after** Cursor API is configured.
 
 | Invocation | Result |
 |------------|--------|
-| `/cursortools on` | `cursor native tools: on` — Cursor SDK may run built-in tools (Read, Shell, Edit, …) on the project |
-| `/cursortools off` | `cursor native tools: off` — Solomon Go executes tools on the repo (recommended default) |
-| `/cursortools` | Toggle current value |
+| `/cursortools on` | Error — deprecated; use `orchestrate`, `searchTools`, `searchSkill`, `loadSkill` |
+| `/cursortools off` or `/cursortools` | `cursor native tools: deprecated and disabled` — persists `cursor_internal_tools = false`, restarts sidecar |
 
-On save, Solomon restarts the Cursor sidecar with updated `CURSOR_API_ALLOW_INTERNAL_TOOLS`. Details: [Configuration — Cursor integration](configuration.md#cursor-integration-tool-execution), [Cursor integration (architecture)](../architecture/cursor-integration.md).
+Details: [Configuration — Cursor integration](configuration.md#cursor-integration-tool-execution), [Cursor integration (architecture)](../architecture/cursor-integration.md).
 
 Implementation: [Skills and slash](../architecture/skills-and-slash.md).
 

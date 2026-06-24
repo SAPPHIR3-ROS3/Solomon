@@ -106,7 +106,7 @@ flowchart TB
 | Skills | `solomon add`, registry in `internal/skills/` |
 | System prompts | Embedded defaults in `internal/prompt/templates/`; runtime copies under `~/.solomon/prompts/templates/`; SHA checks at REPL startup (`[prompt_templates]` in config) |
 | Legacy tool calling | `[tools].legacy` / `legacy_force` in config or `/legacytools`; see [Agent turn pipeline](agent-turn-pipeline.md#legacy-xml-tool-calling) |
-| Cursor native tools | `[tools].cursor_internal_tools` in config or `/cursortools` (Cursor API configured); see [Cursor integration](cursor-integration.md) |
+| Cursor native tools | **Deprecated** — `[tools].cursor_internal_tools` forced off; `/cursortools`; see [Cursor integration](cursor-integration.md) |
 
 ## Related code
 

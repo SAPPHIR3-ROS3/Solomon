@@ -38,12 +38,12 @@ Related backlog items: [`TODO.md`](TODO.md) (LOW / EXTREMELY LOW priority sectio
 
 ### Acceptance Criteria
 
-- [ ] Composer is made aware of Solomon native tools (`orchestrate`, `searchTools`, `subagent`, `switchMode`, `searchSkill`, `loadSkill`) through the chosen exposure mechanism (see Open Decisions: prompt-driven native XML vs SDK `local.customTools`).
+- [x] Composer is made aware of Solomon native tools (`orchestrate`, `searchTools`, `subagent`, `switchMode`, `searchSkill`, `loadSkill`) via SDK `local.customTools` (registered on sidecar) plus harness; XML fallback retained.
 - [ ] Harness prompts no longer instruct Composer to use `Read` / `StrReplace` / `Shell`; they describe orchestrate-first workflow.
-- [x] `solomon_proxy_correction` and Go `nativeBridgeToolCorrectionUserMsg` messages redirect to `orchestrate` / `searchTools`, not Cursor built-ins.
+- [x] `solomon_proxy_correction` and Go `nativeBridgeToolCorrectionUserMsg` messages redirect to `orchestrate` / `searchTools` / `searchSkill` / `loadSkill`, not Cursor built-ins.
 - [ ] Every tool in **Block — redirect** table triggers block + correction in stream and non-stream paths.
 - [ ] Browser MCP (`browser_*`, `mcp:external` for `cursor-ide-browser`) is always blocked with no passthrough.
-- [ ] `cursor_internal_tools = true` is documented as incompatible with orchestrate-first Composer; default remains `false`.
+- [x] `cursor_internal_tools` deprecated — config and runtime force `false`; `/cursortools on` rejected; documented as incompatible with orchestrate-first Composer.
 - [ ] Phase 1 cleanup: legacy naming clarified, tool policy module extracted, dead bridge paths removed or gated.
 - [ ] Chat mode Cursor path documented and implemented in Phase 3 (see Roadmap).
 
@@ -53,7 +53,7 @@ Related backlog items: [`TODO.md`](TODO.md) (LOW / EXTREMELY LOW priority sectio
 - Passthrough of Cursor embedded browser MCP.
 - Supporting unified-diff `ApplyPatch` in the proxy bridge (blocked; future native tool — see `TODO.md` EXTREMELY LOW).
 - Replicating Cursor `GenerateImage` asset pipeline (future Solomon-native tool — see `TODO.md` EXTREMELY LOW).
-- Removing `cursor_internal_tools` code path in v1 (may remain for debug; not the Composer target path).
+- Removing `cursor_internal_tools` config field entirely (deprecated in place; always off at runtime).
 
 ---
 
@@ -211,29 +211,38 @@ No behavior change beyond what is required for compilation.
 - [ ] **4.1 `readFile` images** — Extend read path for vision formats (`.png`, `.jpg`, …); document in orchestrate SDK.
 - [ ] **4.2 `listDir` / `LS` refinements** — Post-Phase-2 tuning of the `ListDir` → native `listDir` mapping (hidden files, gitignore, depth) once the base mapping ships.
 - [ ] **4.3 Deprecate transparent bridge** — Evaluate removing `CURSOR_NATIVE_ALIASES` bridge-to-deferred path once orchestrate-first is stable.
-- [ ] **4.4 `cursor_internal_tools` policy** — Decide deprecate vs debug-only; runtime warning if enabled with Composer model.
+- [x] **4.4 `cursor_internal_tools` policy** — Deprecated; config/runtime force `false`; `/cursortools on` rejected; docs updated.
 
 ### Technical Risks
 
 | Risk | Mitigation |
 |------|------------|
 | Composer strongly biases toward `Read`/`StrReplace` | Strong harness + corrections; eval loop detection |
-| SDK `customTools` forces Node-side execution (conflicts with Go-executes model) | **Resolved in 2.1:** use prompt-driven native XML; do not adopt `customTools` (see Open Decisions §2.1 spike) |
-| SDK `customTools` API drift | Pin `@cursor/sdk`; integration test on upgrade |
+| SDK `customTools` forces Node-side execution (conflicts with Go-executes model) | **Resolved (2026-06-24 rev):** register `customTools` with stub `execute`; bridge `custom-user-tools` MCP in stream → `forceStopRun` → Go `tools.Exec` ([`custom-tools.ts`](integrations/cursor/src/custom-tools.ts), [`stream-events.ts`](integrations/cursor/src/chat/helpers/stream-events.ts)) |
+| SDK `customTools` API drift | Pin `@cursor/sdk@1.0.20`; integration test on upgrade |
 | Dual policy (Node + Go) diverges | Single policy source or shared generated map |
-| `cursor_internal_tools` confusion | Document as non-Composer; consider runtime warning |
+| `cursor_internal_tools` confusion | **Resolved:** deprecated, always off |
+| Correction loops | Go turn-loop circuit breaker (max 3 consecutive proxy corrections) + sidecar `proxy_correction_loop` observability |
 | Chat mode scope creep | Phase 3 separate; agent mode MVP first |
 
 ### Open Decisions
 
 | Topic | Status |
 |-------|--------|
-| Native tool exposure mechanism | **Decided (2.1, 2026-06-24): prompt-driven native XML + harness + Go `tools[]` / system prompt** — not SDK `local.customTools`. See [§2.1 spike findings](#21-tool-exposure-spike-customtools-vs-prompt-driven-native-xml) |
-| `cursor_internal_tools = true` long-term | Discuss: deprecate vs debug-only vs repurpose (e.g. browser-only — currently rejected) |
+| Native tool exposure mechanism | **Decided (2026-06-24, revised):** SDK `local.customTools` from OpenAI `tools[]` + stream bridge for `custom-user-tools` MCP + stub Node `execute`; XML/`tool_calls` fallback retained. See [§2.1](#21-tool-exposure-customtools-with-go-prehook) |
+| `cursor_internal_tools = true` long-term | **Decided:** deprecated; always `false` |
 | Chat mode Composer surface | Phase 3; policy draft in this doc §3 |
 | `SemanticSearch` quality | Remains regexp via orchestrate until semantic find ships (`TODO.md` LOW) |
 
-#### 2.1 Tool-exposure spike: `customTools` vs prompt-driven native XML
+#### 2.1 Tool exposure: `customTools` with Go prehook
+
+**Decision (revised 2026-06-24):** Register Solomon native tools via SDK `local.customTools` ([`custom-tools.ts`](integrations/cursor/src/custom-tools.ts), [`cursor-agent.ts`](integrations/cursor/src/cursor-agent.ts)). OpenAI `tools[]` from Go converts through `openAIToolsToMcpTools`. Each tool’s `execute` is a **stub** that returns an error (“Solomon host owns execution”).
+
+**Bridge:** When the model invokes `custom-user-tools` MCP, [`stream-events.ts`](integrations/cursor/src/chat/helpers/stream-events.ts) unwraps allowed tool names (same as `solomon` MCP), calls `forceStopRun`, and emits OpenAI `tool_calls` for Go. Prompt-driven `<tool_calls>` XML remains a fallback ([`openai-tools.ts`](integrations/cursor/src/openai-tools.ts)).
+
+**Prior spike (superseded):** An earlier 2.1 note rejected `customTools` due to Node execution risk; the prehook + `custom-user-tools` bridge addresses that without abandoning registered tool schemas Composer can see natively.
+
+#### 2.1 (archived) Tool-exposure spike: `customTools` vs prompt-driven native XML
 
 **Decision:** Expose Solomon native tools (`orchestrate`, `searchTools`, `subagent`, `switchMode`, `searchSkill`, `loadSkill`) via **prompt-driven native XML** (harness + Go system prompt + `parseToolInvocationsFromText` / OpenAI `tool_calls` wire on the sidecar→Go leg). Do **not** wire `local.customTools` in `cursor-agent.ts`.
 
@@ -275,7 +284,7 @@ No behavior change beyond what is required for compilation.
 | Blocked Cursor redirect / hard-deny stops run | Same loop when `blockedTools.some(shouldStopProxyOnBlockedTool)` | `drainAgentToolStream forceStopRun on hard-denied AskQuestion (2.11)`, existing StrReplace test (2.10) |
 | Deferred direct tool names stop run (no SDK bridge execution) | `shouldStopProxyOnBlockedTool` now includes `shouldBlockDeferredSolomonTool` for labels like `readFile` | `drainAgentToolStream forceStopRun on deferred readFile direct call (2.11)` |
 | `run.cancel()` invoked when supported | `forceStopRun` in `run-control.ts` | `forceStopRun calls run.cancel when supported (2.11)` |
-| No SDK `local.customTools` / no in-process tool executor | `cursor-agent.ts` `Agent.create` has no `customTools`; external MCP hard-blocked | `blocks SDK custom-user-tools MCP calls as external` |
+| No in-process workspace execution | Stub `execute` in `custom-tools.ts`; bridge intercepts before host work | `bridges SDK custom-user-tools MCP calls to Solomon` in `openai-tools.test.ts` |
 | Default proxy mode enables SDK sandbox | `createAgentWithOptions` sets `sandboxOptions: { enabled: true }` when `allowCursorInternalTools` is false | — (manual) |
 
 **Shared path:** Both `chat/stream.ts` and `chat/nonstream.ts` call `drainAgentToolStream`; there is no stream-only `forceStopRun` bypass.
@@ -291,7 +300,11 @@ No behavior change beyond what is required for compilation.
 5. Optional: repeat with `stream: true` and `stream: false` completions to confirm identical stop behavior.
 6. Do **not** enable `cursor_internal_tools = true` for Composer production — that mode delegates native Cursor tool execution to the SDK on `cwd` (documented escape hatch only).
 
-**Implications for 2.2:** Update harness + correction copy (2.5–2.8); **do not** implement `openAIToolsToMcpTools` → `Agent.create({ local: { customTools } })`. Optional later: bump `@cursor/sdk` for unrelated features — not required for native-tool exposure.
+**Implications for 2.2:** Harness + correction copy updated; `openAIToolsToMcpTools` → `Agent.create({ local: { customTools } })` wired. Unknown `custom-user-tools` names still hard-blocked.
+
+**Go circuit breaker:** [`turnloop/loop.go`](internal/agent/runtime/turnloop/loop.go) stops after 3 consecutive proxy corrections per user turn.
+
+**Observability:** Solomon sets `CURSOR_API_PROXY_OBS=1` on managed sidecar start ([`manager.go`](internal/integrations/cursor/manager.go)).
 
 ---
 
