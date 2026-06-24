@@ -147,7 +147,6 @@ func RunInstall(opts InstallOpts) (err error) {
 			p.DisplayName = meta.DisplayName
 		}
 		shCmd := EnsureSkillsAddGlobalYes(meta.InstallShellCommand())
-		termcolor.WriteSystem(opts.Out, fmt.Sprintf("Command: %s", shCmd))
 		ok, err := ConfirmInstall(opts.In, opts.Out, meta)
 		if err != nil {
 			return err
@@ -185,6 +184,9 @@ func RunInstall(opts InstallOpts) (err error) {
 	}
 	installCmd = validatedCmd.Display
 	logging.Log(logging.INFO_LOG_LEVEL, "skill npm install", logging.LogOptions{Params: map[string]any{"command": installCmd}})
+	if opts.Out != nil {
+		termcolor.WriteSystem(opts.Out, fmt.Sprintf("Command: %s", installCmd))
+	}
 	if err := runInstallShellCommand(ctx, installCmd, opts.Out, opts.Out); err != nil {
 		return fmt.Errorf("npm/skills install failed: %w", err)
 	}
@@ -196,11 +198,10 @@ func RunInstall(opts InstallOpts) (err error) {
 	if meta != nil {
 		preferred = meta.PreferredSkill
 	}
-	picked, err := pickImportedSkillDir(before, after, preferred)
+	srcDir, picked, err := resolveInstalledSkillDir(agentsRoot, before, after, cwdSnap, preferred)
 	if err != nil {
 		return err
 	}
-	srcDir := filepath.Join(agentsRoot, picked)
 	canonical, err := canonicalForRegistry(installCmd, meta)
 	if err != nil {
 		return err
@@ -248,9 +249,6 @@ func RunInstall(opts InstallOpts) (err error) {
 	}
 	if err := WithRegistryLock(lockPath, regPath, func(r *Registry) error {
 		final := UniqueDisplayName(r, canonical, display, p.Scope, opts.ProjHex, skillKey)
-		if final != strings.TrimSpace(display) && opts.Out != nil {
-			termcolor.WriteSystem(opts.Out, fmt.Sprintf("Display name %q already in use; using %q.", strings.TrimSpace(display), final))
-		}
 		entry := SkillEntry{
 			Name:         final,
 			SourceRepo:   canonical,
@@ -274,12 +272,6 @@ func RunInstall(opts InstallOpts) (err error) {
 	logging.Log(logging.INFO_LOG_LEVEL, "skill install complete", logging.LogOptions{Params: map[string]any{"scope": p.Scope, "repo": canonical, "folder": picked}})
 	if err := CleanupNPMCwdArtifacts(cwdSnap, picked); err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "skill install cwd cleanup failed", logging.LogOptions{Params: map[string]any{"err": err.Error(), "projRoot": opts.ProjRoot}})
-		if opts.Out != nil {
-			termcolor.WriteSystem(opts.Out, fmt.Sprintf("Skill installed; could not remove npm cwd artifacts: %v", err))
-		}
-	}
-	if opts.Out != nil {
-		termcolor.WriteSystem(opts.Out, fmt.Sprintf("Skill copied from ~/.agents/skills/%s into Solomon registry.", picked))
 	}
 	return nil
 }
