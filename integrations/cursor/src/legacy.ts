@@ -4,6 +4,7 @@ export { formatBridgedToolCallsBlock } from "./bridge/xml.js";
 export {
   bridgeToolInvocation,
   collectBridgedTool,
+  mapCursorToolInvocation,
   tryCollectBridgedTool,
 } from "./bridge/invocation.js";
 export { DEFAULT_SUBAGENT_SYS_PATH } from "./legacy-normalize.js";

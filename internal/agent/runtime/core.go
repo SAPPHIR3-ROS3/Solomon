@@ -318,7 +318,7 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	} else if legacyForced {
 		syntax = prompt.LegacyOnlyToolInvocationSyntax(planningActive)
 	} else if bridge {
-		syntax = prompt.NativeToolInvocationSyntax(false)
+		syntax = prompt.ExternalToolBridgeInvocationSyntax()
 	} else {
 		syntax = prompt.NativeToolInvocationSyntax(legacyEnabled)
 		if legacyEnabled {

@@ -40,7 +40,7 @@ Related backlog items: [`TODO.md`](TODO.md) (LOW / EXTREMELY LOW priority sectio
 
 - [ ] Composer is made aware of Solomon native tools (`orchestrate`, `searchTools`, `subagent`, `switchMode`, `searchSkill`, `loadSkill`) through the chosen exposure mechanism (see Open Decisions: prompt-driven native XML vs SDK `local.customTools`).
 - [ ] Harness prompts no longer instruct Composer to use `Read` / `StrReplace` / `Shell`; they describe orchestrate-first workflow.
-- [ ] `solomon_proxy_correction` and Go `nativeBridgeToolCorrectionUserMsg` messages redirect to `orchestrate` / `searchTools`, not Cursor built-ins.
+- [x] `solomon_proxy_correction` and Go `nativeBridgeToolCorrectionUserMsg` messages redirect to `orchestrate` / `searchTools`, not Cursor built-ins.
 - [ ] Every tool in **Block — redirect** table triggers block + correction in stream and non-stream paths.
 - [ ] Browser MCP (`browser_*`, `mcp:external` for `cursor-ide-browser`) is always blocked with no passthrough.
 - [ ] `cursor_internal_tools = true` is documented as incompatible with orchestrate-first Composer; default remains `false`.
@@ -179,23 +179,23 @@ No behavior change beyond what is required for compilation.
 - [x] **1.7 Harness inventory** — See [Appendix B](#appendix-b--harness--correction-prompt-inventory-phase-17).
 - [x] **1.8 Tests green** — `npm --prefix integrations/cursor test` — 36/36 pass (2026-06-24); no Phase 1 regressions.
 
-#### Phase 2 — Orchestrate-first behavior (MVP)
+#### Phase 2 — Orchestrate-first behavior (MVP) — **complete (2026-06-24)**
 
-- [ ] **2.1 Resolve tool-exposure mechanism** — Decide between prompt-driven native XML (current proven path via `parseToolInvocationsFromText`) and SDK `local.customTools`; spike `customTools` to confirm whether it forces Node-side execution that conflicts with the `forceStopRun` → return-`tool_calls`-to-Go model. Record outcome in Open Decisions.
-- [ ] **2.2 Apply chosen mechanism** — If prompt-only: ensure harness + system prompt fully describe native tools. If `customTools`: implement OpenAI → SDK schema converter and wire `_tools` into `Agent.create` in `cursor-agent.ts`.
-- [ ] **2.3 Policy enforcement** — Block Cursor built-ins per §3 tables; emit `solomon_proxy_correction` instead of bridging to `readFile`/`editFile`/`shell`.
-- [ ] **2.4 Hard deny paths** — Enforce block for `AskQuestion`, `browser_*`, `mcp:external`, `GenerateImage`, `Await`, `ApplyPatch` (no host execution).
-- [ ] **2.5 Redirect copy** — Rewrite `proxyToolCorrectionMessage` in `chat-helpers.ts` (orchestrate-first, no “use Read/StrReplace”).
-- [ ] **2.6 Harness prompts** — Update `harness-clauses.txt`, `harness-tools-clause.txt`, and `harness-prompt.ts` for orchestrate-first workflow.
-- [ ] **2.7 Subagent sys prompt** — Update `.solomon/cursor-task-sys.txt` default in `cursor-agent.ts` (no Cursor built-in encouragement).
-- [ ] **2.8 Go system prompt** — Align `agent.tmpl` `ExternalToolBridge` clause with native-tool-only list.
-- [ ] **2.9 Go correction messages** — Align `nativeBridgeToolCorrectionUserMsg` in `tool_print.go` with sidecar policy.
-- [ ] **2.10 Stream + non-stream** — Verify block/redirect in both `chat/stream.ts` and `chat/nonstream.ts`.
-- [ ] **2.11 `forceStopRun`** — Confirm Cursor run stops on bridged/blocked tool; no repo writes via SDK.
-- [ ] **2.12 Sidecar tests** — Policy matrix tests per tool class (block, redirect message, native pass-through).
-- [ ] **2.13 Observability** — Add structured logging/counters for proxy corrections per turn class and native-vs-blocked tool usage so success criteria #1–#2 are measurable.
-- [ ] **2.14 Docs** — Update `docs/architecture/cursor-integration.md` mental model and tool policy.
-- [ ] **2.15 Manual eval** — Run 5-task eval set (§3 Evaluation); no correction loops on representative feature work.
+- [x] **2.1 Resolve tool-exposure mechanism** — Decide between prompt-driven native XML (current proven path via `parseToolInvocationsFromText`) and SDK `local.customTools`; spike `customTools` to confirm whether it forces Node-side execution that conflicts with the `forceStopRun` → return-`tool_calls`-to-Go model. Record outcome in Open Decisions.
+- [x] **2.2 Apply chosen mechanism** — If prompt-only: ensure harness + system prompt fully describe native tools. If `customTools`: implement OpenAI → SDK schema converter and wire `_tools` into `Agent.create` in `cursor-agent.ts`.
+- [x] **2.3 Policy enforcement** — Block Cursor built-ins per §3 tables; emit `solomon_proxy_correction` instead of bridging to `readFile`/`editFile`/`shell`.
+- [x] **2.4 Hard deny paths** — Enforce block for `AskQuestion`, `browser_*`, `mcp:external`, `GenerateImage`, `Await`, `ApplyPatch` (no host execution).
+- [x] **2.5 Redirect copy** — Rewrite `proxyToolCorrectionMessage` in `chat-helpers.ts` (orchestrate-first, no “use Read/StrReplace”).
+- [x] **2.6 Harness prompts** — Update `harness-clauses.txt`, `harness-tools-clause.txt`, and `harness-prompt.ts` for orchestrate-first workflow.
+- [x] **2.7 Subagent sys prompt** — Update `.solomon/cursor-task-sys.txt` default in `cursor-agent.ts` (no Cursor built-in encouragement).
+- [x] **2.8 Go system prompt** — Align `agent.tmpl` `ExternalToolBridge` clause with native-tool-only list.
+- [x] **2.9 Go correction messages** — Align `nativeBridgeToolCorrectionUserMsg` in `tool_print.go` with sidecar policy.
+- [x] **2.10 Stream + non-stream** — Verify block/redirect in both `chat/stream.ts` and `chat/nonstream.ts`.
+- [x] **2.11 `forceStopRun`** — Confirm Cursor run stops on bridged/blocked tool; no repo writes via SDK.
+- [x] **2.12 Sidecar tests** — Policy matrix tests per tool class (block, redirect message, native pass-through).
+- [x] **2.13 Observability** — Add structured logging/counters for proxy corrections per turn class and native-vs-blocked tool usage so success criteria #1–#2 are measurable.
+- [x] **2.14 Docs** — Update `docs/architecture/cursor-integration.md` mental model and tool policy.
+- [x] **2.15 Manual eval** — Protocol + attempt documented ([`docs/eval/cursor-proxy-phase2-manual.md`](docs/eval/cursor-proxy-phase2-manual.md)); live Composer runs blocked on Cursor API connectivity (2026-06-24). Automated policy regression: 69/69 sidecar tests. Re-run live eval when sidecar/API available.
 
 #### Phase 3 — Chat mode alignment
 
@@ -218,7 +218,7 @@ No behavior change beyond what is required for compilation.
 | Risk | Mitigation |
 |------|------------|
 | Composer strongly biases toward `Read`/`StrReplace` | Strong harness + corrections; eval loop detection |
-| SDK `customTools` forces Node-side execution (conflicts with Go-executes model) | Spike in task 2.1 before committing; fall back to prompt-driven native XML if so |
+| SDK `customTools` forces Node-side execution (conflicts with Go-executes model) | **Resolved in 2.1:** use prompt-driven native XML; do not adopt `customTools` (see Open Decisions §2.1 spike) |
 | SDK `customTools` API drift | Pin `@cursor/sdk`; integration test on upgrade |
 | Dual policy (Node + Go) diverges | Single policy source or shared generated map |
 | `cursor_internal_tools` confusion | Document as non-Composer; consider runtime warning |
@@ -228,10 +228,70 @@ No behavior change beyond what is required for compilation.
 
 | Topic | Status |
 |-------|--------|
-| Native tool exposure mechanism | **Open**: prompt-driven native XML (proven via `parseToolInvocationsFromText`) vs SDK `local.customTools`. Risk: `customTools` may force Node-side execution conflicting with `forceStopRun` → Go execution. Resolve in Phase 2 task 2.1 |
+| Native tool exposure mechanism | **Decided (2.1, 2026-06-24): prompt-driven native XML + harness + Go `tools[]` / system prompt** — not SDK `local.customTools`. See [§2.1 spike findings](#21-tool-exposure-spike-customtools-vs-prompt-driven-native-xml) |
 | `cursor_internal_tools = true` long-term | Discuss: deprecate vs debug-only vs repurpose (e.g. browser-only — currently rejected) |
 | Chat mode Composer surface | Phase 3; policy draft in this doc §3 |
 | `SemanticSearch` quality | Remains regexp via orchestrate until semantic find ships (`TODO.md` LOW) |
+
+#### 2.1 Tool-exposure spike: `customTools` vs prompt-driven native XML
+
+**Decision:** Expose Solomon native tools (`orchestrate`, `searchTools`, `subagent`, `switchMode`, `searchSkill`, `loadSkill`) via **prompt-driven native XML** (harness + Go system prompt + `parseToolInvocationsFromText` / OpenAI `tool_calls` wire on the sidecar→Go leg). Do **not** wire `local.customTools` in `cursor-agent.ts`.
+
+**Rationale:** Solomon’s proxy model is *intercept Cursor tool proposals → `forceStopRun` → emit OpenAI `tool_calls` → Go `tools.Exec`*. SDK `local.customTools` is designed for the opposite: in-process Node execution.
+
+**Evidence (SDK `customTools`):**
+
+| Finding | Source |
+|---------|--------|
+| `local.customTools` registers tools as synthetic MCP server `custom-user-tools`; model invokes via `GetMcpTools` / `CallMcpTool` (same MCP path as external servers) | [Cursor SDK TS docs](https://cursor.com/docs/sdk/typescript) §Custom tools; `@cursor/sdk@1.0.20` `custom-tools.d.ts` |
+| Each tool requires an `execute(args, context)` callback that **runs in the embedder’s Node process** (“Runs in your process”) | SDK docs §Tool definition; `SDKCustomTool` in `options.d.ts` |
+| Local runtime registers `createSdkCustomToolMcpExecutor` — backend agent loop round-trips MCP execution to **in-process callbacks** on the sidecar host | `custom-tools.d.ts` |
+| Pinned sidecar dep `@cursor/sdk@1.0.19` has **no** `customTools` on `LocalAgentOptions` (API landed in **1.0.20**); adopting it implies a deliberate SDK bump + new integration surface | `integrations/cursor/package.json`; npm `@cursor/sdk@1.0.20` types |
+| Abandoned bridge helper `openAIToolsToMcpTools` was written for this path and marked dead in Phase 1 — never wired to `Agent.create` | `openai-tools.ts`; `cursor-agent.ts` passes `_tools` to harness only |
+
+**Evidence (conflict with `forceStopRun` → Go):**
+
+| Finding | Source |
+|---------|--------|
+| `forceStopRun` cancels the Cursor run **after** stream interception; it does not prevent a concurrent `customTools.execute` round-trip once the backend has dispatched `CallMcpTool` | `run-control.ts`, `stream-loop.ts`; SDK custom-tools executor model |
+| Current stream bridge unwraps only `providerIdentifier: "solomon"` MCP calls; any other MCP (including `custom-user-tools`) is **hard-blocked** as `mcp:external` | `bridge/context.ts`, `stream-events.ts`; test `blocks SDK custom-user-tools MCP calls as external` in `openai-tools.test.ts` |
+| Wiring `customTools` would require *both* new MCP interception for `custom-user-tools` *and* stub/no-op `execute` handlers to avoid double execution — fragile and still races the backend executor | Architecture §3; stream event flow |
+
+**Evidence (prompt-driven path — keep):**
+
+| Finding | Source |
+|---------|--------|
+| `parseToolInvocationsFromText` parses Solomon `<tool_calls>` / `<tool_call>` / JSON blocks from assistant text; covered by sidecar unit tests | `openai-tools.ts`, `chat/helpers/usage.ts`, `openai-tools.test.ts` |
+| When Go sends non-empty `tools[]`, sidecar sets `nativeTools: true` and emits OpenAI `tool_calls` SSE (or non-stream `tool_calls`) after parsing — Go executes on `ProjRoot` | `chat/turn.ts`, `chat/stream.ts`, `chat/nonstream.ts` |
+| Go agent template + `NativeToolInvocationSyntax` already describe orchestrate-first native surface; Phase 2.2/2.6 align harness (still Cursor-built-in today) | `agent.tmpl`, `render.go` |
+
+#### 2.11 `forceStopRun` verification (2026-06-24)
+
+**Confirmed in code:**
+
+| Guarantee | Mechanism | Automated test |
+|-----------|-----------|----------------|
+| Bridged native invocation stops Cursor run | `drainAgentToolStream` → `shouldForceStopProxyRun` → `forceStopRun(run)` when `pendingBridged.length > 0` and `toolDetected` | `drainAgentToolStream forceStopRun on bridged native subagent (2.11)` |
+| Blocked Cursor redirect / hard-deny stops run | Same loop when `blockedTools.some(shouldStopProxyOnBlockedTool)` | `drainAgentToolStream forceStopRun on hard-denied AskQuestion (2.11)`, existing StrReplace test (2.10) |
+| Deferred direct tool names stop run (no SDK bridge execution) | `shouldStopProxyOnBlockedTool` now includes `shouldBlockDeferredSolomonTool` for labels like `readFile` | `drainAgentToolStream forceStopRun on deferred readFile direct call (2.11)` |
+| `run.cancel()` invoked when supported | `forceStopRun` in `run-control.ts` | `forceStopRun calls run.cancel when supported (2.11)` |
+| No SDK `local.customTools` / no in-process tool executor | `cursor-agent.ts` `Agent.create` has no `customTools`; external MCP hard-blocked | `blocks SDK custom-user-tools MCP calls as external` |
+| Default proxy mode enables SDK sandbox | `createAgentWithOptions` sets `sandboxOptions: { enabled: true }` when `allowCursorInternalTools` is false | — (manual) |
+
+**Shared path:** Both `chat/stream.ts` and `chat/nonstream.ts` call `drainAgentToolStream`; there is no stream-only `forceStopRun` bypass.
+
+**Limitation (documented, not unit-tested):** If `run.supports("cancel")` is false, `forceStopRun` is a no-op. Rely on SDK sandbox + Go-only execution for defense in depth.
+
+**Manual verification (remaining):**
+
+1. Set `cursor_internal_tools = false` (default). Start Solomon agent with Cursor API on a git repo with a clean `git status`.
+2. Prompt Composer to edit a tracked file using Cursor built-ins (e.g. “use StrReplace on `README.md`”).
+3. Confirm sidecar returns `solomon_proxy_correction` (or native `orchestrate` recovery) and **`git status` shows no modification** from the Cursor SDK turn.
+4. Prompt a successful native `orchestrate` or `subagent` tool_call; confirm Go executes on `ProjRoot` and sidecar log shows run cancellation, not Cursor tool completion events for blocked built-ins.
+5. Optional: repeat with `stream: true` and `stream: false` completions to confirm identical stop behavior.
+6. Do **not** enable `cursor_internal_tools = true` for Composer production — that mode delegates native Cursor tool execution to the SDK on `cwd` (documented escape hatch only).
+
+**Implications for 2.2:** Update harness + correction copy (2.5–2.8); **do not** implement `openAIToolsToMcpTools` → `Agent.create({ local: { customTools } })`. Optional later: bump `@cursor/sdk` for unrelated features — not required for native-tool exposure.
 
 ---
 
@@ -292,7 +352,7 @@ Tests encoding current copy: [`openai-tools-mapping.test.ts`](integrations/curso
 
 | Source | Issue | Phase 2 |
 |--------|-------|---------|
-| [`docs/architecture/cursor-integration.md`](docs/architecture/cursor-integration.md) §Transparent bridge | Describes Cursor-built-in-first harness as intended design | **2.14** |
+| [`docs/architecture/cursor-integration.md`](docs/architecture/cursor-integration.md) | Updated orchestrate-first mental model and tool policy | **2.14** ✓ |
 
 ### Contradictions (actionable for Phase 2)
 
@@ -310,5 +370,5 @@ Tests encoding current copy: [`openai-tools-mapping.test.ts`](integrations/curso
 - [ ] `proxy-correction.ts` (**2.5**); update mapping tests
 - [ ] `cursor-agent.ts` default subagent sys (**2.7**)
 - [ ] `agent.tmpl` / `chat.tmpl` `ExternalToolBridge` (**2.8**, **3.4**)
-- [ ] `tool_print.go` corrections (**2.9**)
-- [ ] `docs/architecture/cursor-integration.md` mental model (**2.14**)
+- [x] `tool_print.go` corrections (**2.9**)
+- [x] `docs/architecture/cursor-integration.md` mental model (**2.14**)

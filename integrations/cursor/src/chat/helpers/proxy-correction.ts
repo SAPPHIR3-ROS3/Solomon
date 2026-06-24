@@ -1,29 +1,35 @@
 import {
-  proxyEnabledToolsLabel,
-  proxyShellFallbackAllowed,
+  correctionHintForBlockedTool,
+  isHardDenyBlockedLabel,
+  shouldRedirectCursorTool,
 } from "../../tool-policy.js";
+
+const ORCHESTRATE_FOOTER =
+  "Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via <tool_calls> XML or tool_calls — never Cursor built-ins.";
 
 export function proxyToolCorrectionMessage(
   blocked: string[],
   allowedNames: Set<string> | null,
 ): string {
+  void allowedNames;
   const unique = [...new Set(blocked.map((n) => n.trim()).filter(Boolean))];
   if (unique.length === 0) {
     return "";
   }
-  const enabled = proxyEnabledToolsLabel(allowedNames);
-  const shellAllowed = proxyShellFallbackAllowed(allowedNames);
-  const shellFallback = shellAllowed
-    ? " Default fallback: call Shell again; the host maps it to shell and runs it on the workspace (include intent). "
-    : " ";
-  return (
-    `Your previous tool call was rejected or not mappable: ${unique.join(", ")}. ` +
-    "Use normal Cursor built-in tools (Read, StrReplace, Write, Grep, Glob, Shell, Delete, SemanticSearch, Task, etc.); " +
-    "the Solomon host bridge intercepts them and executes on the real workspace when mapped. " +
-    `Host-enabled capabilities: ${enabled}. ` +
-    shellFallback +
-    "Prefer Read for file inspection, StrReplace/Write for edits, and Grep/Glob for search. " +
-    "For nested work use Task (mapped to subagent). For web content use fetchWeb or webSearch when available. " +
-    "Send a corrected tool call only, or continue without tools if you meant plain text."
-  );
+  const parts: string[] = [`Blocked by Solomon proxy: ${unique.join(", ")}.`];
+  const hints: string[] = [];
+  for (const name of unique) {
+    const hint = correctionHintForBlockedTool(name);
+    if (hint) {
+      hints.push(hint);
+    }
+  }
+  if (hints.length > 0) {
+    parts.push(hints.join(" "));
+  }
+  if (unique.some((n) => !isHardDenyBlockedLabel(n) && (shouldRedirectCursorTool(n) || n.startsWith("mcp:")))) {
+    parts.push(ORCHESTRATE_FOOTER);
+  }
+  parts.push("Reply with a corrected invocation or plain text.");
+  return parts.join(" ");
 }

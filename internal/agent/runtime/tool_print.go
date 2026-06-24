@@ -16,9 +16,240 @@ import (
 
 const legacyToolJSONCorrectionUserMsg = "Your previous reply contained a malformed tool-invocation block. Preferred shape:\n<tool_calls>\n<tool name=\"TOOL_NAME\">\n<intent>brief purpose</intent>\n<args>{\"key\":\"value\"}</args>\n</tool>\n</tool_calls>\nAlso accepted: <tool_call>{\"name\":\"TOOL_NAME\",\"arguments\":{...}}</tool_call> or <functioncall>{\"name\":\"TOOL_NAME\",\"arguments\":{...}}</functioncall> with valid JSON. Close <tool name=\"...\"> with </tool>, not </tool_call>. Send a corrected block only, or continue without tools if you meant plain text."
 
-const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Use readFile, editFile, and shell via function calling with JSON arguments that match each tool schema. Do not emit <tool_calls> XML or other textual tool-invocation examples in assistant text. Send a corrected native tool_call only, or continue without tools if you meant plain text."
+const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via <tool_calls> XML or native tool_calls with JSON arguments that match each tool schema. For workspace read/edit/shell/find/MCP work, call searchTools if unsure, then orchestrate (package main, import \"sdk\") — never emit deferred tools (readFile, editFile, shell, find, …) as direct native tool_calls. Send a corrected invocation or continue without tools if you meant plain text."
+
+const cursorProxyOrchestrateFooter = "Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via <tool_calls> XML or tool_calls — never Cursor built-ins."
 
 const cursorProxyInlineErrorPrefix = "[error] Cursor internal tool call blocked by Solomon proxy:"
+
+const blockedMcpExternalLabel = "mcp:external"
+
+var cursorNativeAliases = map[string]string{
+	"read": "readFile", "Read": "readFile", "read_file": "readFile", "ReadFile": "readFile", "readfile": "readFile",
+	"shell": "shell", "Shell": "shell", "bash": "shell", "Bash": "shell", "run_terminal_cmd": "shell", "terminal": "shell",
+	"edit": "editFile", "Edit": "editFile", "write": "editFile", "Write": "editFile", "StrReplace": "editFile", "strReplace": "editFile", "str_replace": "editFile", "search_replace": "editFile", "Delete": "editFile", "delete": "editFile",
+	"find": "find", "Find": "find", "Grep": "find", "grep": "find", "Glob": "find", "glob": "find", "ListDir": "find", "list_dir": "find", "listDir": "find", "ls": "find", "ripgrep": "find", "rg": "find", "SemanticSearch": "find", "semanticSearch": "find", "semantic_search": "find",
+	"Task": "subagent", "task": "subagent",
+	"WebFetch": "fetchWeb", "webFetch": "fetchWeb", "web_fetch": "fetchWeb", "Fetch": "fetchWeb", "fetch": "fetchWeb",
+	"WebSearch": "webSearch", "webSearch": "webSearch", "web_search": "webSearch",
+}
+
+var cursorHardDenyTools = map[string]struct{}{
+	"AskQuestion": {}, "ask_question": {}, "askQuestion": {},
+	"GenerateImage": {}, "generate_image": {}, "generateImage": {},
+	"Await": {}, "await": {},
+	"ApplyPatch": {}, "apply_patch": {}, "applyPatch": {},
+}
+
+var cursorRedirectExtra = map[string]struct{}{
+	"ReadLints": {}, "read_lints": {}, "readLints": {},
+	"EditNotebook": {}, "edit_notebook": {}, "editNotebook": {},
+	"TodoWrite": {}, "todo_write": {}, "todoWrite": {},
+	"CallMcpTool": {}, "call_mcp_tool": {}, "callMcpTool": {},
+	"FetchMcpResource": {}, "fetch_mcp_resource": {}, "fetchMcpResource": {},
+	"ListMcpResources": {}, "list_mcp_resources": {}, "listMcpResources": {},
+}
+
+var deferredSolomonToolNames = map[string]struct{}{
+	"readFile": {}, "shell": {}, "editFile": {}, "find": {}, "listDir": {},
+	"fetchWeb": {}, "webSearch": {}, "createPlan": {}, "editPlan": {}, "buildPlan": {},
+}
+
+func isBrowserCursorTool(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "browser_") {
+		return true
+	}
+	if len(trimmed) >= 8 {
+		if strings.HasPrefix(trimmed, "browser") || strings.HasPrefix(trimmed, "Browser") {
+			c := trimmed[7]
+			if c >= 'A' && c <= 'Z' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func shouldHardDenyCursorTool(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return false
+	}
+	if _, ok := cursorHardDenyTools[trimmed]; ok {
+		return true
+	}
+	return isBrowserCursorTool(trimmed)
+}
+
+func shouldRedirectCursorTool(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return false
+	}
+	if _, ok := cursorRedirectExtra[trimmed]; ok {
+		return true
+	}
+	_, ok := cursorNativeAliases[trimmed]
+	return ok
+}
+
+func isHardDenyBlockedCursorLabel(label string) bool {
+	trimmed := strings.TrimSpace(label)
+	if trimmed == blockedMcpExternalLabel {
+		return true
+	}
+	return shouldHardDenyCursorTool(trimmed)
+}
+
+func shouldBlockDeferredSolomonTool(name string) bool {
+	_, ok := deferredSolomonToolNames[strings.TrimSpace(name)]
+	return ok
+}
+
+func cursorToolRedirectTarget(cursorName string) string {
+	return cursorNativeAliases[strings.TrimSpace(cursorName)]
+}
+
+func hardDenyCorrectionHint(toolName string) string {
+	trimmed := strings.TrimSpace(toolName)
+	if trimmed == "" {
+		return ""
+	}
+	if trimmed == blockedMcpExternalLabel {
+		return "External MCP servers (including Cursor IDE browser) are not available on this host."
+	}
+	if isBrowserCursorTool(trimmed) {
+		return "Cursor IDE browser tools are not available on this host."
+	}
+	key := strings.ToLower(strings.ReplaceAll(trimmed, "_", ""))
+	switch key {
+	case "askquestion":
+		return "Ask the user in plain text instead of AskQuestion."
+	case "generateimage":
+		return "Describe the image in text or use an orchestrate workaround; image generation is not available."
+	case "await":
+		return "Use synchronous orchestrate or subagent async polling instead of Await."
+	case "applypatch":
+		return "Use orchestrate with the sandbox write/replace SDK for edits; unified diff ApplyPatch is not supported."
+	default:
+		if shouldHardDenyCursorTool(trimmed) {
+			return "This Cursor tool is not available on this host."
+		}
+		return ""
+	}
+}
+
+func redirectExtraCorrectionHint(toolName string) string {
+	key := strings.ToLower(strings.ReplaceAll(toolName, "_", ""))
+	switch key {
+	case "readlints":
+		return "Lint diagnostics: use orchestrate; Cursor ReadLints is not available on this host."
+	case "editnotebook":
+		return "Notebook edits: use orchestrate until a dedicated notebook tool ships."
+	case "todowrite":
+		return "Plan todos: use orchestrate with addTodo, todoList, checkTodo, or related plan SDK helpers."
+	case "callmcptool", "fetchmcpresource", "listmcpresources":
+		return "MCP work: call searchTools for schemas, then orchestrate with the MCP sandbox SDK."
+	default:
+		return ""
+	}
+}
+
+func redirectCorrectionHint(toolName string) string {
+	trimmed := strings.TrimSpace(toolName)
+	if trimmed == "" || isHardDenyBlockedCursorLabel(trimmed) {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "mcp:") {
+		deferred := trimmed[4:]
+		if shouldBlockDeferredSolomonTool(deferred) {
+			return deferred + ": call searchTools, then orchestrate with the matching sandbox SDK — not a direct native tool_call."
+		}
+		return ""
+	}
+	if extra := redirectExtraCorrectionHint(trimmed); extra != "" {
+		return extra
+	}
+	if !shouldRedirectCursorTool(trimmed) {
+		return ""
+	}
+	switch cursorToolRedirectTarget(trimmed) {
+	case "readFile":
+		return "File reads: call searchTools if unsure, then orchestrate with sdk.ReadFile."
+	case "editFile":
+		return "File edits: orchestrate with sdk.WriteFile, sdk.ReplaceInFile, or sdk.DeleteFile."
+	case "shell":
+		return "Terminal work: orchestrate with sdk.Shell (sync only)."
+	case "find":
+		return "Search/listing: orchestrate with sdk.Glob, sdk.Grep, or find SDK helpers."
+	case "subagent":
+		return "Nested agent work: emit native subagent via <tool_calls> or tool_calls."
+	case "fetchWeb":
+		return "HTTP fetch: orchestrate with sdk.FetchWeb."
+	case "webSearch":
+		return "Web search: orchestrate with sdk.WebSearch."
+	default:
+		return "Call searchTools, then orchestrate with the sandbox SDK."
+	}
+}
+
+func correctionHintForBlockedCursorTool(toolName string) string {
+	if hint := hardDenyCorrectionHint(toolName); hint != "" {
+		return hint
+	}
+	return redirectCorrectionHint(toolName)
+}
+
+func uniqueNonEmptyTrimmed(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
+}
+
+func cursorProxyToolCorrectionMessage(blocked []string) string {
+	unique := uniqueNonEmptyTrimmed(blocked)
+	if len(unique) == 0 {
+		return ""
+	}
+	parts := []string{"Blocked by Solomon proxy: " + strings.Join(unique, ", ") + "."}
+	var hints []string
+	for _, name := range unique {
+		if hint := correctionHintForBlockedCursorTool(name); hint != "" {
+			hints = append(hints, hint)
+		}
+	}
+	if len(hints) > 0 {
+		parts = append(parts, strings.Join(hints, " "))
+	}
+	includeFooter := false
+	for _, n := range unique {
+		if !isHardDenyBlockedCursorLabel(n) && (shouldRedirectCursorTool(n) || strings.HasPrefix(n, "mcp:")) {
+			includeFooter = true
+			break
+		}
+	}
+	if includeFooter {
+		parts = append(parts, cursorProxyOrchestrateFooter)
+	}
+	parts = append(parts, "Reply with a corrected invocation or plain text.")
+	return strings.Join(parts, " ")
+}
 
 func newLegacyStreamWriter(out io.Writer, enabled bool, allowed map[string]struct{}) (*tooling.LegacyStreamWriter, io.Writer) {
 	if !enabled {
@@ -146,11 +377,20 @@ func stripCursorProxyInlineErrors(content string) (string, string) {
 	if len(blocked) == 0 {
 		return content, ""
 	}
-	fallback := nativeBridgeToolCorrectionUserMsg
-	if len(blocked) > 0 {
-		fallback = "Your previous reply attempted disabled Cursor built-in tool(s): " + strings.Join(blocked, ", ") + ". " + strings.TrimPrefix(nativeBridgeToolCorrectionUserMsg, "Your previous reply did not include valid native API tool_calls. ")
-	}
+	fallback := cursorProxyToolCorrectionMessage(blocked)
 	return cleaned, fallback
+}
+
+func CursorProxyToolCorrectionMessageForTest(blocked []string) string {
+	return cursorProxyToolCorrectionMessage(blocked)
+}
+
+func StripCursorProxyInlineErrorsForTest(content string) (string, string) {
+	return stripCursorProxyInlineErrors(content)
+}
+
+func NativeBridgeToolCorrectionUserMsgForTest() string {
+	return nativeBridgeToolCorrectionUserMsg
 }
 
 func legacyToolScreenMessage(err error) string {

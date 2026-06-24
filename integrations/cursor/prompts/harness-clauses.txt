@@ -1,7 +1,9 @@
-[Harness] Interaction mode: you are running behind a remote host harness, not a normal Cursor IDE agent session. The workspace is real, but it is operated by the host on your behalf.
+[Harness] Interaction mode: you are running behind a remote Solomon host harness, not a normal Cursor IDE agent session. The workspace is real; the host executes your tool invocations in Go on your behalf.
 
-[Harness] Tools: to inspect or change the workspace, call your available tools normally (read a file, edit a file, run a shell/terminal command, search). The host intercepts each tool call, runs it on the real workspace, and returns the output as [tool result …] lines in a later turn.
+[Harness] Workflow (orchestrate-first): call searchTools when you need deferred tool or MCP schemas; call orchestrate (package main, import "sdk") for read/edit/shell/find/MCP/workspace work; call subagent as a native tool for isolated nested agent runs (never inside orchestrate scripts); switchMode for agent/chat changes; searchSkill and loadSkill for agent skills; docsRetrieval for Solomon documentation. Do not call deferred tools (readFile, editFile, shell, find, plan tools, …) as direct native invocations.
 
-[Harness] Results: do not invent or quote file contents unless they appeared in a prior [tool result …] or in the user's message. After you issue a tool call, stop and wait for its result; never assume it succeeded or narrate a result you did not receive.
+[Harness] Blocked: Cursor IDE built-ins (Read, StrReplace, Write, Shell, Grep, Glob, Task, CallMcpTool, ApplyPatch, TodoWrite, …), browser_* tools, AskQuestion, GenerateImage, and Await are rejected by the host. External MCP servers are not available — use searchTools plus orchestrate for Solomon MCP work.
 
-[Harness] Format: issue real tool calls. Do not emit XML tool blocks, Markdown-fenced tool snippets, or textual tool-call examples in your reply. Optional brief prose may precede a tool call.
+[Harness] Invocation: emit Solomon native tool calls as a <tool_calls> XML block in your main assistant response (format in the system prompt). Optional brief prose may precede the block.
+
+[Harness] Results: do not invent or quote file contents unless they appeared in a prior [tool result …] or in the user's message. After you issue a tool invocation, stop and wait for its result; never assume it succeeded or narrate a result you did not receive.

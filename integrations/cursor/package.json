@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external && node -e \"require('node:fs').cpSync('prompts','dist/prompts',{recursive:true})\"",
-    "test": "esbuild test/openai-tools.test.ts --bundle --platform=node --format=esm --outfile=.test/openai-tools.test.mjs --packages=external && esbuild test/openai-tools-mapping.test.ts --bundle --platform=node --format=esm --outfile=.test/openai-tools-mapping.test.mjs --packages=external && node --test .test/openai-tools.test.mjs .test/openai-tools-mapping.test.mjs",
+    "test": "esbuild test/openai-tools.test.ts --bundle --platform=node --format=esm --outfile=.test/openai-tools.test.mjs --packages=external && esbuild test/openai-tools-mapping.test.ts --bundle --platform=node --format=esm --outfile=.test/openai-tools-mapping.test.mjs --packages=external && esbuild test/policy-matrix.test.ts --bundle --platform=node --format=esm --outfile=.test/policy-matrix.test.mjs --packages=external && esbuild test/proxy-observability.test.ts --bundle --platform=node --format=esm --outfile=.test/proxy-observability.test.mjs --packages=external && node --test .test/openai-tools.test.mjs .test/openai-tools-mapping.test.mjs .test/policy-matrix.test.mjs .test/proxy-observability.test.mjs",
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@cursor/sdk": "1.0.19"
+    "@cursor/sdk": "1.0.20"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

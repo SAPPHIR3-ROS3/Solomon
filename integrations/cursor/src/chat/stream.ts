@@ -1,7 +1,7 @@
 import { type SDKAgent } from "@cursor/sdk";
 import type { ServerResponse } from "node:http";
 import { sanitizeReflectedText } from "../messages.js";
-import { formatBridgedToolCallsBlock, type BridgedToolInvocation } from "../legacy.js";
+import { formatBridgedToolCallsBlock } from "../legacy.js";
 import type { ChatMessage } from "../openai-types.js";
 import { writeSSEToolCalls } from "../openai-tools.js";
 import {
@@ -25,17 +25,16 @@ import { disposeAgent, sendStateless, type AgentSendOpts } from "../cursor-agent
 import {
   buildOpenAIUsage,
   finishReasonForTools,
-  nativeInvocationsFromText,
   nextTextChunk,
 } from "../chat-helpers.js";
 import { createAgentToolStreamState, drainAgentToolStream } from "../chat/helpers/stream-loop.js";
 import { cursorToolEventChunk, type CursorNativeToolEvent } from "../cursor-native-tools.js";
+import { observeProxyTurn } from "../proxy-observability.js";
 import type { ProxyConfig } from "./index.js";
 import {
-  emitBridgedTools,
   emitBufferedContent,
   emitBufferedReasoning,
-  resolveProxyCorrection,
+  finalizeTurnToolResults,
   streamUsageInput,
   type TurnOpts,
 } from "./turn.js";
@@ -131,7 +130,7 @@ export async function streamCompletion(
           },
         },
       );
-      const { pendingBridged, blockedTools, toolDetected } = streamState;
+      const { pendingBridged } = streamState;
       const finishStream = (finishReason: OpenAIFinishReason = "stop", proxyCorrection?: string) => {
         finishStreamWithUsage(
           res,
@@ -147,32 +146,33 @@ export async function streamCompletion(
         return;
       }
       emitBufferedReasoning(res, completionId, model, thinkingBuf.slice(emittedThinkingLen));
-      let nativeInvocations: BridgedToolInvocation[] = [];
-      if (turnOpts.nativeTools) {
-        const parsed = nativeInvocationsFromText(proseBuf, turnOpts);
-        proseBuf = parsed.content;
-        nativeInvocations = parsed.invocations;
-        blockedTools.push(...parsed.blockedTools);
-      }
+      const finalized = finalizeTurnToolResults(streamState, proseBuf, turnOpts);
+      observeProxyTurn({
+        stream: true,
+        bridgedTools: finalized.bridged.map((b) => b.name),
+        blockedTools: finalized.blockedTools,
+        proxyCorrection: finalized.proxyCorrection !== undefined,
+      });
+      proseBuf = finalized.content;
       emitBufferedContent(res, completionId, model, proseBuf);
-      if (turnOpts.nativeTools && nativeInvocations.length > 0) {
-        writeSSEToolCalls(res, completionId, model, nativeInvocations);
-        finishStream("tool_calls", resolveProxyCorrection(blockedTools, nativeInvocations.length, turnOpts));
-        return;
-      }
-      if (pendingBridged.length > 0) {
-        const bridged = emitBridgedTools(res, completionId, model, pendingBridged, turnOpts);
-        if (!turnOpts.nativeTools) {
-          proseBuf += formatBridgedToolCallsBlock(bridged);
+      if (finalized.bridged.length > 0 || pendingBridged.length > 0) {
+        if (finalized.bridged.length > 0) {
+          if (turnOpts.nativeTools) {
+            writeSSEToolCalls(res, completionId, model, finalized.bridged);
+          } else {
+            const block = formatBridgedToolCallsBlock(finalized.bridged);
+            writeSSE(res, chunkDelta(completionId, model, { content: block }));
+            proseBuf += block;
+          }
         }
         finishStream(
-          finishReasonForTools(bridged.length, turnOpts.nativeTools),
-          resolveProxyCorrection(blockedTools, bridged.length, turnOpts),
+          finishReasonForTools(finalized.bridged.length, turnOpts.nativeTools),
+          finalized.proxyCorrection,
         );
         return;
       }
       if (!legacyEmitted) {
-        finishStream("stop", resolveProxyCorrection(blockedTools, 0, turnOpts));
+        finishStream("stop", finalized.proxyCorrection);
       }
     } catch (err) {
       if (clientAborted) {
