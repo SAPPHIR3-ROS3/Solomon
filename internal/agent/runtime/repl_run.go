@@ -74,6 +74,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 		HandleSlash:            func(line string) error { return r.handleSlash(ctx, line) },
 		SlashDeps:              func() commands.Deps { return r.slashDeps(ctx) },
 		OnUserMessage:          func(line string) error { return r.onUserMessage(ctx, line, true) },
+		TakeInputInitial:       r.takeReplInputPrefill,
 		ClipboardPasteForStdin: r.replClipboardPasteTag,
 		SaveClipboardImage:     r.saveReplClipboardImageTag,
 	})

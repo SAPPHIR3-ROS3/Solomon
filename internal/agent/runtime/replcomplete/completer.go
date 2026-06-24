@@ -55,8 +55,8 @@ func (c *replCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	if trimLeft >= len(head) {
 		return nil, 0
 	}
-	if head[trimLeft] == '/' {
-		return c.completeSlash(head, pos, trimLeft)
+	if ctx, ok := SlashContextAt(line, pos); ok {
+		return c.completeSlashCtx(ctx, line, pos)
 	}
 	if suf, off, ok := c.completeAtMention(head, pos); ok {
 		return suf, off
@@ -67,29 +67,15 @@ func (c *replCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	return nil, 0
 }
 
-func (c *replCompleter) completeSlash(line []rune, pos, trimLeft int) ([][]rune, int) {
-	text := string(line[:pos])
-	trimmed := string(line[trimLeft:pos])
-	slashOff := len(text) - len(trimmed)
-	rest := trimmed[1:]
-	sp := strings.Index(rest, " ")
-	if sp < 0 {
+func (c *replCompleter) completeSlashCtx(ctx SlashContext, line []rune, pos int) ([][]rune, int) {
+	if ctx.ArgStart < 0 {
+		rest := string(line[ctx.CmdStart:pos])
 		prefix := strings.ToLower(rest)
-		start := slashOff + 1
-		return completeCandidates(line, pos, start, prefix, c.slashCommandNames())
+		return completeCandidates(line, pos, ctx.CmdStart, prefix, c.slashCommandNames())
 	}
-	cmd := strings.ToLower(strings.TrimSpace(rest[:sp]))
-	argStart := slashOff + 1 + sp + 1
-	for argStart < pos && (line[argStart] == ' ' || line[argStart] == '\t') {
-		argStart++
-	}
-	if argStart > pos {
-		return nil, 0
-	}
-	argPrefix := strings.ToLower(string(line[argStart:pos]))
-	return c.completeArg(cmd, line, pos, argStart, argPrefix)
+	argPrefix := strings.ToLower(string(line[ctx.ArgStart:pos]))
+	return c.completeArg(ctx.Cmd, line, pos, ctx.ArgStart, argPrefix)
 }
-
 
 func (c *replCompleter) slashCommandNames() []string {
 	return SlashCommandNames(c.env)
