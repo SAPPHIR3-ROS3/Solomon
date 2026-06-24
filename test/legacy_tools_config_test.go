@@ -74,8 +74,11 @@ model = "m"
 	if !r.Tools.LegacyForce {
 		t.Fatal("expected merged legacy_force=true from root")
 	}
-	if !r.Tools.CursorInternalTools {
-		t.Fatal("expected cursor_internal_tools=true from tools section")
+	if r.Tools.CursorInternalTools {
+		t.Fatal("expected cursor_internal_tools=false after deprecation normalize")
+	}
+	if r.CursorInternalToolsEnabled() {
+		t.Fatal("CursorInternalToolsEnabled must stay false")
 	}
 }
 
@@ -110,7 +113,7 @@ model = "m"
 	if !strings.Contains(text, "[tools]") || !strings.Contains(text, "legacy = true") {
 		t.Fatalf("want [tools] legacy = true in %q", text)
 	}
-	if !strings.Contains(text, "cursor_internal_tools = true") {
-		t.Fatalf("want [tools] cursor_internal_tools = true in %q", text)
+	if strings.Contains(text, "cursor_internal_tools = true") {
+		t.Fatalf("deprecated cursor_internal_tools must not be saved as true: %q", text)
 	}
 }

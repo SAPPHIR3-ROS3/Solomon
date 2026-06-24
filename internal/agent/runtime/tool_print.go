@@ -18,7 +18,7 @@ const legacyToolJSONCorrectionUserMsg = "Your previous reply contained a malform
 
 const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via <tool_calls> XML or native tool_calls with JSON arguments that match each tool schema. For workspace read/edit/shell/find/MCP work, call searchTools if unsure, then orchestrate (package main, import \"sdk\") — never emit deferred tools (readFile, editFile, shell, find, …) as direct native tool_calls. Send a corrected invocation or continue without tools if you meant plain text."
 
-const cursorProxyOrchestrateFooter = "Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via <tool_calls> XML or tool_calls — never Cursor built-ins."
+const cursorProxyOrchestrateFooter = "Cursor built-ins are disabled. Use native tool_calls only: searchTools (discover deferred SDK signatures), orchestrate (run workspace scripts), searchSkill and loadSkill (skills)."
 
 const cursorProxyInlineErrorPrefix = "[error] Cursor internal tool call blocked by Solomon proxy:"
 
@@ -180,13 +180,13 @@ func redirectCorrectionHint(toolName string) string {
 	}
 	switch cursorToolRedirectTarget(trimmed) {
 	case "readFile":
-		return "File reads: call searchTools if unsure, then orchestrate with sdk.ReadFile."
+		return "Cursor Read is disabled. Call searchTools, then orchestrate with sdk.ReadFile."
 	case "editFile":
-		return "File edits: orchestrate with sdk.WriteFile, sdk.ReplaceInFile, or sdk.DeleteFile."
+		return "Cursor edits are disabled. Call searchTools, then orchestrate with sdk.WriteFile, sdk.ReplaceInFile, or sdk.DeleteFile."
 	case "shell":
-		return "Terminal work: orchestrate with sdk.Shell (sync only)."
+		return "Cursor Shell is disabled. Call searchTools, then orchestrate with sdk.Shell (sync only)."
 	case "find":
-		return "Search/listing: orchestrate with sdk.Glob, sdk.Grep, or find SDK helpers."
+		return "Cursor Grep/Glob are disabled. Call searchTools, then orchestrate with sdk.Glob, sdk.Grep, or sdk.GrepLines."
 	case "subagent":
 		return "Nested agent work: emit native subagent via <tool_calls> or tool_calls."
 	case "fetchWeb":
@@ -336,7 +336,7 @@ func (r *Runtime) handleProxyToolCorrection(msg string) error {
 		return nil
 	}
 	if !r.machineMode() {
-		termcolor.WriteSystem(r.Out, "Cursor proxy rejected a built-in tool call; retrying with host tools.")
+		termcolor.WriteSystem(r.Out, "Cursor proxy rejected a built-in tool call; retry with Solomon native tools: searchTools (discover deferred SDK), orchestrate (run workspace scripts), searchSkill, loadSkill.")
 		fmt.Fprintln(r.Out)
 		flushWriter(r.Out)
 	}

@@ -153,7 +153,7 @@ function assertCorrectionCopy(row: PolicyMatrixRow): void {
     assert.ok(hint?.includes(row.hintIncludes), `${row.id}: hint ${hint}`);
     assert.ok(msg.includes(row.hintIncludes), `${row.id}: correction ${msg}`);
   }
-  const hasFooter = msg.includes("never Cursor built-ins");
+  const hasFooter = msg.includes("Cursor built-ins are disabled");
   assert.equal(hasFooter, row.orchestrateFooter, `${row.id}: footer mismatch in ${msg}`);
 }
 
@@ -239,5 +239,5 @@ test("policy matrix: native MCP subagent passes, deferred MCP blocks (2.12)", ()
   assert.equal(block, null);
   const msg = proxyToolCorrectionMessage(["mcp:editFile"], new Set(NATIVE_ALLOW));
   assert.ok(msg.includes("searchTools"));
-  assert.ok(msg.includes("never Cursor built-ins"));
+  assert.ok(msg.includes("Cursor built-ins are disabled"));
 });

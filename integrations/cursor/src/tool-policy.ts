@@ -259,13 +259,13 @@ export function redirectCorrectionHint(toolName: string): string | null {
   const target = cursorToolRedirectTarget(trimmed);
   switch (target) {
     case "readFile":
-      return "File reads: call searchTools if unsure, then orchestrate with sdk.ReadFile.";
+      return "Cursor Read is disabled. Call searchTools, then orchestrate with sdk.ReadFile.";
     case "editFile":
-      return "File edits: orchestrate with sdk.WriteFile, sdk.ReplaceInFile, or sdk.DeleteFile.";
+      return "Cursor edits are disabled. Call searchTools, then orchestrate with sdk.WriteFile, sdk.ReplaceInFile, or sdk.DeleteFile.";
     case "shell":
-      return "Terminal work: orchestrate with sdk.Shell (sync only).";
+      return "Cursor Shell is disabled. Call searchTools, then orchestrate with sdk.Shell (sync only).";
     case "find":
-      return "Search/listing: orchestrate with sdk.Glob, sdk.Grep, or find SDK helpers.";
+      return "Cursor Grep/Glob are disabled. Call searchTools, then orchestrate with sdk.Glob, sdk.Grep, or sdk.GrepLines.";
     case "subagent":
       return "Nested agent work: emit native subagent via <tool_calls> or tool_calls.";
     case "fetchWeb":

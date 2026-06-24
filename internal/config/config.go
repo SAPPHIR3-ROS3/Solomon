@@ -124,6 +124,10 @@ func (r *Root) LegacyToolsForceEnabled() bool {
 	return r.LegacyToolsEnabled() && r.Tools.LegacyForce
 }
 
+func (r *Root) CursorInternalToolsEnabled() bool {
+	return false
+}
+
 func (r *Root) EffectiveWebSearchEngine() string {
 	if r == nil {
 		return DefaultWebSearchEngine

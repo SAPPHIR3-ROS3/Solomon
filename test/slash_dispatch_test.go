@@ -141,11 +141,17 @@ func TestSlashDispatch_cursortools(t *testing.T) {
 	if !found {
 		t.Fatal("cursortools should appear after Cursor API setup")
 	}
-	if err := agent.SlashDispatch(d, "/cursortools on"); err != nil {
+	if err := agent.SlashDispatch(d, "/cursortools on"); err == nil {
+		t.Fatal("expected error enabling deprecated cursor native tools")
+	}
+	if d.Cfg.Tools.CursorInternalTools {
+		t.Fatal("cursor internal tools must stay off")
+	}
+	if err := agent.SlashDispatch(d, "/cursortools off"); err != nil {
 		t.Fatal(err)
 	}
-	if !d.Cfg.Tools.CursorInternalTools {
-		t.Fatal("want cursor internal tools on")
+	if d.Cfg.Tools.CursorInternalTools {
+		t.Fatal("want cursor internal tools off")
 	}
 }
 

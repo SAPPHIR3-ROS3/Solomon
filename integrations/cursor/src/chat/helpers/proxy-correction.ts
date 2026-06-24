@@ -5,7 +5,7 @@ import {
 } from "../../tool-policy.js";
 
 const ORCHESTRATE_FOOTER =
-  "Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via <tool_calls> XML or tool_calls — never Cursor built-ins.";
+  "Cursor built-ins are disabled. Use native tool_calls only: searchTools (discover deferred SDK signatures), orchestrate (run workspace scripts), searchSkill and loadSkill (skills).";
 
 export function proxyToolCorrectionMessage(
   blocked: string[],

@@ -299,16 +299,25 @@ func TestCursorToolsCommand(t *testing.T) {
 	}
 	saved = false
 	buf.Reset()
-	if err := commands.CursorTools(d, []string{"cursortools", "on"}); err != nil || !cfg.Tools.CursorInternalTools || !saved {
-		t.Fatalf("on: err=%v cursor_internal=%v saved=%v", err, cfg.Tools.CursorInternalTools, saved)
+	if err := commands.CursorTools(d, []string{"cursortools", "on"}); err == nil {
+		t.Fatal("expected error enabling deprecated cursor native tools")
 	}
-	if !strings.Contains(buf.String(), "cursor native tools: on") {
+	if cfg.Tools.CursorInternalTools {
+		t.Fatalf("cursor_internal must stay off")
+	}
+
+	saved = false
+	buf.Reset()
+	if err := commands.CursorTools(d, []string{"cursortools", "off"}); err != nil || cfg.Tools.CursorInternalTools || !saved {
+		t.Fatalf("off: err=%v cursor_internal=%v saved=%v", err, cfg.Tools.CursorInternalTools, saved)
+	}
+	if !strings.Contains(buf.String(), "deprecated") {
 		t.Fatalf("msg: %q", buf.String())
 	}
 
 	saved = false
 	buf.Reset()
 	if err := commands.CursorTools(d, []string{"cursortools"}); err != nil || cfg.Tools.CursorInternalTools || !saved {
-		t.Fatalf("toggle off: err=%v cursor_internal=%v saved=%v", err, cfg.Tools.CursorInternalTools, saved)
+		t.Fatalf("default off: err=%v cursor_internal=%v saved=%v", err, cfg.Tools.CursorInternalTools, saved)
 	}
 }
