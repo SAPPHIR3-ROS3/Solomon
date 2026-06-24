@@ -36,6 +36,5 @@ func Add(d Deps, parts []string) error {
 		}
 		return err
 	}
-	PrintSystem(d.Out, "Skill installed and registry updated.")
 	return nil
 }
