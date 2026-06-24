@@ -77,6 +77,16 @@ func (e *multilineEditor) recomputeSuggest() {
 	if AutosuggestDisabled() {
 		return
 	}
+	line := e.lines[e.row]
+	env := e.host.CompleteEnv
+	if ctx, ok := replcomplete.SlashContextAt(line, e.col); ok && ctx.Active {
+		buf := string(line[:e.col])
+		full := replcomplete.SlashSuggestAt(line, e.col, env, e.history.slashLinesCopy())
+		if suf := replcomplete.SuggestSuffixFromFull(buf, full); suf != "" {
+			e.suggestSuffix = []rune(suf)
+		}
+		return
+	}
 	if !e.cursorAtBufferEnd() {
 		return
 	}
@@ -99,7 +109,6 @@ func (e *multilineEditor) recomputeSuggest() {
 		}
 		return
 	}
-	env := e.host.CompleteEnv
 	shellFirst := env.ReplShellFirst
 	trimmed := strings.TrimLeft(buf, " \t")
 	if strings.HasPrefix(trimmed, "/") {

@@ -32,6 +32,48 @@ func initHLTestColors(t *testing.T) {
 	termcolor.Init(termcolor.InitOptions{Out: &bytes.Buffer{}, ForceColor: true})
 }
 
+func TestReplHL_midLineSlash(t *testing.T) {
+	initHLTestColors(t)
+	env := replcomplete.ReplCompleteEnv{}
+	out := replhl.HighlightSlash("please /help and more", env)
+	if termcolor.Plain(out) != "please /help and more" {
+		t.Fatalf("plain=%q", termcolor.Plain(out))
+	}
+	if !strings.Contains(out, "\x1b[") {
+		t.Fatalf("expected ANSI highlight: %q", out)
+	}
+}
+
+func TestReplHL_midLineSlashSlice(t *testing.T) {
+	initHLTestColors(t)
+	env := replcomplete.ReplCompleteEnv{}
+	lines := [][]rune{[]rune("prefix /help suffix")}
+	out := replhl.HighlightInputLineSlice(lines, 0, len("prefix "), len("prefix /help"), false, env)
+	if termcolor.Plain(out) != "/help" {
+		t.Fatalf("plain=%q", termcolor.Plain(out))
+	}
+	if !strings.Contains(out, "\x1b[") {
+		t.Fatalf("expected ANSI on slice: %q", out)
+	}
+}
+
+func TestSlashTokensInLine_midLine(t *testing.T) {
+	line := []rune("a /help then /resume x")
+	tokens := replcomplete.SlashTokensInLine(line)
+	if len(tokens) != 2 {
+		t.Fatalf("tokens=%d want 2", len(tokens))
+	}
+	if got := string(line[tokens[0].CmdStart:tokens[0].CmdEnd]); got != "help" {
+		t.Fatalf("first cmd=%q", got)
+	}
+	if got := string(line[tokens[1].CmdStart:tokens[1].CmdEnd]); got != "resume" {
+		t.Fatalf("second cmd=%q", got)
+	}
+	if tokens[0].ArgEnd > tokens[1].SlashStart {
+		t.Fatalf("first arg region should end before second slash")
+	}
+}
+
 func TestReplHL_shellKnownUnknownCommand(t *testing.T) {
 	dir := t.TempDir()
 	writePATHExecutable(t, dir, "git")

@@ -250,6 +250,14 @@ func TestShellPrefixNormalizedStripsBang(t *testing.T) {
 	}
 }
 
+func TestAutosuggestMidLineSlash(t *testing.T) {
+	e := repl.NewMultilineEditorForTest(&repl.Loop{CompleteEnv: replcomplete.ReplCompleteEnv{}}, nil, []string{"please /resu"}, 0, len("please /resu"), 80)
+	e.RecomputeSuggest()
+	if got := e.SuggestSuffix(); got != "me" {
+		t.Fatalf("ghost suffix got %q want me", got)
+	}
+}
+
 func TestAutosuggestShellFromHistory(t *testing.T) {
 	h := repl.NewInputHistoryForTest()
 	h.AddWithMode("!go test ./...", false)

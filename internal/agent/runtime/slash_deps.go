@@ -87,9 +87,7 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 			return r.RL.SaveHistory(line)
 		},
 		PrefillInput: func(s string) {
-			if r.RL != nil {
-				r.RL.Operation.SetBuffer(s)
-			}
+			r.setReplInputPrefill(s)
 		},
 		SubmitUserMessage:        func(s string) error { return r.onUserMessage(ctx, s, false) },
 		SubmitVisibleUserMessage: func(visible, api string) error { return r.onUserMessageWithAPIContent(ctx, visible, api, false) },

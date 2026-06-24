@@ -244,12 +244,8 @@ func (e *multilineEditor) renderRows(rows []visualRow) int {
 			lineEnd = len(line)
 		}
 		if row.start < lineEnd {
-			if row.start == 0 && lineEnd == len(line) {
-				lineStr := replhl.HighlightInputLine(e.lines, row.line, e.host.CompleteEnv.ReplShellFirst, e.host.CompleteEnv)
-				fmt.Fprint(e.out, termcolor.ColorizeReplInputTags(lineStr))
-			} else {
-				fmt.Fprint(e.out, termcolor.ColorizeReplInputTags(string(line[row.start:lineEnd])))
-			}
+			lineStr := replhl.HighlightInputLineSlice(e.lines, row.line, row.start, lineEnd, e.host.CompleteEnv.ReplShellFirst, e.host.CompleteEnv)
+			fmt.Fprint(e.out, termcolor.ColorizeReplInputTags(lineStr))
 		}
 		if len(ghostParts) > 0 && row.line == len(e.lines)-1 && row.end > len(line) {
 			ghost := []rune(ghostParts[0])

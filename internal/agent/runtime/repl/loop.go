@@ -32,6 +32,7 @@ type Loop struct {
 	HandleSlash            func(line string) error
 	SlashDeps              func() commands.Deps
 	OnUserMessage          func(line string) error
+	TakeInputInitial       func() string
 	ClipboardPasteForStdin func() (tag string, ok bool)
 	SaveClipboardImage     func() (tag string, err error)
 }
@@ -58,7 +59,11 @@ func Run(loop *Loop) error {
 		if loop.PrepareStartupNotice != nil {
 			loop.PrepareStartupNotice()
 		}
-		line, err := editor.ReadMultiline(editorHostFromLoop(loop), history)
+		initial := ""
+		if loop.TakeInputInitial != nil {
+			initial = loop.TakeInputInitial()
+		}
+		line, err := editor.ReadMultilineInitial(editorHostFromLoop(loop), history, initial)
 		if errors.Is(err, ErrInputInterrupted) {
 			if loop.TakeStartupNotice != nil {
 				loop.TakeStartupNotice()

@@ -62,6 +62,8 @@ type Runtime struct {
 	deferredTitleScheduleMu    sync.Mutex
 	deferredTitleWorkerRunning bool
 	sessionFileCreated         bool
+	replInputPrefillMu         sync.Mutex
+	replInputPrefill           string
 
 	Out io.Writer
 

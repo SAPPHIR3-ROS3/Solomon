@@ -63,46 +63,39 @@ func applySlashLexical(rs []rune, styles []termcolor.ZshStyleKey) {
 }
 
 func applySlashSemantic(rs []rune, styles []termcolor.ZshStyleKey, env replcomplete.ReplCompleteEnv) {
-	trim := strings.TrimLeft(string(rs), " \t")
-	if trim == "" || trim[0] != '/' {
-		return
+	for _, tok := range replcomplete.SlashTokensInLine(rs) {
+		cmd := strings.ToLower(string(rs[tok.CmdStart:tok.CmdEnd]))
+		key := termcolor.ZshUnknownToken
+		if replcomplete.SlashCommandKnown(env, cmd) {
+			key = termcolor.ZshArg0
+		}
+		forceSpan(styles, tok.CmdStart, tok.CmdEnd, key)
+		applySlashPathArgs(rs, styles, env, tok.ArgStart, tok.ArgEnd)
 	}
-	lead := len(string(rs)) - len(trim)
-	cmdStart := lead + 1
-	i := cmdStart
-	for i < len(rs) && rs[i] != ' ' && rs[i] != '\t' {
-		i++
-	}
-	if i <= cmdStart {
-		return
-	}
-	cmd := strings.ToLower(string(rs[cmdStart:i]))
-	key := termcolor.ZshUnknownToken
-	if replcomplete.SlashCommandKnown(env, cmd) {
-		key = termcolor.ZshArg0
-	}
-	forceSpan(styles, cmdStart, i, key)
-	for argPos := i; argPos < len(rs); {
-		for argPos < len(rs) && (rs[argPos] == ' ' || rs[argPos] == '\t') {
+}
+
+func applySlashPathArgs(rs []rune, styles []termcolor.ZshStyleKey, env replcomplete.ReplCompleteEnv, argStart, argEnd int) {
+	for argPos := argStart; argPos < argEnd; {
+		for argPos < argEnd && (rs[argPos] == ' ' || rs[argPos] == '\t') {
 			argPos++
 		}
-		if argPos >= len(rs) {
+		if argPos >= argEnd {
 			break
 		}
 		if rs[argPos] == '"' || rs[argPos] == '\'' {
 			q := rs[argPos]
 			end := argPos + 1
-			for end < len(rs) && rs[end] != q {
+			for end < argEnd && rs[end] != q {
 				end++
 			}
-			if end < len(rs) {
+			if end < argEnd {
 				end++
 			}
 			argPos = end
 			continue
 		}
 		end := argPos
-		for end < len(rs) && rs[end] != ' ' && rs[end] != '\t' {
+		for end < argEnd && rs[end] != ' ' && rs[end] != '\t' {
 			end++
 		}
 		token := string(rs[argPos:end])

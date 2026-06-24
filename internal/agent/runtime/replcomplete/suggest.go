@@ -6,40 +6,32 @@ import (
 )
 
 func SlashSuggest(env ReplCompleteEnv, buffer string, slashHistory []string) string {
-	trimLeft := 0
-	for trimLeft < len(buffer) && (buffer[trimLeft] == ' ' || buffer[trimLeft] == '\t') {
-		trimLeft++
-	}
-	if trimLeft >= len(buffer) || buffer[trimLeft] != '/' {
+	line := []rune(buffer)
+	return SlashSuggestAt(line, len(line), env, slashHistory)
+}
+
+func SlashSuggestAt(line []rune, col int, env ReplCompleteEnv, slashHistory []string) string {
+	ctx, ok := SlashContextAt(line, col)
+	if !ok {
 		return ""
 	}
-	leading := buffer[:trimLeft]
+	prefix := string(line[:col])
+	head := string(line[:ctx.SlashStart])
 	c := &replCompleter{env: env}
-	trimmed := buffer[trimLeft:]
-	rest := trimmed[1:]
-	sp := strings.Index(rest, " ")
-	if sp < 0 {
-		prefix := strings.ToLower(rest)
+	if ctx.ArgStart < 0 {
+		rest := string(line[ctx.CmdStart:col])
+		cmdPrefix := strings.ToLower(rest)
 		var matches []string
 		for _, name := range c.slashCommandNames() {
-			if strings.HasPrefix(name, prefix) {
-				matches = append(matches, "/"+name)
+			if strings.HasPrefix(name, cmdPrefix) {
+				matches = append(matches, head+"/"+name)
 			}
 		}
-		return leading + pickSlashSuggestion(buffer, matches, slashHistory)
+		return pickSlashSuggestion(prefix, matches, slashHistory)
 	}
-	cmd := strings.ToLower(strings.TrimSpace(rest[:sp]))
-	argStart := 1 + sp + 1
-	for argStart < len(trimmed) && (trimmed[argStart] == ' ' || trimmed[argStart] == '\t') {
-		argStart++
-	}
-	if argStart > len(trimmed) {
-		return ""
-	}
-	argPrefix := strings.ToLower(trimmed[argStart:])
-	candidates := slashStaticArgCandidates(cmd)
+	candidates := slashStaticArgCandidates(ctx.Cmd)
 	if candidates == nil {
-		switch cmd {
+		switch ctx.Cmd {
 		case "resume":
 			candidates = c.resumeCandidates()
 		case "goto":
@@ -50,15 +42,16 @@ func SlashSuggest(env ReplCompleteEnv, buffer string, slashHistory []string) str
 			return ""
 		}
 	}
-	head := trimmed[:argStart]
+	argPrefix := strings.ToLower(string(line[ctx.ArgStart:col]))
+	argHead := string(line[:ctx.ArgStart])
 	var matches []string
 	for _, arg := range candidates {
 		if !strings.HasPrefix(strings.ToLower(arg), argPrefix) {
 			continue
 		}
-		matches = append(matches, head+arg)
+		matches = append(matches, argHead+arg)
 	}
-	return leading + pickSlashSuggestion(buffer, matches, slashHistory)
+	return pickSlashSuggestion(prefix, matches, slashHistory)
 }
 
 func pickSlashSuggestion(buffer string, catalogMatches []string, slashHistory []string) string {
