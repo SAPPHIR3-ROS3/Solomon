@@ -87,6 +87,8 @@ func ReadMultilineInitial(host Host, history *History, initial string) (string, 
 	}
 	if initial != "" {
 		e.setString(initial, 0)
+		e.recomputeSuggest()
+		e.recomputeAtPicker()
 	}
 	defer e.finish()
 	e.refresh()
