@@ -36,7 +36,7 @@ func KickSidecarIfConfigured(ctx context.Context, cfg *config.Root, cwd string, 
 	if !ok {
 		return
 	}
-	allowCursorInternalTools := cfg.Tools.CursorInternalTools
+	allowCursorInternalTools := cfg.CursorInternalToolsEnabled()
 	if out == nil {
 		out = DiscardBootstrap{}
 	}
@@ -55,7 +55,7 @@ func WaitSidecarIfConfigured(ctx context.Context, cfg *config.Root, cwd string, 
 	if out == nil {
 		out = DiscardBootstrap{}
 	}
-	allowCursorInternalTools := cfg.Tools.CursorInternalTools
+	allowCursorInternalTools := cfg.CursorInternalToolsEnabled()
 	mgr := DefaultManager()
 	_, err := mgr.Ensure(ctx, apiKey, sidecarCWD(cwd), allowCursorInternalTools, out)
 	if err != nil {
@@ -90,5 +90,5 @@ func ReviveSidecarIfConfigured(ctx context.Context, cfg *config.Root, cwd string
 	if !ok {
 		return
 	}
-	_, _ = DefaultManager().Ensure(ctx, apiKey, sidecarCWD(cwd), cfg.Tools.CursorInternalTools, DiscardBootstrap{})
+	_, _ = DefaultManager().Ensure(ctx, apiKey, sidecarCWD(cwd), cfg.CursorInternalToolsEnabled(), DiscardBootstrap{})
 }

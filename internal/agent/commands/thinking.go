@@ -128,18 +128,16 @@ func CursorTools(d Deps, parts []string) error {
 	if !config.CursorAPIConfigured(d.Cfg) {
 		return fmt.Errorf("/cursortools unavailable (connect Cursor API first with /connect)")
 	}
-	next := !d.Cfg.Tools.CursorInternalTools
 	if len(parts) >= 2 {
 		switch strings.ToLower(parts[1]) {
 		case "on", "yes", "true", "1":
-			next = true
+			return fmt.Errorf("cursor native tools are deprecated and disabled; use orchestrate, searchTools, searchSkill, and loadSkill")
 		case "off", "no", "false", "0":
-			next = false
 		default:
-			return fmt.Errorf("usage: /cursortools | /cursortools on|off")
+			return fmt.Errorf("usage: /cursortools off (cursor native tools are deprecated)")
 		}
 	}
-	d.Cfg.Tools.CursorInternalTools = next
+	d.Cfg.Tools.CursorInternalTools = false
 	if err := d.SaveCfg(); err != nil {
 		return err
 	}
@@ -152,11 +150,7 @@ func CursorTools(d Deps, parts []string) error {
 		cwd, _ = os.Getwd()
 	}
 	cursorint.KickSidecarIfConfigured(ctx, d.Cfg, cwd, cursorint.DiscardBootstrap{})
-	onOff := "off"
-	if next {
-		onOff = "on"
-	}
-	PrintSystemf(d.Out, "cursor native tools: %s", onOff)
+	PrintSystem(d.Out, "cursor native tools: deprecated and disabled — use orchestrate, searchTools, searchSkill, loadSkill")
 	return nil
 }
 

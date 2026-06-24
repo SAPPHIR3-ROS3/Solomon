@@ -7,6 +7,7 @@ import {
 import {
   bridgeToolInvocation,
   tryCollectBridgedTool,
+  unwrapCustomUserToolsMcpCall,
   unwrapSolomonMcpCall,
   type BridgedToolInvocation,
   type BridgedToolContext,
@@ -20,11 +21,36 @@ import {
 } from "../../tool-policy.js";
 
 function wouldBridgeTool(name: string, rawArgs: unknown, bridgeCtx: BridgedToolContext): boolean {
-  const mcp = unwrapSolomonMcpCall(name, rawArgs);
-  if (mcp) {
-    return bridgeToolInvocation(mcp.toolName, mcp.args, bridgeCtx) !== null;
+  const solomonMcp = unwrapSolomonMcpCall(name, rawArgs);
+  if (solomonMcp) {
+    return bridgeToolInvocation(solomonMcp.toolName, solomonMcp.args, bridgeCtx) !== null;
+  }
+  const customMcp = unwrapCustomUserToolsMcpCall(name, rawArgs);
+  if (customMcp) {
+    return bridgeToolInvocation(customMcp.toolName, customMcp.args, bridgeCtx) !== null;
   }
   return bridgeToolInvocation(name, rawArgs, bridgeCtx) !== null;
+}
+
+function collectBridgedMcpCall(
+  pendingBridged: BridgedToolInvocation[],
+  bridgeCtx: BridgedToolContext,
+  onToolDetected: () => void,
+  onBlockedTool: ((name: string) => void) | undefined,
+  mcp: { toolName: string; args: unknown },
+): boolean {
+  if (tryCollectBridgedTool(pendingBridged, mcp.toolName, mcp.args, bridgeCtx)) {
+    onToolDetected();
+    return true;
+  }
+  const label = blockedMcpToolLabel(mcp.toolName);
+  if (onBlockedTool) {
+    onBlockedTool(label);
+  }
+  if (shouldStopProxyOnBlockedTool(label)) {
+    onToolDetected();
+  }
+  return false;
 }
 
 export function processStreamEvent(
@@ -55,13 +81,14 @@ export function processStreamEvent(
       reportBlocked(name);
       return;
     }
-    const mcp = unwrapSolomonMcpCall(name, rawArgs);
-    if (mcp) {
-      if (tryCollectBridgedTool(pendingBridged, mcp.toolName, mcp.args, bridgeCtx)) {
-        onToolDetected();
-      } else {
-        reportBlocked(blockedMcpToolLabel(mcp.toolName));
-      }
+    const solomonMcp = unwrapSolomonMcpCall(name, rawArgs);
+    if (solomonMcp) {
+      collectBridgedMcpCall(pendingBridged, bridgeCtx, onToolDetected, onBlockedTool, solomonMcp);
+      return;
+    }
+    const customMcp = unwrapCustomUserToolsMcpCall(name, rawArgs);
+    if (customMcp) {
+      collectBridgedMcpCall(pendingBridged, bridgeCtx, onToolDetected, onBlockedTool, customMcp);
       return;
     }
     if (name === "mcp") {

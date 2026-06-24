@@ -137,8 +137,7 @@ export type McpToolDefinition = {
 };
 
 /**
- * @deprecated Dead bridge path — was intended for SDK `local.customTools` wiring (never shipped).
- * Solomon uses harness prompts + Cursor tool interception instead. Kept for mapping.test coverage.
+ * OpenAI tools[] → SDK customTools schemas (execution delegated to Solomon Go via stream bridge).
  */
 export function openAIToolsToMcpTools(tools: ChatCompletionTool[] | undefined): McpToolDefinition[] {
   if (!tools?.length) {
