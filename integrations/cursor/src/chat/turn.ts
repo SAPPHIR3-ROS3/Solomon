@@ -8,8 +8,8 @@ import {
 import { chunkDelta, writeSSE } from "../openai-sse.js";
 import type { ServerResponse } from "node:http";
 import {
-  formatLegacyToolCallsBlock,
-  type LegacyToolInvocation,
+  formatBridgedToolCallsBlock,
+  type BridgedToolInvocation,
 } from "../legacy.js";
 import { writeSSEToolCalls } from "../openai-tools.js";
 import { buildOpenAIUsage, proxyToolCorrectionMessage } from "../chat-helpers.js";
@@ -73,9 +73,9 @@ export function emitBridgedTools(
   res: ServerResponse,
   completionId: string,
   model: string,
-  pending: LegacyToolInvocation[],
+  pending: BridgedToolInvocation[],
   turnOpts: TurnOpts,
-): LegacyToolInvocation[] {
+): BridgedToolInvocation[] {
   const bridged = limitInvocations(
     filterInvocations(pending, turnOpts.allowedNames),
     turnOpts.parallelToolCalls,
@@ -86,7 +86,7 @@ export function emitBridgedTools(
   if (turnOpts.nativeTools) {
     writeSSEToolCalls(res, completionId, model, bridged);
   } else {
-    writeSSE(res, chunkDelta(completionId, model, { content: formatLegacyToolCallsBlock(bridged) }));
+    writeSSE(res, chunkDelta(completionId, model, { content: formatBridgedToolCallsBlock(bridged) }));
   }
   return bridged;
 }

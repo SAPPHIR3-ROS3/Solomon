@@ -170,14 +170,14 @@ tools.Exec (Go) — orchestrate runs WASM; subagent native; modeAllowed unchange
 
 No behavior change beyond what is required for compilation.
 
-- [ ] **1.1 Tool policy module** — Extract central policy maps (`block`, `redirect`, `native allow`) from `legacy.ts` / `chat-helpers.ts` into a dedicated module (e.g. `tool-policy.ts`).
-- [ ] **1.2 Rename legacy symbols** — Clarify `LegacyToolInvocation` and related types (e.g. `BridgedToolInvocation` / `SolomonToolCall`) where safe; update imports and tests.
-- [ ] **1.3 Split `legacy.ts`** — Separate name aliasing, bridge context, and XML formatting into focused files.
-- [ ] **1.4 Split `chat-helpers.ts`** — Move stream event routing, correction messages, and usage helpers apart.
-- [ ] **1.5 Deduplicate shared helpers** — Consolidate JSON arg parsing, XML escape, and repeated stream-loop patterns.
-- [ ] **1.6 Gate dead paths** — Remove or clearly mark unused code (`openAIToolsToMcpTools`, deprecated `blockedCursorToolLine`, stale `nativeTools: false` branches).
-- [ ] **1.7 Harness inventory** — List all harness/correction prompt sources (`harness-*.txt`, `harness-prompt.ts`, `cursor-agent.ts` subagent sys, `chat-helpers.ts`); note contradictions for Phase 2.
-- [ ] **1.8 Tests green** — `npm --prefix integrations/cursor test` passes after refactor with no intentional behavior change.
+- [x] **1.1 Tool policy module** — Extract central policy maps (`block`, `redirect`, `native allow`) from `legacy.ts` / `chat-helpers.ts` into a dedicated module (e.g. `tool-policy.ts`).
+- [x] **1.2 Rename legacy symbols** — Clarify `LegacyToolInvocation` and related types (e.g. `BridgedToolInvocation` / `SolomonToolCall`) where safe; update imports and tests.
+- [x] **1.3 Split `legacy.ts`** — Separate name aliasing, bridge context, and XML formatting into focused files.
+- [x] **1.4 Split `chat-helpers.ts`** — Move stream event routing, correction messages, and usage helpers apart.
+- [x] **1.5 Deduplicate shared helpers** — Consolidate JSON arg parsing, XML escape, and repeated stream-loop patterns.
+- [x] **1.6 Gate dead paths** — Remove or clearly mark unused code (`openAIToolsToMcpTools`, deprecated `blockedCursorToolLine`, stale `nativeTools: false` branches).
+- [x] **1.7 Harness inventory** — See [Appendix B](#appendix-b--harness--correction-prompt-inventory-phase-17).
+- [x] **1.8 Tests green** — `npm --prefix integrations/cursor test` — 36/36 pass (2026-06-24); no Phase 1 regressions.
 
 #### Phase 2 — Orchestrate-first behavior (MVP)
 
@@ -238,3 +238,77 @@ No behavior change beyond what is required for compilation.
 ## Appendix A — Cursor tools reference
 
 See grilling session notes: tools with Solomon overlap are blocked in favor of orchestrate; tools without overlap are hard-blocked or deferred to `TODO.md`.
+
+---
+
+## Appendix B — Harness & correction prompt inventory (Phase 1.7)
+
+Inventory of every prompt/correction source that steers Composer tool choice today. No behavior change in Phase 1; Phase 2 tasks in the roadmap column.
+
+### Sidecar harness (prepended to every SDK prompt)
+
+| Source | Wired by | When active | Current message | Phase 2 |
+|--------|----------|-------------|-----------------|---------|
+| [`integrations/cursor/prompts/harness-clauses.txt`](integrations/cursor/prompts/harness-clauses.txt) | [`harness-prompt.ts`](integrations/cursor/src/harness-prompt.ts) → [`messages.ts`](integrations/cursor/src/messages.ts) `withHarnessPreamble` / `buildPromptFromMessages` | Request includes non-empty OpenAI `tools[]` | Remote-host harness; generic “call tools normally”; **do not emit XML tool blocks** | **2.6** — orchestrate-first clauses; reconcile XML ban with `nativeTools:false` wire format (see contradictions) |
+| [`integrations/cursor/prompts/harness-tools-clause.txt`](integrations/cursor/prompts/harness-tools-clause.txt) | Same; `{{TOOL_NAMES}}` ← Go `tools[]` names | Same | **Explicit Cursor built-ins** (Read, StrReplace, Shell, Task, …); prefer Read/StrReplace over Shell; Shell fallback | **2.6** — replace with native-tool list (`orchestrate`, `searchTools`, `subagent`, …) |
+| [`harness-prompt.ts`](integrations/cursor/src/harness-prompt.ts) | Loader only (cache + join) | — | No prose of its own | **2.6** — add chat-specific clause hook if needed (**3.2**) |
+
+`createAgent` in [`cursor-agent.ts`](integrations/cursor/src/cursor-agent.ts) receives `_tools` for harness only; it does **not** wire SDK `local.customTools` (Open Decision §5).
+
+### Sidecar subagent system prompt
+
+| Source | Wired by | When active | Current message | Phase 2 |
+|--------|----------|-------------|-----------------|---------|
+| `DEFAULT_SUBAGENT_SYS_PROMPT` in [`cursor-agent.ts`](integrations/cursor/src/cursor-agent.ts) | `ensureDefaultSubagentSysPrompt` writes [`.solomon/cursor-task-sys.txt`](integrations/cursor/src/legacy-normalize.ts) (`DEFAULT_SUBAGENT_SYS_PATH`) if missing | First sidecar run per project without that file | “Use normal Cursor built-in tools (Read, StrReplace, …)” | **2.7** — default to Solomon `subagent` / orchestrate-first; preserve user-edited file |
+| User `sysPromptPath` on bridged `Task` → `subagent` | [`legacy-normalize.ts`](integrations/cursor/src/legacy-normalize.ts) | Per Task call | User content; not overwritten | No change unless user opts in |
+
+### Sidecar proxy corrections (`solomon_proxy_correction`)
+
+| Source | Wired by | When active | Current message | Phase 2 |
+|--------|----------|-------------|-----------------|---------|
+| [`chat/helpers/proxy-correction.ts`](integrations/cursor/src/chat/helpers/proxy-correction.ts) `proxyToolCorrectionMessage` | [`chat/turn.ts`](integrations/cursor/src/chat/turn.ts) → [`openai-sse.ts`](integrations/cursor/src/openai-sse.ts) / [`chat/nonstream.ts`](integrations/cursor/src/chat/nonstream.ts) | Blocked/unmapped Cursor tool in stream or non-stream | Retry with **Cursor built-ins**; lists host-enabled names from allowlist; **Shell fallback** when `shell` allowed | **2.5**, **2.3** — redirect to `searchTools` + `orchestrate`; drop Read/StrReplace/Shell encouragement |
+| [`chat-helpers.ts`](integrations/cursor/src/chat-helpers.ts) | Re-export barrel | — | — | — |
+
+Tests encoding current copy: [`openai-tools-mapping.test.ts`](integrations/cursor/test/openai-tools-mapping.test.ts) (`proxyToolCorrectionMessage`, `harnessToolsClause`).
+
+### Go runtime system prompts
+
+| Source | Wired by | When active | Current message | Phase 2 |
+|--------|----------|-------------|-----------------|---------|
+| [`internal/prompt/templates/agent.tmpl`](internal/prompt/templates/agent.tmpl) | `RenderAgent` when `ExternalToolBridge=true` (Cursor provider) | Agent mode + Cursor sidecar | **Orchestrate-first**; deferred tools via `searchTools` + `orchestrate`; `ExternalToolBridge` clause limits native calls to `docsRetrieval`, `searchTools`, `orchestrate`, `switchMode` | **2.8** — extend clause for `subagent`, `searchSkill`, `loadSkill` per §3 |
+| [`internal/prompt/templates/chat.tmpl`](internal/prompt/templates/chat.tmpl) | Same for chat mode | Chat + Cursor | Research + `switchMode` for code changes | **3.4**, **3.2** (no chat-specific sidecar harness today) |
+| [`internal/prompt/render.go`](internal/prompt/render.go) `NativeToolInvocationSyntax` / legacy XML examples | Injected into agent/chat template `{{.Syntax}}` | Varies by `legacy` flags | Native `tool_calls` preferred; optional `<tool_calls>` XML examples name `readFile`, `editFile`, `shell` | **2.8** — ensure examples match orchestrate-first when `ExternalToolBridge` |
+
+### Go runtime correction messages
+
+| Source | Wired by | When active | Current message | Phase 2 |
+|--------|----------|-------------|-----------------|---------|
+| `nativeBridgeToolCorrectionUserMsg` in [`internal/agent/runtime/tool_print.go`](internal/agent/runtime/tool_print.go) | `toolInvocationCorrectionUserMsg`, `stripCursorProxyInlineErrors` fallback | Malformed native tool_calls with external bridge; inline Cursor block strip | **“Use readFile, editFile, and shell via function calling”** | **2.9** — align with orchestrate-first; mention `searchTools` + `orchestrate` |
+| `handleProxyToolCorrection` | Consumes sidecar `solomon_proxy_correction` from SSE | Proxy block in stream | Forwards sidecar text verbatim | **2.9** — depends on **2.5** sidecar rewrite |
+| `legacyToolJSONCorrectionUserMsg` | Legacy XML path | `legacy_force` / malformed XML | XML shape examples | Unchanged for non-Cursor paths |
+| `cursorProxyInlineErrorPrefix` + `stripCursorProxyInlineErrors` | Assistant content sanitizer | Cursor internal tool leak in text | Builds fallback from `nativeBridgeToolCorrectionUserMsg` | **2.9** |
+
+### Stale documentation (not runtime, but steers maintainers)
+
+| Source | Issue | Phase 2 |
+|--------|-------|---------|
+| [`docs/architecture/cursor-integration.md`](docs/architecture/cursor-integration.md) §Transparent bridge | Describes Cursor-built-in-first harness as intended design | **2.14** |
+
+### Contradictions (actionable for Phase 2)
+
+1. **Dual paradigms** — Go `agent.tmpl` is orchestrate-first; sidecar harness + proxy correction are transparent-bridge (Cursor built-ins). Composer sees both every turn → correction loops when bridged `readFile`/`editFile`/`shell` hit `modeAllowed`.
+2. **Go correction vs Go system prompt** — `nativeBridgeToolCorrectionUserMsg` tells the model to call `readFile`/`editFile`/`shell` natively; `ExternalToolBridge` clause and agent body say those are deferred via `orchestrate`.
+3. **Harness XML ban vs sidecar wire format** — `harness-clauses.txt` forbids XML tool blocks; `nativeTools:false` path still embeds bridged tools as XML in assistant content ([`chat/stream.ts`](integrations/cursor/src/chat/stream.ts), [`chat/turn.ts`](integrations/cursor/src/chat/turn.ts)).
+4. **Shell fallback** — `proxyToolCorrectionMessage` and [`tool-policy.ts`](integrations/cursor/src/tool-policy.ts) `proxyShellFallbackAllowed` encourage Shell retry; Phase 2 policy redirects shell work to `orchestrate` SDK.
+5. **Task / subagent** — Harness and correction map `Task` → bridged `subagent`; Phase 2 blocks Cursor `Task` and expects native `subagent` XML/`tool_calls`.
+6. **Subagent default sys file** — `.solomon/cursor-task-sys.txt` default contradicts Solomon nested-agent prompts in Go templates.
+7. **Chat mode** — No separate sidecar harness clause; chat Go template expects research-only but sidecar would still inject agent-style harness if `tools[]` present (**3.2**, **3.5**).
+
+### Phase 2 edit checklist (derived from inventory)
+
+- [ ] `harness-clauses.txt` + `harness-tools-clause.txt` + `harness-prompt.ts` (**2.6**)
+- [ ] `proxy-correction.ts` (**2.5**); update mapping tests
+- [ ] `cursor-agent.ts` default subagent sys (**2.7**)
+- [ ] `agent.tmpl` / `chat.tmpl` `ExternalToolBridge` (**2.8**, **3.4**)
+- [ ] `tool_print.go` corrections (**2.9**)
+- [ ] `docs/architecture/cursor-integration.md` mental model (**2.14**)

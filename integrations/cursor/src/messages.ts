@@ -1,6 +1,7 @@
 import type { SDKImage, SDKUserMessage } from "@cursor/sdk";
 import type { ChatCompletionTool, ChatMessage, ChatToolCall, ContentPart } from "./openai-types.js";
 import { harnessPreamble } from "./harness-prompt.js";
+import { escapeXmlAttr, escapeXmlTextStrict } from "./xml-utils.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,19 +108,8 @@ export function withHarnessPreamble(
   return { ...prompt, text: prefix + prompt.text };
 }
 
-/** @deprecated use withHarnessPreamble */
-export const withSolomonHarnessPrefix = withHarnessPreamble;
-
-function escapeXmlAttr(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-}
-
-function escapeXmlText(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 export function sanitizeReflectedText(s: string): string {
-  return escapeXmlText(stripUnsafeControlChars(s)).slice(0, 4096);
+  return escapeXmlTextStrict(stripUnsafeControlChars(s)).slice(0, 4096);
 }
 
 export function stripUnsafeControlChars(s: string): string {
@@ -159,7 +149,7 @@ function formatAssistantToolCalls(toolCalls: ChatToolCall[]): string {
     }
     const args = tc.function?.arguments?.trim() || "{}";
     parts.push(`<tool name="${escapeXmlAttr(name)}">`);
-    parts.push(`<args>${escapeXmlText(args)}</args>`);
+    parts.push(`<args>${escapeXmlTextStrict(args)}</args>`);
     parts.push("</tool>");
   }
   parts.push("</tool_calls>");
@@ -188,9 +178,6 @@ export function formatChatMessage(m: ChatMessage): string {
       return `[${m.role}]\n${messageToPromptText(m)}`;
   }
 }
-
-/** @deprecated use formatChatMessage */
-export const formatDeltaMessage = formatChatMessage;
 
 export function buildPromptFromMessages(
   messages: ChatMessage[],

@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type { ServerResponse } from "node:http";
-import type { LegacyToolInvocation } from "./legacy.js";
+import type { BridgedToolInvocation } from "./legacy.js";
+import { normalizeArgsObject, parseJSONObject } from "./json-args.js";
+import { unescapeXML } from "./xml-utils.js";
 import { chunkDelta, writeSSE } from "./openai-sse.js";
 import type { ChatCompletionTool, ChatToolCall, ToolChoice } from "./openai-types.js";
 
@@ -39,9 +41,9 @@ export function requestUsesNativeTools(
 }
 
 export function filterInvocations(
-  invs: LegacyToolInvocation[],
+  invs: BridgedToolInvocation[],
   allowed: Set<string> | null,
-): LegacyToolInvocation[] {
+): BridgedToolInvocation[] {
   const valid = invs.filter(isValidInvocation);
   if (!allowed) {
     return valid;
@@ -53,9 +55,9 @@ export function filterInvocations(
 }
 
 export function limitInvocations(
-  invs: LegacyToolInvocation[],
+  invs: BridgedToolInvocation[],
   parallelToolCalls: boolean | undefined,
-): LegacyToolInvocation[] {
+): BridgedToolInvocation[] {
   if (parallelToolCalls === false) {
     return invs.slice(0, 1);
   }
@@ -66,7 +68,7 @@ export function newToolCallId(): string {
   return `call_${randomBytes(12).toString("hex")}`;
 }
 
-export function toolArgumentsJSON(inv: LegacyToolInvocation): string {
+export function toolArgumentsJSON(inv: BridgedToolInvocation): string {
   const args = { ...(inv.args ?? {}) };
   if (inv.intent && String(inv.intent).trim() !== "") {
     args.intent = String(inv.intent).trim();
@@ -74,7 +76,7 @@ export function toolArgumentsJSON(inv: LegacyToolInvocation): string {
   return JSON.stringify(args);
 }
 
-export function isValidInvocation(inv: LegacyToolInvocation): boolean {
+export function isValidInvocation(inv: BridgedToolInvocation): boolean {
   if (inv.name !== "editFile") {
     return true;
   }
@@ -92,7 +94,7 @@ export function isValidInvocation(inv: LegacyToolInvocation): boolean {
   return oldString !== "" || newString !== "";
 }
 
-export function openAIToolCallsFromInvocations(invs: LegacyToolInvocation[]): ChatToolCall[] {
+export function openAIToolCallsFromInvocations(invs: BridgedToolInvocation[]): ChatToolCall[] {
   const out: ChatToolCall[] = [];
   for (const inv of invs) {
     out.push({
@@ -111,7 +113,7 @@ export function writeSSEToolCalls(
   res: ServerResponse,
   completionId: string,
   model: string,
-  invs: LegacyToolInvocation[],
+  invs: BridgedToolInvocation[],
 ): void {
   if (invs.length === 0) {
     return;
@@ -134,6 +136,10 @@ export type McpToolDefinition = {
   inputSchema: Record<string, unknown>;
 };
 
+/**
+ * @deprecated Dead bridge path — was intended for SDK `local.customTools` wiring (never shipped).
+ * Solomon uses harness prompts + Cursor tool interception instead. Kept for mapping.test coverage.
+ */
 export function openAIToolsToMcpTools(tools: ChatCompletionTool[] | undefined): McpToolDefinition[] {
   if (!tools?.length) {
     return [];
@@ -165,11 +171,11 @@ export function openAIToolsToMcpTools(tools: ChatCompletionTool[] | undefined): 
 
 export type ParsedToolText = {
   content: string;
-  invocations: LegacyToolInvocation[];
+  invocations: BridgedToolInvocation[];
 };
 
 export function parseToolInvocationsFromText(text: string): ParsedToolText {
-  const invocations: LegacyToolInvocation[] = [];
+  const invocations: BridgedToolInvocation[] = [];
   let content = text;
   content = content.replace(/<tool_calls\b[^>]*>([\s\S]*?)<\/tool_calls>/gi, (_m, inner) => {
     invocations.push(...parseSolomonTools(String(inner)));
@@ -197,8 +203,8 @@ function stripEmptyToolCodeFences(text: string): string {
   return text.replace(/```(?:xml|tool_calls|tool_call|functioncall)?[ \t]*\r?\n[\s\r\n]*```/gi, "");
 }
 
-function parseSolomonTools(inner: string): LegacyToolInvocation[] {
-  const out: LegacyToolInvocation[] = [];
+function parseSolomonTools(inner: string): BridgedToolInvocation[] {
+  const out: BridgedToolInvocation[] = [];
   const re = /<tool\b[^>]*\bname\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/tool>/gi;
   for (let m: RegExpExecArray | null; (m = re.exec(inner)); ) {
     const name = unescapeXML(m[2]).trim();
@@ -221,7 +227,7 @@ function parseSolomonTools(inner: string): LegacyToolInvocation[] {
   return out;
 }
 
-function parseJSONToolCall(raw: string): LegacyToolInvocation | null {
+function parseJSONToolCall(raw: string): BridgedToolInvocation | null {
   const obj = parseJSONObject(unescapeXML(raw));
   if (!obj) {
     return null;
@@ -248,41 +254,7 @@ function tagText(body: string, tag: string): string | null {
   return m ? m[1] : null;
 }
 
-function parseJSONObject(raw: string): Record<string, unknown> | null {
-  try {
-    const v = JSON.parse(raw.trim());
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      return v as Record<string, unknown>;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function normalizeArgsObject(v: unknown): Record<string, unknown> | null {
-  if (v === undefined || v === null) {
-    return {};
-  }
-  if (typeof v === "string") {
-    return parseJSONObject(v);
-  }
-  if (typeof v === "object" && !Array.isArray(v)) {
-    return v as Record<string, unknown>;
-  }
-  return null;
-}
-
 function pickString(obj: Record<string, unknown>, key: string): string | undefined {
   const v = obj[key];
   return typeof v === "string" && v.trim() !== "" ? v.trim() : undefined;
-}
-
-function unescapeXML(s: string): string {
-  return s
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&gt;/g, ">")
-    .replace(/&lt;/g, "<")
-    .replace(/&amp;/g, "&");
 }
