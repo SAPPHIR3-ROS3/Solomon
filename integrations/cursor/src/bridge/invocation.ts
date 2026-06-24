@@ -2,6 +2,9 @@ import { normalizeSolomonToolArgs } from "../legacy-normalize.js";
 import {
   isValidSolomonToolName,
   resolveBridgedSolomonName,
+  shouldBlockDeferredSolomonTool,
+  shouldHardDenyCursorTool,
+  shouldRedirectCursorTool,
 } from "../tool-policy.js";
 import type { BridgedToolContext, BridgedToolInvocation } from "./context.js";
 
@@ -12,7 +15,7 @@ function isAllowedSolomonTool(name: string, ctx: BridgedToolContext): boolean {
   return ctx.allowedNames.has(name);
 }
 
-export function bridgeToolInvocation(
+export function mapCursorToolInvocation(
   eventName: string,
   rawArgs: unknown,
   ctx: BridgedToolContext,
@@ -36,6 +39,31 @@ export function bridgeToolInvocation(
     return null;
   }
   return invocationWithIntent(solomonName, args);
+}
+
+export function bridgeToolInvocation(
+  eventName: string,
+  rawArgs: unknown,
+  ctx: BridgedToolContext,
+): BridgedToolInvocation | null {
+  const trimmed = eventName.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (shouldHardDenyCursorTool(trimmed)) {
+    return null;
+  }
+  if (shouldRedirectCursorTool(trimmed)) {
+    return null;
+  }
+  const mapped = mapCursorToolInvocation(eventName, rawArgs, ctx);
+  if (!mapped) {
+    return null;
+  }
+  if (shouldBlockDeferredSolomonTool(mapped.name)) {
+    return null;
+  }
+  return mapped;
 }
 
 export function collectBridgedTool(
