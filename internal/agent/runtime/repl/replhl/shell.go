@@ -58,7 +58,7 @@ func applyShellLexical(rs []rune, styles []termcolor.ZshStyleKey) {
 			forceSpan(styles, i, len(rs), termcolor.ZshComment)
 			break
 		}
-		if ch == '\'' && !shelllex.IsEscapedAt(rs, i) {
+		if ch == '\'' && !shelllex.IsEscapedAt(rs, i) && !isWordApostrophe(rs, i) {
 			inSingle = true
 			forceSpan(styles, i, i+1, termcolor.ZshSingleQuoted)
 			continue
