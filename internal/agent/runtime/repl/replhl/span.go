@@ -2,9 +2,17 @@ package replhl
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
+
+func isWordApostrophe(rs []rune, i int) bool {
+	if i <= 0 || i+1 >= len(rs) || rs[i] != '\'' {
+		return false
+	}
+	return unicode.IsLetter(rs[i-1]) && unicode.IsLetter(rs[i+1])
+}
 
 func forceSpan(styles []termcolor.ZshStyleKey, start, end int, key termcolor.ZshStyleKey) {
 	if start < 0 {

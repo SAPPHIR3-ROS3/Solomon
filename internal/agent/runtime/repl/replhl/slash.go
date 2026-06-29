@@ -44,7 +44,7 @@ func applySlashLexical(rs []rune, styles []termcolor.ZshStyleKey) {
 			}
 			continue
 		}
-		if ch == '\'' {
+		if ch == '\'' && !isWordApostrophe(rs, i) {
 			inSingle = true
 			forceSpan(styles, i, i+1, termcolor.ZshSingleQuoted)
 			continue

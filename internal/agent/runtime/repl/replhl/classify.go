@@ -27,6 +27,9 @@ func classifyBufferLine(lines [][]rune, row int, shellFirst bool) inputKind {
 		if strings.HasPrefix(trimmed, "!") {
 			return inputPlain
 		}
+		if lineLooksLikeChatText(lines[row]) {
+			return inputPlain
+		}
 		return inputShell
 	}
 	if bufferShellMode(lines) {
@@ -76,4 +79,24 @@ func shellHighlightOffset(lines [][]rune, row int, shellFirst bool) int {
 		off++
 	}
 	return off
+}
+
+func lineLooksLikeChatText(rs []rune) bool {
+	hasWordApostrophe := false
+	for i := range rs {
+		if isWordApostrophe(rs, i) {
+			hasWordApostrophe = true
+			break
+		}
+	}
+	if !hasWordApostrophe {
+		return false
+	}
+	for _, ch := range rs {
+		switch ch {
+		case '|', '&', ';', '>', '<', '$', '*', '?', '[', ']', '#':
+			return false
+		}
+	}
+	return true
 }
