@@ -29,14 +29,14 @@ Persist chat transcripts as JSON per project, resolve storage paths from project
 | `WriteSession` / `ReadSession` | Atomic JSON under `projects/<hex>/chats/<id>.json` |
 | `NewPlaceholderChatID` | Temporary id until title finalize |
 | `ChatIDHex` | Stable id from title slug + timestamp |
-| `ListRecent` / `SessionWithLatestUserMessage` | `/resume` helpers |
+| `ListRecent` / `SessionWithLatestUserMessage` | `/resume` and `/export last` helpers |
 | `ChatsDir`, `SubchatsDir`, `PlansDir`, `TempDir` | Path helpers per project |
 | `project.Resolve` | Canonical root + 64-char hex |
 
 ## Persistence rules (runtime)
 
 - `Runtime.persistSession` writes only when `sessionFileCreated` and non-empty `Session.ID` and not `EphemeralSession`.
-- Ephemeral mode: `solomon temp exec`, or `/temp` on an empty REPL chat (`commands.TempChat` sets `Runtime.EphemeralSession`). Transcript stays in memory; no `WriteSession` until the user starts a normal chat (`/new`, `/resume`, or first persisted message after leaving ephemeral mode).
+- Ephemeral mode: `solomon temp exec`, or `/temp` on an empty REPL chat (`commands.TempChat` sets `Runtime.EphemeralSession`). Transcript stays in memory; no `WriteSession` until the user starts a normal chat (`/new`, `/resume`, or first persisted message after leaving ephemeral mode). `/export current` can still archive an ephemeral transcript to markdown under `~/.solomon/exported/` (or `[export].path`).
 - Legacy tool settings (`[tools].legacy`, `legacy_force`) are global in `config.toml`, not per-session. Deprecated `legacy_tools` fields in old session JSON are ignored.
 - User/assistant/tool append paths call persist after mutation (see [Agent turn pipeline](agent-turn-pipeline.md)).
 

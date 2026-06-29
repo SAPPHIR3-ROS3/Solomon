@@ -86,6 +86,10 @@ The canonical workspace root yields a stable 64-char project id; chats, plans, s
 
 `/new`, `/resume`, and `/resume last|<id|title>` switch persisted transcripts on disk. Codex `resume` and Claude’s session history pursue the same “continue yesterday’s thread” goal. Ephemeral mode is separate; see [Ephemeral sessions](#ephemeral-sessions). Commands: [Usage and commands](user-guide/usage-and-commands.md).
 
+### Export chat to markdown
+
+`/export current | /export last | /export <id|title>` writes a readable markdown transcript under `~/.solomon/exported/{date}/` (or `[export].path` in config). Useful for archiving, sharing, or saving ephemeral `/temp` sessions outside the JSON chat store. Re-exports on the same day suffix `-1`, `-2`, …; `/export last` refuses when that chat was already exported today. See [Usage and commands — `/export`](user-guide/usage-and-commands.md#export-chat-transcript).
+
 ### Subagent delegation
 
 The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). It is a **native** tool in **agent** mode and legacy **build** mode only — not in the deferred `searchTools` catalog, not callable from orchestrate WASM scripts. Nested runs always disable reasoning (`ForceDisableReasoning` in [`nested.go`](../internal/agent/runtime/nested.go)); `/reasoning` applies to the main chat only. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly. Subagent **file persistence** beyond in-memory transcripts is **(in the future)** — see [Subagent session persistence (in the future)](#subagent-session-persistence-in-the-future).
@@ -215,6 +219,10 @@ Same behavior as [Stream integrity (fail-closed SSE)](#stream-integrity-fail-clo
 ### Tool output spill under project temp
 
 When a tool result exceeds configured byte or line caps, Solomon keeps a truncated summary for the model and writes the full payload to `projects/<project-id>/temp/`, with cross-process cleanup coordinated via `~/.solomon/temp.txt`. Agents that truncate usually drop the tail silently; Solomon preserves a local path you can `readFile` in a follow-up turn. See [Data layout — Tool output spill](user-guide/data-layout.md#tool-output-spill-temp).
+
+### Markdown export with image registry
+
+`/export` archives chats as markdown under `~/.solomon/exported/{date}/` (or `[export].path`). Placeholders stay in the transcript body; a trailing `## Images` section maps each `[img-N]` to a base64 data URI so the file stays self-contained. Re-exports on the same day use `-1`, `-2` suffixes; `/export last` refuses when that chat was already exported today. See [Usage and commands — `/export`](user-guide/usage-and-commands.md#export-chat-transcript).
 
 ### User-visible custom rules vs AGENTS.md
 
