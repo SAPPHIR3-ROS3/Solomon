@@ -155,6 +155,7 @@ When `EphemeralSession` is true, `persistSession` skips disk writes ([Sessions a
 | `solomon temp exec` | Set at startup in [`cmd/solomon/main.go`](../../cmd/solomon/main.go) |
 | `/temp` | Only on empty chat — [`commands.TempChat`](../../internal/agent/commands/resume.go) |
 | `/new`, `/resume` | Return to persisted chats |
+| `/export` | Markdown transcript export — [`commands/export.go`](../../internal/agent/commands/export.go) |
 
 ## Extension points
 

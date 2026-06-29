@@ -10,7 +10,7 @@ Slash commands for session control, mode, config, and skills; skill registry at 
 |------|------|
 | Slash dispatch | `internal/agent/slash/dispatch.go`, `internal/agent/slash_forward.go` |
 | Command registry | `internal/agent/commands/builtin_slash.go`, `help.go` |
-| Command impls | `internal/agent/commands/*.go` |
+| Command impls | `internal/agent/commands/*.go` (including [`export.go`](../../internal/agent/commands/export.go) for `/export`) |
 | Skills registry | `internal/skills/registry.go`, `add.go`, `remove.go`, `locate.go` |
 | Skill tools | `internal/agent/tools/load_skill.go`, `search_skill.go` |
 | CLI add/remove | `commands/add.go`, `commands/remove.go` |
@@ -29,7 +29,9 @@ Slash handlers live in `commands` package; the runtime bridge constructs `Deps` 
 
 `/help` prints the authoritative sorted list from [`commands.Registry`](../../internal/agent/commands/help.go).
 
-Common commands: `/agent`, `/chat`, `/resume`, `/new`, `/temp`, `/summarize`, `/connect`, `/models`, `/legacytools`, `/btw`, `/cursortools` (Cursor API configured only), `/skills`, forced `/skill:<name> [request]`, and MCP-related slashes in `mcp_slash.go`.
+Common commands: `/agent`, `/chat`, `/resume`, `/new`, `/temp`, `/export`, `/summarize`, `/connect`, `/models`, `/legacytools`, `/btw`, `/cursortools` (Cursor API configured only), `/skills`, forced `/skill:<name> [request]`, and MCP-related slashes in `mcp_slash.go`.
+
+`/export` writes a markdown transcript via [`export.go`](../../internal/agent/commands/export.go) and [`export_transcript.go`](../../internal/agent/commands/export_transcript.go). Default output root is `~/.solomon/exported/`; override with `[export].path` in `config.toml`. User guide: [Usage and commands — `/export`](../user-guide/usage-and-commands.md#export-chat-transcript).
 
 `/legacytools` persists `[tools].legacy` and `[tools].legacy_force` to `config.toml` (global). `/cursortools` forces `[tools].cursor_internal_tools = false` (deprecated) and restarts the Cursor sidecar; visibility is gated by `config.CursorAPIConfigured`. Both are implemented in [`thinking.go`](../../internal/agent/commands/thinking.go). User guide: [Usage and commands — `/legacytools`](../user-guide/usage-and-commands.md#legacytools), [`/cursortools`](../user-guide/usage-and-commands.md#cursortools).
 

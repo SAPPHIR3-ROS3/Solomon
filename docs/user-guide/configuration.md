@@ -27,6 +27,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `autoupdate` | At REPL startup, auto-install a newer release when the GitHub check finds one, then restart in the same terminal (toggle with `/autoupdate`) |
 | `doc_search_min_normalized_score` | BM25 minimum for `/docs` and `docsRetrieval` (default `0.05`) |
 | `doc_search_full_article_score` | Normalized score threshold for returning a full article on short queries (default `0.9`) |
+| `[export].path` | Optional absolute directory for `/export` markdown files (default root `~/.solomon/exported/`) |
 | `[prompt_templates]` | SHA256 per edited system prompt template (see below) |
 
 ### `[prompt_templates]` (system prompt templates)
@@ -50,6 +51,23 @@ agent = "a1b2c3…"
 ```
 
 Architecture: [Startup and CLI](../architecture/startup-and-cli.md), [Plan vs build](../architecture/plan-vs-build.md). Data layout: [data-layout.md](data-layout.md).
+
+### `[export]` (chat markdown exports)
+
+Optional override for where `/export` writes markdown transcripts. When omitted, Solomon uses `~/.solomon/exported/`.
+
+| Key | Role |
+|-----|------|
+| `path` | Absolute directory; files land at `{path}/{YYYY-MM-DD}/{basename}.md` |
+
+Example:
+
+```toml
+[export]
+path = "/Users/me/solomon-exports"
+```
+
+`/export` reads this section but does not modify it. Behaviour (basename slug, duplicate suffixes, `/export last` guard, image appendix): [Usage and commands — `/export`](usage-and-commands.md#export-chat-transcript).
 
 ### `[tools]` (legacy XML tool calling)
 

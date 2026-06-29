@@ -10,6 +10,8 @@ flowchart LR
   mcpConfig["mcp.json<br/><small>optional MCP servers</small>"]
   projectMap["projectsId.json<br/><small>canonical root -> 64-char id</small>"]
   logs["logs/<br/><small>file logs, 7-day retention</small>"]
+  exported["exported/<br/><small>/export markdown by date</small>"]
+  exportFile["YYYY-MM-DD/*.md"]
   globalSkillsDir["skills/<br/><small>global skill files</small>"]
   globalAgents["AGENTS.md<br/><small>global agent instructions</small>"]
   globalRules["rules/<br/><small>rule_NN.txt custom rules</small>"]
@@ -41,6 +43,8 @@ flowchart LR
   home --> mcpConfig
   home --> projectMap
   home --> logs
+  home --> exported
+  exported --> exportFile
   home --> tempQueue
   home --> globalSkillsDir
   home --> globalAgents
@@ -65,13 +69,17 @@ flowchart LR
 
   classDef folder fill:#eef6ff,stroke:#5b8def,color:#102a43
   classDef file fill:#fff7e6,stroke:#d9822b,color:#3d2b1f
-  class home,logs,globalSkillsDir,globalRules,promptTemplates,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
-  class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,planFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
+  class home,logs,exported,globalSkillsDir,globalRules,promptTemplates,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
+  class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,planFile,exportFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
 ```
 
 ## Session files
 
 Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds session id, title, timestamps, messages, tool calls, checkpoint fields, token usage, image references, and `activated_instruction_dirs` (subdirectory instruction paths active for that chat). Legacy tool settings are **not** stored per session — they live in global `config.toml` under `[tools]`. Old session JSON may still contain a deprecated `legacy_tools` field; it is ignored on load. See [Sessions and storage](../architecture/sessions-and-storage.md).
+
+## Exported chats (`/export`)
+
+Markdown exports from `/export` live under `~/.solomon/exported/{YYYY-MM-DD}/{basename}.md` by default, or under `[export].path` with the same date subdirectory layout. Files are self-contained transcripts (metadata header, readable message body, optional `## Images` appendix with base64 data URIs). Re-exporting the same chat on the same day creates `{basename}-1.md`, `{basename}-2.md`, … Solomon does not maintain a separate export index — “already exported today” checks scan for matching basenames in that date folder. Details: [Usage and commands — `/export`](usage-and-commands.md#export-chat-transcript).
 
 ## Project instructions and custom rules
 
