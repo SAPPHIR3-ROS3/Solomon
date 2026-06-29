@@ -10,7 +10,7 @@ Welcome to the in-repo wiki for Solomon. Articles are grouped by topic into **po
 | First run and REPL basics | [Usage and commands — Quickstart](user-guide/usage-and-commands.md#quickstart) |
 | Configure providers, MCP, web search | [Configuration](user-guide/configuration.md) |
 | REPL, slash commands, CLI modes | [Usage and commands](user-guide/usage-and-commands.md) |
-| Find chats, plans, skills on disk | [Data layout](user-guide/data-layout.md) |
+| Find chats, plans, skills, exports on disk | [Data layout](user-guide/data-layout.md) |
 | Automate in CI | [Machine output](user-guide/usage-and-commands.md#machine-readable-output---json---jsonl) · [GitHub Actions example](development/ci-github-actions.example.yml) |
 | Compare capabilities | [Feature catalog](features.md) |
 | What Solomon is and design tenets | [Overview](architecture/overview.md) |

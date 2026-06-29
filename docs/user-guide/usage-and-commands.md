@@ -31,7 +31,7 @@ Install first: [Installation and PATH](installation.md). Provider and engine kno
 ## Features
 
 - Interactive readline REPL plus one-shot runs: [`exec`](../../cmd/solomon/main.go), [`temp exec`](../../cmd/solomon/main.go)
-- Configuration and state under `~/.solomon`: [`config.toml`](../../internal/paths/paths.go), `mcp.json`, `projects/`, `logs/`, `skills.json`, project-scoped dirs
+- Configuration and state under `~/.solomon`: [`config.toml`](../../internal/paths/paths.go), `mcp.json`, `projects/`, `exported/`, `logs/`, `skills.json`, project-scoped dirs
 - First-run or incomplete LLM setup via [`RunInitialSetup`](../../internal/config/onboard_setup.go); re-run with `/onboard` ([`RunOnboardWizard`](../../internal/config/onboard.go))
 - **Working directory ↔ project**: stable id from cwd; chats and skills partitioned per tree ([`project.Resolve`](../../internal/project/project.go))
 - **Skills**: `solomon add` / `solomon remove`; `/skills`, `/add`, dynamic skill slashes, and forced `/skill:<name> [request]` in-session (authoritative list: `/help`)
@@ -90,6 +90,7 @@ Highlights:
 | ------- | ---- |
 | `/agent`, `/chat` | Switch session mode |
 | `/resume`, `/new`, `/temp` | Session switching (`/temp` = ephemeral, empty chat only) |
+| `/export` | Export a chat transcript to markdown under `~/.solomon/exported/` (or `[export].path`) — see below |
 | `/summarize`, `/compact` | Long-context hygiene |
 | `/connect` | Add provider and models |
 | `/legacytools` | Legacy XML tool calling — see below |
@@ -122,7 +123,41 @@ Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Pro
 
 After the welcome banner, Solomon runs a short HTTPS reachability check in the background (skipped when onboarding is required). If the network looks offline, a single system notice lists affected remote features (web search, remote MCP servers, remote providers) instead of separate catalog errors. The notice appears when the prompt is ready; typing can interrupt the wait. After an offline startup, the first `/models` refetches provider catalogs once connectivity returns.
 
-Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → forces `cursor_internal_tools = false`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields).
+Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → forces `cursor_internal_tools = false`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields). `/export` reads `[export].path` but does not write config.
+
+### `/export` chat transcript
+
+Export a readable markdown copy of a chat session. The command **requires** a target; omitting arguments returns a usage error.
+
+| Invocation | Source session |
+|------------|----------------|
+| `/export current` | Active REPL session (including ephemeral `/temp` chats in memory) |
+| `/export last` | Latest saved chat with a user message (same resolution as `/resume last`) |
+| `/export <id\|title>` | Load by chat id or title from disk (does not switch the REPL session) |
+
+**Output path:** `{export_root}/{YYYY-MM-DD}/{basename}.md`
+
+| Setting | Export root |
+|---------|-------------|
+| Default | `~/.solomon/exported/` |
+| `[export].path` in `config.toml` | Absolute directory; same `{date}/{basename}.md` layout underneath |
+
+Solomon always prints the **absolute path** of the written file. When the default root is used, the confirmation line notes `(default)` on the export root in the file metadata header.
+
+**Basename rules:**
+
+- Slug of the chat title (lowercase, `-` separators, non-alphanumeric stripped, max 80 characters)
+- Empty title → chat id (or placeholder id for unsaved chats)
+- Re-export the same chat on the same day → suffix `-1`, `-2`, … (counter starts at `1`)
+- `/export last` fails with an explicit error if any `{basename}*.md` already exists for that chat **today** (including suffixed names)
+
+**Markdown contents:**
+
+- Header with available metadata (title, export time, chat id, project, provider, model, mode, timestamps, message count, ephemeral flag, export root)
+- Full readable transcript: user and assistant text, reasoning (blockquote), tool call/result lines, checkpoint tags — no ANSI colors
+- Image placeholders (`[img-N]`) preserved in the body; a trailing `## Images` section maps each placeholder to `data:image/…;base64,…`
+
+Implementation: [`export.go`](../../internal/agent/commands/export.go), [`export_transcript.go`](../../internal/agent/commands/export_transcript.go). Config: [Configuration — `[export]`](configuration.md#export-chat-markdown-exports).
 
 ### `/btw` side questions
 
