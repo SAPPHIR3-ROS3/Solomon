@@ -267,7 +267,7 @@ export function redirectCorrectionHint(toolName: string): string | null {
     case "find":
       return "Cursor Grep/Glob are disabled. Call searchTools, then orchestrate with sdk.Glob, sdk.Grep, or sdk.GrepLines.";
     case "subagent":
-      return "Nested agent work: emit native subagent via <tool_calls> or tool_calls.";
+      return "Nested agent work: emit native subagent via API tool_calls.";
     case "fetchWeb":
       return "HTTP fetch: orchestrate with sdk.FetchWeb.";
     case "webSearch":

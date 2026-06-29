@@ -184,7 +184,8 @@ test("harness tools clause describes Solomon native tools (2.6)", () => {
   assert.ok(clause.startsWith("[Harness] Session tools: searchTools, orchestrate, subagent"));
   assert.ok(clause.includes("searchTools (discover deferred"));
   assert.ok(clause.includes("orchestrate SDK use only"));
-  assert.ok(clause.includes("<tool_calls> XML"));
+  assert.ok(clause.includes("native API tool_calls"));
+  assert.ok(!clause.includes("XML per the system prompt"));
   assert.ok(!clause.includes("Cursor built-in"));
   assert.ok(!clause.includes("Prefer Read"));
   assert.ok(!clause.includes("Shell fallback"));
