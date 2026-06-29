@@ -107,6 +107,7 @@ type Root struct {
 	ToolOutput                ToolOutput           `toml:"tool_output,omitempty"`
 	APIResilience             APIResilienceConfig  `toml:"api_resilience,omitempty"`
 	WebFetch                  WebFetchConfig       `toml:"web_fetch,omitempty"`
+	Export                    Export               `toml:"export,omitempty"`
 	AutoUpdate                *bool                `toml:"autoupdate,omitempty"`
 	PromptTemplates           map[string]string    `toml:"prompt_templates,omitempty"`
 	PromptTemplateModTime   map[string]int64     `toml:"prompt_template_mtime,omitempty"`

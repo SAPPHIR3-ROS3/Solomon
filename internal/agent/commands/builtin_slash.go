@@ -77,6 +77,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"new"}, "/new", "start a new chat session (empty transcript; prior chat stays saved on disk)", nil, func(d Deps, parts []string) error { return NewChat(d) }},
 		{[]string{"temp"}, "/temp", "/temp — empty chat only: in-memory session (not saved; like solomon temp exec)", nil, func(d Deps, parts []string) error { return TempChat(d) }},
 		{[]string{"resume"}, "/resume", "/resume | /resume last | /resume <id|title>", nil, func(d Deps, parts []string) error { return Resume(d, parts[1:]) }},
+		{[]string{"export"}, "/export", "/export current | /export last | /export <id|title> — export chat transcript to markdown", nil, func(d Deps, parts []string) error { return Export(d, parts) }},
 		{[]string{"summarize", "compact"}, "/summarize, /compact", "summarize full chat; summary + last 8 msgs; then /clear", nil, func(d Deps, parts []string) error { return Summarize(d) }},
 		{[]string{"btw"}, "/btw", "/btw <question> — side question during generation (type while the agent is running; not available at idle prompt)", nil, func(d Deps, parts []string) error { return Btw(d, parts) }},
 		{[]string{"exit", "quit"}, "/exit, /quit", "exit and show how to resume", nil, func(d Deps, parts []string) error {
