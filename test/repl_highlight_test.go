@@ -185,6 +185,26 @@ func TestReplHL_multilineBangShell(t *testing.T) {
 	}
 }
 
+func TestReplHL_apostropheInWord(t *testing.T) {
+	initHLTestColors(t)
+	env := replcomplete.ReplCompleteEnv{}
+	plain := replhl.HighlightInputLine([][]rune{[]rune("l'oracolo")}, 0, false, env)
+	if plain != "l'oracolo" {
+		t.Fatalf("plain chat=%q want no ANSI", plain)
+	}
+	shell := replhl.HighlightInputLine([][]rune{[]rune("l'oracolo")}, 0, true, env)
+	if shell != "l'oracolo" {
+		t.Fatalf("shell-first chat-like=%q want no ANSI", shell)
+	}
+	quoted := replhl.HighlightShell("echo 'ciao mondo'", replhl.ShellEnv{})
+	if termcolor.Plain(quoted) != "echo 'ciao mondo'" {
+		t.Fatalf("plain=%q", termcolor.Plain(quoted))
+	}
+	if !strings.Contains(quoted, "\x1b[") {
+		t.Fatalf("expected quoted shell highlight: %q", quoted)
+	}
+}
+
 func TestReplHL_noColorPlain(t *testing.T) {
 	termcolor.Init(termcolor.InitOptions{Out: bytes.NewBuffer(nil), NoColor: true})
 	out := replhl.HighlightShell("git *.go", replhl.ShellEnv{})

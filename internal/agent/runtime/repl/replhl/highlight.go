@@ -39,7 +39,6 @@ func HighlightInputLineSlice(lines [][]rune, row, start, end int, shellFirst boo
 		return string(rs[start:end])
 	default:
 		styles := make([]termcolor.ZshStyleKey, len(rs))
-		applySlashLexical(rs, styles)
 		applySlashSemantic(rs, styles, env)
 		return renderStyled(string(rs[start:end]), styles[start:end])
 	}
