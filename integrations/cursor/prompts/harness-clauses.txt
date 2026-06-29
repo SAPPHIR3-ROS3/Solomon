@@ -6,6 +6,6 @@
 
 [Harness] Blocked: Cursor IDE built-ins (Read, StrReplace, Write, Shell, Grep, Glob, Task, CallMcpTool, ApplyPatch, TodoWrite, …), browser_* tools, AskQuestion, GenerateImage, and Await are rejected by the host. External MCP servers are not available — use searchTools plus orchestrate for Solomon MCP work.
 
-[Harness] Invocation: use registered Solomon tool calls by name. <tool_calls> XML in assistant text is still accepted as fallback. Optional brief prose may precede a tool call.
+[Harness] Invocation: emit native API tool_calls by exact tool name. Do not write <tool_calls> XML blocks in assistant text. Optional brief prose may precede a tool call.
 
 [Harness] Results: do not invent or quote file contents unless they appeared in a prior [tool result …] or in the user's message. After you issue a tool invocation, stop and wait for its result; never assume it succeeded or narrate a result you did not receive.
