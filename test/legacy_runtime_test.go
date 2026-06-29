@@ -126,11 +126,14 @@ func TestRenderAgent_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
 	if strings.Contains(got, "Legacy text tools force is ON") {
 		t.Fatalf("bridge prompt must not include legacy_force section: %q", got)
 	}
-	if strings.Contains(got, `name="readFile"`) || strings.Contains(got, `name="shell"`) {
+	if strings.Contains(got, `name="readFile"`) || strings.Contains(got, `name="shell"`) || strings.Contains(got, `<tool name=`) {
 		t.Fatalf("bridge prompt must not include deferred-tool XML examples: %q", got)
 	}
-	if !strings.Contains(got, "<tool_calls>") || !strings.Contains(got, `name="orchestrate"`) {
-		t.Fatalf("bridge prompt must describe native XML invocation with orchestrate example: %q", got)
+	if !strings.Contains(got, "native API tool_calls") || !strings.Contains(got, "orchestrate") {
+		t.Fatalf("bridge prompt must describe native API tool_calls with orchestrate: %q", got)
+	}
+	if !strings.Contains(strings.ToLower(got), "do not write <tool_calls> xml") {
+		t.Fatalf("bridge prompt must forbid XML tool blocks: %q", got)
 	}
 	for _, tool := range []string{"orchestrate", "searchTools", "subagent", "switchMode", "searchSkill", "loadSkill"} {
 		if !strings.Contains(got, tool) {
@@ -153,12 +156,12 @@ func TestRenderAgent_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
 
 func TestExternalToolBridgeInvocationSyntax(t *testing.T) {
 	got := prompt.ExternalToolBridgeInvocationSyntax()
-	for _, want := range []string{"<tool_calls>", "orchestrate", "searchTools", "subagent", "switchMode", "searchSkill", "loadSkill"} {
+	for _, want := range []string{"native API tool_calls", "orchestrate", "searchTools", "subagent", "switchMode", "searchSkill", "loadSkill"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in bridge syntax: %q", want, got)
 		}
 	}
-	for _, omit := range []string{`name="readFile"`, `name="editFile"`, `name="shell"`, "Legacy text tools"} {
+	for _, omit := range []string{`<tool name=`, `<tool_calls>\n<tool`, `name="readFile"`, `name="editFile"`, `name="shell"`, "Legacy text tools"} {
 		if strings.Contains(got, omit) {
 			t.Fatalf("bridge syntax must not include %q: %q", omit, got)
 		}

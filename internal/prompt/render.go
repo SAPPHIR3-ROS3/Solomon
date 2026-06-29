@@ -125,63 +125,17 @@ func AnonymizeNativeToolInvocationSyntax() string {
 }
 
 func ExternalToolBridgeInvocationSyntax() string {
-	return strings.TrimSpace(`Cursor proxy: invoke Solomon native tools by emitting a <tool_calls> XML block in your main assistant response text. The sidecar host parses the block, converts it to native tool_calls, and executes tools in Go on the real workspace. Use only exact tool names from ## Available tools below — never Cursor IDE built-ins (Read, StrReplace, Shell, Task, …).
-
-Wrapper (Solomon canonical):
-
-<tool_calls>
-<tool name="TOOL_NAME">
-<intent>brief purpose when the tool supports intent</intent>
-<args>{"key":"value"}</args>
-</tool>
-</tool_calls>
-
-Also accepted (normalized automatically): <tool_call>{"name":"TOOL_NAME","arguments":{...}}</tool_call> and <functioncall>{"name":"TOOL_NAME","arguments":{...}}</functioncall>.
+	return strings.TrimSpace(`Cursor proxy: invoke Solomon tools via native API tool_calls (function calling) only. Tool names and JSON argument schemas match ## Available tools below. Do not emit <tool_calls> XML blocks, Tool: lines, markdown pseudo-calls, or plain-text tool narration — only API tool_calls execute on the host. Never use Cursor IDE built-ins (Read, StrReplace, Shell, Task, …).
 
 Rules:
-- Substitute TOOL_NAME with an exact name from ## Available tools (never emit the literal string TOOL_NAME).
-- Put optional prose before the block; do not emit text after the closing </tool_calls>.
-- Each <args> must be valid JSON matching the tool schema.
-- Workspace read/edit/shell/find/MCP work belongs in orchestrate (use searchTools first when unsure which deferred SDK to call). subagent is a native tool_call only — not inside orchestrate scripts.
+- Native entry tools: orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill, docsRetrieval, and MCP.* when connected.
+- Use exact tool names from ## Available tools below.
+- Optional brief prose may precede tool_calls; do not describe a tool call in text instead of invoking it.
+- Workspace read/edit/shell/find/MCP work: call searchTools when unsure which deferred SDK to use, then orchestrate (package main, import "sdk" only).
+- subagent is a native tool_call only — never invoke it inside orchestrate scripts.
+- Deferred tools (readFile, editFile, shell, find, plan tools, …) are for orchestrate SDK use only — never direct native tool_calls.
 
-Examples (native):
-<tool_calls>
-<tool name="searchTools">
-<args>{"query":"read file"}</args>
-</tool>
-</tool_calls>
-
-<tool_calls>
-<tool name="orchestrate">
-<intent>List README then print first lines</intent>
-<args>{"source":"package main\n\nimport \"fmt\"\nimport \"sdk\"\n\nfunc main() {\n\tb, err := sdk.ReadFile(\"README.md\")\n\tif err != nil { fmt.Println(err); return }\n\tfmt.Println(string(b))\n}","intent":"read README"}</args>
-</tool>
-</tool_calls>
-
-<tool_calls>
-<tool name="subagent">
-<intent>Explore auth package</intent>
-<args>{"sysPromptPath":"agent.tmpl","task":"Map login flow under internal/auth"}</args>
-</tool>
-</tool_calls>
-
-<tool_calls>
-<tool name="switchMode">
-<args>{"mode":"chat"}</args>
-</tool>
-</tool_calls>
-
-<tool_calls>
-<tool name="searchSkill">
-<args>{"query":"pull request review"}</args>
-</tool>
-</tool_calls>
-
-<tool_calls>
-<tool name="loadSkill">
-<args>{"name":"babysit"}</args>
-</tool>
-</tool_calls>`)
+` + NativeToolInvocationSyntax(false))
 }
 
 func NativeToolInvocationSyntax(legacyFallbackEnabled bool) string {

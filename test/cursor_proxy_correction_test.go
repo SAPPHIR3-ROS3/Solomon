@@ -14,10 +14,13 @@ func TestNativeBridgeToolCorrectionUserMsg_orchestrateFirst(t *testing.T) {
 			t.Fatalf("unexpected stale phrase %q in %q", bad, msg)
 		}
 	}
-	for _, want := range []string{"orchestrate", "searchTools", "subagent", "<tool_calls> XML"} {
+	for _, want := range []string{"orchestrate", "searchTools", "subagent", "native API tool_calls"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("missing %q in %q", want, msg)
 		}
+	}
+	if strings.Contains(msg, "<tool_calls> XML or native") {
+		t.Fatalf("must not offer XML/native ambiguity in %q", msg)
 	}
 }
 
