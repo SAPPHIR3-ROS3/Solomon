@@ -354,6 +354,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.release.outputs.ver }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: bash scripts/check_upgrade_smoke.sh
 
       - name: Smoke test upgrade path (Windows)
@@ -362,6 +363,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.release.outputs.ver }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/check_upgrade_smoke.ps1
 
       - id: asset_meta_unix
