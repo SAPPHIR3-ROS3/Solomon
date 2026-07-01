@@ -204,7 +204,10 @@ jobs:
             --notes "Calendar release $VER. Assets are native executables per platform (linux, windows, macOS; amd64 and arm64)."
 
   post_release_smoke:
-    if: github.event_name == 'workflow_dispatch'
+    if: |
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      needs.release.result == 'success'
     needs: release
     strategy:
       fail-fast: false
