@@ -78,24 +78,24 @@ case_dir_for() {
   printf '%s/%s-%s' "$smoke_root" "${from_tag//\//_}" "$method"
 }
 
-bin_dir_for() {
-  printf '%s/bin' "$(case_dir_for "$1" "$2")"
+default_bin_dir() {
+  local bin_dir gobin
+  bin_dir="$(go env GOPATH)/bin"
+  gobin="$(go env GOBIN 2>/dev/null | tr -d '\r\n')"
+  if [[ -n "$gobin" ]]; then
+    bin_dir="$gobin"
+  fi
+  printf '%s' "$bin_dir"
 }
 
 install_release() {
   local from_tag="$1"
-  local method="$2"
-  local bin_dir
-  bin_dir="$(bin_dir_for "$from_tag" "$method")"
-  mkdir -p "$bin_dir"
-  GOBIN="$bin_dir" PATH="$bin_dir:$PATH" \
-    bash -c "curl -fsSL \"https://raw.githubusercontent.com/${repo}/main/scripts/install.sh\" | bash -s -- \"$from_tag\""
+  unset GOBIN
+  curl -fsSL "https://raw.githubusercontent.com/${repo}/main/scripts/install.sh" | bash -s -- "$from_tag"
 }
 
 exe_path() {
-  local from_tag="$1"
-  local method="$2"
-  printf '%s/solomon' "$(bin_dir_for "$from_tag" "$method")"
+  printf '%s/solomon' "$(default_bin_dir)"
 }
 
 wait_for_target_version() {
@@ -138,9 +138,9 @@ run_case() {
   log="$(case_dir_for "$from_tag" "$method").log"
 
   echo "Upgrade smoke (${method}): ${from_tag} -> ${RELEASE_TAG}"
-  install_release "$from_tag" "$method"
+  install_release "$from_tag"
   local exe
-  exe="$(exe_path "$from_tag" "$method")"
+  exe="$(exe_path)"
   export NO_COLOR=1
 
   local current
@@ -164,17 +164,6 @@ run_case() {
   verify_log_strict "$log" "$from_tag"
 }
 
-build_source_tags() {
-  local prev="$1"
-  local -n out=$2
-  if [[ -n "$prev" && "$prev" != "$RELEASE_TAG" ]]; then
-    out+=("$prev")
-  fi
-  if [[ "$legacy_tag" != "$RELEASE_TAG" && "$legacy_tag" != "$prev" ]] && release_exists "$legacy_tag"; then
-    out+=("$legacy_tag")
-  fi
-}
-
 prev="$(fetch_prev_release || true)"
 if [[ -z "$prev" ]] && ! release_exists "$legacy_tag"; then
   echo "Skipping upgrade smoke: no previous or legacy release to upgrade from"
@@ -182,11 +171,18 @@ if [[ -z "$prev" ]] && ! release_exists "$legacy_tag"; then
 fi
 
 sources=()
-build_source_tags "$prev" sources
+if [[ -n "$prev" && "$prev" != "$RELEASE_TAG" ]]; then
+  sources+=("$prev")
+fi
+if [[ "$legacy_tag" != "$RELEASE_TAG" && "$legacy_tag" != "$prev" ]] && release_exists "$legacy_tag"; then
+  sources+=("$legacy_tag")
+fi
 if [[ ${#sources[@]} -eq 0 ]]; then
   echo "Skipping upgrade smoke: no source tags to test"
   exit 0
 fi
+
+mkdir -p "$smoke_root"
 
 for from_tag in "${sources[@]}"; do
   if [[ "$from_tag" == "$RELEASE_TAG" ]]; then
