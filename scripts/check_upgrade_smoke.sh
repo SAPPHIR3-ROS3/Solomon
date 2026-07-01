@@ -5,6 +5,15 @@ set -euo pipefail
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 
 repo="${GITHUB_REPOSITORY}"
+legacy_tag="${UPGRADE_SMOKE_LEGACY_TAG:-v2026.624.0}"
+fixed_baseline="${UPGRADE_SMOKE_FIXED_BASELINE:-v2026.701.0}"
+smoke_root="${UPGRADE_SMOKE_ROOT:-$(mktemp -d)}"
+
+strict_error_patterns=(
+  'InvalidOperation'
+  'RestartExe'
+  'Cannot create a file when that file already exists'
+)
 
 fetch_prev_release() {
   local attempt prev=""
@@ -29,46 +38,160 @@ fetch_prev_release() {
   return 1
 }
 
-prev="$(fetch_prev_release || true)"
-if [[ -z "$prev" || "$prev" == "$RELEASE_TAG" ]]; then
-  echo "Skipping upgrade smoke: no previous release to upgrade from (prev=${prev:-none})"
-  exit 0
-fi
+release_exists() {
+  local tag="$1"
+  curl -fsI "https://github.com/${repo}/releases/tag/${tag}" >/dev/null 2>&1
+}
 
-echo "Upgrade smoke: ${prev} -> ${RELEASE_TAG}"
-curl -fsSL "https://raw.githubusercontent.com/${repo}/main/scripts/install.sh" | bash -s -- "$prev"
+version_ge() {
+  local left="${1#v}"
+  local right="${2#v}"
+  local first
+  first="$(printf '%s\n%s\n' "$left" "$right" | sort -V | tail -n1)"
+  [[ "$first" == "$left" ]]
+}
 
-bin_dir="$(go env GOPATH)/bin"
-gobin="$(go env GOBIN 2>/dev/null | tr -d '\r\n')"
-if [[ -n "$gobin" ]]; then
-  bin_dir="$gobin"
-fi
-exe="${bin_dir}/solomon"
-export NO_COLOR=1
+has_cli_marker() {
+  local exe="$1"
+  strings "$exe" | grep -q 'solomon-cli-upgrade-v1'
+}
 
-current="$("$exe" version | tr -d '\r\n')"
-echo "Installed previous release: ${current}"
-if [[ "$current" != *"$prev"* ]]; then
-  echo "expected version to include ${prev}, got ${current}" >&2
-  exit 1
-fi
-if ! strings "$exe" | grep -q 'solomon-cli-upgrade-v1'; then
-  echo "Skipping upgrade smoke: ${prev} predates solomon upgrade CLI"
-  exit 0
-fi
-
-"$exe" upgrade &
-upgrade_pid=$!
-for attempt in $(seq 1 90); do
-  if ver="$("$exe" version 2>/dev/null | tr -d '\r\n')" && [[ "$ver" == *"$RELEASE_TAG"* ]]; then
-    echo "Upgrade smoke OK: ${ver}"
-    wait "$upgrade_pid" 2>/dev/null || true
-    exit 0
+verify_log_strict() {
+  local log="$1"
+  local from_tag="$2"
+  if ! version_ge "$from_tag" "$fixed_baseline"; then
+    return 0
   fi
-  sleep 2
-done
+  local pattern
+  for pattern in "${strict_error_patterns[@]}"; do
+    if grep -q "$pattern" "$log"; then
+      echo "upgrade smoke: forbidden output for ${from_tag}: ${pattern}" >&2
+      cat "$log" >&2
+      return 1
+    fi
+  done
+}
 
-echo "Upgrade smoke failed: expected version to include ${RELEASE_TAG}" >&2
-"$exe" version >&2 || true
-wait "$upgrade_pid" 2>/dev/null || true
-exit 1
+case_dir_for() {
+  local from_tag="$1"
+  local method="$2"
+  printf '%s/%s-%s' "$smoke_root" "${from_tag//\//_}" "$method"
+}
+
+bin_dir_for() {
+  printf '%s/bin' "$(case_dir_for "$1" "$2")"
+}
+
+install_release() {
+  local from_tag="$1"
+  local method="$2"
+  local bin_dir
+  bin_dir="$(bin_dir_for "$from_tag" "$method")"
+  mkdir -p "$bin_dir"
+  GOBIN="$bin_dir" PATH="$bin_dir:$PATH" \
+    bash -c "curl -fsSL \"https://raw.githubusercontent.com/${repo}/main/scripts/install.sh\" | bash -s -- \"$from_tag\""
+}
+
+exe_path() {
+  local from_tag="$1"
+  local method="$2"
+  printf '%s/solomon' "$(bin_dir_for "$from_tag" "$method")"
+}
+
+wait_for_target_version() {
+  local exe="$1"
+  local attempt ver=""
+  for attempt in $(seq 1 90); do
+    if ver="$("$exe" version 2>/dev/null | tr -d '\r\n')" && [[ "$ver" == *"$RELEASE_TAG"* ]]; then
+      echo "Upgrade smoke OK (${RELEASE_TAG}): ${ver}"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Upgrade smoke failed: expected version to include ${RELEASE_TAG}, last=${ver:-none}" >&2
+  "$exe" version >&2 || true
+  return 1
+}
+
+run_cli_upgrade() {
+  local exe="$1"
+  local log="$2"
+  "$exe" upgrade >"$log" 2>&1 &
+  local upgrade_pid=$!
+  wait_for_target_version "$exe"
+  wait "$upgrade_pid" 2>/dev/null || true
+}
+
+run_repl_upgrade() {
+  local exe="$1"
+  local log="$2"
+  python3 "$(dirname "$0")/repl_upgrade_pty.py" "$exe" >"$log" 2>&1 &
+  local upgrade_pid=$!
+  wait_for_target_version "$exe"
+  wait "$upgrade_pid" 2>/dev/null || true
+}
+
+run_case() {
+  local from_tag="$1"
+  local method="$2"
+  local log
+  log="$(case_dir_for "$from_tag" "$method").log"
+
+  echo "Upgrade smoke (${method}): ${from_tag} -> ${RELEASE_TAG}"
+  install_release "$from_tag" "$method"
+  local exe
+  exe="$(exe_path "$from_tag" "$method")"
+  export NO_COLOR=1
+
+  local current
+  current="$("$exe" version | tr -d '\r\n')"
+  echo "Installed source release: ${current}"
+  if [[ "$current" != *"$from_tag"* ]]; then
+    echo "expected version to include ${from_tag}, got ${current}" >&2
+    return 1
+  fi
+
+  if [[ "$method" == "cli" ]]; then
+    if ! has_cli_marker "$exe"; then
+      echo "Skipping CLI upgrade smoke for ${from_tag}: no solomon upgrade CLI"
+      return 0
+    fi
+    run_cli_upgrade "$exe" "$log"
+  else
+    run_repl_upgrade "$exe" "$log"
+  fi
+
+  verify_log_strict "$log" "$from_tag"
+}
+
+build_source_tags() {
+  local prev="$1"
+  local -n out=$2
+  if [[ -n "$prev" && "$prev" != "$RELEASE_TAG" ]]; then
+    out+=("$prev")
+  fi
+  if [[ "$legacy_tag" != "$RELEASE_TAG" && "$legacy_tag" != "$prev" ]] && release_exists "$legacy_tag"; then
+    out+=("$legacy_tag")
+  fi
+}
+
+prev="$(fetch_prev_release || true)"
+if [[ -z "$prev" ]] && ! release_exists "$legacy_tag"; then
+  echo "Skipping upgrade smoke: no previous or legacy release to upgrade from"
+  exit 0
+fi
+
+sources=()
+build_source_tags "$prev" sources
+if [[ ${#sources[@]} -eq 0 ]]; then
+  echo "Skipping upgrade smoke: no source tags to test"
+  exit 0
+fi
+
+for from_tag in "${sources[@]}"; do
+  if [[ "$from_tag" == "$RELEASE_TAG" ]]; then
+    continue
+  fi
+  run_case "$from_tag" "cli"
+  run_case "$from_tag" "repl"
+done
