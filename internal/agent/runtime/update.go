@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
@@ -84,10 +83,10 @@ func (r *Runtime) exitForUpdateRestart(leadLine, tag string) {
 		os.Exit(1)
 	}
 	r.shutdownForUpdateRestart(leadLine, tag)
-	if runtime.GOOS == "windows" {
+	if !updater.UsesExecInstallRestartAfterSystemInstall() {
 		os.Exit(0)
 	}
-	if err := updater.ExecInstallRestart(context.Background(), tag); err != nil {
+	if err := updater.FinishUpgradeRestart(context.Background(), tag); err != nil {
 		commands.PrintSystemErr(r.Out, fmt.Errorf("update restart: %w", err))
 		commands.PrintSystem(r.Out, updater.InstallFallbackMessage(tag))
 		os.Exit(1)

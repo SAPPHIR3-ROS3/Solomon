@@ -60,7 +60,23 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
+var execInstallRestart = defaultExecInstallRestart
+
+func SetExecInstallRestartHook(fn func(context.Context, string) error) func() {
+	prev := execInstallRestart
+	if fn == nil {
+		execInstallRestart = defaultExecInstallRestart
+	} else {
+		execInstallRestart = fn
+	}
+	return func() { execInstallRestart = prev }
+}
+
 func ExecInstallRestart(ctx context.Context, tag string) error {
+	return execInstallRestart(ctx, tag)
+}
+
+func defaultExecInstallRestart(ctx context.Context, tag string) error {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return fmt.Errorf("empty release tag")
@@ -219,6 +235,17 @@ func launchWindowsInstallRestart(ctx context.Context, pid int, tag, cwd, exe str
 }
 
 func writeWindowsInstallRestartScript(pid int, tag, cwd, exe string, args []string) (string, error) {
+	body, err := windowsInstallRestartScriptBody(pid, tag, cwd, exe, args)
+	if err != nil {
+		return "", err
+	}
+	return writePowerShellScript(body)
+}
+
+func windowsInstallRestartScriptBody(pid int, tag, cwd, exe string, args []string) (string, error) {
+	if strings.TrimSpace(exe) == "" {
+		return "", fmt.Errorf("windows install restart: empty executable path")
+	}
 	asset, err := releaseAssetName(tag)
 	if err != nil {
 		return "", err
@@ -277,7 +304,7 @@ Write-Host '=== Restarting Solomon ==='
 Write-Host ''
 %s
 `, pid, psQuote(tag), psQuote(cwd), psQuote(exe), psArgList(args), psQuote(asset), psQuote(url), psQuote(target), windowsProfileSetupScriptLines(), restartLine)
-	return writePowerShellScript(script)
+	return script, nil
 }
 
 func scheduleRestartOnly(ctx context.Context, pid int, cwd, exe string, args []string, progress io.Writer) error {
@@ -327,6 +354,9 @@ func writeUnixRestartOnlyScript(pid int, cwd, exe string, args []string) (string
 }
 
 func writeWindowsRestartOnlyScript(pid int, cwd, exe string, args []string) (string, error) {
+	if strings.TrimSpace(exe) == "" {
+		return "", fmt.Errorf("windows restart: empty executable path")
+	}
 	script := fmt.Sprintf(`$ErrorActionPreference = 'Stop'
 $RestartExe = '%s'
 $RestartArgs = %s

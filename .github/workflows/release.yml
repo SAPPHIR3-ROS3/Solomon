@@ -41,6 +41,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/check_install_path.ps1
+      - name: Verify upgrade restart flow
+        shell: bash
+        run: go test ./test -count=1 -run '^TestUpgradeFlow_'
       - name: Run tests
         shell: bash
         run: |
@@ -168,6 +171,8 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v6
+
       - name: Wait for release assets to be available
         shell: bash
         env:
@@ -301,6 +306,22 @@ jobs:
             throw "Installed binary not found at $exe"
           }
           & $exe version
+
+      - name: Smoke test upgrade path (macOS / Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: bash scripts/check_upgrade_smoke.sh
+
+      - name: Smoke test upgrade path (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: ./scripts/check_upgrade_smoke.ps1
 
       - id: asset_meta_unix
         name: Resolve release asset name (macOS / Linux)

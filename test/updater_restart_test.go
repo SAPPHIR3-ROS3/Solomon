@@ -14,7 +14,6 @@ import (
 )
 
 func TestRunSystemInstallSchedulesRestart(t *testing.T) {
-	t.Parallel()
 	restore := updater.SetScheduleInstallRestartHook(func(context.Context, string, io.Writer) error {
 		return nil
 	})
