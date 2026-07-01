@@ -84,13 +84,12 @@ func (r *Runtime) exitForUpdateRestart(leadLine, tag string) {
 		os.Exit(1)
 	}
 	r.shutdownForUpdateRestart(leadLine, tag)
+	if runtime.GOOS == "windows" {
+		os.Exit(0)
+	}
 	if err := updater.ExecInstallRestart(context.Background(), tag); err != nil {
 		commands.PrintSystemErr(r.Out, fmt.Errorf("update restart: %w", err))
 		commands.PrintSystem(r.Out, updater.InstallFallbackMessage(tag))
 		os.Exit(1)
 	}
-	if runtime.GOOS != "windows" {
-		return
-	}
-	os.Exit(0)
 }
