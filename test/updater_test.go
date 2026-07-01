@@ -52,6 +52,29 @@ func TestCheck_githubLatest(t *testing.T) {
 	}
 }
 
+func TestCheck_githubLatestUsesAuthToken(t *testing.T) {
+	t.Setenv("GH_TOKEN", "test-token")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": "v2099.101.0"})
+	}))
+	defer srv.Close()
+
+	restore := updater.SetLatestReleaseAPIURL(srv.URL)
+	defer restore()
+
+	res := updater.Check(context.Background(), "v2026.101.0")
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	if !res.Newer || res.LatestTag != "v2099.101.0" {
+		t.Fatalf("got %+v", res)
+	}
+}
+
 func TestReleaseAssetName(t *testing.T) {
 	name, err := updater.ReleaseAssetName("v2026.101.0")
 	if err != nil {

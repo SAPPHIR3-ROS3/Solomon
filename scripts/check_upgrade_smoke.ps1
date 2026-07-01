@@ -142,7 +142,22 @@ function Wait-TargetVersion {
 function Invoke-CliUpgrade {
     param([string]$Exe, [string]$LogPath)
     $p = Start-Process -FilePath $Exe -ArgumentList 'upgrade' -NoNewWindow -PassThru -RedirectStandardOutput $LogPath -RedirectStandardError "${LogPath}.err"
-    Wait-TargetVersion $Exe $LogPath
+    try {
+        Wait-TargetVersion $Exe $LogPath
+    } catch {
+        if ($env:GH_TOKEN -and (Test-Path $LogPath)) {
+            $content = Get-Content -Path $LogPath -Raw
+            if ($content -match '403 Forbidden') {
+                Write-Host "solomon upgrade hit GitHub API limits; retrying with install.ps1 ($($env:RELEASE_TAG))"
+                Install-Release $env:RELEASE_TAG
+                Wait-TargetVersion $Exe $LogPath
+            } else {
+                throw
+            }
+        } else {
+            throw
+        }
+    }
     $p.WaitForExit()
     if (Test-Path "${LogPath}.err") {
         Add-Content -Path $LogPath -Value (Get-Content -Path "${LogPath}.err" -Raw)
