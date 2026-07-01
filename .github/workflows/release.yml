@@ -351,6 +351,11 @@ jobs:
           }
           & $exe version
 
+      - name: Install pywinpty for REPL upgrade smoke (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check pywinpty
+
       - name: Smoke test upgrade path (macOS / Linux)
         if: runner.os != 'Windows'
         shell: bash

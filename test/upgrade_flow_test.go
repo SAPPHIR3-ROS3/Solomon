@@ -120,6 +120,38 @@ func TestUpgradeFlow_windowsInstallRestartScriptRequiresExe(t *testing.T) {
 	}
 }
 
+func TestUpgradeFlow_execInstallRestartNoOpOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows exec install restart guard")
+	}
+	var scheduleCalls int
+	restore := updater.SetScheduleInstallRestartHook(func(context.Context, string, io.Writer) error {
+		scheduleCalls++
+		return nil
+	})
+	defer restore()
+	if err := updater.ExecInstallRestartForTest(context.Background(), "v2099.1.0"); err != nil {
+		t.Fatal(err)
+	}
+	if scheduleCalls != 0 {
+		t.Fatalf("ExecInstallRestart on windows must not schedule install, got %d calls", scheduleCalls)
+	}
+}
+
+func TestUpgradeFlow_windowsInstallRestartScriptUsesUpgradeLock(t *testing.T) {
+	t.Parallel()
+	body, err := updater.WindowsInstallRestartScriptBodyForTest(1, "v2099.1.0", "", `C:\go\bin\solomon.exe`, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body, "solomon-upgrade.lock") {
+		t.Fatal("expected upgrade lock in install restart script")
+	}
+	if !strings.Contains(body, "solomon-dl-") {
+		t.Fatal("expected unique download temp path in install restart script")
+	}
+}
+
 func TestUpgradeFlow_windowsInstallRestartScriptSetsRestartExe(t *testing.T) {
 	t.Parallel()
 	exe := `C:\Users\patri\go\bin\solomon.exe`
