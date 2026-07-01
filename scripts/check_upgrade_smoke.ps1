@@ -78,20 +78,39 @@ function Get-CaseDir {
     return Join-Path $smokeRoot "$safe-$Method"
 }
 
+function Get-DefaultBinDir {
+    $gobin = (go env GOBIN).Trim()
+    if ($gobin) {
+        return $gobin
+    }
+    return Join-Path (go env GOPATH) 'bin'
+}
+
 function Install-Release {
-    param([string]$FromTag, [string]$Method)
-    $binDir = Join-Path (Get-CaseDir $FromTag $Method) 'bin'
-    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-    $env:GOBIN = $binDir
-    $env:Path = "$binDir;" + $env:Path
+    param([string]$FromTag)
+    Remove-Item Env:GOBIN -ErrorAction SilentlyContinue
+    $binDir = Get-DefaultBinDir
+    if (-not (Test-PathHasDir $binDir)) {
+        $env:Path = "$binDir;" + $env:Path
+    }
     $script = irm "https://raw.githubusercontent.com/$repo/main/scripts/install.ps1"
     $block = [scriptblock]::Create($script)
     & $block -Version $FromTag
 }
 
+function Test-PathHasDir {
+    param([string]$Dir)
+    $Dir = $Dir.Trim().TrimEnd('\')
+    foreach ($part in ($env:Path -split ';')) {
+        if ($part -and $part.Trim().TrimEnd('\') -ieq $Dir) {
+            return $true
+        }
+    }
+    return $false
+}
+
 function Get-ExePath {
-    param([string]$FromTag, [string]$Method)
-    return Join-Path (Join-Path (Get-CaseDir $FromTag $Method) 'bin') 'solomon.exe'
+    return Join-Path (Get-DefaultBinDir) 'solomon.exe'
 }
 
 function Wait-TargetVersion {
@@ -142,8 +161,8 @@ function Invoke-UpgradeSmokeCase {
 
     $logPath = "$(Get-CaseDir $FromTag $Method).log"
     Write-Host "Upgrade smoke (${Method}): $FromTag -> $($env:RELEASE_TAG)"
-    Install-Release $FromTag $Method
-    $exe = Get-ExePath $FromTag $Method
+    Install-Release $FromTag
+    $exe = Get-ExePath
     $env:NO_COLOR = '1'
 
     $current = (& $exe version 2>&1 | Out-String).Trim()
