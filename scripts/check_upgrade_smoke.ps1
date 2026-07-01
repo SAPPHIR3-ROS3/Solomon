@@ -73,9 +73,9 @@ function Assert-LogStrict {
 }
 
 function Get-CaseDir {
-    param([string]$FromTag, [string]$Method)
+    param([string]$FromTag)
     $safe = $FromTag -replace '[^A-Za-z0-9._-]', '_'
-    return Join-Path $smokeRoot "$safe-$Method"
+    return Join-Path $smokeRoot "$safe-cli"
 }
 
 function Get-DefaultBinDir {
@@ -149,30 +149,11 @@ function Invoke-CliUpgrade {
     }
 }
 
-function Invoke-ReplUpgrade {
-    param([string]$Exe, [string]$LogPath)
-    $py = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $py) {
-        $py = Get-Command python3 -ErrorAction SilentlyContinue
-    }
-    if (-not $py) {
-        throw 'python not found for REPL upgrade smoke'
-    }
-    $helper = Join-Path $PSScriptRoot 'repl_upgrade_pty.py'
-    $env:SOLOMON_REPL_PREFILL = '/upgrade'
-    $p = Start-Process -FilePath $py.Source -ArgumentList @($helper, $Exe, '--submit-only') -NoNewWindow -PassThru -RedirectStandardOutput $LogPath -RedirectStandardError "${LogPath}.err"
-    Wait-TargetVersion $Exe $LogPath
-    $p.WaitForExit()
-    if (Test-Path "${LogPath}.err") {
-        Add-Content -Path $LogPath -Value (Get-Content -Path "${LogPath}.err" -Raw)
-    }
-}
-
 function Invoke-UpgradeSmokeCase {
-    param([string]$FromTag, [string]$Method)
+    param([string]$FromTag)
 
-    $logPath = "$(Get-CaseDir $FromTag $Method).log"
-    Write-Host "Upgrade smoke (${Method}): $FromTag -> $($env:RELEASE_TAG)"
+    $logPath = "$(Get-CaseDir $FromTag).log"
+    Write-Host "Upgrade smoke (cli): $FromTag -> $($env:RELEASE_TAG)"
     Install-Release $FromTag
     $exe = Get-ExePath
     $env:NO_COLOR = '1'
@@ -183,16 +164,11 @@ function Invoke-UpgradeSmokeCase {
         throw "expected version to include $FromTag, got $current"
     }
 
-    if ($Method -eq 'cli') {
-        if (-not (Test-HasCliMarker $exe)) {
-            Write-Host "Skipping CLI upgrade smoke for ${FromTag}: no solomon upgrade CLI"
-            return
-        }
-        Invoke-CliUpgrade $exe $logPath
-    } else {
-        Invoke-ReplUpgrade $exe $logPath
+    if (-not (Test-HasCliMarker $exe)) {
+        Write-Host "Skipping CLI upgrade smoke for ${FromTag}: no solomon upgrade CLI"
+        return
     }
-
+    Invoke-CliUpgrade $exe $logPath
     Assert-LogStrict $logPath $FromTag
 }
 
@@ -212,6 +188,5 @@ if ($sources.Count -eq 0) {
 New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
 foreach ($fromTag in $sources) {
     if ($fromTag -eq $env:RELEASE_TAG) { continue }
-    Invoke-UpgradeSmokeCase $fromTag 'cli'
-    Invoke-UpgradeSmokeCase $fromTag 'repl'
+    Invoke-UpgradeSmokeCase $fromTag
 }

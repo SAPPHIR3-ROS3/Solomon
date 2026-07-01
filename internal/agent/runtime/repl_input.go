@@ -1,10 +1,5 @@
 package agentruntime
 
-import (
-	"os"
-	"strings"
-)
-
 func (r *Runtime) setReplInputPrefill(s string) {
 	r.replInputPrefillMu.Lock()
 	r.replInputPrefill = s
@@ -13,15 +8,9 @@ func (r *Runtime) setReplInputPrefill(s string) {
 
 func (r *Runtime) takeReplInputPrefill() string {
 	r.replInputPrefillMu.Lock()
-	defer r.replInputPrefillMu.Unlock()
 	s := r.replInputPrefill
 	r.replInputPrefill = ""
-	if s == "" && !r.replInputPrefillEnvUsed {
-		if env := strings.TrimSpace(os.Getenv("SOLOMON_REPL_PREFILL")); env != "" {
-			s = env
-		}
-	}
-	r.replInputPrefillEnvUsed = true
+	r.replInputPrefillMu.Unlock()
 	return s
 }
 
