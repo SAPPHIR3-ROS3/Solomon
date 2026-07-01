@@ -113,8 +113,18 @@ function Get-ExePath {
     return Join-Path (Get-DefaultBinDir) 'solomon.exe'
 }
 
+function Write-UpgradeLog {
+    param([string]$LogPath)
+    if (-not (Test-Path $LogPath)) {
+        return
+    }
+    Write-Host "---- upgrade log ($LogPath) ----"
+    Get-Content -Path $LogPath -Raw
+    Write-Host '---- end upgrade log ----'
+}
+
 function Wait-TargetVersion {
-    param([string]$Exe)
+    param([string]$Exe, [string]$LogPath = '')
     $last = ''
     for ($attempt = 1; $attempt -le 90; $attempt++) {
         $ver = (& $Exe version 2>&1 | Out-String).Trim()
@@ -125,13 +135,14 @@ function Wait-TargetVersion {
         }
         Start-Sleep -Seconds 2
     }
+    Write-UpgradeLog $LogPath
     throw "Upgrade smoke failed: expected version to include $($env:RELEASE_TAG), last=$last"
 }
 
 function Invoke-CliUpgrade {
     param([string]$Exe, [string]$LogPath)
     $p = Start-Process -FilePath $Exe -ArgumentList 'upgrade' -NoNewWindow -PassThru -RedirectStandardOutput $LogPath -RedirectStandardError "${LogPath}.err"
-    Wait-TargetVersion $Exe
+    Wait-TargetVersion $Exe $LogPath
     $p.WaitForExit()
     if (Test-Path "${LogPath}.err") {
         Add-Content -Path $LogPath -Value (Get-Content -Path "${LogPath}.err" -Raw)
@@ -148,8 +159,9 @@ function Invoke-ReplUpgrade {
         throw 'python not found for REPL upgrade smoke'
     }
     $helper = Join-Path $PSScriptRoot 'repl_upgrade_pty.py'
-    $p = Start-Process -FilePath $py.Source -ArgumentList @($helper, $Exe) -NoNewWindow -PassThru -RedirectStandardOutput $LogPath -RedirectStandardError "${LogPath}.err"
-    Wait-TargetVersion $Exe
+    $env:SOLOMON_REPL_PREFILL = '/upgrade'
+    $p = Start-Process -FilePath $py.Source -ArgumentList @($helper, $Exe, '--submit-only') -NoNewWindow -PassThru -RedirectStandardOutput $LogPath -RedirectStandardError "${LogPath}.err"
+    Wait-TargetVersion $Exe $LogPath
     $p.WaitForExit()
     if (Test-Path "${LogPath}.err") {
         Add-Content -Path $LogPath -Value (Get-Content -Path "${LogPath}.err" -Raw)

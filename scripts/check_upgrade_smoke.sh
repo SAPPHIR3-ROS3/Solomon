@@ -53,7 +53,7 @@ version_ge() {
 
 has_cli_marker() {
   local exe="$1"
-  strings "$exe" | grep -q 'solomon-cli-upgrade-v1'
+  grep -aq 'solomon-cli-upgrade-v1' "$exe"
 }
 
 verify_log_strict() {
@@ -98,8 +98,18 @@ exe_path() {
   printf '%s/solomon' "$(default_bin_dir)"
 }
 
+dump_upgrade_log() {
+  local log="$1"
+  if [[ -f "$log" ]]; then
+    echo "---- upgrade log (${log}) ----" >&2
+    cat "$log" >&2 || true
+    echo "---- end upgrade log ----" >&2
+  fi
+}
+
 wait_for_target_version() {
   local exe="$1"
+  local log="${2:-}"
   local attempt ver=""
   for attempt in $(seq 1 90); do
     if ver="$("$exe" version 2>/dev/null | tr -d '\r\n')" && [[ "$ver" == *"$RELEASE_TAG"* ]]; then
@@ -110,6 +120,7 @@ wait_for_target_version() {
   done
   echo "Upgrade smoke failed: expected version to include ${RELEASE_TAG}, last=${ver:-none}" >&2
   "$exe" version >&2 || true
+  dump_upgrade_log "$log"
   return 1
 }
 
@@ -118,16 +129,17 @@ run_cli_upgrade() {
   local log="$2"
   "$exe" upgrade >"$log" 2>&1 &
   local upgrade_pid=$!
-  wait_for_target_version "$exe"
+  wait_for_target_version "$exe" "$log" || return 1
   wait "$upgrade_pid" 2>/dev/null || true
 }
 
 run_repl_upgrade() {
   local exe="$1"
   local log="$2"
-  python3 "$(dirname "$0")/repl_upgrade_pty.py" "$exe" >"$log" 2>&1 &
+  SOLOMON_REPL_PREFILL=/upgrade \
+    python3 "$(dirname "$0")/repl_upgrade_pty.py" "$exe" --submit-only >"$log" 2>&1 &
   local upgrade_pid=$!
-  wait_for_target_version "$exe"
+  wait_for_target_version "$exe" "$log" || return 1
   wait "$upgrade_pid" 2>/dev/null || true
 }
 

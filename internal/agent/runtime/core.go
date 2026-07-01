@@ -64,6 +64,7 @@ type Runtime struct {
 	sessionFileCreated         bool
 	replInputPrefillMu         sync.Mutex
 	replInputPrefill           string
+	replInputPrefillEnvUsed    bool
 
 	Out io.Writer
 
