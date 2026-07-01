@@ -4,12 +4,44 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      force_tests:
+        description: Re-run the test suite even if this commit already passed CI
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
+  prior_test_status:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      skip_tests: ${{ steps.check.outputs.skip_tests }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check whether this commit already passed CI
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_TESTS: ${{ inputs.force_tests }}
+        run: bash scripts/check_prior_ci_tests.sh
+
   test:
+    needs: prior_test_status
+    if: |
+      always() && (
+        github.event_name == 'push' ||
+        github.event_name == 'pull_request' ||
+        (
+          github.event_name == 'workflow_dispatch' && (
+            needs.prior_test_status.result == 'skipped' ||
+            needs.prior_test_status.outputs.skip_tests != 'true'
+          )
+        )
+      )
     strategy:
       fail-fast: false
       matrix:
@@ -57,8 +89,17 @@ jobs:
         run: go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(git rev-parse --short HEAD)" ./cmd/solomon
 
   release:
-    if: github.event_name == 'workflow_dispatch'
-    needs: test
+    if: |
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      (
+        needs.test.result == 'success' ||
+        (
+          needs.test.result == 'skipped' &&
+          needs.prior_test_status.outputs.skip_tests == 'true'
+        )
+      )
+    needs: [prior_test_status, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
