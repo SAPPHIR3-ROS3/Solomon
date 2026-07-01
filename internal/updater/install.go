@@ -75,6 +75,9 @@ var httpDownload = func(ctx context.Context, url string) (*http.Response, error)
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "solomon-updater")
+	if tok := githubAuthToken(); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
 	client := &http.Client{Timeout: 10 * time.Minute}
 	return client.Do(req)
 }
@@ -88,6 +91,9 @@ func SetHTTPDownload(fn func(context.Context, string) (*http.Response, error)) f
 				return nil, err
 			}
 			req.Header.Set("User-Agent", "solomon-updater")
+			if tok := githubAuthToken(); tok != "" {
+				req.Header.Set("Authorization", "Bearer "+tok)
+			}
 			client := &http.Client{Timeout: 10 * time.Minute}
 			return client.Do(req)
 		}
