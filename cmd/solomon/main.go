@@ -66,6 +66,10 @@ func main() {
 		commands.WriteVersion(os.Stdout)
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "upgrade" {
+		runUpgradeCLI()
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "init" {
 		if err := config.EnsureDefaultFile(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
