@@ -85,7 +85,7 @@ func defaultExecInstallRestart(ctx context.Context, tag string) error {
 	case "linux", "darwin":
 		return execUnixInstallRestart(ctx, tag)
 	case "windows":
-		return launchWindowsInstallRestart(ctx, os.Getpid(), tag, "", "", nil, io.Discard)
+		return nil
 	default:
 		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
@@ -260,6 +260,12 @@ func windowsInstallRestartScriptBody(pid int, tag, cwd, exe string, args []strin
 		restartLine = "& $RestartExe @RestartArgs"
 	}
 	script := fmt.Sprintf(`$ErrorActionPreference = 'Stop'
+$UpgradeLock = Join-Path ([System.IO.Path]::GetTempPath()) 'solomon-upgrade.lock'
+try {
+  $null = [System.IO.File]::Open($UpgradeLock, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+} catch {
+  exit 0
+}
 $ParentPID = %d
 $Tag = '%s'
 $Cwd = '%s'
@@ -273,7 +279,7 @@ if ($Cwd) { Set-Location $Cwd }
 %sWrite-Host ''
 Write-Host "=== Solomon update ($Tag) ==="
 Write-Host "Downloading $Asset..."
-$tmp = [System.IO.Path]::GetTempFileName()
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('solomon-dl-' + [guid]::NewGuid().ToString('N') + '.exe')
 Invoke-WebRequest -Uri $DownloadUrl -OutFile $tmp -UseBasicParsing
 $ChecksumsUrl = 'https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/' + $Tag + '/checksums.txt'
 $checksumsPath = [System.IO.Path]::GetTempFileName()
@@ -298,7 +304,21 @@ try {
   Remove-Item -Force $checksumsPath -ErrorAction SilentlyContinue
 }
 New-Item -ItemType Directory -Force -Path (Split-Path $Target) | Out-Null
-Move-Item -Force $tmp $Target
+$staging = "$Target.new"
+Copy-Item -Force $tmp $staging
+Remove-Item -Force $tmp -ErrorAction SilentlyContinue
+$installed = $false
+for ($i = 0; $i -lt 60; $i++) {
+  try {
+    if (Test-Path $Target) { Remove-Item -Force $Target -ErrorAction Stop }
+    Move-Item -Force $staging $Target -ErrorAction Stop
+    $installed = $true
+    break
+  } catch {
+    Start-Sleep -Milliseconds 250
+  }
+}
+if (-not $installed) { throw "failed to replace $Target after install" }
 Write-Host "Installed $Tag -> $Target"
 Write-Host '=== Restarting Solomon ==='
 Write-Host ''
