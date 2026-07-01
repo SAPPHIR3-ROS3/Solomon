@@ -128,8 +128,18 @@ run_cli_upgrade() {
   local log="$2"
   "$exe" upgrade >"$log" 2>&1 &
   local upgrade_pid=$!
-  wait_for_target_version "$exe" "$log" || return 1
-  wait "$upgrade_pid" 2>/dev/null || true
+  if wait_for_target_version "$exe" "$log"; then
+    wait "$upgrade_pid" 2>/dev/null || true
+    return 0
+  fi
+  if [[ -n "${GH_TOKEN:-}" ]] && grep -q '403 Forbidden' "$log"; then
+    echo "solomon upgrade hit GitHub API limits; retrying with install.sh (${RELEASE_TAG})" >&2
+    curl -fsSL "https://raw.githubusercontent.com/${repo}/main/scripts/install.sh" | bash -s -- "$RELEASE_TAG"
+    wait_for_target_version "$exe" "$log"
+    wait "$upgrade_pid" 2>/dev/null || true
+    return $?
+  fi
+  return 1
 }
 
 run_case() {
