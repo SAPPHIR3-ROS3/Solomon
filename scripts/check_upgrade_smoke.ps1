@@ -6,10 +6,26 @@ if (-not $env:GITHUB_REPOSITORY) { throw 'GITHUB_REPOSITORY is required' }
 
 $repo = $env:GITHUB_REPOSITORY
 $headers = @{ 'User-Agent' = 'solomon-upgrade-smoke' }
-$releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=2" -Headers $headers
+if ($env:GH_TOKEN) {
+    $headers['Authorization'] = "Bearer $($env:GH_TOKEN)"
+}
 $prev = ''
-if ($releases.Count -ge 2) {
-    $prev = [string]$releases[1].tag_name
+for ($attempt = 1; $attempt -le 5; $attempt++) {
+    try {
+        $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=2" -Headers $headers
+        if ($releases.Count -ge 2) {
+            $prev = [string]$releases[1].tag_name
+        }
+        if (-not [string]::IsNullOrWhiteSpace($prev)) {
+            break
+        }
+    } catch {
+        if ($attempt -ge 5) {
+            throw
+        }
+        Write-Host "release lookup failed (attempt $attempt/5); retrying..."
+        Start-Sleep -Seconds 2
+    }
 }
 if ([string]::IsNullOrWhiteSpace($prev) -or $prev -eq $env:RELEASE_TAG) {
     Write-Host "Skipping upgrade smoke: no previous release to upgrade from (prev=$prev)"

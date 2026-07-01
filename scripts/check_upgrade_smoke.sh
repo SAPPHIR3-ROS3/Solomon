@@ -5,8 +5,31 @@ set -euo pipefail
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 
 repo="${GITHUB_REPOSITORY}"
-api="https://api.github.com/repos/${repo}/releases?per_page=2"
-prev="$(curl -fsSL -H "User-Agent: solomon-upgrade-smoke" "$api" | jq -r '.[1].tag_name // empty')"
+
+fetch_prev_release() {
+  local attempt prev=""
+  for attempt in 1 2 3 4 5; do
+    if [[ -n "${GH_TOKEN:-}" ]] && command -v gh >/dev/null 2>&1; then
+      prev="$(gh api "/repos/${repo}/releases?per_page=2" --jq '.[1].tag_name // empty' 2>/dev/null || true)"
+    else
+      local auth_header=()
+      if [[ -n "${GH_TOKEN:-}" ]]; then
+        auth_header=(-H "Authorization: Bearer ${GH_TOKEN}")
+      fi
+      prev="$(curl -fsSL -H "User-Agent: solomon-upgrade-smoke" "${auth_header[@]}" \
+        "https://api.github.com/repos/${repo}/releases?per_page=2" | jq -r '.[1].tag_name // empty' 2>/dev/null || true)"
+    fi
+    if [[ -n "$prev" ]]; then
+      printf '%s' "$prev"
+      return 0
+    fi
+    echo "release lookup failed (attempt ${attempt}/5); retrying..." >&2
+    sleep 2
+  done
+  return 1
+}
+
+prev="$(fetch_prev_release || true)"
 if [[ -z "$prev" || "$prev" == "$RELEASE_TAG" ]]; then
   echo "Skipping upgrade smoke: no previous release to upgrade from (prev=${prev:-none})"
   exit 0
