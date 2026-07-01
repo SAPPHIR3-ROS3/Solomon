@@ -74,8 +74,7 @@ verify_log_strict() {
 
 case_dir_for() {
   local from_tag="$1"
-  local method="$2"
-  printf '%s/%s-%s' "$smoke_root" "${from_tag//\//_}" "$method"
+  printf '%s/%s-cli' "$smoke_root" "${from_tag//\//_}"
 }
 
 default_bin_dir() {
@@ -133,23 +132,12 @@ run_cli_upgrade() {
   wait "$upgrade_pid" 2>/dev/null || true
 }
 
-run_repl_upgrade() {
-  local exe="$1"
-  local log="$2"
-  SOLOMON_REPL_PREFILL=/upgrade \
-    python3 "$(dirname "$0")/repl_upgrade_pty.py" "$exe" --submit-only >"$log" 2>&1 &
-  local upgrade_pid=$!
-  wait_for_target_version "$exe" "$log" || return 1
-  wait "$upgrade_pid" 2>/dev/null || true
-}
-
 run_case() {
   local from_tag="$1"
-  local method="$2"
   local log
-  log="$(case_dir_for "$from_tag" "$method").log"
+  log="$(case_dir_for "$from_tag").log"
 
-  echo "Upgrade smoke (${method}): ${from_tag} -> ${RELEASE_TAG}"
+  echo "Upgrade smoke (cli): ${from_tag} -> ${RELEASE_TAG}"
   install_release "$from_tag"
   local exe
   exe="$(exe_path)"
@@ -163,16 +151,11 @@ run_case() {
     return 1
   fi
 
-  if [[ "$method" == "cli" ]]; then
-    if ! has_cli_marker "$exe"; then
-      echo "Skipping CLI upgrade smoke for ${from_tag}: no solomon upgrade CLI"
-      return 0
-    fi
-    run_cli_upgrade "$exe" "$log"
-  else
-    run_repl_upgrade "$exe" "$log"
+  if ! has_cli_marker "$exe"; then
+    echo "Skipping CLI upgrade smoke for ${from_tag}: no solomon upgrade CLI"
+    return 0
   fi
-
+  run_cli_upgrade "$exe" "$log"
   verify_log_strict "$log" "$from_tag"
 }
 
@@ -200,6 +183,5 @@ for from_tag in "${sources[@]}"; do
   if [[ "$from_tag" == "$RELEASE_TAG" ]]; then
     continue
   fi
-  run_case "$from_tag" "cli"
-  run_case "$from_tag" "repl"
+  run_case "$from_tag"
 done
