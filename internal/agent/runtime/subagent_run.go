@@ -44,9 +44,20 @@ func (r *Runtime) runSubagentTool(ctx context.Context, cfg NestedRunConfig) (Nes
 }
 
 func (r *Runtime) startSubagentBackground(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
+	if err := r.resolveSubagentRole(&cfg); err != nil {
+		return NestedRunResult{}, err
+	}
 	sess, id, err := r.prepareSubSession(ctx, cfg)
 	if err != nil {
 		return NestedRunResult{}, err
+	}
+	if strings.TrimSpace(cfg.RoleModel) == "" && sess != nil {
+		cfg.RoleProvider, cfg.RoleModel = subagentRoleFromSession(sess)
+	}
+	if strings.TrimSpace(cfg.RoleProvider) != "" && strings.TrimSpace(cfg.RoleModel) != "" {
+		if err := r.resolveSubagentRole(&cfg); err != nil {
+			return NestedRunResult{}, err
+		}
 	}
 	if err := r.persistSubSession(sess); err != nil {
 		return NestedRunResult{}, err
@@ -103,6 +114,9 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 		if cfg.SysPromptPath == "" {
 			cfg.SysPromptPath = sess.SysPromptPath
 		}
+		if cfg.RoleProvider == "" && cfg.RoleModel == "" {
+			cfg.RoleProvider, cfg.RoleModel = subagentRoleFromSession(sess)
+		}
 		sess.Status = chatstore.SubStatusRunning
 		return sess, sess.ID, nil
 	}
@@ -110,11 +124,19 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 		return nil, "", fmt.Errorf("task is required for new subagent")
 	}
 	id := chatstore.SubchatID(parentChatID, cfg.ToolCall, spawn)
+	titleBackend := r.Backend
+	titleModel := r.Model
+	if strings.TrimSpace(cfg.RoleModel) != "" {
+		titleModel = cfg.RoleModel
+		if b, err := r.backendForProvider(ctx, cfg.RoleProvider); err == nil {
+			titleBackend = b
+		}
+	}
 	var t string
 	if cfg.RunInBackground {
 		t = title.FallbackFromWords(cfg.Task)
 	} else {
-		t, _ = title.FromPrompt(ctx, r.Backend, r.Client, r.Cfg, r.Model, cfg.Task)
+		t, _ = title.FromPrompt(ctx, titleBackend, r.Client, r.Cfg, titleModel, cfg.Task)
 	}
 	if strings.TrimSpace(t) == "" {
 		t = title.FallbackFromWords(cfg.Task)
@@ -141,6 +163,8 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 		SysPromptPath:    cfg.SysPromptPath,
 		Status:           chatstore.SubStatusRunning,
 		ReasoningEffort:  effort,
+		RoleProvider:     strings.TrimSpace(cfg.RoleProvider),
+		RoleModel:        strings.TrimSpace(cfg.RoleModel),
 		Messages:         []chatstore.Message{{Role: "user", Content: cfg.Task}},
 		ImageFiles:       cloneImageFiles(r.Session),
 	}

@@ -23,8 +23,12 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	sandboxworker "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/worker"
-
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 )
+
+func init() {
+	config.RolesModelLister = connect.ListModelsForProviderAll
+}
 
 func expandPathArg(raw string) string {
 	if raw == "~" {

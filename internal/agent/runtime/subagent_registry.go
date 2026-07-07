@@ -20,6 +20,8 @@ type NestedRunConfig struct {
 	Origin           string
 	ProjectHex       string
 	SysPrompt        string
+	RoleProvider     string
+	RoleModel        string
 }
 
 type NestedRunResult struct {
