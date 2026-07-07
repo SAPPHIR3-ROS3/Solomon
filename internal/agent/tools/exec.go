@@ -30,7 +30,7 @@ func isInternalToolName(name string) bool {
 		"createPlan", "editPlan", "buildPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
 		"shell", "readFile", "editFile", "find", "listDir", "tree", "subagent", "fetchWeb", "webSearch",
 		"deepResearch", "researchStatus",
-		"searchTools", "orchestrate", "switchMode":
+		"searchTools", "orchestrate", "switchMode", "listSubAgents":
 		return true
 	default:
 		return false
@@ -57,7 +57,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 	switch m {
 	case "agent":
 		switch tool {
-		case "searchTools", "orchestrate", "switchMode", "loadSkill", "searchSkill", "subagent":
+		case "searchTools", "orchestrate", "switchMode", "loadSkill", "searchSkill", "subagent", "listSubAgents":
 			return true
 		default:
 			if isPlanTool(tool) {
@@ -139,6 +139,8 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 		return execOrchestrate(ctx, env, inv.Args)
 	case "switchMode":
 		return execSwitchMode(ctx, env, inv.Args)
+	case "listSubAgents":
+		return execListSubAgents(env, inv.Args)
 	default:
 		err := fmt.Errorf("unknown tool %q", inv.Name)
 		logging.Log(logging.WARNING_LOG_LEVEL, "unknown tool", logging.LogOptions{Params: map[string]any{"tool": inv.Name}})

@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
@@ -83,6 +84,8 @@ func (r *Runtime) runSubagentFromTool(ctx context.Context, req agenttools.Subage
 		ResumeID:         req.Resume,
 		RunInBackground:  req.RunInBackground,
 		ReasoningEffort:  req.ReasoningEffort,
+		RoleProvider:     strings.TrimSpace(req.RoleProvider),
+		RoleModel:        strings.TrimSpace(req.RoleModel),
 		ParentChatID:     parentChatID,
 		ParentToolCallID: req.ToolCall.ID,
 		ToolCall:         req.ToolCall,
