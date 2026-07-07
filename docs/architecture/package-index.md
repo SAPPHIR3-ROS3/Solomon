@@ -77,6 +77,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/search/` | Web search backends for `webSearch` | [Supporting packages](supporting-packages.md) |
 | `internal/research/` | Research engine: web jobs, parsing, quality checks, LLM integration | [Supporting packages](supporting-packages.md) |
 | `internal/research/html/` | HTML rendering templates for research results | [Supporting packages](supporting-packages.md) |
+| `internal/roles/` | Subagent role pool from config (`SubagentPool`, `FindSubagent`) | [Native tools](native-tools.md#subagent-roles) |
 | `internal/pathglob/` | Glob `**` matching for `find` | [Native tools](native-tools.md) |
 | `internal/plan/` | Plan file read, write, sections, todos, status | [Plan vs build](plan-vs-build.md) |
 | `internal/gitignore/` | `.gitignore` matcher for `find` | [Native tools](native-tools.md) |
@@ -187,6 +188,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/providersetup/` | Support |
 | `internal/research/` | Feature |
 | `internal/research/html/` | Feature |
+| `internal/roles/` | Feature |
 | `internal/search/` | Feature |
 | `internal/sandbox/compile/` | Feature |
 | `internal/sandbox/host/` | Feature |
