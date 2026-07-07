@@ -22,6 +22,7 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 			searchToolsOpenAI(),
 			orchestrateOpenAI(),
 			subagentOpenAI(),
+			listSubAgentsOpenAI(),
 			switchModeOpenAI(),
 		}
 	}

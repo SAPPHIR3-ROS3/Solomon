@@ -103,6 +103,7 @@ type Runtime struct {
 	nestedMu                  sync.Mutex
 	nestedState               *activeNestedState
 	currentSubagentToolCallID string
+	roleBackends              roleBackendCache
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {

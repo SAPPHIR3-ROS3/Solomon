@@ -16,6 +16,8 @@ type SubagentRequest struct {
 	Resume          string
 	RunInBackground bool
 	ReasoningEffort string
+	RoleProvider    string
+	RoleModel       string
 	ToolCall        chatstore.ToolCall
 }
 

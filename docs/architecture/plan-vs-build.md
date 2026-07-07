@@ -8,7 +8,7 @@
 
 | Mode | Set by | Native tools (OpenAI) |
 |------|--------|------------------------|
-| **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `subagent`, skills, research, `switchMode`, `docsRetrieval` |
+| **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `subagent`, `listSubAgents`, skills, research, `switchMode`, `docsRetrieval` |
 | **`chat`** | `/chat` | `fetchWeb`, `webSearch`, research, `switchMode`, `docsRetrieval` |
 
 MCP tools append in **agent** mode when connected ([`toolParams`](../../internal/agent/runtime/mcp.go)).

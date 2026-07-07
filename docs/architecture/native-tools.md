@@ -12,6 +12,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `shell.go`, `read_file.go`, `edit_file.go`, `find.go`, `filewalk.go`, `search_pool.go` | Build mode filesystem/shell/search |
 | `internal/pathglob`, `internal/gitignore` | Glob `**` matching and `.gitignore` (vendored matcher) |
 | `subagent.go` | Nested agent run |
+| `list_sub_agents.go` | Subagent role pool listing |
 | `load_skill.go`, `search_skill.go` | Skill tools |
 | `fetch_web.go`, `web_search.go` | Web fetch and search |
 | `docs_retrieval.go` | Embedded docs BM25 search (`docsRetrieval`) |
@@ -36,12 +37,27 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | Name | Mode |
 |------|------|
 | `createPlan`, `editPlan`, `buildPlan`, todos | agent when `PlanningActive` (or deferred via orchestrate) |
-| `subagent` | agent (native tool_call only; not deferred / orchestrate) |
+| `subagent` | agent (native tool_call only; not deferred / orchestrate); optional `roleProvider` + `roleModel` from `[[roles.subagent]]` |
+| `listSubAgents` | agent (lists configured subagent role pool) |
 | `shell`, `readFile`, `editFile`, `find`, `fetchWeb`, `webSearch`, skills | deferred (orchestrate / legacy XML) |
 | `searchTools`, `orchestrate`, `switchMode` | agent |
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
 
 Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
+
+## Subagent roles
+
+When `[[roles.subagent]]` is configured in `config.toml`, the primary agent can delegate nested runs to cheaper models:
+
+| Step | Tool / args |
+|------|-------------|
+| Discover pool | `listSubAgents` — returns `provider`, `model`, `description`, `points` (sorted by points descending) |
+| Spawn nested run | `subagent` with optional `roleProvider` + `roleModel` matching a pool row |
+| Fallback | Omit both role fields → nested run uses the session provider and model |
+
+Role rows are validated on **config load and save**: provider must exist in `[providers]`, the provider API must be reachable, and the model id must appear in that provider’s model list (`ListModelsForProviderAll`, same path as `/models`). Runtime `subagent` calls also require `roleProvider` + `roleModel` to match a configured pool row (`listSubAgents`). Invalid pairs are rejected with a hint to call `listSubAgents`. Resume and deferred nested spawns restore `role_provider` / `role_model` from the subsession or pending spawn payload when omitted.
+
+Config schema: [`config.Roles`](../../internal/config/roles.go). Registry: [`internal/roles/registry.go`](../../internal/roles/registry.go).
 
 ## `editFile` semantics (build)
 
