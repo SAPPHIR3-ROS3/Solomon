@@ -22,6 +22,8 @@ type SubagentArgs struct {
 	Resume          string `json:"resume,omitempty"`
 	RunInBackground bool   `json:"run_in_background,omitempty"`
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
+	RoleProvider    string `json:"roleProvider,omitempty"`
+	RoleModel       string `json:"roleModel,omitempty"`
 }
 
 type subagentArgs = SubagentArgs
@@ -44,7 +46,7 @@ func subagentPromptTemplatesDir() string {
 
 func subagentToolSummary() string {
 	dir := subagentPromptTemplatesDir()
-	return fmt.Sprintf("Run a nested agent with system prompt from file and task string (native tool_call only — not via orchestrate). Solomon templates: %s/<name>.tmpl (agent, chat, …). Default: synchronous (parent waits for output). Set run_in_background true for async: returns subchatId immediately while the subagent keeps running.", dir)
+	return fmt.Sprintf("Run a nested agent with system prompt from file and task string (native tool_call only — not via orchestrate). Optional roleProvider and roleModel select a configured [[roles.subagent]] entry (see listSubAgents); omit both to use the session model. Solomon templates: %s/<name>.tmpl (agent, chat, …). Default: synchronous (parent waits for output). Set run_in_background true for async: returns subchatId immediately while the subagent keeps running.", dir)
 }
 
 func subagentSysPromptPathDescription() string {
@@ -59,6 +61,8 @@ func subagentOpenAI() openai.ChatCompletionToolUnionParam {
 		"resume":        map[string]any{"type": "string", "description": "Subchat ID to resume"},
 		"run_in_background": map[string]any{"type": "boolean", "description": "Async: true = do not block parent (returns subchatId, status running). False/omit = sync: wait until done (returns output, status done)."},
 		"reasoningEffort": map[string]any{"type": "string", "description": "Override reasoning: none, low, medium, high"},
+		"roleProvider":    map[string]any{"type": "string", "description": "Optional provider from listSubAgents; requires roleModel"},
+		"roleModel":       map[string]any{"type": "string", "description": "Optional model from listSubAgents; requires roleProvider"},
 	}, []string{"sysPromptPath", "task"})
 }
 
@@ -111,6 +115,8 @@ func execSubagent(ctx context.Context, env *Env, raw json.RawMessage) (any, erro
 		Resume:          a.Resume,
 		RunInBackground: a.RunInBackground,
 		ReasoningEffort: a.ReasoningEffort,
+		RoleProvider:    strings.TrimSpace(a.RoleProvider),
+		RoleModel:       strings.TrimSpace(a.RoleModel),
 		ToolCall:        tc,
 	})
 	env.SetMode(prev)
@@ -146,6 +152,12 @@ func parseSubagentArgs(raw json.RawMessage) (SubagentArgs, error) {
 	}
 	if v, ok := m["reasoningEffort"]; ok {
 		_ = json.Unmarshal(v, &a.ReasoningEffort)
+	}
+	if v, ok := m["roleProvider"]; ok {
+		_ = json.Unmarshal(v, &a.RoleProvider)
+	}
+	if v, ok := m["roleModel"]; ok {
+		_ = json.Unmarshal(v, &a.RoleModel)
 	}
 	if b, ok := parseJSONBool(m["run_in_background"]); ok {
 		a.RunInBackground = b

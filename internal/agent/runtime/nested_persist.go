@@ -20,8 +20,27 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
-func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
+func (r *Runtime) beginNestedRun(ctx context.Context, cfg NestedRunConfig) (NestedRunConfig, *chatstore.SubSession, string, error) {
+	if err := r.resolveSubagentRole(&cfg); err != nil {
+		return cfg, nil, "", err
+	}
 	sess, id, err := r.prepareSubSession(ctx, cfg)
+	if err != nil {
+		return cfg, nil, "", err
+	}
+	if strings.TrimSpace(cfg.RoleModel) == "" && sess != nil {
+		cfg.RoleProvider, cfg.RoleModel = subagentRoleFromSession(sess)
+	}
+	if strings.TrimSpace(cfg.RoleProvider) != "" && strings.TrimSpace(cfg.RoleModel) != "" {
+		if err := r.resolveSubagentRole(&cfg); err != nil {
+			return cfg, nil, "", err
+		}
+	}
+	return cfg, sess, id, nil
+}
+
+func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
+	cfg, sess, id, err := r.beginNestedRun(ctx, cfg)
 	if err != nil {
 		return NestedRunResult{}, err
 	}
@@ -98,7 +117,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	for iteration := 0; iteration < 512; iteration++ {
 		dur := time.Duration(config.SubagentTimeout(r.Cfg)) * time.Minute
 		roundCtx, cancel := context.WithDeadline(ctx, time.Now().Add(dur))
-		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable)
+		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable, cfg)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
 			flushUsageStats()
