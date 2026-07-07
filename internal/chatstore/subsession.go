@@ -43,6 +43,8 @@ type PendingSubagentSpawn struct {
 	Resume             string          `json:"resume,omitempty"`
 	RunInBackground    bool            `json:"run_in_background,omitempty"`
 	ReasoningEffort    string          `json:"reasoning_effort,omitempty"`
+	RoleProvider       string          `json:"role_provider,omitempty"`
+	RoleModel          string          `json:"role_model,omitempty"`
 	ToolCall           ToolCall        `json:"tool_call"`
 	SpawnISO           string          `json:"spawn_iso"`
 	NotifyNewChat      bool            `json:"notify_new_chat,omitempty"`
@@ -67,6 +69,8 @@ type SubSession struct {
 	Status            string            `json:"status"`
 	TaskQueue         []QueuedTask      `json:"task_queue,omitempty"`
 	ReasoningEffort   string            `json:"reasoning_effort,omitempty"`
+	RoleProvider      string            `json:"role_provider,omitempty"`
+	RoleModel         string            `json:"role_model,omitempty"`
 	PendingSpawns     []PendingSubagentSpawn `json:"pending_spawns,omitempty"`
 }
 

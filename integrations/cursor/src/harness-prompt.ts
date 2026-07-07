@@ -10,6 +10,7 @@ const SOLOMON_NATIVE_ENTRY_TOOLS = [
   "searchTools",
   "orchestrate",
   "subagent",
+  "listSubAgents",
   "switchMode",
   "searchSkill",
   "loadSkill",
