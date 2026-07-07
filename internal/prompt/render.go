@@ -128,7 +128,7 @@ func ExternalToolBridgeInvocationSyntax() string {
 	return strings.TrimSpace(`Cursor proxy: invoke Solomon tools via native API tool_calls (function calling) only. Tool names and JSON argument schemas match ## Available tools below. Do not emit <tool_calls> XML blocks, Tool: lines, markdown pseudo-calls, or plain-text tool narration — only API tool_calls execute on the host. Never use Cursor IDE built-ins (Read, StrReplace, Shell, Task, …).
 
 Rules:
-- Native entry tools: orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill, docsRetrieval, and MCP.* when connected.
+- Native entry tools: orchestrate, searchTools, subagent, listSubAgents, switchMode, searchSkill, loadSkill, docsRetrieval, and MCP.* when connected.
 - Use exact tool names from ## Available tools below.
 - Optional brief prose may precede tool_calls; do not describe a tool call in text instead of invoking it.
 - Workspace read/edit/shell/find/MCP work: call searchTools when unsure which deferred SDK to use, then orchestrate (package main, import "sdk" only).

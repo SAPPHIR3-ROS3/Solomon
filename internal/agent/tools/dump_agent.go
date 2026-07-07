@@ -20,6 +20,9 @@ func BuildAgentToolDump() (string, error) {
 	if err := appendSubagentDump(b); err != nil {
 		return "", err
 	}
+	if err := appendListSubAgentsDump(b); err != nil {
+		return "", err
+	}
 	if err := appendSwitchModeDump(b); err != nil {
 		return "", err
 	}
