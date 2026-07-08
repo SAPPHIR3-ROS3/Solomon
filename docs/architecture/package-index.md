@@ -18,6 +18,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | Path | Role | Article |
 |------|------|---------|
 | `cmd/solomon/` | Binary entry: CLI flags, wizard, `Runtime` bootstrap | [Startup and CLI](startup-and-cli.md) |
+| `internal/server/` | HTTPS daemon: auth, Responses API, SSE, passkey | [Startup and CLI](startup-and-cli.md#solomon-serve) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |
 | `internal/agent/runtime/` | REPL, turns, session I/O, MCP init, Cursor hooks | [Runtime hub](runtime.md) |
 | `internal/agent/runtime/btw/` | Transient `/btw` side questions and output buffering | [Agent turn pipeline](agent-turn-pipeline.md#btw-side-stream) |
@@ -190,6 +191,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/research/html/` | Feature |
 | `internal/roles/` | Feature |
 | `internal/search/` | Feature |
+| `internal/server/` | Core |
 | `internal/sandbox/compile/` | Feature |
 | `internal/sandbox/host/` | Feature |
 | `internal/sandbox/ipc/` | Feature |
