@@ -43,8 +43,13 @@ func Resume(d Deps, args []string) error {
 			}
 			return err
 		}
-		d.SetSession(sess)
-		PrintSystemf(d.Out, "loaded chat %s (latest user message)", sess.ID)
+	d.SetSession(sess)
+	if d.AcquireSessionFileLock != nil {
+		if err := d.AcquireSessionFileLock(); err != nil {
+			return fmt.Errorf("cannot resume chat %s: %w", sess.ID, err)
+		}
+	}
+	PrintSystemf(d.Out, "loaded chat %s (latest user message)", sess.ID)
 		afterResumeLoaded(d, sess)
 		return nil
 	}
@@ -56,6 +61,11 @@ func Resume(d Deps, args []string) error {
 		return err
 	}
 	d.SetSession(sess)
+	if d.AcquireSessionFileLock != nil {
+		if err := d.AcquireSessionFileLock(); err != nil {
+			return fmt.Errorf("cannot resume chat %s: %w", sess.ID, err)
+		}
+	}
 	PrintSystemf(d.Out, "loaded chat %s", sess.ID)
 	afterResumeLoaded(d, sess)
 	return nil

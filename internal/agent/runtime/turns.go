@@ -41,6 +41,9 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 	if config.NeedsOnboard(r.Cfg) || r.Prov == nil {
 		return fmt.Errorf("config not set up; use /onboard")
 	}
+	if err := r.ensureReplSessionFileLock(); err != nil {
+		return fmt.Errorf("session is locked by another process (solomon serve?): %w", err)
+	}
 	if r.ReplShellFirst {
 		if strings.HasPrefix(line, "!") {
 			line = multiline.TrimMessageEdges(strings.TrimPrefix(line, "!"))
@@ -95,6 +98,11 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 		s.LastMessageAt = time.Now()
 		s.LastUserMessageAt = time.Now()
 	})
+	if r.RL != nil {
+		if err := r.ensureReplSessionFileLock(); err != nil {
+			return fmt.Errorf("session is locked by another process (solomon serve?): %w", err)
+		}
+	}
 	if firstUserLine != "" {
 		go r.refineEphemeralTitle(ctx, firstUserLine)
 	}
