@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,8 +13,9 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
+	"github.com/gofrs/flock"
 )
 
 func NewPlaceholderChatID(t time.Time) string {
@@ -450,5 +452,46 @@ func BackfillAssistantUsageFromTextIfEmpty(m *Message, prior []Message) {
 	m.ReasoningTokens = er
 	m.ResponseTokens = es
 	m.TurnTotalTokens = eu + er + es
+}
+
+type SessionFileLock struct {
+	fl *flock.Flock
+}
+
+func SessionLockPath(projectHex, chatID string) (string, error) {
+	p, err := SessionPath(projectHex, chatID)
+	if err != nil {
+		return "", err
+	}
+	return p + ".lock", nil
+}
+
+func TryAcquireSessionFileLock(projectHex, chatID string) (*SessionFileLock, error) {
+	if chatID == "" || IsPlaceholderChatID(chatID) {
+		return nil, nil
+	}
+	path, err := SessionLockPath(projectHex, chatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	fl := flock.New(path)
+	ok, err := fl.TryLock()
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("session %s is locked by another process", chatID)
+	}
+	return &SessionFileLock{fl: fl}, nil
+}
+
+func (l *SessionFileLock) Release() {
+	if l == nil || l.fl == nil {
+		return
+	}
+	_ = l.fl.Unlock()
 }
 

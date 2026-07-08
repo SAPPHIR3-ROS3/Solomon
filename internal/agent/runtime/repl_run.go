@@ -41,10 +41,14 @@ func (r *Runtime) Run(ctx context.Context) error {
 	defer multiline.EnsureCookedTTY()
 	registerActiveUserSession()
 	defer unregisterActiveUserSession()
+	defer r.releaseReplSessionFileLock()
 	logging.Log(logging.INFO_LOG_LEVEL, "interactive REPL started")
 	r.mutateSession(func(s *chatstore.Session) {
 		chatstore.FinishSessionLoad(s)
 	})
+	if err := r.ensureReplSessionFileLock(); err != nil {
+		return err
+	}
 	notice, _ := r.refreshUpdateCheck(ctx, false)
 	bannerNotice := notice
 	if notice != nil && r.Cfg != nil && r.Cfg.AutoUpdateEnabled() {

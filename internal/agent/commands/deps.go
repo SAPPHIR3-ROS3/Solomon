@@ -37,6 +37,9 @@ type Deps struct {
 	Session    func() *chatstore.Session
 	SetSession func(*chatstore.Session)
 
+	AcquireSessionFileLock func() error
+	ReleaseSessionFileLock func()
+
 	SetMode func(string)
 	GetMode func() string
 

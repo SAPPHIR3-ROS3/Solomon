@@ -11,7 +11,7 @@
 | **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `subagent`, `listSubAgents`, skills, research, `switchMode`, `docsRetrieval` |
 | **`chat`** | `/chat` | `fetchWeb`, `webSearch`, research, `switchMode`, `docsRetrieval` |
 
-MCP tools append in **agent** mode when connected ([`toolParams`](../../internal/agent/runtime/mcp.go)).
+MCP tools are **not** exposed as direct native tool_calls in agent mode. Use `searchTools` to discover MCP schemas, then **`orchestrate`** (code mode). See [`toolParams`](../../internal/agent/runtime/mcp.go), [`modeAllowed`](../../internal/agent/tools/exec.go).
 
 **Planning** is not a separate mode: `Session.PlanningActive` (set when a plan is created via plan tools) appends native plan tools until cleared.
 
