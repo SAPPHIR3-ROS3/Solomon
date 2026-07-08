@@ -77,9 +77,6 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, syst
 		if err != nil {
 			return llm.AssistantTurnResult{}, nil, err
 		}
-		if r.MCP != nil {
-			toolParams = append(toolParams, r.MCP.OpenAITools()...)
-		}
 		toolDefs = llm.ToolDefsFromOpenAI(toolParams)
 	}
 	model, backend, label, err := r.nestedLLMTarget(ctx, cfg)
@@ -103,17 +100,6 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, syst
 		allowed, err := r.allowedToolNames()
 		if err != nil {
 			return llm.AssistantTurnResult{}, nil, err
-		}
-		if r.MCP != nil {
-			for _, t := range r.MCP.OpenAITools() {
-				if t.OfFunction == nil {
-					continue
-				}
-				name := t.OfFunction.Function.Name
-				if name != "" {
-					allowed[name] = struct{}{}
-				}
-			}
 		}
 		legacySW, contentOut = newLegacyStreamWriter(contentOut, true, allowed)
 	}

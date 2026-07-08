@@ -86,6 +86,8 @@ type rootLegacyFile struct {
 
 	Export                    Export                `toml:"export,omitempty"`
 
+	Server                    Server                `toml:"server,omitempty"`
+
 	Roles                     Roles                 `toml:"roles,omitempty"`
 
 	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
@@ -153,6 +155,8 @@ type rootFile struct {
 	WebFetch                  WebFetchConfig        `toml:"web_fetch,omitempty"`
 
 	Export                    Export                `toml:"export,omitempty"`
+
+	Server                    Server                `toml:"server,omitempty"`
 
 	Roles                     Roles                 `toml:"roles,omitempty"`
 
@@ -248,6 +252,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		Export:                    f.Export,
 
+		Server:                    f.Server,
+
 		Roles:                     f.Roles,
 
 		AutoUpdate:                f.AutoUpdate,
@@ -331,6 +337,8 @@ func rootToFile(r *Root) *rootFile {
 		WebFetch:                  r.WebFetch,
 
 		Export:                    r.Export,
+
+		Server:                    r.Server,
 
 		Roles:                     r.Roles,
 
@@ -455,6 +463,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		WebFetch:                  f.WebFetch,
 
 		Export:                    f.Export,
+
+		Server:                    f.Server,
 
 		Roles:                     f.Roles,
 

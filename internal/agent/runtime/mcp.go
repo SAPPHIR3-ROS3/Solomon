@@ -42,6 +42,7 @@ func (r *Runtime) connectMCPBackground(ctx context.Context, mgr *solomonmcp.Mana
 }
 
 func (r *Runtime) Close() error {
+	r.releaseReplSessionFileLock()
 	var errMCP error
 	if r != nil && r.MCP != nil {
 		errMCP = r.MCP.Close()
@@ -68,9 +69,6 @@ func (r *Runtime) toolParams() ([]openai.ChatCompletionToolUnionParam, error) {
 	}
 	if agenttools.NormalizeMode(r.Mode) == "agent" && r.Session != nil && r.Session.PlanningActive {
 		tools = append(tools, agenttools.PlanningNativeToolParams()...)
-	}
-	if r.MCP != nil && r.MCP.IsReady() && agenttools.NormalizeMode(r.Mode) == "agent" {
-		tools = append(tools, r.MCP.OpenAITools()...)
 	}
 	return tools, nil
 }

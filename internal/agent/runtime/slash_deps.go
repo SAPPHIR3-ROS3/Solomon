@@ -49,12 +49,15 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 
 		Session: func() *chatstore.Session { return r.Session },
 		SetSession: func(s *chatstore.Session) {
+			r.releaseReplSessionFileLock()
 			r.chatPersistMu.Lock()
 			r.Session = s
 			r.sessionFileCreated = s != nil && s.ID != ""
 			r.chatPersistMu.Unlock()
 		},
-		MutateSession: r.mutateSession,
+		AcquireSessionFileLock: func() error { return r.ensureReplSessionFileLock() },
+		ReleaseSessionFileLock: r.releaseReplSessionFileLock,
+		MutateSession:          r.mutateSession,
 
 		SetMode: func(m string) { r.Mode = m },
 		GetMode: func() string { return r.Mode },

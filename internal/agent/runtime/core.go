@@ -104,6 +104,9 @@ type Runtime struct {
 	nestedState               *activeNestedState
 	currentSubagentToolCallID string
 	roleBackends              roleBackendCache
+
+	replSessFileLock   *chatstore.SessionFileLock
+	replSessFileLockID string
 }
 
 func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
@@ -467,4 +470,39 @@ func (r *Runtime) sessionMessagesSnapshot() (msgs []chatstore.Message, imageFile
 		imageFiles[k] = v
 	}
 	return msgs, imageFiles
+}
+
+func (r *Runtime) releaseReplSessionFileLock() {
+	if r.replSessFileLock == nil {
+		return
+	}
+	r.replSessFileLock.Release()
+	r.replSessFileLock = nil
+	r.replSessFileLockID = ""
+}
+
+func (r *Runtime) ensureReplSessionFileLock() error {
+	if r.RL == nil {
+		return nil
+	}
+	chatID := ""
+	r.chatPersistMu.Lock()
+	if r.Session != nil {
+		chatID = r.Session.ID
+	}
+	r.chatPersistMu.Unlock()
+	if chatID == "" || chatstore.IsPlaceholderChatID(chatID) {
+		return nil
+	}
+	if r.replSessFileLock != nil && r.replSessFileLockID == chatID {
+		return nil
+	}
+	r.releaseReplSessionFileLock()
+	fl, err := chatstore.TryAcquireSessionFileLock(r.ProjHex, chatID)
+	if err != nil {
+		return err
+	}
+	r.replSessFileLock = fl
+	r.replSessFileLockID = chatID
+	return nil
 }

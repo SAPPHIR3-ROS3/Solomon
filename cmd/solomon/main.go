@@ -119,6 +119,10 @@ func main() {
 		runExecCLI(ctx, kind, rest, cfg)
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "serve" {
+		runServeCLI(ctx, os.Args[2:], cfg)
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "add" {
 		wd, err := os.Getwd()
 		if err != nil {
