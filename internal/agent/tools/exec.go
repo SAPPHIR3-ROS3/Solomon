@@ -63,9 +63,6 @@ func modeAllowed(env *Env, mode, tool string) bool {
 			if isPlanTool(tool) {
 				return planAllowed(env, tool)
 			}
-			if mcpToolAllowed(env, tool) {
-				return true
-			}
 			return false
 		}
 	case "chat":
