@@ -28,6 +28,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `doc_search_min_normalized_score` | BM25 minimum for `/docs` and `docsRetrieval` (default `0.05`) |
 | `doc_search_full_article_score` | Normalized score threshold for returning a full article on short queries (default `0.9`) |
 | `[export].path` | Optional absolute directory for `/export` markdown files (default root `~/.solomon/exported/`) |
+| `[[roles.subagent]]` | Optional economical model pool for nested subagents (see below) |
 | `[prompt_templates]` | SHA256 per edited system prompt template (see below) |
 
 ### `[prompt_templates]` (system prompt templates)
@@ -68,6 +69,37 @@ path = "/Users/me/solomon-exports"
 ```
 
 `/export` reads this section but does not modify it. Behaviour (basename slug, duplicate suffixes, `/export last` guard, image appendix): [Usage and commands — `/export`](usage-and-commands.md#export-chat-transcript).
+
+### Subagent roles
+
+Optional pool of provider/model pairs for economical nested subagents (`[[roles.subagent]]` in TOML). The primary agent lists entries with the native `listSubAgents` tool, compares `description` and `points`, then passes the chosen `provider` and `model` to `subagent` via `roleProvider` and `roleModel`. When both role fields are omitted, the subagent uses the **session** provider and model.
+
+Entries are validated on config load and save: each row requires non-empty `provider` and `model`, a configured `[providers.<name>]`, a live model list from that provider (reachable API; model id must appear in the list), non-negative `points`, and unique provider+model pairs. **Requires network and valid provider credentials** when any `[[roles.subagent]]` row is present (including headless `config.Load` / `Save`).
+
+| Key | Role |
+|-----|------|
+| `provider` | Named provider from `[providers.<name>]` |
+| `model` | Model id on that provider |
+| `description` | Short hint for the primary agent when choosing from the pool |
+| `points` | Relative priority (higher = preferred in listings; default `100` when omitted) |
+
+Example:
+
+```toml
+[[roles.subagent]]
+provider = "openrouter"
+model = "qwen-..."
+description = "Fast codebase exploration"
+points = 80
+
+[[roles.subagent]]
+provider = "groq"
+model = "llama-..."
+description = "Cheap single-file tasks"
+points = 60
+```
+
+Agent tools: [Native tools — subagent roles](../architecture/native-tools.md#subagent-roles). Feature overview: [Subagent delegation](../features.md#subagent-delegation).
 
 ### `[tools]` (legacy XML tool calling)
 
@@ -232,7 +264,31 @@ web_search_api_key = "YOUR_SUBSCRIPTION_KEY"
 
 Path: `~/.solomon/mcp.json`, or the file in `SOLOMON_MCP_CONFIG`. If missing, Solomon starts without MCP servers.
 
+In **agent** mode, MCP tools are discovered via `searchTools` and invoked through **`orchestrate`** (code mode), not as direct native tool_calls.
+
 Full schema, JSON example, and runtime behavior: [MCP integration](../architecture/mcp-integration.md).
+
+## Server (HTTP daemon)
+
+Optional `[server]` section for `solomon serve`:
+
+```toml
+[server]
+bind = "127.0.0.1:8443"
+port = 8443
+static_dir = ""
+tls_cert = ""
+tls_key = ""
+```
+
+| Key | Default | Role |
+|-----|---------|------|
+| `bind` | `127.0.0.1:8443` | Listen address (`host:port` or host only with `port`) |
+| `port` | `8443` | Port when `bind` has no port |
+| `static_dir` | empty | Optional web UI static files |
+| `tls_cert` / `tls_key` | auto-generated under `~/.solomon/server/certs/` | TLS paths |
+
+API surface: OpenAI **Responses API** (`POST /v1/responses`, `GET /v1/conversations`, …). Auth: Bearer token after bootstrap or passkey registration. Details: [Startup and CLI](../architecture/startup-and-cli.md#solomon-serve).
 
 ## See also
 

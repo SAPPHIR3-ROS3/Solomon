@@ -32,6 +32,12 @@ func nestedRunConfigFromToolArgs(r *Runtime, args map[string]json.RawMessage) (N
 	if v := jsonString(args["reasoningEffort"]); v != "" {
 		cfg.ReasoningEffort = v
 	}
+	if v := jsonString(args["roleProvider"]); v != "" {
+		cfg.RoleProvider = v
+	}
+	if v := jsonString(args["roleModel"]); v != "" {
+		cfg.RoleModel = v
+	}
 	cfg.ToolCall = chatstore.ToolCall{
 		Name:      "subagent",
 		Arguments: string(mustMarshal(args)),
@@ -46,6 +52,8 @@ func nestedRunConfigFromExec(parentChatID, parentToolCallID string, projectHex s
 		Resume          string `json:"resume"`
 		RunInBackground bool   `json:"run_in_background"`
 		ReasoningEffort string `json:"reasoningEffort"`
+		RoleProvider    string `json:"roleProvider"`
+		RoleModel       string `json:"roleModel"`
 	}
 	_ = json.Unmarshal(raw, &a)
 	cfg := NestedRunConfig{
@@ -54,6 +62,8 @@ func nestedRunConfigFromExec(parentChatID, parentToolCallID string, projectHex s
 		ResumeID:         a.Resume,
 		RunInBackground:  a.RunInBackground,
 		ReasoningEffort:  a.ReasoningEffort,
+		RoleProvider:     strings.TrimSpace(a.RoleProvider),
+		RoleModel:        strings.TrimSpace(a.RoleModel),
 		ParentChatID:     parentChatID,
 		ParentToolCallID: parentToolCallID,
 		ToolCall:         tc,

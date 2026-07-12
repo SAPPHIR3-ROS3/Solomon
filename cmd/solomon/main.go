@@ -23,8 +23,12 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	sandboxworker "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/worker"
-
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 )
+
+func init() {
+	config.RolesModelLister = connect.ListModelsForProviderAll
+}
 
 func expandPathArg(raw string) string {
 	if raw == "~" {
@@ -113,6 +117,10 @@ func main() {
 	logging.Log(logging.INFO_LOG_LEVEL, "Solomon starting")
 	if kind, rest := detectExecSubcommand(os.Args); kind != execNone {
 		runExecCLI(ctx, kind, rest, cfg)
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "serve" {
+		runServeCLI(ctx, os.Args[2:], cfg)
 		return
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "add" {

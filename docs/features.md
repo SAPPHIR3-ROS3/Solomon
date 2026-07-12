@@ -58,6 +58,10 @@ The `docsRetrieval` build tool and `/docs <query>` slash command search the embe
 
 Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the REPL, with shell-style tokenization for the prompt. Claude Code (`-p`), Codex (`exec`), and OpenCode support non-interactive runs for scripts and automation. Entry: [`cmd/solomon/exec.go`](../cmd/solomon/exec.go), [Startup and CLI](architecture/startup-and-cli.md).
 
+### HTTP server (`solomon serve`) **(implemented)**
+
+`solomon serve` exposes an HTTPS **OpenAI Responses API** daemon for the current workspace: conversations, streaming turns, slash interception, bearer auth, self-signed TLS. Remote/web/native clients connect via Bearer token (bootstrap on first start). Optional static UI via `--static-dir`. See [Startup and CLI — solomon serve](architecture/startup-and-cli.md#solomon-serve), [Configuration — server](user-guide/configuration.md#server-http-daemon).
+
 ### Interactive terminal REPL
 
 Default `solomon` starts an interactive REPL with a raw-mode multiline editor, checkpoint-aware prompts, slash commands, and streaming assistant output. This is the core UX shared with Codex, Claude Code, and OpenCode TUIs. REPL behavior: [Runtime — REPL](architecture/runtime-repl.md).
@@ -93,6 +97,8 @@ The canonical workspace root yields a stable 64-char project id; chats, plans, s
 ### Subagent delegation
 
 The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). It is a **native** tool in **agent** mode and legacy **build** mode only — not in the deferred `searchTools` catalog, not callable from orchestrate WASM scripts. Nested runs always disable reasoning (`ForceDisableReasoning` in [`nested.go`](../internal/agent/runtime/nested.go)); `/reasoning` applies to the main chat only. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly. Subagent **file persistence** beyond in-memory transcripts is **(in the future)** — see [Subagent session persistence (in the future)](#subagent-session-persistence-in-the-future).
+
+Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and `points`, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
 
 ### Agent skills
 

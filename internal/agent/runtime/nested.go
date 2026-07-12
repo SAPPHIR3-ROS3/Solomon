@@ -70,21 +70,22 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 	return res.Output, nil
 }
 
-func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, system string, msgs []chatstore.Message, imageFiles map[int]string, forceDisableReasoning bool) (llm.AssistantTurnResult, *tooling.LegacyStreamWriter, error) {
+func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, system string, msgs []chatstore.Message, imageFiles map[int]string, forceDisableReasoning bool, cfg NestedRunConfig) (llm.AssistantTurnResult, *tooling.LegacyStreamWriter, error) {
 	var toolDefs []llm.ToolDef
 	if !r.legacyToolsForced() {
 		toolParams, err := agenttools.NativeToolParams("agent")
 		if err != nil {
 			return llm.AssistantTurnResult{}, nil, err
 		}
-		if r.MCP != nil {
-			toolParams = append(toolParams, r.MCP.OpenAITools()...)
-		}
 		toolDefs = llm.ToolDefsFromOpenAI(toolParams)
+	}
+	model, backend, label, err := r.nestedLLMTarget(ctx, cfg)
+	if err != nil {
+		return llm.AssistantTurnResult{}, nil, err
 	}
 	turnReq := llm.TurnRequest{
 		Cfg:                   r.Cfg,
-		Model:                 r.Model,
+		Model:                 model,
 		System:                system,
 		Messages:              msgs,
 		ImageFiles:            imageFiles,
@@ -92,10 +93,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, syst
 		ParallelToolCalls:     true,
 		ForceDisableReasoning: forceDisableReasoning,
 	}
-	fmt.Fprintf(out, "%s ", termcolor.WrapAssistant(r.Model+"(subagent):"))
-	if r.Backend == nil {
-		return llm.AssistantTurnResult{}, nil, fmt.Errorf("LLM backend not configured")
-	}
+	fmt.Fprintf(out, "%s ", termcolor.WrapAssistant(label+":"))
 	var legacySW *tooling.LegacyStreamWriter
 	var contentOut io.Writer = termcolor.NewErrorLineWriter(out)
 	if r.legacyToolsEnabled() {
@@ -103,20 +101,9 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, syst
 		if err != nil {
 			return llm.AssistantTurnResult{}, nil, err
 		}
-		if r.MCP != nil {
-			for _, t := range r.MCP.OpenAITools() {
-				if t.OfFunction == nil {
-					continue
-				}
-				name := t.OfFunction.Function.Name
-				if name != "" {
-					allowed[name] = struct{}{}
-				}
-			}
-		}
 		legacySW, contentOut = newLegacyStreamWriter(contentOut, true, allowed)
 	}
-	turn, err := r.Backend.StreamTurn(ctx, turnReq, contentOut, r.streamOptsWithRetry(r.Cfg.ShowThinking, out))
+	turn, err := backend.StreamTurn(ctx, turnReq, contentOut, r.streamOptsWithRetry(r.Cfg.ShowThinking, out))
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "nested subagent stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return turn, legacySW, err

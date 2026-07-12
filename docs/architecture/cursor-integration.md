@@ -84,7 +84,7 @@ Central module: [`tool-policy.ts`](../../integrations/cursor/src/tool-policy.ts)
 
 | Class | Examples | Sidecar action |
 |-------|----------|----------------|
-| **Native pass-through** | `orchestrate`, `searchTools`, `subagent`, `switchMode`, `searchSkill`, `loadSkill` | Bridge → OpenAI `tool_calls` → Go `tools.Exec` |
+| **Native pass-through** | `orchestrate`, `searchTools`, `subagent`, `listSubAgents`, `switchMode`, `searchSkill`, `loadSkill` | Bridge → OpenAI `tool_calls` → Go `tools.Exec` |
 | **Block — redirect** | `Read`, `StrReplace`, `Shell`, `Grep`, `Task`, `WebFetch`, deferred `mcp:editFile`, … | `solomon_proxy_correction` → `searchTools` + `orchestrate`; **no** bridge to `readFile`/`editFile`/`shell` |
 | **Hard deny** | `AskQuestion`, `browser_*`, `mcp:external`, `GenerateImage`, `Await`, `ApplyPatch` | Deny with class-specific correction; no host execution |
 

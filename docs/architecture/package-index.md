@@ -18,6 +18,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | Path | Role | Article |
 |------|------|---------|
 | `cmd/solomon/` | Binary entry: CLI flags, wizard, `Runtime` bootstrap | [Startup and CLI](startup-and-cli.md) |
+| `internal/server/` | HTTPS daemon: auth, Responses API, SSE, passkey | [Startup and CLI](startup-and-cli.md#solomon-serve) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |
 | `internal/agent/runtime/` | REPL, turns, session I/O, MCP init, Cursor hooks | [Runtime hub](runtime.md) |
 | `internal/agent/runtime/btw/` | Transient `/btw` side questions and output buffering | [Agent turn pipeline](agent-turn-pipeline.md#btw-side-stream) |
@@ -77,6 +78,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/search/` | Web search backends for `webSearch` | [Supporting packages](supporting-packages.md) |
 | `internal/research/` | Research engine: web jobs, parsing, quality checks, LLM integration | [Supporting packages](supporting-packages.md) |
 | `internal/research/html/` | HTML rendering templates for research results | [Supporting packages](supporting-packages.md) |
+| `internal/roles/` | Subagent role pool from config (`SubagentPool`, `FindSubagent`) | [Native tools](native-tools.md#subagent-roles) |
 | `internal/pathglob/` | Glob `**` matching for `find` | [Native tools](native-tools.md) |
 | `internal/plan/` | Plan file read, write, sections, todos, status | [Plan vs build](plan-vs-build.md) |
 | `internal/gitignore/` | `.gitignore` matcher for `find` | [Native tools](native-tools.md) |
@@ -187,7 +189,9 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/providersetup/` | Support |
 | `internal/research/` | Feature |
 | `internal/research/html/` | Feature |
+| `internal/roles/` | Feature |
 | `internal/search/` | Feature |
+| `internal/server/` | Core |
 | `internal/sandbox/compile/` | Feature |
 | `internal/sandbox/host/` | Feature |
 | `internal/sandbox/ipc/` | Feature |

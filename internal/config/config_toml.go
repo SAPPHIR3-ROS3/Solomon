@@ -6,6 +6,8 @@ import (
 
 	"bytes"
 
+	"context"
+
 	"os"
 
 	"path/filepath"
@@ -84,6 +86,10 @@ type rootLegacyFile struct {
 
 	Export                    Export                `toml:"export,omitempty"`
 
+	Server                    Server                `toml:"server,omitempty"`
+
+	Roles                     Roles                 `toml:"roles,omitempty"`
+
 	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
 
 }
@@ -149,6 +155,10 @@ type rootFile struct {
 	WebFetch                  WebFetchConfig        `toml:"web_fetch,omitempty"`
 
 	Export                    Export                `toml:"export,omitempty"`
+
+	Server                    Server                `toml:"server,omitempty"`
+
+	Roles                     Roles                 `toml:"roles,omitempty"`
 
 	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
 
@@ -242,6 +252,10 @@ func rootFromFile(f *rootFile) *Root {
 
 		Export:                    f.Export,
 
+		Server:                    f.Server,
+
+		Roles:                     f.Roles,
+
 		AutoUpdate:                f.AutoUpdate,
 
 		PromptTemplates:           f.PromptTemplates,
@@ -323,6 +337,10 @@ func rootToFile(r *Root) *rootFile {
 		WebFetch:                  r.WebFetch,
 
 		Export:                    r.Export,
+
+		Server:                    r.Server,
+
+		Roles:                     r.Roles,
 
 		AutoUpdate:                r.AutoUpdate,
 
@@ -446,6 +464,10 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 
 		Export:                    f.Export,
 
+		Server:                    f.Server,
+
+		Roles:                     f.Roles,
+
 		AutoUpdate:                f.AutoUpdate,
 
 	}
@@ -508,7 +530,12 @@ func normalizeRoot(r *Root) {
 
 }
 
-
+func validateRoot(ctx context.Context, r *Root) error {
+	if r == nil {
+		return nil
+	}
+	return ValidateRoles(ctx, r)
+}
 
 func Load() (*Root, error) {
 
@@ -551,6 +578,10 @@ func Load() (*Root, error) {
 		r := rootFromLegacy(&leg)
 
 		normalizeRoot(r)
+
+		if err := validateRoot(context.Background(), r); err != nil {
+			return nil, err
+		}
 
 		return r, nil
 
@@ -600,6 +631,10 @@ func Load() (*Root, error) {
 
 	normalizeRoot(r)
 
+	if err := validateRoot(context.Background(), r); err != nil {
+		return nil, err
+	}
+
 	return r, nil
 
 }
@@ -609,6 +644,10 @@ func Load() (*Root, error) {
 func Save(r *Root) error {
 
 	normalizeRoot(r)
+
+	if err := validateRoot(context.Background(), r); err != nil {
+		return err
+	}
 
 	cfgPath, err := paths.ConfigPath()
 
