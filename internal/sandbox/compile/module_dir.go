@@ -21,13 +21,15 @@ func ModuleDir() (string, error) {
 		}
 		return root, nil
 	}
-	if root, err := moduleRootFromCaller(); err == nil {
-		return root, nil
+	callerRoot, callerErr := moduleRootFromCaller()
+	if callerErr == nil {
+		return callerRoot, nil
 	}
-	if root, err := moduleRootFromStub(); err == nil {
-		return root, nil
+	stubRoot, stubErr := moduleRootFromStub()
+	if stubErr == nil {
+		return stubRoot, nil
 	}
-	return "", fmt.Errorf("resolve module dir: %s not found (reinstall Solomon or set SOLOMON_MODULE_ROOT)", SolomonModulePath)
+	return "", fmt.Errorf("resolve module dir: %s not found (caller: %v; stub: %v)", SolomonModulePath, callerErr, stubErr)
 }
 
 func validateModuleRoot(dir string) (string, error) {
@@ -163,11 +165,15 @@ func ensureOrchestrateStub(version string) (string, error) {
 		if err := os.WriteFile(goMod, []byte(want), 0o600); err != nil {
 			return "", err
 		}
-		cmd := exec.Command("go", "mod", "download")
-		cmd.Dir = dir
-		if err := cmd.Run(); err != nil {
-			return "", fmt.Errorf("orchestrate stub go mod download: %w", err)
+	}
+	cmd := exec.Command("go", "mod", "download", SolomonModulePath+"@"+version)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg != "" {
+			return "", fmt.Errorf("orchestrate stub go mod download: %w: %s", err, msg)
 		}
+		return "", fmt.Errorf("orchestrate stub go mod download: %w", err)
 	}
 	return dir, nil
 }
