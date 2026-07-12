@@ -9,7 +9,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@connectrpc/connect-node": "^1.7.0",
+    "@connectrpc/connect-node": "^2.0.0",
     "@cursor/sdk": "1.0.20"
   },
   "devDependencies": {
