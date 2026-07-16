@@ -51,13 +51,13 @@ When `[[roles.subagent]]` is configured in `config.toml`, the primary agent can 
 
 | Step | Tool / args |
 |------|-------------|
-| Discover pool | `listSubAgents` — returns `provider`, `model`, `description`, `points` (sorted by points descending) |
+| Discover pool | `listSubAgents` — returns `provider`, `model`, `description`, and manually configured `scores` for the selected characteristics |
 | Spawn nested run | `subagent` with optional `roleProvider` + `roleModel` matching a pool row |
 | Fallback | Omit both role fields → nested run uses the session provider and model |
 
 Role rows are validated on **config load and save**: provider must exist in `[providers]`, the provider API must be reachable, and the model id must appear in that provider’s model list (`ListModelsForProviderAll`, same path as `/models`). Runtime `subagent` calls also require `roleProvider` + `roleModel` to match a configured pool row (`listSubAgents`). Invalid pairs are rejected with a hint to call `listSubAgents`. Resume and deferred nested spawns restore `role_provider` / `role_model` from the subsession or pending spawn payload when omitted.
 
-Config schema: [`config.Roles`](../../internal/config/roles.go). Registry: [`internal/roles/registry.go`](../../internal/roles/registry.go).
+Config schema: [`config.Roles`](../../internal/config/roles.go). Manual table model: [`internal/roles/table.go`](../../internal/roles/table.go).
 
 ## `editFile` semantics (build)
 

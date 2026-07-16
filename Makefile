@@ -94,6 +94,11 @@ check-docs:
 loc-chart:
 	go run scripts/loc_chart.go scripts/loc_chart_render.go
 
+ifneq (,$(wildcard ./.env))
+include .env
+export
+endif
+
 # Full reinstall: stop sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
 install:
 	@$(FIX_TTY)

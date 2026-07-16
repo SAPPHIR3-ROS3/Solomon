@@ -4,28 +4,26 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/roles"
 )
 
 var RolesModelLister func(context.Context, *Root, *Provider) ([]string, error)
 
-const DefaultSubagentRolePoints = 100
-
 type Roles struct {
+	Table    RolesTable           `toml:"table,omitempty"`
 	Subagent []SubagentRoleConfig `toml:"subagent,omitempty"`
 }
 
-type SubagentRoleConfig struct {
-	Provider    string `toml:"provider"`
-	Model       string `toml:"model"`
-	Description string `toml:"description,omitempty"`
-	Points      int    `toml:"points,omitempty"`
+type RolesTable struct {
+	Characteristics []string `toml:"characteristics,omitempty"`
 }
 
-func (e SubagentRoleConfig) EffectivePoints() int {
-	if e.Points > 0 {
-		return e.Points
-	}
-	return DefaultSubagentRolePoints
+type SubagentRoleConfig struct {
+	Provider    string         `toml:"provider"`
+	Model       string         `toml:"model"`
+	Description string         `toml:"description,omitempty"`
+	Scores      map[string]int `toml:"scores,omitempty"`
 }
 
 func subagentRoleKey(provider, model string) string {
@@ -41,11 +39,16 @@ func validateSubagentRoleStruct(r *Root, index int, e SubagentRoleConfig) error 
 	if model == "" {
 		return fmt.Errorf("roles.subagent[%d]: missing model", index)
 	}
-	if e.Points < 0 {
-		return fmt.Errorf("roles.subagent[%d]: points must be >= 0", index)
-	}
 	if ProviderByName(r, provider) == nil {
 		return fmt.Errorf("roles.subagent[%d]: provider %q not found in config", index, provider)
+	}
+	for ch, v := range e.Scores {
+		if !roles.IsKnownCharacteristic(ch) {
+			return fmt.Errorf("roles.subagent[%d].scores.%s: unknown characteristic", index, ch)
+		}
+		if err := roles.ValidateScoreValue(ch, v); err != nil {
+			return fmt.Errorf("roles.subagent[%d].scores.%s: %w", index, ch, err)
+		}
 	}
 	return nil
 }
@@ -88,6 +91,14 @@ func ValidateRoles(ctx context.Context, r *Root) error {
 	}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if len(r.Roles.Table.Characteristics) > 0 {
+		if err := roles.ValidateTableCharacteristics(r.Roles.Table.Characteristics); err != nil {
+			return err
+		}
+	}
+	if len(r.Roles.Subagent) > 0 && len(r.Roles.Table.Characteristics) == 0 {
+		return fmt.Errorf("roles.subagent: configure roles.table before adding subagents")
 	}
 	seen := map[string]int{}
 	modelCache := map[string][]string{}

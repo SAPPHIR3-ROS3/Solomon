@@ -13,6 +13,12 @@ Translate `chatstore` messages into provider API requests, stream assistant outp
 
 Runtime holds `CompletionBackend` (`NewCompletionBackend` in [`internal/llm/factory.go`](../../internal/llm/factory.go)). OpenAI-compatible and ChatGPT Sub providers use `openai`; Anthropic Compatible API providers use `anthropic`.
 
+## Model discovery
+
+Model selection uses live provider catalogs. OpenAI-compatible providers use the standard models endpoint; Anthropic providers use the Anthropic models endpoint; ChatGPT Sub uses the Codex subscription models endpoint; Claude Sub uses its authenticated Anthropic endpoint; and Cursor API uses the sidecar catalog. The `/models` command caches the catalogs during startup, refreshes a provider when it is selected, and keeps successful provider results available when another provider cannot be reached.
+
+Provider-specific filtering and ordering are applied before the ids reach the picker. Role validation uses the same provider listing path, so configured `[[roles.subagent]]` models must still be present in the provider’s current catalog.
+
 ## ChatGPT Sub (Codex OAuth)
 
 Subscription providers use the OpenAI backend with Codex-oriented middleware instead of a static API key.
@@ -41,6 +47,7 @@ Tokens are stored in `config.toml` today (secure vault is planned — see [TODO.
 | `internal/llm/reasoning.go` | `MessagesForAPI` (reasoning only on last assistant) |
 | `internal/llm/httpresilience.go` | Error classification, backoff, circuit breaker, HTTP client |
 | `internal/llm/resilient_backend.go` | `ResilientBackend` decorator (retry full turn) |
+| `internal/modelsapi/` | Provider model-list HTTP helpers and Anthropic model ordering |
 
 Runtime wraps every `CompletionBackend` from `NewCompletionBackend` in `ResilientBackend`. OpenAI SDK retries are disabled (`WithMaxRetries(0)`); Solomon handles retries at turn level.
 

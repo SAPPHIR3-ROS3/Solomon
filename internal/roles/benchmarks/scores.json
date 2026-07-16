@@ -1,0 +1,1058 @@
+{
+  "version": 2,
+  "generated_at": "2026-07-15T23:35:02Z",
+  "sources": [
+    "artificial_analysis:free"
+  ],
+  "models": {
+    "claude-opus-4-8": {
+      "agentic_capabilities": 91,
+      "consistency": 73,
+      "cost": 86,
+      "long_horizon": 95,
+      "real_cost": 0,
+      "reasoning": 94,
+      "speed": 14,
+      "world_knowledge": 94
+    },
+    "claude-sonnet-4-6": {
+      "consistency": 64,
+      "cost": 92,
+      "reasoning": 60,
+      "speed": 9,
+      "world_knowledge": 60
+    },
+    "claude-sonnet-4-6-adaptive": {
+      "agentic_capabilities": 78,
+      "consistency": 78,
+      "cost": 92,
+      "long_horizon": 80,
+      "real_cost": 11,
+      "reasoning": 80,
+      "speed": 13,
+      "world_knowledge": 80
+    },
+    "claude-sonnet-4-6-non-reasoning-low-effort": {
+      "consistency": 66,
+      "cost": 92,
+      "reasoning": 58,
+      "speed": 9,
+      "world_knowledge": 58
+    },
+    "deepseek-r1": {
+      "consistency": 80,
+      "cost": 97,
+      "reasoning": 33,
+      "world_knowledge": 33
+    },
+    "deepseek-r1-0120": {
+      "agentic_capabilities": 17,
+      "consistency": 79,
+      "cost": 97,
+      "long_horizon": 30,
+      "real_cost": 90,
+      "reasoning": 30,
+      "world_knowledge": 30
+    },
+    "deepseek-r1-distill-llama-70b": {
+      "consistency": 90,
+      "cost": 99,
+      "reasoning": 15,
+      "speed": 0,
+      "world_knowledge": 15
+    },
+    "deepseek-r1-distill-llama-8b": {
+      "consistency": 94,
+      "reasoning": 9,
+      "world_knowledge": 9
+    },
+    "deepseek-r1-distill-qwen-1-5b": {
+      "consistency": 96,
+      "reasoning": 5,
+      "world_knowledge": 5
+    },
+    "deepseek-r1-distill-qwen-14b": {
+      "consistency": 90,
+      "reasoning": 15,
+      "world_knowledge": 15
+    },
+    "deepseek-r1-distill-qwen-32b": {
+      "consistency": 89,
+      "reasoning": 17,
+      "world_knowledge": 17
+    },
+    "deepseek-r1-qwen3-8b": {
+      "consistency": 90,
+      "reasoning": 16,
+      "world_knowledge": 16
+    },
+    "gemini-2-5-pro": {
+      "agentic_capabilities": 27,
+      "consistency": 74,
+      "cost": 95,
+      "long_horizon": 42,
+      "real_cost": 85,
+      "reasoning": 43,
+      "speed": 50,
+      "world_knowledge": 43
+    },
+    "gemini-2-5-pro-03-25": {
+      "agentic_capabilities": 59,
+      "consistency": 53,
+      "long_horizon": 59,
+      "reasoning": 38,
+      "world_knowledge": 38
+    },
+    "gemini-2-5-pro-05-06": {
+      "consistency": 78,
+      "cost": 95,
+      "reasoning": 37,
+      "world_knowledge": 37
+    },
+    "glm-5": {
+      "consistency": 61,
+      "cost": 98,
+      "reasoning": 66,
+      "speed": 10,
+      "world_knowledge": 66
+    },
+    "glm-5-1": {
+      "agentic_capabilities": 63,
+      "consistency": 74,
+      "cost": 97,
+      "long_horizon": 71,
+      "real_cost": 84,
+      "reasoning": 68,
+      "speed": 21,
+      "world_knowledge": 68
+    },
+    "glm-5-1-non-reasoning": {
+      "consistency": 65,
+      "cost": 97,
+      "reasoning": 59,
+      "speed": 15,
+      "world_knowledge": 59
+    },
+    "glm-5-2": {
+      "agentic_capabilities": 84,
+      "consistency": 74,
+      "cost": 97,
+      "long_horizon": 88,
+      "real_cost": 76,
+      "reasoning": 87,
+      "speed": 55,
+      "world_knowledge": 87
+    },
+    "glm-5-2-non-reasoning": {
+      "agentic_capabilities": 62,
+      "consistency": 88,
+      "cost": 96,
+      "long_horizon": 59,
+      "reasoning": 57,
+      "speed": 32,
+      "world_knowledge": 57
+    },
+    "glm-5-non-reasoning": {
+      "consistency": 68,
+      "cost": 98,
+      "reasoning": 54,
+      "speed": 13,
+      "world_knowledge": 54
+    },
+    "glm-5-turbo": {
+      "consistency": 62,
+      "reasoning": 64,
+      "world_knowledge": 64
+    },
+    "gpt-5-2-codex": {
+      "consistency": 60,
+      "cost": 93,
+      "reasoning": 68,
+      "speed": 63,
+      "world_knowledge": 68
+    },
+    "gpt-5-3-codex": {
+      "consistency": 56,
+      "cost": 93,
+      "reasoning": 75,
+      "speed": 24,
+      "world_knowledge": 75
+    },
+    "gpt-5-4": {
+      "agentic_capabilities": 84,
+      "consistency": 70,
+      "cost": 92,
+      "long_horizon": 91,
+      "real_cost": 44,
+      "reasoning": 87,
+      "speed": 57,
+      "world_knowledge": 87
+    },
+    "gpt-5-4-low": {
+      "consistency": 61,
+      "cost": 92,
+      "reasoning": 66,
+      "speed": 40,
+      "world_knowledge": 66
+    },
+    "gpt-5-4-mini": {
+      "agentic_capabilities": 63,
+      "consistency": 74,
+      "cost": 98,
+      "long_horizon": 71,
+      "real_cost": 72,
+      "reasoning": 67,
+      "speed": 64,
+      "world_knowledge": 67
+    },
+    "gpt-5-4-mini-medium": {
+      "consistency": 70,
+      "cost": 98,
+      "reasoning": 50,
+      "speed": 61,
+      "world_knowledge": 50
+    },
+    "gpt-5-4-mini-non-reasoning": {
+      "consistency": 83,
+      "cost": 98,
+      "reasoning": 27,
+      "speed": 66,
+      "world_knowledge": 27
+    },
+    "gpt-5-4-nano": {
+      "agentic_capabilities": 61,
+      "consistency": 71,
+      "cost": 99,
+      "long_horizon": 71,
+      "reasoning": 64,
+      "speed": 60,
+      "world_knowledge": 64
+    },
+    "gpt-5-4-nano-medium": {
+      "consistency": 70,
+      "cost": 99,
+      "reasoning": 50,
+      "speed": 60,
+      "world_knowledge": 50
+    },
+    "gpt-5-4-nano-non-reasoning": {
+      "consistency": 82,
+      "cost": 99,
+      "reasoning": 29,
+      "speed": 62,
+      "world_knowledge": 29
+    },
+    "gpt-5-4-non-reasoning": {
+      "consistency": 72,
+      "cost": 92,
+      "reasoning": 46,
+      "speed": 40,
+      "world_knowledge": 46
+    },
+    "gpt-5-4-pro": {
+      "consistency": 100,
+      "cost": 0
+    },
+    "gpt-5-5": {
+      "agentic_capabilities": 90,
+      "consistency": 70,
+      "cost": 83,
+      "long_horizon": 96,
+      "real_cost": 26,
+      "reasoning": 93,
+      "speed": 20,
+      "world_knowledge": 93
+    },
+    "gpt-5-5-high": {
+      "agentic_capabilities": 86,
+      "consistency": 72,
+      "cost": 83,
+      "long_horizon": 91,
+      "real_cost": 55,
+      "reasoning": 90,
+      "speed": 19,
+      "world_knowledge": 90
+    },
+    "gpt-5-5-instant-05-26": {
+      "consistency": 67,
+      "cost": 83,
+      "reasoning": 56,
+      "world_knowledge": 56
+    },
+    "gpt-5-5-instant-06-26": {
+      "agentic_capabilities": 35,
+      "consistency": 72,
+      "cost": 83,
+      "long_horizon": 50,
+      "real_cost": 87,
+      "reasoning": 48,
+      "world_knowledge": 48
+    },
+    "gpt-5-5-low": {
+      "agentic_capabilities": 67,
+      "consistency": 70,
+      "cost": 83,
+      "long_horizon": 77,
+      "real_cost": 91,
+      "reasoning": 73,
+      "speed": 17,
+      "world_knowledge": 73
+    },
+    "gpt-5-5-medium": {
+      "agentic_capabilities": 81,
+      "consistency": 66,
+      "cost": 83,
+      "long_horizon": 91,
+      "real_cost": 76,
+      "reasoning": 85,
+      "speed": 17,
+      "world_knowledge": 85
+    },
+    "gpt-5-5-non-reasoning": {
+      "agentic_capabilities": 60,
+      "consistency": 69,
+      "cost": 83,
+      "long_horizon": 72,
+      "real_cost": 96,
+      "reasoning": 59,
+      "speed": 16,
+      "world_knowledge": 59
+    },
+    "gpt-5-6-luna": {
+      "agentic_capabilities": 88,
+      "consistency": 74,
+      "cost": 97,
+      "long_horizon": 91,
+      "real_cost": 78,
+      "reasoning": 87,
+      "speed": 83,
+      "world_knowledge": 87
+    },
+    "gpt-5-6-luna-high": {
+      "agentic_capabilities": 78,
+      "consistency": 77,
+      "cost": 97,
+      "long_horizon": 81,
+      "real_cost": 94,
+      "reasoning": 78,
+      "speed": 68,
+      "world_knowledge": 78
+    },
+    "gpt-5-6-luna-low": {
+      "agentic_capabilities": 51,
+      "consistency": 81,
+      "cost": 97,
+      "long_horizon": 56,
+      "real_cost": 100,
+      "reasoning": 56,
+      "speed": 70,
+      "world_knowledge": 56
+    },
+    "gpt-5-6-luna-medium": {
+      "agentic_capabilities": 61,
+      "consistency": 80,
+      "cost": 97,
+      "long_horizon": 64,
+      "real_cost": 99,
+      "reasoning": 64,
+      "speed": 68,
+      "world_knowledge": 64
+    },
+    "gpt-5-6-luna-non-reasoning": {
+      "agentic_capabilities": 45,
+      "consistency": 83,
+      "cost": 97,
+      "long_horizon": 49,
+      "real_cost": 100,
+      "reasoning": 44,
+      "speed": 68,
+      "world_knowledge": 44
+    },
+    "gpt-5-6-luna-xhigh": {
+      "agentic_capabilities": 83,
+      "consistency": 74,
+      "cost": 97,
+      "long_horizon": 87,
+      "real_cost": 88,
+      "reasoning": 83,
+      "speed": 74,
+      "world_knowledge": 83
+    },
+    "gpt-5-6-sol": {
+      "agentic_capabilities": 100,
+      "consistency": 77,
+      "cost": 83,
+      "long_horizon": 99,
+      "real_cost": 25,
+      "reasoning": 100,
+      "speed": 15,
+      "world_knowledge": 100
+    },
+    "gpt-5-6-sol-high": {
+      "agentic_capabilities": 95,
+      "consistency": 71,
+      "cost": 83,
+      "long_horizon": 99,
+      "real_cost": 76,
+      "reasoning": 95,
+      "speed": 15,
+      "world_knowledge": 95
+    },
+    "gpt-5-6-sol-low": {
+      "agentic_capabilities": 82,
+      "consistency": 70,
+      "cost": 83,
+      "long_horizon": 89,
+      "real_cost": 92,
+      "reasoning": 84,
+      "speed": 14,
+      "world_knowledge": 84
+    },
+    "gpt-5-6-sol-medium": {
+      "agentic_capabilities": 90,
+      "consistency": 68,
+      "cost": 83,
+      "long_horizon": 97,
+      "real_cost": 85,
+      "reasoning": 91,
+      "speed": 14,
+      "world_knowledge": 91
+    },
+    "gpt-5-6-sol-non-reasoning": {
+      "agentic_capabilities": 74,
+      "consistency": 70,
+      "cost": 83,
+      "long_horizon": 83,
+      "real_cost": 95,
+      "reasoning": 69,
+      "speed": 13,
+      "world_knowledge": 69
+    },
+    "gpt-5-6-sol-xhigh": {
+      "agentic_capabilities": 98,
+      "consistency": 74,
+      "cost": 83,
+      "long_horizon": 100,
+      "real_cost": 60,
+      "reasoning": 98,
+      "speed": 18,
+      "world_knowledge": 98
+    },
+    "gpt-5-6-terra": {
+      "agentic_capabilities": 93,
+      "consistency": 71,
+      "cost": 92,
+      "long_horizon": 98,
+      "real_cost": 54,
+      "reasoning": 93,
+      "speed": 51,
+      "world_knowledge": 93
+    },
+    "gpt-5-6-terra-high": {
+      "agentic_capabilities": 81,
+      "consistency": 74,
+      "cost": 92,
+      "long_horizon": 85,
+      "real_cost": 88,
+      "reasoning": 83,
+      "speed": 38,
+      "world_knowledge": 83
+    },
+    "gpt-5-6-terra-low": {
+      "agentic_capabilities": 65,
+      "consistency": 73,
+      "cost": 92,
+      "long_horizon": 74,
+      "real_cost": 97,
+      "reasoning": 68,
+      "speed": 42,
+      "world_knowledge": 68
+    },
+    "gpt-5-6-terra-medium": {
+      "agentic_capabilities": 75,
+      "consistency": 72,
+      "cost": 92,
+      "long_horizon": 82,
+      "real_cost": 95,
+      "reasoning": 77,
+      "speed": 38,
+      "world_knowledge": 77
+    },
+    "gpt-5-6-terra-non-reasoning": {
+      "agentic_capabilities": 60,
+      "consistency": 77,
+      "cost": 92,
+      "long_horizon": 66,
+      "reasoning": 57,
+      "speed": 41,
+      "world_knowledge": 57
+    },
+    "gpt-5-6-terra-xhigh": {
+      "agentic_capabilities": 87,
+      "consistency": 74,
+      "cost": 92,
+      "long_horizon": 90,
+      "real_cost": 81,
+      "reasoning": 87,
+      "speed": 44,
+      "world_knowledge": 87
+    },
+    "grok-4-3": {
+      "agentic_capabilities": 49,
+      "consistency": 82,
+      "cost": 98,
+      "long_horizon": 53,
+      "real_cost": 94,
+      "reasoning": 63,
+      "speed": 41,
+      "world_knowledge": 63
+    },
+    "grok-4-3-low": {
+      "consistency": 65,
+      "cost": 98,
+      "reasoning": 59,
+      "speed": 33,
+      "world_knowledge": 59
+    },
+    "grok-4-3-medium": {
+      "consistency": 64,
+      "cost": 98,
+      "reasoning": 60,
+      "speed": 35,
+      "world_knowledge": 60
+    },
+    "grok-4-5": {
+      "agentic_capabilities": 88,
+      "consistency": 73,
+      "cost": 96,
+      "long_horizon": 92,
+      "real_cost": 85,
+      "reasoning": 91,
+      "speed": 45,
+      "world_knowledge": 91
+    },
+    "kimi-k2-7-code": {
+      "agentic_capabilities": 66,
+      "consistency": 69,
+      "cost": 98,
+      "long_horizon": 77,
+      "reasoning": 71,
+      "speed": 10,
+      "world_knowledge": 71
+    },
+    "qwen3-0-6b-instruct": {
+      "consistency": 99,
+      "reasoning": 0,
+      "world_knowledge": 0
+    },
+    "qwen3-0-6b-instruct-reasoning": {
+      "consistency": 99,
+      "reasoning": 1,
+      "world_knowledge": 1
+    },
+    "qwen3-1-7b-instruct": {
+      "consistency": 99,
+      "reasoning": 1,
+      "world_knowledge": 1
+    },
+    "qwen3-1-7b-instruct-reasoning": {
+      "consistency": 97,
+      "reasoning": 3,
+      "world_knowledge": 3
+    },
+    "qwen3-14b-instruct": {
+      "consistency": 93,
+      "cost": 99,
+      "reasoning": 10,
+      "speed": 18,
+      "world_knowledge": 10
+    },
+    "qwen3-14b-instruct-reasoning": {
+      "agentic_capabilities": 9,
+      "consistency": 88,
+      "cost": 98,
+      "long_horizon": 16,
+      "reasoning": 16,
+      "speed": 16,
+      "world_knowledge": 16
+    },
+    "qwen3-235b-a22b-instruct": {
+      "consistency": 89,
+      "cost": 98,
+      "reasoning": 17,
+      "speed": 16,
+      "world_knowledge": 17
+    },
+    "qwen3-235b-a22b-instruct-2507": {
+      "consistency": 82,
+      "cost": 98,
+      "reasoning": 30,
+      "speed": 15,
+      "world_knowledge": 30
+    },
+    "qwen3-235b-a22b-instruct-2507-reasoning": {
+      "agentic_capabilities": 17,
+      "consistency": 82,
+      "cost": 96,
+      "long_horizon": 27,
+      "reasoning": 32,
+      "speed": 14,
+      "world_knowledge": 32
+    },
+    "qwen3-235b-a22b-instruct-reasoning": {
+      "consistency": 87,
+      "cost": 96,
+      "reasoning": 21,
+      "speed": 17,
+      "world_knowledge": 21
+    },
+    "qwen3-30b-a3b-2507": {
+      "consistency": 91,
+      "cost": 100,
+      "reasoning": 14,
+      "speed": 57,
+      "world_knowledge": 14
+    },
+    "qwen3-30b-a3b-2507-reasoning": {
+      "agentic_capabilities": 8,
+      "consistency": 87,
+      "cost": 99,
+      "long_horizon": 14,
+      "real_cost": 97,
+      "reasoning": 23,
+      "speed": 51,
+      "world_knowledge": 23
+    },
+    "qwen3-30b-a3b-instruct": {
+      "consistency": 93,
+      "cost": 100,
+      "reasoning": 10,
+      "speed": 36,
+      "world_knowledge": 10
+    },
+    "qwen3-30b-a3b-instruct-reasoning": {
+      "consistency": 91,
+      "cost": 99,
+      "reasoning": 14,
+      "speed": 36,
+      "world_knowledge": 14
+    },
+    "qwen3-32b-instruct": {
+      "consistency": 91,
+      "cost": 98,
+      "reasoning": 13,
+      "speed": 34,
+      "world_knowledge": 13
+    },
+    "qwen3-32b-instruct-reasoning": {
+      "agentic_capabilities": 10,
+      "consistency": 87,
+      "cost": 96,
+      "long_horizon": 18,
+      "reasoning": 18,
+      "speed": 33,
+      "world_knowledge": 18
+    },
+    "qwen3-4b-2507-instruct": {
+      "consistency": 93,
+      "reasoning": 11,
+      "world_knowledge": 11
+    },
+    "qwen3-4b-2507-instruct-reasoning": {
+      "consistency": 88,
+      "reasoning": 19,
+      "world_knowledge": 19
+    },
+    "qwen3-4b-instruct": {
+      "consistency": 93,
+      "reasoning": 10,
+      "world_knowledge": 10
+    },
+    "qwen3-4b-instruct-reasoning": {
+      "consistency": 92,
+      "reasoning": 13,
+      "world_knowledge": 13
+    },
+    "qwen3-5-0-8b": {
+      "agentic_capabilities": 9,
+      "consistency": 94,
+      "reasoning": 8,
+      "world_knowledge": 8
+    },
+    "qwen3-5-0-8b-non-reasoning": {
+      "agentic_capabilities": 0,
+      "consistency": 96,
+      "long_horizon": 0,
+      "reasoning": 6,
+      "world_knowledge": 6
+    },
+    "qwen3-5-122b-a10b": {
+      "agentic_capabilities": 48,
+      "consistency": 75,
+      "cost": 98,
+      "long_horizon": 58,
+      "real_cost": 89,
+      "reasoning": 54,
+      "speed": 49,
+      "world_knowledge": 54
+    },
+    "qwen3-5-122b-a10b-non-reasoning": {
+      "agentic_capabilities": 42,
+      "consistency": 73,
+      "cost": 98,
+      "long_horizon": 55,
+      "real_cost": 96,
+      "reasoning": 46,
+      "speed": 56,
+      "world_knowledge": 46
+    },
+    "qwen3-5-27b": {
+      "consistency": 66,
+      "cost": 99,
+      "reasoning": 57,
+      "speed": 24,
+      "world_knowledge": 57
+    },
+    "qwen3-5-27b-non-reasoning": {
+      "consistency": 71,
+      "cost": 99,
+      "reasoning": 49,
+      "speed": 26,
+      "world_knowledge": 49
+    },
+    "qwen3-5-2b": {
+      "agentic_capabilities": 1,
+      "consistency": 93,
+      "long_horizon": 2,
+      "reasoning": 11,
+      "world_knowledge": 11
+    },
+    "qwen3-5-2b-non-reasoning": {
+      "agentic_capabilities": 1,
+      "consistency": 95,
+      "long_horizon": 2,
+      "reasoning": 8,
+      "world_knowledge": 8
+    },
+    "qwen3-5-35b-a3b": {
+      "consistency": 71,
+      "cost": 99,
+      "reasoning": 49,
+      "speed": 56,
+      "world_knowledge": 49
+    },
+    "qwen3-5-35b-a3b-non-reasoning": {
+      "consistency": 77,
+      "cost": 99,
+      "reasoning": 39,
+      "speed": 65,
+      "world_knowledge": 39
+    },
+    "qwen3-5-397b-a17b": {
+      "agentic_capabilities": 49,
+      "consistency": 72,
+      "cost": 98,
+      "long_horizon": 61,
+      "real_cost": 87,
+      "reasoning": 56,
+      "speed": 17,
+      "world_knowledge": 56
+    },
+    "qwen3-5-397b-a17b-non-reasoning": {
+      "consistency": 68,
+      "cost": 98,
+      "reasoning": 54,
+      "speed": 16,
+      "world_knowledge": 54
+    },
+    "qwen3-5-4b": {
+      "agentic_capabilities": 28,
+      "consistency": 77,
+      "cost": 100,
+      "long_horizon": 28,
+      "reasoning": 33,
+      "speed": 3,
+      "world_knowledge": 33
+    },
+    "qwen3-5-4b-non-reasoning": {
+      "agentic_capabilities": 25,
+      "consistency": 80,
+      "cost": 100,
+      "long_horizon": 25,
+      "reasoning": 26,
+      "speed": 1,
+      "world_knowledge": 26
+    },
+    "qwen3-5-9b": {
+      "agentic_capabilities": 24,
+      "consistency": 79,
+      "cost": 100,
+      "long_horizon": 36,
+      "real_cost": 97,
+      "reasoning": 35,
+      "speed": 19,
+      "world_knowledge": 35
+    },
+    "qwen3-5-9b-non-reasoning": {
+      "agentic_capabilities": 29,
+      "consistency": 77,
+      "long_horizon": 29,
+      "reasoning": 33,
+      "world_knowledge": 33
+    },
+    "qwen3-5-omni-flash": {
+      "consistency": 81,
+      "cost": 100,
+      "reasoning": 31,
+      "speed": 100,
+      "world_knowledge": 31
+    },
+    "qwen3-5-omni-plus": {
+      "consistency": 69,
+      "cost": 98,
+      "reasoning": 51,
+      "speed": 13,
+      "world_knowledge": 51
+    },
+    "qwen3-6-27b": {
+      "agentic_capabilities": 59,
+      "consistency": 73,
+      "cost": 98,
+      "long_horizon": 68,
+      "real_cost": 83,
+      "reasoning": 62,
+      "speed": 14,
+      "world_knowledge": 62
+    },
+    "qwen3-6-27b-non-reasoning": {
+      "agentic_capabilities": 51,
+      "consistency": 77,
+      "cost": 98,
+      "long_horizon": 59,
+      "real_cost": 92,
+      "reasoning": 51,
+      "speed": 15,
+      "world_knowledge": 51
+    },
+    "qwen3-6-35b-a3b": {
+      "agentic_capabilities": 46,
+      "consistency": 80,
+      "cost": 99,
+      "long_horizon": 53,
+      "real_cost": 92,
+      "reasoning": 53,
+      "speed": 50,
+      "world_knowledge": 53
+    },
+    "qwen3-6-35b-a3b-non-reasoning": {
+      "agentic_capabilities": 35,
+      "consistency": 91,
+      "cost": 99,
+      "long_horizon": 35,
+      "real_cost": 88,
+      "reasoning": 40,
+      "speed": 59,
+      "world_knowledge": 40
+    },
+    "qwen3-6-max": {
+      "consistency": 60,
+      "cost": 96,
+      "reasoning": 67,
+      "speed": 8,
+      "world_knowledge": 67
+    },
+    "qwen3-6-plus": {
+      "agentic_capabilities": 60,
+      "consistency": 73,
+      "cost": 98,
+      "long_horizon": 69,
+      "real_cost": 87,
+      "reasoning": 67,
+      "speed": 14,
+      "world_knowledge": 67
+    },
+    "qwen3-7-max": {
+      "agentic_capabilities": 70,
+      "consistency": 65,
+      "cost": 95,
+      "long_horizon": 84,
+      "real_cost": 59,
+      "reasoning": 78,
+      "speed": 79,
+      "world_knowledge": 78
+    },
+    "qwen3-7-plus": {
+      "agentic_capabilities": 55,
+      "consistency": 65,
+      "cost": 99,
+      "long_horizon": 71,
+      "real_cost": 93,
+      "reasoning": 66,
+      "speed": 14,
+      "world_knowledge": 66
+    },
+    "qwen3-8b-instruct": {
+      "consistency": 95,
+      "cost": 100,
+      "reasoning": 7,
+      "speed": 7,
+      "world_knowledge": 7
+    },
+    "qwen3-8b-instruct-reasoning": {
+      "agentic_capabilities": 6,
+      "consistency": 93,
+      "cost": 99,
+      "long_horizon": 10,
+      "reasoning": 13,
+      "speed": 7,
+      "world_knowledge": 13
+    },
+    "qwen3-coder-30b-a3b-instruct": {
+      "consistency": 86,
+      "cost": 99,
+      "reasoning": 22,
+      "speed": 29,
+      "world_knowledge": 22
+    },
+    "qwen3-coder-480b-a35b-instruct": {
+      "consistency": 82,
+      "cost": 96,
+      "reasoning": 29,
+      "speed": 16,
+      "world_knowledge": 29
+    },
+    "qwen3-coder-next": {
+      "agentic_capabilities": 30,
+      "consistency": 73,
+      "cost": 99,
+      "long_horizon": 45,
+      "real_cost": 95,
+      "reasoning": 35,
+      "speed": 32,
+      "world_knowledge": 35
+    },
+    "qwen3-max": {
+      "consistency": 76,
+      "cost": 97,
+      "reasoning": 40,
+      "speed": 17,
+      "world_knowledge": 40
+    },
+    "qwen3-max-preview": {
+      "consistency": 81,
+      "cost": 97,
+      "reasoning": 31,
+      "speed": 15,
+      "world_knowledge": 31
+    },
+    "qwen3-max-thinking": {
+      "consistency": 68,
+      "reasoning": 53,
+      "world_knowledge": 53
+    },
+    "qwen3-max-thinking-preview": {
+      "consistency": 75,
+      "cost": 97,
+      "reasoning": 41,
+      "speed": 14,
+      "world_knowledge": 41
+    },
+    "qwen3-next-80b-a3b-instruct": {
+      "consistency": 86,
+      "cost": 99,
+      "reasoning": 22,
+      "speed": 65,
+      "world_knowledge": 22
+    },
+    "qwen3-next-80b-a3b-reasoning": {
+      "agentic_capabilities": 12,
+      "consistency": 85,
+      "cost": 97,
+      "long_horizon": 21,
+      "real_cost": 91,
+      "reasoning": 27,
+      "speed": 66,
+      "world_knowledge": 27
+    },
+    "qwen3-omni-30b-a3b-instruct": {
+      "consistency": 95,
+      "cost": 100,
+      "reasoning": 7,
+      "speed": 32,
+      "world_knowledge": 7
+    },
+    "qwen3-omni-30b-a3b-reasoning": {
+      "consistency": 90,
+      "cost": 100,
+      "reasoning": 15,
+      "speed": 35,
+      "world_knowledge": 15
+    },
+    "qwen3-vl-235b-a22b-instruct": {
+      "consistency": 86,
+      "cost": 98,
+      "reasoning": 23,
+      "speed": 12,
+      "world_knowledge": 23
+    },
+    "qwen3-vl-235b-a22b-reasoning": {
+      "consistency": 79,
+      "cost": 96,
+      "reasoning": 34,
+      "speed": 13,
+      "world_knowledge": 34
+    },
+    "qwen3-vl-30b-a3b-instruct": {
+      "consistency": 90,
+      "cost": 100,
+      "reasoning": 16,
+      "speed": 40,
+      "world_knowledge": 16
+    },
+    "qwen3-vl-30b-a3b-reasoning": {
+      "consistency": 87,
+      "cost": 99,
+      "reasoning": 21,
+      "speed": 40,
+      "world_knowledge": 21
+    },
+    "qwen3-vl-32b-instruct": {
+      "consistency": 89,
+      "cost": 98,
+      "reasoning": 17,
+      "speed": 20,
+      "world_knowledge": 17
+    },
+    "qwen3-vl-32b-reasoning": {
+      "consistency": 82,
+      "cost": 96,
+      "reasoning": 29,
+      "speed": 29,
+      "world_knowledge": 29
+    },
+    "qwen3-vl-4b-instruct": {
+      "consistency": 96,
+      "reasoning": 5,
+      "world_knowledge": 5
+    },
+    "qwen3-vl-4b-reasoning": {
+      "consistency": 92,
+      "reasoning": 12,
+      "world_knowledge": 12
+    },
+    "qwen3-vl-8b-instruct": {
+      "consistency": 92,
+      "cost": 100,
+      "reasoning": 13,
+      "speed": 41,
+      "world_knowledge": 13
+    },
+    "qwen3-vl-8b-reasoning": {
+      "consistency": 89,
+      "cost": 99,
+      "reasoning": 17,
+      "speed": 40,
+      "world_knowledge": 17
+    }
+  }
+}

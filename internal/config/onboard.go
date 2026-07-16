@@ -148,6 +148,8 @@ func PrintConfigSkipHint(out io.Writer, topic string) {
 	switch topic {
 	case "user_name":
 		fmt.Fprintln(out, "Skipped. Configure later: /name <your name>  —  or in ~/.solomon/config.toml: user_name = \"...\"")
+	case "roles_table":
+		fmt.Fprintln(out, "Skipped. Configure later: /add subagent  —  or in ~/.solomon/config.toml under [roles.table]")
 	case "provider":
 		fmt.Fprintln(out, "Skipped. Configure later: /onboard or /connect  —  or in ~/.solomon/config.toml:")
 		fmt.Fprintln(out, "  [providers.my-provider]")
@@ -175,6 +177,7 @@ type OnboardResult struct {
 	SwitchCurrent             bool
 	CurrentProvider           string
 	CurrentModel              string
+	RolesTableCharacteristics []string
 }
 
 func ApplyOnboardMerge(dst *Root, res *OnboardResult) {
@@ -190,6 +193,9 @@ func ApplyOnboardMerge(dst *Root, res *OnboardResult) {
 	}
 	if res.SwitchCurrent {
 		dst.Current = Current{Provider: res.CurrentProvider, Model: res.CurrentModel}
+	}
+	if len(res.RolesTableCharacteristics) > 0 {
+		dst.Roles.Table.Characteristics = res.RolesTableCharacteristics
 	}
 }
 
@@ -269,6 +275,24 @@ func RunOnboardWizard(pio PromptIO, existing *Root, opts OnboardOpts) (*OnboardR
 		PrintConfigSkipHint(out, "response_language")
 	} else if langLine != "" {
 		res.ResponseLanguage = langLine
+	}
+	setupLine, err := readOnboardLine(pio, "Set up subagent score table now? [Y/n]: ")
+	if err != nil {
+		return nil, err
+	}
+	if setupLine == "" || strings.EqualFold(strings.TrimSpace(setupLine), "y") || strings.EqualFold(strings.TrimSpace(setupLine), "yes") {
+		chosen, err := RunRolesTableWizard(pio, existing)
+		if err != nil {
+			if errors.Is(err, ErrRolesTableSkipped) {
+				PrintConfigSkipHint(out, "roles_table")
+			} else {
+				return nil, err
+			}
+		} else {
+			res.RolesTableCharacteristics = chosen
+		}
+	} else {
+		PrintConfigSkipHint(out, "roles_table")
 	}
 	return res, nil
 }
