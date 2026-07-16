@@ -26,6 +26,7 @@ Version messages within a session with checkpoint sequences and branch suffixes;
 ## Checkpoint display
 
 Tags look like `[#012]` or `[#012b]` when a branch suffix is active (`FormatCheckpointTag`).
+Tool and transcript output keeps the checkpoint tag on the first visual row; wrapped or multiline continuation rows use the checkpoint continuation gutter instead of repeating the full tag. Terminal-aware wrapping also accounts for the live output descriptor when output is routed through the runtime mux.
 
 ## Goto flow (conceptual)
 

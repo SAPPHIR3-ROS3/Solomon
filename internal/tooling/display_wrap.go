@@ -3,7 +3,6 @@ package tooling
 import (
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -16,13 +15,27 @@ import (
 var orchestrateGutterRE = regexp.MustCompile(`^\s*\d+ `)
 
 func WriteToolDisplayLinesWithWidth(out io.Writer, cpSeq int, branchKey string, lines []string, width int) {
-	writeToolDisplayLines(out, cpSeq, branchKey, lines, width)
+	writeToolDisplayLinesWithPrefixes(out, checkpoint.FormatCheckpointPrefix(cpSeq, branchKey), checkpoint.FormatCheckpointContinuationPlain(cpSeq, branchKey), lines, width)
 }
 
 func writeToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []string, termW int) {
+	writeToolDisplayLinesWithPrefixes(out, checkpoint.FormatCheckpointPrefix(cpSeq, branchKey), checkpoint.FormatCheckpointContinuationPlain(cpSeq, branchKey), lines, termW)
+}
+
+// WriteToolDisplayLinesWithPrefixes renders lines with explicit first-line
+// and continuation prefixes while retaining terminal-aware soft wrapping.
+func WriteToolDisplayLinesWithPrefixes(out io.Writer, firstPrefixPlain, continuationPrefixPlain string, lines []string) {
+	writeToolDisplayLinesWithPrefixes(out, firstPrefixPlain, continuationPrefixPlain, lines, terminalWidthForWriter(out))
+}
+
+func WriteToolDisplayLinesWithPrefixesAndWidth(out io.Writer, firstPrefixPlain, continuationPrefixPlain string, lines []string, width int) {
+	writeToolDisplayLinesWithPrefixes(out, firstPrefixPlain, continuationPrefixPlain, lines, width)
+}
+
+func writeToolDisplayLinesWithPrefixes(out io.Writer, firstPrefixPlain, continuationPrefixPlain string, lines []string, termW int) {
 	first := true
-	firstPrefix := checkpoint.FormatCheckpointPrefix(cpSeq, branchKey)
-	cont := termcolor.WrapUserReadline(checkpoint.FormatCheckpointContinuationPlain(cpSeq, branchKey))
+	firstPrefix := firstPrefixPlain
+	cont := termcolor.WrapUserReadline(continuationPrefixPlain)
 	for _, line := range lines {
 		for _, part := range strings.Split(line, "\n") {
 			prefix := firstPrefix
@@ -45,12 +58,8 @@ func writeToolDisplayLines(out io.Writer, cpSeq int, branchKey string, lines []s
 }
 
 func terminalWidthForWriter(out io.Writer) int {
-	f, ok := out.(*os.File)
-	if !ok {
-		return 0
-	}
-	fd := int(f.Fd())
-	if !term.IsTerminal(fd) {
+	fd, ok := terminalFDForWriter(out)
+	if !ok || !term.IsTerminal(fd) {
 		return 0
 	}
 	w, _, err := term.GetSize(fd)
@@ -58,6 +67,20 @@ func terminalWidthForWriter(out io.Writer) int {
 		return 0
 	}
 	return w
+}
+
+func terminalFDForWriter(out io.Writer) (int, bool) {
+	if out == nil {
+		return 0, false
+	}
+	if f, ok := out.(interface{ TerminalFD() (uintptr, bool) }); ok {
+		fd, ok := f.TerminalFD()
+		return int(fd), ok
+	}
+	if f, ok := out.(interface{ Fd() uintptr }); ok {
+		return int(f.Fd()), true
+	}
+	return 0, false
 }
 
 func wrapToolDisplayPart(part string, termW, prefixCells int) []string {

@@ -6,7 +6,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
@@ -16,7 +15,7 @@ import (
 func (r *Runtime) printToolLine(cpSeq int, branchKey, name string, rawArgs json.RawMessage) {
 	if cpSeq > 0 {
 		if intent := tooling.ExtractToolIntent(rawArgs); intent != "" {
-			fmt.Fprintf(r.Out, "%s%s\n", checkpoint.FormatCheckpointPrefix(cpSeq, branchKey), termcolor.WrapThinking(intent))
+			tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, []string{termcolor.WrapThinking(intent)})
 		}
 	}
 	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, formatToolDisplayLines(name, rawArgs))

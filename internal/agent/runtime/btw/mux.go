@@ -13,6 +13,20 @@ type OutputMux struct {
 	mode bufferMode
 }
 
+// TerminalFD exposes the live writer's terminal descriptor without making
+// callers depend on the concrete writer used by the mux. It lets display
+// code keep terminal-aware formatting while the mux is buffering output.
+func (m *OutputMux) TerminalFD() (uintptr, bool) {
+	if m == nil {
+		return 0, false
+	}
+	f, ok := m.live.(interface{ Fd() uintptr })
+	if !ok {
+		return 0, false
+	}
+	return f.Fd(), true
+}
+
 type bufferMode int
 
 const (
