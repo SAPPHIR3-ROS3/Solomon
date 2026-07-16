@@ -6,6 +6,10 @@ import (
 )
 
 func ApplyProviderTurnParams(proto Protocol, cfg *config.Root, openaiParams *openai.ChatCompletionNewParams, forceDisable bool) {
+	ApplyProviderTurnParamsWithEffort(proto, cfg, openaiParams, forceDisable, "")
+}
+
+func ApplyProviderTurnParamsWithEffort(proto Protocol, cfg *config.Root, openaiParams *openai.ChatCompletionNewParams, forceDisable bool, effort string) {
 	if openaiParams == nil {
 		return
 	}
@@ -13,7 +17,7 @@ func ApplyProviderTurnParams(proto Protocol, cfg *config.Root, openaiParams *ope
 	case ProtocolAnthropic:
 		return
 	default:
-		ApplyChatReasoning(cfg, openaiParams, forceDisable)
+		ApplyChatReasoningWithEffort(cfg, openaiParams, forceDisable, effort)
 		ApplyMaxResponseTokens(cfg, openaiParams)
 	}
 }

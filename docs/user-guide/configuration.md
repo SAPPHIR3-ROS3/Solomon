@@ -15,6 +15,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `subagent_timeout_minutes` | Subagent slices (wizard default 20) |
 | `[api_resilience]` | LLM HTTP retry, backoff, circuit breaker, timeouts (optional; defaults in code) |
 | `reasoning_effort` | Main chat reasoning profile |
+| `subagent_reasoning_effort` | Default reasoning profile for nested runs; tool calls may override it |
 | `log_level`, `max_response_tokens` | Verbosity and cap |
 | `show_thinking`, `show_usage_stats` | Streams / footer |
 | `[tools].legacy`, `[tools].legacy_force` | Legacy XML tool calling (global); see below |
@@ -201,7 +202,7 @@ Many slash commands write back to `config.toml` on save:
 |---------------|--------------|-------|
 | `/name` | `user_name` | `/name clear` removes |
 | `/language` | `response_language` | `/language clear` resets to English; custom rules and instruction files may stay in another language — see [Project instructions](project-instructions.md) |
-| `/reasoning` | `reasoning_effort` | Main chat only; subagent reasoning stays off unless extended later |
+| `/reasoning` | `reasoning_effort` | Main chat default; nested runs can override with `reasoningEffort` or `subagent_reasoning_effort` |
 | `/thinking` | `show_thinking` | Streamed reasoning preview |
 | `/stats` | `show_usage_stats` | Token line after assistant turns |
 | `/max_response` | `max_response_tokens` | Assistant output cap |

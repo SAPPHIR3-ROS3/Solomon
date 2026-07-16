@@ -40,6 +40,10 @@ func ApplyReasoningDisable(p *openai.ChatCompletionNewParams) {
 }
 
 func ApplyChatReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, forceDisable bool) {
+	ApplyChatReasoningWithEffort(cfg, p, forceDisable, "")
+}
+
+func ApplyChatReasoningWithEffort(cfg *config.Root, p *openai.ChatCompletionNewParams, forceDisable bool, override string) {
 	if p == nil {
 		return
 	}
@@ -48,6 +52,14 @@ func ApplyChatReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, for
 	if forceDisable {
 		p.ReasoningEffort = shared.ReasoningEffort("none")
 		addReasoningDisableExtras(extras)
+		applyChatExtraFields(p, extras)
+		return
+	}
+	if canonical, err := config.ParseReasoningEffortToken(override); strings.TrimSpace(override) != "" && err == nil {
+		p.ReasoningEffort = shared.ReasoningEffort(canonical)
+		if canonical == "none" {
+			addReasoningDisableExtras(extras)
+		}
 		applyChatExtraFields(p, extras)
 		return
 	}
