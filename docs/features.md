@@ -102,6 +102,8 @@ The `subagent` tool spawns a nested agent turn with its own system prompt file a
 
 Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and the scores assigned by the user, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
 
+Subagent transcripts are persisted under the project’s `SubchatsDir` with stable IDs, messages, parent linkage, status, role selection, and reasoning effort. Background runs stay registered while active; `/subagent stop` and `/subagent cancel` interrupt the live context and write `paused` or `cancelled`. `/subagent resume`, or the native tool with `resume`, continues the stored transcript. See [Subagent persistence and lifecycle](architecture/sessions-and-storage.md#subagent-persistence-and-lifecycle) and [Usage and commands — `/subagent`](user-guide/usage-and-commands.md#subagent--list-and-control-nested-runs).
+
 ### Agent skills
 
 Install skills with `/add` (skills.sh URL, `npx skills add …`, or local `SKILL.md`) into `global` (default), `project`, or `local` scope; list with `/skills`, load via `loadSkill` / `searchSkill` tools or dynamic `/skill` slashes. Cursor Skills and Claude Code skills directories follow the same “packaged expertise” idea. Forced invocation: `/skill:<name> [request]`. See [Installing skills](user-guide/usage-and-commands.md#installing-skills) and [Skills and slash](architecture/skills-and-slash.md).
@@ -289,10 +291,6 @@ Stronger workspace path jail, command allowlists, and optional confirmations wou
 ### Shell command tab completion **(partial)**
 
 [Partial tab completion](#partial-tab-completion) already completes PATH binaries, `go` subcommands (`go help`), and workspace paths on `!` / shell-first lines. **(in the future):** generic flags, arbitrary subcommands, and optional delegation to the host shell (bash/zsh/PowerShell parity).
-
-### Subagent session persistence
-
-Subagent sessions are persisted under `SubchatsDir` with stable ids, messages, status, role selection, and reasoning effort. Background runs remain registered while active; stop/cancel interrupts the live context and writes the resulting paused/cancelled status. A later `resume` continues the stored transcript. SDK `orchestrate` integration remains a separate limitation.
 
 ### Syntax highlighting in the terminal **(in the future)**
 
