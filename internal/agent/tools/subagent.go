@@ -20,6 +20,7 @@ type SubagentArgs struct {
 	SysPromptPath   string `json:"sysPromptPath"`
 	Task            string `json:"task"`
 	Resume          string `json:"resume,omitempty"`
+	Interrupt       bool   `json:"interrupt,omitempty"`
 	RunInBackground bool   `json:"run_in_background,omitempty"`
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 	RoleProvider    string `json:"roleProvider,omitempty"`
@@ -56,13 +57,14 @@ func subagentSysPromptPathDescription() string {
 
 func subagentOpenAI() openai.ChatCompletionToolUnionParam {
 	return nativeToolUnion("subagent", subagentToolSummary(), map[string]any{
-		"sysPromptPath": map[string]any{"type": "string", "description": subagentSysPromptPathDescription()},
-		"task":          map[string]any{"type": "string", "description": "Concrete task for the nested run"},
-		"resume":        map[string]any{"type": "string", "description": "Subchat ID to resume"},
+		"sysPromptPath":     map[string]any{"type": "string", "description": subagentSysPromptPathDescription()},
+		"task":              map[string]any{"type": "string", "description": "Concrete task for the nested run"},
+		"resume":            map[string]any{"type": "string", "description": "Subchat ID to resume"},
+		"interrupt":         map[string]any{"type": "boolean", "description": "Cancel the active run for resume before applying the new task"},
 		"run_in_background": map[string]any{"type": "boolean", "description": "Async: true = do not block parent (returns subchatId, status running). False/omit = sync: wait until done (returns output, status done)."},
-		"reasoningEffort": map[string]any{"type": "string", "description": "Override reasoning: none, low, medium, high"},
-		"roleProvider":    map[string]any{"type": "string", "description": "Optional provider from listSubAgents; requires roleModel"},
-		"roleModel":       map[string]any{"type": "string", "description": "Optional model from listSubAgents; requires roleProvider"},
+		"reasoningEffort":   map[string]any{"type": "string", "description": "Override reasoning: none, low, medium, high"},
+		"roleProvider":      map[string]any{"type": "string", "description": "Optional provider from listSubAgents; requires roleModel"},
+		"roleModel":         map[string]any{"type": "string", "description": "Optional model from listSubAgents; requires roleProvider"},
 	}, []string{"sysPromptPath", "task"})
 }
 
@@ -102,6 +104,9 @@ func execSubagent(ctx context.Context, env *Env, raw json.RawMessage) (any, erro
 	if a.Resume == "" && strings.TrimSpace(a.Task) == "" {
 		return nil, fmt.Errorf("task is required for new subagent")
 	}
+	if a.Interrupt && a.Resume == "" {
+		return nil, fmt.Errorf("interrupt requires resume")
+	}
 	tc := chatstore.ToolCall{Name: "subagent", Arguments: string(raw)}
 	if env.ParentToolCallID != "" {
 		tc.ID = env.ParentToolCallID
@@ -113,6 +118,7 @@ func execSubagent(ctx context.Context, env *Env, raw json.RawMessage) (any, erro
 		SysPrompt:       sys,
 		Task:            a.Task,
 		Resume:          a.Resume,
+		Interrupt:       a.Interrupt,
 		RunInBackground: a.RunInBackground,
 		ReasoningEffort: a.ReasoningEffort,
 		RoleProvider:    strings.TrimSpace(a.RoleProvider),
@@ -150,6 +156,9 @@ func parseSubagentArgs(raw json.RawMessage) (SubagentArgs, error) {
 	if v, ok := m["resume"]; ok {
 		_ = json.Unmarshal(v, &a.Resume)
 	}
+	if b, ok := parseJSONBool(m["interrupt"]); ok {
+		a.Interrupt = b
+	}
 	if v, ok := m["reasoningEffort"]; ok {
 		_ = json.Unmarshal(v, &a.ReasoningEffort)
 	}
@@ -186,4 +195,3 @@ func parseJSONBool(raw json.RawMessage) (bool, bool) {
 		return false, false
 	}
 }
-

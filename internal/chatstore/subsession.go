@@ -34,53 +34,54 @@ type QueuedTask struct {
 }
 
 type PendingSubagentSpawn struct {
-	RequesterSubchatID string          `json:"requester_subchat_id"`
-	RequesterOrigin    string          `json:"requester_origin"`
-	ParentChatID       string          `json:"parent_chat_id,omitempty"`
-	ProjectHex         string          `json:"project_hex,omitempty"`
-	SysPromptPath      string          `json:"sys_prompt_path"`
-	Task               string          `json:"task"`
-	Resume             string          `json:"resume,omitempty"`
-	RunInBackground    bool            `json:"run_in_background,omitempty"`
-	ReasoningEffort    string          `json:"reasoning_effort,omitempty"`
-	RoleProvider       string          `json:"role_provider,omitempty"`
-	RoleModel          string          `json:"role_model,omitempty"`
-	ToolCall           ToolCall        `json:"tool_call"`
-	SpawnISO           string          `json:"spawn_iso"`
-	NotifyNewChat      bool            `json:"notify_new_chat,omitempty"`
-	CreatedAt          time.Time       `json:"created_at"`
+	RequesterSubchatID string    `json:"requester_subchat_id"`
+	RequesterOrigin    string    `json:"requester_origin"`
+	ParentChatID       string    `json:"parent_chat_id,omitempty"`
+	ProjectHex         string    `json:"project_hex,omitempty"`
+	SysPromptPath      string    `json:"sys_prompt_path"`
+	Task               string    `json:"task"`
+	Resume             string    `json:"resume,omitempty"`
+	Interrupt          bool      `json:"interrupt,omitempty"`
+	RunInBackground    bool      `json:"run_in_background,omitempty"`
+	ReasoningEffort    string    `json:"reasoning_effort,omitempty"`
+	RoleProvider       string    `json:"role_provider,omitempty"`
+	RoleModel          string    `json:"role_model,omitempty"`
+	ToolCall           ToolCall  `json:"tool_call"`
+	SpawnISO           string    `json:"spawn_iso"`
+	NotifyNewChat      bool      `json:"notify_new_chat,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 type SubSession struct {
-	ID                string            `json:"id"`
-	Title             string            `json:"title"`
-	CreatedAt         time.Time         `json:"created_at"`
-	LastMessageAt     time.Time         `json:"last_message_at"`
-	Messages          []Message         `json:"messages"`
-	ImageSeq          int               `json:"image_seq,omitempty"`
-	ImageFiles        map[int]string    `json:"image_files,omitempty"`
-	ParentChatID      string            `json:"parent_chat_id,omitempty"`
-	ParentToolCallID  string            `json:"parent_tool_call_id,omitempty"`
-	ProjectHex        string            `json:"project_hex,omitempty"`
-	SysPromptPath     string            `json:"sys_prompt_path,omitempty"`
-	Origin            string            `json:"origin"`
-	ScheduledAt       *time.Time        `json:"scheduled_at,omitempty"`
-	PersistContext    bool              `json:"persist_context,omitempty"`
-	Status            string            `json:"status"`
-	TaskQueue         []QueuedTask      `json:"task_queue,omitempty"`
-	ReasoningEffort   string            `json:"reasoning_effort,omitempty"`
-	RoleProvider      string            `json:"role_provider,omitempty"`
-	RoleModel         string            `json:"role_model,omitempty"`
-	PendingSpawns     []PendingSubagentSpawn `json:"pending_spawns,omitempty"`
+	ID               string                 `json:"id"`
+	Title            string                 `json:"title"`
+	CreatedAt        time.Time              `json:"created_at"`
+	LastMessageAt    time.Time              `json:"last_message_at"`
+	Messages         []Message              `json:"messages"`
+	ImageSeq         int                    `json:"image_seq,omitempty"`
+	ImageFiles       map[int]string         `json:"image_files,omitempty"`
+	ParentChatID     string                 `json:"parent_chat_id,omitempty"`
+	ParentToolCallID string                 `json:"parent_tool_call_id,omitempty"`
+	ProjectHex       string                 `json:"project_hex,omitempty"`
+	SysPromptPath    string                 `json:"sys_prompt_path,omitempty"`
+	Origin           string                 `json:"origin"`
+	ScheduledAt      *time.Time             `json:"scheduled_at,omitempty"`
+	PersistContext   bool                   `json:"persist_context,omitempty"`
+	Status           string                 `json:"status"`
+	TaskQueue        []QueuedTask           `json:"task_queue,omitempty"`
+	ReasoningEffort  string                 `json:"reasoning_effort,omitempty"`
+	RoleProvider     string                 `json:"role_provider,omitempty"`
+	RoleModel        string                 `json:"role_model,omitempty"`
+	PendingSpawns    []PendingSubagentSpawn `json:"pending_spawns,omitempty"`
 }
 
 type ActiveSubagentEntry struct {
-	ID         string    `json:"id"`
-	Origin     string    `json:"origin"`
-	Status     string    `json:"status"`
-	SessionPath string   `json:"session_path"`
-	ProjectHex string    `json:"project_hex,omitempty"`
-	SpawnedAt  time.Time `json:"spawned_at"`
+	ID          string    `json:"id"`
+	Origin      string    `json:"origin"`
+	Status      string    `json:"status"`
+	SessionPath string    `json:"session_path"`
+	ProjectHex  string    `json:"project_hex,omitempty"`
+	SpawnedAt   time.Time `json:"spawned_at"`
 }
 
 type ActiveSubagentsFile struct {

@@ -98,7 +98,7 @@ The canonical workspace root yields a stable 64-char project id; chats, plans, s
 
 ### Subagent delegation
 
-The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). Role scores are assigned manually in `[[roles.subagent]]`; automatic benchmark refresh and score fill are temporarily disabled. It is a **native** tool in **agent** mode and legacy **build** mode only — not in the deferred `searchTools` catalog, not callable from orchestrate WASM scripts. Nested runs always disable reasoning (`ForceDisableReasoning` in [`nested.go`](../internal/agent/runtime/nested.go)); `/reasoning` applies to the main chat only. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly. Subagent **file persistence** beyond in-memory transcripts is **(in the future)** — see [Subagent session persistence (in the future)](#subagent-session-persistence-in-the-future).
+The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). Role scores are assigned manually in `[[roles.subagent]]`; automatic benchmark refresh and score fill are temporarily disabled. It is a **native** tool in **agent** mode and legacy **build** mode only — not in the deferred `searchTools` catalog, not callable from orchestrate WASM scripts. Runs can be synchronous or background (`run_in_background: true`); background runs are persisted and can be managed with `/subagent stop|cancel|resume`. `interrupt: true` cancels an active resumed run before applying a new task. `reasoningEffort` (or `subagent_reasoning_effort`) controls the nested request independently of the main chat. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly.
 
 Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and the scores assigned by the user, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
 
@@ -120,7 +120,7 @@ Install skills with `/add` (skills.sh URL, `npx skills add …`, or local `SKILL
 
 ### Reasoning and thinking display
 
-`/reasoning` sets main-chat effort (`none|low|med|high`); `/thinking` toggles streamed reasoning preview (dim) and tool echo styling. Subagent runs ignore `/reasoning` (always none). Extended thinking blocks on Anthropic are **(in the future)** in [TODO.md](../TODO.md). Codex and Claude Code expose comparable effort controls.
+`/reasoning` sets main-chat effort (`none|low|med|high`); `/thinking` toggles streamed reasoning preview (dim) and tool echo styling. Nested runs use `subagent_reasoning_effort` by default and can override it per tool call with `reasoningEffort`. Extended thinking blocks on Anthropic are **(in the future)** in [TODO.md](../TODO.md). Codex and Claude Code expose comparable effort controls.
 
 ### Clipboard images in the REPL
 
@@ -290,9 +290,9 @@ Stronger workspace path jail, command allowlists, and optional confirmations wou
 
 [Partial tab completion](#partial-tab-completion) already completes PATH binaries, `go` subcommands (`go help`), and workspace paths on `!` / shell-first lines. **(in the future):** generic flags, arbitrary subcommands, and optional delegation to the host shell (bash/zsh/PowerShell parity).
 
-### Subagent session persistence **(in the future)**
+### Subagent session persistence
 
-Subagent runs today return consolidated text to the parent; durable subchat files matching main-session schema (resume, tool history, stable ids) are outlined in `SubchatsDir` but not complete. Nested runs always use `ForceDisableReasoning: true` until optional per-subagent reasoning lands in [TODO.md](../TODO.md).
+Subagent sessions are persisted under `SubchatsDir` with stable ids, messages, status, role selection, and reasoning effort. Background runs remain registered while active; stop/cancel interrupts the live context and writes the resulting paused/cancelled status. A later `resume` continues the stored transcript. SDK `orchestrate` integration remains a separate limitation.
 
 ### Syntax highlighting in the terminal **(in the future)**
 

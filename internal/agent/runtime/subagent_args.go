@@ -10,8 +10,8 @@ import (
 
 func nestedRunConfigFromToolArgs(r *Runtime, args map[string]json.RawMessage) (NestedRunConfig, error) {
 	cfg := NestedRunConfig{
-		SpawnTime: time.Now().UTC(),
-		Origin:    chatstore.SubOriginParent,
+		SpawnTime:  time.Now().UTC(),
+		Origin:     chatstore.SubOriginParent,
 		ProjectHex: r.ProjHex,
 	}
 	if r.Session != nil {
@@ -25,6 +25,9 @@ func nestedRunConfigFromToolArgs(r *Runtime, args map[string]json.RawMessage) (N
 	}
 	if v := jsonString(args["resume"]); v != "" {
 		cfg.ResumeID = v
+	}
+	if b, ok := jsonBool(args["interrupt"]); ok {
+		cfg.Interrupt = b
 	}
 	if b, ok := jsonBool(args["run_in_background"]); ok {
 		cfg.RunInBackground = b
@@ -50,6 +53,7 @@ func nestedRunConfigFromExec(parentChatID, parentToolCallID string, projectHex s
 		SysPromptPath   string `json:"sysPromptPath"`
 		Task            string `json:"task"`
 		Resume          string `json:"resume"`
+		Interrupt       bool   `json:"interrupt"`
 		RunInBackground bool   `json:"run_in_background"`
 		ReasoningEffort string `json:"reasoningEffort"`
 		RoleProvider    string `json:"roleProvider"`
@@ -60,6 +64,7 @@ func nestedRunConfigFromExec(parentChatID, parentToolCallID string, projectHex s
 		SysPromptPath:    a.SysPromptPath,
 		Task:             a.Task,
 		ResumeID:         a.Resume,
+		Interrupt:        a.Interrupt,
 		RunInBackground:  a.RunInBackground,
 		ReasoningEffort:  a.ReasoningEffort,
 		RoleProvider:     strings.TrimSpace(a.RoleProvider),
