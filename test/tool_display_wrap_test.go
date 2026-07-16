@@ -156,6 +156,38 @@ func TestWriteToolDisplayLines_toolHeaderVisualWrap(t *testing.T) {
 	}
 }
 
+func TestWriteToolDisplayLines_intentAndResultVisualWrap(t *testing.T) {
+	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
+	first := checkpointContPlain(51, "b")
+	intent := termcolor.WrapThinking("intent: " + strings.Repeat("disable automatic scoring and keep only manual assignment from the user ", 3))
+	result := termcolor.ToolHeaderLine("orchestrate", "→ "+strings.Repeat("long-result ", 12))
+	var buf bytes.Buffer
+	tooling.WriteToolDisplayLinesWithWidth(&buf, 51, "b", []string{intent}, 72)
+	tooling.WriteToolDisplayLinesWithPrefixesAndWidth(&buf, "[#051b] ", first, []string{result}, 72)
+
+	rows := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+	if len(rows) < 4 {
+		t.Fatalf("expected wrapped intent and result rows, got %d: %q", len(rows), buf.String())
+	}
+	plain := make([]string, len(rows))
+	for i, row := range rows {
+		plain[i] = termcolor.Plain(row)
+	}
+	resultStarted := false
+	for _, row := range plain {
+		if strings.HasPrefix(row, "[#051b] Tool: orchestrate") {
+			resultStarted = true
+			continue
+		}
+		if resultStarted && strings.HasPrefix(row, "[#051b]") {
+			t.Fatalf("wrapped result row repeated checkpoint: %q", row)
+		}
+	}
+	if !strings.Contains(strings.Join(plain, "\n"), first) {
+		t.Fatalf("wrapped rows should preserve continuation dots: %q", buf.String())
+	}
+}
+
 func TestWriteToolDisplayLines_toolHeaderWrapBulletAligned(t *testing.T) {
 	termcolor.Init(termcolor.InitOptions{Out: os.Stdout, ForceColor: true})
 	body := "subagent-persistence.md • Estendere runtime/nested.go (NestedRunConfig/NestedRunResult), ID generation helpers"
