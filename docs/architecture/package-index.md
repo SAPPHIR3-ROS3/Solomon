@@ -79,6 +79,8 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/research/` | Research engine: web jobs, parsing, quality checks, LLM integration | [Supporting packages](supporting-packages.md) |
 | `internal/research/html/` | HTML rendering templates for research results | [Supporting packages](supporting-packages.md) |
 | `internal/roles/` | Manual subagent score catalog, table formatting, and role lookup | [Native tools](native-tools.md#subagent-roles) |
+| `internal/roles/benchmarks/` | Disabled automatic benchmark score storage, refresh, and publishing | [Native tools](native-tools.md#subagent-roles) |
+| `internal/roles/scoring/` | Disabled automatic benchmark normalization and aggregation helpers | [Native tools](native-tools.md#subagent-roles) |
 | `internal/pathglob/` | Glob `**` matching for `find` | [Native tools](native-tools.md) |
 | `internal/plan/` | Plan file read, write, sections, todos, status | [Plan vs build](plan-vs-build.md) |
 | `internal/gitignore/` | `.gitignore` matcher for `find` | [Native tools](native-tools.md) |
@@ -190,6 +192,8 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/research/` | Feature |
 | `internal/research/html/` | Feature |
 | `internal/roles/` | Feature |
+| `internal/roles/benchmarks/` | Feature |
+| `internal/roles/scoring/` | Feature |
 | `internal/search/` | Feature |
 | `internal/server/` | Core |
 | `internal/sandbox/compile/` | Feature |
