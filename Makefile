@@ -15,10 +15,14 @@ INSTALL_BIN := $(BIN_DIR)/$(INSTALL_NAME)
 export CGO_ENABLED := 0
 
 ifeq ($(GOOS),windows)
-VERSION ?= $(shell git describe --tags --abbrev=0 --match "v*" 2>NUL || git describe --tags --abbrev=0 --match 'v*' 2>NUL || echo dev)
+EXACT_TAG := $(shell git describe --tags --exact-match --match "v*" 2>NUL)
+LATEST_TAG := $(shell git tag -l "v*" --sort=-v:refname 2>NUL)
+VERSION ?= $(if $(EXACT_TAG),$(EXACT_TAG),$(if $(LATEST_TAG),$(firstword $(LATEST_TAG)),dev))
 COMMIT ?= $(shell git rev-parse --short HEAD 2>NUL || echo unknown)
 else
-VERSION ?= $(shell git describe --tags --abbrev=0 --match "v*" 2>/dev/null || git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev)
+EXACT_TAG := $(shell git describe --tags --exact-match --match 'v*' 2>/dev/null)
+LATEST_TAG := $(shell git tag -l 'v*' --sort=-v:refname 2>/dev/null | head -n1)
+VERSION ?= $(or $(EXACT_TAG),$(LATEST_TAG),dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 endif
 LDFLAGS := -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT)
