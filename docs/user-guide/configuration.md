@@ -72,31 +72,44 @@ path = "/Users/me/solomon-exports"
 
 ### Subagent roles
 
-Optional pool of provider/model pairs for economical nested subagents (`[[roles.subagent]]` in TOML). The primary agent lists entries with the native `listSubAgents` tool, compares `description` and `points`, then passes the chosen `provider` and `model` to `subagent` via `roleProvider` and `roleModel`. When both role fields are omitted, the subagent uses the **session** provider and model.
+Optional pool of provider/model pairs for economical nested subagents (`[[roles.subagent]]` in TOML). The primary agent lists entries with the native `listSubAgents` tool, compares `description` and manually assigned `scores`, then passes the chosen `provider` and `model` to `subagent` via `roleProvider` and `roleModel`. Automatic benchmark score refresh and auto-fill are temporarily disabled. When both role fields are omitted, the subagent uses the **session** provider and model.
 
-Entries are validated on config load and save: each row requires non-empty `provider` and `model`, a configured `[providers.<name>]`, a live model list from that provider (reachable API; model id must appear in the list), non-negative `points`, and unique provider+model pairs. **Requires network and valid provider credentials** when any `[[roles.subagent]]` row is present (including headless `config.Load` / `Save`).
+Configure one to five score characteristics in `[roles.table]`, then assign each score directly under `[roles.subagent.scores]`. Scores must be integers from `0` to `100`; a missing selected score is shown as unclassified and is never filled automatically. `/add subagent` guides both table setup and score entry.
+
+Entries are validated on config load and save: each row requires non-empty `provider` and `model`, a configured `[providers.<name>]`, a live model list from that provider (reachable API; model id must appear in the list), valid manual scores, and a unique provider+model pair. **Requires network and valid provider credentials** when any `[[roles.subagent]]` row is present (including headless `config.Load` / `Save`).
 
 | Key | Role |
 |-----|------|
 | `provider` | Named provider from `[providers.<name>]` |
 | `model` | Model id on that provider |
 | `description` | Short hint for the primary agent when choosing from the pool |
-| `points` | Relative priority (higher = preferred in listings; default `100` when omitted) |
+| `scores` | User-assigned `0`–`100` values keyed by a characteristic selected in `[roles.table]` |
 
 Example:
 
 ```toml
+[roles.table]
+characteristics = ["reasoning", "cost", "speed"]
+
 [[roles.subagent]]
 provider = "openrouter"
 model = "qwen-..."
 description = "Fast codebase exploration"
-points = 80
+
+[roles.subagent.scores]
+reasoning = 75
+cost = 90
+speed = 85
 
 [[roles.subagent]]
 provider = "groq"
 model = "llama-..."
 description = "Cheap single-file tasks"
-points = 60
+
+[roles.subagent.scores]
+reasoning = 65
+cost = 95
+speed = 92
 ```
 
 Agent tools: [Native tools — subagent roles](../architecture/native-tools.md#subagent-roles). Feature overview: [Subagent delegation](../features.md#subagent-delegation).
@@ -173,7 +186,7 @@ You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic
 | Setup | `api_protocol` | Notes |
 |-------|----------------|--------|
 | `/onboard` or `/connect` → OpenAI Compatible API | `openai` (default) | Any OpenAI Chat Completions-compatible `base_url` |
-| `/onboard` or `/connect` → Anthropic Compatible API | `anthropic` | Messages API (`POST …/v1/messages`); curated model list |
+| `/onboard` or `/connect` → Anthropic Compatible API | `anthropic` | Messages API (`POST …/v1/messages`); models loaded from the provider API |
 | `/connect` → ChatGPT Sub | `openai` | OAuth; Codex middleware |
 | `/connect` → Claude Sub | `anthropic` | OAuth; native Messages API |
 | `/connect` → Cursor API | `openai` | Optional sidecar; see [Cursor integration](#cursor-integration-tool-execution) |

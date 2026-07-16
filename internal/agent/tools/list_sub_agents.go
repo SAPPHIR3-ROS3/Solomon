@@ -3,6 +3,7 @@ package tools
 import (
 	"encoding/json"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/roles"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
@@ -12,7 +13,7 @@ import (
 func signatureListSubAgents() {}
 
 func listSubAgentsSummary() string {
-	return "List configured subagent roles from [[roles.subagent]] in config.toml. Compare description and points, then pass the chosen provider and model to subagent."
+	return "List configured subagent roles from [[roles.subagent]] with manually assigned scores for [roles.table] characteristics. Compare the configured values, then pass provider and model to subagent."
 }
 
 func listSubAgentsOpenAI() openai.ChatCompletionToolUnionParam {
@@ -30,25 +31,41 @@ func appendListSubAgentsDump(b *dumpBuilder) error {
 
 func execListSubAgents(env *Env, raw json.RawMessage) (any, error) {
 	_ = raw
-	entries := roles.SubagentPool(env.Cfg)
-	type row struct {
-		Provider    string `json:"provider"`
-		Model       string `json:"model"`
-		Description string `json:"description,omitempty"`
-		Points      int    `json:"points"`
+	if !config.HasRolesTable(env.Cfg) {
+		return map[string]any{
+			"error": "roles table not configured; run /onboard or /add subagent to set [roles.table] characteristics",
+			"count": 0,
+		}, nil
 	}
-	out := make([]row, 0, len(entries))
-	for _, e := range entries {
+	cols := config.TableCharacteristics(env.Cfg)
+	entries := config.RolesSubagentEntries(env.Cfg)
+	view, err := roles.BuildManualTableView(cols, entries)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		Provider     string         `json:"provider"`
+		Model        string         `json:"model"`
+		Description  string         `json:"description,omitempty"`
+		Scores       map[string]int `json:"scores"`
+		Unclassified bool           `json:"unclassified,omitempty"`
+	}
+	out := make([]row, 0, len(view.Rows))
+	for _, r := range view.Rows {
 		out = append(out, row{
-			Provider:    e.Provider,
-			Model:       e.Model,
-			Description: e.Description,
-			Points:      e.Points,
+			Provider:     r.Provider,
+			Model:        r.Model,
+			Description:  r.Description,
+			Scores:       r.Scores,
+			Unclassified: r.Unclassified,
 		})
 	}
+	table := roles.FormatSubagentTable(view)
 	return map[string]any{
-		"subagents": out,
-		"count":     len(out),
-		"hint":      "Pass provider and model from the chosen row to subagent.",
+		"columns": view.Columns,
+		"rows":    out,
+		"count":   len(out),
+		"table":   table,
+		"hint":    "Pass provider and model from the chosen row to subagent.",
 	}, nil
 }
