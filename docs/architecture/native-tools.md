@@ -43,6 +43,8 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `searchTools`, `orchestrate`, `switchMode` | agent |
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
 
+`subagent` accepts `run_in_background` for a persisted asynchronous run, `reasoningEffort` for a per-run override, and `interrupt` together with `resume` to cancel the active run before adding a new task. `/subagent stop` and `/subagent cancel` also cancel the live background context before persisting its final status.
+
 Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
 
 ## Subagent roles

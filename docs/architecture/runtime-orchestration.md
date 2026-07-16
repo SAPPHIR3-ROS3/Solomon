@@ -61,7 +61,7 @@ Deep sequence: [Agent turn pipeline](agent-turn-pipeline.md).
 | `runNestedWithSystem` | Custom `sysPromptPath` merged with inherited instructions |
 | `buildNestedToolDump` | Build tools + MCP dump for nested context |
 
-Returns consolidated text to the parent tool result. Subchat file persistence is partial — see [Sessions and storage](sessions-and-storage.md). Wired from [`tools/subagent.go`](../../internal/agent/tools/subagent.go).
+Returns consolidated text to the parent tool result. Background runs persist their subchat and can be stopped, cancelled, interrupted-and-resumed, or resumed later; see [Sessions and storage](sessions-and-storage.md). Wired from [`tools/subagent.go`](../../internal/agent/tools/subagent.go).
 
 Optional **`roleProvider`** / **`roleModel`** select a row from `[[roles.subagent]]` (discovered via `listSubAgents`); the nested stream uses that provider’s backend and model instead of the session defaults. Background subagents validate the role **before** persisting the subsession. See [Native tools — subagent roles](native-tools.md#subagent-roles).
 

@@ -70,7 +70,7 @@ func (r *Runtime) runNestedWithSystem(ctx context.Context, system, task string) 
 	return res.Output, nil
 }
 
-func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, system string, msgs []chatstore.Message, imageFiles map[int]string, forceDisableReasoning bool, cfg NestedRunConfig) (llm.AssistantTurnResult, *tooling.LegacyStreamWriter, error) {
+func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, system string, msgs []chatstore.Message, imageFiles map[int]string, forceDisableReasoning bool, effort string, cfg NestedRunConfig) (llm.AssistantTurnResult, *tooling.LegacyStreamWriter, error) {
 	var toolDefs []llm.ToolDef
 	if !r.legacyToolsForced() {
 		toolParams, err := agenttools.NativeToolParams("agent")
@@ -92,6 +92,7 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, syst
 		Tools:                 toolDefs,
 		ParallelToolCalls:     true,
 		ForceDisableReasoning: forceDisableReasoning,
+		ReasoningEffort:       effort,
 	}
 	fmt.Fprintf(out, "%s ", termcolor.WrapAssistant(label+":"))
 	var legacySW *tooling.LegacyStreamWriter
