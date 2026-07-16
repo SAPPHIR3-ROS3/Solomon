@@ -457,6 +457,17 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 			return body
 		}
 		return formatGenericToolResultBody(m)
+	case "listSubAgents":
+		if table := jsonDisplayString(m["table"]); table != "" {
+			return table
+		}
+		if errMsg := jsonDisplayString(m["error"]); errMsg != "" {
+			return "→ " + errMsg
+		}
+		if n, ok := jsonDisplayInt(m["count"]); ok {
+			return fmt.Sprintf("→ %d subagents", n)
+		}
+		return formatGenericToolResultBody(m)
 	default:
 		return formatGenericToolResultBody(m)
 	}

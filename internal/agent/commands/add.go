@@ -14,6 +14,8 @@ func Add(d Deps, parts []string) error {
 			return AddRule(d, parts[1:])
 		case "projectrule":
 			return AddProjectRule(d, parts[1:])
+		case "subagent":
+			return AddSubagent(d)
 		}
 	}
 	if d.ProjRoot == "" {
