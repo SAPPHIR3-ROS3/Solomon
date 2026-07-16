@@ -43,7 +43,21 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `searchTools`, `orchestrate`, `switchMode` | agent |
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
 
-`subagent` accepts `run_in_background` for a persisted asynchronous run, `reasoningEffort` for a per-run override, and `interrupt` together with `resume` to cancel the active run before adding a new task. `/subagent stop` and `/subagent cancel` also cancel the live background context before persisting its final status.
+`subagent` is a native function tool in agent mode. It accepts `run_in_background` for a persisted asynchronous run, `reasoningEffort` for a per-run override, and `interrupt` together with `resume` to cancel the active run before adding a new task. `/subagent stop` and `/subagent cancel` also cancel the live background context before persisting its final status.
+
+### `subagent` arguments and results
+
+| Argument | Required / default | Behavior |
+|----------|--------------------|----------|
+| `sysPromptPath` | Required for a new run | Prompt template path; inherited project instructions are merged into a custom prompt |
+| `task` | Required for a new run | Concrete task; when resuming, an optional task is appended to the stored transcript |
+| `resume` | Omitted | Existing `subchatId` to continue instead of creating a new session |
+| `run_in_background` | `false` | `false` waits for output; `true` returns `subchatId` and `status=running` immediately |
+| `interrupt` | `false` | Requires `resume`; cancels the active resumed run before applying the new task |
+| `reasoningEffort` | `subagent_reasoning_effort` | Per-run override: `none`, `low`, `medium`, or `high` |
+| `roleProvider`, `roleModel` | Omitted | Select a configured `[[roles.subagent]]` provider/model pair; both are required together |
+
+The tool returns `{ok, output, subchatId, status}` on success. Synchronous runs normally finish with `status=done` and include `output`; background runs return immediately with `status=running`. Timeout, cancellation, and recoverable nested errors persist the partial transcript with `status=paused` where possible. `subagent` is not exposed through `searchTools` and cannot be invoked from an `orchestrate` script.
 
 Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
 

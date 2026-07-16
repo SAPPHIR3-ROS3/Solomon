@@ -16,6 +16,9 @@ flowchart LR
   globalAgents["AGENTS.md<br/><small>global agent instructions</small>"]
   globalRules["rules/<br/><small>rule_NN.txt custom rules</small>"]
   promptTemplates["prompts/templates/<br/><small>*.tmpl system prompts</small>"]
+  subagents["subagents/<br/><small>scheduled subagents + active registry</small>"]
+  scheduledSubagent["<subchat-id>.json"]
+  activeSubagents["activeSubagents.json"]
   skillsRegistry["skills.json<br/><small>global + per-project registry</small>"]
 
   projects["projects/<br/><small>per-project partitions</small>"]
@@ -50,6 +53,9 @@ flowchart LR
   home --> globalAgents
   home --> globalRules
   home --> promptTemplates
+  home --> subagents
+  subagents --> scheduledSubagent
+  subagents --> activeSubagents
   home --> skillsRegistry
   home --> projects
   projects --> projectNode
@@ -69,13 +75,17 @@ flowchart LR
 
   classDef folder fill:#eef6ff,stroke:#5b8def,color:#102a43
   classDef file fill:#fff7e6,stroke:#d9822b,color:#3d2b1f
-  class home,logs,exported,globalSkillsDir,globalRules,promptTemplates,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
-  class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,planFile,exportFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
+  class home,logs,exported,globalSkillsDir,globalRules,promptTemplates,subagents,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
+  class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,scheduledSubagent,activeSubagents,planFile,exportFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
 ```
 
 ## Session files
 
 Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds session id, title, timestamps, messages, tool calls, checkpoint fields, token usage, image references, and `activated_instruction_dirs` (subdirectory instruction paths active for that chat). Legacy tool settings are **not** stored per session — they live in global `config.toml` under `[tools]`. Old session JSON may still contain a deprecated `legacy_tools` field; it is ignored on load. See [Sessions and storage](../architecture/sessions-and-storage.md).
+
+## Subagent files
+
+Project subagent transcripts live under `projects/<project-id>/chats/subchats/<subchat-id>.json`. Scheduled subagents use `~/.solomon/subagents/<subchat-id>.json`. Both contain the nested messages and lifecycle metadata such as title, parent linkage, status, selected role, and reasoning effort. `~/.solomon/subagents/activeSubagents.json` is a small active-run registry used for background cancellation and startup reconciliation; it does not contain the transcript. See [Subagent persistence and lifecycle](../architecture/sessions-and-storage.md#subagent-persistence-and-lifecycle).
 
 ## Exported chats (`/export`)
 
