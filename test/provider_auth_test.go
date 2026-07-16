@@ -19,6 +19,8 @@ func TestModelPassesChatGPTSubFilter(t *testing.T) {
 		{"gpt-audio-1", false},
 		{"sora-2", false},
 		{"o3-mini", false},
+		{"gpt-5.4-sol", true},
+		{"codex-mini", true},
 		{"", false},
 	}
 	for _, tc := range tests {

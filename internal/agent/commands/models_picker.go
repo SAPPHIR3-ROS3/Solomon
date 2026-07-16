@@ -5,14 +5,23 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
+
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
-const slashModelMoreCmd = ">"
+const (
+	slashModelMoreCmd           = ">"
+	slashPickerRecentSlots      = 10
+	slashPickerIdxChatGPTSub    = 11
+	slashPickerIdxClaudeSub     = 12
+	slashPickerIdxCursorAPI     = 13
+	slashPickerIdxOtherStart    = 14
+)
 
 type slashPickerDisplayRow struct {
 	index int
@@ -31,6 +40,7 @@ type slashModelPickerCtx struct {
 	indexTable          map[int]pickerRow
 	nextIndex           int
 	lastPageCatalogFrom int
+	includeCurrent      bool
 }
 
 func (c *slashModelPickerCtx) cur() ListedModel {
@@ -58,15 +68,21 @@ func (c *slashModelPickerCtx) providerFilterActive() bool {
 }
 
 func (c *slashModelPickerCtx) ensureProviderCatalog(ctx context.Context, cfg *config.Root, prov string) error {
+	return c.loadProviderCatalog(ctx, cfg, prov, false)
+}
+
+func (c *slashModelPickerCtx) loadProviderCatalog(ctx context.Context, cfg *config.Root, prov string, forceRefresh bool) error {
 	if c.providerCatalog == nil {
 		c.providerCatalog = map[string][]ListedModel{}
 	}
-	if _, ok := c.providerCatalog[prov]; ok {
-		return nil
-	}
-	if cat, ok := cachedProviderCatalogSlice(cfg, prov); ok {
-		c.providerCatalog[prov] = cat
-		return nil
+	if !forceRefresh {
+		if _, ok := c.providerCatalog[prov]; ok {
+			return nil
+		}
+		if cat, ok := cachedProviderCatalogSlice(cfg, prov); ok {
+			c.providerCatalog[prov] = cat
+			return nil
+		}
 	}
 	p := config.ProviderByName(cfg, prov)
 	if p == nil {
@@ -106,6 +122,9 @@ func (c *slashModelPickerCtx) resolveProviderFilter(line string) (string, bool) 
 
 func (c *slashModelPickerCtx) markDisplayed(rows []pickerRow) {
 	for i := range rows {
+		if rows[i].isProvider() {
+			continue
+		}
 		c.displayedKeys[lmKey(rows[i].lm)] = true
 	}
 }
@@ -121,10 +140,27 @@ func (c *slashModelPickerCtx) hasUndisplayed() bool {
 
 func (c *slashModelPickerCtx) catalogPageSize() int {
 	n := config.MaxModelPickerEntries - c.firstPageRecents
+	if c.includeCurrent {
+		n--
+	}
 	if n < 1 {
 		return 1
 	}
 	return n
+}
+
+func (c *slashModelPickerCtx) providerPageNeed(catalogLen int) int {
+	if c.page > 0 {
+		return c.catalogPageSize()
+	}
+	cap := config.ModelPickerPageCap(catalogLen)
+	if cap >= catalogLen {
+		return catalogLen
+	}
+	if c.includeCurrent && strings.TrimSpace(c.cur().Model) != "" && cap > 0 {
+		return cap - 1
+	}
+	return cap
 }
 
 func (c *slashModelPickerCtx) registerRow(pr pickerRow) {
@@ -139,10 +175,16 @@ func (c *slashModelPickerCtx) registerRows(rows []pickerRow) {
 }
 
 func (c *slashModelPickerCtx) maxIndex() int {
-	if c.nextIndex == 0 {
+	max := -1
+	for idx := range c.indexTable {
+		if idx > max {
+			max = idx
+		}
+	}
+	if max < 0 {
 		return 0
 	}
-	return c.nextIndex - 1
+	return max
 }
 
 func (c *slashModelPickerCtx) buildDisplay() ([]slashPickerDisplayRow, bool) {
@@ -154,140 +196,156 @@ func (c *slashModelPickerCtx) buildDisplay() ([]slashPickerDisplayRow, bool) {
 
 func (c *slashModelPickerCtx) buildFirstPage() ([]slashPickerDisplayRow, bool) {
 	if c.providerFilterActive() {
-		return c.buildProviderOnlyFirstPage()
+		return c.buildProviderUnifiedPage()
 	}
 	catalog := c.filteredCatalog()
 	cur := c.cur()
 	claimed := map[string]bool{lmKey(cur): true}
+	recents := pickRecentListed(c.d, catalog, cur, claimed, slashPickerRecentSlots)
+	c.stickyRecents = recents
+	c.firstPageRecents = len(recents)
+	c.indexTable = map[int]pickerRow{}
+	c.nextIndex = 0
 
-	recents := pickRecentListed(c.d, catalog, cur, claimed, 5)
+	if c.includeCurrent && strings.TrimSpace(cur.Prov) != "" && strings.TrimSpace(cur.Model) != "" {
+		c.indexTable[0] = pickerRow{lm: cur, section: sectionCurrent}
+	}
+	for i := range recents {
+		c.indexTable[1+i] = pickerRow{lm: recents[i], section: sectionRecent}
+	}
 
-	var chatgptSlots []ListedModel
-	{
-		chatgptSlots = pickChatGPTSubFamilySlots(catalog, cur, claimed, 5)
-		for i := range chatgptSlots {
-			claimed[lmKey(chatgptSlots[i])] = true
+	present := map[string]bool{}
+	for _, p := range config.ProviderList(c.d.Cfg) {
+		present[p.Name] = true
+	}
+	if present[config.ProviderNameChatGPTSub] {
+		c.indexTable[slashPickerIdxChatGPTSub] = pickerRow{provOnly: config.ProviderNameChatGPTSub, section: sectionProvider}
+	}
+	if present[config.ProviderNameClaudeSub] {
+		c.indexTable[slashPickerIdxClaudeSub] = pickerRow{provOnly: config.ProviderNameClaudeSub, section: sectionProvider}
+	}
+	if present[config.ProviderNameCursorAPI] {
+		c.indexTable[slashPickerIdxCursorAPI] = pickerRow{provOnly: config.ProviderNameCursorAPI, section: sectionProvider}
+	}
+
+	others := make([]string, 0, len(present))
+	for name := range present {
+		switch name {
+		case config.ProviderNameChatGPTSub, config.ProviderNameClaudeSub, config.ProviderNameCursorAPI:
+			continue
+		default:
+			others = append(others, name)
 		}
-		claimOtherChatGPTSubCatalog(catalog, cur, claimed)
 	}
-	claudeSub := pickClaudeSubListed(c.d, catalog, cur, claimed, 5)
-	c.stickyRecents = recents
-	c.firstPageRecents = len(recents)
-
-	need := config.MaxModelPickerEntries - len(recents) - len(chatgptSlots) - len(claudeSub)
-	if need < 0 {
-		need = 0
+	sort.Strings(others)
+	idx := slashPickerIdxOtherStart
+	for _, name := range others {
+		c.indexTable[idx] = pickerRow{provOnly: name, section: sectionProvider}
+		idx++
 	}
-	rest := fillProviderPicksFiltered(catalog, claimed, need, "", true)
-	catalogRows := append([]ListedModel(nil), chatgptSlots...)
-	catalogRows = append(catalogRows, rest...)
+	c.nextIndex = idx
 
-	rows := assemblePickerRows(cur, recents, claudeSub, catalogRows)
-	c.indexTable = map[int]pickerRow{}
-	c.nextIndex = 0
-	c.registerRows(rows)
-	c.markDisplayed(rows)
-
-	var disp []slashPickerDisplayRow
-	for idx := 0; idx < c.nextIndex; idx++ {
-		disp = append(disp, slashPickerDisplayRow{index: idx, pr: c.indexTable[idx]})
-	}
-	return disp, c.hasUndisplayed()
+	disp := c.rootPageDisplay()
+	return disp, false
 }
 
-func (c *slashModelPickerCtx) buildProviderOnlyFirstPage() ([]slashPickerDisplayRow, bool) {
-	catalog := c.filteredCatalog()
+func (c *slashModelPickerCtx) rootPageDisplay() []slashPickerDisplayRow {
+	var disp []slashPickerDisplayRow
+	add := func(i int) {
+		if pr, ok := c.indexTable[i]; ok {
+			disp = append(disp, slashPickerDisplayRow{index: i, pr: pr})
+		}
+	}
+	add(0)
+	for i := 1; i <= slashPickerRecentSlots; i++ {
+		add(i)
+	}
+	add(slashPickerIdxChatGPTSub)
+	add(slashPickerIdxClaudeSub)
+	add(slashPickerIdxCursorAPI)
+	for i := slashPickerIdxOtherStart; i < c.nextIndex; i++ {
+		add(i)
+	}
+	return disp
+}
+
+func (c *slashModelPickerCtx) providerRecentKeys() map[string]bool {
+	out := map[string]bool{}
+	if c.d.Cfg == nil || c.filterProv == "" {
+		return out
+	}
+	for _, u := range config.RecentModelUseEntries(c.d.Cfg, c.filterProv) {
+		lm := ListedModel{Prov: strings.TrimSpace(u.Provider), Model: strings.TrimSpace(u.Model)}
+		if lm.Prov == "" || lm.Model == "" {
+			continue
+		}
+		out[lmKey(lm)] = true
+	}
+	return out
+}
+
+func (c *slashModelPickerCtx) buildProviderUnifiedPage() ([]slashPickerDisplayRow, bool) {
+	catalog := orderListedModelsByProvider(append([]ListedModel(nil), c.filteredCatalog()...), c.filterProv)
 	cur := c.cur()
-	claimed := map[string]bool{lmKey(cur): true}
-	prov := c.filterProv
-
-	recents := pickRecentListedForProvider(c.d, catalog, cur, claimed, 5, prov)
-	c.stickyRecents = recents
-	c.firstPageRecents = len(recents)
-
-	need := config.MaxModelPickerEntries - len(recents)
-	if need < 0 {
-		need = 0
-	}
-	batch := fillProviderCatalogBatch(catalog, claimed, need, prov)
-
-	rows := assemblePickerRows(cur, recents, nil, batch)
-	c.indexTable = map[int]pickerRow{}
-	c.nextIndex = 0
-	c.registerRows(rows)
-	c.markDisplayed(rows)
-
-	var disp []slashPickerDisplayRow
-	for idx := 0; idx < c.nextIndex; idx++ {
-		disp = append(disp, slashPickerDisplayRow{index: idx, pr: c.indexTable[idx]})
-	}
-	return disp, c.hasUndisplayed()
-}
-
-func (c *slashModelPickerCtx) buildNextPage() ([]slashPickerDisplayRow, bool) {
-	catalog := c.filteredCatalog()
-	need := c.catalogPageSize()
-	c.lastPageCatalogFrom = c.nextIndex
+	recentKeys := c.providerRecentKeys()
+	need := c.providerPageNeed(len(catalog))
 	var batch []ListedModel
-	if c.providerFilterActive() {
-		batch = fillProviderCatalogBatch(catalog, c.displayedKeys, need, c.filterProv)
-	} else {
-		batch = fillProviderPicksFiltered(catalog, c.displayedKeys, need, "", false)
+	for i := range catalog {
+		lm := catalog[i]
+		if lmKey(lm) == lmKey(cur) {
+			continue
+		}
+		if c.displayedKeys[lmKey(lm)] {
+			continue
+		}
+		batch = append(batch, lm)
+		if len(batch) >= need {
+			break
+		}
 	}
-
+	c.lastPageCatalogFrom = c.nextIndex
 	var batchRows []pickerRow
 	for i := range batch {
-		batchRows = append(batchRows, pickerRow{lm: batch[i], section: sectionCatalog})
+		tag := ""
+		if recentKeys[lmKey(batch[i])] {
+			tag = "(recent)"
+		}
+		batchRows = append(batchRows, pickerRow{lm: batch[i], section: sectionCatalog, lineTag: tag})
+	}
+	if c.page == 0 {
+		c.indexTable = map[int]pickerRow{}
+		c.nextIndex = 0
+		c.stickyRecents = nil
+		c.firstPageRecents = 0
+		if c.includeCurrent && strings.TrimSpace(cur.Prov) != "" && strings.TrimSpace(cur.Model) != "" {
+			c.registerRow(pickerRow{lm: cur, section: sectionCurrent})
+			c.displayedKeys[lmKey(cur)] = true
+		}
 	}
 	c.registerRows(batchRows)
 	c.markDisplayed(batchRows)
 
-	disp := c.stickyDisplayRows()
+	var disp []slashPickerDisplayRow
 	for idx := c.lastPageCatalogFrom; idx < c.nextIndex; idx++ {
 		disp = append(disp, slashPickerDisplayRow{index: idx, pr: c.indexTable[idx]})
 	}
 	return disp, c.hasUndisplayed()
 }
 
-func (c *slashModelPickerCtx) stickyDisplayRows() []slashPickerDisplayRow {
-	var disp []slashPickerDisplayRow
-	if pr, ok := c.indexTable[0]; ok {
-		disp = append(disp, slashPickerDisplayRow{index: 0, pr: pr})
+func (c *slashModelPickerCtx) buildNextPage() ([]slashPickerDisplayRow, bool) {
+	if !c.providerFilterActive() {
+		return nil, false
 	}
-	for i := range c.stickyRecents {
-		idx := i + 1
-		pr, ok := c.indexTable[idx]
-		if !ok {
-			pr = pickerRow{lm: c.stickyRecents[i], section: sectionRecent}
-		}
-		disp = append(disp, slashPickerDisplayRow{index: idx, pr: pr})
-	}
-	return disp
+	return c.buildProviderUnifiedPage()
 }
 
-func fillProviderPicksFiltered(catalog []ListedModel, skip map[string]bool, need int, onlyProv string, firstPage bool) []ListedModel {
-	if need <= 0 {
-		return nil
+func (c *slashModelPickerCtx) applyProviderFilter(ctx context.Context, prov string) error {
+	if err := c.loadProviderCatalog(ctx, c.d.Cfg, prov, true); err != nil {
+		return err
 	}
-	var out []ListedModel
-	for i := range catalog {
-		lm := catalog[i]
-		if onlyProv != "" && lm.Prov != onlyProv {
-			continue
-		}
-		if onlyProv == "" && firstPage && lm.Prov == config.ProviderNameChatGPTSub {
-			continue
-		}
-		if skip[lmKey(lm)] {
-			continue
-		}
-		out = append(out, lm)
-		skip[lmKey(lm)] = true
-		if len(out) >= need {
-			break
-		}
-	}
-	return out
+	c.filterProv = prov
+	c.resetView()
+	return nil
 }
 
 func printPickerMsg(out io.Writer, msg string) {
@@ -299,16 +357,28 @@ func printPickerMsg(out io.Writer, msg string) {
 }
 
 func SlashModels(d Deps) error {
+	lm, err := PickListedModel(d, true)
+	if err != nil {
+		return err
+	}
+	if err := d.ApplyCurrentModel(lm.Prov, lm.Model); err != nil {
+		return err
+	}
+	PrintSystemf(d.Out, "Using %s[%s]", d.Model(), d.Provider().Name)
+	return nil
+}
+
+func PickListedModel(d Deps, includeCurrent bool) (ListedModel, error) {
 	ctx := d.Ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	catalog, byProv, err := fetchSlashModelCatalogCached(ctx, d)
 	if err != nil {
-		return err
+		return ListedModel{}, err
 	}
 	if len(catalog) == 0 {
-		return fmt.Errorf("no models available")
+		return ListedModel{}, fmt.Errorf("no models available")
 	}
 
 	pick := &slashModelPickerCtx{
@@ -317,6 +387,7 @@ func SlashModels(d Deps) error {
 		providerCatalog: byProv,
 		displayedKeys:   map[string]bool{},
 		indexTable:      map[int]pickerRow{},
+		includeCurrent:  includeCurrent,
 	}
 	if pick.providerCatalog == nil {
 		pick.providerCatalog = map[string][]ListedModel{}
@@ -334,7 +405,7 @@ func SlashModels(d Deps) error {
 
 		line, err := readSlashModelInput(d)
 		if err != nil {
-			return err
+			return ListedModel{}, err
 		}
 		if line == "" {
 			printPickerMsg(d.Out, "Invalid: empty input.")
@@ -362,121 +433,53 @@ func SlashModels(d Deps) error {
 				printPickerMsg(d.Out, fmt.Sprintf("Invalid: already filtered to %s.", prov))
 				continue
 			}
-			if err := pick.ensureProviderCatalog(ctx, d.Cfg, prov); err != nil {
+			if err := pick.applyProviderFilter(ctx, prov); err != nil {
 				printPickerMsg(d.Out, fmt.Sprintf("provider %s: error: %v", prov, err))
 				continue
 			}
-			pick.filterProv = prov
-			pick.resetView()
 			continue
 		}
-		ok, msg, ferr := trySlashModelPick(d, pick, pick.filteredCatalog(), line)
+		lm, ok, msg, ferr := trySlashModelPickListed(pick, pick.filteredCatalog(), line)
 		if ferr != nil {
-			return ferr
+			return ListedModel{}, ferr
 		}
 		if ok {
-			PrintSystemf(d.Out, "Using %s[%s]", d.Model(), d.Provider().Name)
-			return nil
+			if strings.TrimSpace(msg) == "provider" {
+				if err := pick.applyProviderFilter(ctx, lm.Prov); err != nil {
+					printPickerMsg(d.Out, fmt.Sprintf("provider %s: error: %v", lm.Prov, err))
+					continue
+				}
+				continue
+			}
+			return lm, nil
 		}
 		printPickerMsg(d.Out, fmt.Sprintf("Invalid: %s", msg))
 	}
 }
 
-func readSlashModelInput(d Deps) (string, error) {
-	return config.ReadPromptLine(PromptIO(d), "> ")
-}
-
-func writeSlashModelPickerHelp(out io.Writer, lastIdx int, hasMore bool, filterProv string) {
-	var b strings.Builder
-	fmt.Fprintf(&b, "Select: index 0-%d, paste exact model id", lastIdx)
-	if hasMore {
-		b.WriteString(", > for next page")
-	}
-	b.WriteString(", provider name to filter")
-	if filterProv != "" {
-		fmt.Fprintf(&b, " (filtered: %s, all models; type all to reset)", filterProv)
-	}
-	fmt.Fprintln(out, b.String())
-}
-
-func printSlashModelPickerDisplay(out io.Writer, display []slashPickerDisplayRow) {
-	if len(display) == 0 {
-		return
-	}
-	rows := make([]pickerRow, len(display))
-	for i := range display {
-		rows[i] = display[i].pr
-	}
-	idxColW := pickerIndexColWidthForMax(displayMaxIndex(display))
-	modelColW := pickerMaxModelLen(rows)
-	provColW := pickerMaxProvBracketLen(rows)
-	tagColW := pickerMaxTagLen(rows)
-
-	printedRecents := false
-	printedClaude := false
-	printedModels := false
-	for _, dr := range display {
-		switch dr.pr.section {
-		case sectionRecent:
-			if !printedRecents {
-				fmt.Fprintln(out, "[recents]")
-				printedRecents = true
-			}
-		case sectionClaudeSub:
-			if !printedClaude {
-				fmt.Fprintln(out, "[Claude Sub]")
-				printedClaude = true
-			}
-		case sectionCatalog:
-			if !printedModels {
-				fmt.Fprintln(out, "[models]")
-				printedModels = true
-			}
-		}
-		tag := dr.pr.displayTag()
-		if dr.pr.section == sectionCatalog {
-			tag = ""
-		}
-		writePickerModelLine(out, dr.index, idxColW, modelColW, provColW, tagColW, dr.pr.lm.Model, dr.pr.lm.Prov, tag)
-	}
-}
-
-func displayMaxIndex(display []slashPickerDisplayRow) int {
-	max := 0
-	for _, dr := range display {
-		if dr.index > max {
-			max = dr.index
-		}
-	}
-	return max
-}
-
-func pickerIndexColWidthForMax(maxIdx int) int {
-	return pickerIndexColWidth(maxIdx + 1)
-}
-
-func trySlashModelPick(d Deps, pick *slashModelPickerCtx, catalog []ListedModel, line string) (ok bool, errMsg string, err error) {
+func trySlashModelPickListed(pick *slashModelPickerCtx, catalog []ListedModel, line string) (ListedModel, bool, string, error) {
 	if config.AllDigits(line) {
 		n, ierr := strconv.Atoi(line)
 		if ierr != nil {
-			return false, "not a valid number.", nil
+			return ListedModel{}, false, "not a valid number.", nil
 		}
 		pr, found := pick.indexTable[n]
 		if !found {
-			return false, fmt.Sprintf("index must be between 0 and %d.", pick.maxIndex()), nil
+			return ListedModel{}, false, fmt.Sprintf("index must be between 0 and %d.", pick.maxIndex()), nil
 		}
-		if aerr := d.ApplyCurrentModel(pr.lm.Prov, pr.lm.Model); aerr != nil {
-			return false, aerr.Error(), nil
+		if pr.isProvider() {
+			return ListedModel{Prov: pr.provOnly}, true, "provider", nil
 		}
-		return true, "", nil
+		return pr.lm, true, "", nil
 	}
-	if rerr := resolveModelPaste(d, catalog, line); rerr != nil {
-		return false, rerr.Error(), nil
+	lm, rerr := resolveListedModelPaste(catalog, line)
+	if rerr != nil {
+		return ListedModel{}, false, rerr.Error(), nil
 	}
-	return true, "", nil
+	return lm, true, "", nil
 }
 
-func resolveModelPaste(d Deps, rows []ListedModel, id string) error {
+func resolveListedModelPaste(rows []ListedModel, id string) (ListedModel, error) {
 	var matches []ListedModel
 	for _, row := range rows {
 		if row.Model == id {
@@ -484,10 +487,14 @@ func resolveModelPaste(d Deps, rows []ListedModel, id string) error {
 		}
 	}
 	if len(matches) == 0 {
-		return fmt.Errorf("model id %q not in the listed models", id)
+		return ListedModel{}, fmt.Errorf("model id %q not in the listed models", id)
 	}
 	if len(matches) > 1 {
-		return fmt.Errorf("model id %q exists for multiple providers; use the numeric index from /models", id)
+		return ListedModel{}, fmt.Errorf("model id %q exists for multiple providers; use the numeric index from /models", id)
 	}
-	return d.ApplyCurrentModel(matches[0].Prov, matches[0].Model)
+	return matches[0], nil
+}
+
+func readSlashModelInput(d Deps) (string, error) {
+	return config.ReadPromptLine(PromptIO(d), "> ")
 }

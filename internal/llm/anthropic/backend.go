@@ -71,11 +71,10 @@ func (b *Backend) CompleteText(ctx context.Context, req apitype.SimpleCompletion
 }
 
 func (b *Backend) ListModels(ctx context.Context) ([]string, error) {
-	_ = ctx
 	oauth := b.auth.Kind == AuthOAuthBearer
 	ids, err := modelsapi.ListAnthropic(b.baseURL, b.auth.Token, oauth)
 	if err != nil {
-		ids = modelsapi.CuratedAnthropicModels()
+		return nil, err
 	}
 	return modelsapi.PickAnthropicFlagshipModels(ids), nil
 }

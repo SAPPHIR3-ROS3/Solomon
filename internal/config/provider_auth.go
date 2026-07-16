@@ -154,7 +154,7 @@ func AppendOrUpdateProvider(r *Root, p Provider) {
 
 func ModelPassesChatGPTSubFilter(modelID string) bool {
 	m := strings.ToLower(strings.TrimSpace(modelID))
-	if !strings.HasPrefix(m, "gpt") {
+	if m == "" {
 		return false
 	}
 	for _, prefix := range chatGPTSubModelDenylistPrefixes {
@@ -162,15 +162,22 @@ func ModelPassesChatGPTSubFilter(modelID string) bool {
 			return false
 		}
 	}
-	return true
+	if strings.HasPrefix(m, "gpt") {
+		return true
+	}
+	for _, kw := range []string{"sol", "terra", "luna", "codex"} {
+		if strings.Contains(m, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 func ModelPassesChatGPTSubPickerFilter(modelID string) bool {
 	if !ModelPassesChatGPTSubFilter(modelID) {
 		return false
 	}
-	rest := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "gpt-")
-	for _, seg := range strings.Split(rest, "-") {
+	for _, seg := range strings.Split(strings.ToLower(strings.TrimSpace(modelID)), "-") {
 		if seg == "pro" {
 			return false
 		}

@@ -15,12 +15,14 @@ func DefaultModelIDs() []string {
 type cursorLab int
 
 const (
-	labComposer cursorLab = iota
-	labOpenAI
+	labOpenAI cursorLab = iota
 	labAnthropic
 	labXAI
-	labKimi
+	labGoogle
+	labComposer
 	labAuto
+	labGLM
+	labKimi
 	labOther
 )
 
@@ -40,7 +42,7 @@ func FilterModelIDs(ids []string) []string {
 		}
 		byLab[lab] = append(byLab[lab], id)
 	}
-	order := []cursorLab{labComposer, labOpenAI, labAnthropic, labXAI, labKimi, labAuto}
+	order := []cursorLab{labOpenAI, labAnthropic, labXAI, labGoogle, labComposer, labAuto, labGLM, labKimi}
 	var out []string
 	for _, lab := range order {
 		if id := pickLabFlagship(lab, byLab[lab]); id != "" {
@@ -50,7 +52,7 @@ func FilterModelIDs(ids []string) []string {
 	if len(out) == 0 {
 		return DefaultModelIDs()
 	}
-	return ensureAutoLast(out)
+	return out
 }
 
 func OrderModelIDs(ids []string) []string {
@@ -71,21 +73,39 @@ func OrderModelIDs(ids []string) []string {
 		}
 		byLab[lab] = append(byLab[lab], id)
 	}
-	labOrder := []cursorLab{labComposer, labOpenAI, labAnthropic, labXAI, labKimi, labAuto}
+	claimed := map[string]bool{}
 	var out []string
-	for _, lab := range labOrder {
-		out = append(out, sortLabModelIDs(lab, byLab[lab])...)
-	}
-	out = append(out, other...)
-	if len(out) == 0 {
-		return out
-	}
-	for _, id := range out {
-		if strings.EqualFold(id, "auto") {
-			return ensureAutoLast(out)
+	appendIDs := func(ids []string) {
+		for _, id := range ids {
+			if claimed[id] {
+				continue
+			}
+			out = append(out, id)
+			claimed[id] = true
 		}
 	}
-	return out
+	priorityLabs := []cursorLab{labOpenAI, labAnthropic, labXAI, labGoogle, labComposer}
+	for _, lab := range priorityLabs {
+		if id := pickLabFlagship(lab, byLab[lab]); id != "" {
+			appendIDs([]string{id})
+		}
+	}
+	appendIDs(byLab[labAuto])
+	if id := pickLabFlagship(labGLM, byLab[labGLM]); id != "" {
+		appendIDs([]string{id})
+	}
+	if id := pickLabFlagship(labKimi, byLab[labKimi]); id != "" {
+		appendIDs([]string{id})
+	}
+	for _, lab := range []cursorLab{labOpenAI, labAnthropic, labXAI, labGoogle, labComposer, labGLM, labKimi} {
+		for _, id := range byLab[lab] {
+			if !claimed[id] {
+				other = append(other, id)
+			}
+		}
+	}
+	sort.Strings(other)
+	return append(out, other...)
 }
 
 func sortLabModelIDs(lab cursorLab, ids []string) []string {
@@ -117,16 +137,6 @@ func sortLabModelIDs(lab cursorLab, ids []string) []string {
 	return out
 }
 
-func ensureAutoLast(out []string) []string {
-	filtered := make([]string, 0, len(out))
-	for _, id := range out {
-		if !strings.EqualFold(id, "auto") {
-			filtered = append(filtered, id)
-		}
-	}
-	return append(filtered, "auto")
-}
-
 func classifyCursorLab(id string) cursorLab {
 	m := strings.ToLower(strings.TrimSpace(id))
 	switch {
@@ -134,12 +144,16 @@ func classifyCursorLab(id string) cursorLab {
 		return labAuto
 	case strings.HasPrefix(m, "composer"):
 		return labComposer
-	case strings.HasPrefix(m, "gpt"):
+	case strings.HasPrefix(m, "gpt") || strings.Contains(m, "openai"):
 		return labOpenAI
 	case strings.Contains(m, "claude"):
 		return labAnthropic
 	case strings.Contains(m, "grok"):
 		return labXAI
+	case strings.Contains(m, "gemini") || strings.Contains(m, "google"):
+		return labGoogle
+	case strings.Contains(m, "glm"):
+		return labGLM
 	case strings.Contains(m, "kimi"):
 		return labKimi
 	default:
@@ -191,6 +205,10 @@ func scoreLabModel(lab cursorLab, id string) flagshipScore {
 		return scoreAnthropic(id)
 	case labXAI:
 		return scoreGrok(id)
+	case labGoogle:
+		return scoreKeywordModel(id, "gemini", "google")
+	case labGLM:
+		return scoreKeywordModel(id, "glm")
 	case labKimi:
 		return scoreKimi(id)
 	default:
@@ -260,6 +278,10 @@ func scoreAnthropic(id string) flagshipScore {
 
 func anthropicModelLineTier(m string) int {
 	switch {
+	case strings.Contains(m, "mythos"):
+		return 120
+	case strings.Contains(m, "fable"):
+		return 110
 	case strings.Contains(m, "opus"):
 		return 100
 	case strings.Contains(m, "sonnet"):
@@ -269,6 +291,43 @@ func anthropicModelLineTier(m string) int {
 	default:
 		return 60
 	}
+}
+
+func scoreKeywordModel(id string, keywords ...string) flagshipScore {
+	m := strings.ToLower(strings.TrimSpace(id))
+	ok := false
+	for _, kw := range keywords {
+		if strings.Contains(m, kw) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return flagshipScore{}
+	}
+	ver := digitsVersionKey(m)
+	if len(ver) == 0 {
+		return flagshipScore{tier: 50, ok: true}
+	}
+	return flagshipScore{ver: ver, tier: 100, ok: true}
+}
+
+func digitsVersionKey(m string) []int {
+	var key []int
+	for i := 0; i < len(m); {
+		if m[i] < '0' || m[i] > '9' {
+			i++
+			continue
+		}
+		j := i
+		for j < len(m) && m[j] >= '0' && m[j] <= '9' {
+			j++
+		}
+		n, _ := strconv.Atoi(m[i:j])
+		key = append(key, n)
+		i = j
+	}
+	return key
 }
 
 func scoreGrok(id string) flagshipScore {
@@ -282,7 +341,11 @@ func scoreGrok(id string) flagshipScore {
 	if len(ver) == 0 {
 		return flagshipScore{}
 	}
-	return flagshipScore{ver: ver, tier: grokVariantTier(parts[1:]), ok: true}
+	tier := 70
+	if len(parts) <= 1 {
+		tier = 100
+	}
+	return flagshipScore{ver: ver, tier: tier, ok: true}
 }
 
 func scoreKimi(id string) flagshipScore {
@@ -312,11 +375,10 @@ func scoreKimi(id string) flagshipScore {
 }
 
 func composerVariantTier(suffix []string) int {
-	if len(suffix) == 0 {
-		return 100
-	}
 	s := strings.Join(suffix, "-")
 	switch {
+	case len(suffix) == 0:
+		return 100
 	case strings.Contains(s, "fast"):
 		return 40
 	case strings.Contains(s, "beta"):
@@ -327,11 +389,10 @@ func composerVariantTier(suffix []string) int {
 }
 
 func gptVariantTier(suffix []string) int {
-	if len(suffix) == 0 {
-		return 100
-	}
 	s := strings.Join(suffix, "-")
 	switch {
+	case len(suffix) == 0:
+		return 100
 	case strings.Contains(s, "mini"):
 		return 30
 	case strings.Contains(s, "nano"):
@@ -352,19 +413,11 @@ func anthropicVariantTier(parts []string) int {
 		return 80
 	}
 	s := strings.Join(parts[1:], "-")
-	switch {
-	case strings.Contains(s, "thinking-medium"):
+	if strings.Contains(s, "thinking-medium") {
 		return 100
-	case strings.Contains(s, "thinking"):
-		return 90
-	default:
-		return 70
 	}
-}
-
-func grokVariantTier(suffix []string) int {
-	if len(suffix) == 0 {
-		return 100
+	if strings.Contains(s, "thinking") {
+		return 90
 	}
 	return 70
 }
@@ -389,7 +442,7 @@ func versionKeyFromParts(parts []string) []int {
 
 func isAnthropicSuffixPart(p string) bool {
 	switch p {
-	case "thinking", "medium", "fast", "high", "low", "haiku", "sonnet", "opus":
+	case "thinking", "medium", "fast", "high", "low", "haiku", "sonnet", "opus", "mythos", "fable":
 		return true
 	default:
 		return strings.Contains(p, "thinking")
@@ -421,39 +474,20 @@ func parseVersionSegment(ver string) []int {
 	if ver == "" {
 		return nil
 	}
-	if strings.Contains(ver, ".") {
-		var key []int
-		for _, p := range strings.Split(ver, ".") {
-			n, rest := parseLeadingDigits(p)
-			if n < 0 {
-				continue
-			}
-			key = append(key, n)
-			if rest != "" {
-				key = append(key, int(rest[0]))
-			}
+	var key []int
+	for _, p := range strings.Split(ver, ".") {
+		i := 0
+		for i < len(p) && p[i] >= '0' && p[i] <= '9' {
+			i++
 		}
-		return key
-	}
-	n, rest := parseLeadingDigits(ver)
-	if n < 0 {
-		return nil
-	}
-	key := []int{n}
-	if rest != "" {
-		key = append(key, int(rest[0]))
+		if i == 0 {
+			continue
+		}
+		n, _ := strconv.Atoi(p[:i])
+		key = append(key, n)
+		if i < len(p) {
+			key = append(key, int(p[i]))
+		}
 	}
 	return key
-}
-
-func parseLeadingDigits(s string) (int, string) {
-	i := 0
-	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
-		i++
-	}
-	if i == 0 {
-		return -1, s
-	}
-	n, _ := strconv.Atoi(s[:i])
-	return n, s[i:]
 }

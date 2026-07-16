@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"sort"
@@ -186,19 +187,26 @@ func fetchSlashModelCatalogCached(ctx context.Context, d Deps) ([]ListedModel, m
 		clearStartupOffline()
 		mixed, byProv, err, provErrs := buildSlashModelCatalogs(ctx, d)
 		updateActiveSlashCatalogPrefetch(mixed, byProv, err, provErrs)
-		if d.Out != nil && len(provErrs) > 0 {
-			PrintProviderCatalogErrors(d.Out, provErrs)
+		return resolveSlashModelCatalogResult(d.Out, mixed, byProv, err, provErrs)
+	}
+	if p := waitSlashCatalogPrefetch(ctx, d.Cfg); p != nil {
+		return resolveSlashModelCatalogResult(d.Out, append([]ListedModel(nil), p.mixed...), cloneProviderCatalogMap(p.byProvider), p.fetchErr, p.providerErrs)
+	}
+	mixed, byProv, err, provErrs := buildSlashModelCatalogs(ctx, d)
+	return resolveSlashModelCatalogResult(d.Out, mixed, byProv, err, provErrs)
+}
+
+func resolveSlashModelCatalogResult(out io.Writer, mixed []ListedModel, byProv map[string][]ListedModel, err error, provErrs []ProviderCatalogError) ([]ListedModel, map[string][]ListedModel, error) {
+	if len(mixed) == 0 {
+		if len(provErrs) == 1 {
+			return mixed, byProv, fmt.Errorf("provider %s: %w", provErrs[0].label(), provErrs[0].Err)
 		}
 		return mixed, byProv, err
 	}
-	if p := waitSlashCatalogPrefetch(ctx, d.Cfg); p != nil {
-		return append([]ListedModel(nil), p.mixed...), cloneProviderCatalogMap(p.byProvider), p.fetchErr
+	if out != nil && len(provErrs) > 0 {
+		PrintProviderCatalogErrors(out, provErrs)
 	}
-	mixed, byProv, err, provErrs := buildSlashModelCatalogs(ctx, d)
-	if d.Out != nil && len(provErrs) > 0 {
-		PrintProviderCatalogErrors(d.Out, provErrs)
-	}
-	return mixed, byProv, err
+	return mixed, byProv, nil
 }
 
 func updateActiveSlashCatalogPrefetch(mixed []ListedModel, byProv map[string][]ListedModel, err error, provErrs []ProviderCatalogError) {
