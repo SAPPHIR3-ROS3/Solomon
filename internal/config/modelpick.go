@@ -7,7 +7,17 @@ import (
 	"strings"
 )
 
-const MaxModelPickerEntries = 25
+const (
+	MaxModelPickerEntries       = 25
+	ModelPickerNoPaginationMax  = 50
+)
+
+func ModelPickerPageCap(total int) int {
+	if total <= ModelPickerNoPaginationMax {
+		return total
+	}
+	return MaxModelPickerEntries
+}
 
 func readModelPickLine(pio PromptIO, prompt string) (string, error) {
 	line, err := ReadPromptLine(pio, prompt)
@@ -53,10 +63,11 @@ func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids [
 		return "", fmt.Errorf("no models returned by API")
 	}
 	cursorPick := p != nil && p.IsCursorAPI()
-	maxList := MaxModelPickerEntries
+	maxList := ModelPickerPageCap(len(ids))
+	truncated := len(ids) > maxList
 	lastIdx := maxList - 1
 	pasteEntryIdx := maxList
-	if len(ids) <= maxList {
+	if !truncated {
 		for i, id := range ids {
 			fmt.Fprintf(out, "%d\t%s[%s]\n", i, id, providerLabel)
 		}
@@ -68,7 +79,7 @@ func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids [
 	}
 	for {
 		var prompt string
-		if len(ids) <= maxList {
+		if !truncated {
 			if allowSkip && cursorPick {
 				prompt = fmt.Sprintf("Select model number (0-%d), paste exact model id, or skip to use %s: ", len(ids)-1, CursorAPIDefaultModelID)
 			} else if allowSkip {
@@ -102,7 +113,7 @@ func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids [
 			}
 			continue
 		}
-		if len(ids) > maxList {
+		if truncated {
 			if AllDigits(line) {
 				n, err := strconv.Atoi(line)
 				if err != nil {
@@ -169,7 +180,7 @@ func PickModelAfterAdd(pio PromptIO, prevProv, prevModel, newProvName string, ne
 	if len(newIDs) == 0 {
 		return ModelPickChoice{}, fmt.Errorf("no models returned by API")
 	}
-	maxShown := MaxModelPickerEntries
+	maxShown := ModelPickerPageCap(len(newIDs))
 	nShownNew := len(newIDs)
 	truncated := false
 	if nShownNew > maxShown {

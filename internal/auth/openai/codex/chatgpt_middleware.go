@@ -83,7 +83,7 @@ func applyCodexUpstreamHeaders(req *http.Request, authorization, accountID strin
 	req.Header.Set("openai-beta", "responses=experimental")
 	req.Header.Set("originator", Originator)
 	req.Header.Set("user-agent", UserAgent)
-	req.Header.Set("version", "0.132.0")
+	req.Header.Set("version", ClientVersion)
 	req.Header.Set("session_id", randomHexID())
 	if accountID != "" {
 		req.Header.Set("chatgpt-account-id", accountID)
