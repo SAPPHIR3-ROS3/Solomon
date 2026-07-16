@@ -85,7 +85,7 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 				cpSeq, branch = tc.CheckpointSeq, tc.CheckpointBranchKey
 			}
 			if intent := tooling.ExtractToolIntent(json.RawMessage(tc.Arguments)); intent != "" {
-				fmt.Fprintf(out, "%s%s\n", checkpoint.FormatCheckpointPrefix(cpSeq, branch), termcolor.WrapThinking(intent))
+				tooling.WriteToolDisplayLines(out, cpSeq, branch, []string{termcolor.WrapThinking(intent)})
 			}
 			tooling.WriteToolDisplayLines(out, cpSeq, branch, tooling.FormatToolDisplayLines(tc.Name, json.RawMessage(tc.Arguments)))
 		}
@@ -95,9 +95,11 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 		if len(lines) == 0 {
 			return
 		}
-		for _, line := range lines {
-			fmt.Fprintf(out, "%s%s\n", prefix, line)
+		continuation := ""
+		if prefix != "" {
+			continuation = checkpoint.FormatCheckpointContinuationPlain(m.CheckpointSeq, m.CheckpointBranchKey)
 		}
+		tooling.WriteToolDisplayLinesWithPrefixes(out, prefix, continuation, lines)
 	case "system":
 		fmt.Fprint(out, prefix)
 		termcolor.WriteSystem(out, m.Content)
