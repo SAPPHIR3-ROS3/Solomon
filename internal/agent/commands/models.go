@@ -10,6 +10,7 @@ import (
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
 
 type ListedModel struct {
@@ -22,14 +23,15 @@ type pickerSection int
 const (
 	sectionCurrent pickerSection = iota
 	sectionRecent
-	sectionClaudeSub
+	sectionProvider
 	sectionCatalog
 )
 
 type pickerRow struct {
-	lm      ListedModel
-	section pickerSection
-	lineTag string
+	lm       ListedModel
+	section  pickerSection
+	lineTag  string
+	provOnly string
 }
 
 func (pr pickerRow) displayTag() string {
@@ -37,6 +39,10 @@ func (pr pickerRow) displayTag() string {
 		return pr.lineTag
 	}
 	return pickerSectionTag[pr.section]
+}
+
+func (pr pickerRow) isProvider() bool {
+	return strings.TrimSpace(pr.provOnly) != ""
 }
 
 func lmKey(l ListedModel) string {
@@ -51,56 +57,6 @@ func catalogContains(all []ListedModel, lm ListedModel) bool {
 		}
 	}
 	return false
-}
-
-func fillProviderCatalogBatch(catalog []ListedModel, skip map[string]bool, need int, prov string) []ListedModel {
-	if need <= 0 {
-		return nil
-	}
-	var out []ListedModel
-	for i := range catalog {
-		lm := catalog[i]
-		if lm.Prov != prov {
-			continue
-		}
-		if skip[lmKey(lm)] {
-			continue
-		}
-		out = append(out, lm)
-		skip[lmKey(lm)] = true
-		if len(out) >= need {
-			break
-		}
-	}
-	return out
-}
-
-func pickRecentListedForProvider(d Deps, all []ListedModel, cur ListedModel, claimed map[string]bool, max int, prov string) []ListedModel {
-	if max <= 0 || d.Cfg == nil {
-		return nil
-	}
-	var out []ListedModel
-	for _, u := range config.RecentModelUseEntries(d.Cfg, prov) {
-		lm := ListedModel{Prov: strings.TrimSpace(u.Provider), Model: strings.TrimSpace(u.Model)}
-		if lm.Prov != prov || lm.Model == "" {
-			continue
-		}
-		if lmKey(lm) == lmKey(cur) {
-			continue
-		}
-		if claimed[lmKey(lm)] {
-			continue
-		}
-		if !catalogContains(all, lm) {
-			continue
-		}
-		out = append(out, lm)
-		claimed[lmKey(lm)] = true
-		if len(out) >= max {
-			break
-		}
-	}
-	return out
 }
 
 func pickRecentListed(d Deps, all []ListedModel, cur ListedModel, claimed map[string]bool, max int) []ListedModel {
@@ -131,229 +87,6 @@ func pickRecentListed(d Deps, all []ListedModel, cur ListedModel, claimed map[st
 	return out
 }
 
-func claimOtherChatGPTSubCatalog(catalog []ListedModel, cur ListedModel, claimed map[string]bool) {
-	for i := range catalog {
-		lm := catalog[i]
-		if lm.Prov != config.ProviderNameChatGPTSub {
-			continue
-		}
-		if lmKey(lm) == lmKey(cur) {
-			continue
-		}
-		if claimed[lmKey(lm)] {
-			continue
-		}
-		claimed[lmKey(lm)] = true
-	}
-}
-
-func parseVersionSegment(ver string) []int {
-	ver = strings.TrimSpace(ver)
-	if ver == "" {
-		return nil
-	}
-	if strings.Contains(ver, ".") {
-		var key []int
-		for _, p := range strings.Split(ver, ".") {
-			n, rest := parseLeadingDigits(p)
-			if n < 0 {
-				continue
-			}
-			key = append(key, n)
-			if rest != "" {
-				key = append(key, int(rest[0]))
-			}
-		}
-		return key
-	}
-	n, rest := parseLeadingDigits(ver)
-	if n < 0 {
-		return nil
-	}
-	key := []int{n}
-	if rest != "" {
-		key = append(key, int(rest[0]))
-	}
-	return key
-}
-
-func parseLeadingDigits(s string) (int, string) {
-	i := 0
-	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
-		i++
-	}
-	if i == 0 {
-		return -1, s
-	}
-	n, _ := strconv.Atoi(s[:i])
-	return n, s[i:]
-}
-
-func gptFamilyKeyFromModel(model string) ([]int, bool) {
-	if !config.ModelPassesChatGPTSubPickerFilter(model) {
-		return nil, false
-	}
-	m := strings.ToLower(strings.TrimSpace(model))
-	rest := strings.TrimPrefix(m, "gpt-")
-	parts := strings.Split(rest, "-")
-	key := parseVersionSegment(parts[0])
-	if len(key) == 0 {
-		return nil, false
-	}
-	return key, true
-}
-
-func gptVariantSuffix(model string) string {
-	m := strings.ToLower(strings.TrimSpace(model))
-	rest := strings.TrimPrefix(m, "gpt-")
-	parts := strings.Split(rest, "-")
-	if len(parts) <= 1 {
-		return ""
-	}
-	return strings.Join(parts[1:], "-")
-}
-
-func preferredGPTVariants(family []int) []string {
-	switch {
-	case len(family) == 2 && family[0] == 5 && family[1] == 4:
-		return []string{"", "mini"}
-	case len(family) == 2 && family[0] == 5 && family[1] == 3:
-		return []string{"codex", ""}
-	case len(family) == 2 && family[0] == 5 && family[1] == 2:
-		return []string{""}
-	case len(family) == 1 && family[0] == 5:
-		return []string{""}
-	default:
-		return []string{"", "codex", "mini", "nano"}
-	}
-}
-
-func gptVariantPreferenceScore(family []int, variant string) int {
-	prefs := preferredGPTVariants(family)
-	for i, v := range prefs {
-		if v == variant {
-			return len(prefs) - i
-		}
-	}
-	return -1
-}
-
-func compareGPTFamilies(a, b []int) int {
-	for i := 0; i < len(a) || i < len(b); i++ {
-		var xa, xb int
-		if i < len(a) {
-			xa = a[i]
-		}
-		if i < len(b) {
-			xb = b[i]
-		}
-		if xa != xb {
-			return xa - xb
-		}
-	}
-	return 0
-}
-
-func familyKeyString(family []int) string {
-	parts := make([]string, len(family))
-	for i, n := range family {
-		parts[i] = strconv.Itoa(n)
-	}
-	return strings.Join(parts, ".")
-}
-
-func bestChatGPTSubForFamily(family []int, cands []ListedModel) (ListedModel, bool) {
-	bestScore := -1
-	var chosen ListedModel
-	found := false
-	for i := range cands {
-		score := gptVariantPreferenceScore(family, gptVariantSuffix(cands[i].Model))
-		if score < 0 {
-			continue
-		}
-		if score > bestScore {
-			bestScore = score
-			chosen = cands[i]
-			found = true
-		}
-	}
-	return chosen, found
-}
-
-func pickChatGPTSubFamilySlots(all []ListedModel, cur ListedModel, skip map[string]bool, max int) []ListedModel {
-	if max <= 0 {
-		return nil
-	}
-	byFamily := map[string][]ListedModel{}
-	var families [][]int
-	for i := range all {
-		lm := all[i]
-		if lm.Prov != config.ProviderNameChatGPTSub || lm.Model == "" {
-			continue
-		}
-		if lmKey(lm) == lmKey(cur) {
-			continue
-		}
-		if skip != nil && skip[lmKey(lm)] {
-			continue
-		}
-		family, ok := gptFamilyKeyFromModel(lm.Model)
-		if !ok {
-			continue
-		}
-		key := familyKeyString(family)
-		if _, exists := byFamily[key]; !exists {
-			families = append(families, family)
-		}
-		byFamily[key] = append(byFamily[key], lm)
-	}
-	sort.Slice(families, func(i, j int) bool {
-		return compareGPTFamilies(families[i], families[j]) > 0
-	})
-	var out []ListedModel
-	for _, family := range families {
-		if len(out) >= max {
-			break
-		}
-		lm, ok := bestChatGPTSubForFamily(family, byFamily[familyKeyString(family)])
-		if ok {
-			out = append(out, lm)
-		}
-	}
-	return out
-}
-
-func pickClaudeSubListed(d Deps, all []ListedModel, cur ListedModel, claimed map[string]bool, max int) []ListedModel {
-	if max <= 0 || d.Cfg == nil {
-		return nil
-	}
-	var out []ListedModel
-	for _, u := range config.RecentModelUseEntries(d.Cfg, cur.Prov) {
-		lm := ListedModel{Prov: strings.TrimSpace(u.Provider), Model: strings.TrimSpace(u.Model)}
-		if lm.Prov != config.ProviderNameClaudeSub || lm.Model == "" {
-			continue
-		}
-		if !config.ModelPassesClaudeSubFilter(lm.Model) {
-			continue
-		}
-		if lmKey(lm) == lmKey(cur) {
-			continue
-		}
-		if claimed[lmKey(lm)] {
-			continue
-		}
-		if !catalogContains(all, lm) {
-			continue
-		}
-		out = append(out, lm)
-		claimed[lmKey(lm)] = true
-		if len(out) >= max {
-			break
-		}
-	}
-	return out
-}
-
 func orderListedModelsByProvider(lms []ListedModel, prov string) []ListedModel {
 	if len(lms) == 0 {
 		return lms
@@ -361,6 +94,8 @@ func orderListedModelsByProvider(lms []ListedModel, prov string) []ListedModel {
 	switch prov {
 	case config.ProviderNameChatGPTSub:
 		return orderChatGPTSubListedModels(lms)
+	case config.ProviderNameClaudeSub:
+		return orderClaudeSubListedModels(lms)
 	case config.ProviderNameCursorAPI:
 		ids := make([]string, len(lms))
 		for i := range lms {
@@ -368,7 +103,7 @@ func orderListedModelsByProvider(lms []ListedModel, prov string) []ListedModel {
 		}
 		return orderListedModelsFromIDs(prov, cursorint.OrderModelIDs(ids))
 	default:
-		return lms
+		return orderListedModelsAlphabetical(lms)
 	}
 }
 
@@ -384,62 +119,169 @@ func orderListedModelsFromIDs(prov string, ids []string) []ListedModel {
 	return out
 }
 
-func orderChatGPTSubListedModels(lms []ListedModel) []ListedModel {
-	var filtered []ListedModel
-	for i := range lms {
-		if config.ModelPassesChatGPTSubFilter(lms[i].Model) {
-			filtered = append(filtered, lms[i])
-		}
-	}
-	sort.Slice(filtered, func(i, j int) bool {
-		fi, oki := gptFamilyKeyFromModel(filtered[i].Model)
-		fj, okj := gptFamilyKeyFromModel(filtered[j].Model)
-		if oki && okj {
-			if c := compareGPTFamilies(fi, fj); c != 0 {
-				return c > 0
-			}
-			si := gptVariantPreferenceScore(fi, gptVariantSuffix(filtered[i].Model))
-			sj := gptVariantPreferenceScore(fj, gptVariantSuffix(filtered[j].Model))
-			if si != sj {
-				return si > sj
-			}
-		} else if oki != okj {
-			return oki
-		}
-		return filtered[i].Model < filtered[j].Model
+func orderListedModelsAlphabetical(lms []ListedModel) []ListedModel {
+	out := append([]ListedModel(nil), lms...)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Model < out[j].Model
 	})
-	return filtered
+	return out
 }
 
-func assemblePickerRows(cur ListedModel, recents, claudeSub, catalogRows []ListedModel) []pickerRow {
-	out := []pickerRow{{lm: cur, section: sectionCurrent}}
-	for i := range recents {
-		out = append(out, pickerRow{lm: recents[i], section: sectionRecent})
+func modelVersionKey(model string) []int {
+	m := strings.ToLower(strings.TrimSpace(model))
+	var key []int
+	i := 0
+	for i < len(m) {
+		if m[i] < '0' || m[i] > '9' {
+			i++
+			continue
+		}
+		j := i
+		for j < len(m) && m[j] >= '0' && m[j] <= '9' {
+			j++
+		}
+		n, _ := strconv.Atoi(m[i:j])
+		key = append(key, n)
+		i = j
 	}
-	for i := range claudeSub {
-		out = append(out, pickerRow{lm: claudeSub[i], section: sectionClaudeSub})
+	return key
+}
+
+func compareVersionKeysDesc(a, b []int) int {
+	n := len(a)
+	if len(b) > n {
+		n = len(b)
 	}
-	for i := range catalogRows {
-		out = append(out, pickerRow{lm: catalogRows[i], section: sectionCatalog})
+	for i := 0; i < n; i++ {
+		var xa, xb int
+		if i < len(a) {
+			xa = a[i]
+		}
+		if i < len(b) {
+			xb = b[i]
+		}
+		if xa != xb {
+			return xa - xb
+		}
+	}
+	return 0
+}
+
+func modelHasSegment(model, keyword string) bool {
+	for _, seg := range strings.Split(strings.ToLower(strings.TrimSpace(model)), "-") {
+		if seg == keyword {
+			return true
+		}
+	}
+	return false
+}
+
+func isChatGPTBaseModel(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if !strings.HasPrefix(m, "gpt") {
+		return false
+	}
+	for _, seg := range strings.Split(m, "-") {
+		switch seg {
+		case "sol", "terra", "luna", "codex", "mini", "nano", "pro":
+			return false
+		}
+	}
+	return true
+}
+
+func bestListedMatching(lms []ListedModel, claimed map[string]bool, match func(string) bool) (ListedModel, bool) {
+	var best ListedModel
+	var bestVer []int
+	found := false
+	for i := range lms {
+		lm := lms[i]
+		if claimed[lmKey(lm)] || !match(lm.Model) {
+			continue
+		}
+		ver := modelVersionKey(lm.Model)
+		if !found || compareVersionKeysDesc(ver, bestVer) > 0 || (compareVersionKeysDesc(ver, bestVer) == 0 && lm.Model < best.Model) {
+			best = lm
+			bestVer = ver
+			found = true
+		}
+	}
+	return best, found
+}
+
+func orderChatGPTSubListedModels(lms []ListedModel) []ListedModel {
+	if len(lms) == 0 {
+		return lms
+	}
+	claimed := map[string]bool{}
+	var out []ListedModel
+	pick := func(match func(string) bool) {
+		lm, ok := bestListedMatching(lms, claimed, match)
+		if !ok {
+			return
+		}
+		out = append(out, lm)
+		claimed[lmKey(lm)] = true
+	}
+	pick(func(m string) bool { return modelHasSegment(m, "sol") })
+	pick(func(m string) bool { return modelHasSegment(m, "terra") })
+	pick(func(m string) bool { return modelHasSegment(m, "luna") })
+	pick(isChatGPTBaseModel)
+	pick(func(m string) bool { return modelHasSegment(m, "codex") })
+	pick(func(m string) bool { return modelHasSegment(m, "mini") })
+	pick(func(m string) bool { return modelHasSegment(m, "nano") })
+	var rest []ListedModel
+	for i := range lms {
+		if claimed[lmKey(lms[i])] {
+			continue
+		}
+		rest = append(rest, lms[i])
+	}
+	sort.Slice(rest, func(i, j int) bool {
+		if c := compareVersionKeysDesc(modelVersionKey(rest[i].Model), modelVersionKey(rest[j].Model)); c != 0 {
+			return c > 0
+		}
+		return rest[i].Model < rest[j].Model
+	})
+	return append(out, rest...)
+}
+
+func orderClaudeSubListedModels(lms []ListedModel) []ListedModel {
+	if len(lms) == 0 {
+		return lms
+	}
+	ids := make([]string, len(lms))
+	for i := range lms {
+		ids[i] = lms[i].Model
+	}
+	ordered := modelsapi.OrderClaudeSubModelIDs(ids)
+	out := make([]ListedModel, 0, len(lms))
+	for _, id := range ordered {
+		for i := range lms {
+			if lms[i].Model == id {
+				out = append(out, lms[i])
+				break
+			}
+		}
 	}
 	return out
 }
 
-func pickerIndexColWidth(rowCount int) int {
-	if rowCount <= 0 {
-		return 5
-	}
-	digits := len(strconv.Itoa(rowCount - 1))
-	if digits < 1 {
-		digits = 1
-	}
-	return digits + 3
+var pickerSectionTag = map[pickerSection]string{
+	sectionCurrent:  "(current)",
+	sectionRecent:   "(recent)",
+	sectionProvider: "",
+	sectionCatalog:  "",
 }
 
 func pickerMaxModelLen(rows []pickerRow) int {
 	max := 0
 	for i := range rows {
-		if n := len(rows[i].lm.Model); n > max {
+		label := rows[i].lm.Model
+		if rows[i].isProvider() {
+			label = rows[i].provOnly
+		}
+		if n := len(label); n > max {
 			max = n
 		}
 	}
@@ -449,18 +291,15 @@ func pickerMaxModelLen(rows []pickerRow) int {
 func pickerMaxProvBracketLen(rows []pickerRow) int {
 	max := 0
 	for i := range rows {
+		if rows[i].isProvider() {
+			continue
+		}
 		n := len(rows[i].lm.Prov) + 2
 		if n > max {
 			max = n
 		}
 	}
 	return max
-}
-
-var pickerSectionTag = map[pickerSection]string{
-	sectionCurrent:   "(current)",
-	sectionRecent:    "(recent)",
-	sectionClaudeSub: "(Claude Sub)",
 }
 
 func pickerMaxTagLen(rows []pickerRow) int {
@@ -476,9 +315,86 @@ func pickerMaxTagLen(rows []pickerRow) int {
 func writePickerModelLine(out io.Writer, idx, idxColW, modelColW, provColW, tagColW int, model, prov, tag string) {
 	provBracket := fmt.Sprintf("[%s]", prov)
 	if tag == "" {
-		fmt.Fprintf(out, "%-*d%-*s\t%-*s\n", idxColW, idx, modelColW, model, provColW, provBracket)
+		fmt.Fprintf(out, "%*d  %-*s\t%-*s\n", idxColW, idx, modelColW, model, provColW, provBracket)
 		return
 	}
-	fmt.Fprintf(out, "%-*d%-*s\t%-*s\t%-*s\n", idxColW, idx, modelColW, model, provColW, provBracket, tagColW, tag)
+	fmt.Fprintf(out, "%*d  %-*s\t%-*s\t%-*s\n", idxColW, idx, modelColW, model, provColW, provBracket, tagColW, tag)
 }
 
+func writePickerProviderLine(out io.Writer, idx, idxColW, modelColW int, prov string) {
+	fmt.Fprintf(out, "%*d  %-*s\n", idxColW, idx, modelColW, prov)
+}
+
+func writeSlashModelPickerHelp(out io.Writer, lastIdx int, hasMore bool, filterProv string) {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Select: index 0-%d", lastIdx)
+	if filterProv == "" {
+		b.WriteString(", provider index/name to open models")
+	} else {
+		b.WriteString(", paste exact model id")
+	}
+	if hasMore {
+		b.WriteString(", > for next page")
+	}
+	if filterProv != "" {
+		fmt.Fprintf(&b, " (filtered: %s; type all to reset)", filterProv)
+	}
+	fmt.Fprintln(out, b.String())
+}
+
+func printSlashModelPickerDisplay(out io.Writer, display []slashPickerDisplayRow) {
+	if len(display) == 0 {
+		return
+	}
+	rows := make([]pickerRow, len(display))
+	for i := range display {
+		rows[i] = display[i].pr
+	}
+	idxColW := pickerIndexColWidthForMax(displayMaxIndex(display))
+	modelColW := pickerMaxModelLen(rows)
+	provColW := pickerMaxProvBracketLen(rows)
+	tagColW := pickerMaxTagLen(rows)
+	printedRecents, printedProviders, printedModels := false, false, false
+	for _, dr := range display {
+		switch dr.pr.section {
+		case sectionRecent:
+			if !printedRecents {
+				fmt.Fprintln(out, "[recents]")
+				printedRecents = true
+			}
+		case sectionProvider:
+			if !printedProviders {
+				fmt.Fprintln(out, "[providers]")
+				printedProviders = true
+			}
+		case sectionCatalog:
+			if !printedModels {
+				fmt.Fprintln(out, "[models]")
+				printedModels = true
+			}
+		}
+		if dr.pr.isProvider() {
+			writePickerProviderLine(out, dr.index, idxColW, modelColW, dr.pr.provOnly)
+			continue
+		}
+		writePickerModelLine(out, dr.index, idxColW, modelColW, provColW, tagColW, dr.pr.lm.Model, dr.pr.lm.Prov, dr.pr.displayTag())
+	}
+}
+
+func displayMaxIndex(display []slashPickerDisplayRow) int {
+	max := 0
+	for _, dr := range display {
+		if dr.index > max {
+			max = dr.index
+		}
+	}
+	return max
+}
+
+func pickerIndexColWidthForMax(maxIdx int) int {
+	digits := len(strconv.Itoa(maxIdx))
+	if digits < 1 {
+		digits = 1
+	}
+	return digits
+}
