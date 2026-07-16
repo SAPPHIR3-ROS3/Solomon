@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,18 +19,85 @@ const anthropicAPIVersion = "2023-06-01"
 
 const anthropicOAuthBeta = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14"
 
-func CuratedAnthropicModels() []string {
-	return []string{
-		"claude-opus-4-8",
-		"claude-sonnet-4-6",
-		"claude-opus-4-6",
-		"claude-sonnet-4-5-20250929",
-		"claude-haiku-4-5-20251001",
+var claudeSubPriorityKeywords = []string{"mythos", "fable", "opus", "sonnet", "haiku"}
+
+func OrderClaudeSubModelIDs(ids []string) []string {
+	seen := map[string]bool{}
+	var all []string
+	for _, raw := range ids {
+		raw = strings.TrimSpace(raw)
+		if raw == "" || seen[raw] {
+			continue
+		}
+		seen[raw] = true
+		all = append(all, raw)
 	}
+	claimed := map[string]bool{}
+	var out []string
+	for _, kw := range claudeSubPriorityKeywords {
+		id, ok := bestClaudeIDMatching(all, kw, claimed)
+		if !ok {
+			continue
+		}
+		out = append(out, id)
+		claimed[id] = true
+	}
+	var rest []string
+	for _, id := range all {
+		if claimed[id] {
+			continue
+		}
+		rest = append(rest, id)
+	}
+	sort.Slice(rest, func(i, j int) bool {
+		if c := compareIntSlices(modelVersionKey(rest[i]), modelVersionKey(rest[j])); c != 0 {
+			return c > 0
+		}
+		return rest[i] < rest[j]
+	})
+	return append(out, rest...)
 }
 
-func CuratedClaudeSubModels() []string {
-	return PickAnthropicFlagshipModels(CuratedAnthropicModels())
+func bestClaudeIDMatching(ids []string, keyword string, claimed map[string]bool) (string, bool) {
+	var best string
+	var bestVer []int
+	found := false
+	for _, id := range ids {
+		if claimed[id] {
+			continue
+		}
+		m := strings.ToLower(id)
+		if !strings.Contains(m, keyword) {
+			continue
+		}
+		ver := modelVersionKey(m)
+		if !found || compareIntSlices(ver, bestVer) > 0 || (compareIntSlices(ver, bestVer) == 0 && id < best) {
+			best = id
+			bestVer = ver
+			found = true
+		}
+	}
+	return best, found
+}
+
+func modelVersionKey(model string) []int {
+	m := strings.ToLower(strings.TrimSpace(model))
+	var key []int
+	i := 0
+	for i < len(m) {
+		if m[i] < '0' || m[i] > '9' {
+			i++
+			continue
+		}
+		j := i
+		for j < len(m) && m[j] >= '0' && m[j] <= '9' {
+			j++
+		}
+		n, _ := strconv.Atoi(m[i:j])
+		key = append(key, n)
+		i = j
+	}
+	return key
 }
 
 func anthropicModelsURL(base string) string {
@@ -114,12 +182,14 @@ func ListAnthropic(baseURL, token string, oauthBearer bool) ([]string, error) {
 	return out, nil
 }
 
-var anthropicFlagshipIDRE = regexp.MustCompile(`(?i)^claude-(opus|sonnet|haiku)-(.+)$`)
+var anthropicFlagshipIDRE = regexp.MustCompile(`(?i)^claude-(mythos|fable|opus|sonnet|haiku)-(.+)$`)
 
 type anthropicLine int
 
 const (
-	anthropicLineOpus anthropicLine = iota
+	anthropicLineMythos anthropicLine = iota
+	anthropicLineFable
+	anthropicLineOpus
 	anthropicLineSonnet
 	anthropicLineHaiku
 )
@@ -148,8 +218,8 @@ func PickAnthropicFlagshipModels(ids []string) []string {
 			bestRank[line] = rank
 		}
 	}
-	order := []anthropicLine{anthropicLineOpus, anthropicLineSonnet, anthropicLineHaiku}
-	out := make([]string, 0, 3)
+	order := []anthropicLine{anthropicLineMythos, anthropicLineFable, anthropicLineOpus, anthropicLineSonnet, anthropicLineHaiku}
+	out := make([]string, 0, 5)
 	for _, line := range order {
 		if id := best[line]; id != "" {
 			out = append(out, id)
@@ -179,6 +249,10 @@ func rankAnthropicModelID(id string) (anthropicLine, anthropicModelRank, bool) {
 	}
 	var line anthropicLine
 	switch sub[1] {
+	case "mythos":
+		line = anthropicLineMythos
+	case "fable":
+		line = anthropicLineFable
 	case "opus":
 		line = anthropicLineOpus
 	case "sonnet":

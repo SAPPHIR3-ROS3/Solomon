@@ -127,12 +127,7 @@ func setupClaudeSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root
 }
 
 func listAnthropicModelsForSetup(p *Provider, bearer string) ([]string, error) {
-	ids, err := modelsapi.ListAnthropic(p.BaseURL, bearer, true)
-	if err != nil {
-		logging.Log(logging.WARNING_LOG_LEVEL, "anthropic model list failed during Claude Sub setup; using curated list", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		ids = modelsapi.CuratedAnthropicModels()
-	}
-	return modelsapi.PickAnthropicFlagshipModels(ids), nil
+	return modelsapi.ListAnthropic(p.BaseURL, bearer, true)
 }
 
 func setupChatGPTSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root, opts ProviderSetupOpts) (*ProviderSetupResult, error) {
@@ -148,7 +143,13 @@ func setupChatGPTSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Roo
 	if err != nil {
 		return nil, err
 	}
-	ids := codex.SubModelCatalog()
+	ids, err := codex.ListModels(ctx, tokens.AccessToken, tokens.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("ChatGPT Sub: no usable models returned by API")
+	}
 	return FinalizeProviderSetup(pio, cfg, existing, opts, prov, ids)
 }
 
@@ -180,7 +181,7 @@ func setupAnthropicCompatibleAPI(pio PromptIO, cfg *Root, existing *Root, opts P
 	if IsAnthropicClaudeCodeOAuthToken(prov.APIKey) {
 		WriteAnthropicClaudeCodeOAuthWarning(out)
 	}
-	fmt.Fprint(out, "Using curated Anthropic model list…\n")
+	fmt.Fprint(out, "Fetching Anthropic models…\n")
 	return FinalizeProviderSetup(pio, cfg, existing, opts, prov, ids)
 }
 
@@ -243,8 +244,7 @@ func readCompatibleAPIProvider(pio PromptIO, opts ProviderSetupOpts, protocol, d
 		oauth := IsAnthropicClaudeCodeOAuthToken(key)
 		ids, err := modelsapi.ListAnthropic(norm, key, oauth)
 		if err != nil {
-			logging.Log(logging.WARNING_LOG_LEVEL, "anthropic model list failed during setup; using curated list", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-			ids = modelsapi.CuratedAnthropicModels()
+			return Provider{}, nil, err
 		}
 		return p, modelsapi.PickAnthropicFlagshipModels(ids), nil
 	}
