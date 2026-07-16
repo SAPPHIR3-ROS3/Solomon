@@ -92,12 +92,21 @@ func subagentCommand(d Deps, cmd, target string) error {
 	}
 	switch cmd {
 	case "stop":
+		if d.ControlSubagent != nil {
+			return d.ControlSubagent(sess.ID, cmd)
+		}
 		sess.Status = chatstore.SubStatusPaused
 		return chatstore.WriteSubSession(sess.ProjectHex, sess)
 	case "cancel":
+		if d.ControlSubagent != nil {
+			return d.ControlSubagent(sess.ID, cmd)
+		}
 		sess.Status = chatstore.SubStatusCancelled
 		return chatstore.WriteSubSession(sess.ProjectHex, sess)
 	case "resume":
+		if d.ControlSubagent != nil {
+			return d.ControlSubagent(sess.ID, cmd)
+		}
 		if chatstore.SubSessionRunning(sess.Status) {
 			return fmt.Errorf("subagent %s is running; stop first", sess.ID)
 		}

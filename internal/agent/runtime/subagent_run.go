@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/turnloop"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/title"
 )
 
@@ -33,6 +33,14 @@ func (r *Runtime) getNestedState() *activeNestedState {
 func (r *Runtime) runSubagentTool(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
 	if r.nestedActive() {
 		return r.delegateSubagentFromNested(ctx, cfg)
+	}
+	if cfg.Interrupt {
+		if cfg.ResumeID == "" {
+			return NestedRunResult{}, fmt.Errorf("interrupt requires resume")
+		}
+		if err := globalSubagentRegistry.cancelAndWait(cfg.ResumeID, 10*time.Second); err != nil {
+			return NestedRunResult{}, err
+		}
 	}
 	if cfg.ResumeID != "" && globalSubagentRegistry.isRunning(cfg.ResumeID) {
 		return NestedRunResult{}, fmt.Errorf("subchat %s is running; use /subagent stop first", cfg.ResumeID)

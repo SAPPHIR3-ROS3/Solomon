@@ -109,15 +109,13 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		usageTurns = nil
 	}
 	effort, forceDisable := r.Cfg.EffectiveSubagentReasoningEffort(cfg.ReasoningEffort)
-	if sess.ReasoningEffort != "" {
+	if strings.TrimSpace(cfg.ReasoningEffort) == "" && sess.ReasoningEffort != "" {
 		effort, forceDisable = r.Cfg.EffectiveSubagentReasoningEffort(sess.ReasoningEffort)
 	}
-	_ = effort
-
 	for iteration := 0; iteration < 512; iteration++ {
 		dur := time.Duration(config.SubagentTimeout(r.Cfg)) * time.Minute
 		roundCtx, cancel := context.WithDeadline(ctx, time.Now().Add(dur))
-		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable, cfg)
+		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable, effort, cfg)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
 			flushUsageStats()

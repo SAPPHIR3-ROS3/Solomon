@@ -46,6 +46,16 @@ func TestParseSubagentArgsRunInBackgroundString(t *testing.T) {
 	}
 }
 
+func TestParseSubagentArgsInterrupt(t *testing.T) {
+	a, err := agenttools.ParseSubagentArgsForTest(json.RawMessage(`{"resume":"sub-1","interrupt":true,"task":"continue"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !a.Interrupt || a.Resume != "sub-1" {
+		t.Fatalf("args=%+v", a)
+	}
+}
+
 func TestFormatToolDisplayLines_subagentAsyncModeInHeader(t *testing.T) {
 	args, _ := json.Marshal(map[string]any{
 		"sysPromptPath":     "agent.tmpl",

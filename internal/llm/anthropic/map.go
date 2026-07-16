@@ -264,7 +264,7 @@ func applyOAuthThinking(body map[string]any, req apitype.TurnRequest) {
 		return
 	}
 	body["thinking"] = map[string]any{"type": "adaptive", "display": "summarized"}
-	if effort := oauthEffortFromConfig(req.Cfg); effort != "" {
+	if effort := oauthEffortFromConfig(req.Cfg, req.ReasoningEffort); effort != "" {
 		body["output_config"] = map[string]any{"effort": effort}
 	}
 }
@@ -278,11 +278,15 @@ func modelUsesAdaptiveThinking(model string) bool {
 	return false
 }
 
-func oauthEffortFromConfig(cfg *config.Root) string {
+func oauthEffortFromConfig(cfg *config.Root, override string) string {
 	if cfg == nil {
-		return "high"
+		cfg = &config.Root{}
 	}
-	c, err := config.ParseReasoningEffortToken(cfg.ReasoningEffort)
+	token := cfg.ReasoningEffort
+	if strings.TrimSpace(override) != "" {
+		token = override
+	}
+	c, err := config.ParseReasoningEffortToken(token)
 	if err != nil || c == "none" {
 		return "high"
 	}

@@ -59,8 +59,9 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		ReleaseSessionFileLock: r.releaseReplSessionFileLock,
 		MutateSession:          r.mutateSession,
 
-		SetMode: func(m string) { r.Mode = m },
-		GetMode: func() string { return r.Mode },
+		SetMode:         func(m string) { r.Mode = m },
+		GetMode:         func() string { return r.Mode },
+		ControlSubagent: r.controlSubagent,
 
 		ApplyCurrentModel: r.ApplyCurrentModel,
 		Model:             func() string { return r.Model },

@@ -344,6 +344,10 @@ function normalizeSubagentArgsFromRaw(raw: unknown): Record<string, unknown> | n
   if (bg !== undefined) {
     out.run_in_background = bg;
   }
+  const interrupt = pickOptionalBool(obj, ["interrupt"]);
+  if (interrupt !== undefined) {
+    out.interrupt = interrupt;
+  }
   const reasoning = pickString(obj, ["reasoningEffort", "reasoning_effort"]);
   if (reasoning) {
     out.reasoningEffort = reasoning;

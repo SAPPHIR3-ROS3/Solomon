@@ -23,7 +23,7 @@ func (b *OpenAIBackend) buildParams(req TurnRequest) openai.ChatCompletionNewPar
 		Tools:             tools,
 		ParallelToolCalls: param.NewOpt(req.ParallelToolCalls),
 	}
-	ApplyProviderTurnParams(ProtocolOpenAI, req.Cfg, &p, req.ForceDisableReasoning)
+	ApplyProviderTurnParamsWithEffort(ProtocolOpenAI, req.Cfg, &p, req.ForceDisableReasoning, req.ReasoningEffort)
 	return p
 }
 

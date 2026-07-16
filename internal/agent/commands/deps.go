@@ -40,8 +40,9 @@ type Deps struct {
 	AcquireSessionFileLock func() error
 	ReleaseSessionFileLock func()
 
-	SetMode func(string)
-	GetMode func() string
+	SetMode         func(string)
+	GetMode         func() string
+	ControlSubagent func(id, action string) error
 
 	ApplyCurrentModel            func(providerName, modelID string) error
 	Model                        func() string
@@ -63,7 +64,7 @@ type Deps struct {
 	PrintWelcomeBanner func()
 
 	CheckForUpdate func(force bool) (*updater.Notice, error)
-	InstallUpdate    func(tag string) error
+	InstallUpdate  func(tag string) error
 
 	CheckpointGoto   func(*checkpoint.FullCheckpointID) error
 	CheckpointRewind func(*checkpoint.RewindPlan) error
