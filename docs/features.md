@@ -272,10 +272,6 @@ External memory (MemPalace or similar) plus Obsidian vault conventions would ext
 
 Today `find` with `files=false` is deterministic regexp search; the Cursor sidecar maps `SemanticSearch` to that fallback. A dedicated semantic or embedding-backed code search tool (or MCP-backed index) would answer concept queries (“where is auth handled?”) without known symbol strings.
 
-### Oracle consultative agent **(in the future)**
-
-A dedicated **Oracle** role (verification, routing, second opinion) is not implemented. Would integrate as a slash command or tool without duplicating existing skills.
-
 ### Reinforced image placeholder syntax **(in the future)**
 
 Replace visible `[img-n]` tokens with robust invisible Unicode delimiters to avoid collisions and ambiguous stripping, then align prompts in [Template and images (in the future)](#template-and-image-prompts-in-the-future).

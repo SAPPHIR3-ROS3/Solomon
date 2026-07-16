@@ -4,44 +4,29 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ---
 
-## 1 — Oracolo
-
-- **Stato:** non presente nel prodotto.
-- **Cosa manca:** **aggiunta dell'Oracolo** — definire ruolo (consultazione, verifica, routing domande, output UX) e implementarlo nel flusso Solomon senza duplicare slash/tool esistenti.
-
----
-
-## 2 — Deep research (stile Odysseus)
+## 1 — Deep research (stile Odysseus)
 
 - **Stato:** **MVP parziale in corso** — presenti `internal/research` (loop multi-round), tool `deepResearch` / `researchStatus`, slash `/research` (`list`, `status`, `stop`, `delete`, `resume`), job JSON persistiti in `projects/<id>/research/`, report HTML con TLDR, progress in REPL, pause su errore LLM e resume, tracking fallimenti URL/search (no silenziosi), stats in list. Fonti **solo web** (via `webfetch` + `internal/search`). Fetch web migliorato (UA browser, retry 429/503, cookie jar, `[web_fetch]` in config).
 - **Cosa manca:** integrazione **file progetto** e **MCP** oltre al web; budget **token/tempo** più esplicito in UX e config; stima costi vs `usage` API più chiara; qualità estrazione (readability, meno `low_quality`); retry URL fallite al resume; eventuale `robots.txt` / delay per host; polish report HTML; test end-to-end su job lunghi con LLM locale.
-- **Dipende da:** credenziali ricerca web più sane dopo **§3** vault, ma non bloccante per un MVP.
+- **Dipende da:** credenziali ricerca web più sane dopo **§2** vault, ma non bloccante per un MVP.
 
----
-
-## 3 — Vault sicuro (informazioni sensibili)
+## 2 — Vault sicuro (informazioni sensibili)
 
 - **Stato:** API key e altri segreti rilevanti sono principalmente nel **TOML** di configurazione in chiaro; nessun **vault** dedicato né uso sistematico di **Keychain** (macOS), **Credential Manager** (Windows), **libsecret** (Linux), o equivalente unificato.
 - **Cosa manca:** progettare e implementare un **vault sicuro** centralizzato per tutte le info sensibili (chiavi provider, token OAuth ChatGPT Sub / Claude Sub, credenziali per ricerca web o MCP dove applicabile); API di lettura a runtime senza esporre plaintext su disco oltre il necessario; **migrazione** guidata da config legacy; chiarezza su headless/CI e backup/ripristino senza falle.
 
----
-
-## 4 — LSP
+## 3 — LSP
 
 - **Stato:** nessun aggancio LSP; Solomon resta **solo terminale** + tool file/shell/MCP.
 - **Cosa manca (se lo vorrai):** un client LSP (anche minimale) che alimenti il contesto: diagnostiche, simboli, "go to definition", errori di compilazione nel buffer del workspace — senza dover aprire l'IDE.
 - **Nota:** è un ampliamento netto di superficie (processo server, protocollo, caching); utile soprattutto per **errori e navigazione**, non per sostituire l'IDE.
 
----
-
-## 5 — Memoria (MemPalace) e Obsidian
+## 4 — Memoria (MemPalace) e Obsidian
 
 - **Stato:** non integrato; sessioni e contesto restano chat + file progetto come oggi.
 - **Cosa manca:** layer di **memoria esterna** basato su MemPalace (o equivalente scelto), con regole di lettura/scrittura; **integrazione Obsidian** (vault path, note come artefatti, sync convenzioni link/path) e confini tra memoria di progetto vs memoria personale.
 
----
-
-## 6 — Sicurezza
+## 5 — Sicurezza
 
 - **Stato:** `shell` è **comando reale** sulla macchina, nella working directory del progetto; `readFile`/`editFile` risolvono path senza **path jail** forte (path assoluti possono uscire dalla root; symlink/`..` non sono trattati come "cage" del workspace). MCP ha allow/deny per nome tool sul server, ma l'host resta potente.
 - **Integrità stream SSE (fail-closed):** in [`internal/llm/stream/completion.go`](internal/llm/stream/completion.go), `StreamText` e `StreamAssistantTurn` abortiscono il turno se `ChatCompletionAccumulator.AddChunk` rifiuta un chunk (tipicamente `id` completion incoerente nello stesso stream). Nessun salvage di `ReasoningText`, content o usage in sessione — possibile forgery / jailbreak surface, stessa filosofia del rifiuto delle completion forgiate lato provider. Errore: `llm.ErrStreamAccumulatorRejected`. Test: [`test/stream_integrity_test.go`](test/stream_integrity_test.go). Output già stampato sul terminale prima dell'abort può restare visibile ma non viene persistito.
@@ -52,7 +37,7 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## LOW PRIORITY
 
-- **Web UI minimale:** Solomon è **solo terminale** (REPL + slash + tool); nessuna superficie HTTP/browser per sessioni o turni. **Cosa manca (opzionale):** web UI minimale che sfrutti le feature esistenti — avvio sessione, invio messaggi, stream risposta/reasoning, visualizzazione tool call e risultati, usage/token, immagini, slash essenziali; backend locale (es. API su loopback) sullo stesso runtime/agent senza duplicare logica; bind solo localhost di default; scope iniziale chat + stato, senza sostituire REPL per shell/edit finché non serve. **Dipende da:** **§6** Sicurezza (o policy equivalente) prima di esporre tool potenti oltre il TTY; ampliamento di superficie simile a LSP (§4).
+- **Web UI minimale:** Solomon è **solo terminale** (REPL + slash + tool); nessuna superficie HTTP/browser per sessioni o turni. **Cosa manca (opzionale):** web UI minimale che sfrutti le feature esistenti — avvio sessione, invio messaggi, stream risposta/reasoning, visualizzazione tool call e risultati, usage/token, immagini, slash essenziali; backend locale (es. API su loopback) sullo stesso runtime/agent senza duplicare logica; bind solo localhost di default; scope iniziale chat + stato, senza sostituire REPL per shell/edit finché non serve. **Dipende da:** **§5** Sicurezza (o policy equivalente) prima di esporre tool potenti oltre il TTY; ampliamento di superficie simile a LSP (§3).
 
 - **`chzyer/readline` su Windows — sequenze ANSI estese nel prompt:** il parser ANSI di readline v1.5.1 (`ansi_windows.go`) tratta erroneamente i codici SGR `38`/`48` (true color / 256 color) come indici colore base 30–37 e va in panic (`index out of range [8]`). Workaround attuale: `termcolor.WrapUserReadline` usa solo sequenze basic (`\033[96m`) nei prompt passati a readline su Windows. **Cosa manca (opzionale):** patch upstream o fork di readline con supporto `38;2;…` / `38;5;…`, oppure sostituire readline con una libreria TTY cross-platform che gestisca il true color; finché resta readline, evitare lipgloss/true color su qualsiasi stringa che passa da `SetPrompt` / `Readline` su Windows.
 
