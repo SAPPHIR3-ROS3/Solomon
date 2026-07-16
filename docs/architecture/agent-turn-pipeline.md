@@ -104,7 +104,7 @@ The `subagent` tool calls [`nested.go`](../../internal/agent/runtime/nested.go) 
 | Entry | `tools/subagent` → `Runtime.runNested` or `runNestedWithSystem` |
 | Prompt | Build-mode template by default; optional custom `sysPromptPath` merged with inherited instructions |
 | Tools | Build tool dump + MCP dump; legacy syntax appended when `[tools].legacy` and not full build template |
-| Result | Consolidated string returned to parent tool message (subchat files optional) |
+| Result | Synchronous run returns consolidated text and `status=done`; background run returns `subchatId` immediately and persists the result in the subchat |
 
 Subchat persistence: [Sessions and storage](sessions-and-storage.md).
 
