@@ -2,6 +2,11 @@
 /cursor-bundler*
 /cursor_bundler*
 /bin/
+*node_modules*
+/ui-prototypes/dist/
+/ui-prototypes/*.tsbuildinfo
+/ui-prototypes/vite.config.js
+/ui-prototypes/vite.config.d.ts
 /solomon.exe~
 /*.exe~
 /scripts/cursor-bundler.exe
@@ -12,7 +17,6 @@
 .solomon/
 
 # Cursor API integration (TypeScript / Node)
-integrations/cursor/node_modules/
 integrations/cursor/dist/
 integrations/cursor/.test/
 integrations/cursor/.solomon-cursor-guard/

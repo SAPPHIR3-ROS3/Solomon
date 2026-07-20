@@ -9,12 +9,13 @@ How Solomon tests are organized, which style to use, and shared helpers. Command
 | Location | All tests in top-level [`test/`](../../test/), package name `test` |
 | Colocation | Do **not** add `*_test.go` next to `internal/` sources |
 | Init | [`test/init_test.go`](../../test/init_test.go) — `TestMain` sets logging for the suite |
-| CI | `go vet ./...`, `go test ./... -count=1`, `make check-docs` (doc links, anchors, code paths, package index) ([`release.yml`](../../.github/workflows/release.yml)) |
+| CI | UI prototype build, `go vet ./...`, `go test ./... -count=1`, `make check-docs` (doc links, anchors, code paths, package index) ([`release.yml`](../../.github/workflows/release.yml)) |
 
 Run everything:
 
 ```bash
 go test ./... -count=1
+npm --prefix ui-prototypes test
 ```
 
 Focused:
