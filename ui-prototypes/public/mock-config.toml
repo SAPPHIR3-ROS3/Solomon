@@ -1,0 +1,439 @@
+[gallery]
+active_prototype = "current"
+active_view = "agent"
+
+[workspace]
+name = "Solomon"
+branch = "feat/web-ui"
+root = "/Users/oni/Desktop/Projects/Golang/Solomon"
+
+[session]
+model = "composer-2.5"
+reasoning_effort = "high"
+fast_mode = true
+
+[editor]
+autosave_delay_ms = 1000
+autosave_max_delay_ms = 5000
+active_file = "internal/server/static.go"
+
+[ui]
+layers = ["dark-theme", "custom"]
+write_layer = "custom"
+
+[[conversations]]
+id = "embedded-ui"
+folder = "Solomon"
+title = "Embedded web interface"
+summary = "Layered assets and safe fallback"
+status = "running"
+checkpoint = "#042"
+prompt = "Implement the embedded interface fallback and keep external UI layers composable."
+response = "The server now resolves active layers in reverse priority order and falls back to the embedded UI. API routes bypass the asset handler, and failed custom builds return every client to the trusted default."
+change_paths = ["internal/server/static.go", "internal/server/server.go", "internal/server/static_test.go"]
+
+[[conversations]]
+id = "tailscale-pairing"
+folder = "Network Lab"
+title = "Tailscale device pairing"
+summary = "Approval flow for remote clients"
+status = "idle"
+checkpoint = "#037b"
+prompt = "Design device pairing through Tailscale without giving the tailnet automatic access."
+response = "Tailscale supplies network identity, while Solomon remains the authorization authority. New devices wait for approval from a trusted client or use a one-time code shown locally."
+change_paths = ["internal/server/auth.go", "internal/server/passkey.go", "docs/user-guide/tailscale.md"]
+
+[[conversations]]
+id = "checkpoint-api"
+folder = "Solomon"
+title = "Checkpoint API"
+summary = "Expose branch and rewind operations"
+status = "idle"
+checkpoint = "#031"
+prompt = "Expose checkpoints to the public API without duplicating runtime logic."
+response = "Checkpoint operations now pass through a shared application service used by both the terminal and HTTP handlers. The API returns branch labels and affected workspace files."
+change_paths = ["internal/checkpoint/label.go", "internal/server/checkpoints.go", "docs/api/checkpoints.md"]
+
+[[conversations]]
+id = "cursor-bridge"
+folder = "Solomon / integrations / cursor"
+title = "Cursor bridge events"
+summary = "Normalize tool events from the sidecar"
+status = "idle"
+checkpoint = "#019"
+prompt = "Normalize Cursor tool events before forwarding them to the runtime."
+response = "The bridge now emits the same event envelope used by native tools, so the terminal and Web UI can render one timeline model."
+change_paths = ["internal/agent/runtime/core.go", "cmd/solomon/serve.go"]
+
+[[conversations]]
+id = "ui-gallery"
+folder = "Solomon / ui-prototypes"
+title = "Interface gallery"
+summary = "Compare Agent and Editor layouts"
+status = "idle"
+checkpoint = "#008"
+prompt = "Build several independent interface directions without coupling them to the Go server."
+response = "The gallery now reads mock TOML data, keeps Agent and Editor state, and exposes every direction through a stable URL."
+change_paths = ["README.md", "docs/architecture/README.md", "Makefile"]
+
+[[files]]
+path = "internal/server/static.go"
+kind = "go"
+status = "modified"
+additions = 41
+deletions = 8
+content = '''package server
+
+import (
+    "io/fs"
+    "net/http"
+    "path/filepath"
+    "strings"
+)
+
+// layeredAssets resolves custom UI files before embedded defaults.
+type layeredAssets struct {
+    base   fs.FS
+    layers []fs.FS
+}
+
+func (l layeredAssets) Open(name string) (fs.File, error) {
+    clean := filepath.ToSlash(filepath.Clean(name))
+    for i := len(l.layers) - 1; i >= 0; i-- {
+        file, err := l.layers[i].Open(clean)
+        if err == nil {
+            return file, nil
+        }
+    }
+    return l.base.Open(clean)
+}
+
+func uiHandler(assets fs.FS, api http.Handler) http.Handler {
+    files := http.FileServer(http.FS(assets))
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if strings.HasPrefix(r.URL.Path, "/v1/") {
+            api.ServeHTTP(w, r)
+            return
+        }
+        files.ServeHTTP(w, r)
+    })
+}'''
+
+[[files]]
+path = "internal/server/server.go"
+kind = "go"
+status = "modified"
+additions = 18
+deletions = 4
+content = '''package server
+
+import (
+    "context"
+    "embed"
+    "net/http"
+)
+
+//go:embed ui/dist/*
+var defaultUI embed.FS
+
+type Server struct {
+    http    *http.Server
+    ui      *UIManager
+    project Project
+}
+
+func (s *Server) Handler() http.Handler {
+    mux := http.NewServeMux()
+    mux.Handle("/v1/", s.apiHandler())
+    mux.Handle("/", s.ui.Handler(defaultUI))
+    return mux
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+    return s.http.Shutdown(ctx)
+}'''
+
+[[files]]
+path = "internal/server/static_test.go"
+kind = "go"
+status = "added"
+additions = 25
+deletions = 0
+content = '''package server
+
+import (
+    "io/fs"
+    "testing"
+    "testing/fstest"
+)
+
+func TestLayeredAssetsPreferLastLayer(t *testing.T) {
+    base := fstest.MapFS{"index.html": {Data: []byte("base")}}
+    custom := fstest.MapFS{"index.html": {Data: []byte("custom")}}
+    assets := layeredAssets{base: base, layers: []fs.FS{custom}}
+
+    file, err := assets.Open("index.html")
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer file.Close()
+}'''
+
+[[files]]
+path = "internal/server/auth.go"
+kind = "go"
+status = "modified"
+additions = 36
+deletions = 9
+content = '''package server
+
+type DeviceStatus string
+
+const (
+    DevicePending  DeviceStatus = "pending"
+    DeviceApproved DeviceStatus = "approved"
+    DeviceRevoked  DeviceStatus = "revoked"
+)
+
+type DeviceRecord struct {
+    ID                string
+    Name              string
+    TailscaleIdentity string
+    Status            DeviceStatus
+    Permissions       map[string]bool
+}
+
+func (d DeviceRecord) Can(capability string) bool {
+    return d.Status == DeviceApproved && d.Permissions[capability]
+}'''
+
+[[files]]
+path = "internal/server/passkey.go"
+kind = "go"
+status = "modified"
+additions = 19
+deletions = 5
+content = '''package server
+
+import "net/http"
+
+func (s *Server) handleDeviceApproval(w http.ResponseWriter, r *http.Request) {
+    actor := s.authenticatedDevice(r.Context())
+    if !actor.Can("manage_devices") {
+        writeError(w, http.StatusForbidden, "missing capability: manage_devices")
+        return
+    }
+    // Approval issues a credential bound to the pending device.
+}'''
+
+[[files]]
+path = "docs/user-guide/tailscale.md"
+kind = "markdown"
+status = "added"
+additions = 72
+deletions = 0
+content = '''# Remote access with Tailscale
+
+Solomon can detect an existing Tailscale installation and expose the web interface through Tailscale Serve.
+
+## Security model
+
+Tailscale controls network reachability. Solomon still approves every device and enforces its capabilities.
+
+1. Start Solomon locally.
+2. Enable Tailscale Serve from Remote access settings.
+3. Open the MagicDNS URL on another device.
+4. Approve the pending device from an existing trusted client.
+'''
+
+[[files]]
+path = "internal/checkpoint/label.go"
+kind = "go"
+status = "modified"
+additions = 12
+deletions = 3
+content = '''package checkpoint
+
+import "fmt"
+
+type FullID struct {
+    Sequence int
+    Branch   string
+}
+
+func (id FullID) String() string {
+    return fmt.Sprintf("#%03d%s", id.Sequence, id.Branch)
+}'''
+
+[[files]]
+path = "internal/server/checkpoints.go"
+kind = "go"
+status = "added"
+additions = 88
+deletions = 0
+content = '''package server
+
+import "net/http"
+
+func (s *Server) handleListCheckpoints(w http.ResponseWriter, r *http.Request) {
+    conversationID := r.PathValue("conversation_id")
+    checkpoints, err := s.checkpoints.List(r.Context(), conversationID)
+    if err != nil {
+        writeAPIError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, checkpoints)
+}'''
+
+[[files]]
+path = "docs/api/checkpoints.md"
+kind = "markdown"
+status = "added"
+additions = 64
+deletions = 0
+content = '''# Checkpoint API
+
+Checkpoint endpoints expose the same operations used by the terminal runtime.
+
+## List checkpoints
+
+`GET /v1/conversations/{conversation_id}/checkpoints`
+
+## Restore a checkpoint
+
+`POST /v1/conversations/{conversation_id}/checkpoints/{checkpoint_id}/restore`
+
+Restoring a checkpoint rewinds the transcript and replays staged file operations.
+'''
+
+[[files]]
+path = "cmd/solomon/main.go"
+kind = "go"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''package main
+
+import (
+    "context"
+    "os"
+)
+
+func main() {
+    ctx := context.Background()
+    os.Exit(run(ctx, os.Args[1:]))
+}'''
+
+[[files]]
+path = "cmd/solomon/serve.go"
+kind = "go"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''package main
+
+import "context"
+
+func runServeCLI(ctx context.Context, args []string) error {
+    // Resolve the current project and start the authenticated server.
+    return nil
+}'''
+
+[[files]]
+path = "internal/config/server.go"
+kind = "go"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''package config
+
+type Server struct {
+    Bind      string `toml:"bind,omitempty"`
+    Port      int    `toml:"port,omitempty"`
+    StaticDir string `toml:"static_dir,omitempty"`
+}
+'''
+
+[[files]]
+path = "internal/agent/runtime/core.go"
+kind = "go"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''package runtime
+
+type Runtime struct {
+    Model       string
+    ProjRoot    string
+    ProjHex     string
+    CurrentMode string
+}
+'''
+
+[[files]]
+path = "internal/chatstore/session.go"
+kind = "go"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''package chatstore
+
+import "time"
+
+type Session struct {
+    ID            string
+    CreatedAt     time.Time
+    LastMessageAt time.Time
+}
+'''
+
+[[files]]
+path = "docs/architecture/README.md"
+kind = "markdown"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''# Solomon architecture
+
+Solomon is organized around a reusable agent runtime, public server API, persistent chat store, and project-aware tooling.
+'''
+
+[[files]]
+path = "go.mod"
+kind = "go.mod"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''module github.com/SAPPHIR3-ROS3/Solomon/v2026
+
+go 1.25.0
+
+require (
+    github.com/openai/openai-go/v2 v2.7.1
+    github.com/modelcontextprotocol/go-sdk v1.6.1
+)
+'''
+
+[[files]]
+path = "README.md"
+kind = "markdown"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''# Solomon
+
+Interactive terminal and remote interface for project-aware coding agents.
+'''
+
+[[files]]
+path = "Makefile"
+kind = "makefile"
+status = "clean"
+additions = 0
+deletions = 0
+content = '''build:
+\tgo build ./cmd/solomon
+
+test:
+\tgo test ./...
+'''

@@ -1,4 +1,4 @@
-.PHONY: solomon build install test check-docs loc-chart cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install test check-docs loc-chart cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -31,6 +31,7 @@ BUILD_FLAGS := -trimpath -ldflags="$(LDFLAGS)"
 
 CURSOR_BUNDLER := go run scripts/cursor_bundler.go
 CURSOR_PROXY_DIR := integrations/cursor
+UI_PROTOTYPES_DIR := ui-prototypes
 
 ifeq ($(GOOS),windows)
 FIX_TTY =
@@ -70,6 +71,15 @@ cursor-proxy-test:
 cursor-proxy-test-clean:
 	@$(MAKE) cursor-proxy-test; status=$$?; $(MAKE) clean-cursor-proxy; exit $$status
 
+ui-prototypes-dev:
+	npm --prefix $(UI_PROTOTYPES_DIR) run dev
+
+ui-prototypes-build:
+	npm --prefix $(UI_PROTOTYPES_DIR) run build
+
+ui-prototypes-test:
+	npm --prefix $(UI_PROTOTYPES_DIR) test
+
 # Remove generated Cursor proxy artifacts (test bundle dir + runtime guard dir).
 clean-cursor-proxy:
 ifeq ($(GOOS),windows)
@@ -88,7 +98,7 @@ cursor-bundle: cursor-build
 solomon build: cursor-bundle
 	go build $(BUILD_FLAGS) -o $(OUT) ./cmd/solomon
 
-test: cursor-bundle
+test: cursor-bundle ui-prototypes-test
 	go test ./... -count=1
 
 check-docs:
