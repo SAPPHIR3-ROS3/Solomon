@@ -562,7 +562,7 @@ function loremForWordCount(wordCount: number) {
 }
 
 export function DeepPrototype(props: PrototypeProps) {
-  const { config, mode, setMode, conversation, file, openFile } = props;
+  const { config, mode, setMode, conversation, openFile } = props;
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const [editorSideCollapsed, setEditorSideCollapsed] = useState(false);
   const [editorSideWidth, setEditorSideWidth] = useState(248);
@@ -1028,11 +1028,14 @@ export function DeepPrototype(props: PrototypeProps) {
     const index = deepEditorTabs.findIndex((tab) => tab.id === id);
     const next = deepEditorTabs.filter((tab) => tab.id !== id);
     setDeepEditorTabs(next);
-    if (id === deepActiveEditorTabId && next.length) {
-      const nextTab = next[Math.min(index, next.length - 1)];
-      setDeepActiveEditorTabId(nextTab.id);
-      openFile(nextTab.path);
+    if (id !== deepActiveEditorTabId) return;
+    if (!next.length) {
+      setDeepActiveEditorTabId("");
+      return;
     }
+    const nextTab = next[Math.min(index, next.length - 1)];
+    setDeepActiveEditorTabId(nextTab.id);
+    openFile(nextTab.path);
   };
   const startDeepGraphResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -1068,6 +1071,8 @@ export function DeepPrototype(props: PrototypeProps) {
   });
   const deepEditorRootCollapsed = deepCollapsedEditorFolders.has("__root__");
   const deepWorkspacePath = abbreviateDeepHomePath(config.workspace.root);
+  const deepActiveEditorTab = deepEditorTabs.find((tab) => tab.id === deepActiveEditorTabId);
+  const deepActiveFile = deepActiveEditorTab ? config.files.find((item) => item.path === deepActiveEditorTab.path) : undefined;
   const deepChromeStyle = { "--deep-side-width": `${mode === "editor" ? editorSideWidth : 248}px` } as CSSProperties;
   return (
     <div className="prototype deep-prototype">
@@ -1639,8 +1644,10 @@ export function DeepPrototype(props: PrototypeProps) {
               </div>
               </div>
             </section>
+          ) : !deepActiveFile ? (
+            <div className="deep-editor-blank" aria-label="No file open" />
           ) : (
-            <section className="deep-editor-workspace" aria-label={`Editing ${file.path}`}>
+            <section className="deep-editor-workspace" aria-label={`Editing ${deepActiveFile.path}`}>
               <nav className="deep-editor-tabs" aria-label="Open files">
                 {deepEditorTabs.map((tab) => {
                   const candidate = config.files.find((item) => item.path === tab.path);
@@ -1655,12 +1662,12 @@ export function DeepPrototype(props: PrototypeProps) {
                 })}
               </nav>
               <div className="deep-editor-breadcrumbs">
-                <DeepWorkspaceFileIcon fileName={file.path.split("/").at(-1) ?? file.path} />
-                {file.path.split("/").map((part, index, all) => <span key={`${part}-${index}`}>{part}{index < all.length - 1 ? <ChevronRight size={11} /> : null}</span>)}
-                <ChangeStats file={file} />
+                <DeepWorkspaceFileIcon fileName={deepActiveFile.path.split("/").at(-1) ?? deepActiveFile.path} />
+                {deepActiveFile.path.split("/").map((part, index, all) => <span key={`${part}-${index}`}>{part}{index < all.length - 1 ? <ChevronRight size={11} /> : null}</span>)}
+                <ChangeStats file={deepActiveFile} />
               </div>
               <div className="deep-editor-surface">
-                <TextEditor file={file} tone="deep" />
+                <TextEditor file={deepActiveFile} tone="deep" />
               </div>
               <footer className="deep-editor-status">
                 <span><i />Local draft</span>
