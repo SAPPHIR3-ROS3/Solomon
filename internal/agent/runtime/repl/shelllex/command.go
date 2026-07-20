@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt/shell"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt/shellutils"
 )
 
 var (
@@ -128,7 +128,7 @@ func executableStem(name string) string {
 }
 
 func ShellBuiltinsMap() map[string]struct{} {
-	return BuiltinsForShell(shell.Effective())
+	return BuiltinsForShell(shellutils.Effective())
 }
 
 func BuiltinsForShell(effectivePath string) map[string]struct{} {

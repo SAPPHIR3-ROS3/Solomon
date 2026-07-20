@@ -48,7 +48,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/config/` | TOML config load/merge | [Configuration](../user-guide/configuration.md) |
 | `internal/prompt/` | System prompt render (`RenderAgent`, `RenderChat`) | [Plan vs build](plan-vs-build.md) |
 | `internal/prompt/templates/` | Embedded `.tmpl` defaults (copied to `~/.solomon/prompts/templates/` at runtime) | [Plan vs build](plan-vs-build.md), [Configuration](../user-guide/configuration.md#prompt_templates-system-prompt-templates) |
-| `internal/prompt/shell/` | OS-specific shell hints in templates | [Supporting packages](supporting-packages.md) |
+| `internal/prompt/shellutils/` | OS-specific shell hints in templates | [Supporting packages](supporting-packages.md) |
 
 ## Feature
 
@@ -187,7 +187,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/paths/` | Core |
 | `internal/project/` | Core |
 | `internal/prompt/` | Core |
-| `internal/prompt/shell/` | Core |
+| `internal/prompt/shellutils/` | Core |
 | `internal/providersetup/` | Support |
 | `internal/research/` | Feature |
 | `internal/research/html/` | Feature |

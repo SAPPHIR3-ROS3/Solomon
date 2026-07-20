@@ -30,7 +30,7 @@ go test ./test -run TestRepl -count=1
 | Level | Use when | Typical setup |
 |-------|----------|---------------|
 | **Pure unit** | Parsers, labels, glob, legacy XML, atmention scoring | Call `internal/` directly; no disk/network |
-| **Component** | Slash handlers, editor keys, completion | [`testDeps`](../../test/helpers_test.go), [`*ForTest`](../../internal/agent/runtime/repl/editor/testexport.go) |
+| **Component** | Slash handlers, editor keys, completion | [`testDeps`](../../test/helpers_test.go), [`*ForTest`](../../internal/agent/runtime/repl/editor/editorhistory.go) |
 | **HTTP stub** | LLM resilience, Anthropic/OpenAI streams, Codex request shape | [`httptest.Server`](../../test/api_resilience_anthropic_test.go), mock OpenAI client |
 | **Filesystem** | `editFile`, skills registry, chatstore paths | [`t.TempDir()`](../../test/edit_file_test.go), temp project root |
 | **Minimal runtime** | Turn resolution, legacy force, tool routing | `&agentruntime.Runtime{...}` with fields set — no full REPL ([`legacy_runtime_test.go`](../../test/legacy_runtime_test.go)) |
@@ -65,12 +65,12 @@ There is **no** project-wide mock framework. Prefer real temp dirs and small str
 | Helper | File | Purpose |
 |--------|------|---------|
 | `testDeps(sess)` | [`helpers_test.go`](../../test/helpers_test.go) | Minimal [`commands.Deps`](../../internal/agent/commands/deps.go) for slash tests |
-| `NewMultilineEditorForTest` | [`editor/testexport.go`](../../internal/agent/runtime/repl/editor/testexport.go) | Editor buffer, keys, completion without a terminal |
+| `NewMultilineEditorForTest` | [`editor/editorhistory.go`](../../internal/agent/runtime/repl/editor/editorhistory.go) | Editor buffer, keys, completion without a terminal |
 | `NewInputHistoryForTest` | same | Input/shell history |
 | `ReplCompleteResetGoCacheForTest` | [`replcomplete/go.go`](../../internal/agent/runtime/replcomplete/go.go) | Reset `go` subcommand cache between tests |
 | `testToolOutputService` | [`tooloutput_test.go`](../../test/tooloutput_test.go) | Tool spill limits |
 
-When REPL behavior needs new assertions, add **`ForTest` exports** in `editor/testexport.go` rather than exporting production APIs.
+When REPL behavior needs new assertions, add **`ForTest` exports** in `editor/editorhistory.go` rather than exporting production APIs.
 
 ## Conventions
 

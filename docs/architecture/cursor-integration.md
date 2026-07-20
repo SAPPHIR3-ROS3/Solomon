@@ -102,7 +102,7 @@ If Composer emits **more than three consecutive proxy corrections** in one user 
 
 ## HTTP API (sidecar)
 
-Base URL: `http://127.0.0.1:8766/v1/` (port from [`DefaultPort`](../../internal/integrations/cursor/paths.go), overridable via env).
+Base URL: `http://127.0.0.1:8766/v1/` (port from [`DefaultPort`](../../internal/integrations/cursor/pathresolver.go), overridable via env).
 
 | Method | Path | Role |
 |--------|------|------|
@@ -130,7 +130,7 @@ Optional overrides:
 | Variable | Role |
 |----------|------|
 | `SOLOMON_NODE` | Path to `node` binary |
-| `SOLOMON_CURSOR_API_ROOT` | Override install dir ([`paths.go`](../../internal/integrations/cursor/paths.go)) |
+| `SOLOMON_CURSOR_API_ROOT` | Override install dir ([`pathresolver.go`](../../internal/integrations/cursor/pathresolver.go)) |
 
 Logs: `~/.solomon/logs/cursor-sidecar.log` (stdout/stderr from the sidecar process).
 
@@ -154,7 +154,7 @@ Entry: [`integrations/cursor/src/index.ts`](../../integrations/cursor/src/index.
 
 | File | Role |
 |------|------|
-| [`paths.go`](../../internal/integrations/cursor/paths.go) | Install dir, default base URL, entry script path |
+| [`pathresolver.go`](../../internal/integrations/cursor/pathresolver.go) | Install dir, default base URL, entry script path |
 | [`bootstrap.go`](../../internal/integrations/cursor/bootstrap.go) | Extract embedded bundle, npm deps |
 | [`manager.go`](../../internal/integrations/cursor/manager.go) | Start/stop sidecar, health, `ProxyStatus` |
 | [`sidecar_async.go`](../../internal/integrations/cursor/sidecar_async.go) | Async kick/wait when Cursor provider active |

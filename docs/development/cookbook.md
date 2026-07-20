@@ -40,10 +40,10 @@ Preserve: fail-closed stream integrity ([`llm/stream/completion.go`](../../inter
 ## Modify REPL input or tab completion
 
 1. Keys/buffer: [`repl/editor/read.go`](../../internal/agent/runtime/repl/editor/read.go).
-2. Redraw: [`repl/editor/render.go`](../../internal/agent/runtime/repl/editor/render.go).
+2. Redraw: [`repl/editor/refresh.go`](../../internal/agent/runtime/repl/editor/refresh.go).
 3. Loop dispatch: [`repl/loop.go`](../../internal/agent/runtime/repl/loop.go).
 4. Completion: [`replcomplete/`](../../internal/agent/runtime/replcomplete/) + wiring [`replcomplete_runtime.go`](../../internal/agent/runtime/replcomplete_runtime.go).
-5. Add test exports in [`editor/testexport.go`](../../internal/agent/runtime/repl/editor/testexport.go) if needed.
+5. Add test exports in [`editor/editorhistory.go`](../../internal/agent/runtime/repl/editor/editorhistory.go) if needed.
 6. Test: [`repl_editor_test.go`](../../test/repl_editor_test.go), [`repl_complete_*_test.go`](../../test/).
 7. Docs: [Runtime — REPL input](../architecture/runtime-repl.md).
 

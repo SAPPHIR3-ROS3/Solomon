@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt/shell"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt/shellutils"
 )
 
 func Suggest(prefix string) string {
@@ -71,7 +71,7 @@ const (
 )
 
 func resolveHistoryFile() (string, historyKind) {
-	sh := strings.ToLower(shell.Effective())
+	sh := strings.ToLower(shellutils.Effective())
 	if runtime.GOOS != "windows" && strings.Contains(sh, "fish") {
 		dir, _ := os.UserHomeDir()
 		if dir == "" {
