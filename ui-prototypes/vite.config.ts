@@ -13,6 +13,7 @@ const userNameEndpoint = "/__solomon/user-name";
 const modelsEndpoint = "/__solomon/models";
 const branchesEndpoint = "/__solomon/branches";
 const workspaceFilesEndpoint = "/__solomon/workspace-files";
+const workspaceFileEndpoint = "/__solomon/workspace-file";
 const workspaceSearchEndpoint = "/__solomon/workspace-search";
 const gitHistoryEndpoint = "/__solomon/git-history";
 const temporarilySkippedProviders = new Set(["Claude Sub"]);
@@ -262,6 +263,50 @@ async function handleWorkspaceFiles(request: IncomingMessage, response: ServerRe
   }
 }
 
+function workspaceFileKind(filePath: string) {
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  if (ext === "go") return "go";
+  return ext || "text";
+}
+
+async function handleWorkspaceFile(request: IncomingMessage, response: ServerResponse) {
+  response.setHeader("Content-Type", "application/json; charset=utf-8");
+  if (request.method !== "GET") {
+    response.statusCode = 405;
+    response.end(JSON.stringify({ error: "method not allowed" }));
+    return;
+  }
+  const relative = new URL(request.url ?? "", "http://localhost").searchParams.get("path")?.trim();
+  if (!relative) {
+    response.statusCode = 400;
+    response.end(JSON.stringify({ error: "path is required" }));
+    return;
+  }
+  const normalized = path.normalize(relative).replace(/^(\.\.(\/|\\|$))+/, "");
+  const workspaceRoot = path.resolve(repositoryRoot);
+  const absolute = path.resolve(workspaceRoot, normalized);
+  const relativeToRoot = path.relative(workspaceRoot, absolute);
+  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    response.statusCode = 403;
+    response.end(JSON.stringify({ error: "path outside workspace" }));
+    return;
+  }
+  try {
+    const content = await fs.readFile(absolute, "utf8");
+    response.end(JSON.stringify({
+      path: normalized.replace(/\\/g, "/"),
+      kind: workspaceFileKind(normalized),
+      status: "clean",
+      additions: 0,
+      deletions: 0,
+      content,
+    }));
+  } catch (error) {
+    response.statusCode = 404;
+    response.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+  }
+}
+
 async function handleWorkspaceSearch(request: IncomingMessage, response: ServerResponse) {
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   if (request.method !== "GET") {
@@ -311,6 +356,7 @@ function originalConfigPlugin() {
     middlewares.use(modelsEndpoint, handleModels);
     middlewares.use(branchesEndpoint, handleBranches);
     middlewares.use(workspaceFilesEndpoint, handleWorkspaceFiles);
+    middlewares.use(workspaceFileEndpoint, handleWorkspaceFile);
     middlewares.use(workspaceSearchEndpoint, handleWorkspaceSearch);
     middlewares.use(gitHistoryEndpoint, handleGitHistory);
   };
