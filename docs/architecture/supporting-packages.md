@@ -24,7 +24,7 @@ Map of `internal/` packages that support the REPL, tools, auth, and UX but are n
 | `integrations/cursor` | `internal/integrations/cursor/` | Cursor sidecar install dir, health, ensure configured |
 | `updater` | `internal/updater/` | GitHub release check, download/install, in-process restart |
 | `pathglob`, `gitignore` | `internal/pathglob/`, `internal/gitignore/` | Glob `**` matching and `.gitignore` for `find` |
-| `prompt` (shell) | `internal/prompt/shell/` | Platform-specific shell hints in templates |
+| `prompt` (shellutils) | `internal/prompt/shellutils/` | Platform-specific shell hints in templates |
 
 ## Key entry points
 

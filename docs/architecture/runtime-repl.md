@@ -14,7 +14,7 @@ Index: [Runtime hub](runtime.md).
 | [`repl/loop.go`](../../internal/agent/runtime/repl/loop.go) | Main loop: read line → slash / shell / chat dispatch |
 | [`repl/readline.go`](../../internal/agent/runtime/repl/readline.go) | readline instance helpers (width, prompt writers) |
 | [`repl/banner.go`](../../internal/agent/runtime/repl/banner.go) | Welcome banner, update notice, git branch hint |
-| [`repl/display.go`](../../internal/agent/runtime/repl/display.go) | Assistant/tool output formatting in REPL |
+| [`repl/imgtags.go`](../../internal/agent/runtime/repl/imgtags.go) | Colorize `[img-N]` tags and strip paste-image trigger |
 | [`repl/git_branch.go`](../../internal/agent/runtime/repl/git_branch.go) | Git branch name for banner |
 
 ## Raw-mode multiline editor
@@ -22,10 +22,10 @@ Index: [Runtime hub](runtime.md).
 | File | Role |
 |------|------|
 | [`repl/editor/read.go`](../../internal/agent/runtime/repl/editor/read.go) | `multilineEditor` — buffer `[][]rune`, keys, history, completion, `@` picker hooks |
-| [`repl/editor/render.go`](../../internal/agent/runtime/repl/editor/render.go) | Redraw input block, cursor positioning |
+| [`repl/editor/refresh.go`](../../internal/agent/runtime/repl/editor/refresh.go) | Redraw input block, cursor positioning |
 | [`repl/editor/stdin_unix.go`](../../internal/agent/runtime/repl/editor/stdin_unix.go) | Unix stdin for editor |
 | [`repl/editor/stdin_windows.go`](../../internal/agent/runtime/repl/editor/stdin_windows.go) | Windows stdin for editor |
-| [`repl/editor/testexport.go`](../../internal/agent/runtime/repl/editor/testexport.go) | Test exports for editor behavior (`test/repl_editor_test.go`) |
+| [`repl/editor/editorhistory.go`](../../internal/agent/runtime/repl/editor/editorhistory.go) | Test exports for editor behavior (`test/repl_editor_test.go`) |
 | [`repl/editor/history.go`](../../internal/agent/runtime/repl/editor/history.go) | Per-session input history (Up/Down from first/last line) |
 | [`repl/paste.go`](../../internal/agent/runtime/repl/paste.go) | Bracketed paste and text insertion |
 | [`repl/editor/autosuggest.go`](../../internal/agent/runtime/repl/editor/autosuggest.go) | Ghost-text suggestions from history (disable: `SOLOMON_NO_AUTOSUGGEST=1`) |
@@ -69,7 +69,7 @@ Forced `/skill:<name> [request]` keeps the visible transcript line; expanded bod
 
 | File | Role |
 |------|------|
-| [`shell.go`](../../internal/agent/runtime/shell.go) | Execute `!command` or shell-first plain lines in project root |
+| [`usershell.go`](../../internal/agent/runtime/usershell.go) | Execute `!command` or shell-first plain lines in project root |
 | [`repl/shellhist/`](../../internal/agent/runtime/repl/shellhist/) | Persist shell command history |
 | [`repl/shelllex/`](../../internal/agent/runtime/repl/shelllex/) | Lex shell words for highlight and completion |
 
@@ -79,7 +79,7 @@ Forced `/skill:<name> [request]` keeps the visible transcript line; expanded bod
 |------|----------|
 | [`replcomplete/slash_names.go`](../../internal/agent/runtime/replcomplete/slash_names.go) | Built-in and skill names after `/` |
 | [`replcomplete/slash_args.go`](../../internal/agent/runtime/replcomplete/slash_args.go) | First-arg hints (`/log`, `/add`, `/goto`, …) |
-| [`replcomplete/shell.go`](../../internal/agent/runtime/replcomplete/shell.go) | PATH binaries, pipes, operators |
+| [`replcomplete/tabcompletions.go`](../../internal/agent/runtime/replcomplete/tabcompletions.go) | PATH binaries, pipes, operators |
 | [`replcomplete/go.go`](../../internal/agent/runtime/replcomplete/go.go) | `go` subcommands |
 | [`replcomplete/path.go`](../../internal/agent/runtime/replcomplete/path.go) | Workspace file paths |
 | [`replcomplete/atmention.go`](../../internal/agent/runtime/replcomplete/atmention.go) | Workspace index for `@` picker |
@@ -106,7 +106,7 @@ On send, runtime expands tags into `Message.APIContent`; visible transcript keep
 |------|------|
 | [`repl/replhl/classify.go`](../../internal/agent/runtime/repl/replhl/classify.go) | Classify line: slash, shell, `@`, chat |
 | [`repl/replhl/highlight.go`](../../internal/agent/runtime/repl/replhl/highlight.go) | Apply dim ANSI spans |
-| [`repl/replhl/shell.go`](../../internal/agent/runtime/repl/replhl/shell.go) | Shell lexical highlight |
+| [`repl/replhl/syntaxhighlighting.go`](../../internal/agent/runtime/repl/replhl/syntaxhighlighting.go) | Shell lexical highlight |
 | [`repl/replhl/slash.go`](../../internal/agent/runtime/repl/replhl/slash.go) | Slash highlight (all slash tokens in line, cursor-aware args) |
 | [`repl/replhl/span.go`](../../internal/agent/runtime/repl/replhl/span.go) | Span utilities |
 
@@ -160,7 +160,7 @@ When `EphemeralSession` is true, `persistSession` skips disk writes ([Sessions a
 ## Extension points
 
 - Keys: `multilineEditor.handle` / `handleSeq` in [`read.go`](../../internal/agent/runtime/repl/editor/read.go)
-- Redraw: [`render.go`](../../internal/agent/runtime/repl/editor/render.go)
+- Redraw: [`refresh.go`](../../internal/agent/runtime/repl/editor/refresh.go)
 - Completion source: add candidate func under [`replcomplete/`](../../internal/agent/runtime/replcomplete/)
 
 ## See also

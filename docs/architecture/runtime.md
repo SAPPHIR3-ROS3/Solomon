@@ -50,7 +50,7 @@ flowchart TB
 | [`nested.go`](../../internal/agent/runtime/nested.go) | `runNested`, subagent stream (build tools + optional custom prompt) | `tools/subagent` |
 | [`mcp.go`](../../internal/agent/runtime/mcp.go) | `InitMCP`, MCP tools in `toolParams` | `Run`, `turns` |
 | [`slash_deps.go`](../../internal/agent/runtime/slash_deps.go) | `slashDeps`, `handleSlash`, `commands.Deps` callbacks | `repl/loop` |
-| [`shell.go`](../../internal/agent/runtime/shell.go) | `runUserShellLine` for `!` / shell-first lines | `repl/loop` |
+| [`usershell.go`](../../internal/agent/runtime/usershell.go) | `runUserShellLine` for `!` / shell-first lines | `repl/loop` |
 | [`checkpoint.go`](../../internal/agent/runtime/checkpoint.go) | `ApplyGotoCheckpoint`, edit staging on rewind | slash `/goto`, `turns` |
 | [`instructions.go`](../../internal/agent/runtime/instructions.go) | Activate `AGENTS.md` dirs after tools/shell touch paths | `exec`, `shell` |
 | [`ci_run.go`](../../internal/agent/runtime/ci_run.go) | `exec --json` / `--jsonl` event emission, machine-mode stream opts | `RunPromptOnce`, `turns` |
@@ -114,12 +114,12 @@ Disable completion: `SOLOMON_NO_COMPLETE=1`. Disable autosuggest ghost text: `SO
 
 | Change | Where |
 |--------|-------|
-| REPL keys / redraw | [`repl/editor/read.go`](../../internal/agent/runtime/repl/editor/read.go), [`repl/editor/render.go`](../../internal/agent/runtime/repl/editor/render.go) |
+| REPL keys / redraw | [`repl/editor/read.go`](../../internal/agent/runtime/repl/editor/read.go), [`repl/editor/refresh.go`](../../internal/agent/runtime/repl/editor/refresh.go) |
 | New slash command | [`commands/builtin_slash.go`](../../internal/agent/commands/builtin_slash.go) — not runtime, wired via `slash_deps` |
 | Turn loop / tools | [`turns.go`](../../internal/agent/runtime/turns.go), [`exec.go`](../../internal/agent/runtime/exec.go) |
 | System prompt sections | [`core.go`](../../internal/agent/runtime/core.go) `systemPrompt` |
 
-REPL tests can import editor helpers via [`repl/editor/testexport.go`](../../internal/agent/runtime/repl/editor/testexport.go) (test-only exports).
+REPL tests can import editor helpers via [`repl/editor/editorhistory.go`](../../internal/agent/runtime/repl/editor/editorhistory.go) (test-only exports).
 
 ## See also
 
