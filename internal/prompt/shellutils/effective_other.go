@@ -1,6 +1,6 @@
 //go:build !windows
 
-package shell
+package shellutils
 
 func windowsEffective() string {
 	return ""

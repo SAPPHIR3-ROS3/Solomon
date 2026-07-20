@@ -37,7 +37,8 @@ Tokens are stored in `config.toml` today (secure vault is planned — see [TODO.
 
 | Package / file | Responsibility |
 |----------------|----------------|
-| `internal/llm/backend.go` | `CompletionBackend`, `TurnRequest`, `ToolDef` |
+| `internal/llm/types_alias.go` | Re-exports `CompletionBackend`, `TurnRequest`, `ToolDef` from `apitype` |
+| `internal/llm/apitype/backend.go` | Shared LLM protocol types and `CompletionBackend` interface |
 | `internal/llm/openai_backend.go` | OpenAI adapter |
 | `internal/llm/anthropic_*.go` | Anthropic mapper, stream, usage |
 | `internal/llm/stream/completion.go` | OpenAI completion streaming (`StreamText`, `StreamAssistantTurn`) |

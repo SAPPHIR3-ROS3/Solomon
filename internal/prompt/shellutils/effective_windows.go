@@ -1,6 +1,6 @@
 //go:build windows
 
-package shell
+package shellutils
 
 import (
 	"os"
