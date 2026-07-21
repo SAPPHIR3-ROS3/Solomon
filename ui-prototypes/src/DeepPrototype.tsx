@@ -1469,7 +1469,7 @@ export function DeepPrototype(props: PrototypeProps) {
     });
   }, [deepTerminalPanes]);
   return (
-    <div className={`prototype deep-prototype${mode === "editor" && deepTerminalOpen ? " has-terminal" : ""}${mode === "editor" && deepActiveEditorTab ? " has-editor-status" : ""}`} style={mode === "editor" && deepTerminalOpen ? { "--deep-terminal-height": `${deepTerminalHeight}px` } as CSSProperties : undefined}>
+    <div className={`prototype deep-prototype${deepTerminalOpen ? " has-terminal" : ""}${mode === "editor" && deepActiveEditorTab ? " has-editor-status" : ""}`} style={deepTerminalOpen ? { "--deep-terminal-height": `${deepTerminalHeight}px` } as CSSProperties : undefined}>
       {mode === "agent" && sideCollapsed ? (
         <button className="deep-side-toggle" aria-label="Expand panel" onClick={() => setSideCollapsed(false)}>
           <PanelLeft size={16} />
@@ -1492,18 +1492,16 @@ export function DeepPrototype(props: PrototypeProps) {
             </button>
           </div>
         </div>
-        {mode === "editor" ? (
-          <button
-            className={`deep-chrome-terminal-toggle${deepTerminalOpen ? " active" : ""}`}
-            type="button"
-            aria-label={deepTerminalOpen ? "Hide terminal" : "Show terminal"}
-            aria-pressed={deepTerminalOpen}
-            title={deepTerminalOpen ? "Hide terminal" : "Show terminal"}
-            onClick={() => setDeepTerminalOpen((open) => !open)}
-          >
-            <PanelBottom size={16} />
-          </button>
-        ) : null}
+        <button
+          className={`deep-chrome-terminal-toggle${deepTerminalOpen ? " active" : ""}`}
+          type="button"
+          aria-label={deepTerminalOpen ? "Hide terminal" : "Show terminal"}
+          aria-pressed={deepTerminalOpen}
+          title={deepTerminalOpen ? "Hide terminal" : "Show terminal"}
+          onClick={() => setDeepTerminalOpen((open) => !open)}
+        >
+          <PanelBottom size={16} />
+        </button>
       </header>
       {mode === "editor" || sideCollapsed ? null : (
         <aside className="deep-side" aria-label="Side panel">
@@ -2111,7 +2109,7 @@ export function DeepPrototype(props: PrototypeProps) {
           )}
         </main>
       </div>
-      {mode === "editor" && deepTerminalOpen ? (
+      {deepTerminalOpen ? (
         <section
           className={`deep-terminal-panel${deepTerminalResizing ? " is-resizing" : ""}${deepTerminalPaneResizing !== null ? " is-pane-resizing" : ""}${deepTerminalMultiPane ? " is-split" : ""}`}
           aria-label="Terminal"
