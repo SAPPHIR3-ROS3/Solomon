@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowRight, Bot, Braces, Check, ChevronDown, ChevronRight, Code2, Copy, FileDiff, Folder, FolderOpen, GitBranch, History, Layers3, PanelLeft, Plus, Search, Settings, TerminalSquare, Wrench, X, Zap } from "lucide-react";
+import { ArrowRight, Bell, Bot, Braces, Check, ChevronDown, ChevronRight, Code2, Copy, FileDiff, Folder, FolderOpen, GitBranch, History, Layers3, PanelLeft, Plus, Search, Settings, TerminalSquare, Wrench, X, Zap } from "lucide-react";
 import deepAsciiBanner from "../../internal/logo/logo.txt?raw";
 import deepAsciiColors from "../../internal/logo/colors.txt?raw";
 import { ChangeStats, TextEditor } from "./shared";
@@ -49,6 +49,14 @@ type DeepMockThread = {
   title: string;
   lastInteraction: string;
   messages: DeepChatMessage[];
+};
+
+type DeepNotification = {
+  id: number;
+  title: string;
+  detail: string;
+  time: string;
+  unread: boolean;
 };
 
 type DeepModelCatalog = { current: DeepModelChoice; recent: DeepModelChoice[]; providers: DeepModelGroup[] };
@@ -155,6 +163,12 @@ function DeepWorkspaceTree({ folder, depth = 0, collapsedFolders, toggleFolder, 
     })}
   </>;
 }
+
+const deepInitialNotifications: DeepNotification[] = [
+  { id: 1, title: "Index rebuild complete", detail: "Workspace symbols refreshed", time: "2m ago", unread: true },
+  { id: 2, title: "Git pull failed", detail: "Remote rejected non-fast-forward update", time: "18m ago", unread: true },
+  { id: 3, title: "Format on save", detail: "Applied to 3 files", time: "1h ago", unread: false },
+];
 
 const deepMockThreads: DeepMockThread[] = [
   {
@@ -635,6 +649,8 @@ export function DeepPrototype(props: PrototypeProps) {
   const [deepBranch, setDeepBranch] = useState(config.workspace.branch);
   const [deepBranches, setDeepBranches] = useState(() => config.workspace.branch ? [config.workspace.branch] : []);
   const [deepBranchOpen, setDeepBranchOpen] = useState(false);
+  const [deepNotificationsOpen, setDeepNotificationsOpen] = useState(false);
+  const [deepNotifications, setDeepNotifications] = useState(deepInitialNotifications);
   const userNameInput = useRef<HTMLInputElement>(null);
   const deepComposerInput = useRef<HTMLTextAreaElement>(null);
   const deepConversationScroll = useRef<HTMLDivElement>(null);
@@ -643,6 +659,7 @@ export function DeepPrototype(props: PrototypeProps) {
   const deepModelControl = useRef<HTMLDivElement>(null);
   const deepReasoningControl = useRef<HTMLDivElement>(null);
   const deepFolderControl = useRef<HTMLDivElement>(null);
+  const deepNotificationsControl = useRef<HTMLDivElement>(null);
   const deepMessageId = useRef(0);
   const deepEditorTabId = useRef(3);
   const deepEditorFileCacheRef = useRef(deepEditorFileCache);
@@ -861,6 +878,22 @@ export function DeepPrototype(props: PrototypeProps) {
       document.removeEventListener("keydown", closeFolderMenuOnEscape);
     };
   }, [deepFolderOpen, deepBranchOpen]);
+
+  useEffect(() => {
+    if (!deepNotificationsOpen) return;
+    const closeNotifications = (event: PointerEvent) => {
+      if (!deepNotificationsControl.current?.contains(event.target as Node)) setDeepNotificationsOpen(false);
+    };
+    const closeNotificationsOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDeepNotificationsOpen(false);
+    };
+    document.addEventListener("pointerdown", closeNotifications);
+    document.addEventListener("keydown", closeNotificationsOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeNotifications);
+      document.removeEventListener("keydown", closeNotificationsOnEscape);
+    };
+  }, [deepNotificationsOpen]);
 
   useEffect(() => {
     if (!deepStream) return;
@@ -1187,7 +1220,7 @@ export function DeepPrototype(props: PrototypeProps) {
     nav.querySelector<HTMLElement>(".deep-editor-tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [deepActiveEditorTabId, deepEditorTabs.length]);
   return (
-    <div className="prototype deep-prototype">
+    <div className={`prototype deep-prototype${mode === "editor" && deepActiveEditorTab ? " has-editor-status" : ""}`}>
       {mode === "agent" && sideCollapsed ? (
         <button className="deep-side-toggle" aria-label="Expand panel" onClick={() => setSideCollapsed(false)}>
           <PanelLeft size={16} />
@@ -1809,17 +1842,56 @@ export function DeepPrototype(props: PrototypeProps) {
               <div className="deep-editor-surface">
                 {deepActiveFile ? <TextEditor key={deepActiveFile.path} file={deepActiveFile} tone="deep" /> : <div className="deep-editor-loading" aria-live="polite">{deepEditorFileLoading === deepActiveEditorTab.path ? "Loading file…" : "Unable to open file"}</div>}
               </div>
-              <footer className="deep-editor-status">
-                <span><i />Local draft</span>
-                <span>{config.workspace.branch || "No branch"}</span>
-                <span>Ln 1, Col 1</span>
-                <span>Spaces: 2</span>
-                <span>UTF-8</span>
-              </footer>
             </section>
           )}
         </main>
       </div>
+      {mode === "editor" && deepActiveEditorTab ? (
+        <footer className="deep-editor-status">
+          <span>{config.workspace.branch || "No branch"}</span>
+          <span>Ln 1, Col 1</span>
+          <span>Spaces: 2</span>
+          <span>UTF-8</span>
+          <div className="deep-editor-status-notifications" ref={deepNotificationsControl}>
+            <button
+              type="button"
+              className="deep-editor-status-notifications-trigger"
+              aria-label="Notifications"
+              aria-expanded={deepNotificationsOpen}
+              aria-haspopup="menu"
+              onClick={() => setDeepNotificationsOpen((open) => !open)}
+            >
+              <Bell size={12} aria-hidden="true" />
+              {deepNotifications.some((notification) => notification.unread) ? <i aria-hidden="true" /> : null}
+            </button>
+            {deepNotificationsOpen ? (
+              <div className="deep-editor-notifications-panel" role="menu" aria-label="Notifications" onPointerDown={(event) => event.stopPropagation()}>
+                <header>
+                  <span>Notifications</span>
+                  <div className="deep-editor-notifications-actions">
+                    {deepNotifications.length ? <small>{deepNotifications.filter((notification) => notification.unread).length} unread</small> : null}
+                    {deepNotifications.length ? (
+                      <button type="button" className="deep-editor-notifications-clear" aria-label="Clear all notifications" onClick={() => setDeepNotifications([])}>Clear all</button>
+                    ) : null}
+                  </div>
+                </header>
+                {deepNotifications.length ? deepNotifications.map((notification) => (
+                  <div className={`deep-editor-notification${notification.unread ? " unread" : ""}`} role="menuitem" key={notification.id}>
+                    <div className="deep-editor-notification-body">
+                      <strong>{notification.title}</strong>
+                      <span>{notification.detail}</span>
+                      <small>{notification.time}</small>
+                    </div>
+                    <button type="button" className="deep-editor-notification-dismiss" aria-label={`Dismiss ${notification.title}`} title="Dismiss" onClick={() => setDeepNotifications((current) => current.filter((item) => item.id !== notification.id))}>
+                      <X size={12} aria-hidden="true" />
+                    </button>
+                  </div>
+                )) : <p className="deep-editor-notifications-empty">No notifications</p>}
+              </div>
+            ) : null}
+          </div>
+        </footer>
+      ) : null}
     </div>
   );
 }

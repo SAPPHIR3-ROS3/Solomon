@@ -22,15 +22,6 @@ function prototypeFromLocation(): PrototypeId | null {
   return prototypeByPath[pathname] ?? null;
 }
 
-function LabSwitcher({ active, select }: { active: PrototypeId; select: (id: PrototypeId) => void }) {
-  return (
-    <nav className="lab-switcher">
-      <span>UI LAB</span>
-      {prototypes.map((prototype, index) => <button key={prototype.id} className={active === prototype.id ? "active" : ""} onClick={() => select(prototype.id)}><b>v{index + 1}</b><span>{prototype.name}</span></button>)}
-    </nav>
-  );
-}
-
 export function App() {
   const [config, setConfig] = useState<MockConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +58,6 @@ export function App() {
   if (error) return <main className="load-state"><strong>UI Lab failed to load</strong><pre>{error}</pre></main>;
   if (!config || !conversation || !file) return <main className="load-state"><span className="loader" />Loading mock-config.toml…</main>;
 
-  const selectPrototype = (next: PrototypeId) => { setPrototype(next); window.history.pushState({}, "", pathByPrototype[next]); };
   const setConversation = (id: string) => {
     const next = config.conversations.find((item) => item.id === id);
     setConversationId(id);
@@ -83,7 +73,6 @@ export function App() {
       {prototype === "pulse" ? <PulsePrototype {...props} /> : null}
       {prototype === "quiet" ? <QuietPrototype {...props} /> : null}
       {prototype === "deep" ? <DeepPrototype {...props} /> : null}
-      <LabSwitcher active={prototype} select={selectPrototype} />
     </div>
   );
 }
