@@ -856,7 +856,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .deep-editor { height:100%; display:grid; grid-template-columns:242px minmax(0,1fr); background:#0b0f13; font-family:"Geist",ui-sans-serif,system-ui,sans-serif; }
 .deep-editor-blank { width:100%; height:100%; background:var(--bg); }
 .deep-editor-loading { height:100%; padding:18px 21px; color:#71808a; font:10px "Geist Mono",ui-monospace,monospace; }
-.deep-editor-workspace { width:100%; height:100%; min-width:0; min-height:0; display:grid; grid-template-rows:var(--deep-content-offset) 46px 46px minmax(0,1fr); background:#0b0f13; font-family:"Geist",ui-sans-serif,system-ui,sans-serif; }
+.deep-editor-workspace { width:100%; height:100%; min-width:0; min-height:0; display:grid; grid-template-rows:var(--deep-content-offset) 46px 36px minmax(0,1fr); background:#0b0f13; font-family:"Geist",ui-sans-serif,system-ui,sans-serif; }
 .deep-editor-tabs-shell { grid-row:2; min-width:0; height:46px; }
 .deep-editor-tabs-scrollport { width:100%; height:46px; min-width:0; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; scrollbar-color:transparent transparent; background:linear-gradient(to bottom, transparent 36px, #111820 36px); }
 .deep-editor-tabs-shell:hover .deep-editor-tabs-scrollport { scrollbar-color:#2c3942 transparent; }
@@ -881,9 +881,9 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .deep-editor-tab.status-added span,.deep-editor-tab.status-added i { color:#6fd39c; }
 .deep-editor-tab.status-deleted span,.deep-editor-tab.status-deleted i { color:#ff8179; }
 .deep-editor-tab.status-renamed span,.deep-editor-tab.status-renamed i { color:#8ebcf2; }
-.deep-editor-breadcrumbs { grid-row:3; box-sizing:border-box; height:46px; min-width:0; padding:0 12px; display:flex; align-items:center; gap:5px; border-bottom:1px solid #172029; background:#111820; color:#71808a; font:10px "Geist Mono",ui-monospace,monospace; }
-.deep-editor-breadcrumbs > span:not(.deep-editor-language) { display:inline-flex; align-items:center; gap:4px; min-width:0; white-space:nowrap; }
-.deep-editor-breadcrumbs > .deep-file-icon { width:15px; height:15px; margin-right:4px; }
+.deep-editor-breadcrumbs { grid-row:3; box-sizing:border-box; height:36px; min-width:0; padding:0 12px 8px; display:flex; align-items:center; gap:5px; border-bottom:1px solid #172029; background:#111820; color:#71808a; font:10px/1 "Geist Mono",ui-monospace,monospace; }
+.deep-editor-breadcrumbs > span:not(.deep-editor-language) { display:inline-flex; align-items:center; gap:4px; min-width:0; line-height:1; white-space:nowrap; }
+.deep-editor-breadcrumbs > .deep-file-icon { width:14px; height:14px; margin-right:4px; display:block; flex:none; }
 .deep-editor-breadcrumbs > span:nth-last-of-type(2) { color:#c5d0d4; }
 .deep-editor-breadcrumbs .deep-editor-language { margin-right:5px; padding:3px 5px; border-radius:4px; background:#1a2924; color:#78cfa4; font-size:8px; letter-spacing:.08em; }
 .deep-editor-breadcrumbs .change-stats { margin-left:auto; }
