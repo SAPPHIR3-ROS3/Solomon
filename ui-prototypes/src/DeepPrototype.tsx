@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowRight, Bell, Bot, Braces, Check, ChevronDown, ChevronRight, Code2, Copy, FileDiff, Folder, FolderOpen, GitBranch, History, Layers3, PanelLeft, Plus, Search, Settings, TerminalSquare, Wrench, X, Zap } from "lucide-react";
+import { ArrowRight, Bell, Bot, Braces, Check, ChevronDown, ChevronRight, Code2, Copy, Columns2, FileDiff, Folder, FolderOpen, GitBranch, History, Layers3, PanelBottom, PanelLeft, Plus, Search, Settings, TerminalSquare, Wrench, X, Zap } from "lucide-react";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
 import deepAsciiBanner from "../../internal/logo/logo.txt?raw";
 import deepAsciiColors from "../../internal/logo/colors.txt?raw";
 import { ChangeStats, TextEditor } from "./shared";
@@ -30,6 +33,20 @@ function DeepCrown({ size = 15 }: { size?: number }) {
       <path d="M4 16.2 20 16.2 19.4 20 4.6 20Z" />
     </svg>
   );
+}
+
+type DeepTerminalTab = { id: string; title: string; shell: string; cwd: string };
+type DeepTerminalPane = { id: string; tabs: DeepTerminalTab[]; activeTabId: string };
+const MAX_DEEP_TERMINAL_PANES = 8;
+const DEEP_TERMINAL_MIN_PANE_WIDTH = 120;
+
+function deepDefaultTerminalTab(workspaceName: string, cwd: string, id = "terminal-tab-0"): DeepTerminalTab {
+  return { id, title: `${workspaceName} — zsh`, shell: "zsh", cwd };
+}
+
+function deepDefaultTerminalPane(workspaceName: string, cwd: string, paneId = "terminal-pane-0"): DeepTerminalPane {
+  const tab = deepDefaultTerminalTab(workspaceName, cwd);
+  return { id: paneId, tabs: [tab], activeTabId: tab.id };
 }
 
 type DeepChatMessage = {
@@ -415,6 +432,97 @@ function abbreviateDeepHomePath(path: string) {
   return homePrefix ? `~${normalized.slice(homePrefix.length)}` : path;
 }
 
+const deepIntegratedShellTheme = {
+  background: "#0a0d10",
+  foreground: "#c7d2d8",
+  cursor: "#7ec8e3",
+  cursorAccent: "#0a0d10",
+  selectionBackground: "#1e2931",
+  black: "#0a0d10",
+  red: "#ff8179",
+  green: "#6fd39c",
+  yellow: "#e6b256",
+  blue: "#8ebcf2",
+  magenta: "#c792ea",
+  cyan: "#7ec8e3",
+  white: "#c7d2d8",
+  brightBlack: "#74818a",
+  brightRed: "#ff8179",
+  brightGreen: "#6fd39c",
+  brightYellow: "#e6b256",
+  brightBlue: "#8ebcf2",
+  brightMagenta: "#c792ea",
+  brightCyan: "#7ec8e3",
+  brightWhite: "#f0f5f6",
+};
+
+function DeepIntegratedShell({ tabId, cwd, visible }: { tabId: string; cwd: string; visible: boolean }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  const resizeRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const term = new Terminal({
+      fontFamily: '"Geist Mono", ui-monospace, monospace',
+      fontSize: 12,
+      lineHeight: 1.45,
+      theme: deepIntegratedShellTheme,
+      cursorBlink: true,
+      scrollback: 5000,
+    });
+    termRef.current = term;
+    const fitAddon = new FitAddon();
+    fitRef.current = fitAddon;
+    term.loadAddon(fitAddon);
+    term.open(host);
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/__solomon/terminal?cwd=${encodeURIComponent(cwd)}`);
+    const sendResize = () => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      fitAddon.fit();
+      ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+    };
+    resizeRef.current = sendResize;
+    ws.onmessage = (event) => {
+      if (typeof event.data === "string") term.write(event.data);
+      else term.write(new Uint8Array(event.data as ArrayBuffer));
+    };
+    ws.onopen = () => {
+      sendResize();
+      if (visible) term.focus();
+    };
+    ws.onerror = () => {
+      term.write("\r\n[terminal connection failed]\r\n");
+    };
+    term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+    });
+    const observer = new ResizeObserver(() => {
+      if (visible) sendResize();
+    });
+    observer.observe(host);
+    return () => {
+      observer.disconnect();
+      termRef.current = null;
+      fitRef.current = null;
+      resizeRef.current = null;
+      ws.close();
+      term.dispose();
+    };
+  }, [cwd, tabId]);
+
+  useLayoutEffect(() => {
+    if (!visible) return;
+    resizeRef.current?.();
+    termRef.current?.focus();
+  }, [visible]);
+
+  return <div className={`deep-terminal-host${visible ? " is-visible" : ""}`} ref={hostRef} aria-hidden={!visible} />;
+}
+
 function DeepProjectPath({ path, fullPath }: { path: string; fullPath: string }) {
   const text = useRef<HTMLSpanElement>(null);
   const [visiblePath, setVisiblePath] = useState(path);
@@ -610,6 +718,13 @@ export function DeepPrototype(props: PrototypeProps) {
   const [deepEditorFileCache, setDeepEditorFileCache] = useState<Record<string, MockFile>>(() => deepMockFileCache(config.files));
   const [deepEditorFileLoading, setDeepEditorFileLoading] = useState<string | null>(null);
   const [deepDraggedEditorTabId, setDeepDraggedEditorTabId] = useState<string | null>(null);
+  const [deepTerminalPanes, setDeepTerminalPanes] = useState<DeepTerminalPane[]>(() => [deepDefaultTerminalPane(config.workspace.name, config.workspace.root)]);
+  const [deepDraggedTerminalTab, setDeepDraggedTerminalTab] = useState<{ paneId: string; tabId: string } | null>(null);
+  const [deepTerminalHeight, setDeepTerminalHeight] = useState(220);
+  const [deepTerminalOpen, setDeepTerminalOpen] = useState(true);
+  const [deepTerminalResizing, setDeepTerminalResizing] = useState(false);
+  const [deepTerminalPaneSizes, setDeepTerminalPaneSizes] = useState<number[]>([1]);
+  const [deepTerminalPaneResizing, setDeepTerminalPaneResizing] = useState<number | null>(null);
   const [deepWorkspaceFiles, setDeepWorkspaceFiles] = useState<string[]>([]);
   const [deepWorkspaceFileStatus, setDeepWorkspaceFileStatus] = useState<Record<string, string>>({});
   const [deepStagedFileStatus, setDeepStagedFileStatus] = useState<Record<string, string>>({});
@@ -662,6 +777,8 @@ export function DeepPrototype(props: PrototypeProps) {
   const deepNotificationsControl = useRef<HTMLDivElement>(null);
   const deepMessageId = useRef(0);
   const deepEditorTabId = useRef(3);
+  const deepTerminalTabId = useRef(1);
+  const deepTerminalPaneId = useRef(1);
   const deepEditorFileCacheRef = useRef(deepEditorFileCache);
   const deepEditorTabsRef = useRef<HTMLDivElement>(null);
   const deepEditorTreeClickTimer = useRef<number | undefined>(undefined);
@@ -1170,6 +1287,128 @@ export function DeepPrototype(props: PrototypeProps) {
       return next;
     });
   };
+  const updateDeepTerminalPane = (paneId: string, updater: (pane: DeepTerminalPane) => DeepTerminalPane) => {
+    setDeepTerminalPanes((panes) => panes.map((pane) => pane.id === paneId ? updater(pane) : pane));
+  };
+  const selectDeepTerminalTab = (paneId: string, tabId: string) => {
+    updateDeepTerminalPane(paneId, (pane) => ({ ...pane, activeTabId: tabId }));
+  };
+  const openDeepTerminalTab = (paneId: string) => {
+    deepTerminalTabId.current += 1;
+    const id = `terminal-tab-${deepTerminalTabId.current}`;
+    const tab = deepDefaultTerminalTab(config.workspace.name, config.workspace.root, id);
+    updateDeepTerminalPane(paneId, (pane) => ({ ...pane, tabs: [...pane.tabs, tab], activeTabId: id }));
+  };
+  const duplicateDeepTerminalTab = (paneId: string, title: string, shell: string, cwd: string) => {
+    deepTerminalTabId.current += 1;
+    const id = `terminal-tab-${deepTerminalTabId.current}`;
+    updateDeepTerminalPane(paneId, (pane) => ({ ...pane, tabs: [...pane.tabs, { id, title, shell, cwd }], activeTabId: id }));
+  };
+  const closeDeepTerminalTab = (paneId: string, tabId: string) => {
+    setDeepTerminalPanes((panes) => {
+      let removedIndex = -1;
+      const nextPanes = panes.flatMap((pane, paneIndex) => {
+        if (pane.id !== paneId) return [pane];
+        const index = pane.tabs.findIndex((tab) => tab.id === tabId);
+        const nextTabs = pane.tabs.filter((tab) => tab.id !== tabId);
+        if (!nextTabs.length) {
+          removedIndex = paneIndex;
+          return [];
+        }
+        const activeTabId = tabId === pane.activeTabId ? nextTabs[Math.min(index, nextTabs.length - 1)].id : pane.activeTabId;
+        return [{ ...pane, tabs: nextTabs, activeTabId }];
+      });
+      const finalPanes = nextPanes.length ? nextPanes : [deepDefaultTerminalPane(config.workspace.name, config.workspace.root)];
+      setDeepTerminalPaneSizes((sizes) => {
+        if (finalPanes.length === 1 && (removedIndex >= 0 || !nextPanes.length)) return [1];
+        if (removedIndex < 0) return sizes;
+        const removedWeight = sizes[removedIndex] ?? 1;
+        const nextSizes = sizes.filter((_, sizeIndex) => sizeIndex !== removedIndex);
+        if (!nextSizes.length) return [1];
+        const neighborIndex = Math.min(removedIndex, nextSizes.length - 1);
+        nextSizes[neighborIndex] = (nextSizes[neighborIndex] ?? 1) + removedWeight;
+        return nextSizes;
+      });
+      return finalPanes;
+    });
+  };
+  const moveDeepTerminalTab = (paneId: string, targetTabId: string) => {
+    if (!deepDraggedTerminalTab || deepDraggedTerminalTab.paneId !== paneId || deepDraggedTerminalTab.tabId === targetTabId) return;
+    updateDeepTerminalPane(paneId, (pane) => {
+      const draggedIndex = pane.tabs.findIndex((tab) => tab.id === deepDraggedTerminalTab.tabId);
+      const targetIndex = pane.tabs.findIndex((tab) => tab.id === targetTabId);
+      if (draggedIndex < 0 || targetIndex < 0) return pane;
+      const nextTabs = [...pane.tabs];
+      const [dragged] = nextTabs.splice(draggedIndex, 1);
+      nextTabs.splice(targetIndex, 0, dragged);
+      return { ...pane, tabs: nextTabs };
+    });
+  };
+  const addDeepTerminalPane = () => {
+    setDeepTerminalPanes((panes) => {
+      if (panes.length >= MAX_DEEP_TERMINAL_PANES) return panes;
+      deepTerminalPaneId.current += 1;
+      deepTerminalTabId.current += 1;
+      const tabId = `terminal-tab-${deepTerminalTabId.current}`;
+      const paneId = `terminal-pane-${deepTerminalPaneId.current}`;
+      return [...panes, {
+        id: paneId,
+        tabs: [deepDefaultTerminalTab(config.workspace.name, config.workspace.root, tabId)],
+        activeTabId: tabId,
+      }];
+    });
+    setDeepTerminalPaneSizes((sizes) => sizes.length >= MAX_DEEP_TERMINAL_PANES ? sizes : [...sizes, 1]);
+  };
+  const startDeepTerminalPaneResize = (dividerIndex: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setDeepTerminalPaneResizing(dividerIndex);
+    const stack = event.currentTarget.closest(".deep-terminal-stack");
+    const startX = event.clientX;
+    const startSizes = deepTerminalPaneSizes;
+    const resize = (moveEvent: PointerEvent) => {
+      const stackWidth = stack?.getBoundingClientRect().width ?? 0;
+      if (!stackWidth || dividerIndex >= startSizes.length - 1) return;
+      const totalFr = startSizes.reduce((sum, size) => sum + size, 0);
+      const pairTotalFr = startSizes[dividerIndex] + startSizes[dividerIndex + 1];
+      const pairWidthPx = (pairTotalFr / totalFr) * stackWidth;
+      const startLeftPx = (startSizes[dividerIndex] / pairTotalFr) * pairWidthPx;
+      const nextLeftPx = Math.max(DEEP_TERMINAL_MIN_PANE_WIDTH, Math.min(pairWidthPx - DEEP_TERMINAL_MIN_PANE_WIDTH, startLeftPx + moveEvent.clientX - startX));
+      const nextLeftFr = (nextLeftPx / pairWidthPx) * pairTotalFr;
+      setDeepTerminalPaneSizes((sizes) => {
+        const next = [...sizes];
+        next[dividerIndex] = nextLeftFr;
+        next[dividerIndex + 1] = pairTotalFr - nextLeftFr;
+        return next;
+      });
+    };
+    const stop = () => {
+      setDeepTerminalPaneResizing(null);
+      document.removeEventListener("pointermove", resize);
+      document.removeEventListener("pointerup", stop);
+      document.removeEventListener("pointercancel", stop);
+    };
+    document.addEventListener("pointermove", resize);
+    document.addEventListener("pointerup", stop);
+    document.addEventListener("pointercancel", stop);
+  };
+  const startDeepTerminalResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setDeepTerminalResizing(true);
+    const startY = event.clientY;
+    const startHeight = deepTerminalHeight;
+    const shell = event.currentTarget.closest(".deep-prototype");
+    const maxHeight = shell ? Math.max(140, shell.getBoundingClientRect().height - 180) : Math.round(window.innerHeight * 0.7);
+    const resize = (moveEvent: PointerEvent) => setDeepTerminalHeight(Math.min(maxHeight, Math.max(120, startHeight + startY - moveEvent.clientY)));
+    const stop = () => {
+      setDeepTerminalResizing(false);
+      document.removeEventListener("pointermove", resize);
+      document.removeEventListener("pointerup", stop);
+      document.removeEventListener("pointercancel", stop);
+    };
+    document.addEventListener("pointermove", resize);
+    document.addEventListener("pointerup", stop);
+    document.addEventListener("pointercancel", stop);
+  };
   const startDeepGraphResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     const panel = event.currentTarget.parentElement?.parentElement;
@@ -1205,6 +1444,11 @@ export function DeepPrototype(props: PrototypeProps) {
   const deepEditorRootCollapsed = deepCollapsedEditorFolders.has("__root__");
   const deepWorkspacePath = abbreviateDeepHomePath(config.workspace.root);
   const deepActiveEditorTab = deepEditorTabs.find((tab) => tab.id === deepActiveEditorTabId);
+  const deepTerminalMultiPane = deepTerminalPanes.length > 1;
+  const deepTerminalGridColumns = deepTerminalPanes.map((_, index) => {
+    const size = deepTerminalPaneSizes[index] ?? 1;
+    return `minmax(${DEEP_TERMINAL_MIN_PANE_WIDTH}px, ${size}fr)`;
+  }).join(" ");
   const resolveDeepEditorFile = useCallback((path: string) => deepEditorFileCache[path], [deepEditorFileCache]);
   const deepActiveFile = deepActiveEditorTab ? resolveDeepEditorFile(deepActiveEditorTab.path) : undefined;
   const deepChromeStyle = { "--deep-side-width": `${mode === "editor" ? editorSideWidth : 248}px` } as CSSProperties;
@@ -1219,8 +1463,13 @@ export function DeepPrototype(props: PrototypeProps) {
     if (!nav) return;
     nav.querySelector<HTMLElement>(".deep-editor-tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [deepActiveEditorTabId, deepEditorTabs.length]);
+  useLayoutEffect(() => {
+    document.querySelectorAll(".deep-terminal-group .deep-editor-tab.active").forEach((tab) => {
+      tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+  }, [deepTerminalPanes]);
   return (
-    <div className={`prototype deep-prototype${mode === "editor" && deepActiveEditorTab ? " has-editor-status" : ""}`}>
+    <div className={`prototype deep-prototype${mode === "editor" && deepTerminalOpen ? " has-terminal" : ""}${mode === "editor" && deepActiveEditorTab ? " has-editor-status" : ""}`} style={mode === "editor" && deepTerminalOpen ? { "--deep-terminal-height": `${deepTerminalHeight}px` } as CSSProperties : undefined}>
       {mode === "agent" && sideCollapsed ? (
         <button className="deep-side-toggle" aria-label="Expand panel" onClick={() => setSideCollapsed(false)}>
           <PanelLeft size={16} />
@@ -1243,6 +1492,18 @@ export function DeepPrototype(props: PrototypeProps) {
             </button>
           </div>
         </div>
+        {mode === "editor" ? (
+          <button
+            className={`deep-chrome-terminal-toggle${deepTerminalOpen ? " active" : ""}`}
+            type="button"
+            aria-label={deepTerminalOpen ? "Hide terminal" : "Show terminal"}
+            aria-pressed={deepTerminalOpen}
+            title={deepTerminalOpen ? "Hide terminal" : "Show terminal"}
+            onClick={() => setDeepTerminalOpen((open) => !open)}
+          >
+            <PanelBottom size={16} />
+          </button>
+        ) : null}
       </header>
       {mode === "editor" || sideCollapsed ? null : (
         <aside className="deep-side" aria-label="Side panel">
@@ -1358,10 +1619,12 @@ export function DeepPrototype(props: PrototypeProps) {
       )}
       {mode === "editor" && !editorSideCollapsed ? (
         <aside className={`deep-editor-side ${editorSideResizing ? "is-resizing" : ""}`} aria-label="Editor side panel" style={{ width: editorSideWidth }}>
-          <button className="deep-side-toggle" aria-label="Collapse editor panel" onClick={() => setEditorSideCollapsed(true)}>
-            <PanelLeft size={16} />
-          </button>
-          <span className="deep-editor-wordmark">SOLOMON</span>
+          <div className="deep-side-head">
+            <button className="deep-side-toggle" aria-label="Collapse editor panel" onClick={() => setEditorSideCollapsed(true)}>
+              <PanelLeft size={16} />
+            </button>
+            <span className="deep-wordmark">SOLOMON</span>
+          </div>
           <div className="deep-editor-view-actions" aria-label="Editor side panel view">
             <button type="button" aria-label="Files" title="Files" aria-pressed={editorSideView === "files"} className={editorSideView === "files" ? "active" : ""} onClick={() => setEditorSideView("files")}><Folder size={14} /></button>
             <button type="button" aria-label="Git" title="Git" aria-pressed={editorSideView === "git"} className={editorSideView === "git" ? "active" : ""} onClick={() => setEditorSideView("git")}><GitBranch size={14} /></button>
@@ -1789,63 +2052,136 @@ export function DeepPrototype(props: PrototypeProps) {
               </div>
               </div>
             </section>
-          ) : !deepActiveEditorTab ? (
-            <div className="deep-editor-blank" aria-label="No file open" />
           ) : (
-            <section className="deep-editor-workspace" aria-label={`Editing ${deepActiveEditorTab.path}`}>
-              <div className="deep-editor-tabs-shell">
-                <div className="deep-editor-tabs-scrollport" ref={deepEditorTabsRef}>
-                  <nav className="deep-editor-tabs" aria-label="Open files">
-                {deepEditorTabs.map((tab) => {
-                  const candidate = resolveDeepEditorFile(tab.path);
-                  const fileName = tab.path.split("/").at(-1) ?? tab.path;
-                  const status = candidate?.status ?? deepWorkspaceFileLabel(tab.path, deepWorkspaceFileStatus);
-                  return <div
-                    className={`deep-editor-tab status-${status} ${tab.id === deepActiveEditorTabId ? "active" : ""}${deepDraggedEditorTabId === tab.id ? " is-dragging" : ""}`}
-                    key={tab.id}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      moveDeepEditorTab(tab.id);
-                      setDeepDraggedEditorTabId(null);
-                    }}
-                  >
-                    <button
-                      className="deep-editor-tab-trigger"
-                      type="button"
-                      draggable
-                      onDragStart={(event) => {
-                        setDeepDraggedEditorTabId(tab.id);
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", tab.id);
-                      }}
-                      onDragEnd={() => setDeepDraggedEditorTabId(null)}
-                      onClick={() => selectDeepEditorTab(tab.id, tab.path)}
-                      onDoubleClick={() => duplicateDeepEditorTab(tab.path)}
-                    >
-                      <DeepWorkspaceFileIcon fileName={fileName} /><span>{fileName}</span>{status !== "clean" ? <i>{status.charAt(0).toUpperCase()}</i> : null}
-                    </button>
-                    <button className="deep-editor-tab-close" type="button" aria-label={`Close ${fileName}`} title={`Close ${fileName}`} onClick={() => closeDeepEditorTab(tab.id)}><X size={12} /></button>
-                  </div>;
-                })}
-                  </nav>
-                </div>
-              </div>
-              <div className="deep-editor-breadcrumbs">
-                <DeepWorkspaceFileIcon fileName={deepActiveEditorTab.path.split("/").at(-1) ?? deepActiveEditorTab.path} />
-                {deepActiveEditorTab.path.split("/").map((part, index, all) => <span key={`${part}-${index}`}>{part}{index < all.length - 1 ? <ChevronRight size={11} /> : null}</span>)}
-                {deepActiveFile ? <ChangeStats file={deepActiveFile} /> : null}
-              </div>
-              <div className="deep-editor-surface">
-                {deepActiveFile ? <TextEditor key={deepActiveFile.path} file={deepActiveFile} tone="deep" /> : <div className="deep-editor-loading" aria-live="polite">{deepEditorFileLoading === deepActiveEditorTab.path ? "Loading file…" : "Unable to open file"}</div>}
-              </div>
-            </section>
+            !deepActiveEditorTab ? (
+              <div className="deep-editor-blank" aria-label="No file open" />
+            ) : (
+              <section className="deep-editor-workspace" aria-label={`Editing ${deepActiveEditorTab.path}`}>
+                  <div className="deep-editor-tabs-shell">
+                    <div className="deep-editor-tabs-scrollport" ref={deepEditorTabsRef}>
+                      <nav className="deep-editor-tabs" aria-label="Open files">
+                    {deepEditorTabs.map((tab) => {
+                      const candidate = resolveDeepEditorFile(tab.path);
+                      const fileName = tab.path.split("/").at(-1) ?? tab.path;
+                      const status = candidate?.status ?? deepWorkspaceFileLabel(tab.path, deepWorkspaceFileStatus);
+                      return <div
+                        className={`deep-editor-tab status-${status} ${tab.id === deepActiveEditorTabId ? "active" : ""}${deepDraggedEditorTabId === tab.id ? " is-dragging" : ""}`}
+                        key={tab.id}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          moveDeepEditorTab(tab.id);
+                          setDeepDraggedEditorTabId(null);
+                        }}
+                      >
+                        <button
+                          className="deep-editor-tab-trigger"
+                          type="button"
+                          draggable
+                          onDragStart={(event) => {
+                            setDeepDraggedEditorTabId(tab.id);
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", tab.id);
+                          }}
+                          onDragEnd={() => setDeepDraggedEditorTabId(null)}
+                          onClick={() => selectDeepEditorTab(tab.id, tab.path)}
+                          onDoubleClick={() => duplicateDeepEditorTab(tab.path)}
+                        >
+                          <DeepWorkspaceFileIcon fileName={fileName} /><span>{fileName}</span>{status !== "clean" ? <i>{status.charAt(0).toUpperCase()}</i> : null}
+                        </button>
+                        <button className="deep-editor-tab-close" type="button" aria-label={`Close ${fileName}`} title={`Close ${fileName}`} onClick={() => closeDeepEditorTab(tab.id)}><X size={12} /></button>
+                      </div>;
+                    })}
+                      </nav>
+                    </div>
+                  </div>
+                  <div className="deep-editor-breadcrumbs">
+                    <DeepWorkspaceFileIcon fileName={deepActiveEditorTab.path.split("/").at(-1) ?? deepActiveEditorTab.path} />
+                    {deepActiveEditorTab.path.split("/").map((part, index, all) => <span key={`${part}-${index}`}>{part}{index < all.length - 1 ? <ChevronRight size={11} /> : null}</span>)}
+                    {deepActiveFile ? <ChangeStats file={deepActiveFile} /> : null}
+                  </div>
+                  <div className="deep-editor-surface">
+                    {deepActiveFile ? <TextEditor key={deepActiveFile.path} file={deepActiveFile} tone="deep" /> : <div className="deep-editor-loading" aria-live="polite">{deepEditorFileLoading === deepActiveEditorTab.path ? "Loading file…" : "Unable to open file"}</div>}
+                  </div>
+                </section>
+            )
           )}
         </main>
       </div>
+      {mode === "editor" && deepTerminalOpen ? (
+        <section
+          className={`deep-terminal-panel${deepTerminalResizing ? " is-resizing" : ""}${deepTerminalPaneResizing !== null ? " is-pane-resizing" : ""}${deepTerminalMultiPane ? " is-split" : ""}`}
+          aria-label="Terminal"
+        >
+                <button className="deep-terminal-resize" type="button" aria-label="Resize terminal" title="Drag to resize terminal" onPointerDown={startDeepTerminalResize} onDoubleClick={() => setDeepTerminalHeight(220)} />
+                <div className="deep-terminal-stack" style={{ gridTemplateColumns: deepTerminalGridColumns } as CSSProperties}>
+                  {deepTerminalPanes.map((pane, paneIndex) => {
+                    const isLastPane = paneIndex === deepTerminalPanes.length - 1;
+                    return (
+                      <div className={`deep-terminal-group${deepTerminalPaneResizing === paneIndex ? " is-resizing" : ""}`} key={pane.id}>
+                        <div className="deep-terminal-chrome">
+                          <div className="deep-editor-tabs-shell">
+                            <div className="deep-editor-tabs-scrollport">
+                              <nav className="deep-editor-tabs" aria-label={`Terminal tabs ${paneIndex + 1}`}>
+                                {pane.tabs.map((tab) => (
+                                  <div
+                                    className={`deep-editor-tab ${tab.id === pane.activeTabId ? "active" : ""}${deepDraggedTerminalTab?.paneId === pane.id && deepDraggedTerminalTab.tabId === tab.id ? " is-dragging" : ""}`}
+                                    key={tab.id}
+                                    onDragOver={(event) => {
+                                      event.preventDefault();
+                                      event.dataTransfer.dropEffect = "move";
+                                    }}
+                                    onDrop={(event) => {
+                                      event.preventDefault();
+                                      moveDeepTerminalTab(pane.id, tab.id);
+                                      setDeepDraggedTerminalTab(null);
+                                    }}
+                                  >
+                                    <button
+                                      className="deep-editor-tab-trigger"
+                                      type="button"
+                                      draggable
+                                      onDragStart={(event) => {
+                                        setDeepDraggedTerminalTab({ paneId: pane.id, tabId: tab.id });
+                                        event.dataTransfer.effectAllowed = "move";
+                                        event.dataTransfer.setData("text/plain", tab.id);
+                                      }}
+                                      onDragEnd={() => setDeepDraggedTerminalTab(null)}
+                                      onClick={() => selectDeepTerminalTab(pane.id, tab.id)}
+                                      onDoubleClick={() => duplicateDeepTerminalTab(pane.id, tab.title, tab.shell, tab.cwd)}
+                                    >
+                                      <TerminalSquare size={14} /><span>{tab.title}</span>
+                                    </button>
+                                    <button className="deep-editor-tab-close" type="button" aria-label={`Close ${tab.title}`} title={`Close ${tab.title}`} onClick={() => closeDeepTerminalTab(pane.id, tab.id)}><X size={12} /></button>
+                                  </div>
+                                ))}
+                              </nav>
+                            </div>
+                          </div>
+                          <div className="deep-terminal-actions" aria-label={`Terminal actions ${paneIndex + 1}`}>
+                            <button type="button" aria-label="New terminal" title="New terminal" onClick={() => openDeepTerminalTab(pane.id)}><Plus size={14} /></button>
+                            {isLastPane ? (
+                              <button type="button" aria-label="Split terminal" title="Split terminal" disabled={deepTerminalPanes.length >= MAX_DEEP_TERMINAL_PANES} onClick={addDeepTerminalPane}><Columns2 size={14} /></button>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="deep-terminal-pane">
+                          {pane.tabs.map((tab) => (
+                            <DeepIntegratedShell key={tab.id} tabId={tab.id} cwd={tab.cwd} visible={tab.id === pane.activeTabId} />
+                          ))}
+                        </div>
+                        {isLastPane ? null : (
+                          <button className="deep-terminal-pane-resize" type="button" aria-label="Resize terminal section" title="Drag to resize terminal section" onPointerDown={(event) => startDeepTerminalPaneResize(paneIndex, event)} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+      ) : null}
       {mode === "editor" && deepActiveEditorTab ? (
         <footer className="deep-editor-status">
           <span>{config.workspace.branch || "No branch"}</span>

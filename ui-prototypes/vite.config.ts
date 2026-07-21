@@ -1,13 +1,17 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { promises as fs } from "node:fs";
+import { promises as fs, chmodSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Server as HttpServer } from "node:http";
 import { parse } from "smol-toml";
+import { WebSocketServer } from "ws";
+import * as pty from "node-pty";
 
 const userNameEndpoint = "/__solomon/user-name";
 const modelsEndpoint = "/__solomon/models";
@@ -16,6 +20,23 @@ const workspaceFilesEndpoint = "/__solomon/workspace-files";
 const workspaceFileEndpoint = "/__solomon/workspace-file";
 const workspaceSearchEndpoint = "/__solomon/workspace-search";
 const gitHistoryEndpoint = "/__solomon/git-history";
+const terminalEndpoint = "/__solomon/terminal";
+const requireFromConfig = createRequire(import.meta.url);
+
+function ensureNodePtySpawnHelper() {
+  if (process.platform !== "darwin") return;
+  try {
+    const ptyRoot = path.dirname(requireFromConfig.resolve("node-pty/package.json"));
+    for (const arch of ["darwin-arm64", "darwin-x64"]) {
+      const helper = path.join(ptyRoot, "prebuilds", arch, "spawn-helper");
+      if (existsSync(helper)) chmodSync(helper, 0o755);
+    }
+  } catch {
+    /* node-pty unavailable */
+  }
+}
+
+ensureNodePtySpawnHelper();
 const temporarilySkippedProviders = new Set(["Claude Sub"]);
 const skippedWorkspaceDirectories = new Set([".git", "node_modules", "dist"]);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -350,6 +371,87 @@ async function handleGitHistory(request: IncomingMessage, response: ServerRespon
   }
 }
 
+function integratedShellPath() {
+  if (process.env.SHELL?.trim()) return process.env.SHELL.trim();
+  return process.platform === "win32" ? "powershell.exe" : "/bin/zsh";
+}
+
+function resolveTerminalCwd(request: IncomingMessage) {
+  const cwdParam = new URL(request.url ?? "", "http://127.0.0.1").searchParams.get("cwd")?.trim();
+  if (cwdParam && path.isAbsolute(cwdParam)) return cwdParam;
+  return repositoryRoot;
+}
+
+function attachTerminalWebSocket(httpServer: HttpServer | null | undefined) {
+  if (!httpServer) return;
+  const wss = new WebSocketServer({ noServer: true });
+  httpServer.on("upgrade", (request, socket, head) => {
+    const pathname = new URL(request.url ?? "", "http://127.0.0.1").pathname;
+    if (pathname !== terminalEndpoint) return;
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      const cwd = resolveTerminalCwd(request);
+      const shellPath = integratedShellPath();
+      const shellArgs = process.platform === "win32" ? ["-NoLogo"] : ["-i"];
+      let ptyProcess: pty.IPty;
+      try {
+        ptyProcess = pty.spawn(shellPath, shellArgs, {
+          name: "xterm-256color",
+          cwd,
+          cols: 80,
+          rows: 24,
+          env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" } as Record<string, string>,
+        });
+      } catch (error) {
+        ws.send(`\r\n[terminal failed to start${error instanceof Error ? `: ${error.message}` : ""}]\r\n`);
+        ws.close();
+        return;
+      }
+      const dispose = () => {
+        try {
+          ptyProcess.kill();
+        } catch {
+          /* already dead */
+        }
+      };
+      ptyProcess.onData((data) => {
+        if (ws.readyState === ws.OPEN) ws.send(data);
+      });
+      ptyProcess.onExit(() => {
+        if (ws.readyState === ws.OPEN) ws.close();
+      });
+      ws.on("message", (data) => {
+        const text = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
+        if (text.startsWith("{")) {
+          try {
+            const message = JSON.parse(text) as { type?: string; cols?: number; rows?: number };
+            if (message.type === "resize" && typeof message.cols === "number" && typeof message.rows === "number") {
+              ptyProcess.resize(Math.max(2, message.cols), Math.max(1, message.rows));
+              return;
+            }
+          } catch {
+            /* fall through as terminal input */
+          }
+        }
+        ptyProcess.write(text);
+      });
+      ws.on("close", dispose);
+      ws.on("error", dispose);
+    });
+  });
+}
+
+function terminalPlugin() {
+  return {
+    name: "solomon-terminal",
+    configureServer(server: { httpServer: HttpServer | null }) {
+      attachTerminalWebSocket(server.httpServer);
+    },
+    configurePreviewServer(server: { httpServer: HttpServer | null }) {
+      attachTerminalWebSocket(server.httpServer);
+    },
+  };
+}
+
 function originalConfigPlugin() {
   const install = (middlewares: { use: (path: string, handler: typeof handleUserName) => void }) => {
     middlewares.use(userNameEndpoint, handleUserName);
@@ -368,7 +470,7 @@ function originalConfigPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), originalConfigPlugin()],
+  plugins: [react(), tailwindcss(), originalConfigPlugin(), terminalPlugin()],
   server: {
     host: "127.0.0.1",
     port: 4173,
