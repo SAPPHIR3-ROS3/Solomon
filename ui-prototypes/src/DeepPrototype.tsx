@@ -132,7 +132,7 @@ function DeepWorkspaceFileIcon({ fileName }: { fileName: string }) {
   return <img className="deep-file-icon" src={icon.startsWith("http") ? icon : `/vscode-icons/${icon}`} alt="" />;
 }
 
-function DeepWorkspaceTree({ folder, depth = 0, collapsedFolders, toggleFolder, fileStatus, folderStatus, forceExpanded = false, onOpenFile, activeFilePath }: { folder: DeepWorkspaceFolder; depth?: number; collapsedFolders: Set<string>; toggleFolder: (path: string) => void; fileStatus: Record<string, string>; folderStatus: Record<string, string>; forceExpanded?: boolean; onOpenFile?: (path: string) => void; activeFilePath?: string }) {
+function DeepWorkspaceTree({ folder, depth = 0, collapsedFolders, toggleFolder, fileStatus, folderStatus, forceExpanded = false, onOpenFile, onOpenFileInNewTab, activeFilePath }: { folder: DeepWorkspaceFolder; depth?: number; collapsedFolders: Set<string>; toggleFolder: (path: string) => void; fileStatus: Record<string, string>; folderStatus: Record<string, string>; forceExpanded?: boolean; onOpenFile?: (path: string) => void; onOpenFileInNewTab?: (path: string) => void; activeFilePath?: string }) {
   const folders = Array.from(folder.folders.values()).sort((left, right) => left.name.localeCompare(right.name));
   const files = [...folder.files].sort((left, right) => left.localeCompare(right));
   return <>
@@ -140,7 +140,7 @@ function DeepWorkspaceTree({ folder, depth = 0, collapsedFolders, toggleFolder, 
       const collapsed = !forceExpanded && collapsedFolders.has(child.path);
       return <div className="deep-editor-tree-folder" key={child.path}>
         <button className="deep-editor-tree-row deep-editor-tree-folder-row" type="button" aria-expanded={!collapsed} onClick={() => toggleFolder(child.path)} style={{ paddingLeft: 8 + depth * 14 }}><ChevronRight className={collapsed ? "" : "open"} size={12} />{deepFolderIcon(child.name, !collapsed)}<span>{child.name}</span>{collapsed && folderStatus[child.path] ? <i className={`deep-editor-folder-status status-${folderStatus[child.path]}`} /> : null}</button>
-        {collapsed ? null : <DeepWorkspaceTree folder={child} depth={depth + 1} collapsedFolders={collapsedFolders} toggleFolder={toggleFolder} fileStatus={fileStatus} folderStatus={folderStatus} forceExpanded={forceExpanded} onOpenFile={onOpenFile} activeFilePath={activeFilePath} />}
+        {collapsed ? null : <DeepWorkspaceTree folder={child} depth={depth + 1} collapsedFolders={collapsedFolders} toggleFolder={toggleFolder} fileStatus={fileStatus} folderStatus={folderStatus} forceExpanded={forceExpanded} onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} activeFilePath={activeFilePath} />}
       </div>;
     })}
     {files.map((fileName) => {
@@ -150,7 +150,7 @@ function DeepWorkspaceTree({ folder, depth = 0, collapsedFolders, toggleFolder, 
       const rowStyle = { paddingLeft: 8 + depth * 14 };
       const rowContent = <><DeepWorkspaceFileIcon fileName={fileName} /><span className="deep-editor-tree-file-name">{fileName}</span>{status ? <i className={`deep-editor-git-status status-${status}`}>{status}</i> : null}</>;
       return onOpenFile
-        ? <button className={rowClass} style={rowStyle} type="button" key={path} title={path} onClick={() => onOpenFile(path)}>{rowContent}</button>
+        ? <button className={rowClass} style={rowStyle} type="button" key={path} title={path} onClick={() => onOpenFile(path)} onDoubleClick={(event) => { event.preventDefault(); onOpenFileInNewTab?.(path); }}>{rowContent}</button>
         : <span className={rowClass} style={rowStyle} key={path} title={path}>{rowContent}</span>;
     })}
   </>;
@@ -578,6 +578,10 @@ function deepWorkspaceFileLabel(filePath: string, gitStatus: Record<string, stri
   return deepGitStatusLabel(gitStatus[filePath] ?? "");
 }
 
+function deepMockFileCache(files: MockFile[]) {
+  return Object.fromEntries(files.map((file) => [file.path, file]));
+}
+
 export function DeepPrototype(props: PrototypeProps) {
   const { config, mode, setMode, conversation, openFile } = props;
   const [sideCollapsed, setSideCollapsed] = useState(false);
@@ -589,8 +593,9 @@ export function DeepPrototype(props: PrototypeProps) {
   const [editorSideView, setEditorSideView] = useState<"files" | "git">("files");
   const [deepEditorTabs, setDeepEditorTabs] = useState(() => conversation.change_paths.slice(0, 3).map((path, index) => ({ id: `editor-tab-${index}`, path })));
   const [deepActiveEditorTabId, setDeepActiveEditorTabId] = useState("editor-tab-0");
-  const [deepEditorFileCache, setDeepEditorFileCache] = useState<Record<string, MockFile>>({});
+  const [deepEditorFileCache, setDeepEditorFileCache] = useState<Record<string, MockFile>>(() => deepMockFileCache(config.files));
   const [deepEditorFileLoading, setDeepEditorFileLoading] = useState<string | null>(null);
+  const [deepDraggedEditorTabId, setDeepDraggedEditorTabId] = useState<string | null>(null);
   const [deepWorkspaceFiles, setDeepWorkspaceFiles] = useState<string[]>([]);
   const [deepWorkspaceFileStatus, setDeepWorkspaceFileStatus] = useState<Record<string, string>>({});
   const [deepStagedFileStatus, setDeepStagedFileStatus] = useState<Record<string, string>>({});
@@ -641,6 +646,8 @@ export function DeepPrototype(props: PrototypeProps) {
   const deepMessageId = useRef(0);
   const deepEditorTabId = useRef(3);
   const deepEditorFileCacheRef = useRef(deepEditorFileCache);
+  const deepEditorTabsRef = useRef<HTMLDivElement>(null);
+  const deepEditorTreeClickTimer = useRef<number | undefined>(undefined);
   const savedUserName = useRef(config.user_name ?? "");
   const deepWorkspaceHasLoaded = useRef(false);
 
@@ -1038,7 +1045,7 @@ export function DeepPrototype(props: PrototypeProps) {
     document.addEventListener("pointercancel", stop);
   };
   const ensureDeepEditorFile = useCallback(async (path: string) => {
-    if (config.files.some((file) => file.path === path) || deepEditorFileCacheRef.current[path]) return;
+    if (deepEditorFileCacheRef.current[path]) return;
     setDeepEditorFileLoading(path);
     try {
       const response = await fetch(`/__solomon/workspace-file?path=${encodeURIComponent(path)}`);
@@ -1050,25 +1057,45 @@ export function DeepPrototype(props: PrototypeProps) {
     } finally {
       setDeepEditorFileLoading((current) => current === path ? null : current);
     }
-  }, [config.files, deepWorkspaceFileStatus]);
+  }, [deepWorkspaceFileStatus]);
   const openDeepEditorFile = (path: string) => {
+    window.clearTimeout(deepEditorTreeClickTimer.current);
+    deepEditorTreeClickTimer.current = window.setTimeout(() => {
+      const existing = deepEditorTabs.find((tab) => tab.path === path);
+      if (existing) {
+        setDeepActiveEditorTabId(existing.id);
+        openFile(path);
+        void ensureDeepEditorFile(path);
+        return;
+      }
+      if (!deepActiveEditorTabId || !deepEditorTabs.length) {
+        deepEditorTabId.current += 1;
+        const id = `editor-tab-${deepEditorTabId.current}`;
+        setDeepEditorTabs((tabs) => [...tabs, { id, path }]);
+        setDeepActiveEditorTabId(id);
+        openFile(path);
+        void ensureDeepEditorFile(path);
+        return;
+      }
+      setDeepEditorTabs((tabs) => tabs.map((tab) => tab.id === deepActiveEditorTabId ? { ...tab, path } : tab));
+      openFile(path);
+      void ensureDeepEditorFile(path);
+    }, 220);
+  };
+  const openDeepEditorFileInNewTab = (path: string) => {
+    window.clearTimeout(deepEditorTreeClickTimer.current);
     const existing = deepEditorTabs.find((tab) => tab.path === path);
     if (existing) {
+      setDeepEditorTabs((tabs) => [existing, ...tabs.filter((tab) => tab.id !== existing.id)]);
       setDeepActiveEditorTabId(existing.id);
       openFile(path);
       void ensureDeepEditorFile(path);
       return;
     }
-    if (!deepActiveEditorTabId || !deepEditorTabs.length) {
-      deepEditorTabId.current += 1;
-      const id = `editor-tab-${deepEditorTabId.current}`;
-      setDeepEditorTabs((tabs) => [...tabs, { id, path }]);
-      setDeepActiveEditorTabId(id);
-      openFile(path);
-      void ensureDeepEditorFile(path);
-      return;
-    }
-    setDeepEditorTabs((tabs) => tabs.map((tab) => tab.id === deepActiveEditorTabId ? { ...tab, path } : tab));
+    deepEditorTabId.current += 1;
+    const id = `editor-tab-${deepEditorTabId.current}`;
+    setDeepEditorTabs((tabs) => [{ id, path }, ...tabs]);
+    setDeepActiveEditorTabId(id);
     openFile(path);
     void ensureDeepEditorFile(path);
   };
@@ -1097,6 +1124,18 @@ export function DeepPrototype(props: PrototypeProps) {
     setDeepActiveEditorTabId(nextTab.id);
     openFile(nextTab.path);
     void ensureDeepEditorFile(nextTab.path);
+  };
+  const moveDeepEditorTab = (targetTabId: string) => {
+    if (!deepDraggedEditorTabId || deepDraggedEditorTabId === targetTabId) return;
+    setDeepEditorTabs((tabs) => {
+      const draggedIndex = tabs.findIndex((tab) => tab.id === deepDraggedEditorTabId);
+      const targetIndex = tabs.findIndex((tab) => tab.id === targetTabId);
+      if (draggedIndex < 0 || targetIndex < 0) return tabs;
+      const next = [...tabs];
+      const [dragged] = next.splice(draggedIndex, 1);
+      next.splice(targetIndex, 0, dragged);
+      return next;
+    });
   };
   const startDeepGraphResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -1133,13 +1172,20 @@ export function DeepPrototype(props: PrototypeProps) {
   const deepEditorRootCollapsed = deepCollapsedEditorFolders.has("__root__");
   const deepWorkspacePath = abbreviateDeepHomePath(config.workspace.root);
   const deepActiveEditorTab = deepEditorTabs.find((tab) => tab.id === deepActiveEditorTabId);
-  const resolveDeepEditorFile = useCallback((path: string) => config.files.find((file) => file.path === path) ?? deepEditorFileCache[path], [config.files, deepEditorFileCache]);
+  const resolveDeepEditorFile = useCallback((path: string) => deepEditorFileCache[path], [deepEditorFileCache]);
   const deepActiveFile = deepActiveEditorTab ? resolveDeepEditorFile(deepActiveEditorTab.path) : undefined;
   const deepChromeStyle = { "--deep-side-width": `${mode === "editor" ? editorSideWidth : 248}px` } as CSSProperties;
 
   useEffect(() => {
-    if (deepActiveEditorTab?.path) void ensureDeepEditorFile(deepActiveEditorTab.path);
+    const path = deepActiveEditorTab?.path;
+    if (!path || deepEditorFileCacheRef.current[path]) return;
+    void ensureDeepEditorFile(path);
   }, [deepActiveEditorTab?.path, ensureDeepEditorFile]);
+  useLayoutEffect(() => {
+    const nav = deepEditorTabsRef.current;
+    if (!nav) return;
+    nav.querySelector<HTMLElement>(".deep-editor-tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [deepActiveEditorTabId, deepEditorTabs.length]);
   return (
     <div className="prototype deep-prototype">
       {mode === "agent" && sideCollapsed ? (
@@ -1313,7 +1359,7 @@ export function DeepPrototype(props: PrototypeProps) {
               ) : null}
             </div>
             {deepEditorRootCollapsed ? null : <nav className="deep-editor-file-list" aria-label="Files in Solomon">
-              <DeepWorkspaceTree folder={deepWorkspaceFileTree} depth={1} collapsedFolders={deepCollapsedEditorFolders} toggleFolder={toggleDeepEditorFolder} fileStatus={deepWorkspaceFileStatus} folderStatus={deepWorkspaceFolderStatus} forceExpanded={Boolean(deepWorkspaceQuery.trim())} onOpenFile={openDeepEditorFile} activeFilePath={deepActiveFile?.path} />
+              <DeepWorkspaceTree folder={deepWorkspaceFileTree} depth={1} collapsedFolders={deepCollapsedEditorFolders} toggleFolder={toggleDeepEditorFolder} fileStatus={deepWorkspaceFileStatus} folderStatus={deepWorkspaceFolderStatus} forceExpanded={Boolean(deepWorkspaceQuery.trim())} onOpenFile={openDeepEditorFile} onOpenFileInNewTab={openDeepEditorFileInNewTab} activeFilePath={deepActiveFile?.path} />
             </nav>}
           </> : <section className={`deep-editor-git-panel ${deepGraphCollapsed ? "graph-collapsed" : ""}`} aria-label="Git changes" style={{ "--deep-graph-height": `${deepGraphCollapsed ? 29 : deepGraphHeight}px` } as CSSProperties}>
             <div className="deep-editor-commit" aria-label="Create commit">
@@ -1714,19 +1760,47 @@ export function DeepPrototype(props: PrototypeProps) {
             <div className="deep-editor-blank" aria-label="No file open" />
           ) : (
             <section className="deep-editor-workspace" aria-label={`Editing ${deepActiveEditorTab.path}`}>
-              <nav className="deep-editor-tabs" aria-label="Open files">
+              <div className="deep-editor-tabs-shell">
+                <div className="deep-editor-tabs-scrollport" ref={deepEditorTabsRef}>
+                  <nav className="deep-editor-tabs" aria-label="Open files">
                 {deepEditorTabs.map((tab) => {
                   const candidate = resolveDeepEditorFile(tab.path);
                   const fileName = tab.path.split("/").at(-1) ?? tab.path;
                   const status = candidate?.status ?? deepWorkspaceFileLabel(tab.path, deepWorkspaceFileStatus);
-                  return <div className={`deep-editor-tab status-${status} ${tab.id === deepActiveEditorTabId ? "active" : ""}`} key={tab.id}>
-                    <button className="deep-editor-tab-trigger" type="button" onClick={() => selectDeepEditorTab(tab.id, tab.path)} onDoubleClick={() => duplicateDeepEditorTab(tab.path)}>
+                  return <div
+                    className={`deep-editor-tab status-${status} ${tab.id === deepActiveEditorTabId ? "active" : ""}${deepDraggedEditorTabId === tab.id ? " is-dragging" : ""}`}
+                    key={tab.id}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      moveDeepEditorTab(tab.id);
+                      setDeepDraggedEditorTabId(null);
+                    }}
+                  >
+                    <button
+                      className="deep-editor-tab-trigger"
+                      type="button"
+                      draggable
+                      onDragStart={(event) => {
+                        setDeepDraggedEditorTabId(tab.id);
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", tab.id);
+                      }}
+                      onDragEnd={() => setDeepDraggedEditorTabId(null)}
+                      onClick={() => selectDeepEditorTab(tab.id, tab.path)}
+                      onDoubleClick={() => duplicateDeepEditorTab(tab.path)}
+                    >
                       <DeepWorkspaceFileIcon fileName={fileName} /><span>{fileName}</span>{status !== "clean" ? <i>{status.charAt(0).toUpperCase()}</i> : null}
                     </button>
                     <button className="deep-editor-tab-close" type="button" aria-label={`Close ${fileName}`} title={`Close ${fileName}`} onClick={() => closeDeepEditorTab(tab.id)}><X size={12} /></button>
                   </div>;
                 })}
-              </nav>
+                  </nav>
+                </div>
+              </div>
               <div className="deep-editor-breadcrumbs">
                 <DeepWorkspaceFileIcon fileName={deepActiveEditorTab.path.split("/").at(-1) ?? deepActiveEditorTab.path} />
                 {deepActiveEditorTab.path.split("/").map((part, index, all) => <span key={`${part}-${index}`}>{part}{index < all.length - 1 ? <ChevronRight size={11} /> : null}</span>)}
