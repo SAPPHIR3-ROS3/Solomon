@@ -108,11 +108,10 @@ type Root struct {
 	APIResilience             APIResilienceConfig  `toml:"api_resilience,omitempty"`
 	WebFetch                  WebFetchConfig       `toml:"web_fetch,omitempty"`
 	Export                    Export               `toml:"export,omitempty"`
-	Server                    Server               `toml:"server,omitempty"`
 	Roles                     Roles                `toml:"roles,omitempty"`
 	AutoUpdate                *bool                `toml:"autoupdate,omitempty"`
 	PromptTemplates           map[string]string    `toml:"prompt_templates,omitempty"`
-	PromptTemplateModTime   map[string]int64     `toml:"prompt_template_mtime,omitempty"`
+	PromptTemplateModTime     map[string]int64     `toml:"prompt_template_mtime,omitempty"`
 }
 
 func (r *Root) AutoUpdateEnabled() bool {

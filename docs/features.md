@@ -60,10 +60,6 @@ The `docsRetrieval` build tool and `/docs <query>` slash command search the embe
 
 Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the REPL, with shell-style tokenization for the prompt. Claude Code (`-p`), Codex (`exec`), and OpenCode support non-interactive runs for scripts and automation. Entry: [`cmd/solomon/exec.go`](../cmd/solomon/exec.go), [Startup and CLI](architecture/startup-and-cli.md).
 
-### HTTP server (`solomon serve`) **(implemented)**
-
-`solomon serve` exposes an HTTPS **OpenAI Responses API** daemon for the current workspace: conversations, streaming turns, slash interception, bearer auth, self-signed TLS. Remote/web/native clients connect via Bearer token (bootstrap on first start). Optional static UI via `--static-dir`. See [Startup and CLI — solomon serve](architecture/startup-and-cli.md#solomon-serve), [Configuration — server](user-guide/configuration.md#server-http-daemon).
-
 ### Interactive terminal REPL
 
 Default `solomon` starts an interactive REPL with a raw-mode multiline editor, checkpoint-aware prompts, slash commands, and streaming assistant output. This is the core UX shared with Codex, Claude Code, and OpenCode TUIs. REPL behavior: [Runtime — REPL](architecture/runtime-repl.md).

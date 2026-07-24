@@ -1,4 +1,4 @@
-.PHONY: solomon build install test check-docs loc-chart cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install test check-docs loc-chart server-stop cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -58,6 +58,13 @@ cursor-stop:
 	$(CURSOR_BUNDLER) stop
 	@$(FIX_TTY)
 
+server-stop:
+ifeq ($(GOOS),windows)
+	@if exist "$(INSTALL_BIN)" "$(INSTALL_BIN)" server stop
+else
+	@if [ -x "$(INSTALL_BIN)" ]; then "$(INSTALL_BIN)" server stop || true; fi
+endif
+
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
 cursor-proxy-build:
 	npm --prefix $(CURSOR_PROXY_DIR) run build
@@ -113,17 +120,18 @@ include .env
 export
 endif
 
-# Full reinstall: stop sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
+# Full reinstall: stop the Solomon server and Cursor sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
 install:
 	@$(FIX_TTY)
 	@echo ""
 	@echo "=== Solomon install ($(VERSION)) ==="
-	$(call INSTALL_STEP,1/6 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
-	$(call INSTALL_STEP,2/6 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
-	$(call INSTALL_STEP,3/6 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,4/6 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
-	$(call INSTALL_STEP,5/6 Install prompt templates,$(INSTALL_BIN) templates install)
-	$(call INSTALL_STEP,6/6 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+	$(call INSTALL_STEP,1/7 Stop Solomon server,$(MAKE) server-stop)
+	$(call INSTALL_STEP,2/7 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
+	$(call INSTALL_STEP,3/7 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
+	$(call INSTALL_STEP,4/7 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
+	$(call INSTALL_STEP,5/7 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
+	$(call INSTALL_STEP,6/7 Install prompt templates,$(INSTALL_BIN) templates install)
+	$(call INSTALL_STEP,7/7 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
 	@$(FIX_TTY)
 	@echo ""
 	@echo "solomon -> $(INSTALL_BIN)"

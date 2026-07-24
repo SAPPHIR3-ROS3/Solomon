@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	servercli "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
@@ -89,6 +90,10 @@ func main() {
 		runTemplatesInstall()
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "server" {
+		servercli.Run(os.Args[2:])
+		return
+	}
 	ctx := context.Background()
 	lroot, err := paths.SolomonHome()
 	if err != nil {
@@ -120,10 +125,6 @@ func main() {
 	logging.Log(logging.INFO_LOG_LEVEL, "Solomon starting")
 	if kind, rest := detectExecSubcommand(os.Args); kind != execNone {
 		runExecCLI(ctx, kind, rest, cfg)
-		return
-	}
-	if len(os.Args) >= 2 && os.Args[1] == "serve" {
-		runServeCLI(ctx, os.Args[2:], cfg)
 		return
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "add" {

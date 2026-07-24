@@ -38,6 +38,7 @@ Install first: [Installation and PATH](installation.md). Provider and engine kno
 - **Project instructions**: `AGENTS.md` (and fallbacks) plus numbered custom rules injected into the system prompt — see [Project instructions](project-instructions.md)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools
 - **Deferred tools**: `readFile`, `editFile`, `find`, `shell`, `fetchWeb`, `webSearch` via orchestrate; plan tools when planning is active — see [Native tools](../architecture/native-tools.md)
+- **Local server**: detached localhost service for the web GUI and future local APIs — see [Local server](../architecture/server.md)
 
 ## CLI usage modes
 
@@ -51,8 +52,28 @@ Install first: [Installation and PATH](installation.md). Provider and engine kno
 | Ephemeral session (REPL) | `/temp` on an empty chat (in memory only; not written to disk) |
 | Skill install | `solomon add https://skills.sh/...` or `solomon add npx --yes skills add ...` |
 | Skill remove | `solomon remove skill <name>` |
+| Local server | `solomon server start\|status\|stop\|restart\|logs` |
 
 Exact usage strings: [`cmd/solomon/main.go`](../../cmd/solomon/main.go).
+
+## Local server
+
+The server is a manually managed background process for the web GUI and future local APIs. It is bound to the user, not the current project directory, and listens only on `http://localhost:8765`.
+
+```bash
+solomon server start
+solomon server status
+solomon server stop
+```
+
+For GUI development, pass the GUI project directory explicitly. The server launches Vite as its child and proxies it at the same stable local URL, so browser and Wails desktop development use the same frontend.
+
+```bash
+solomon server start dev /absolute/or/relative/path/to/gui
+solomon server logs interactive
+```
+
+The development directory must contain `package.json` and `src/`. `solomon server restart` retains the current mode and development directory. Logs live at `~/.solomon/logs/server/server.log`; runtime state is `~/.solomon/run/server/state.json`. Full behavior: [Local server architecture](../architecture/server.md).
 
 Skill installation commands are intentionally restricted: Solomon accepts only install commands that resolve to the `skills` package and its `add` subcommand (`npx ... skills add ...` or `npm exec ... skills add ...`). Shell chaining, redirects, unrelated packages, and unsupported flags are rejected.
 

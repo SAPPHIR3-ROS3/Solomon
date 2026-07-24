@@ -83,6 +83,10 @@ flowchart LR
 
 Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds session id, title, timestamps, messages, tool calls, checkpoint fields, token usage, image references, and `activated_instruction_dirs` (subdirectory instruction paths active for that chat). Legacy tool settings are **not** stored per session — they live in global `config.toml` under `[tools]`. Old session JSON may still contain a deprecated `legacy_tools` field; it is ignored on load. See [Sessions and storage](../architecture/sessions-and-storage.md).
 
+## Local server runtime
+
+The detached local server writes lifecycle state to `~/.solomon/run/server/state.json` and its stdout/stderr log to `~/.solomon/logs/server/server.log`. The state file contains no configuration or user content; it is removed after a graceful `solomon server stop`. See [Local server](../architecture/server.md).
+
 ## Subagent files
 
 Project subagent transcripts live under `projects/<project-id>/chats/subchats/<subchat-id>.json`. Scheduled subagents use `~/.solomon/subagents/<subchat-id>.json`. Both contain the nested messages and lifecycle metadata such as title, parent linkage, status, selected role, and reasoning effort. `~/.solomon/subagents/activeSubagents.json` is a small active-run registry used for background cancellation and startup reconciliation; it does not contain the transcript. See [Subagent persistence and lifecycle](../architecture/sessions-and-storage.md#subagent-persistence-and-lifecycle).

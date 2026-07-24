@@ -42,7 +42,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 		return fmt.Errorf("config not set up; use /onboard")
 	}
 	if err := r.ensureReplSessionFileLock(); err != nil {
-		return fmt.Errorf("session is locked by another process (solomon serve?): %w", err)
+		return fmt.Errorf("session is locked by another Solomon process: %w", err)
 	}
 	if r.ReplShellFirst {
 		if strings.HasPrefix(line, "!") {
@@ -100,7 +100,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 	})
 	if r.RL != nil {
 		if err := r.ensureReplSessionFileLock(); err != nil {
-			return fmt.Errorf("session is locked by another process (solomon serve?): %w", err)
+			return fmt.Errorf("session is locked by another Solomon process: %w", err)
 		}
 	}
 	if firstUserLine != "" {
