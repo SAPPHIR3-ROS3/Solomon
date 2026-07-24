@@ -97,6 +97,7 @@ When REPL behavior needs new assertions, add **`ForTest` exports** in `editor/ed
 | Auth / Codex | `provider_auth_test.go`, `codex_*_test.go` | [LLM layer — ChatGPT Sub](../architecture/llm-layer.md) |
 | CI events | `cievents_test.go` | [Runtime orchestration](../architecture/runtime-orchestration.md) |
 | Cursor | `cursor_paths_test.go`, `stream_cursor_tool_test.go`, `cursor_native_display_test.go` | [Cursor integration](../architecture/cursor-integration.md) |
+| Local server | `server_runtime_test.go`, `desktop_config_test.go` | [Local server](../architecture/server.md) |
 | Updater | `updater_test.go`, `commands_update_test.go` | [Supporting packages](../architecture/supporting-packages.md) |
 
 ## Runtime-specific notes

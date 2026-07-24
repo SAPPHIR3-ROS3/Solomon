@@ -35,6 +35,7 @@ Compared to IDE-hosted or vendor-locked CLIs, Solomon keeps backend and workspac
 | Path | Role |
 |------|------|
 | `cmd/solomon/` | Single binary entry (`main.go`, `exec.go`) |
+| `cmd/solomon/server/` | Detached local server lifecycle CLI |
 | `internal/agent/runtime/` | REPL, turns, persistence, MCP, Cursor — [Runtime hub](runtime.md) |
 | `internal/agent/commands/` | Slash command implementations and `/connect` wizard |
 | `internal/agent/tools/` | Native OpenAI tools (plan/build) |
@@ -48,6 +49,7 @@ Compared to IDE-hosted or vendor-locked CLIs, Solomon keeps backend and workspac
 | `internal/chatstore/` | Session JSON I/O |
 | `internal/mcp/` | MCP client manager and adapter |
 | `internal/config/`, `internal/paths/`, `internal/project/` | Config and layout |
+| `internal/server/` | Local HTTP server, health endpoint, Vite reverse proxy |
 | `internal/providersetup/` | Provider-specific onboard flows (`/connect`, wizard) |
 | `internal/skills/` | Skill registry and install |
 | `internal/instructions/` | `AGENTS.md` / fallbacks loader and cache |

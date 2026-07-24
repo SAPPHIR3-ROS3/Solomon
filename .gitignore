@@ -7,6 +7,10 @@
 /ui-prototypes/*.tsbuildinfo
 /ui-prototypes/vite.config.js
 /ui-prototypes/vite.config.d.ts
+/gui/dist/
+/gui/*.tsbuildinfo
+/gui/package.json.md5
+/gui/desktop/build/
 /solomon.exe~
 /*.exe~
 /scripts/cursor-bundler.exe
