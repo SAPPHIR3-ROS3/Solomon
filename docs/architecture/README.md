@@ -9,6 +9,7 @@ How Solomon is structured in Go: entry points, runtime loop, LLM layer, tools, p
 | [overview.md](overview.md) | Design tenets, top-level package dependency graph |
 | [package-index.md](package-index.md) | Canonical map of every `internal/` and `cmd/` package |
 | [startup-and-cli.md](startup-and-cli.md) | `cmd/solomon/main.go`, wizard, project resolve |
+| [server.md](server.md) | Detached local server, Vite development proxy, health endpoint |
 | [runtime.md](runtime.md) | Runtime hub: package map, `Runtime` fields, debug playbook |
 | [runtime-repl.md](runtime-repl.md) | Raw-mode editor, completion, `@` mentions, shell-first |
 | [runtime-orchestration.md](runtime-orchestration.md) | Turns, tools, MCP, nested subagent, CI mode |

@@ -1,0 +1,28 @@
+:root {
+  color: #e8e5df;
+  background: #17191b;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.window-drag-area {
+  --wails-draggable: drag;
+
+  height: 48px;
+  inset: 0 0 auto;
+  position: fixed;
+  z-index: 10;
+}
+
+.bootstrap-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}

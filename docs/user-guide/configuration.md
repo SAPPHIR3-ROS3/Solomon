@@ -282,28 +282,6 @@ In **agent** mode, MCP tools are discovered via `searchTools` and invoked throug
 
 Full schema, JSON example, and runtime behavior: [MCP integration](../architecture/mcp-integration.md).
 
-## Server (HTTP daemon)
-
-Optional `[server]` section for `solomon serve`:
-
-```toml
-[server]
-bind = "127.0.0.1:8443"
-port = 8443
-static_dir = ""
-tls_cert = ""
-tls_key = ""
-```
-
-| Key | Default | Role |
-|-----|---------|------|
-| `bind` | `127.0.0.1:8443` | Listen address (`host:port` or host only with `port`) |
-| `port` | `8443` | Port when `bind` has no port |
-| `static_dir` | empty | Optional web UI static files |
-| `tls_cert` / `tls_key` | auto-generated under `~/.solomon/server/certs/` | TLS paths |
-
-API surface: OpenAI **Responses API** (`POST /v1/responses`, `GET /v1/conversations`, …). Auth: Bearer token after bootstrap or passkey registration. Details: [Startup and CLI](../architecture/startup-and-cli.md#solomon-serve).
-
 ## See also
 
 - [Usage and commands](usage-and-commands.md)

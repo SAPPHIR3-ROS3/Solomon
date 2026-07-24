@@ -18,7 +18,8 @@ Deep dives stay in linked articles; this file is the single checklist.
 | Path | Role | Article |
 |------|------|---------|
 | `cmd/solomon/` | Binary entry: CLI flags, wizard, `Runtime` bootstrap | [Startup and CLI](startup-and-cli.md) |
-| `internal/server/` | HTTPS daemon: auth, Responses API, SSE, passkey | [Startup and CLI](startup-and-cli.md#solomon-serve) |
+| `cmd/solomon/server/` | Detached local server lifecycle commands and log reader | [Local server](server.md) |
+| `cmd/solomon/server/detach/` | Platform-specific process detachment for the local server | [Local server](server.md) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |
 | `internal/agent/runtime/` | REPL, turns, session I/O, MCP init, Cursor hooks | [Runtime hub](runtime.md) |
 | `internal/agent/runtime/btw/` | Transient `/btw` side questions and output buffering | [Agent turn pipeline](agent-turn-pipeline.md#btw-side-stream) |
@@ -46,6 +47,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/project/` | Project hex id, workspace root resolution | [Sessions and storage](sessions-and-storage.md) |
 | `internal/paths/` | `~/.solomon` layout helpers | [Sessions and storage](sessions-and-storage.md) |
 | `internal/config/` | TOML config load/merge | [Configuration](../user-guide/configuration.md) |
+| `internal/server/` | Local HTTP server, health, Vite proxy and child lifecycle | [Local server](server.md) |
 | `internal/prompt/` | System prompt render (`RenderAgent`, `RenderChat`) | [Plan vs build](plan-vs-build.md) |
 | `internal/prompt/templates/` | Embedded `.tmpl` defaults (copied to `~/.solomon/prompts/templates/` at runtime) | [Plan vs build](plan-vs-build.md), [Configuration](../user-guide/configuration.md#prompt_templates-system-prompt-templates) |
 | `internal/prompt/shellutils/` | OS-specific shell hints in templates | [Supporting packages](supporting-packages.md) |
@@ -135,7 +137,10 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | Path | Tier |
 |------|------|
 | `cmd/solomon/` | Core |
+| `cmd/solomon/server/` | Core |
+| `cmd/solomon/server/detach/` | Core |
 | `internal/agent/` | Core |
+| `internal/server/` | Core |
 | `internal/agent/cievents/` | Feature |
 | `internal/agent/commands/` | Feature |
 | `internal/agent/commands/connect/` | Feature |
@@ -195,7 +200,6 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/roles/benchmarks/` | Feature |
 | `internal/roles/scoring/` | Feature |
 | `internal/search/` | Feature |
-| `internal/server/` | Core |
 | `internal/sandbox/compile/` | Feature |
 | `internal/sandbox/host/` | Feature |
 | `internal/sandbox/ipc/` | Feature |
