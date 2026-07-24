@@ -1,0 +1,16 @@
+:root {
+  color-scheme: dark;
+
+  --color-canvas: #061c3b;
+  --color-surface: #082a54;
+  --color-surface-raised: #0d3566;
+  --color-border: #174875;
+  --color-text: #e8e5df;
+  --color-text-muted: #9ca3aa;
+  --color-accent: #3b8fd1;
+  --color-accent-contrast: #10223e;
+  --color-danger: #a83b3b;
+  --color-success: #237a52;
+  --color-info: #286c9f;
+  --focus-ring: #86c9f2;
+}
