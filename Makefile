@@ -1,4 +1,4 @@
-.PHONY: solomon build install test check-docs loc-chart server-stop cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install test check-docs loc-chart server-stop desktop-dev cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -64,6 +64,10 @@ ifeq ($(GOOS),windows)
 else
 	@if [ -x "$(INSTALL_BIN)" ]; then "$(INSTALL_BIN)" server stop || true; fi
 endif
+
+# Run Wails against the URL advertised by the running Solomon dev server.
+desktop-dev:
+	go run scripts/desktop_dev.go
 
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
 cursor-proxy-build:
