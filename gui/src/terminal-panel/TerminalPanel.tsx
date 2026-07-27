@@ -4,7 +4,6 @@ import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
 import { terminalSocketUrl } from "./terminalSocket";
 
-const DEFAULT_HEIGHT = 240;
 const MIN_HEIGHT = 120;
 const MAX_TERMINAL_PANES = 8;
 
@@ -29,12 +28,13 @@ function createTerminalPane(id: string, tabId: string): TerminalPane {
 }
 
 type TerminalPanelProps = {
+  height: number;
   isOpen: boolean;
   onClose: () => void;
+  onHeightChange: (height: number) => void;
 };
 
-export function TerminalPanel({ isOpen, onClose }: TerminalPanelProps) {
-  const [height, setHeight] = useState(DEFAULT_HEIGHT);
+export function TerminalPanel({ height, isOpen, onClose, onHeightChange }: TerminalPanelProps) {
   const [isResizing, setIsResizing] = useState(false);
   const nextPaneId = useRef(1);
   const nextTabId = useRef(1);
@@ -48,7 +48,7 @@ export function TerminalPanel({ isOpen, onClose }: TerminalPanelProps) {
 
     const onPointerMove = (moveEvent: PointerEvent) => {
       const maxHeight = Math.max(MIN_HEIGHT, window.innerHeight - 96);
-      setHeight(Math.min(maxHeight, Math.max(MIN_HEIGHT, startHeight + startY - moveEvent.clientY)));
+      onHeightChange(Math.min(maxHeight, Math.max(MIN_HEIGHT, startHeight + startY - moveEvent.clientY)));
     };
     const stopResize = () => {
       setIsResizing(false);
@@ -112,7 +112,7 @@ export function TerminalPanel({ isOpen, onClose }: TerminalPanelProps) {
       <button
         aria-label="Resize terminal panel"
         className="terminal-panel-resize"
-        onDoubleClick={() => setHeight(DEFAULT_HEIGHT)}
+        onDoubleClick={() => onHeightChange(240)}
         onPointerDown={startResize}
         title="Drag to resize terminal panel"
         type="button"
