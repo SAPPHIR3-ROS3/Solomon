@@ -12,11 +12,50 @@ type WailsEnvironment = {
   Environment?: () => Promise<unknown>;
 };
 
+type WailsServerBridge = {
+  URL: () => Promise<string>;
+};
+
+type WailsDesktopBridge = {
+  ProjectSidebarData: () => Promise<unknown>;
+  SaveUserName: (userName: string) => Promise<string>;
+  CustomizationRules?: () => Promise<unknown>;
+  ReorderCustomizationRules?: (ruleIDs: number[]) => Promise<unknown>;
+  UpdateCustomizationRule?: (ruleID: number, text: string) => Promise<unknown>;
+  DeleteCustomizationRule?: (ruleID: number) => Promise<unknown>;
+  CustomizationSkills?: () => Promise<unknown>;
+  CustomizationMcps?: () => Promise<unknown>;
+  CustomizationSubagents?: () => Promise<unknown>;
+  UpdateCustomizationSubagent?: (id: string, detail: string, scores: Array<{ id: string; value: number }>) => Promise<unknown>;
+  DeleteCustomizationSubagent?: (id: string) => Promise<unknown>;
+  RolesTable?: () => Promise<unknown>;
+  SaveRolesTable?: (characteristics: string[]) => Promise<unknown>;
+};
+
 declare global {
   interface Window {
     runtime?: WailsEnvironment;
     wails?: unknown;
+    go?: {
+      main?: {
+        DesktopBridge?: WailsDesktopBridge;
+        ServerBridge?: WailsServerBridge;
+      };
+    };
   }
+}
+
+export async function desktopBridge(): Promise<WailsDesktopBridge | undefined> {
+  // Wails injects its bindings immediately after the document starts loading.
+  // Do not use runtime.Environment as the guard here: on a cold WebView load it
+  // can arrive after React has already requested sidebar data.
+  if (window.location.hostname !== "wails.localhost" && !window.go?.main) return undefined;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const bridge = window.go?.main?.DesktopBridge;
+    if (bridge) return bridge;
+    await new Promise((resolve) => window.setTimeout(resolve, 25));
+  }
+  return undefined;
 }
 
 export function initialClient(): ClientInfo {
@@ -40,8 +79,39 @@ export async function detectClient(): Promise<ClientInfo> {
   }
 }
 
+export async function serverEndpoint(path: string): Promise<string> {
+  if (!isWailsDesktop()) return path;
+
+  const serverURL = await getDesktopServerURL();
+  if (serverURL) return `${serverURL.replace(/\/$/, "")}${path}`;
+
+  if (window.location.hostname !== "wails.localhost") return path;
+  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+  const port = window.location.port ? `:${window.location.port}` : "";
+  return `${protocol}//127.0.0.1${port}${path}`;
+}
+
+function getDesktopServerURL(): Promise<string> {
+  return new Promise((resolve) => {
+    let attempt = 0;
+    const resolveURL = () => {
+      const bridge = window.go?.main?.ServerBridge;
+      if (!bridge && attempt++ < 10) {
+        window.setTimeout(resolveURL, 25);
+        return;
+      }
+      if (!bridge) {
+        resolve("");
+        return;
+      }
+      void bridge.URL().then((url) => resolve(url.trim())).catch(() => resolve(""));
+    };
+    resolveURL();
+  });
+}
+
 function isWailsDesktop(): boolean {
-  return typeof window.runtime?.Environment === "function" && window.wails !== undefined;
+  return typeof window.runtime?.Environment === "function";
 }
 
 function osFromPlatform(platform: string): ClientOS {

@@ -25,6 +25,10 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 23, G: 25, B: 27, A: 1},
+		Bind: []interface{}{
+			&DesktopBridge{},
+			&ServerBridge{},
+		},
 		Mac: &mac.Options{
 			// Keep the title bar hidden while reserving the native inset area for
 			// macOS traffic lights.
