@@ -26,9 +26,9 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 23, G: 25, B: 27, A: 1},
 		Mac: &mac.Options{
-			// Keep macOS' native traffic lights while the web interface extends
-			// into the title-bar area.
-			TitleBar: mac.TitleBarHidden(),
+			// Keep the title bar hidden while reserving the native inset area for
+			// macOS traffic lights.
+			TitleBar: mac.TitleBarHiddenInset(),
 		},
 	}); err != nil {
 		log.Fatal(err)

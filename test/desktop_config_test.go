@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestDesktopConfig_usesSolomonDevServer(t *testing.T) {
+func TestDesktopConfig_defersDevServerURLToRuntimeLauncher(t *testing.T) {
 	path := filepath.Join("..", "gui", "desktop", "wails.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -17,8 +17,8 @@ func TestDesktopConfig_usesSolomonDevServer(t *testing.T) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := config["frontend:dev:serverUrl"], "http://localhost:8765"; got != want {
-		t.Fatalf("desktop dev server URL = %q, want %q", got, want)
+	if got := config["frontend:dev:serverUrl"]; got != "" {
+		t.Fatalf("desktop config hard-codes dev server URL %q", got)
 	}
 	if got, want := config["frontend:dir"], ".."; got != want {
 		t.Fatalf("desktop frontend directory = %q, want %q", got, want)

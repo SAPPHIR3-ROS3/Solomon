@@ -115,17 +115,21 @@ func ClearState() error {
 }
 
 func Run(ctx context.Context, options Options) error {
+	mode := options.Mode
+	if mode == "" {
+		mode = "normal"
+	}
 	listenAddr := options.ListenAddr
 	if listenAddr == "" {
-		listenAddr = "127.0.0.1:" + strconv.Itoa(localPort)
+		if mode == "dev" {
+			listenAddr = "127.0.0.1:0"
+		} else {
+			listenAddr = "127.0.0.1:" + strconv.Itoa(localPort)
+		}
 	}
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return err
-	}
-	mode := options.Mode
-	if mode == "" {
-		mode = "normal"
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	state := State{
