@@ -26,15 +26,15 @@ The current prototype exposes only `GET /health`. API routes, Solomon worker pro
 
 ## Networking and health
 
-The server listens only on `127.0.0.1:8765`; its equivalent browser URL is `http://localhost:8765`. It does not bind to a network interface, so it has no authentication layer at this stage.
+In normal mode the server listens only on `127.0.0.1:8765`; its equivalent browser URL is `http://localhost:8765`. In development mode it selects a free loopback port and records the resulting URL in runtime state. It does not bind to a network interface, so it has no authentication layer at this stage.
 
 `GET /health` returns JSON with `ok`, server PID/version/mode/URLs/start time, Go runtime details, Vite status and development directory when present, plus placeholder statuses for API, GUI, and workers. It is the readiness check used by the CLI.
 
 ## Development frontend
 
-In `dev` mode the server starts `npm run dev -- --host 127.0.0.1 --port <free-port>` in the supplied GUI directory. The Vite process stays private on its random loopback port; the Solomon server reverse-proxies it at `http://localhost:8765`, including WebSocket traffic required by hot reload.
+In `dev` mode the server selects a free loopback port, then starts `npm run dev -- --host 127.0.0.1 --port <free-port>` in the supplied GUI directory. The Vite process stays private on its own random loopback port; the Solomon server reverse-proxies it at the URL advertised in runtime state, including WebSocket traffic required by hot reload.
 
-The desktop Wails project uses that same stable server URL in development. Both a browser and the desktop WebView therefore consume the same GUI project and the same Vite process. When the server exits it terminates the complete Vite process group, avoiding an orphaned frontend process.
+The desktop development launcher reads the running server state, verifies its health endpoint, and passes its current local URL to Wails. Both a browser and the desktop WebView therefore consume the same GUI project and the same Vite process even if the server port changes. When the server exits it terminates the complete Vite process group, avoiding an orphaned frontend process.
 
 ## Runtime files
 
@@ -47,7 +47,7 @@ The desktop Wails project uses that same stable server URL in development. Both 
 
 - [`cmd/solomon/server/`](../../cmd/solomon/server/) owns command parsing, detaching, logs, and lifecycle requests.
 - [`internal/server/service.go`](../../internal/server/service.go) owns listening, state, health, Vite startup, proxying, and shutdown.
-- [`gui/desktop/wails.json`](../../gui/desktop/wails.json) points Wails development at the stable local server URL.
+- [`scripts/desktop_dev.go`](../../scripts/desktop_dev.go) reads the server state and starts Wails with its current local server URL.
 - [`test/server_runtime_test.go`](../../test/server_runtime_test.go) starts real local server processes with a fake Vite command to verify health, proxying, and child cleanup.
 
 ## See also

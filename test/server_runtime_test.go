@@ -35,20 +35,7 @@ func TestServerRuntime_normalHealth(t *testing.T) {
 }
 
 func TestServerRuntime_devProxiesFrontendAndStopsChild(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("the fake npm executable is POSIX-only")
-	}
-	t.Setenv("SOLOMON_TEST_VITE_HELPER", "1")
-	t.Setenv("SOLOMON_TEST_BINARY", testBinaryForServer(t))
-	t.Setenv("PATH", fakeNPMForServer(t)+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-	frontend := t.TempDir()
-	if err := os.Mkdir(filepath.Join(frontend, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(frontend, "package.json"), []byte(`{"scripts":{"dev":"vite"}}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	frontend := prepareDevServerTest(t)
 
 	server, stop := startServerForTest(t, serverruntime.Options{Mode: "dev", DevDir: frontend})
 	health := getHealthForTest(t, server.URL)
@@ -79,10 +66,47 @@ func TestServerRuntime_devProxiesFrontendAndStopsChild(t *testing.T) {
 	}
 }
 
+func TestServerRuntime_devUsesRandomServerPort(t *testing.T) {
+	frontend := prepareDevServerTest(t)
+	server, stop := startServerWithRuntimeDefaultAddressForTest(t, serverruntime.Options{Mode: "dev", DevDir: frontend})
+	defer stop()
+
+	if server.URL == "http://127.0.0.1:8765" {
+		t.Fatalf("dev server URL = %q, want a random loopback port", server.URL)
+	}
+}
+
+func prepareDevServerTest(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake npm executable is POSIX-only")
+	}
+	t.Setenv("SOLOMON_TEST_VITE_HELPER", "1")
+	t.Setenv("SOLOMON_TEST_BINARY", testBinaryForServer(t))
+	t.Setenv("PATH", fakeNPMForServer(t)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	frontend := t.TempDir()
+	if err := os.Mkdir(filepath.Join(frontend, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(frontend, "package.json"), []byte(`{"scripts":{"dev":"vite"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return frontend
+}
+
 func startServerForTest(t *testing.T, options serverruntime.Options) (serverruntime.State, func()) {
+	return startServerAtAddressForTest(t, options, "127.0.0.1:0")
+}
+
+func startServerWithRuntimeDefaultAddressForTest(t *testing.T, options serverruntime.Options) (serverruntime.State, func()) {
+	return startServerAtAddressForTest(t, options, "")
+}
+
+func startServerAtAddressForTest(t *testing.T, options serverruntime.Options, listenAddr string) (serverruntime.State, func()) {
 	t.Helper()
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	options.ListenAddr = "127.0.0.1:0"
+	options.ListenAddr = listenAddr
 	ctx, cancel := context.WithCancel(context.Background())
 	errs := make(chan error, 1)
 	go func() { errs <- serverruntime.Run(ctx, options) }()

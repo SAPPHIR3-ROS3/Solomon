@@ -58,7 +58,7 @@ Exact usage strings: [`cmd/solomon/main.go`](../../cmd/solomon/main.go).
 
 ## Local server
 
-The server is a manually managed background process for the web GUI and future local APIs. It is bound to the user, not the current project directory, and listens only on `http://localhost:8765`.
+The server is a manually managed background process for the web GUI and future local APIs. It is bound to the user, not the current project directory. Normal mode listens on `http://localhost:8765`; development mode selects a free loopback port, reported by `solomon server status`.
 
 ```bash
 solomon server start
@@ -66,12 +66,20 @@ solomon server status
 solomon server stop
 ```
 
-For GUI development, pass the GUI project directory explicitly. The server launches Vite as its child and proxies it at the same stable local URL, so browser and Wails desktop development use the same frontend.
+For GUI development, pass the GUI project directory explicitly. The server launches Vite as its child and proxies it at its advertised local URL, so browser and Wails desktop development use the same frontend.
 
 ```bash
 solomon server start dev /absolute/or/relative/path/to/gui
 solomon server logs interactive
 ```
+
+To develop the Wails desktop client against that server, run this from the repository root instead of invoking `wails dev` directly:
+
+```bash
+make desktop-dev
+```
+
+The launcher reads the current server state and passes its advertised local URL to Wails, so it does not assume a fixed port.
 
 The development directory must contain `package.json` and `src/`. `solomon server restart` retains the current mode and development directory. Logs live at `~/.solomon/logs/server/server.log`; runtime state is `~/.solomon/run/server/state.json`. Full behavior: [Local server architecture](../architecture/server.md).
 
