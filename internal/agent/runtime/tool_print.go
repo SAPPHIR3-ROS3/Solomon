@@ -286,7 +286,7 @@ func (r *Runtime) printToolInvocation(toolIdx int, name string, rawArgs json.Raw
 	})
 	r.stampAssistantToolCallCheckpoint(toolIdx, cpSeq, branchKey)
 	if intent := tooling.ExtractToolIntent(rawArgs); intent != "" {
-		fmt.Fprintf(r.Out, "%s%s\n", checkpoint.FormatCheckpointPrefix(cpSeq, branchKey), termcolor.WrapThinking(intent))
+		tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, []string{termcolor.WrapThinking(intent)})
 	}
 	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, formatToolDisplayLines(name, rawArgs))
 	return cpSeq

@@ -15,6 +15,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `subagent_timeout_minutes` | Subagent slices (wizard default 20) |
 | `[api_resilience]` | LLM HTTP retry, backoff, circuit breaker, timeouts (optional; defaults in code) |
 | `reasoning_effort` | Main chat reasoning profile |
+| `subagent_reasoning_effort` | Default reasoning profile for nested runs; tool calls may override it |
 | `log_level`, `max_response_tokens` | Verbosity and cap |
 | `show_thinking`, `show_usage_stats` | Streams / footer |
 | `[tools].legacy`, `[tools].legacy_force` | Legacy XML tool calling (global); see below |
@@ -72,31 +73,44 @@ path = "/Users/me/solomon-exports"
 
 ### Subagent roles
 
-Optional pool of provider/model pairs for economical nested subagents (`[[roles.subagent]]` in TOML). The primary agent lists entries with the native `listSubAgents` tool, compares `description` and `points`, then passes the chosen `provider` and `model` to `subagent` via `roleProvider` and `roleModel`. When both role fields are omitted, the subagent uses the **session** provider and model.
+Optional pool of provider/model pairs for economical nested subagents (`[[roles.subagent]]` in TOML). The primary agent lists entries with the native `listSubAgents` tool, compares `description` and manually assigned `scores`, then passes the chosen `provider` and `model` to `subagent` via `roleProvider` and `roleModel`. Automatic benchmark score refresh and auto-fill are temporarily disabled. When both role fields are omitted, the subagent uses the **session** provider and model.
 
-Entries are validated on config load and save: each row requires non-empty `provider` and `model`, a configured `[providers.<name>]`, a live model list from that provider (reachable API; model id must appear in the list), non-negative `points`, and unique provider+model pairs. **Requires network and valid provider credentials** when any `[[roles.subagent]]` row is present (including headless `config.Load` / `Save`).
+Configure one to five score characteristics in `[roles.table]`, then assign each score directly under `[roles.subagent.scores]`. Scores must be integers from `0` to `100`; a missing selected score is shown as unclassified and is never filled automatically. `/add subagent` guides both table setup and score entry.
+
+Entries are validated on config load and save: each row requires non-empty `provider` and `model`, a configured `[providers.<name>]`, a live model list from that provider (reachable API; model id must appear in the list), valid manual scores, and a unique provider+model pair. **Requires network and valid provider credentials** when any `[[roles.subagent]]` row is present (including headless `config.Load` / `Save`).
 
 | Key | Role |
 |-----|------|
 | `provider` | Named provider from `[providers.<name>]` |
 | `model` | Model id on that provider |
 | `description` | Short hint for the primary agent when choosing from the pool |
-| `points` | Relative priority (higher = preferred in listings; default `100` when omitted) |
+| `scores` | User-assigned `0`–`100` values keyed by a characteristic selected in `[roles.table]` |
 
 Example:
 
 ```toml
+[roles.table]
+characteristics = ["reasoning", "cost", "speed"]
+
 [[roles.subagent]]
 provider = "openrouter"
 model = "qwen-..."
 description = "Fast codebase exploration"
-points = 80
+
+[roles.subagent.scores]
+reasoning = 75
+cost = 90
+speed = 85
 
 [[roles.subagent]]
 provider = "groq"
 model = "llama-..."
 description = "Cheap single-file tasks"
-points = 60
+
+[roles.subagent.scores]
+reasoning = 65
+cost = 95
+speed = 92
 ```
 
 Agent tools: [Native tools — subagent roles](../architecture/native-tools.md#subagent-roles). Feature overview: [Subagent delegation](../features.md#subagent-delegation).
@@ -173,7 +187,7 @@ You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic
 | Setup | `api_protocol` | Notes |
 |-------|----------------|--------|
 | `/onboard` or `/connect` → OpenAI Compatible API | `openai` (default) | Any OpenAI Chat Completions-compatible `base_url` |
-| `/onboard` or `/connect` → Anthropic Compatible API | `anthropic` | Messages API (`POST …/v1/messages`); curated model list |
+| `/onboard` or `/connect` → Anthropic Compatible API | `anthropic` | Messages API (`POST …/v1/messages`); models loaded from the provider API |
 | `/connect` → ChatGPT Sub | `openai` | OAuth; Codex middleware |
 | `/connect` → Claude Sub | `anthropic` | OAuth; native Messages API |
 | `/connect` → Cursor API | `openai` | Optional sidecar; see [Cursor integration](#cursor-integration-tool-execution) |
@@ -188,7 +202,7 @@ Many slash commands write back to `config.toml` on save:
 |---------------|--------------|-------|
 | `/name` | `user_name` | `/name clear` removes |
 | `/language` | `response_language` | `/language clear` resets to English; custom rules and instruction files may stay in another language — see [Project instructions](project-instructions.md) |
-| `/reasoning` | `reasoning_effort` | Main chat only; subagent reasoning stays off unless extended later |
+| `/reasoning` | `reasoning_effort` | Main chat default; nested runs can override with `reasoningEffort` or `subagent_reasoning_effort` |
 | `/thinking` | `show_thinking` | Streamed reasoning preview |
 | `/stats` | `show_usage_stats` | Token line after assistant turns |
 | `/max_response` | `max_response_tokens` | Assistant output cap |
@@ -267,28 +281,6 @@ Path: `~/.solomon/mcp.json`, or the file in `SOLOMON_MCP_CONFIG`. If missing, So
 In **agent** mode, MCP tools are discovered via `searchTools` and invoked through **`orchestrate`** (code mode), not as direct native tool_calls.
 
 Full schema, JSON example, and runtime behavior: [MCP integration](../architecture/mcp-integration.md).
-
-## Server (HTTP daemon)
-
-Optional `[server]` section for `solomon serve`:
-
-```toml
-[server]
-bind = "127.0.0.1:8443"
-port = 8443
-static_dir = ""
-tls_cert = ""
-tls_key = ""
-```
-
-| Key | Default | Role |
-|-----|---------|------|
-| `bind` | `127.0.0.1:8443` | Listen address (`host:port` or host only with `port`) |
-| `port` | `8443` | Port when `bind` has no port |
-| `static_dir` | empty | Optional web UI static files |
-| `tls_cert` / `tls_key` | auto-generated under `~/.solomon/server/certs/` | TLS paths |
-
-API surface: OpenAI **Responses API** (`POST /v1/responses`, `GET /v1/conversations`, …). Auth: Bearer token after bootstrap or passkey registration. Details: [Startup and CLI](../architecture/startup-and-cli.md#solomon-serve).
 
 ## See also
 

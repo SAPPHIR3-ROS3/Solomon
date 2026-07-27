@@ -18,7 +18,9 @@ Deep dives stay in linked articles; this file is the single checklist.
 | Path | Role | Article |
 |------|------|---------|
 | `cmd/solomon/` | Binary entry: CLI flags, wizard, `Runtime` bootstrap | [Startup and CLI](startup-and-cli.md) |
-| `internal/server/` | HTTPS daemon: auth, Responses API, SSE, passkey | [Startup and CLI](startup-and-cli.md#solomon-serve) |
+| `cmd/solomon/server/` | Detached local server lifecycle commands and log reader | [Local server](server.md) |
+| `cmd/solomon/server/detach/` | Platform-specific process detachment for the local server | [Local server](server.md) |
+| `internal/server/` | Local HTTP host: health, Vite reverse proxy, process lifecycle | [Local server](server.md) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |
 | `internal/agent/runtime/` | REPL, turns, session I/O, MCP init, Cursor hooks | [Runtime hub](runtime.md) |
 | `internal/agent/runtime/btw/` | Transient `/btw` side questions and output buffering | [Agent turn pipeline](agent-turn-pipeline.md#btw-side-stream) |
@@ -48,7 +50,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/config/` | TOML config load/merge | [Configuration](../user-guide/configuration.md) |
 | `internal/prompt/` | System prompt render (`RenderAgent`, `RenderChat`) | [Plan vs build](plan-vs-build.md) |
 | `internal/prompt/templates/` | Embedded `.tmpl` defaults (copied to `~/.solomon/prompts/templates/` at runtime) | [Plan vs build](plan-vs-build.md), [Configuration](../user-guide/configuration.md#prompt_templates-system-prompt-templates) |
-| `internal/prompt/shell/` | OS-specific shell hints in templates | [Supporting packages](supporting-packages.md) |
+| `internal/prompt/shellutils/` | OS-specific shell hints in templates | [Supporting packages](supporting-packages.md) |
 
 ## Feature
 
@@ -78,7 +80,9 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/search/` | Web search backends for `webSearch` | [Supporting packages](supporting-packages.md) |
 | `internal/research/` | Research engine: web jobs, parsing, quality checks, LLM integration | [Supporting packages](supporting-packages.md) |
 | `internal/research/html/` | HTML rendering templates for research results | [Supporting packages](supporting-packages.md) |
-| `internal/roles/` | Subagent role pool from config (`SubagentPool`, `FindSubagent`) | [Native tools](native-tools.md#subagent-roles) |
+| `internal/roles/` | Manual subagent score catalog, table formatting, and role lookup | [Native tools](native-tools.md#subagent-roles) |
+| `internal/roles/benchmarks/` | Disabled automatic benchmark score storage, refresh, and publishing | [Native tools](native-tools.md#subagent-roles) |
+| `internal/roles/scoring/` | Disabled automatic benchmark normalization and aggregation helpers | [Native tools](native-tools.md#subagent-roles) |
 | `internal/pathglob/` | Glob `**` matching for `find` | [Native tools](native-tools.md) |
 | `internal/plan/` | Plan file read, write, sections, todos, status | [Plan vs build](plan-vs-build.md) |
 | `internal/gitignore/` | `.gitignore` matcher for `find` | [Native tools](native-tools.md) |
@@ -133,6 +137,8 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | Path | Tier |
 |------|------|
 | `cmd/solomon/` | Core |
+| `cmd/solomon/server/` | Core |
+| `cmd/solomon/server/detach/` | Core |
 | `internal/agent/` | Core |
 | `internal/agent/cievents/` | Feature |
 | `internal/agent/commands/` | Feature |
@@ -185,11 +191,13 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/paths/` | Core |
 | `internal/project/` | Core |
 | `internal/prompt/` | Core |
-| `internal/prompt/shell/` | Core |
+| `internal/prompt/shellutils/` | Core |
 | `internal/providersetup/` | Support |
 | `internal/research/` | Feature |
 | `internal/research/html/` | Feature |
 | `internal/roles/` | Feature |
+| `internal/roles/benchmarks/` | Feature |
+| `internal/roles/scoring/` | Feature |
 | `internal/search/` | Feature |
 | `internal/server/` | Core |
 | `internal/sandbox/compile/` | Feature |

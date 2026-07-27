@@ -32,6 +32,7 @@ type TurnRequest struct {
 	Tools                 []ToolDef
 	ParallelToolCalls     bool
 	ForceDisableReasoning bool
+	ReasoningEffort       string
 }
 
 type SimpleCompletionRequest struct {
@@ -63,10 +64,10 @@ type UsageStats struct {
 }
 
 type AssistantTurnResult struct {
-	Content            string
-	ReasoningText      string
-	ToolCalls          []AssistantToolCall
-	Usage              UsageStats
+	Content             string
+	ReasoningText       string
+	ToolCalls           []AssistantToolCall
+	Usage               UsageStats
 	ProxyToolCorrection string
 }
 

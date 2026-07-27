@@ -1,9 +1,6 @@
 package config
 
-
-
 import (
-
 	"bytes"
 
 	"context"
@@ -14,161 +11,144 @@ import (
 
 	"strings"
 
-
-
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 
 	to "github.com/pelletier/go-toml/v2"
-
 )
 
-
-
 type rootLegacyFile struct {
+	UserName string `toml:"user_name"`
 
-	UserName                  string           `toml:"user_name"`
+	Providers []Provider `toml:"providers"`
 
-	Providers                 []Provider       `toml:"providers"`
+	Current Current `toml:"current"`
 
-	Current                   Current          `toml:"current"`
+	RecentModelUses []RecentModelUse `toml:"recent_model_uses,omitempty"`
 
-	RecentModelUses           []RecentModelUse `toml:"recent_model_uses,omitempty"`
+	SubagentTimeoutMinutes int `toml:"subagent_timeout_minutes"`
 
-	SubagentTimeoutMinutes    int              `toml:"subagent_timeout_minutes"`
+	ReasoningEffort string `toml:"reasoning_effort"`
 
-	ReasoningEffort           string           `toml:"reasoning_effort"`
+	SubagentReasoningEffort string `toml:"subagent_reasoning_effort"`
 
-	SubagentReasoningEffort     string           `toml:"subagent_reasoning_effort"`
+	FastMode *bool `toml:"fast_mode,omitempty"`
 
-	FastMode                  *bool            `toml:"fast_mode,omitempty"`
+	LogLevel string `toml:"log_level"`
 
-	LogLevel                  string           `toml:"log_level"`
+	MaxResponseTokens int `toml:"max_response_tokens"`
 
-	MaxResponseTokens         int              `toml:"max_response_tokens"`
+	ShowThinking bool `toml:"show_thinking"`
 
-	ShowThinking              bool             `toml:"show_thinking"`
+	Anonymize bool `toml:"anonymize,omitempty"`
 
-	Anonymize                 bool             `toml:"anonymize,omitempty"`
+	Tools Tools `toml:"tools,omitempty"`
 
-	Tools                     Tools            `toml:"tools,omitempty"`
+	LegacyTools bool `toml:"legacy_tools,omitempty"`
 
-	LegacyTools               bool             `toml:"legacy_tools,omitempty"`
+	LegacyToolsForce bool `toml:"legacy_tools_force,omitempty"`
 
-	LegacyToolsForce          bool             `toml:"legacy_tools_force,omitempty"`
+	ShowUsageStats *bool `toml:"show_usage_stats"`
 
-	ShowUsageStats            *bool            `toml:"show_usage_stats"`
+	ResponseLanguage string `toml:"response_language"`
 
-	ResponseLanguage          string           `toml:"response_language"`
+	CompactionThresholdTokens int64 `toml:"compaction_threshold_tokens"`
 
-	CompactionThresholdTokens int64            `toml:"compaction_threshold_tokens"`
+	SkillSearchMinNorm *float64 `toml:"skill_search_min_normalized_score,omitempty"`
 
-	SkillSearchMinNorm        *float64         `toml:"skill_search_min_normalized_score,omitempty"`
+	DocSearchMinNorm *float64 `toml:"doc_search_min_normalized_score,omitempty"`
 
-	DocSearchMinNorm          *float64         `toml:"doc_search_min_normalized_score,omitempty"`
+	DocSearchFullArticleScore *float64 `toml:"doc_search_full_article_score,omitempty"`
 
-	DocSearchFullArticleScore *float64         `toml:"doc_search_full_article_score,omitempty"`
+	WebSearchEngine string `toml:"web_search_engine,omitempty"`
 
-	WebSearchEngine           string           `toml:"web_search_engine,omitempty"`
+	WebSearchAPIKey string `toml:"web_search_api_key,omitempty"`
 
-	WebSearchAPIKey           string           `toml:"web_search_api_key,omitempty"`
+	WebSearchBaseURL string `toml:"web_search_base_url,omitempty"`
 
-	WebSearchBaseURL          string           `toml:"web_search_base_url,omitempty"`
+	WebSearchCX string `toml:"web_search_cx,omitempty"`
 
-	WebSearchCX               string           `toml:"web_search_cx,omitempty"`
+	ToolOutput ToolOutput `toml:"tool_output,omitempty"`
 
-	ToolOutput                ToolOutput            `toml:"tool_output,omitempty"`
+	APIResilience APIResilienceConfig `toml:"api_resilience,omitempty"`
 
-	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
+	WebFetch WebFetchConfig `toml:"web_fetch,omitempty"`
 
-	WebFetch                  WebFetchConfig        `toml:"web_fetch,omitempty"`
+	Export Export `toml:"export,omitempty"`
 
-	Export                    Export                `toml:"export,omitempty"`
+	Roles Roles `toml:"roles,omitempty"`
 
-	Server                    Server                `toml:"server,omitempty"`
-
-	Roles                     Roles                 `toml:"roles,omitempty"`
-
-	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
-
+	AutoUpdate *bool `toml:"autoupdate,omitempty"`
 }
-
-
 
 type rootFile struct {
+	UserName string `toml:"user_name"`
 
-	UserName                  string              `toml:"user_name"`
+	Providers map[string]Provider `toml:"providers,omitempty"`
 
-	Providers                 map[string]Provider `toml:"providers,omitempty"`
+	Current Current `toml:"current"`
 
-	Current                   Current             `toml:"current"`
+	RecentModels map[string][]string `toml:"recent_models,omitempty"`
 
-	RecentModels              map[string][]string `toml:"recent_models,omitempty"`
+	SubagentTimeoutMinutes int `toml:"subagent_timeout_minutes"`
 
-	SubagentTimeoutMinutes    int                 `toml:"subagent_timeout_minutes"`
+	ReasoningEffort string `toml:"reasoning_effort"`
 
-	ReasoningEffort           string              `toml:"reasoning_effort"`
+	SubagentReasoningEffort string `toml:"subagent_reasoning_effort"`
 
-	SubagentReasoningEffort   string              `toml:"subagent_reasoning_effort"`
+	FastMode *bool `toml:"fast_mode,omitempty"`
 
-	FastMode                  *bool               `toml:"fast_mode,omitempty"`
+	LogLevel string `toml:"log_level"`
 
-	LogLevel                  string              `toml:"log_level"`
+	MaxResponseTokens int `toml:"max_response_tokens"`
 
-	MaxResponseTokens         int                 `toml:"max_response_tokens"`
+	ShowThinking bool `toml:"show_thinking"`
 
-	ShowThinking              bool                `toml:"show_thinking"`
+	Anonymize bool `toml:"anonymize,omitempty"`
 
-	Anonymize                 bool                `toml:"anonymize,omitempty"`
+	Tools Tools `toml:"tools,omitempty"`
 
-	Tools                     Tools               `toml:"tools,omitempty"`
+	LegacyTools bool `toml:"legacy_tools,omitempty"`
 
-	LegacyTools               bool                `toml:"legacy_tools,omitempty"`
+	LegacyToolsForce bool `toml:"legacy_tools_force,omitempty"`
 
-	LegacyToolsForce          bool                `toml:"legacy_tools_force,omitempty"`
+	ShowUsageStats *bool `toml:"show_usage_stats"`
 
-	ShowUsageStats            *bool               `toml:"show_usage_stats"`
+	ResponseLanguage string `toml:"response_language"`
 
-	ResponseLanguage          string              `toml:"response_language"`
+	CompactionThresholdTokens int64 `toml:"compaction_threshold_tokens"`
 
-	CompactionThresholdTokens int64               `toml:"compaction_threshold_tokens"`
+	SkillSearchMinNorm *float64 `toml:"skill_search_min_normalized_score,omitempty"`
 
-	SkillSearchMinNorm        *float64            `toml:"skill_search_min_normalized_score,omitempty"`
+	DocSearchMinNorm *float64 `toml:"doc_search_min_normalized_score,omitempty"`
 
-	DocSearchMinNorm          *float64            `toml:"doc_search_min_normalized_score,omitempty"`
+	DocSearchFullArticleScore *float64 `toml:"doc_search_full_article_score,omitempty"`
 
-	DocSearchFullArticleScore *float64            `toml:"doc_search_full_article_score,omitempty"`
+	WebSearchEngine string `toml:"web_search_engine,omitempty"`
 
-	WebSearchEngine           string              `toml:"web_search_engine,omitempty"`
+	WebSearchAPIKey string `toml:"web_search_api_key,omitempty"`
 
-	WebSearchAPIKey           string              `toml:"web_search_api_key,omitempty"`
+	WebSearchBaseURL string `toml:"web_search_base_url,omitempty"`
 
-	WebSearchBaseURL          string              `toml:"web_search_base_url,omitempty"`
+	WebSearchCX string `toml:"web_search_cx,omitempty"`
 
-	WebSearchCX               string              `toml:"web_search_cx,omitempty"`
+	ToolOutput ToolOutput `toml:"tool_output,omitempty"`
 
-	ToolOutput                ToolOutput            `toml:"tool_output,omitempty"`
+	APIResilience APIResilienceConfig `toml:"api_resilience,omitempty"`
 
-	APIResilience             APIResilienceConfig   `toml:"api_resilience,omitempty"`
+	WebFetch WebFetchConfig `toml:"web_fetch,omitempty"`
 
-	WebFetch                  WebFetchConfig        `toml:"web_fetch,omitempty"`
+	Export Export `toml:"export,omitempty"`
 
-	Export                    Export                `toml:"export,omitempty"`
+	Roles Roles `toml:"roles,omitempty"`
 
-	Server                    Server                `toml:"server,omitempty"`
+	AutoUpdate *bool `toml:"autoupdate,omitempty"`
 
-	Roles                     Roles                 `toml:"roles,omitempty"`
+	PromptTemplates map[string]string `toml:"prompt_templates,omitempty"`
 
-	AutoUpdate                *bool                 `toml:"autoupdate,omitempty"`
-
-	PromptTemplates           map[string]string     `toml:"prompt_templates,omitempty"`
-
-	PromptTemplateModTime   map[string]int64 `toml:"prompt_template_mtime,omitempty"`
-
+	PromptTemplateModTime map[string]int64 `toml:"prompt_template_mtime,omitempty"`
 }
-
-
 
 func mergeToolsSection(section Tools, legacyRoot, legacyForceRoot bool) Tools {
 
@@ -188,8 +168,6 @@ func mergeToolsSection(section Tools, legacyRoot, legacyForceRoot bool) Tools {
 
 }
 
-
-
 func rootFromFile(f *rootFile) *Root {
 
 	if f == nil {
@@ -200,68 +178,65 @@ func rootFromFile(f *rootFile) *Root {
 
 	r := &Root{
 
-		UserName:                  f.UserName,
+		UserName: f.UserName,
 
-		Current:                   f.Current,
+		Current: f.Current,
 
-		RecentModels:              f.RecentModels,
+		RecentModels: f.RecentModels,
 
-		SubagentTimeoutMinutes:    f.SubagentTimeoutMinutes,
+		SubagentTimeoutMinutes: f.SubagentTimeoutMinutes,
 
-		ReasoningEffort:           f.ReasoningEffort,
+		ReasoningEffort: f.ReasoningEffort,
 
-		SubagentReasoningEffort:   f.SubagentReasoningEffort,
+		SubagentReasoningEffort: f.SubagentReasoningEffort,
 
-		FastMode:                  f.FastMode,
+		FastMode: f.FastMode,
 
-		LogLevel:                  f.LogLevel,
+		LogLevel: f.LogLevel,
 
-		MaxResponseTokens:         f.MaxResponseTokens,
+		MaxResponseTokens: f.MaxResponseTokens,
 
-		ShowThinking:              f.ShowThinking,
+		ShowThinking: f.ShowThinking,
 
-		Anonymize:                 f.Anonymize,
+		Anonymize: f.Anonymize,
 
-		Tools:                     mergeToolsSection(f.Tools, f.LegacyTools, f.LegacyToolsForce),
+		Tools: mergeToolsSection(f.Tools, f.LegacyTools, f.LegacyToolsForce),
 
-		ShowUsageStats:            f.ShowUsageStats,
+		ShowUsageStats: f.ShowUsageStats,
 
-		ResponseLanguage:          f.ResponseLanguage,
+		ResponseLanguage: f.ResponseLanguage,
 
 		CompactionThresholdTokens: f.CompactionThresholdTokens,
 
-		SkillSearchMinNorm:        f.SkillSearchMinNorm,
+		SkillSearchMinNorm: f.SkillSearchMinNorm,
 
-		DocSearchMinNorm:          f.DocSearchMinNorm,
+		DocSearchMinNorm: f.DocSearchMinNorm,
 
 		DocSearchFullArticleScore: f.DocSearchFullArticleScore,
 
-		WebSearchEngine:           f.WebSearchEngine,
+		WebSearchEngine: f.WebSearchEngine,
 
-		WebSearchAPIKey:           f.WebSearchAPIKey,
+		WebSearchAPIKey: f.WebSearchAPIKey,
 
-		WebSearchBaseURL:          f.WebSearchBaseURL,
+		WebSearchBaseURL: f.WebSearchBaseURL,
 
-		WebSearchCX:               f.WebSearchCX,
+		WebSearchCX: f.WebSearchCX,
 
-		ToolOutput:                f.ToolOutput,
+		ToolOutput: f.ToolOutput,
 
-		APIResilience:             f.APIResilience,
+		APIResilience: f.APIResilience,
 
-		WebFetch:                  f.WebFetch,
+		WebFetch: f.WebFetch,
 
-		Export:                    f.Export,
+		Export: f.Export,
 
-		Server:                    f.Server,
+		Roles: f.Roles,
 
-		Roles:                     f.Roles,
+		AutoUpdate: f.AutoUpdate,
 
-		AutoUpdate:                f.AutoUpdate,
+		PromptTemplates: f.PromptTemplates,
 
-		PromptTemplates:           f.PromptTemplates,
-
-		PromptTemplateModTime:   f.PromptTemplateModTime,
-
+		PromptTemplateModTime: f.PromptTemplateModTime,
 	}
 
 	for name, p := range f.Providers {
@@ -274,8 +249,6 @@ func rootFromFile(f *rootFile) *Root {
 
 }
 
-
-
 func rootToFile(r *Root) *rootFile {
 
 	if r == nil {
@@ -286,68 +259,65 @@ func rootToFile(r *Root) *rootFile {
 
 	f := &rootFile{
 
-		UserName:                  r.UserName,
+		UserName: r.UserName,
 
-		Current:                   r.Current,
+		Current: r.Current,
 
-		RecentModels:              r.RecentModels,
+		RecentModels: r.RecentModels,
 
-		SubagentTimeoutMinutes:    r.SubagentTimeoutMinutes,
+		SubagentTimeoutMinutes: r.SubagentTimeoutMinutes,
 
-		ReasoningEffort:           r.ReasoningEffort,
+		ReasoningEffort: r.ReasoningEffort,
 
-		SubagentReasoningEffort:   r.SubagentReasoningEffort,
+		SubagentReasoningEffort: r.SubagentReasoningEffort,
 
-		FastMode:                  r.FastMode,
+		FastMode: r.FastMode,
 
-		LogLevel:                  r.LogLevel,
+		LogLevel: r.LogLevel,
 
-		MaxResponseTokens:         r.MaxResponseTokens,
+		MaxResponseTokens: r.MaxResponseTokens,
 
-		ShowThinking:              r.ShowThinking,
+		ShowThinking: r.ShowThinking,
 
-		Anonymize:                 r.Anonymize,
+		Anonymize: r.Anonymize,
 
-		Tools:                     r.Tools,
+		Tools: r.Tools,
 
-		ShowUsageStats:            r.ShowUsageStats,
+		ShowUsageStats: r.ShowUsageStats,
 
-		ResponseLanguage:          r.ResponseLanguage,
+		ResponseLanguage: r.ResponseLanguage,
 
 		CompactionThresholdTokens: r.CompactionThresholdTokens,
 
-		SkillSearchMinNorm:        r.SkillSearchMinNorm,
+		SkillSearchMinNorm: r.SkillSearchMinNorm,
 
-		DocSearchMinNorm:          r.DocSearchMinNorm,
+		DocSearchMinNorm: r.DocSearchMinNorm,
 
 		DocSearchFullArticleScore: r.DocSearchFullArticleScore,
 
-		WebSearchEngine:           r.WebSearchEngine,
+		WebSearchEngine: r.WebSearchEngine,
 
-		WebSearchAPIKey:           r.WebSearchAPIKey,
+		WebSearchAPIKey: r.WebSearchAPIKey,
 
-		WebSearchBaseURL:          r.WebSearchBaseURL,
+		WebSearchBaseURL: r.WebSearchBaseURL,
 
-		WebSearchCX:               r.WebSearchCX,
+		WebSearchCX: r.WebSearchCX,
 
-		ToolOutput:                r.ToolOutput,
+		ToolOutput: r.ToolOutput,
 
-		APIResilience:             r.APIResilience,
+		APIResilience: r.APIResilience,
 
-		WebFetch:                  r.WebFetch,
+		WebFetch: r.WebFetch,
 
-		Export:                    r.Export,
+		Export: r.Export,
 
-		Server:                    r.Server,
+		Roles: r.Roles,
 
-		Roles:                     r.Roles,
+		AutoUpdate: r.AutoUpdate,
 
-		AutoUpdate:                r.AutoUpdate,
+		PromptTemplates: r.PromptTemplates,
 
-		PromptTemplates:           r.PromptTemplates,
-
-		PromptTemplateModTime:   r.PromptTemplateModTime,
-
+		PromptTemplateModTime: r.PromptTemplateModTime,
 	}
 
 	if len(r.Providers) > 0 {
@@ -376,8 +346,6 @@ func rootToFile(r *Root) *rootFile {
 
 }
 
-
-
 func setProviderOnRoot(r *Root, name string, p Provider) {
 
 	name = strings.TrimSpace(name)
@@ -402,8 +370,6 @@ func setProviderOnRoot(r *Root, name string, p Provider) {
 
 }
 
-
-
 func rootFromLegacy(f *rootLegacyFile) *Root {
 
 	if f == nil {
@@ -414,62 +380,59 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 
 	r := &Root{
 
-		UserName:                  f.UserName,
+		UserName: f.UserName,
 
-		Current:                   f.Current,
+		Current: f.Current,
 
-		SubagentTimeoutMinutes:    f.SubagentTimeoutMinutes,
+		SubagentTimeoutMinutes: f.SubagentTimeoutMinutes,
 
-		ReasoningEffort:           f.ReasoningEffort,
+		ReasoningEffort: f.ReasoningEffort,
 
-		SubagentReasoningEffort:   f.SubagentReasoningEffort,
+		SubagentReasoningEffort: f.SubagentReasoningEffort,
 
-		FastMode:                  f.FastMode,
+		FastMode: f.FastMode,
 
-		LogLevel:                  f.LogLevel,
+		LogLevel: f.LogLevel,
 
-		MaxResponseTokens:         f.MaxResponseTokens,
+		MaxResponseTokens: f.MaxResponseTokens,
 
-		ShowThinking:              f.ShowThinking,
+		ShowThinking: f.ShowThinking,
 
-		Anonymize:                 f.Anonymize,
+		Anonymize: f.Anonymize,
 
-		Tools:                     mergeToolsSection(f.Tools, f.LegacyTools, f.LegacyToolsForce),
+		Tools: mergeToolsSection(f.Tools, f.LegacyTools, f.LegacyToolsForce),
 
-		ShowUsageStats:            f.ShowUsageStats,
+		ShowUsageStats: f.ShowUsageStats,
 
-		ResponseLanguage:          f.ResponseLanguage,
+		ResponseLanguage: f.ResponseLanguage,
 
 		CompactionThresholdTokens: f.CompactionThresholdTokens,
 
-		SkillSearchMinNorm:        f.SkillSearchMinNorm,
+		SkillSearchMinNorm: f.SkillSearchMinNorm,
 
-		DocSearchMinNorm:          f.DocSearchMinNorm,
+		DocSearchMinNorm: f.DocSearchMinNorm,
 
 		DocSearchFullArticleScore: f.DocSearchFullArticleScore,
 
-		WebSearchEngine:           f.WebSearchEngine,
+		WebSearchEngine: f.WebSearchEngine,
 
-		WebSearchAPIKey:           f.WebSearchAPIKey,
+		WebSearchAPIKey: f.WebSearchAPIKey,
 
-		WebSearchBaseURL:          f.WebSearchBaseURL,
+		WebSearchBaseURL: f.WebSearchBaseURL,
 
-		WebSearchCX:               f.WebSearchCX,
+		WebSearchCX: f.WebSearchCX,
 
-		ToolOutput:                f.ToolOutput,
+		ToolOutput: f.ToolOutput,
 
-		APIResilience:             f.APIResilience,
+		APIResilience: f.APIResilience,
 
-		WebFetch:                  f.WebFetch,
+		WebFetch: f.WebFetch,
 
-		Export:                    f.Export,
+		Export: f.Export,
 
-		Server:                    f.Server,
+		Roles: f.Roles,
 
-		Roles:                     f.Roles,
-
-		AutoUpdate:                f.AutoUpdate,
-
+		AutoUpdate: f.AutoUpdate,
 	}
 
 	for _, p := range f.Providers {
@@ -497,8 +460,6 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 	return r
 
 }
-
-
 
 func normalizeRoot(r *Root) {
 
@@ -639,8 +600,6 @@ func Load() (*Root, error) {
 
 }
 
-
-
 func Save(r *Root) error {
 
 	normalizeRoot(r)
@@ -698,5 +657,3 @@ func Save(r *Root) error {
 	return nil
 
 }
-
-

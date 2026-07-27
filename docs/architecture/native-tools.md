@@ -43,6 +43,22 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `searchTools`, `orchestrate`, `switchMode` | agent |
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
 
+`subagent` is a native function tool in agent mode. It accepts `run_in_background` for a persisted asynchronous run, `reasoningEffort` for a per-run override, and `interrupt` together with `resume` to cancel the active run before adding a new task. `/subagent stop` and `/subagent cancel` also cancel the live background context before persisting its final status.
+
+### `subagent` arguments and results
+
+| Argument | Required / default | Behavior |
+|----------|--------------------|----------|
+| `sysPromptPath` | Required for a new run | Prompt template path; inherited project instructions are merged into a custom prompt |
+| `task` | Required for a new run | Concrete task; when resuming, an optional task is appended to the stored transcript |
+| `resume` | Omitted | Existing `subchatId` to continue instead of creating a new session |
+| `run_in_background` | `false` | `false` waits for output; `true` returns `subchatId` and `status=running` immediately |
+| `interrupt` | `false` | Requires `resume`; cancels the active resumed run before applying the new task |
+| `reasoningEffort` | `subagent_reasoning_effort` | Per-run override: `none`, `low`, `medium`, or `high` |
+| `roleProvider`, `roleModel` | Omitted | Select a configured `[[roles.subagent]]` provider/model pair; both are required together |
+
+The tool returns `{ok, output, subchatId, status}` on success. Synchronous runs normally finish with `status=done` and include `output`; background runs return immediately with `status=running`. Timeout, cancellation, and recoverable nested errors persist the partial transcript with `status=paused` where possible. `subagent` is not exposed through `searchTools` and cannot be invoked from an `orchestrate` script.
+
 Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
 
 ## Subagent roles
@@ -51,13 +67,13 @@ When `[[roles.subagent]]` is configured in `config.toml`, the primary agent can 
 
 | Step | Tool / args |
 |------|-------------|
-| Discover pool | `listSubAgents` — returns `provider`, `model`, `description`, `points` (sorted by points descending) |
+| Discover pool | `listSubAgents` — returns `provider`, `model`, `description`, and manually configured `scores` for the selected characteristics |
 | Spawn nested run | `subagent` with optional `roleProvider` + `roleModel` matching a pool row |
 | Fallback | Omit both role fields → nested run uses the session provider and model |
 
 Role rows are validated on **config load and save**: provider must exist in `[providers]`, the provider API must be reachable, and the model id must appear in that provider’s model list (`ListModelsForProviderAll`, same path as `/models`). Runtime `subagent` calls also require `roleProvider` + `roleModel` to match a configured pool row (`listSubAgents`). Invalid pairs are rejected with a hint to call `listSubAgents`. Resume and deferred nested spawns restore `role_provider` / `role_model` from the subsession or pending spawn payload when omitted.
 
-Config schema: [`config.Roles`](../../internal/config/roles.go). Registry: [`internal/roles/registry.go`](../../internal/roles/registry.go).
+Config schema: [`config.Roles`](../../internal/config/roles.go). Manual table model: [`internal/roles/table.go`](../../internal/roles/table.go).
 
 ## `editFile` semantics (build)
 

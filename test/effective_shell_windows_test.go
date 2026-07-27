@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt/shell"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt/shellutils"
 )
 
 func TestEffectiveShell_notCmdWhenPSModulePath(t *testing.T) {
@@ -18,7 +18,7 @@ func TestEffectiveShell_notCmdWhenPSModulePath(t *testing.T) {
 	t.Setenv("COMSPEC", `C:\Windows\System32\cmd.exe`)
 	t.Setenv("PSModulePath", `C:\Program Files\WindowsPowerShell\Modules`)
 	t.Setenv("PWSH_VERSION", "")
-	got := shell.Effective()
+	got := shellutils.Effective()
 	if strings.EqualFold(filepath.Base(got), "cmd.exe") {
 		t.Fatalf("Effective shell: got cmd.exe with PSModulePath set: %q", got)
 	}

@@ -22,6 +22,8 @@ Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtim
 
 Switch models and backends with `/models`, add providers with `/connect`, or rerun setup via `/onboard` and first-run wizard. `/connect` supports **ChatGPT Sub** and **Claude Sub** (browser OAuth), OpenAI-compatible API keys, Anthropic API keys, and Cursor API. Every major terminal agent exposes equivalent controls (`/model`, provider pickers, or config files). Solomon stores providers in `config.toml` with OpenAI-compatible or native Anthropic Messages API modes. See [Configuration](user-guide/configuration.md).
 
+`/models` discovers model ids from each configured provider instead of relying on a single static catalog. The picker shows the current model, recent models, and provider names; selecting a provider loads or refreshes that provider’s live catalog. Large catalogs are paginated with `>`, and a model can also be selected by pasting its exact id. A failure to list one provider is reported without hiding successful catalogs from the others; when no provider returns models, the command reports the listing error.
+
 ### Read project files
 
 The `readFile` tool returns file contents (with line ranges) from the resolved project tree. Read-before-edit is a shared convention across Claude Code, Codex, OpenCode, and Hermes-style harnesses. Plan mode restricts writes but still allows reads for research. Reading a path under the repo can activate subdirectory `AGENTS.md` instruction files. Implementation: [Native tools](architecture/native-tools.md).
@@ -58,9 +60,9 @@ The `docsRetrieval` build tool and `/docs <query>` slash command search the embe
 
 Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the REPL, with shell-style tokenization for the prompt. Claude Code (`-p`), Codex (`exec`), and OpenCode support non-interactive runs for scripts and automation. Entry: [`cmd/solomon/exec.go`](../cmd/solomon/exec.go), [Startup and CLI](architecture/startup-and-cli.md).
 
-### HTTP server (`solomon serve`) **(implemented)**
+### Local server (`solomon server`) **(implemented)**
 
-`solomon serve` exposes an HTTPS **OpenAI Responses API** daemon for the current workspace: conversations, streaming turns, slash interception, bearer auth, self-signed TLS. Remote/web/native clients connect via Bearer token (bootstrap on first start). Optional static UI via `--static-dir`. See [Startup and CLI — solomon serve](architecture/startup-and-cli.md#solomon-serve), [Configuration — server](user-guide/configuration.md#server-http-daemon).
+`solomon server` runs a detached localhost service for the web GUI and future local APIs (`start`/`status`/`stop`/`restart`/`logs`). See [Local server](architecture/server.md), [Usage — Local server](user-guide/usage-and-commands.md).
 
 ### Interactive terminal REPL
 
@@ -96,7 +98,11 @@ The canonical workspace root yields a stable 64-char project id; chats, plans, s
 
 ### Subagent delegation
 
-The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). It is a **native** tool in **agent** mode and legacy **build** mode only — not in the deferred `searchTools` catalog, not callable from orchestrate WASM scripts. Nested runs always disable reasoning (`ForceDisableReasoning` in [`nested.go`](../internal/agent/runtime/nested.go)); `/reasoning` applies to the main chat only. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly. Subagent **file persistence** beyond in-memory transcripts is **(in the future)** — see [Subagent session persistence (in the future)](#subagent-session-persistence-in-the-future).
+The `subagent` tool spawns a nested agent turn with its own system prompt file and task string, subject to `subagent_timeout_minutes` (REPL: `/timeout`). Role scores are assigned manually in `[[roles.subagent]]`; automatic benchmark refresh and score fill are temporarily disabled. It is a **native** tool in **agent** mode and legacy **build** mode only — not in the deferred `searchTools` catalog, not callable from orchestrate WASM scripts. Runs can be synchronous or background (`run_in_background: true`); background runs are persisted and can be managed with `/subagent stop|cancel|resume`. `interrupt: true` cancels an active resumed run before applying a new task. `reasoningEffort` (or `subagent_reasoning_effort`) controls the nested request independently of the main chat. Claude Code, Codex, and Cursor Task-style flows parallelize work similarly.
+
+Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and the scores assigned by the user, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
+
+Subagent transcripts are persisted under the project’s `SubchatsDir` with stable IDs, messages, parent linkage, status, role selection, and reasoning effort. Background runs stay registered while active; `/subagent stop` and `/subagent cancel` interrupt the live context and write `paused` or `cancelled`. `/subagent resume`, or the native tool with `resume`, continues the stored transcript. See [Subagent persistence and lifecycle](architecture/sessions-and-storage.md#subagent-persistence-and-lifecycle) and [Usage and commands — `/subagent`](user-guide/usage-and-commands.md#subagent--list-and-control-nested-runs).
 
 Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and `points`, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
 
@@ -118,7 +124,7 @@ Install skills with `/add` (skills.sh URL, `npx skills add …`, or local `SKILL
 
 ### Reasoning and thinking display
 
-`/reasoning` sets main-chat effort (`none|low|med|high`); `/thinking` toggles streamed reasoning preview (dim) and tool echo styling. Subagent runs ignore `/reasoning` (always none). Extended thinking blocks on Anthropic are **(in the future)** in [TODO.md](../TODO.md). Codex and Claude Code expose comparable effort controls.
+`/reasoning` sets main-chat effort (`none|low|med|high`); `/thinking` toggles streamed reasoning preview (dim) and tool echo styling. Nested runs use `subagent_reasoning_effort` by default and can override it per tool call with `reasoningEffort`. Extended thinking blocks on Anthropic are **(in the future)** in [TODO.md](../TODO.md). Codex and Claude Code expose comparable effort controls.
 
 ### Clipboard images in the REPL
 
@@ -268,10 +274,6 @@ External memory (MemPalace or similar) plus Obsidian vault conventions would ext
 
 Today `find` with `files=false` is deterministic regexp search; the Cursor sidecar maps `SemanticSearch` to that fallback. A dedicated semantic or embedding-backed code search tool (or MCP-backed index) would answer concept queries (“where is auth handled?”) without known symbol strings.
 
-### Oracle consultative agent **(in the future)**
-
-A dedicated **Oracle** role (verification, routing, second opinion) is not implemented. Would integrate as a slash command or tool without duplicating existing skills.
-
 ### Reinforced image placeholder syntax **(in the future)**
 
 Replace visible `[img-n]` tokens with robust invisible Unicode delimiters to avoid collisions and ambiguous stripping, then align prompts in [Template and images (in the future)](#template-and-image-prompts-in-the-future).
@@ -287,10 +289,6 @@ Stronger workspace path jail, command allowlists, and optional confirmations wou
 ### Shell command tab completion **(partial)**
 
 [Partial tab completion](#partial-tab-completion) already completes PATH binaries, `go` subcommands (`go help`), and workspace paths on `!` / shell-first lines. **(in the future):** generic flags, arbitrary subcommands, and optional delegation to the host shell (bash/zsh/PowerShell parity).
-
-### Subagent session persistence **(in the future)**
-
-Subagent runs today return consolidated text to the parent; durable subchat files matching main-session schema (resume, tool history, stable ids) are outlined in `SubchatsDir` but not complete. Nested runs always use `ForceDisableReasoning: true` until optional per-subagent reasoning lands in [TODO.md](../TODO.md).
 
 ### Syntax highlighting in the terminal **(in the future)**
 

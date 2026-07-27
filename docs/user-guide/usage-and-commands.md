@@ -38,6 +38,7 @@ Install first: [Installation and PATH](installation.md). Provider and engine kno
 - **Project instructions**: `AGENTS.md` (and fallbacks) plus numbered custom rules injected into the system prompt — see [Project instructions](project-instructions.md)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools
 - **Deferred tools**: `readFile`, `editFile`, `find`, `shell`, `fetchWeb`, `webSearch` via orchestrate; plan tools when planning is active — see [Native tools](../architecture/native-tools.md)
+- **Local server**: detached localhost service for the web GUI and future local APIs — see [Local server](../architecture/server.md)
 
 ## CLI usage modes
 
@@ -51,8 +52,36 @@ Install first: [Installation and PATH](installation.md). Provider and engine kno
 | Ephemeral session (REPL) | `/temp` on an empty chat (in memory only; not written to disk) |
 | Skill install | `solomon add https://skills.sh/...` or `solomon add npx --yes skills add ...` |
 | Skill remove | `solomon remove skill <name>` |
+| Local server | `solomon server start\|status\|stop\|restart\|logs` |
 
 Exact usage strings: [`cmd/solomon/main.go`](../../cmd/solomon/main.go).
+
+## Local server
+
+The server is a manually managed background process for the web GUI and future local APIs. It is bound to the user, not the current project directory. Normal mode listens on `http://localhost:8765`; development mode selects a free loopback port, reported by `solomon server status`.
+
+```bash
+solomon server start
+solomon server status
+solomon server stop
+```
+
+For GUI development, pass the GUI project directory explicitly. The server launches Vite as its child and proxies it at its advertised local URL, so browser and Wails desktop development use the same frontend.
+
+```bash
+solomon server start dev /absolute/or/relative/path/to/gui
+solomon server logs interactive
+```
+
+To develop the Wails desktop client against that server, run this from the repository root instead of invoking `wails dev` directly:
+
+```bash
+make desktop-dev
+```
+
+The launcher reads the current server state and passes its advertised local URL to Wails, so it does not assume a fixed port.
+
+The development directory must contain `package.json` and `src/`. `solomon server restart` retains the current mode and development directory. Logs live at `~/.solomon/logs/server/server.log`; runtime state is `~/.solomon/run/server/state.json`. If `stop` finds a dead or unreachable process with leftover state, it force-stops the recorded PID when needed and clears `state.json`. Full behavior: [Local server architecture](../architecture/server.md).
 
 Skill installation commands are intentionally restricted: Solomon accepts only install commands that resolve to the `skills` package and its `add` subcommand (`npx ... skills add ...` or `npm exec ... skills add ...`). Shell chaining, redirects, unrelated packages, and unsupported flags are rejected.
 
@@ -107,6 +136,7 @@ Highlights:
 | `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
 | `/cursortools` | Confirm deprecated Cursor native tools stay off — only after `/connect` → Cursor API |
 | `/reasoning`, `/thinking` | Main-chat reasoning effort; streamed reasoning preview |
+| `/subagent` | List and control persisted subagent sessions |
 | `/log`, `/stats`, `/max_response`, `/timeout` | Log verbosity; token footer; output cap; subagent minutes |
 | `/name`, `/language` | User name and reply language in system prompt (saved) |
 | `/fast` | Cursor fast mode when supported by the active provider (saved) |
@@ -124,6 +154,23 @@ Full behaviour (rules vs `AGENTS.md`, subdirectory activation, truncation): [Pro
 After the welcome banner, Solomon runs a short HTTPS reachability check in the background (skipped when onboarding is required). If the network looks offline, a single system notice lists affected remote features (web search, remote MCP servers, remote providers) instead of separate catalog errors. The notice appears when the prompt is ready; typing can interrupt the wait. After an offline startup, the first `/models` refetches provider catalogs once connectivity returns.
 
 Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → forces `cursor_internal_tools = false`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields). `/export` reads `[export].path` but does not write config.
+
+### `/subagent` — list and control nested runs
+
+`/subagent` lists the persisted nested sessions available to the current Solomon home and project. Each entry shows its title, status, and full `subchatId`. The title is normally derived from the task; use the ID when titles are ambiguous.
+
+| Invocation | Behavior |
+|------------|----------|
+| `/subagent` | List subagent sessions, newest first |
+| `/subagent resume <id\|title>` | Resume a non-running session in the background; the stored transcript is continued |
+| `/subagent stop <id\|title>` | Stop the live run, persist it as `paused`, and keep it resumable |
+| `/subagent cancel <id\|title>` | Stop the live run and persist it as `cancelled`; the transcript remains on disk |
+
+`stop` and `cancel` interrupt the active context and wait for it to finish before writing the final status. A control command may take up to ten seconds while a provider request is being cancelled. `resume` starts asynchronously and prints the new background run information.
+
+The `/subagent` command controls sessions created by the native `subagent` tool. It does not expose a separate foreground viewer: to continue a session with a new task, use the native tool with `resume: "<subchatId>"` and `task`, optionally adding `interrupt: true` when the resumed session is still active.
+
+Subagent status values are `running`, `queued`, `paused`, `done`, and `cancelled`. A timed-out or failed run is saved as `paused` so it can be resumed. Subagents cannot be persisted from an ephemeral parent session (`solomon temp exec` or `/temp`).
 
 ### `/export` chat transcript
 

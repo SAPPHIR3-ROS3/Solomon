@@ -1,4 +1,4 @@
-.PHONY: solomon build install test check-docs loc-chart cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install test check-docs loc-chart server-stop desktop-dev cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -15,10 +15,14 @@ INSTALL_BIN := $(BIN_DIR)/$(INSTALL_NAME)
 export CGO_ENABLED := 0
 
 ifeq ($(GOOS),windows)
-VERSION ?= $(shell git describe --tags --abbrev=0 --match "v*" 2>NUL || git describe --tags --abbrev=0 --match 'v*' 2>NUL || echo dev)
+EXACT_TAG := $(shell git describe --tags --exact-match --match "v*" 2>NUL)
+LATEST_TAG := $(shell git tag -l "v*" --sort=-v:refname 2>NUL)
+VERSION ?= $(if $(EXACT_TAG),$(EXACT_TAG),$(if $(LATEST_TAG),$(firstword $(LATEST_TAG)),dev))
 COMMIT ?= $(shell git rev-parse --short HEAD 2>NUL || echo unknown)
 else
-VERSION ?= $(shell git describe --tags --abbrev=0 --match "v*" 2>/dev/null || git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev)
+EXACT_TAG := $(shell git describe --tags --exact-match --match 'v*' 2>/dev/null)
+LATEST_TAG := $(shell git tag -l 'v*' --sort=-v:refname 2>/dev/null | head -n1)
+VERSION ?= $(or $(EXACT_TAG),$(LATEST_TAG),dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 endif
 LDFLAGS := -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT)
@@ -27,6 +31,7 @@ BUILD_FLAGS := -trimpath -ldflags="$(LDFLAGS)"
 
 CURSOR_BUNDLER := go run scripts/cursor_bundler.go
 CURSOR_PROXY_DIR := integrations/cursor
+UI_PROTOTYPES_DIR := ui-prototypes
 
 ifeq ($(GOOS),windows)
 FIX_TTY =
@@ -53,6 +58,13 @@ cursor-stop:
 	$(CURSOR_BUNDLER) stop
 	@$(FIX_TTY)
 
+server-stop:
+	-go run $(BUILD_FLAGS) ./cmd/solomon server stop
+
+# Run Wails against the URL advertised by the running Solomon dev server.
+desktop-dev:
+	go run scripts/desktop_dev.go
+
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
 cursor-proxy-build:
 	npm --prefix $(CURSOR_PROXY_DIR) run build
@@ -65,6 +77,15 @@ cursor-proxy-test:
 # Cleanup runs even if tests fail, while preserving the test exit code.
 cursor-proxy-test-clean:
 	@$(MAKE) cursor-proxy-test; status=$$?; $(MAKE) clean-cursor-proxy; exit $$status
+
+ui-prototypes-dev:
+	npm --prefix $(UI_PROTOTYPES_DIR) run dev
+
+ui-prototypes-build:
+	npm --prefix $(UI_PROTOTYPES_DIR) run build
+
+ui-prototypes-test:
+	npm --prefix $(UI_PROTOTYPES_DIR) test
 
 # Remove generated Cursor proxy artifacts (test bundle dir + runtime guard dir).
 clean-cursor-proxy:
@@ -84,7 +105,7 @@ cursor-bundle: cursor-build
 solomon build: cursor-bundle
 	go build $(BUILD_FLAGS) -o $(OUT) ./cmd/solomon
 
-test: cursor-bundle
+test: cursor-bundle ui-prototypes-test
 	go test ./... -count=1
 
 check-docs:
@@ -94,17 +115,23 @@ check-docs:
 loc-chart:
 	go run scripts/loc_chart.go scripts/loc_chart_render.go
 
-# Full reinstall: stop sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
+ifneq (,$(wildcard ./.env))
+include .env
+export
+endif
+
+# Full reinstall: stop the Solomon server and Cursor sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
 install:
 	@$(FIX_TTY)
 	@echo ""
 	@echo "=== Solomon install ($(VERSION)) ==="
-	$(call INSTALL_STEP,1/6 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
-	$(call INSTALL_STEP,2/6 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
-	$(call INSTALL_STEP,3/6 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,4/6 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
-	$(call INSTALL_STEP,5/6 Install prompt templates,$(INSTALL_BIN) templates install)
-	$(call INSTALL_STEP,6/6 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+	$(call INSTALL_STEP,1/7 Stop Solomon server,$(MAKE) server-stop)
+	$(call INSTALL_STEP,2/7 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
+	$(call INSTALL_STEP,3/7 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
+	$(call INSTALL_STEP,4/7 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
+	$(call INSTALL_STEP,5/7 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
+	$(call INSTALL_STEP,6/7 Install prompt templates,$(INSTALL_BIN) templates install)
+	$(call INSTALL_STEP,7/7 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
 	@$(FIX_TTY)
 	@echo ""
 	@echo "solomon -> $(INSTALL_BIN)"

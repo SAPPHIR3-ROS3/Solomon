@@ -1,6 +1,7 @@
 package agentruntime
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ type NestedRunConfig struct {
 	SysPromptPath    string
 	Task             string
 	ResumeID         string
+	Interrupt        bool
 	RunInBackground  bool
 	ReasoningEffort  string
 	ParentChatID     string
@@ -43,9 +45,9 @@ type subagentRunHandle struct {
 }
 
 type subagentRegistry struct {
-	mu      sync.Mutex
-	runs    map[string]*subagentRunHandle
-	active  *chatstore.ActiveSubagentsFile
+	mu     sync.Mutex
+	runs   map[string]*subagentRunHandle
+	active *chatstore.ActiveSubagentsFile
 }
 
 var (
@@ -163,12 +165,25 @@ func (reg *subagentRegistry) finishRun(id string) {
 	_ = reg.removeActiveEntry(id)
 }
 
-func (reg *subagentRegistry) stopRun(id string) {
+func (reg *subagentRegistry) cancelAndWait(id string, timeout time.Duration) error {
 	reg.mu.Lock()
 	h, ok := reg.runs[id]
 	reg.mu.Unlock()
-	if ok && h.cancel != nil {
+	if !ok {
+		return nil
+	}
+	if h.cancel != nil {
 		h.cancel()
+	}
+	if timeout <= 0 {
+		<-h.done
+		return nil
+	}
+	select {
+	case <-h.done:
+		return nil
+	case <-time.After(timeout):
+		return fmt.Errorf("subagent %s did not stop within %s", id, timeout)
 	}
 }
 

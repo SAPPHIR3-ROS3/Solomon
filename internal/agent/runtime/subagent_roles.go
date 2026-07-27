@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/roles"
 )
@@ -22,7 +23,7 @@ func (r *Runtime) resolveSubagentRole(cfg *NestedRunConfig) error {
 	if provider == "" || model == "" {
 		return fmt.Errorf("subagent: roleProvider and roleModel must both be set")
 	}
-	if _, err := roles.FindSubagent(r.Cfg, provider, model); err != nil {
+	if _, err := roles.FindSubagent(config.RolesSubagentEntries(r.Cfg), provider, model); err != nil {
 		return err
 	}
 	cfg.RoleProvider = provider

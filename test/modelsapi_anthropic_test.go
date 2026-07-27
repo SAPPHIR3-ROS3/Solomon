@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
@@ -110,10 +109,28 @@ func TestPickAnthropicFlagshipModels_PrefersHigherMinor(t *testing.T) {
 	}
 }
 
-func TestCuratedAnthropicModels_NoRetiredIDs(t *testing.T) {
-	for _, id := range modelsapi.CuratedAnthropicModels() {
-		if strings.Contains(id, "20250514") {
-			t.Fatalf("retired model in curated list: %q", id)
+func TestOrderClaudeSubModelIDs(t *testing.T) {
+	ids := []string{
+		"claude-haiku-4-5-20251001",
+		"claude-opus-4-8",
+		"claude-sonnet-4-6",
+		"claude-opus-4-6",
+		"claude-fable-1-0",
+	}
+	got := modelsapi.OrderClaudeSubModelIDs(ids)
+	want := []string{
+		"claude-fable-1-0",
+		"claude-opus-4-8",
+		"claude-sonnet-4-6",
+		"claude-haiku-4-5-20251001",
+		"claude-opus-4-6",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("index %d: got %q want %q (full %v)", i, got[i], want[i], got)
 		}
 	}
 }

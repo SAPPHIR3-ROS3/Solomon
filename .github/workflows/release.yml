@@ -58,6 +58,10 @@ jobs:
         with:
           node-version: lts/*
           check-latest: true
+      - name: Verify UI prototypes
+        run: |
+          npm --prefix ui-prototypes ci
+          npm --prefix ui-prototypes test
       - name: Build cursor integration bundle
         run: |
           go run scripts/cursor_bundler.go build
@@ -201,7 +205,7 @@ jobs:
           set -e
           gh release create "$VER" dist/* \
             --title "$VER" \
-            --notes "Calendar release $VER. Assets are native executables per platform (linux, windows, macOS; amd64 and arm64)."
+            --notes "Calendar release $VER. Assets are native executables per platform (linux, windows, macOS; amd64 and arm64). Role scores are assigned manually."
 
   post_release_smoke:
     if: |
@@ -449,5 +453,4 @@ jobs:
             throw "Downloaded asset not found at $exe"
           }
           & $exe version
-
 
