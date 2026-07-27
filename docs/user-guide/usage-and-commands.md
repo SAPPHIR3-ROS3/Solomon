@@ -81,7 +81,7 @@ make desktop-dev
 
 The launcher reads the current server state and passes its advertised local URL to Wails, so it does not assume a fixed port.
 
-The development directory must contain `package.json` and `src/`. `solomon server restart` retains the current mode and development directory. Logs live at `~/.solomon/logs/server/server.log`; runtime state is `~/.solomon/run/server/state.json`. Full behavior: [Local server architecture](../architecture/server.md).
+The development directory must contain `package.json` and `src/`. `solomon server restart` retains the current mode and development directory. Logs live at `~/.solomon/logs/server/server.log`; runtime state is `~/.solomon/run/server/state.json`. If `stop` finds a dead or unreachable process with leftover state, it force-stops the recorded PID when needed and clears `state.json`. Full behavior: [Local server architecture](../architecture/server.md).
 
 Skill installation commands are intentionally restricted: Solomon accepts only install commands that resolve to the `skills` package and its `add` subcommand (`npx ... skills add ...` or `npm exec ... skills add ...`). Shell chaining, redirects, unrelated packages, and unsupported flags are rejected.
 
