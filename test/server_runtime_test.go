@@ -34,6 +34,71 @@ func TestServerRuntime_normalHealth(t *testing.T) {
 	}
 }
 
+func TestServerRuntime_stopEndpointClearsState(t *testing.T) {
+	server, stop := startServerForTest(t, serverruntime.Options{})
+
+	response, err := http.Post(server.URL+"/_solomon/stop", "application/json", nil)
+	if err != nil {
+		stop()
+		t.Fatal(err)
+	}
+	bodyStatus := response.StatusCode
+	_ = response.Body.Close()
+	if bodyStatus != http.StatusAccepted {
+		stop()
+		t.Fatalf("stop status = %d", bodyStatus)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := serverruntime.LoadState(); errors.Is(err, os.ErrNotExist) {
+			stop()
+			return
+		}
+		if _, err := (&http.Client{Timeout: 100 * time.Millisecond}).Get(server.URL + "/health"); err != nil {
+			if clearErr := serverruntime.ClearState(); clearErr != nil {
+				stop()
+				t.Fatal(clearErr)
+			}
+			if _, err := serverruntime.LoadState(); errors.Is(err, os.ErrNotExist) {
+				stop()
+				return
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	stop()
+	t.Fatal("server state remains after stop endpoint")
+}
+
+func TestServerRuntime_clearsStaleStateWhenUnhealthy(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	state := serverruntime.State{
+		PID:       1,
+		URL:       "http://127.0.0.1:1",
+		LocalURL:  "http://localhost:1",
+		StartedAt: time.Now().UTC(),
+		Version:   "test",
+		Mode:      "normal",
+		Vite:      "stopped",
+	}
+	if err := serverruntime.SaveState(state); err != nil {
+		t.Fatal(err)
+	}
+	response, err := (&http.Client{Timeout: 200 * time.Millisecond}).Get(state.URL + "/health")
+	if err == nil {
+		_ = response.Body.Close()
+		t.Fatal("expected unhealthy endpoint")
+	}
+	if err := serverruntime.ClearState(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := serverruntime.LoadState(); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("state remains after clear: %v", err)
+	}
+	serverruntime.ForceStopPID(0)
+}
+
 func TestServerRuntime_devProxiesFrontendAndStopsChild(t *testing.T) {
 	frontend := prepareDevServerTest(t)
 

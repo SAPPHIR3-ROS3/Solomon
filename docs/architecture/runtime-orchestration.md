@@ -65,6 +65,8 @@ Returns consolidated text to the parent tool result. Background runs persist the
 
 Optional **`roleProvider`** / **`roleModel`** select a row from `[[roles.subagent]]` (discovered via `listSubAgents`); the nested stream uses that provider’s backend and model instead of the session defaults. Background subagents validate the role **before** persisting the subsession. See [Native tools — subagent roles](native-tools.md#subagent-roles).
 
+Optional **`roleProvider`** / **`roleModel`** select a row from `[[roles.subagent]]` (discovered via `listSubAgents`); the nested stream uses that provider’s backend and model instead of the session defaults. Background subagents validate the role **before** persisting the subsession. See [Native tools — subagent roles](native-tools.md#subagent-roles).
+
 ## MCP
 
 | File | Key symbols |

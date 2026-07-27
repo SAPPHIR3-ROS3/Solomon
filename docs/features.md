@@ -60,6 +60,10 @@ The `docsRetrieval` build tool and `/docs <query>` slash command search the embe
 
 Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the REPL, with shell-style tokenization for the prompt. Claude Code (`-p`), Codex (`exec`), and OpenCode support non-interactive runs for scripts and automation. Entry: [`cmd/solomon/exec.go`](../cmd/solomon/exec.go), [Startup and CLI](architecture/startup-and-cli.md).
 
+### Local server (`solomon server`) **(implemented)**
+
+`solomon server` runs a detached localhost service for the web GUI and future local APIs (`start`/`status`/`stop`/`restart`/`logs`). See [Local server](architecture/server.md), [Usage — Local server](user-guide/usage-and-commands.md).
+
 ### Interactive terminal REPL
 
 Default `solomon` starts an interactive REPL with a raw-mode multiline editor, checkpoint-aware prompts, slash commands, and streaming assistant output. This is the core UX shared with Codex, Claude Code, and OpenCode TUIs. REPL behavior: [Runtime — REPL](architecture/runtime-repl.md).
@@ -99,6 +103,8 @@ The `subagent` tool spawns a nested agent turn with its own system prompt file a
 Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and the scores assigned by the user, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
 
 Subagent transcripts are persisted under the project’s `SubchatsDir` with stable IDs, messages, parent linkage, status, role selection, and reasoning effort. Background runs stay registered while active; `/subagent stop` and `/subagent cancel` interrupt the live context and write `paused` or `cancelled`. `/subagent resume`, or the native tool with `resume`, continues the stored transcript. See [Subagent persistence and lifecycle](architecture/sessions-and-storage.md#subagent-persistence-and-lifecycle) and [Usage and commands — `/subagent`](user-guide/usage-and-commands.md#subagent--list-and-control-nested-runs).
+
+Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and `points`, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
 
 ### Agent skills
 

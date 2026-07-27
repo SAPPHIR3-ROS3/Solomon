@@ -9,13 +9,13 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 | Package / file | Responsibility |
 |----------------|----------------|
 | `cmd/solomon/main.go` | Entry: logging, CLI branches, REPL |
-| `cmd/solomon/server/` | Detached server lifecycle CLI and log reader |
 | `cmd/solomon/exec.go` | `exec` / `temp exec`, `--json` / `--jsonl`, headless config |
+| `cmd/solomon/server/` | Detached local server lifecycle (`start`/`status`/`stop`/`restart`/`logs`) |
+| `internal/server/` | Local HTTP host: health, Vite proxy, process lifecycle |
 | `internal/agent/cievents` | CI event schema, JSONL/collector sinks, exit codes |
 | `internal/config/exec_resolve.go` | TOML → env → env-file for machine exec |
 | `internal/prompt` | Embedded `.tmpl` defaults, disk store, startup SHA review |
 | `internal/paths` | `SolomonHome()` → `~/.solomon`, `PromptTemplatesDir()` |
-| `internal/server` | Local HTTP server, health endpoint, Vite process/proxy lifecycle |
 | `internal/config` | Load/save TOML, onboard setup, provider resolve, model pick |
 | `internal/project` | `Resolve(wd)` → canonical root + 64-char hex id |
 | `internal/logging` | File logs under `~/.solomon/logs` |
@@ -72,6 +72,7 @@ Before initial setup, `main` handles:
 - `solomon add ...` → `commands.Add` with `project.Resolve` deps
 - `solomon remove skill <name>` → `commands.Remove`
 - `solomon exec` / `solomon temp exec` → `runExecCLI` (human or `--json` / `--jsonl`; readline skipped in machine mode; **no** `StartupTemplates` — use interactive REPL to accept template edits)
+
 After initial setup on the **interactive REPL path**, `prompt.StartupTemplates` runs before the session loop: copies missing `.tmpl` files, then prompts only when on-disk content diverges from a saved `[prompt_templates]` SHA (tampering after accept). Template upgrades from a new binary are synced during `make install` via `solomon templates install` (SHA check before writing files). See [Configuration](../user-guide/configuration.md#prompt_templates-system-prompt-templates).
 
 After runtime construction (REPL path only):
@@ -93,8 +94,6 @@ After runtime construction (REPL path only):
 - [`cmd/solomon/main.go`](../../cmd/solomon/main.go)
 - [`internal/config/config.go`](../../internal/config/config.go)
 - [`internal/project/project.go`](../../internal/project/project.go)
-- [`cmd/solomon/server/`](../../cmd/solomon/server/)
-- [Local server](server.md)
 
 ## See also
 

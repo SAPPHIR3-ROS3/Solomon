@@ -17,12 +17,14 @@ The current prototype exposes only `GET /health`. API routes, Solomon worker pro
 | `solomon server start` | Start the detached server in normal mode. |
 | `solomon server start dev <gui-directory>` | Start development mode with the specified GUI project. The directory must contain `package.json` and `src/`. |
 | `solomon server status` | Print the PID, local URLs, mode, version, Vite status, and start time. |
-| `solomon server stop` | Request a graceful stop and remove runtime state. |
+| `solomon server stop` | POST `/_solomon/stop`, wait for shutdown, then remove runtime state. If health fails or the process does not exit in time, the CLI force-stops the recorded PID and clears stale `state.json`. |
 | `solomon server restart` | Preserve the prior mode and development directory, then restart. |
 | `solomon server logs` | Print the recent server log. |
 | `solomon server logs interactive` | Continue streaming the server log until interrupted. |
 
-`make install` stops the installed server before replacing the binary.
+`make install` stops any running local server (via `go run ./cmd/solomon server stop`) before replacing the binary.
+
+`solomon server status` reports `stopped` when `state.json` is missing or `/health` fails. After a crash or interrupted shutdown, leftover state is cleared on the next successful `stop` (unreachable host or unhealthy process).
 
 ## Networking and health
 
@@ -45,10 +47,11 @@ The desktop development launcher reads the running server state, verifies its he
 
 ## Code map and tests
 
-- [`cmd/solomon/server/`](../../cmd/solomon/server/) owns command parsing, detaching, logs, and lifecycle requests.
+- [`cmd/solomon/server/`](../../cmd/solomon/server/) owns command parsing, detaching, logs, and lifecycle requests (including stale-state reclaim on `stop`).
 - [`internal/server/service.go`](../../internal/server/service.go) owns listening, state, health, Vite startup, proxying, and shutdown.
+- [`internal/server/process_windows.go`](../../internal/server/process_windows.go) / [`process_unix.go`](../../internal/server/process_unix.go) own child-process teardown and `ForceStopPID`.
 - [`scripts/desktop_dev.go`](../../scripts/desktop_dev.go) reads the server state and starts Wails with its current local server URL.
-- [`test/server_runtime_test.go`](../../test/server_runtime_test.go) starts real local server processes with a fake Vite command to verify health, proxying, and child cleanup.
+- [`test/server_runtime_test.go`](../../test/server_runtime_test.go) starts real local server processes with a fake Vite command to verify health, proxying, stop, and child cleanup.
 
 ## See also
 

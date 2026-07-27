@@ -204,8 +204,21 @@ func stop() error {
 			fmt.Println("server stopped")
 			return nil
 		}
+		if !healthy(state) {
+			_ = serverruntime.ClearState()
+			fmt.Println("server stopped")
+			return nil
+		}
 	}
-	return fmt.Errorf("server is still stopping")
+	if !healthy(state) {
+		_ = serverruntime.ClearState()
+		fmt.Println("server stopped")
+		return nil
+	}
+	serverruntime.ForceStopPID(state.PID)
+	_ = serverruntime.ClearState()
+	fmt.Println("server stopped")
+	return nil
 }
 
 func healthy(state serverruntime.State) bool {

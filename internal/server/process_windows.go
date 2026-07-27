@@ -16,3 +16,10 @@ func stopManagedProcess(cmd *exec.Cmd) {
 	_ = exec.Command("taskkill", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F").Run()
 	_, _ = cmd.Process.Wait()
 }
+
+func ForceStopPID(pid int) {
+	if pid <= 0 {
+		return
+	}
+	_ = exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/T", "/F").Run()
+}

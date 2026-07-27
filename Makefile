@@ -59,11 +59,7 @@ cursor-stop:
 	@$(FIX_TTY)
 
 server-stop:
-ifeq ($(GOOS),windows)
-	@if exist "$(INSTALL_BIN)" "$(INSTALL_BIN)" server stop
-else
-	@if [ -x "$(INSTALL_BIN)" ]; then "$(INSTALL_BIN)" server stop || true; fi
-endif
+	-go run $(BUILD_FLAGS) ./cmd/solomon server stop
 
 # Run Wails against the URL advertised by the running Solomon dev server.
 desktop-dev:

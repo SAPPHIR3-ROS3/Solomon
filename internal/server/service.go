@@ -108,10 +108,16 @@ func ClearState() error {
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
+	_ = os.Remove(path + ".tmp")
+	var removeErr error
+	for attempt := 0; attempt < 20; attempt++ {
+		removeErr = os.Remove(path)
+		if removeErr == nil || errors.Is(removeErr, os.ErrNotExist) {
+			return nil
+		}
+		time.Sleep(25 * time.Millisecond)
 	}
-	return nil
+	return removeErr
 }
 
 func Run(ctx context.Context, options Options) error {
