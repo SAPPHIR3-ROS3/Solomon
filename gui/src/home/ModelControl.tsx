@@ -10,11 +10,12 @@ import "./welcome-model.css";
 const recentProvider = "__recent__";
 
 type ModelControlProps = {
+  onModelChange?: (choice: ModelChoice) => void;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
 };
 
-export function ModelControl({ open, onOpenChange }: ModelControlProps) {
+export function ModelControl({ onModelChange, open, onOpenChange }: ModelControlProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
   const setOpen = (next: boolean) => {
@@ -33,7 +34,9 @@ export function ModelControl({ open, onOpenChange }: ModelControlProps) {
     void fetchModelCatalog(controller.signal)
       .then((data) => {
         setCatalog(data);
-        setSelected(data.current.model ? data.current : firstChoice(data));
+        const choice = data.current.model ? data.current : firstChoice(data);
+        setSelected(choice);
+        onModelChange?.(choice);
         setLoadError(false);
       })
       .catch(() => setLoadError(true));
@@ -75,23 +78,30 @@ export function ModelControl({ open, onOpenChange }: ModelControlProps) {
   const activeLabel = showingRecents ? "Recent" : activeProvider;
   const visibleModels = useMemo(() => {
     const source = showingRecents
-      ? recentModels
-      : (activeGroup?.models ?? []).map((model) => ({ provider: activeProvider, model }));
+      ? recentModels.map((choice) => ({
+          ...choice,
+          info: catalog.providers.find((group) => group.provider === choice.provider)?.metadata[choice.model],
+        }))
+      : (activeGroup?.models ?? []).map((model) => ({ provider: activeProvider, model, info: activeGroup?.metadata[model] }));
     const needle = query.trim().toLowerCase();
     if (!needle) return source;
     return source.filter((choice) => choice.model.toLowerCase().includes(needle) || choice.provider.toLowerCase().includes(needle));
-  }, [activeGroup, activeProvider, query, recentModels, showingRecents]);
+  }, [activeGroup, activeProvider, catalog.providers, query, recentModels, showingRecents]);
 
   async function selectModel(choice: ModelChoice) {
     const previous = selected;
     setSelected(choice);
+    onModelChange?.(choice);
     setOpen(false);
     try {
-      setSelected(await saveCurrentModel(choice.provider, choice.model));
+      const saved = await saveCurrentModel(choice.provider, choice.model);
+      setSelected(saved);
+      onModelChange?.(saved);
       const next = await fetchModelCatalog();
       setCatalog(next);
     } catch {
       setSelected(previous);
+      onModelChange?.(previous);
     }
   }
 
@@ -179,8 +189,11 @@ export function ModelControl({ open, onOpenChange }: ModelControlProps) {
                     role="option"
                     type="button"
                   >
-                    <span>
-                      <strong>{choice.model}</strong>
+                    <span className="welcome-model-copy">
+                      <span className="welcome-model-title">
+                        <strong>{choice.model}</strong>
+                        <InputModeIcons modes={choice.info?.input ?? []} />
+                      </span>
                       <small>{choice.provider}</small>
                     </span>
                     {isSelected ? <CheckIcon /> : null}
@@ -192,6 +205,50 @@ export function ModelControl({ open, onOpenChange }: ModelControlProps) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+const inputModeLabels: Record<string, string> = {
+  audio: "Audio input",
+  image: "Image input",
+  pdf: "PDF input",
+  text: "Text input",
+  video: "Video input",
+};
+
+function InputModeIcons({ modes }: { modes: string[] }) {
+  const supported = [...new Set(modes.map((mode) => mode.trim().toLowerCase()))]
+    .filter((mode) => mode in inputModeLabels);
+  if (!supported.length) return null;
+  return (
+    <span aria-label={supported.map((mode) => inputModeLabels[mode]).join(", ")} className="welcome-model-inputs" role="group">
+      {supported.map((mode) => <InputModeIcon key={mode} mode={mode} />)}
+    </span>
+  );
+}
+
+function InputModeIcon({ mode }: { mode: string }) {
+  const label = inputModeLabels[mode];
+  if (mode === "text") return <span aria-label={label} className="welcome-model-input-icon is-text" role="img">T</span>;
+  if (mode === "pdf") return (
+    <svg aria-label={label} className="welcome-model-input-icon" role="img" viewBox="0 0 16 16">
+      <path d="M5 3.5h4l2 2v7H5z" /><path d="M9 3.5v2h2M6.5 8h3M6.5 10h3" />
+    </svg>
+  );
+  if (mode === "image") return (
+    <svg aria-label={label} className="welcome-model-input-icon" role="img" viewBox="0 0 16 16">
+      <circle cx="5.2" cy="5.5" r="1.1" /><path d="m2.5 12 3.4-3 2.2 1.8 2.2-2.2 3.1 3.4" />
+    </svg>
+  );
+  if (mode === "audio") return (
+    <svg aria-label={label} className="welcome-model-input-icon" role="img" viewBox="0 0 16 16">
+      <path d="M3 6.5h2.2L8 4.3v7.4l-2.8-2.2H3zM10 6.2a2.6 2.6 0 0 1 0 3.6M11.5 4.7a4.7 4.7 0 0 1 0 6.6" />
+    </svg>
+  );
+  return (
+    <svg aria-label={label} className="welcome-model-input-icon" role="img" viewBox="0 0 16 16">
+      <path d="M3.5 5.3h6v5.4h-6zM9.5 7l2.8-1.5v5L9.5 9z" />
+    </svg>
   );
 }
 
@@ -237,10 +294,11 @@ function CheckIcon() {
 
 function ProviderIcon({ provider }: { provider: string }) {
   const normalized = provider.toLowerCase();
+  const compact = normalized.replace(/\s+/g, "");
   if (normalized.includes("chatgpt") || normalized.includes("openai")) {
     return (
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="M22.28 9.82a6 6 0 0 0-.52-4.91 6.05 6.05 0 0 0-6.51-2.9A6.07 6.07 0 0 0 4.98 4.18a5.98 5.98 0 0 0-4 2.9 6.05 6.05 0 0 0 .74 7.1 5.98 5.98 0 0 0 .51 4.91 6.05 6.05 0 0 0 6.51 2.9A5.98 5.98 0 0 0 13.26 24a6.06 6.06 0 0 0 5.77-4.21 5.99 5.99 0 0 0 4-2.9 6.06 6.06 0 0 0-.75-7.07z" fill="currentColor" stroke="none" />
+      <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654 2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z" />
       </svg>
     );
   }
@@ -253,8 +311,29 @@ function ProviderIcon({ provider }: { provider: string }) {
   }
   if (normalized.includes("cursor")) {
     return (
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="m4 4 7 16 2.5-6.5L20 11Z" fill="currentColor" stroke="none" />
+      <svg aria-hidden="true" fill="currentColor" viewBox="0 0 466.73 532.09">
+        <path d="M457.43 125.94 244.42 2.96c-6.84-3.95-15.28-3.95-22.12 0L9.3 125.94C3.55 129.26 0 135.4 0 142.05v247.99c0 6.65 3.55 12.79 9.3 16.11l213.01 122.98c6.84 3.95 15.28 3.95 22.12 0l213.01-122.98c5.75-3.32 9.3-9.46 9.3-16.11V142.05c0-6.65-3.55-12.79-9.3-16.11h-.01ZM444.05 151.99 238.42 508.15c-1.39 2.4-5.06 1.42-5.06-1.36V273.58c0-4.66-2.49-8.97-6.53-11.31L24.87 145.67c-2.4-1.39-1.42-5.06 1.36-5.06h411.26c5.84 0 9.49 6.33 6.57 11.39h-.01Z" />
+      </svg>
+    );
+  }
+  if (compact === "lmstudio") {
+    return (
+      <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M5.6 0A5.6 5.6 0 0 0 0 5.6v12.8A5.6 5.6 0 0 0 5.6 24h12.8a5.6 5.6 0 0 0 5.6-5.6V5.6A5.6 5.6 0 0 0 18.4 0zm0 2h12.8A3.6 3.6 0 0 1 22 5.6v12.8a3.6 3.6 0 0 1-3.6 3.6H5.6A3.6 3.6 0 0 1 2 18.4V5.6A3.6 3.6 0 0 1 5.6 2m-.4 2.8a1.2 1.2 0 0 0 0 2.4h10.4a1.2 1.2 0 0 0 0-2.4zm3.2 4a1.2 1.2 0 0 0 0 2.4h10.4a1.2 1.2 0 0 0 0-2.4zm-3.2 4a1.2 1.2 0 0 0 0 2.4h10.4a1.2 1.2 0 0 0 0-2.4zm3.2 4a1.2 1.2 0 0 0 0 2.4h10.4a1.2 1.2 0 0 0 0-2.4z" />
+      </svg>
+    );
+  }
+  if (compact === "openrouter") {
+    return (
+      <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z" />
+      </svg>
+    );
+  }
+  if (compact === "ollama") {
+    return (
+      <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M16.361 10.26a.894.894 0 0 0-.558.47l-.072.148.001.207c0 .193.004.217.059.353.076.193.152.312.291.448.24.238.51.3.872.205a.86.86 0 0 0 .517-.436.752.752 0 0 0 .08-.498c-.064-.453-.33-.782-.724-.897a1.06 1.06 0 0 0-.466 0zm-9.203.005c-.305.096-.533.32-.65.639a1.187 1.187 0 0 0-.06.52c.057.309.31.59.598.667.362.095.632.033.872-.205.14-.136.215-.255.291-.448.055-.136.059-.16.059-.353l.001-.207-.072-.148a.894.894 0 0 0-.565-.472 1.02 1.02 0 0 0-.474.007Zm4.184 2c-.131.071-.223.25-.195.383.031.143.157.288.353.407.105.063.112.072.117.136.004.038-.01.146-.029.243-.02.094-.036.194-.036.222.002.074.07.195.143.253.064.052.076.054.255.059.164.005.198.001.264-.03.169-.082.212-.234.15-.525-.052-.243-.042-.28.087-.355.137-.08.281-.219.324-.314a.365.365 0 0 0-.175-.48.394.394 0 0 0-.181-.033c-.126 0-.207.03-.355.124l-.085.053-.053-.032c-.219-.13-.259-.145-.391-.143a.396.396 0 0 0-.193.032zm.39-2.195c-.373.036-.475.05-.654.086-.291.06-.68.195-.951.328-.94.46-1.589 1.226-1.787 2.114-.04.176-.045.234-.045.53 0 .294.005.357.043.524.264 1.16 1.332 2.017 2.714 2.173.3.033 1.596.033 1.896 0 1.11-.125 2.064-.727 2.493-1.571.114-.226.169-.372.22-.602.039-.167.044-.23.044-.523 0-.297-.005-.355-.045-.531-.288-1.29-1.539-2.304-3.072-2.497a6.873 6.873 0 0 0-.855-.031zm.645.937a3.283 3.283 0 0 1 1.44.514c.223.148.537.458.671.662.166.251.26.508.303.82.02.143.01.251-.043.482-.08.345-.332.705-.672.957a3.115 3.115 0 0 1-.689.348c-.382.122-.632.144-1.525.138-.582-.006-.686-.01-.853-.042-.57-.107-1.022-.334-1.35-.68-.264-.28-.385-.535-.45-.946-.03-.192.025-.509.137-.776.136-.326.488-.73.836-.963.403-.269.934-.46 1.422-.512.187-.02.586-.02.773-.002zm-5.503-11a1.653 1.653 0 0 0-.683.298C5.617.74 5.173 1.666 4.985 2.819c-.07.436-.119 1.04-.119 1.503 0 .544.064 1.24.155 1.721.02.107.031.202.023.208a8.12 8.12 0 0 1-.187.152 5.324 5.324 0 0 0-.949 1.02 5.49 5.49 0 0 0-.94 2.339 6.625 6.625 0 0 0-.023 1.357c.091.78.325 1.438.727 2.04l.13.195-.037.064c-.269.452-.498 1.105-.605 1.732-.084.496-.095.629-.095 1.294 0 .67.009.803.088 1.266.095.555.288 1.143.503 1.534.071.128.243.393.264.407.007.003-.014.067-.046.141a7.405 7.405 0 0 0-.548 1.873c-.062.417-.071.552-.071.991 0 .56.031.832.148 1.279L3.42 24h1.478l-.05-.091c-.297-.552-.325-1.575-.068-2.597.117-.472.25-.819.498-1.296l.148-.29v-.177c0-.165-.003-.184-.057-.293a.915.915 0 0 0-.194-.25 1.74 1.74 0 0 1-.385-.543c-.424-.92-.506-2.286-.208-3.451.124-.486.329-.918.544-1.154a.787.787 0 0 0 .223-.531c0-.195-.07-.355-.224-.522a3.136 3.136 0 0 1-.817-1.729c-.14-.96.114-2.005.69-2.834.563-.814 1.353-1.336 2.237-1.475.199-.033.57-.028.776.01.226.04.367.028.512-.041.179-.085.268-.19.374-.431.093-.215.165-.333.36-.576.234-.29.46-.489.822-.729.413-.27.884-.467 1.352-.561.17-.035.25-.04.569-.04.319 0 .398.005.569.04a4.07 4.07 0 0 1 1.914.997c.117.109.398.457.488.602.034.057.095.177.132.267.105.241.195.346.374.43.14.068.286.082.503.045.343-.058.607-.053.943.016 1.144.23 2.14 1.173 2.581 2.437.385 1.108.276 2.267-.296 3.153-.097.15-.193.27-.333.419-.301.322-.301.722-.001 1.053.493.539.801 1.866.708 3.036-.062.772-.26 1.463-.533 1.854a2.096 2.096 0 0 1-.224.258.916.916 0 0 0-.194.25c-.054.109-.057.128-.057.293v.178l.148.29c.248.476.38.823.498 1.295.253 1.008.231 2.01-.059 2.581a.845.845 0 0 0-.044.098c0 .006.329.009.732.009h.73l.02-.074.036-.134c.019-.076.057-.3.088-.516.029-.217.029-1.016 0-1.258-.11-.875-.295-1.57-.597-2.226-.032-.074-.053-.138-.046-.141.008-.005.057-.074.108-.152.376-.569.607-1.284.724-2.228.031-.26.031-1.378 0-1.628-.083-.645-.182-1.082-.348-1.525a6.083 6.083 0 0 0-.329-.7l-.038-.064.131-.194c.402-.604.636-1.262.727-2.04a6.625 6.625 0 0 0-.024-1.358 5.512 5.512 0 0 0-.939-2.339 5.325 5.325 0 0 0-.95-1.02 8.097 8.097 0 0 1-.186-.152.692.692 0 0 1 .023-.208c.208-1.087.201-2.443-.017-3.503-.19-.924-.535-1.658-.98-2.082-.354-.338-.716-.482-1.15-.455-.996.059-1.8 1.205-2.116 3.01a6.805 6.805 0 0 0-.097.726c0 .036-.007.066-.015.066a.96.96 0 0 1-.149-.078A4.857 4.857 0 0 0 12 3.03c-.832 0-1.687.243-2.456.698a.958.958 0 0 1-.148.078c-.008 0-.015-.03-.015-.066a6.71 6.71 0 0 0-.097-.725C8.997 1.392 8.337.319 7.46.048a2.096 2.096 0 0 0-.585-.041Zm.293 1.402c.248.197.523.759.682 1.388.03.113.06.244.069.292.007.047.026.152.041.233.067.365.098.76.102 1.24l.002.475-.12.175-.118.178h-.278c-.324 0-.646.041-.954.124l-.238.06c-.033.007-.038-.003-.057-.144a8.438 8.438 0 0 1 .016-2.323c.124-.788.413-1.501.696-1.711.067-.05.079-.049.157.013zm9.825-.012c.17.126.358.46.498.888.28.854.36 2.028.212 3.145-.019.14-.024.151-.057.144l-.238-.06a3.693 3.693 0 0 0-.954-.124h-.278l-.119-.178-.119-.175.002-.474c.004-.669.066-1.19.214-1.772.157-.623.434-1.185.68-1.382.078-.062.09-.063.159-.012z" />
       </svg>
     );
   }

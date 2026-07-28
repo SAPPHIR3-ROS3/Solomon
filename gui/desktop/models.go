@@ -9,7 +9,35 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelcatalogcache"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsdev"
 )
+
+func configureDesktopModelLister() {
+	config.RolesModelLister = func(ctx context.Context, cfg *config.Root, provider *config.Provider) ([]string, error) {
+		ids, err := connect.ListModelsForProviderAll(ctx, cfg, provider)
+		if err == nil && len(ids) > 0 {
+			return ids, nil
+		}
+		fallback := append([]string{}, cfg.RecentModels[provider.Name]...)
+		if cfg.Current.Provider == provider.Name {
+			fallback = append(fallback, cfg.Current.Model)
+		}
+		for _, entry := range cfg.Roles.Subagent {
+			if strings.TrimSpace(entry.Provider) == provider.Name {
+				fallback = append(fallback, strings.TrimSpace(entry.Model))
+			}
+		}
+		fallback = uniqueDesktopModels(fallback)
+		if len(fallback) > 0 {
+			return fallback, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("provider returned no models")
+	}
+}
 
 type desktopModelChoice struct {
 	Model    string `json:"model"`
@@ -17,9 +45,16 @@ type desktopModelChoice struct {
 }
 
 type desktopProviderCatalog struct {
-	Complete bool     `json:"complete"`
-	Models   []string `json:"models"`
-	Provider string   `json:"provider"`
+	Complete bool                            `json:"complete"`
+	Metadata map[string]desktopModelMetadata `json:"metadata"`
+	Models   []string                        `json:"models"`
+	Provider string                          `json:"provider"`
+}
+
+type desktopModelMetadata struct {
+	Context int      `json:"context,omitempty"`
+	Input   []string `json:"input,omitempty"`
+	Output  int      `json:"output,omitempty"`
 }
 
 type desktopModelCatalog struct {
@@ -92,9 +127,15 @@ func buildDesktopModelCatalog(cfg *config.Root) desktopModelCatalog {
 	if len(providers) == 0 {
 		return result
 	}
+	var cached []desktopProviderCatalog
+	if ok, _ := modelcatalogcache.LoadToday(&cached); ok {
+		result.Providers = mergeDesktopCachedProviders(providers, cached, cfg)
+		return result
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
 	defer cancel()
+	modelsCatalog, _ := modelsdev.Load(ctx)
 	var wg sync.WaitGroup
 	wg.Add(len(providers))
 	for index := range providers {
@@ -108,18 +149,75 @@ func buildDesktopModelCatalog(cfg *config.Root) desktopModelCatalog {
 				ids = cfg.RecentModels[provider.Name]
 			}
 			ids = uniqueDesktopModels(ids)
-			if provider.Name == cfg.Current.Provider {
+			if provider.Name == config.ProviderNameChatGPTSub {
+				if provider.Name == cfg.Current.Provider {
+					ids = ensureDesktopModelPresent(ids, cfg.Current.Model)
+				}
+				ids = connect.OrderChatGPTSubModels(ids)
+			} else if provider.Name == cfg.Current.Provider {
 				ids = ensureDesktopModelFirst(ids, cfg.Current.Model)
 			}
 			result.Providers[index] = desktopProviderCatalog{
 				Provider: provider.Name,
 				Models:   ids,
 				Complete: complete,
+				Metadata: desktopModelsMetadata(modelsCatalog, provider, ids),
 			}
 		}()
 	}
 	wg.Wait()
+	if desktopCatalogHasCompleteProvider(result.Providers) {
+		_ = modelcatalogcache.SaveToday(result.Providers)
+	}
 	return result
+}
+
+func mergeDesktopCachedProviders(configured []config.Provider, cached []desktopProviderCatalog, cfg *config.Root) []desktopProviderCatalog {
+	byName := make(map[string]desktopProviderCatalog, len(cached))
+	for _, provider := range cached {
+		byName[provider.Provider] = provider
+	}
+	result := make([]desktopProviderCatalog, 0, len(configured))
+	for _, provider := range configured {
+		if saved, ok := byName[provider.Name]; ok {
+			saved.Complete = false
+			result = append(result, saved)
+			continue
+		}
+		ids := uniqueDesktopModels(cfg.RecentModels[provider.Name])
+		if provider.Name == cfg.Current.Provider {
+			ids = ensureDesktopModelFirst(ids, cfg.Current.Model)
+		}
+		result = append(result, desktopProviderCatalog{Provider: provider.Name, Models: ids, Complete: false})
+	}
+	return result
+}
+
+func desktopCatalogHasCompleteProvider(providers []desktopProviderCatalog) bool {
+	for _, provider := range providers {
+		if provider.Complete {
+			return true
+		}
+	}
+	return false
+}
+
+func desktopModelsMetadata(catalog modelsdev.Catalog, provider config.Provider, ids []string) map[string]desktopModelMetadata {
+	if len(catalog) == 0 {
+		return nil
+	}
+	metadata := make(map[string]desktopModelMetadata)
+	for _, id := range ids {
+		model, ok := catalog.Lookup(provider.Name, provider.BaseURL, id)
+		if !ok {
+			continue
+		}
+		metadata[id] = desktopModelMetadata{Context: model.Limit.Context, Input: model.Modalities.Input, Output: model.Limit.Output}
+	}
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata
 }
 
 func uniqueDesktopModels(ids []string) []string {
@@ -148,4 +246,17 @@ func ensureDesktopModelFirst(ids []string, model string) []string {
 		}
 	}
 	return out
+}
+
+func ensureDesktopModelPresent(ids []string, model string) []string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return ids
+	}
+	for _, id := range ids {
+		if id == model {
+			return ids
+		}
+	}
+	return append(ids, model)
 }

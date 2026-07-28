@@ -17,9 +17,12 @@ type WailsServerBridge = {
 };
 
 type WailsDesktopBridge = {
-  ModelCatalog?: () => Promise<unknown>;
+  ModelCatalog: () => Promise<unknown>;
   ProjectSidebarData: () => Promise<unknown>;
-  SaveCurrentModel?: (provider: string, model: string) => Promise<unknown>;
+  ProjectRemovalInfo?: (projectID: string) => Promise<unknown>;
+  RemoveProjectFromDisk?: (projectID: string) => Promise<void>;
+  RemoveProjectFromSidebar?: (projectID: string) => Promise<void>;
+  SaveCurrentModel: (provider: string, model: string) => Promise<unknown>;
   SaveReasoningEffort?: (effort: string) => Promise<string>;
   SaveUserName: (userName: string) => Promise<string>;
   CustomizationRules?: () => Promise<unknown>;
