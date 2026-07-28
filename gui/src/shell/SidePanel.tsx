@@ -1,13 +1,27 @@
-import { type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
-import { fetchProjectSidebarData, type Project, saveUserName } from "../projects/projects";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { fetchProjectRemovalInfo, fetchProjectSidebarData, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
 
 const INITIAL_CHAT_LIMIT = 5;
 const MIN_SCROLL_THUMB_HEIGHT = 28;
+const PROJECT_CONTEXT_MENU_HEIGHT = 158;
+const PROJECT_CONTEXT_MENU_WIDTH = 200;
+const PROJECT_CONTEXT_MENU_EDGE_GAP = 8;
 
 type ProjectScrollThumb = {
   height: number;
   isVisible: boolean;
   top: number;
+};
+
+type ProjectContextMenu = {
+  project: Project;
+  x: number;
+  y: number;
+};
+
+type ProjectRemovalDialog = {
+  project: Project;
+  removeData: boolean;
 };
 
 type SidePanelProps = {
@@ -18,6 +32,11 @@ type SidePanelProps = {
 
 export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomization }: SidePanelProps) {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectContextMenu, setProjectContextMenu] = useState<ProjectContextMenu | null>(null);
+  const [projectRemovalDialog, setProjectRemovalDialog] = useState<ProjectRemovalDialog | null>(null);
+  const [projectRemovalError, setProjectRemovalError] = useState("");
+  const [projectRemovalInfo, setProjectRemovalInfo] = useState<ProjectRemovalInfo | null>(null);
+  const [isRemovingProject, setIsRemovingProject] = useState(false);
   const [openProjectIds, setOpenProjectIds] = useState<Set<string>>(() => new Set());
   const [visibleChatCounts, setVisibleChatCounts] = useState<Map<string, number>>(() => new Map());
   const [projectScrollThumb, setProjectScrollThumb] = useState<ProjectScrollThumb>({ height: 0, isVisible: false, top: 0 });
@@ -86,6 +105,95 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomizat
       list.removeEventListener("scroll", updateScrollThumb);
     };
   }, [bottomInset, openProjectIds, projects, visibleChatCounts]);
+
+  useEffect(() => {
+    if (!projectContextMenu) return;
+
+    const closeMenu = () => setProjectContextMenu(null);
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+    window.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [projectContextMenu]);
+
+  function openProjectContextMenu(project: Project, x: number, y: number) {
+    setProjectContextMenu({
+      project,
+      x: Math.max(PROJECT_CONTEXT_MENU_EDGE_GAP, Math.min(x, window.innerWidth - PROJECT_CONTEXT_MENU_WIDTH - PROJECT_CONTEXT_MENU_EDGE_GAP)),
+      y: Math.max(PROJECT_CONTEXT_MENU_EDGE_GAP, Math.min(y, window.innerHeight - PROJECT_CONTEXT_MENU_HEIGHT - PROJECT_CONTEXT_MENU_EDGE_GAP)),
+    });
+  }
+
+  function handleProjectContextMenu(event: MouseEvent<HTMLElement>, project: Project) {
+    event.preventDefault();
+    openProjectContextMenu(project, event.clientX, event.clientY);
+  }
+
+  function handleProjectContextMenuKey(event: KeyboardEvent<HTMLButtonElement>, project: Project) {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    openProjectContextMenu(project, rect.left + 12, rect.bottom + 4);
+  }
+
+  function renameProject(project: Project) {
+    const name = window.prompt("Project name", project.name)?.trim();
+    if (!name || name === project.name) return;
+    setProjects((currentProjects) => currentProjects.map((currentProject) => (
+      currentProject.id === project.id ? { ...currentProject, name } : currentProject
+    )));
+  }
+
+  async function copyProjectPath(path: string) {
+    try {
+      await navigator.clipboard.writeText(path);
+    } catch {
+      // The clipboard is unavailable on some non-secure browser previews.
+      window.prompt("Copy absolute path", path);
+    }
+  }
+
+  function removeProjectFromList(project: Project) {
+    setProjects((currentProjects) => currentProjects.filter((currentProject) => currentProject.id !== project.id));
+    setOpenProjectIds((currentProjectIds) => {
+      const nextProjectIds = new Set(currentProjectIds);
+      nextProjectIds.delete(project.id);
+      return nextProjectIds;
+    });
+  }
+
+  function openProjectRemovalDialog(project: Project, removeData: boolean) {
+    setProjectRemovalError("");
+    setProjectRemovalInfo({ dataPath: "", dataSizeBytes: -1, projectPath: project.path, projectSizeBytes: -1 });
+    setProjectRemovalDialog({ project, removeData });
+    void fetchProjectRemovalInfo(project.id)
+      .then(setProjectRemovalInfo)
+      .catch(() => setProjectRemovalError("Could not read the project folder details."));
+  }
+
+  async function confirmProjectRemoval() {
+    if (!projectRemovalDialog || !projectRemovalInfo || isRemovingProject) return;
+    const { project, removeData } = projectRemovalDialog;
+    setIsRemovingProject(true);
+    setProjectRemovalError("");
+    try {
+      if (removeData) await removeProjectFromDisk(project.id);
+      else await removeProjectFromSidebar(project.id);
+      removeProjectFromList(project);
+      setProjectRemovalDialog(null);
+    } catch {
+      setProjectRemovalError(`Could not remove “${project.name}”. Try again.`);
+    } finally {
+      setIsRemovingProject(false);
+    }
+  }
 
   function beginUserNameEdit() {
     setUserNameDraft(userName);
@@ -185,7 +293,7 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomizat
           const remainingChatCount = project.chats.length - visibleChats.length;
 
           return (
-            <section className="side-panel-project" key={project.id}>
+            <section className="side-panel-project" key={project.id} onContextMenu={(event) => handleProjectContextMenu(event, project)}>
               <div className="side-panel-project-head">
                 <button
                   aria-expanded={isProjectOpen}
@@ -196,6 +304,7 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomizat
                     else nextProjectIds.add(project.id);
                     return nextProjectIds;
                   })}
+                  onKeyDown={(event) => handleProjectContextMenuKey(event, project)}
                   title={project.path}
                   type="button"
                 >
@@ -282,6 +391,68 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomizat
         )}
         {userNameError ? <span className="side-panel-user-error" role="status">{userNameError}</span> : null}
       </div>
+      {projectContextMenu ? (
+        <div
+          aria-label={`Actions for ${projectContextMenu.project.name}`}
+          className="project-context-menu"
+          onPointerDown={(event) => event.stopPropagation()}
+          role="menu"
+          style={{ left: projectContextMenu.x, top: projectContextMenu.y }}
+        >
+          <button onClick={() => { renameProject(projectContextMenu.project); setProjectContextMenu(null); }} role="menuitem" type="button">
+            Rename
+          </button>
+          <button onClick={() => { void copyProjectPath(projectContextMenu.project.path); setProjectContextMenu(null); }} role="menuitem" type="button">
+            Copy absolute path
+          </button>
+          <div className="project-context-menu-divider" role="separator" />
+          <button onClick={() => { openProjectRemovalDialog(projectContextMenu.project, false); setProjectContextMenu(null); }} role="menuitem" type="button">
+            Remove from sidebar
+          </button>
+          <button className="is-danger" onClick={() => { openProjectRemovalDialog(projectContextMenu.project, true); setProjectContextMenu(null); }} role="menuitem" type="button">
+            Remove from disk
+          </button>
+        </div>
+      ) : null}
+      {projectRemovalDialog ? (
+        <div className="project-removal-dialog-backdrop" role="presentation">
+          <section aria-describedby="project-removal-dialog-description" aria-labelledby="project-removal-dialog-title" aria-modal="true" className="project-removal-dialog" role="dialog">
+            <div className="project-removal-dialog-marker" aria-hidden="true">!</div>
+            <div>
+              <p className="project-removal-dialog-eyebrow">{projectRemovalDialog.removeData ? "Permanent action" : "Sidebar only"}</p>
+              <h2 id="project-removal-dialog-title">{projectRemovalDialog.removeData ? "Remove project from disk?" : "Remove project from sidebar?"}</h2>
+              <p id="project-removal-dialog-description">
+                {projectRemovalDialog.removeData
+                  ? <>This permanently removes <strong>{projectRemovalDialog.project.name}</strong>, its project folder, and all Solomon chats.</>
+                  : <>This removes <strong>{projectRemovalDialog.project.name}</strong> from the sidebar. Its project folder and chats stay on disk.</>}
+              </p>
+            </div>
+            {projectRemovalError ? <p className="project-removal-dialog-error" role="alert">{projectRemovalError}</p> : null}
+            {projectRemovalInfo ? (
+              <dl className="project-removal-dialog-details">
+                <div>
+                  <dt>Project folder</dt>
+                  <dd title={projectRemovalInfo.projectPath}>{projectRemovalInfo.projectPath}</dd>
+                  <small>{formatFileSize(projectRemovalInfo.projectSizeBytes)}</small>
+                </div>
+                {projectRemovalDialog.removeData && projectRemovalInfo.dataPath ? (
+                  <div>
+                    <dt>Solomon data &amp; chats</dt>
+                    <dd title={projectRemovalInfo.dataPath}>{projectRemovalInfo.dataPath}</dd>
+                    <small>{formatFileSize(projectRemovalInfo.dataSizeBytes)}</small>
+                  </div>
+                ) : null}
+              </dl>
+            ) : <p className="project-removal-dialog-loading">Reading folder details…</p>}
+            <div className="project-removal-dialog-actions">
+              <button disabled={isRemovingProject} onClick={() => setProjectRemovalDialog(null)} type="button">Cancel</button>
+              <button className="is-danger" disabled={isRemovingProject || !projectRemovalInfo} onClick={() => void confirmProjectRemoval()} type="button">
+                {isRemovingProject ? "Removing…" : projectRemovalDialog.removeData ? "Remove from disk" : "Remove from sidebar"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -297,6 +468,14 @@ function formatRelativeTime(dateTime: string) {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   return `${days}d`;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 0) return "Size unavailable";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)) - 1, units.length - 1);
+  return `${(bytes / (1024 ** (index + 1))).toFixed(bytes >= 1024 ** (index + 2) ? 1 : 0)} ${units[index]}`;
 }
 
 function FolderIcon({ isOpen }: { isOpen: boolean }) {

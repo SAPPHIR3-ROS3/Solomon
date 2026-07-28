@@ -24,7 +24,7 @@
 
 .welcome-reasoning-label:hover,
 .welcome-reasoning-label[aria-expanded="true"] {
-  background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+  background: var(--color-surface-raised);
   color: var(--color-text);
 }
 

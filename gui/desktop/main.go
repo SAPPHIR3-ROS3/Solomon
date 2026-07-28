@@ -17,6 +17,7 @@ import (
 var assets embed.FS
 
 func main() {
+	configureDesktopModelLister()
 	if err := wails.Run(&options.App{
 		Title:  "Solomon",
 		Width:  1280,

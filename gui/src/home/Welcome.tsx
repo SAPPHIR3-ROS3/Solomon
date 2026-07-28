@@ -35,6 +35,7 @@ const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim()
 export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomeProps) {
   const [userName, setUserName] = useState("");
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
+  const [selectedProvider, setSelectedProvider] = useState("");
   const [draft, setDraft] = useState("");
   const [fastOn, setFastOn] = useState(false);
   const [agentOn, setAgentOn] = useState(true);
@@ -97,9 +98,10 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
     if (measureComposerRef.current) observer.observe(measureComposerRef.current);
     update();
     return () => observer.disconnect();
-  }, [bottomInset, userName]);
+  }, [bottomInset, selectedProvider, userName]);
 
   const displayName = userName || "User";
+  const fastAvailable = fastModeAvailableFor(selectedProvider);
 
   return (
     <section
@@ -128,7 +130,7 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
               <button className="welcome-model-trigger" tabIndex={-1} type="button"><span>Select model</span><ChevronIcon /></button>
               <span aria-hidden="true" className="welcome-toolbar-sep" />
               <button className="welcome-reasoning-label" tabIndex={-1} type="button"><span>Reasoning</span><strong>None</strong><ChevronIcon /></button>
-              <button className="welcome-fast" tabIndex={-1} type="button"><BoltIcon /><span>Fast</span></button>
+              {fastAvailable ? <button className="welcome-fast" tabIndex={-1} type="button"><BoltIcon /><span>Fast</span></button> : null}
               <button className="welcome-mode is-agent" tabIndex={-1} type="button"><span className="welcome-mode-icon"><BotIcon /></span><span>Agent</span></button>
             </div>
             <button className="welcome-send" tabIndex={-1} type="button"><SendIcon /></button>
@@ -172,6 +174,10 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
             <div className="welcome-toolbar">
               <div className="welcome-toolbar-left">
                 <ModelControl
+                  onModelChange={(choice) => {
+                    setSelectedProvider(choice.provider);
+                    if (!fastModeAvailableFor(choice.provider)) setFastOn(false);
+                  }}
                   onOpenChange={(open) => setOpenMenu(open ? "model" : null)}
                   open={openMenu === "model"}
                 />
@@ -186,7 +192,7 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
                   open={openMenu === "reasoning"}
                   value={reasoning}
                 />
-                <button
+                {fastAvailable ? <button
                   aria-pressed={fastOn}
                   className={`welcome-fast${fastOn ? " is-active" : ""}`}
                   onClick={() => setFastOn((value) => !value)}
@@ -194,7 +200,7 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
                 >
                   <BoltIcon />
                   <span>Fast</span>
-                </button>
+                </button> : null}
                 <button
                   aria-pressed={agentOn}
                   className={`welcome-mode ${agentOn ? "is-agent" : "is-chat"}`}
@@ -202,7 +208,7 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
                   type="button"
                 >
                   <span aria-hidden="true" className="welcome-mode-icon">
-                    {agentOn ? <BotIcon /> : <ChatIcon />}
+                    {agentOn ? <CrownIcon /> : <ChatIcon />}
                   </span>
                   <span>{agentOn ? "Agent" : "Chat"}</span>
                 </button>
@@ -216,6 +222,14 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
       </div>
     </section>
   );
+}
+
+function fastModeAvailableFor(provider: string): boolean {
+  const normalized = provider.trim().toLowerCase();
+  return normalized === "chatgpt sub"
+    || normalized === "claude sub"
+    || normalized.includes("anthropic")
+    || normalized.includes("cursor");
 }
 
 function ReasoningControl({
@@ -387,6 +401,15 @@ function BoltIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="m13 2-8 12h6l-1 8 8-12h-6z" />
+    </svg>
+  );
+}
+
+function CrownIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 1.8v16.2M9.4 4.4h5.2M4.4 15.8V12c0-1.6 1.2-2.5 2.6-2.5 1.4 0 2.4 1.1 2.6 2.5.3-2 1-3.6 2.4-3.6 1.4 0 2.1 1.6 2.4 3.6.2-1.4 1.2-2.5 2.6-2.5 1.4 0 2.6.9 2.6 2.5v3.8" />
+      <path d="M4 16.2h16l-.6 3.8H4.6z" />
     </svg>
   );
 }

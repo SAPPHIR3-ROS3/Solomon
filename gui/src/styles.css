@@ -983,6 +983,209 @@ body {
   outline-offset: -2px;
 }
 
+.project-context-menu {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px color-mix(in srgb, #000 32%, transparent);
+  min-width: 190px;
+  padding: 4px;
+  position: fixed;
+  z-index: 20;
+}
+
+.project-context-menu button {
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--color-text);
+  cursor: pointer;
+  display: block;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.25;
+  padding: 7px 9px;
+  text-align: left;
+  width: 100%;
+}
+
+.project-context-menu button:hover,
+.project-context-menu button:focus-visible {
+  background: color-mix(in srgb, var(--color-text) 9%, transparent);
+  outline: 0;
+}
+
+.project-context-menu button.is-danger {
+  color: #e57373;
+}
+
+.project-removal-dialog-backdrop {
+  align-items: center;
+  background: color-mix(in srgb, #000 52%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 30;
+}
+
+.project-removal-dialog {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px color-mix(in srgb, #000 48%, transparent);
+  max-width: 410px;
+  padding: 24px;
+  width: min(100%, 410px);
+}
+
+.project-removal-dialog-marker {
+  align-items: center;
+  background: color-mix(in srgb, #e57373 18%, transparent);
+  border: 1px solid color-mix(in srgb, #e57373 45%, transparent);
+  border-radius: 50%;
+  color: #e57373;
+  display: flex;
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  height: 28px;
+  justify-content: center;
+  margin-bottom: 16px;
+  width: 28px;
+}
+
+.project-removal-dialog-eyebrow {
+  color: var(--color-text-muted);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  margin: 0 0 5px;
+  text-transform: uppercase;
+}
+
+.project-removal-dialog h2 {
+  color: var(--color-text);
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.project-removal-dialog p:not(.project-removal-dialog-eyebrow):not(.project-removal-dialog-error) {
+  color: var(--color-text-muted);
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 10px 0 0;
+}
+
+.project-removal-dialog p strong {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.project-removal-dialog-error {
+  color: #e57373;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 14px 0 0;
+}
+
+.project-removal-dialog-loading {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin: 16px 0 0;
+}
+
+.project-removal-dialog-details {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+  padding-top: 14px;
+}
+
+.project-removal-dialog-details div {
+  display: grid;
+  gap: 3px;
+}
+
+.project-removal-dialog-details dt {
+  color: var(--color-text-muted);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.project-removal-dialog-details dd {
+  color: var(--color-text);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-removal-dialog-details small {
+  color: var(--color-text-muted);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.project-removal-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 22px;
+}
+
+.project-removal-dialog-actions button {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  color: var(--color-text);
+  cursor: pointer;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  padding: 8px 11px;
+}
+
+.project-removal-dialog-actions button:hover,
+.project-removal-dialog-actions button:focus-visible {
+  background: var(--color-surface-raised);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.project-removal-dialog-actions button.is-danger {
+  background: #b84444;
+  border-color: #b84444;
+  color: #fff;
+}
+
+.project-removal-dialog-actions button.is-danger:hover,
+.project-removal-dialog-actions button.is-danger:focus-visible {
+  background: #ce5353;
+  border-color: #ce5353;
+}
+
+.project-removal-dialog-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.project-context-menu-divider {
+  background: var(--color-border);
+  height: 1px;
+  margin: 4px 5px;
+}
+
 .side-panel-chat,
 .side-panel-show-more {
   background: transparent;
@@ -1584,4 +1787,3 @@ body {
 .app-shell[data-client-surface="desktop"][data-client-os="macos"] {
   --side-panel-toggle-left: 78px;
 }
-
