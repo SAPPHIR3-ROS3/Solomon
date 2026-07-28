@@ -30,15 +30,17 @@ function createTerminalPane(id: string, tabId: string): TerminalPane {
 type TerminalPanelProps = {
   height: number;
   isOpen: boolean;
+  maxHeight: number;
   onClose: () => void;
   onHeightChange: (height: number) => void;
 };
 
-export function TerminalPanel({ height, isOpen, onClose, onHeightChange }: TerminalPanelProps) {
+export function TerminalPanel({ height, isOpen, maxHeight, onClose, onHeightChange }: TerminalPanelProps) {
   const [isResizing, setIsResizing] = useState(false);
   const nextPaneId = useRef(1);
   const nextTabId = useRef(1);
   const [panes, setPanes] = useState<TerminalPane[]>(() => [createTerminalPane("terminal-pane-0", "terminal-tab-0")]);
+  const panelMaxHeight = Math.max(MIN_HEIGHT, maxHeight);
 
   function startResize(event: React.PointerEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -47,8 +49,7 @@ export function TerminalPanel({ height, isOpen, onClose, onHeightChange }: Termi
     setIsResizing(true);
 
     const onPointerMove = (moveEvent: PointerEvent) => {
-      const maxHeight = Math.max(MIN_HEIGHT, window.innerHeight - 96);
-      onHeightChange(Math.min(maxHeight, Math.max(MIN_HEIGHT, startHeight + startY - moveEvent.clientY)));
+      onHeightChange(Math.min(panelMaxHeight, Math.max(MIN_HEIGHT, startHeight + startY - moveEvent.clientY)));
     };
     const stopResize = () => {
       setIsResizing(false);
@@ -112,7 +113,7 @@ export function TerminalPanel({ height, isOpen, onClose, onHeightChange }: Termi
       <button
         aria-label="Resize terminal panel"
         className="terminal-panel-resize"
-        onDoubleClick={() => onHeightChange(240)}
+        onDoubleClick={() => onHeightChange(Math.min(panelMaxHeight, 240))}
         onPointerDown={startResize}
         title="Drag to resize terminal panel"
         type="button"

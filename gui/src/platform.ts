@@ -17,7 +17,10 @@ type WailsServerBridge = {
 };
 
 type WailsDesktopBridge = {
+  ModelCatalog?: () => Promise<unknown>;
   ProjectSidebarData: () => Promise<unknown>;
+  SaveCurrentModel?: (provider: string, model: string) => Promise<unknown>;
+  SaveReasoningEffort?: (effort: string) => Promise<string>;
   SaveUserName: (userName: string) => Promise<string>;
   CustomizationRules?: () => Promise<unknown>;
   ReorderCustomizationRules?: (ruleIDs: number[]) => Promise<unknown>;

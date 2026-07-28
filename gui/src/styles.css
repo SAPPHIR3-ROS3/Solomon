@@ -1585,18 +1585,3 @@ body {
   --side-panel-toggle-left: 78px;
 }
 
-.bootstrap-screen {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-}
-
-.bootstrap-message {
-  text-align: center;
-}
-
-.bootstrap-client-type {
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  margin: 0.5rem 0 0;
-}

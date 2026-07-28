@@ -5,6 +5,8 @@ import type { Plugin } from "vite";
 
 const projectsEndpoint = "/__solomon/projects";
 const userNameEndpoint = "/__solomon/user-name";
+const reasoningEffortEndpoint = "/__solomon/reasoning-effort";
+const reasoningEfforts = new Set(["none", "low", "medium", "high"]);
 
 type Project = {
   chats: SidebarChat[];
@@ -27,6 +29,13 @@ type ProjectWithActivity = Project & { lastActivity: number };
 
 function solomonHome() {
   return process.env.SOLOMON_HOME?.trim() || path.join(homedir(), ".solomon");
+}
+
+function projectDisplayName(projectPath: string): string {
+  const resolvedHome = path.resolve(homedir());
+  const resolvedProject = path.resolve(projectPath);
+  if (resolvedProject === resolvedHome) return "Home";
+  return path.basename(projectPath) || projectPath;
 }
 
 async function readUserName(home: string): Promise<string> {
@@ -69,6 +78,53 @@ async function writeUserName(home: string, userName: string): Promise<void> {
   await rename(temporaryPath, configPath);
 }
 
+function normalizeReasoningEffort(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "med") return "medium";
+  return reasoningEfforts.has(normalized) ? normalized : "";
+}
+
+async function readReasoningEffort(home: string): Promise<string> {
+  let config: string;
+  try {
+    config = await readFile(path.join(home, "config.toml"), "utf8");
+  } catch {
+    return "none";
+  }
+  const firstTable = config.search(/^\s*\[/m);
+  const rootConfig = config.slice(0, firstTable === -1 ? config.length : firstTable);
+  const match = rootConfig.match(/^\s*reasoning_effort\s*=\s*((?:"(?:[^"\\]|\\.)*")|(?:'(?:[^']|'')*')|[A-Za-z]+)\s*(?:#.*)?$/m);
+  if (!match) return "none";
+  const rawValue = match[1];
+  let parsed = rawValue;
+  if (rawValue.startsWith("'")) parsed = rawValue.slice(1, -1).replaceAll("''", "'");
+  else if (rawValue.startsWith('"')) {
+    try {
+      parsed = String(JSON.parse(rawValue));
+    } catch {
+      return "none";
+    }
+  }
+  return normalizeReasoningEffort(parsed) || "none";
+}
+
+async function writeReasoningEffort(home: string, effort: string): Promise<void> {
+  const configPath = path.join(home, "config.toml");
+  const config = await readFile(configPath, "utf8");
+  const firstTable = config.search(/^\s*\[/m);
+  const boundary = firstTable === -1 ? config.length : firstTable;
+  const rootConfig = config.slice(0, boundary);
+  const tableConfig = config.slice(boundary);
+  const serialized = JSON.stringify(effort);
+  const effortLine = /^(\s*reasoning_effort\s*=\s*)((?:"(?:[^"\\]|\\.)*")|(?:'(?:[^']|'')*')|[A-Za-z]+)(\s*(?:#.*)?)$/m;
+  const nextRootConfig = effortLine.test(rootConfig)
+    ? rootConfig.replace(effortLine, (_match, prefix: string, _value: string, suffix: string) => `${prefix}${serialized}${suffix}`)
+    : `reasoning_effort = ${serialized}\n${rootConfig.startsWith("\n") ? "" : "\n"}${rootConfig}`;
+  const temporaryPath = `${configPath}.gui.tmp`;
+  await writeFile(temporaryPath, `${nextRootConfig}${tableConfig}`, { encoding: "utf8", mode: 0o600 });
+  await rename(temporaryPath, configPath);
+}
+
 async function readProjects(): Promise<Project[]> {
   const home = solomonHome();
   let projectMap: unknown;
@@ -105,7 +161,7 @@ async function readProjects(): Promise<Project[]> {
           }
           return {
             id: projectID,
-            name: path.basename(projectPath) || projectPath,
+            name: projectDisplayName(projectPath),
             path: projectPath,
             chatCount: chats.length,
             chats: chats.map(({ lastActivity: _, ...chat }) => chat),
@@ -154,16 +210,16 @@ function attachProjectsEndpoint(server: { middlewares: { use: (route: string, ha
       return;
     }
     const home = solomonHome();
-    void Promise.all([readProjects(), readUserName(home)])
-      .then(([projects, userName]) => {
+    void Promise.all([readProjects(), readUserName(home), readReasoningEffort(home)])
+      .then(([projects, userName, reasoningEffort]) => {
         response.statusCode = 200;
         response.setHeader("Content-Type", "application/json; charset=utf-8");
-        response.end(JSON.stringify({ projects, userName }));
+        response.end(JSON.stringify({ projects, userName, reasoningEffort }));
       })
       .catch(() => {
         response.statusCode = 500;
         response.setHeader("Content-Type", "application/json; charset=utf-8");
-        response.end(JSON.stringify({ projects: [], userName: "" }));
+        response.end(JSON.stringify({ projects: [], userName: "", reasoningEffort: "none" }));
       });
   });
 }
@@ -229,15 +285,41 @@ function attachUserNameEndpoint(server: { middlewares: { use: (route: string, ha
   });
 }
 
+function attachReasoningEffortEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(reasoningEffortEndpoint, (request, response, next) => {
+    if (request.method !== "PUT") {
+      next();
+      return;
+    }
+    void readJsonBody(request)
+      .then(async (payload) => {
+        if (!payload || typeof payload !== "object" || !("reasoningEffort" in payload) || typeof payload.reasoningEffort !== "string") {
+          respondWithJson(response, 400, { error: "reasoningEffort must be a string" });
+          return;
+        }
+        const reasoningEffort = normalizeReasoningEffort(payload.reasoningEffort);
+        if (!reasoningEffort) {
+          respondWithJson(response, 400, { error: "reasoning must be none, low, med, or high" });
+          return;
+        }
+        await writeReasoningEffort(solomonHome(), reasoningEffort);
+        respondWithJson(response, 200, { reasoningEffort });
+      })
+      .catch(() => respondWithJson(response, 500, { error: "Unable to save reasoning effort" }));
+  });
+}
+
 export function projectsPlugin(): Plugin {
   return {
     configurePreviewServer(server) {
       attachProjectsEndpoint(server);
       attachUserNameEndpoint(server);
+      attachReasoningEffortEndpoint(server);
     },
     configureServer(server) {
       attachProjectsEndpoint(server);
       attachUserNameEndpoint(server);
+      attachReasoningEffortEndpoint(server);
     },
     name: "solomon-projects",
   };

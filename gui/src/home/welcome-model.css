@@ -1,0 +1,341 @@
+.welcome-model {
+  min-width: 0;
+  position: relative;
+}
+
+.welcome-model-trigger {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 6px;
+  height: var(--welcome-control-height, 32px);
+  line-height: 1;
+  max-width: 230px;
+  padding: 0 8px;
+}
+
+.welcome-model-trigger:hover,
+.welcome-model-trigger[aria-expanded="true"] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.welcome-model-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-model-trigger .welcome-chevron {
+  fill: none;
+  flex: none;
+  height: 13px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  transition: transform 0.18s ease;
+  width: 13px;
+}
+
+.welcome-model-trigger .welcome-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.welcome-model-menu {
+  backdrop-filter: blur(22px);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-canvas));
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  bottom: 39px;
+  box-shadow: 0 22px 60px color-mix(in srgb, var(--color-canvas) 85%, transparent);
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
+  height: min(390px, calc(50vh - 20px));
+  left: 0;
+  min-height: 205px;
+  overflow: hidden;
+  position: absolute;
+  width: 520px;
+  z-index: 14;
+}
+
+.welcome-provider-rail {
+  background: color-mix(in srgb, var(--color-canvas) 70%, var(--color-surface));
+  border-right: 1px solid var(--color-border);
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 7px;
+  scrollbar-width: none;
+}
+
+.welcome-provider-rail > header {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: 8px;
+  font-weight: 650;
+  height: 27px;
+  letter-spacing: 0.11em;
+  padding: 0 8px;
+  text-transform: uppercase;
+}
+
+.welcome-provider-rail > button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 27px minmax(0, 1fr) auto;
+  min-height: 46px;
+  padding: 6px 7px;
+  position: relative;
+  text-align: left;
+  width: 100%;
+}
+
+.welcome-provider-rail > button::before {
+  background: transparent;
+  border-radius: 0 2px 2px 0;
+  bottom: 9px;
+  content: "";
+  left: -7px;
+  position: absolute;
+  top: 9px;
+  width: 2px;
+}
+
+.welcome-provider-rail > button:hover {
+  background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+  color: var(--color-text);
+}
+
+.welcome-provider-rail > button.is-active {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.welcome-provider-rail > button.is-active::before {
+  background: var(--color-crown-gold);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-crown-gold) 40%, transparent);
+}
+
+.welcome-provider-rail > button > span {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  display: grid;
+  height: 27px;
+  place-items: center;
+  width: 27px;
+}
+
+.welcome-provider-rail > button.is-active > span {
+  background: color-mix(in srgb, var(--color-crown-gold) 14%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-crown-gold) 40%, var(--color-border));
+  color: var(--color-crown-gold);
+}
+
+.welcome-provider-rail > button > span svg {
+  height: 15px;
+  width: 15px;
+}
+
+.welcome-provider-rail > button > span svg:not([fill="currentColor"]) {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.welcome-provider-rail > button strong {
+  font-size: 9px;
+  font-weight: 570;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-provider-rail > button small {
+  color: var(--color-text-muted);
+  font: 8px ui-monospace, monospace;
+}
+
+.welcome-provider-recent {
+  margin-bottom: 9px;
+}
+
+.welcome-provider-recent::after {
+  background: var(--color-border);
+  bottom: -5px;
+  content: "";
+  height: 1px;
+  left: 2px;
+  position: absolute;
+  right: 2px;
+}
+
+.welcome-model-browser {
+  display: grid;
+  grid-template-rows: 52px 36px minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+.welcome-model-search {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-canvas) 70%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  color: var(--color-text-muted);
+  display: flex;
+  gap: 8px;
+  margin: 9px 11px 6px;
+  padding: 0 10px;
+}
+
+.welcome-model-search:focus-within {
+  border-color: color-mix(in srgb, var(--color-crown-gold) 45%, var(--color-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-crown-gold) 12%, transparent);
+  color: var(--color-text);
+}
+
+.welcome-model-search svg {
+  fill: none;
+  flex: none;
+  height: 15px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 15px;
+}
+
+.welcome-model-search input {
+  background: transparent;
+  border: 0;
+  color: var(--color-text);
+  font-size: 12px;
+  min-width: 0;
+  outline: 0;
+  width: 100%;
+}
+
+.welcome-model-search input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.welcome-model-browser > header {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.welcome-model-browser > header span {
+  color: var(--color-text-muted);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.welcome-model-browser > header small {
+  color: var(--color-text-muted);
+  font-size: 8px;
+}
+
+.welcome-model-list {
+  min-height: 0;
+  overflow: auto;
+  padding: 7px;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+}
+
+.welcome-model-list > button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  gap: 9px;
+  min-height: 49px;
+  padding: 7px 9px;
+  text-align: left;
+  width: 100%;
+}
+
+.welcome-model-list > button:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.welcome-model-list > button.is-selected {
+  background: color-mix(in srgb, var(--color-crown-gold) 14%, var(--color-surface));
+  color: var(--color-crown-gold);
+}
+
+.welcome-model-list > button > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.welcome-model-list > button strong,
+.welcome-model-list > button small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-model-list > button strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.welcome-model-list > button small {
+  color: var(--color-text-muted);
+  font-size: 8px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.welcome-model-list > button svg {
+  fill: none;
+  flex: none;
+  height: 14px;
+  stroke: var(--color-crown-gold);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 14px;
+}
+
+.welcome-model-list > p {
+  color: var(--color-text-muted);
+  font-size: 9px;
+  margin: 20px 10px;
+  text-align: center;
+}

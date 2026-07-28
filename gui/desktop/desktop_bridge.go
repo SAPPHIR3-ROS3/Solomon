@@ -22,8 +22,9 @@ import (
 type DesktopBridge struct{}
 
 type desktopSidebarData struct {
-	Projects []desktopProject `json:"projects"`
-	UserName string           `json:"userName"`
+	Projects        []desktopProject `json:"projects"`
+	ReasoningEffort string           `json:"reasoningEffort"`
+	UserName        string           `json:"userName"`
 }
 
 type desktopProject struct {
@@ -62,7 +63,7 @@ func (DesktopBridge) ProjectSidebarData() (desktopSidebarData, error) {
 	// A malformed optional section must not hide projects and chats. Read the
 	// root TOML field directly; config.Load is still used for writes.
 	userName := loadDesktopUserName()
-	return desktopSidebarData{Projects: projects, UserName: userName}, nil
+	return desktopSidebarData{Projects: projects, ReasoningEffort: loadDesktopReasoningEffort(), UserName: userName}, nil
 }
 
 func (DesktopBridge) SaveUserName(userName string) (string, error) {
@@ -79,6 +80,22 @@ func (DesktopBridge) SaveUserName(userName string) (string, error) {
 		return "", fmt.Errorf("save config.toml: %w", err)
 	}
 	return userName, nil
+}
+
+func (DesktopBridge) SaveReasoningEffort(effort string) (string, error) {
+	canonical, err := config.ParseReasoningEffortToken(effort)
+	if err != nil {
+		return "", err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return "", fmt.Errorf("read config.toml: %w", err)
+	}
+	cfg.ReasoningEffort = canonical
+	if err := config.Save(cfg); err != nil {
+		return "", fmt.Errorf("save config.toml: %w", err)
+	}
+	return canonical, nil
 }
 
 func (DesktopBridge) CustomizationRules() ([]desktopRule, error) {
@@ -201,7 +218,7 @@ func loadDesktopProjects() ([]desktopProject, error) {
 		if err != nil {
 			return nil, err
 		}
-		project := desktopProject{ID: projectID, Name: filepath.Base(projectPath), Path: projectPath, Chats: make([]desktopChat, 0, len(chats)), ChatCount: len(chats)}
+		project := desktopProject{ID: projectID, Name: desktopProjectDisplayName(projectPath), Path: projectPath, Chats: make([]desktopChat, 0, len(chats)), ChatCount: len(chats)}
 		if project.Name == "." || project.Name == string(filepath.Separator) {
 			project.Name = projectPath
 		}
@@ -229,6 +246,17 @@ func loadDesktopProjects() ([]desktopProject, error) {
 	return projects, nil
 }
 
+func desktopProjectDisplayName(projectPath string) string {
+	if home, err := os.UserHomeDir(); err == nil && filepath.Clean(projectPath) == filepath.Clean(home) {
+		return "Home"
+	}
+	name := filepath.Base(projectPath)
+	if name == "." || name == string(filepath.Separator) {
+		return projectPath
+	}
+	return name
+}
+
 func loadDesktopUserName() string {
 	configPath, err := paths.ConfigPath()
 	if err != nil {
@@ -245,6 +273,28 @@ func loadDesktopUserName() string {
 		return ""
 	}
 	return strings.TrimSpace(root.UserName)
+}
+
+func loadDesktopReasoningEffort() string {
+	configPath, err := paths.ConfigPath()
+	if err != nil {
+		return "none"
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return "none"
+	}
+	var root struct {
+		ReasoningEffort string `toml:"reasoning_effort"`
+	}
+	if toml.Unmarshal(data, &root) != nil {
+		return "none"
+	}
+	canonical, err := config.ParseReasoningEffortToken(root.ReasoningEffort)
+	if err != nil {
+		return "none"
+	}
+	return canonical
 }
 
 func loadDesktopRules() ([]desktopRule, error) {
