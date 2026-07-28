@@ -1,0 +1,188 @@
+.welcome-reasoning {
+  position: relative;
+}
+
+.welcome-reasoning-label {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: var(--color-text-muted);
+  column-gap: 0;
+  cursor: pointer;
+  display: grid;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  grid-template-columns: auto minmax(4.8em, 1fr) 14px;
+  height: var(--welcome-control-height, 32px);
+  line-height: 1;
+  min-width: 158px;
+  padding: 0 8px;
+}
+
+.welcome-reasoning-label:hover,
+.welcome-reasoning-label[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+  color: var(--color-text);
+}
+
+.welcome-reasoning-label > span:first-child {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.welcome-reasoning-label strong,
+.welcome-reasoning-value {
+  color: var(--color-text);
+  display: grid;
+  font-size: 12px;
+  font-weight: 550;
+  justify-items: center;
+  place-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+.welcome-reasoning-value > * {
+  grid-area: 1 / 1;
+}
+
+.welcome-reasoning-value-sizer {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.welcome-reasoning-label .welcome-chevron {
+  justify-self: end;
+}
+
+.welcome-reasoning-label .welcome-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.welcome-reasoning-popover {
+  backdrop-filter: blur(22px);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-canvas));
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  bottom: 39px;
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--color-canvas) 80%, transparent);
+  left: 0;
+  padding: 12px 14px 13px;
+  position: absolute;
+  width: 246px;
+  z-index: 13;
+}
+
+.welcome-reasoning-popover header {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: 8px;
+  font-weight: 650;
+  justify-content: space-between;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.welcome-reasoning-popover header strong {
+  color: var(--color-crown-gold);
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.welcome-reasoning-scale {
+  margin-top: 15px;
+  position: relative;
+}
+
+.welcome-reasoning-scale input {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  display: block;
+  height: 16px;
+  margin: 0 0 0 -6px;
+  padding: 0;
+  position: relative;
+  width: calc(100% + 12px);
+  z-index: 2;
+}
+
+.welcome-reasoning-scale input::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, var(--color-crown-gold) 0 var(--reasoning-fill, 100%), var(--color-border) var(--reasoning-fill, 100%) 100%);
+  border-radius: 4px;
+  height: 4px;
+}
+
+.welcome-reasoning-scale input::-webkit-slider-thumb {
+  appearance: none;
+  background: var(--color-crown-gold);
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-crown-gold) 40%, transparent), 0 0 9px color-mix(in srgb, var(--color-crown-gold) 28%, transparent);
+  height: 12px;
+  margin-top: -4px;
+  width: 12px;
+}
+
+.welcome-reasoning-scale input::-moz-range-track {
+  background: var(--color-border);
+  border-radius: 4px;
+  height: 4px;
+}
+
+.welcome-reasoning-scale input::-moz-range-progress {
+  background: var(--color-crown-gold);
+  border-radius: 4px;
+  height: 4px;
+}
+
+.welcome-reasoning-scale input::-moz-range-thumb {
+  background: var(--color-crown-gold);
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-crown-gold) 40%, transparent);
+  height: 9px;
+  width: 9px;
+}
+
+.welcome-reasoning-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -9px;
+  pointer-events: none;
+}
+
+.welcome-reasoning-ticks span {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 7px;
+  gap: 8px;
+  width: 0;
+}
+
+.welcome-reasoning-ticks i {
+  background: var(--color-border);
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--color-surface);
+  height: 8px;
+  width: 2px;
+}
+
+.welcome-reasoning-ticks span.is-reached {
+  color: color-mix(in srgb, var(--color-crown-gold) 72%, var(--color-text));
+}
+
+.welcome-reasoning-ticks span.is-reached i {
+  background: var(--color-crown-gold);
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 7px color-mix(in srgb, var(--color-crown-gold) 40%, transparent);
+}
+
+.welcome-reasoning-ticks small {
+  font-size: 7px;
+}

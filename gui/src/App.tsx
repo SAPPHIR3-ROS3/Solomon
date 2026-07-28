@@ -7,8 +7,11 @@ import { type View, ViewSwitch } from "./shell/ViewSwitch";
 import { TerminalPanel } from "./terminal-panel/TerminalPanel";
 import { applyTheme, savedTheme } from "./theme";
 import { CustomizationPage } from "./customization/CustomizationPage";
+import { Welcome } from "./home/Welcome";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
+const MIN_TERMINAL_PANEL_HEIGHT = 120;
+const FALLBACK_KEEP_ALIVE_HEIGHT = 96;
 
 export function App() {
   const [client, setClient] = useState(initialClient);
@@ -18,6 +21,12 @@ export function App() {
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [activeView, setActiveView] = useState<View>("agent");
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+  const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
+  const maxTerminalPanelHeight = Math.max(
+    MIN_TERMINAL_PANEL_HEIGHT,
+    viewportHeight - (welcomeKeepAliveHeight > 0 ? welcomeKeepAliveHeight : FALLBACK_KEEP_ALIVE_HEIGHT),
+  );
 
   useEffect(() => {
     void detectClient().then(setClient);
@@ -27,10 +36,24 @@ export function App() {
     applyTheme(savedTheme());
   }, []);
 
+  useEffect(() => {
+    const onResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    setTerminalPanelHeight((height) => Math.min(height, maxTerminalPanelHeight));
+  }, [maxTerminalPanelHeight]);
+
   function goHome() {
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setIsTerminalPanelOpen(false);
+  }
+
+  function handleTerminalHeightChange(height: number) {
+    setTerminalPanelHeight(Math.min(maxTerminalPanelHeight, Math.max(MIN_TERMINAL_PANEL_HEIGHT, height)));
   }
 
   return (
@@ -68,19 +91,18 @@ export function App() {
         <TerminalPanel
           height={terminalPanelHeight}
           isOpen={isTerminalPanelOpen}
+          maxHeight={maxTerminalPanelHeight}
           onClose={() => setIsTerminalPanelOpen(false)}
-          onHeightChange={setTerminalPanelHeight}
+          onHeightChange={handleTerminalHeightChange}
         />
       ) : null}
       {isCustomizationOpen ? <CustomizationPage /> : null}
-      {!isCustomizationOpen ? <section className="bootstrap-screen">
-        <div className="bootstrap-message">
-          <p>Solomon GUI is ready for development.</p>
-          <p className="bootstrap-client-type">
-            {client.surface === "desktop" ? client.os : client.surface} client
-          </p>
-        </div>
-      </section> : null}
+      {!isCustomizationOpen ? (
+        <Welcome
+          bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
+          onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
+        />
+      ) : null}
     </main>
   );
 }
