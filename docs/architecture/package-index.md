@@ -99,6 +99,8 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/claudecode/` | Claude Code version lookup (GitHub releases, disk cache) for OAuth headers | [LLM layer](llm-layer.md) |
 | `internal/title/` | Chat title slug and LLM refinement | [Supporting packages](supporting-packages.md) |
 | `internal/modelsapi/` | List models from provider API | [Supporting packages](supporting-packages.md) |
+| `internal/modelcatalogcache/` | Persistent cache for provider model catalog lookups | [Supporting packages](supporting-packages.md) |
+| `internal/modelsdev/` | Development model catalog source and normalization | [Supporting packages](supporting-packages.md) |
 | `internal/logo/` | ASCII banner | [Supporting packages](supporting-packages.md) |
 | `internal/auth/anthropic/claude/` | Claude Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
 | `internal/auth/openai/codex/` | ChatGPT Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
@@ -185,7 +187,9 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/logging/` | Support |
 | `internal/logo/` | Support |
 | `internal/mcp/` | Feature |
+| `internal/modelcatalogcache/` | Support |
 | `internal/modelsapi/` | Support |
+| `internal/modelsdev/` | Support |
 | `internal/pathglob/` | Feature |
 | `internal/plan/` | Feature |
 | `internal/paths/` | Core |
