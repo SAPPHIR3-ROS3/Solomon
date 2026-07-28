@@ -53,14 +53,51 @@ func listClaudeSubModels(ctx context.Context, cfg *config.Root, p *config.Provid
 
 func filterChatGPTSubModels(ids []string) []string {
 	var out []string
+	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		id = strings.TrimSpace(id)
-		if id == "" {
+		if id == "" || seen[id] {
 			continue
 		}
+		seen[id] = true
 		out = append(out, id)
 	}
-	return out
+	return OrderChatGPTSubModels(out)
+}
+
+func OrderChatGPTSubModels(ids []string) []string {
+	if len(ids) < 2 {
+		return ids
+	}
+	pinned := [3][]string{}
+	rest := make([]string, 0, len(ids))
+	for _, id := range ids {
+		rank := chatGPTSubPinRank(id)
+		if rank >= 0 {
+			pinned[rank] = append(pinned[rank], id)
+			continue
+		}
+		rest = append(rest, id)
+	}
+	out := make([]string, 0, len(ids))
+	for _, group := range pinned {
+		out = append(out, group...)
+	}
+	return append(out, rest...)
+}
+
+func chatGPTSubPinRank(id string) int {
+	lower := strings.ToLower(strings.TrimSpace(id))
+	switch {
+	case strings.HasSuffix(lower, "-sol") || lower == "sol":
+		return 0
+	case strings.HasSuffix(lower, "-terra") || lower == "terra":
+		return 1
+	case strings.HasSuffix(lower, "-luna") || lower == "luna":
+		return 2
+	default:
+		return -1
+	}
 }
 
 func filterClaudeSubModels(ids []string) []string {
