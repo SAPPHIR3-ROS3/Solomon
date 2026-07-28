@@ -22,6 +22,13 @@ export type ProjectSidebarData = {
   userName: string;
 };
 
+export type ProjectRemovalInfo = {
+  dataPath: string;
+  dataSizeBytes: number;
+  projectPath: string;
+  projectSizeBytes: number;
+};
+
 export async function fetchProjectSidebarData(signal?: AbortSignal): Promise<ProjectSidebarData> {
   const bridge = await desktopBridge();
   if (bridge) return projectSidebarDataFromPayload(await bridge.ProjectSidebarData());
@@ -48,6 +55,39 @@ export async function saveUserName(userName: string): Promise<string> {
   return payload.userName;
 }
 
+export async function removeProjectFromSidebar(projectID: string): Promise<void> {
+  const bridge = await desktopBridge();
+  if (bridge?.RemoveProjectFromSidebar) {
+    await bridge.RemoveProjectFromSidebar(projectID);
+    return;
+  }
+  await removeProject(projectID, false);
+}
+
+export async function removeProjectFromDisk(projectID: string): Promise<void> {
+  const bridge = await desktopBridge();
+  if (bridge?.RemoveProjectFromDisk) {
+    await bridge.RemoveProjectFromDisk(projectID);
+    return;
+  }
+  await removeProject(projectID, true);
+}
+
+export async function fetchProjectRemovalInfo(projectID: string): Promise<ProjectRemovalInfo> {
+  const bridge = await desktopBridge();
+  if (bridge?.ProjectRemovalInfo) return projectRemovalInfoFromPayload(await bridge.ProjectRemovalInfo(projectID));
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/removal-info`));
+  if (!response.ok) throw new Error(`Unable to read project details: ${response.status}`);
+  return projectRemovalInfoFromPayload(await response.json());
+}
+
+async function removeProject(projectID: string, removeData: boolean): Promise<void> {
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}${removeData ? "/disk" : ""}`), {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error(`Unable to remove project: ${response.status}`);
+}
+
 export async function saveReasoningEffort(effort: string): Promise<ReasoningEffort> {
   const bridge = await desktopBridge();
   if (bridge?.SaveReasoningEffort) return normalizeReasoningEffort(await bridge.SaveReasoningEffort(effort));
@@ -72,12 +112,20 @@ export function normalizeReasoningEffort(value: string): ReasoningEffort {
 }
 
 export type ModelChoice = {
+	info?: ModelInfo;
   model: string;
   provider: string;
 };
 
+export type ModelInfo = {
+  context: number;
+  input: string[];
+  output: number;
+};
+
 export type ProviderCatalog = {
   complete: boolean;
+  metadata: Record<string, ModelInfo>;
   models: string[];
   provider: string;
 };
@@ -90,21 +138,30 @@ export type ModelCatalog = {
 
 export async function fetchModelCatalog(signal?: AbortSignal): Promise<ModelCatalog> {
   const bridge = await desktopBridge();
-  if (bridge?.ModelCatalog) return modelCatalogFromPayload(await bridge.ModelCatalog());
-  const response = await fetch(await serverEndpoint("/__solomon/models"), { signal });
+  if (bridge) {
+    if (!bridge.ModelCatalog) throw new Error("Unable to load models: desktop bridge missing ModelCatalog");
+    return modelCatalogFromPayload(await bridge.ModelCatalog());
+  }
+  const response = await fetch("/__solomon/models", { signal });
   if (!response.ok) throw new Error(`Unable to load models: ${response.status}`);
   return modelCatalogFromPayload(await response.json());
 }
 
 export async function saveCurrentModel(provider: string, model: string): Promise<ModelChoice> {
   const bridge = await desktopBridge();
-  if (bridge?.SaveCurrentModel) return modelChoiceFromPayload(await bridge.SaveCurrentModel(provider, model));
-  const response = await fetch(await serverEndpoint("/__solomon/current-model"), {
+  if (bridge) {
+    if (!bridge.SaveCurrentModel) throw new Error("Unable to save model: desktop bridge missing SaveCurrentModel");
+    return modelChoiceFromPayload(await bridge.SaveCurrentModel(provider, model));
+  }
+  const response = await fetch("/__solomon/current-model", {
     body: JSON.stringify({ provider, model }),
     headers: { "Content-Type": "application/json" },
     method: "PUT",
   });
-  if (!response.ok) throw new Error(`Unable to save model: ${response.status}`);
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(detail || `Unable to save model: ${response.status}`);
+  }
   return modelChoiceFromPayload(await response.json());
 }
 
@@ -117,15 +174,32 @@ function modelCatalogFromPayload(payload: unknown): ModelCatalog {
     ? payload.providers.flatMap((entry) => {
         if (!entry || typeof entry !== "object" || !("provider" in entry) || typeof entry.provider !== "string") return [];
         const models = "models" in entry && Array.isArray(entry.models)
-          ? entry.models.filter((model): model is string => typeof model === "string" && Boolean(model.trim()))
+          ? entry.models.filter((model: unknown): model is string => typeof model === "string" && Boolean(model.trim()))
           : [];
-        return [{ provider: entry.provider, models, complete: "complete" in entry ? Boolean(entry.complete) : false }];
+        const metadata = "metadata" in entry && entry.metadata && typeof entry.metadata === "object"
+          ? Object.fromEntries(Object.entries(entry.metadata).flatMap(([id, info]) => {
+              const parsed = modelInfoFromPayload(info);
+              return parsed ? [[id, parsed]] : [];
+            }))
+          : {};
+        return [{ provider: entry.provider, models, metadata, complete: "complete" in entry ? Boolean(entry.complete) : false }];
       })
     : [];
   const recent = "recent" in payload && Array.isArray(payload.recent)
     ? payload.recent.map(modelChoiceFromPayload).filter((entry) => entry.provider && entry.model)
     : [];
   return { current, providers, recent };
+}
+
+function modelInfoFromPayload(payload: unknown): ModelInfo | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const context = "context" in payload && typeof payload.context === "number" ? payload.context : 0;
+  const output = "output" in payload && typeof payload.output === "number" ? payload.output : 0;
+  const input = "input" in payload && Array.isArray(payload.input)
+    ? payload.input.filter((mode): mode is string => typeof mode === "string" && Boolean(mode.trim()))
+    : [];
+  if (!context && !output && !input.length) return undefined;
+  return { context, input, output };
 }
 
 function modelChoiceFromPayload(payload: unknown): ModelChoice {
@@ -147,6 +221,19 @@ function projectSidebarDataFromPayload(payload: unknown): ProjectSidebarData {
       : "none",
     userName: "userName" in payload && typeof payload.userName === "string" ? payload.userName : "",
   };
+}
+
+function projectRemovalInfoFromPayload(payload: unknown): ProjectRemovalInfo {
+  if (!payload || typeof payload !== "object") throw new Error("Unable to read project details");
+  const record = payload as Record<string, unknown>;
+  const requiredString = (key: string) => typeof record[key] === "string" ? record[key] : "";
+  const requiredNumber = (key: string) => typeof record[key] === "number" ? record[key] : -1;
+  const projectPath = requiredString("projectPath");
+  const dataPath = requiredString("dataPath");
+  const projectSizeBytes = requiredNumber("projectSizeBytes");
+  const dataSizeBytes = requiredNumber("dataSizeBytes");
+  if (!projectPath || !dataPath || projectSizeBytes < 0 || dataSizeBytes < 0) throw new Error("Unable to read project details");
+  return { dataPath, dataSizeBytes, projectPath, projectSizeBytes };
 }
 
 function isProject(value: unknown): value is Project {

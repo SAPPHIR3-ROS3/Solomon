@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	toml "github.com/pelletier/go-toml/v2"
 )
 
@@ -34,6 +35,13 @@ type desktopProject struct {
 	Path      string        `json:"path"`
 	ChatCount int           `json:"chatCount"`
 	activity  time.Time
+}
+
+type desktopProjectRemovalInfo struct {
+	DataPath         string `json:"dataPath"`
+	DataSizeBytes    int64  `json:"dataSizeBytes"`
+	ProjectPath      string `json:"projectPath"`
+	ProjectSizeBytes int64  `json:"projectSizeBytes"`
 }
 
 type desktopChat struct {
@@ -96,6 +104,154 @@ func (DesktopBridge) SaveReasoningEffort(effort string) (string, error) {
 		return "", fmt.Errorf("save config.toml: %w", err)
 	}
 	return canonical, nil
+}
+
+// RemoveProjectFromSidebar unregisters a project while keeping its on-disk
+// Solomon data intact.
+func (DesktopBridge) RemoveProjectFromSidebar(projectID string) error {
+	return removeDesktopProject(projectID, false)
+}
+
+// RemoveProjectFromDisk unregisters a project and permanently deletes its
+// Solomon project data, including chats.
+func (DesktopBridge) RemoveProjectFromDisk(projectID string) error {
+	return removeDesktopProject(projectID, true)
+}
+
+func (DesktopBridge) ProjectRemovalInfo(projectID string) (desktopProjectRemovalInfo, error) {
+	mapPath, err := paths.ProjectsMapPath()
+	if err != nil {
+		return desktopProjectRemovalInfo{}, err
+	}
+	projectMap, err := project.LoadMap(mapPath)
+	if err != nil {
+		return desktopProjectRemovalInfo{}, err
+	}
+	projectPath := ""
+	for registeredPath, registeredID := range projectMap {
+		if registeredID == projectID {
+			projectPath = registeredPath
+			break
+		}
+	}
+	if projectPath == "" {
+		return desktopProjectRemovalInfo{}, fmt.Errorf("project is not registered")
+	}
+	absoluteProjectPath, err := filepath.Abs(filepath.Clean(projectPath))
+	if err != nil {
+		return desktopProjectRemovalInfo{}, err
+	}
+	dataPath, err := paths.ProjectRoot(projectID)
+	if err != nil {
+		return desktopProjectRemovalInfo{}, err
+	}
+	projectSize, err := desktopDirectorySize(absoluteProjectPath)
+	if err != nil {
+		return desktopProjectRemovalInfo{}, err
+	}
+	dataSize, err := desktopDirectorySize(dataPath)
+	if err != nil {
+		return desktopProjectRemovalInfo{}, err
+	}
+	return desktopProjectRemovalInfo{DataPath: dataPath, DataSizeBytes: dataSize, ProjectPath: absoluteProjectPath, ProjectSizeBytes: projectSize}, nil
+}
+
+func desktopDirectorySize(directory string) (int64, error) {
+	var size int64
+	err := filepath.WalkDir(directory, func(_ string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 || entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return nil
+		}
+		size += info.Size()
+		return nil
+	})
+	if os.IsNotExist(err) || err != nil {
+		return size, nil
+	}
+	return size, nil
+}
+
+func removeDesktopProject(projectID string, removeData bool) error {
+	if len(projectID) != 64 {
+		return fmt.Errorf("invalid project id")
+	}
+	for _, char := range projectID {
+		if !(char >= '0' && char <= '9') && !(char >= 'a' && char <= 'f') {
+			return fmt.Errorf("invalid project id")
+		}
+	}
+
+	mapPath, err := paths.ProjectsMapPath()
+	if err != nil {
+		return err
+	}
+	projectMap, err := project.LoadMap(mapPath)
+	if err != nil {
+		return err
+	}
+	found := false
+	registeredPaths := make([]string, 0, 1)
+	for projectPath, registeredID := range projectMap {
+		if registeredID == projectID {
+			delete(projectMap, projectPath)
+			found = true
+			registeredPaths = append(registeredPaths, projectPath)
+		}
+	}
+	if !found {
+		return fmt.Errorf("project is not registered")
+	}
+
+	if removeData {
+		for _, registeredPath := range registeredPaths {
+			if err := removeDesktopProjectDirectory(registeredPath); err != nil {
+				return err
+			}
+		}
+		projectRoot, err := paths.ProjectRoot(projectID)
+		if err != nil {
+			return err
+		}
+		projectsDir, err := paths.ProjectsDir()
+		if err != nil {
+			return err
+		}
+		relativeRoot, err := filepath.Rel(projectsDir, projectRoot)
+		if err != nil || relativeRoot != projectID {
+			return fmt.Errorf("invalid project data path")
+		}
+		if err := os.RemoveAll(projectRoot); err != nil {
+			return fmt.Errorf("remove project data: %w", err)
+		}
+	}
+	return project.SaveMap(mapPath, projectMap)
+}
+
+func removeDesktopProjectDirectory(projectPath string) error {
+	cleanPath, err := filepath.Abs(filepath.Clean(projectPath))
+	if err != nil {
+		return fmt.Errorf("resolve project path: %w", err)
+	}
+	if cleanPath == string(filepath.Separator) {
+		return fmt.Errorf("refusing to remove filesystem root")
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		cleanHome, _ := filepath.Abs(filepath.Clean(home))
+		if cleanPath == cleanHome {
+			return fmt.Errorf("refusing to remove home directory")
+		}
+	}
+	if err := os.RemoveAll(cleanPath); err != nil {
+		return fmt.Errorf("remove project directory: %w", err)
+	}
+	return nil
 }
 
 func (DesktopBridge) CustomizationRules() ([]desktopRule, error) {

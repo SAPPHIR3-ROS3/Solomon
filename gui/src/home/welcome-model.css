@@ -53,25 +53,24 @@
 }
 
 .welcome-model-menu {
-  backdrop-filter: blur(22px);
-  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-canvas));
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 14px;
   bottom: 39px;
-  box-shadow: 0 22px 60px color-mix(in srgb, var(--color-canvas) 85%, transparent);
+  box-shadow: 0 22px 60px var(--color-canvas);
   display: grid;
-  grid-template-columns: 145px minmax(0, 1fr);
+  grid-template-columns: 210px minmax(0, 1fr);
   height: min(390px, calc(50vh - 20px));
   left: 0;
   min-height: 205px;
   overflow: hidden;
   position: absolute;
-  width: 520px;
+  width: 580px;
   z-index: 14;
 }
 
 .welcome-provider-rail {
-  background: color-mix(in srgb, var(--color-canvas) 70%, var(--color-surface));
+  background: var(--color-canvas);
   border-right: 1px solid var(--color-border);
   min-height: 0;
   overflow: auto;
@@ -121,7 +120,7 @@
 }
 
 .welcome-provider-rail > button:hover {
-  background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+  background: var(--color-surface-raised);
   color: var(--color-text);
 }
 
@@ -132,7 +131,6 @@
 
 .welcome-provider-rail > button.is-active::before {
   background: var(--color-crown-gold);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-crown-gold) 40%, transparent);
 }
 
 .welcome-provider-rail > button > span {
@@ -148,8 +146,8 @@
 }
 
 .welcome-provider-rail > button.is-active > span {
-  background: color-mix(in srgb, var(--color-crown-gold) 14%, var(--color-surface));
-  border-color: color-mix(in srgb, var(--color-crown-gold) 40%, var(--color-border));
+  background: var(--color-surface-raised);
+  border-color: var(--color-crown-gold);
   color: var(--color-crown-gold);
 }
 
@@ -167,17 +165,19 @@
 }
 
 .welcome-provider-rail > button strong {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 570;
+  line-height: 1.25;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .welcome-provider-rail > button small {
   color: var(--color-text-muted);
-  font: 8px ui-monospace, monospace;
+  font: 11px ui-monospace, monospace;
 }
 
 .welcome-provider-recent {
@@ -203,7 +203,7 @@
 
 .welcome-model-search {
   align-items: center;
-  background: color-mix(in srgb, var(--color-canvas) 70%, var(--color-surface));
+  background: var(--color-canvas);
   border: 1px solid var(--color-border);
   border-radius: 9px;
   color: var(--color-text-muted);
@@ -214,8 +214,8 @@
 }
 
 .welcome-model-search:focus-within {
-  border-color: color-mix(in srgb, var(--color-crown-gold) 45%, var(--color-border));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-crown-gold) 12%, transparent);
+  border-color: var(--color-crown-gold);
+  box-shadow: 0 0 0 2px var(--color-surface-raised);
   color: var(--color-text);
 }
 
@@ -254,13 +254,13 @@
 
 .welcome-model-browser > header span {
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 650;
 }
 
 .welcome-model-browser > header small {
   color: var(--color-text-muted);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .welcome-model-list {
@@ -293,13 +293,62 @@
 }
 
 .welcome-model-list > button.is-selected {
-  background: color-mix(in srgb, var(--color-crown-gold) 14%, var(--color-surface));
+  background: var(--color-surface-raised);
+  box-shadow: inset 0 0 0 1px var(--color-crown-gold);
   color: var(--color-crown-gold);
 }
 
-.welcome-model-list > button > span {
+.welcome-model-list > button > .welcome-model-copy {
   flex: 1;
   min-width: 0;
+}
+
+.welcome-model-title {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+  min-width: 0;
+}
+
+.welcome-model-title > strong {
+  min-width: 0;
+}
+
+.welcome-model-inputs {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  flex: none;
+  gap: 5px;
+}
+
+.welcome-model-input-icon {
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  box-sizing: border-box;
+  display: inline-flex;
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+  width: 16px;
+}
+
+.welcome-model-input-icon.is-text {
+  align-items: center;
+  font: 700 9px/1 ui-monospace, monospace;
+  height: 16px;
+  justify-content: center;
+  letter-spacing: -0.04em;
+  width: 16px;
+}
+
+.welcome-model-list > button:hover .welcome-model-inputs,
+.welcome-model-list > button.is-selected .welcome-model-inputs {
+  color: currentColor;
 }
 
 .welcome-model-list > button strong,
@@ -322,7 +371,7 @@
   margin-top: 4px;
 }
 
-.welcome-model-list > button svg {
+.welcome-model-list > button > svg {
   fill: none;
   flex: none;
   height: 14px;

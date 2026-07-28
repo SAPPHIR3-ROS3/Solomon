@@ -1,4 +1,5 @@
-import { readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
@@ -6,6 +7,7 @@ import type { Plugin } from "vite";
 const projectsEndpoint = "/__solomon/projects";
 const userNameEndpoint = "/__solomon/user-name";
 const reasoningEffortEndpoint = "/__solomon/reasoning-effort";
+const projectActionEndpoint = "/__solomon/projects/";
 const reasoningEfforts = new Set(["none", "low", "medium", "high"]);
 
 type Project = {
@@ -224,8 +226,96 @@ function attachProjectsEndpoint(server: { middlewares: { use: (route: string, ha
   });
 }
 
+async function removeProject(projectID: string, removeData: boolean) {
+  if (!/^[a-f0-9]{64}$/.test(projectID)) throw new Error("Invalid project ID");
+  const home = solomonHome();
+  const mapPath = path.join(home, "projectsId.json");
+  const rawMap: unknown = JSON.parse(await readFile(mapPath, "utf8"));
+  if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) throw new Error("Invalid projects map");
+
+  const projectMap = rawMap as Record<string, unknown>;
+  const registeredPaths = Object.entries(projectMap)
+    .filter(([, registeredID]) => registeredID === projectID)
+    .map(([projectPath]) => projectPath);
+  if (!registeredPaths.length) throw new Error("Project is not registered");
+
+  if (removeData) {
+    const resolvedHomeDirectory = path.resolve(homedir());
+    for (const projectPath of registeredPaths) {
+      const resolvedProjectPath = path.resolve(projectPath);
+      if (resolvedProjectPath === path.parse(resolvedProjectPath).root || resolvedProjectPath === resolvedHomeDirectory) {
+        throw new Error("Refusing to remove a critical directory");
+      }
+      await rm(resolvedProjectPath, { force: true, recursive: true });
+    }
+    await rm(path.join(home, "projects", projectID), { force: true, recursive: true });
+  }
+  for (const projectPath of registeredPaths) delete projectMap[projectPath];
+  const temporaryMapPath = `${mapPath}.gui.tmp`;
+  await writeFile(temporaryMapPath, `${JSON.stringify(projectMap, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await rename(temporaryMapPath, mapPath);
+}
+
+async function directorySize(directory: string): Promise<number> {
+  let entries: Dirent<string>[];
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error: unknown) {
+    return 0;
+  }
+  const sizes = await Promise.all(entries.map(async (entry) => {
+    try {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) return 0;
+      if (entry.isDirectory()) return directorySize(entryPath);
+      return (await stat(entryPath)).size;
+    } catch {
+      return 0;
+    }
+  }));
+  return sizes.reduce((total, size) => total + size, 0);
+}
+
+async function projectRemovalInfo(projectID: string) {
+  if (!/^[a-f0-9]{64}$/.test(projectID)) throw new Error("Invalid project ID");
+  const home = solomonHome();
+  const rawMap: unknown = JSON.parse(await readFile(path.join(home, "projectsId.json"), "utf8"));
+  if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) throw new Error("Invalid projects map");
+  const projectPath = Object.entries(rawMap).find(([, registeredID]) => registeredID === projectID)?.[0];
+  if (!projectPath) throw new Error("Project is not registered");
+  const absoluteProjectPath = path.resolve(projectPath);
+  const dataPath = path.join(home, "projects", projectID);
+  const [projectSizeBytes, dataSizeBytes] = await Promise.all([directorySize(absoluteProjectPath), directorySize(dataPath)]);
+  return { projectPath: absoluteProjectPath, projectSizeBytes, dataPath, dataSizeBytes };
+}
+
+function attachProjectActionEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(projectActionEndpoint, (request, response, next) => {
+    const route = request.url?.split("?")[0] ?? "";
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info))?\/?$/);
+    if (request.method === "GET" && match?.[2] === "removal-info") {
+      void projectRemovalInfo(match[1])
+        .then((info) => respondWithJson(response, 200, info))
+        .catch(() => respondWithJson(response, 500, { error: "Unable to read project details" }));
+      return;
+    }
+    if (request.method !== "DELETE") {
+      next();
+      return;
+    }
+    if (!match || match[2] === "removal-info") {
+      respondWithJson(response, 400, { error: "Invalid project ID" });
+      return;
+    }
+    void removeProject(match[1], match[2] === "disk")
+      .then(() => respondWithJson(response, 200, {}))
+      .catch(() => respondWithJson(response, 500, { error: "Unable to remove project" }));
+  });
+}
+
 type UserNameRequest = {
   method?: string;
+  url?: string;
   on: (event: "data", listener: (chunk: string | Uint8Array) => void) => void;
   once(event: "error", listener: () => void): void;
   once(event: "end", listener: () => void): void;
@@ -313,11 +403,13 @@ export function projectsPlugin(): Plugin {
   return {
     configurePreviewServer(server) {
       attachProjectsEndpoint(server);
+      attachProjectActionEndpoint(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
     },
     configureServer(server) {
       attachProjectsEndpoint(server);
+      attachProjectActionEndpoint(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
     },
