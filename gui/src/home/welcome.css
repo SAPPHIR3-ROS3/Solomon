@@ -1,0 +1,379 @@
+.welcome-screen {
+  align-items: center;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  overflow: hidden;
+  padding: var(--top-bar-height) 36px 24px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 3;
+}
+
+.welcome-stage {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  justify-content: center;
+  max-width: min(960px, calc(100% - 72px));
+  width: min(960px, calc(100% - 72px));
+}
+
+.welcome-measure {
+  left: -9999px;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  visibility: hidden;
+  width: min(960px, calc(100% - 72px));
+}
+
+.welcome-lockup {
+  flex: none;
+  margin-bottom: -2px;
+  pointer-events: none;
+  position: relative;
+  user-select: none;
+  width: 100%;
+}
+
+.welcome-ascii-banner {
+  filter: drop-shadow(0 0 18px #e6b2562b);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: clamp(15px, 2vw, 26px);
+  font-weight: 450;
+  letter-spacing: 0;
+  line-height: 0.86;
+  margin: 0 auto;
+  white-space: pre;
+  width: max-content;
+}
+
+.welcome-ascii-row {
+  display: block;
+  height: 0.86em;
+  white-space: nowrap;
+}
+
+.welcome-ascii-cell {
+  display: inline-block;
+  font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "Apple Symbols", sans-serif;
+  font-size: 1em;
+  line-height: 1;
+  text-align: center;
+  vertical-align: top;
+  width: 0.7em;
+}
+
+.welcome-title {
+  color: #fff;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(42px, 5.2vw, 72px);
+  font-weight: 350;
+  left: 50%;
+  letter-spacing: 0.01em;
+  line-height: 1.02;
+  margin: 0;
+  position: absolute;
+  text-align: center;
+  text-shadow: 0 3px 24px #000d;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  width: calc(100% - 40px);
+}
+
+.welcome-title strong {
+  font-weight: 580;
+}
+
+.welcome-title.is-solo {
+  left: auto;
+  margin: 0 0 10px;
+  position: relative;
+  top: auto;
+  transform: none;
+}
+
+.welcome-folder-row {
+  align-items: center;
+  display: flex;
+  flex: none;
+  height: 36px;
+  margin-bottom: 6px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.welcome-workspace {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #89959c;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 570;
+  gap: 7px;
+  height: 34px;
+  justify-content: flex-start;
+  margin: 0;
+  max-width: 260px;
+  padding: 0 8px;
+}
+
+.welcome-workspace:hover {
+  background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+  color: var(--color-text);
+}
+
+.welcome-workspace svg {
+  fill: none;
+  flex: none;
+  height: 16px;
+  stroke: var(--color-crown-gold);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+  width: 16px;
+}
+
+.welcome-workspace .welcome-chevron {
+  height: 14px;
+  stroke: currentColor;
+  width: 14px;
+}
+
+.welcome-workspace > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-composer {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  display: grid;
+  flex: none;
+  gap: 14px;
+  overflow: visible;
+  padding: 18px 18px 14px;
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+
+.welcome-input {
+  background: transparent;
+  border: 0;
+  color: var(--color-text);
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  min-height: 72px;
+  outline: none;
+  resize: none;
+  width: 100%;
+}
+
+.welcome-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.welcome-toolbar {
+  --welcome-control-height: 32px;
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.welcome-toolbar-left {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.welcome-toolbar-sep {
+  background: var(--color-border);
+  flex: none;
+  height: 16px;
+  width: 1px;
+}
+
+.welcome-menu {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 5px;
+  height: var(--welcome-control-height);
+  line-height: 1;
+  padding: 0 8px;
+}
+
+.welcome-menu:hover {
+  color: var(--color-text);
+}
+
+.welcome-menu-label {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.welcome-menu .welcome-chevron,
+.welcome-reasoning-label .welcome-chevron {
+  fill: none;
+  height: 14px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  transition: transform 0.18s ease;
+  width: 14px;
+}
+
+.welcome-fast,
+.welcome-mode {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px transparent;
+  box-sizing: border-box;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 650;
+  gap: 6px;
+  height: var(--welcome-control-height);
+  justify-content: center;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  max-height: var(--welcome-control-height);
+  min-height: var(--welcome-control-height);
+  overflow: hidden;
+  padding: 0 10px;
+  text-transform: uppercase;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.welcome-mode {
+  min-width: 84px;
+}
+
+.welcome-fast svg,
+.welcome-mode-icon svg {
+  display: block;
+  fill: none;
+  flex: none;
+  height: 14px;
+  overflow: hidden;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 14px;
+}
+
+.welcome-fast svg {
+  fill: transparent;
+  transition: fill 0.16s ease;
+}
+
+.welcome-mode-icon {
+  display: grid;
+  flex: none;
+  height: 14px;
+  line-height: 0;
+  place-items: center;
+  width: 14px;
+}
+
+.welcome-fast:hover,
+.welcome-mode:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.welcome-fast.is-active,
+.welcome-mode.is-agent {
+  background: color-mix(in srgb, var(--color-crown-gold) 16%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-crown-gold) 45%, var(--color-border));
+  color: var(--color-crown-gold);
+}
+
+.welcome-fast.is-active svg {
+  fill: currentColor;
+}
+
+.welcome-mode.is-chat {
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  color: var(--focus-ring);
+}
+
+.welcome-send {
+  align-items: center;
+  appearance: none;
+  background: var(--color-crown-gold);
+  border: 0;
+  border-radius: 999px;
+  box-sizing: border-box;
+  color: var(--color-accent-contrast);
+  cursor: pointer;
+  display: grid;
+  flex: none;
+  height: var(--welcome-control-height);
+  justify-content: center;
+  margin-left: auto;
+  place-items: center;
+  width: var(--welcome-control-height);
+}
+
+.welcome-send:hover {
+  filter: brightness(1.05);
+}
+
+.welcome-send svg {
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 18px;
+}
+
+.welcome-workspace:focus-visible,
+.welcome-menu:focus-visible,
+.welcome-chip:focus-visible,
+.welcome-send:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
