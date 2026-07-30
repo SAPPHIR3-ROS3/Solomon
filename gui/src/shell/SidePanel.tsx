@@ -1,17 +1,12 @@
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { fetchProjectRemovalInfo, fetchProjectSidebarData, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
+import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
 const INITIAL_CHAT_LIMIT = 5;
 const MIN_SCROLL_THUMB_HEIGHT = 28;
 const PROJECT_CONTEXT_MENU_HEIGHT = 158;
 const PROJECT_CONTEXT_MENU_WIDTH = 200;
 const PROJECT_CONTEXT_MENU_EDGE_GAP = 8;
-
-type ProjectScrollThumb = {
-  height: number;
-  isVisible: boolean;
-  top: number;
-};
 
 type ProjectContextMenu = {
   project: Project;
@@ -27,10 +22,13 @@ type ProjectRemovalDialog = {
 type SidePanelProps = {
   bottomInset: number;
   isCustomizationOpen: boolean;
+  onContentWidthChange: (width: number) => void;
   onToggleCustomization: () => void;
+  onWidthChange: (width: number) => void;
+  width: number;
 };
 
-export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomization }: SidePanelProps) {
+export function SidePanel({ bottomInset, isCustomizationOpen, onContentWidthChange, onToggleCustomization, onWidthChange, width }: SidePanelProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectContextMenu, setProjectContextMenu] = useState<ProjectContextMenu | null>(null);
   const [projectRemovalDialog, setProjectRemovalDialog] = useState<ProjectRemovalDialog | null>(null);
@@ -105,6 +103,48 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomizat
       list.removeEventListener("scroll", updateScrollThumb);
     };
   }, [bottomInset, openProjectIds, projects, visibleChatCounts]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const list = projectsListRef.current;
+      if (!list) return;
+      let longest = 240;
+      const horizontalPadding = 16;
+      const children = list.querySelector(".side-panel-project-children");
+      const childrenStyle = children ? window.getComputedStyle(children) : null;
+      const nestIndent = childrenStyle
+        ? (Number.parseFloat(childrenStyle.marginLeft) || 0) + (Number.parseFloat(childrenStyle.paddingLeft) || 0)
+        : 0;
+
+      for (const row of list.querySelectorAll<HTMLButtonElement>(".side-panel-chat")) {
+        const label = row.querySelector("span");
+        const time = row.querySelector("time");
+        if (!label || !time) continue;
+        const style = window.getComputedStyle(row);
+        const gap = Number.parseFloat(style.columnGap || style.gap) || 0;
+        longest = Math.max(
+          longest,
+          nestIndent + label.scrollWidth + time.getBoundingClientRect().width + gap
+            + Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight) + horizontalPadding,
+        );
+      }
+
+      for (const trigger of list.querySelectorAll<HTMLButtonElement>(".side-panel-project-trigger")) {
+        const label = trigger.querySelector("span");
+        const icon = trigger.querySelector("svg");
+        if (!label || !icon) continue;
+        const style = window.getComputedStyle(trigger);
+        const gap = Number.parseFloat(style.gap) || 0;
+        longest = Math.max(
+          longest,
+          label.scrollWidth + icon.getBoundingClientRect().width + gap + 32
+            + Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight) + horizontalPadding,
+        );
+      }
+      onContentWidthChange(Math.ceil(longest));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [onContentWidthChange, openProjectIds, projects, visibleChatCounts]);
 
   useEffect(() => {
     if (!projectContextMenu) return;
@@ -252,6 +292,7 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomizat
       id="side-panel"
       style={{ "--side-panel-bottom-inset": `${bottomInset}px` } as CSSProperties}
     >
+      <SidePanelResizeHandle onWidthChange={onWidthChange} side="left" width={width} />
       <div className="side-panel-head" />
       <div className="side-panel-actions">
         <button className="side-panel-action" type="button">
@@ -315,26 +356,30 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onToggleCustomizat
                   <PlusIcon />
                 </button>
               </div>
-              {isProjectOpen ? visibleChats.map((chat) => (
-                <button className="side-panel-chat" key={chat.id} title={chat.title} type="button">
-                  <span>{chat.title}</span>
-                  <time dateTime={chat.lastMessageAt} title={`Last interaction: ${chat.lastMessageAt}`}>
-                    {formatRelativeTime(chat.lastMessageAt)}
-                  </time>
-                </button>
-              )) : null}
-              {isProjectOpen && remainingChatCount > 0 ? (
-                <button
-                  className="side-panel-show-more"
-                  onClick={() => setVisibleChatCounts((chatCounts) => {
-                    const nextChatCounts = new Map(chatCounts);
-                    nextChatCounts.set(project.id, Math.min(project.chats.length, visibleChats.length + INITIAL_CHAT_LIMIT));
-                    return nextChatCounts;
-                  })}
-                  type="button"
-                >
-                  Show more
-                </button>
+              {isProjectOpen ? (
+                <div className="side-panel-project-children">
+                  {visibleChats.map((chat) => (
+                    <button className="side-panel-chat" key={chat.id} title={chat.title} type="button">
+                      <span>{chat.title}</span>
+                      <time dateTime={chat.lastMessageAt} title={`Last interaction: ${chat.lastMessageAt}`}>
+                        {formatRelativeTime(chat.lastMessageAt)}
+                      </time>
+                    </button>
+                  ))}
+                  {remainingChatCount > 0 ? (
+                    <button
+                      className="side-panel-show-more"
+                      onClick={() => setVisibleChatCounts((chatCounts) => {
+                        const nextChatCounts = new Map(chatCounts);
+                        nextChatCounts.set(project.id, Math.min(project.chats.length, visibleChats.length + INITIAL_CHAT_LIMIT));
+                        return nextChatCounts;
+                      })}
+                      type="button"
+                    >
+                      Show more
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </section>
           );
@@ -538,3 +583,8 @@ function CustomizationIcon() {
     </svg>
   );
 }
+type ProjectScrollThumb = {
+  height: number;
+  isVisible: boolean;
+  top: number;
+};

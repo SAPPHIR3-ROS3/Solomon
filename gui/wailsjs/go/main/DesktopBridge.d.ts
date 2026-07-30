@@ -18,6 +18,8 @@ export function DeleteCustomizationSubagent(arg1:string):Promise<Array<main.desk
 
 export function ProjectSidebarData():Promise<main.desktopSidebarData>;
 
+export function ProjectDirectoryEntries(arg1:string,arg2:string):Promise<Array<unknown>>;
+
 export function ReorderCustomizationRules(arg1:Array<number>):Promise<Array<main.desktopRule>>;
 
 export function RolesTable():Promise<main.desktopRolesTable>;

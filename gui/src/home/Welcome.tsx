@@ -5,6 +5,7 @@ import {
   fetchProjectSidebarData,
   normalizeReasoningEffort,
   saveReasoningEffort,
+  type Project,
   type ReasoningEffort,
 } from "../projects/projects";
 import { ModelControl } from "./ModelControl";
@@ -20,7 +21,9 @@ const reasoningOptions = [
 
 type WelcomeProps = {
   bottomInset?: number;
+  onComposerBoundsChange?: (bounds: { left: number; right: number }) => void;
   onKeepAliveHeightChange?: (height: number) => void;
+  onWorkspaceChange?: (project: Project | null) => void;
 };
 
 type Visibility = {
@@ -32,22 +35,42 @@ type Visibility = {
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
-export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomeProps) {
+export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHeightChange, onWorkspaceChange }: WelcomeProps) {
   const [userName, setUserName] = useState("");
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [workspaceName, setWorkspaceName] = useState("Home");
   const [selectedProvider, setSelectedProvider] = useState("");
   const [draft, setDraft] = useState("");
   const [fastOn, setFastOn] = useState(false);
   const [agentOn, setAgentOn] = useState(true);
-  const [openMenu, setOpenMenu] = useState<"model" | "reasoning" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"workspace" | "model" | "reasoning" | null>(null);
   const [visibility, setVisibility] = useState<Visibility>({ banner: true, title: true, folder: true, composer: true });
   const screenRef = useRef<HTMLElement>(null);
   const measureBannerRef = useRef<HTMLDivElement>(null);
   const measureTitleRef = useRef<HTMLHeadingElement>(null);
   const measureFolderRef = useRef<HTMLDivElement>(null);
   const measureComposerRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const keepAliveHandlerRef = useRef(onKeepAliveHeightChange);
   keepAliveHandlerRef.current = onKeepAliveHeightChange;
+
+  useLayoutEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) return;
+    const update = () => {
+      const { left, right } = composer.getBoundingClientRect();
+      onComposerBoundsChange?.({ left, right });
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(composer);
+    window.addEventListener("resize", update);
+    update();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [onComposerBoundsChange, visibility.composer]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,13 +78,17 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
       .then((data) => {
         setUserName(data.userName.trim());
         setReasoning(data.reasoningEffort);
+        setProjects(data.projects);
+        onWorkspaceChange?.(data.projects.find((project) => project.name === "Home") ?? null);
       })
       .catch(() => {
         setUserName("");
         setReasoning("none");
+        setProjects([]);
+        onWorkspaceChange?.(null);
       });
     return () => controller.abort();
-  }, []);
+  }, [onWorkspaceChange]);
 
   useLayoutEffect(() => {
     const screen = screenRef.current;
@@ -119,7 +146,7 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
         <div className="welcome-folder-row" ref={measureFolderRef}>
           <button className="welcome-workspace" tabIndex={-1} type="button">
             <FolderIcon />
-            <span>Home</span>
+            <span>{workspaceName}</span>
             <ChevronIcon />
           </button>
         </div>
@@ -129,7 +156,7 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
             <div className="welcome-toolbar-left">
               <button className="welcome-model-trigger" tabIndex={-1} type="button"><span>Select model</span><ChevronIcon /></button>
               <span aria-hidden="true" className="welcome-toolbar-sep" />
-              <button className="welcome-reasoning-label" tabIndex={-1} type="button"><span>Reasoning</span><strong>None</strong><ChevronIcon /></button>
+              <button className="welcome-reasoning-label" tabIndex={-1} type="button"><strong>None</strong><ChevronIcon /></button>
               {fastAvailable ? <button className="welcome-fast" tabIndex={-1} type="button"><BoltIcon /><span>Fast</span></button> : null}
               <button className="welcome-mode is-agent" tabIndex={-1} type="button"><span className="welcome-mode-icon"><BotIcon /></span><span>Agent</span></button>
             </div>
@@ -153,16 +180,22 @@ export function Welcome({ bottomInset = 0, onKeepAliveHeightChange }: WelcomePro
 
         {visibility.folder ? (
           <div className="welcome-folder-row">
-            <button className="welcome-workspace" type="button">
-              <FolderIcon />
-              <span>Home</span>
-              <ChevronIcon />
-            </button>
+            <WorkspaceControl
+              onOpenChange={(open) => setOpenMenu(open ? "workspace" : null)}
+              onSelect={(project) => {
+                setWorkspaceName(project?.name ?? "Home");
+                onWorkspaceChange?.(project ?? null);
+              }}
+              homeProject={projects.find((project) => project.name === "Home")}
+              open={openMenu === "workspace"}
+              projects={projects}
+              workspaceName={workspaceName}
+            />
           </div>
         ) : null}
 
         {visibility.composer ? (
-          <div className="welcome-composer">
+          <div className="welcome-composer" ref={composerRef}>
             <textarea
               aria-label="Ask Solomon"
               className="welcome-input"
@@ -232,6 +265,112 @@ function fastModeAvailableFor(provider: string): boolean {
     || normalized.includes("cursor");
 }
 
+function WorkspaceControl({
+  workspaceName,
+  projects,
+  homeProject,
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  workspaceName: string;
+  projects: Project[];
+  homeProject?: Project;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (project?: Project) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const controlRef = useRef<HTMLDivElement>(null);
+  const recentProjects = [...projects]
+    .sort((a, b) => latestProjectActivity(b) - latestProjectActivity(a))
+    .slice(0, showAll ? undefined : 5);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!controlRef.current?.contains(event.target as Node)) onOpenChange(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onOpenChange, open]);
+
+  const selectProject = (project?: Project) => {
+    onSelect(project);
+    onOpenChange(false);
+  };
+
+  return (
+    <div className="welcome-workspace-control" ref={controlRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="welcome-workspace"
+        onClick={() => onOpenChange(!open)}
+        type="button"
+      >
+        <FolderIcon />
+        <span>{workspaceName}</span>
+        <ChevronIcon className={open ? "is-open" : undefined} />
+      </button>
+      {open ? (
+        <div aria-label="Project directory" className="welcome-workspace-menu" role="menu">
+          <div className="welcome-workspace-recents">
+            {recentProjects.length ? recentProjects.map((project) => (
+              <button
+                className="welcome-workspace-project"
+                key={project.id}
+                onClick={() => selectProject(project)}
+                role="menuitem"
+                title={project.path}
+                type="button"
+              >
+                <FolderIcon />
+                <span>{project.name}</span>
+              </button>
+            )) : <span className="welcome-workspace-empty">No recent projects</span>}
+          </div>
+          <button
+            className="welcome-workspace-show-more"
+            onClick={() => setShowAll(true)}
+            role="menuitem"
+            type="button"
+          >
+            Show more
+          </button>
+          <div aria-hidden="true" className="welcome-workspace-divider" role="separator" />
+          <div className="welcome-workspace-actions">
+            <button aria-current={workspaceName === "Home" ? "page" : undefined} onClick={() => selectProject(homeProject)} role="menuitem" type="button">
+              <HomeIcon />
+              <span>Home</span>
+            </button>
+            <button onClick={() => onOpenChange(false)} role="menuitem" type="button">
+              <OpenProjectIcon />
+              <span>Open Project</span>
+            </button>
+            <button onClick={() => onOpenChange(false)} role="menuitem" type="button">
+              <PlusIcon />
+              <span>New Project</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function latestProjectActivity(project: Project): number {
+  const latest = project.chats.reduce((mostRecent, chat) => Math.max(mostRecent, Date.parse(chat.lastMessageAt) || 0), 0);
+  return latest;
+}
+
 function ReasoningControl({
   value,
   onChange,
@@ -278,7 +417,6 @@ function ReasoningControl({
         onClick={() => setOpen(!isOpen)}
         type="button"
       >
-        <span>Reasoning</span>
         <strong className="welcome-reasoning-value">
           <span aria-hidden="true" className="welcome-reasoning-value-sizer">Medium</span>
           <span>{selectedLabel}</span>
@@ -385,6 +523,32 @@ function FolderIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+    </svg>
+  );
+}
+
+function HomeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
+      <path d="M9 21v-7h6v7" />
+    </svg>
+  );
+}
+
+function OpenProjectIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      <path d="m13 11 3 3-3 3M16 14H9" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }

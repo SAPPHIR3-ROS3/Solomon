@@ -35,8 +35,12 @@ body {
   z-index: 10;
 }
 
-.window-drag-area.is-inset {
-  left: 240px;
+.window-drag-area.is-left-inset {
+  left: var(--left-panel-width);
+}
+
+.window-drag-area.is-right-inset {
+  right: var(--right-panel-width);
 }
 
 .side-panel-toggle {
@@ -79,6 +83,46 @@ body {
   width: 16px;
 }
 
+.right-side-panel-toggle {
+  --wails-draggable: no-drag;
+
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: grid;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  position: fixed;
+  right: 8px;
+  top: var(--top-bar-control-top);
+  width: 30px;
+  z-index: 11;
+}
+
+.right-side-panel-toggle:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.right-side-panel-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.right-side-panel-toggle svg {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.25;
+  width: 16px;
+}
+
 .side-panel {
   background: var(--color-surface);
   border-right: 1px solid var(--color-border);
@@ -88,8 +132,175 @@ body {
   left: 0;
   position: fixed;
   top: 0;
-  width: 240px;
+  width: var(--left-panel-width);
   z-index: 5;
+}
+
+.right-side-panel {
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  bottom: var(--right-side-panel-bottom-inset, 0px);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: var(--right-panel-width);
+  z-index: 5;
+}
+
+.right-side-panel-head {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  flex: none;
+  font: 600 10px/1 "Geist", ui-sans-serif, system-ui, sans-serif;
+  gap: 10px;
+  justify-content: flex-start;
+  letter-spacing: 0.08em;
+  min-height: var(--top-bar-height);
+  padding: 0 84px 0 10px;
+  text-transform: uppercase;
+}
+
+.right-side-panel-project {
+  color: var(--color-text);
+  font-size: 11px;
+  letter-spacing: 0;
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.right-side-panel-files {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 8px 12px;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+}
+
+.right-side-panel-files::-webkit-scrollbar,
+.side-panel-projects::-webkit-scrollbar {
+  width: 10px;
+}
+
+.right-side-panel-files::-webkit-scrollbar-track,
+.side-panel-projects::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.right-side-panel-files::-webkit-scrollbar-thumb,
+.side-panel-projects::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+
+.right-side-panel-files::-webkit-scrollbar-thumb:hover,
+.side-panel-projects::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-raised);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+}
+
+.right-side-panel-file-row {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  font: 12px/1.2 "Geist", ui-sans-serif, system-ui, sans-serif;
+  gap: 7px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 6px;
+  text-align: left;
+  width: 100%;
+}
+
+.right-side-panel-file-row:hover,
+.right-side-panel-file-row:focus-visible {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  outline: 0;
+}
+
+.right-side-panel-file-row svg {
+  fill: none;
+  flex: none;
+  height: 15px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+  width: 15px;
+}
+
+.right-side-panel-file-row span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right-side-panel-measure {
+  left: -9999px;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.right-side-panel-file-children {
+  border-left: 1px solid var(--color-border);
+  margin-left: 12px;
+  padding-left: 5px;
+}
+
+.right-side-panel-message,
+.right-side-panel-loading {
+  color: var(--color-text-muted);
+  display: block;
+  font: 12px/1.4 "Geist", ui-sans-serif, system-ui, sans-serif;
+  margin: 8px 6px;
+}
+
+.side-panel-resize {
+  --wails-draggable: no-drag;
+
+  background: transparent;
+  border: 0;
+  bottom: 0;
+  cursor: col-resize;
+  padding: 0;
+  position: absolute;
+  top: var(--top-bar-height);
+  width: 6px;
+  z-index: 6;
+}
+
+.side-panel-resize:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.side-panel-resize-left {
+  right: -6px;
+}
+
+.side-panel-resize-right {
+  left: 0;
+  width: 12px;
 }
 
 .side-panel-head {
@@ -121,7 +332,7 @@ body {
   position: fixed;
   top: 0;
   transform: translate(-1px, var(--top-bar-wordmark-translate-y));
-  width: calc(240px - var(--side-panel-toggle-end) - var(--side-panel-wordmark-right-inset));
+  width: calc(var(--left-panel-width) - var(--side-panel-toggle-end) - var(--side-panel-wordmark-right-inset));
   z-index: 12;
 }
 
@@ -170,7 +381,8 @@ body {
 .customization-screen {
   background: var(--color-canvas);
   bottom: 0;
-  left: 240px;
+  left: var(--left-panel-width);
+  right: var(--right-panel-width);
   overflow: auto;
   padding: 88px 36px 48px;
   position: fixed;
@@ -856,37 +1068,30 @@ body {
   min-height: 0;
   overflow: auto;
   padding: 0 8px;
-  scrollbar-width: none;
-}
-
-.side-panel-projects::-webkit-scrollbar {
-  display: none;
-  height: 0;
-  width: 0;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
 }
 
 .side-panel-project-scrollbar {
-  bottom: 0;
-  pointer-events: none;
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 10px;
+  display: none;
 }
 
 .side-panel-project-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 4px;
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
   cursor: grab;
-  left: 3px;
+  inset: 0;
   min-height: 28px;
   pointer-events: auto;
   position: absolute;
-  right: 3px;
 }
 
 .side-panel-project-scrollbar-thumb:hover {
   background: var(--color-surface-raised);
+  background-clip: padding-box;
+  border: 3px solid transparent;
 }
 
 .side-panel-project + .side-panel-project {
@@ -895,6 +1100,12 @@ body {
 
 .side-panel-project {
   transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.side-panel-project-children {
+  border-left: 1px solid var(--color-border);
+  margin-left: 12px;
+  padding-left: 5px;
 }
 
 .side-panel-project-head {
@@ -1206,7 +1417,7 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   line-height: 1.3;
   min-height: 32px;
-  padding: 7px 9px 7px 27px;
+  padding: 7px 9px 7px 9px;
 }
 
 .side-panel-chat span {
@@ -1241,7 +1452,7 @@ body {
   font-size: 15px;
   font-weight: 400;
   min-height: 32px;
-  padding: 7px 9px 7px 27px;
+  padding: 7px 9px 7px 9px;
 }
 
 .side-panel-show-more:hover {
@@ -1490,7 +1701,7 @@ body {
   justify-content: center;
   padding: 0;
   position: fixed;
-  right: 8px;
+  right: 46px;
   top: var(--top-bar-control-top);
   width: 30px;
   z-index: 11;
@@ -1512,7 +1723,7 @@ body {
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 2;
+  stroke-width: 1.25;
   width: 16px;
 }
 
