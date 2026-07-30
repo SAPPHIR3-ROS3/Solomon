@@ -29,6 +29,24 @@ export type ProjectRemovalInfo = {
   projectSizeBytes: number;
 };
 
+export type ProjectDirectoryEntry = {
+  isDirectory: boolean;
+  name: string;
+  path: string;
+};
+
+export async function fetchProjectDirectoryEntries(projectID: string, directoryPath = ""): Promise<ProjectDirectoryEntry[]> {
+  const bridge = await desktopBridge();
+  if (bridge?.ProjectDirectoryEntries) {
+    return projectDirectoryEntriesFromPayload(await bridge.ProjectDirectoryEntries(projectID, directoryPath));
+  }
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/projects/${encodeURIComponent(projectID)}/files?path=${encodeURIComponent(directoryPath)}`,
+  ));
+  if (!response.ok) throw new Error(`Unable to read project files: ${response.status}`);
+  return projectDirectoryEntriesFromPayload(await response.json());
+}
+
 export async function fetchProjectSidebarData(signal?: AbortSignal): Promise<ProjectSidebarData> {
   const bridge = await desktopBridge();
   if (bridge) return projectSidebarDataFromPayload(await bridge.ProjectSidebarData());
@@ -234,6 +252,17 @@ function projectRemovalInfoFromPayload(payload: unknown): ProjectRemovalInfo {
   const dataSizeBytes = requiredNumber("dataSizeBytes");
   if (!projectPath || !dataPath || projectSizeBytes < 0 || dataSizeBytes < 0) throw new Error("Unable to read project details");
   return { dataPath, dataSizeBytes, projectPath, projectSizeBytes };
+}
+
+function projectDirectoryEntriesFromPayload(payload: unknown): ProjectDirectoryEntry[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const name = "name" in entry && typeof entry.name === "string" ? entry.name : "";
+    const path = "path" in entry && typeof entry.path === "string" ? entry.path : "";
+    if (!name || !path) return [];
+    return [{ isDirectory: "isDirectory" in entry && Boolean(entry.isDirectory), name, path }];
+  });
 }
 
 function isProject(value: unknown): value is Project {

@@ -15,10 +15,10 @@
   display: grid;
   font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
   font-size: 11px;
-  grid-template-columns: auto minmax(4.8em, 1fr) 14px;
+  grid-template-columns: minmax(4.8em, 1fr) 14px;
   height: var(--welcome-control-height, 32px);
   line-height: 1;
-  min-width: 158px;
+  min-width: 92px;
   padding: 0 8px;
 }
 
@@ -26,11 +26,6 @@
 .welcome-reasoning-label[aria-expanded="true"] {
   background: var(--color-surface-raised);
   color: var(--color-text);
-}
-
-.welcome-reasoning-label > span:first-child {
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .welcome-reasoning-label strong,

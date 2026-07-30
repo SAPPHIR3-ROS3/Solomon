@@ -105,7 +105,9 @@
   height: 36px;
   margin-bottom: 6px;
   padding: 0 12px;
+  position: relative;
   width: 100%;
+  z-index: 2;
 }
 
 .welcome-workspace {
@@ -128,6 +130,10 @@
   padding: 0 8px;
 }
 
+.welcome-workspace-control {
+  position: relative;
+}
+
 .welcome-workspace:hover {
   background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
   color: var(--color-text);
@@ -147,7 +153,12 @@
 .welcome-workspace .welcome-chevron {
   height: 14px;
   stroke: currentColor;
+  transition: transform 0.18s ease;
   width: 14px;
+}
+
+.welcome-workspace .welcome-chevron.is-open {
+  transform: rotate(180deg);
 }
 
 .welcome-workspace > span {
@@ -155,6 +166,127 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.welcome-workspace-menu {
+  background: color-mix(in srgb, var(--color-surface) 96%, #0a1114);
+  border: 1px solid color-mix(in srgb, var(--color-border) 82%, var(--color-crown-gold));
+  border-radius: 10px;
+  box-shadow: 0 16px 38px #0009, 0 0 0 1px #0005;
+  left: 0;
+  max-height: min(268px, calc(100vh - 160px));
+  min-width: 260px;
+  overflow: auto;
+  padding: 6px;
+  position: absolute;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+  top: calc(100% + 8px);
+  width: 304px;
+  z-index: 3;
+}
+
+.welcome-workspace-menu::-webkit-scrollbar {
+  width: 10px;
+}
+
+.welcome-workspace-menu::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 5px 0;
+}
+
+.welcome-workspace-menu::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.welcome-workspace-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-raised);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.welcome-workspace-recents,
+.welcome-workspace-actions {
+  display: grid;
+  gap: 2px;
+}
+
+.welcome-workspace-project,
+.welcome-workspace-show-more,
+.welcome-workspace-actions button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  font: 520 12px/1 "Geist", ui-sans-serif, system-ui, sans-serif;
+  gap: 9px;
+  height: 34px;
+  min-width: 0;
+  padding: 0 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.welcome-workspace-project svg,
+.welcome-workspace-actions svg {
+  fill: none;
+  flex: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.55;
+  width: 16px;
+}
+
+.welcome-workspace-project svg {
+  color: var(--color-crown-gold);
+}
+
+.welcome-workspace-project span,
+.welcome-workspace-actions span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-workspace-project:hover,
+.welcome-workspace-project:focus-visible,
+.welcome-workspace-show-more:hover,
+.welcome-workspace-show-more:focus-visible,
+.welcome-workspace-actions button:hover,
+.welcome-workspace-actions button:focus-visible {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  outline: none;
+}
+
+.welcome-workspace-show-more {
+  color: var(--color-crown-gold);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  margin-top: 2px;
+}
+
+.welcome-workspace-divider {
+  background: var(--color-border);
+  height: 1px;
+  margin: 6px 2px;
+}
+
+.welcome-workspace-empty {
+  color: var(--color-text-muted);
+  display: block;
+  font: 12px/1.3 "Geist", ui-sans-serif, system-ui, sans-serif;
+  padding: 10px 8px;
 }
 
 .welcome-composer {

@@ -44,6 +44,12 @@ type desktopProjectRemovalInfo struct {
 	ProjectSizeBytes int64  `json:"projectSizeBytes"`
 }
 
+type desktopProjectDirectoryEntry struct {
+	IsDirectory bool   `json:"isDirectory"`
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+}
+
 type desktopChat struct {
 	ID            string `json:"id"`
 	LastMessageAt string `json:"lastMessageAt"`
@@ -154,6 +160,60 @@ func (DesktopBridge) ProjectRemovalInfo(projectID string) (desktopProjectRemoval
 		return desktopProjectRemovalInfo{}, err
 	}
 	return desktopProjectRemovalInfo{DataPath: dataPath, DataSizeBytes: dataSize, ProjectPath: absoluteProjectPath, ProjectSizeBytes: projectSize}, nil
+}
+
+// ProjectDirectoryEntries returns one directory level from a registered project.
+// The relative path is constrained to the project root before it is read.
+func (DesktopBridge) ProjectDirectoryEntries(projectID, relativePath string) ([]desktopProjectDirectoryEntry, error) {
+	projectPath, err := desktopRegisteredProjectPath(projectID)
+	if err != nil {
+		return nil, err
+	}
+	root, err := filepath.Abs(filepath.Clean(projectPath))
+	if err != nil {
+		return nil, err
+	}
+	target := filepath.Clean(filepath.Join(root, relativePath))
+	relativeTarget, err := filepath.Rel(root, target)
+	if err != nil || filepath.IsAbs(relativeTarget) || relativeTarget == ".." || strings.HasPrefix(relativeTarget, ".."+string(filepath.Separator)) {
+		return nil, fmt.Errorf("invalid project directory")
+	}
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]desktopProjectDirectoryEntry, 0, len(entries))
+	for _, entry := range entries {
+		entryPath := entry.Name()
+		if relativeTarget != "." {
+			entryPath = filepath.Join(relativeTarget, entryPath)
+		}
+		result = append(result, desktopProjectDirectoryEntry{Name: entry.Name(), Path: entryPath, IsDirectory: entry.IsDir()})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].IsDirectory != result[j].IsDirectory {
+			return result[i].IsDirectory
+		}
+		return result[i].Name < result[j].Name
+	})
+	return result, nil
+}
+
+func desktopRegisteredProjectPath(projectID string) (string, error) {
+	mapPath, err := paths.ProjectsMapPath()
+	if err != nil {
+		return "", err
+	}
+	projectMap, err := project.LoadMap(mapPath)
+	if err != nil {
+		return "", err
+	}
+	for projectPath, registeredID := range projectMap {
+		if registeredID == projectID {
+			return projectPath, nil
+		}
+	}
+	return "", fmt.Errorf("project is not registered")
 }
 
 func desktopDirectorySize(directory string) (int64, error) {
