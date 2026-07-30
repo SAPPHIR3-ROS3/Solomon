@@ -1,12 +1,12 @@
 export namespace main {
-	
+
 	export class desktopCatalogItem {
 	    badge: string;
 	    detail: string;
 	    id: string;
 	    scores: desktopSubagentScore[];
 	    title: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new desktopCatalogItem(source);
 	    }
@@ -284,4 +284,3 @@ export namespace main {
 	}
 
 }
-

@@ -289,10 +289,41 @@ async function projectRemovalInfo(projectID: string) {
   return { projectPath: absoluteProjectPath, projectSizeBytes, dataPath, dataSizeBytes };
 }
 
+async function projectDirectoryEntries(projectID: string, directoryPath: string) {
+  if (!/^[a-f0-9]{64}$/.test(projectID)) throw new Error("Invalid project ID");
+  const rawMap: unknown = JSON.parse(await readFile(path.join(solomonHome(), "projectsId.json"), "utf8"));
+  if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) throw new Error("Invalid projects map");
+  const projectPath = Object.entries(rawMap).find(([, registeredID]) => registeredID === projectID)?.[0];
+  if (!projectPath) throw new Error("Project is not registered");
+
+  const root = path.resolve(projectPath);
+  const target = path.resolve(root, directoryPath);
+  const relativeTarget = path.relative(root, target);
+  if (path.isAbsolute(relativeTarget) || relativeTarget === ".." || relativeTarget.startsWith(`..${path.sep}`)) {
+    throw new Error("Invalid project directory");
+  }
+
+  const entries = await readdir(target, { withFileTypes: true });
+  return entries
+    .map((entry) => ({
+      isDirectory: entry.isDirectory(),
+      name: entry.name,
+      path: relativeTarget ? path.join(relativeTarget, entry.name) : entry.name,
+    }))
+    .sort((left, right) => Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name));
+}
+
 function attachProjectActionEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
   server.middlewares.use(projectActionEndpoint, (request, response, next) => {
     const route = request.url?.split("?")[0] ?? "";
-    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info))?\/?$/);
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files))?\/?$/);
+    if (request.method === "GET" && match?.[2] === "files") {
+      const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
+      void projectDirectoryEntries(match[1], directoryPath)
+        .then((entries) => respondWithJson(response, 200, entries))
+        .catch(() => respondWithJson(response, 500, { error: "Unable to read project files" }));
+      return;
+    }
     if (request.method === "GET" && match?.[2] === "removal-info") {
       void projectRemovalInfo(match[1])
         .then((info) => respondWithJson(response, 200, info))
@@ -303,7 +334,7 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
       next();
       return;
     }
-    if (!match || match[2] === "removal-info") {
+    if (!match || match[2] === "removal-info" || match[2] === "files") {
       respondWithJson(response, 400, { error: "Invalid project ID" });
       return;
     }
@@ -402,14 +433,14 @@ function attachReasoningEffortEndpoint(server: { middlewares: { use: (route: str
 export function projectsPlugin(): Plugin {
   return {
     configurePreviewServer(server) {
-      attachProjectsEndpoint(server);
       attachProjectActionEndpoint(server);
+      attachProjectsEndpoint(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
     },
     configureServer(server) {
-      attachProjectsEndpoint(server);
       attachProjectActionEndpoint(server);
+      attachProjectsEndpoint(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
     },

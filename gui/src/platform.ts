@@ -19,6 +19,7 @@ type WailsServerBridge = {
 type WailsDesktopBridge = {
   ModelCatalog: () => Promise<unknown>;
   ProjectSidebarData: () => Promise<unknown>;
+  ProjectDirectoryEntries?: (projectID: string, directoryPath: string) => Promise<unknown>;
   ProjectRemovalInfo?: (projectID: string) => Promise<unknown>;
   RemoveProjectFromDisk?: (projectID: string) => Promise<void>;
   RemoveProjectFromSidebar?: (projectID: string) => Promise<void>;
