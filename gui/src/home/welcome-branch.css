@@ -1,0 +1,163 @@
+.welcome-composer-dock {
+  padding-bottom: 34px;
+  position: relative;
+  width: 100%;
+}
+
+.welcome-git-controls {
+  align-items: center;
+  bottom: 0;
+  display: flex;
+  gap: 2px;
+  height: 30px;
+  left: 10px;
+  position: absolute;
+  z-index: 2;
+}
+
+.welcome-branch-control,
+.welcome-worktree-control {
+  align-items: center;
+  display: flex;
+  height: 30px;
+  position: relative;
+}
+
+.welcome-branch-trigger {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #89959c;
+  cursor: pointer;
+  display: flex;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 570;
+  gap: 6px;
+  height: 28px;
+  max-width: 220px;
+  padding: 0 8px;
+}
+
+.welcome-branch-trigger:hover,
+.welcome-branch-trigger[aria-expanded="true"] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.welcome-branch-trigger:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.welcome-branch-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-branch-trigger svg {
+  fill: none;
+  flex: none;
+  height: 13px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 13px;
+}
+
+.welcome-branch-trigger > svg:first-child {
+  color: #5bd39a;
+}
+
+.welcome-branch-trigger .welcome-chevron {
+  height: 12px;
+  transition: transform 0.18s ease;
+  width: 12px;
+}
+
+.welcome-branch-trigger .welcome-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.welcome-branch-error {
+  color: var(--color-danger, #ff8179);
+  font: 520 10px/1 "Geist", ui-sans-serif, system-ui, sans-serif;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.welcome-branch-menu {
+  background: color-mix(in srgb, var(--color-surface) 96%, #0a1114);
+  border: 1px solid #2b3842;
+  border-radius: 11px;
+  bottom: 34px;
+  box-shadow: 0 18px 48px #000b;
+  left: 0;
+  max-height: 190px;
+  overflow: auto;
+  padding: 6px;
+  position: absolute;
+  scrollbar-color: #34414a transparent;
+  scrollbar-width: thin;
+  width: 250px;
+  z-index: 14;
+}
+
+.welcome-branch-menu > button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #89959c;
+  cursor: pointer;
+  display: grid;
+  font-size: 10px;
+  gap: 7px;
+  grid-template-columns: 18px minmax(0, 1fr) 14px;
+  height: 38px;
+  padding: 0 9px;
+  text-align: left;
+  width: 100%;
+}
+
+.welcome-branch-menu > button:hover {
+  background: #182027;
+  color: var(--color-text);
+}
+
+.welcome-branch-menu > button.is-selected {
+  background: #5bd39a12;
+  color: #8fe1ba;
+}
+
+.welcome-branch-menu > button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.welcome-branch-menu > button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-branch-menu > button svg {
+  fill: none;
+  flex: none;
+  height: 13px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 13px;
+}
+
+.welcome-branch-menu > button > svg:first-child {
+  color: #5bd39a;
+}

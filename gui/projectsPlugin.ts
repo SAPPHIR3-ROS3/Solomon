@@ -3,6 +3,7 @@ import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
+import { checkoutProjectBranch, projectBranches, projectWorktrees } from "./projectBranches";
 
 const projectsEndpoint = "/__solomon/projects";
 const userNameEndpoint = "/__solomon/user-name";
@@ -316,12 +317,36 @@ async function projectDirectoryEntries(projectID: string, directoryPath: string)
 function attachProjectActionEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
   server.middlewares.use(projectActionEndpoint, (request, response, next) => {
     const route = request.url?.split("?")[0] ?? "";
-    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files))?\/?$/);
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files|branches|checkout|worktrees))?\/?$/);
     if (request.method === "GET" && match?.[2] === "files") {
       const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
       void projectDirectoryEntries(match[1], directoryPath)
         .then((entries) => respondWithJson(response, 200, entries))
         .catch(() => respondWithJson(response, 500, { error: "Unable to read project files" }));
+      return;
+    }
+    if (request.method === "GET" && match?.[2] === "branches") {
+      void projectBranches(match[1])
+        .then((info) => respondWithJson(response, 200, info))
+        .catch(() => respondWithJson(response, 500, { error: "Unable to read project branches" }));
+      return;
+    }
+    if (request.method === "GET" && match?.[2] === "worktrees") {
+      void projectWorktrees(match[1])
+        .then((info) => respondWithJson(response, 200, info))
+        .catch(() => respondWithJson(response, 500, { error: "Unable to read project worktrees" }));
+      return;
+    }
+    if (request.method === "POST" && match?.[2] === "checkout") {
+      void readJsonBody(request)
+        .then(async (payload) => {
+          if (!payload || typeof payload !== "object" || !("branch" in payload) || typeof payload.branch !== "string") {
+            respondWithJson(response, 400, { error: "branch must be a string" });
+            return;
+          }
+          respondWithJson(response, 200, await checkoutProjectBranch(match[1], payload.branch));
+        })
+        .catch(() => respondWithJson(response, 500, { error: "Unable to checkout branch" }));
       return;
     }
     if (request.method === "GET" && match?.[2] === "removal-info") {
@@ -334,7 +359,7 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
       next();
       return;
     }
-    if (!match || match[2] === "removal-info" || match[2] === "files") {
+    if (!match || match[2] === "removal-info" || match[2] === "files" || match[2] === "branches" || match[2] === "checkout" || match[2] === "worktrees") {
       respondWithJson(response, 400, { error: "Invalid project ID" });
       return;
     }

@@ -35,6 +35,23 @@ export type ProjectDirectoryEntry = {
   path: string;
 };
 
+export type ProjectBranches = {
+  branches: string[];
+  current: string;
+  isRepo: boolean;
+};
+
+export type ProjectWorktree = {
+  bare: boolean;
+  branch: string;
+  current: boolean;
+  path: string;
+};
+
+export type ProjectWorktrees = {
+  worktrees: ProjectWorktree[];
+};
+
 export async function fetchProjectDirectoryEntries(projectID: string, directoryPath = ""): Promise<ProjectDirectoryEntry[]> {
   const bridge = await desktopBridge();
   if (bridge?.ProjectDirectoryEntries) {
@@ -45,6 +62,40 @@ export async function fetchProjectDirectoryEntries(projectID: string, directoryP
   ));
   if (!response.ok) throw new Error(`Unable to read project files: ${response.status}`);
   return projectDirectoryEntriesFromPayload(await response.json());
+}
+
+export async function fetchProjectBranches(projectID: string, signal?: AbortSignal): Promise<ProjectBranches> {
+  const bridge = await desktopBridge();
+  if (bridge?.ProjectBranches) {
+    return projectBranchesFromPayload(await bridge.ProjectBranches(projectID));
+  }
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/branches`), { signal });
+  if (!response.ok) throw new Error(`Unable to read project branches: ${response.status}`);
+  return projectBranchesFromPayload(await response.json());
+}
+
+export async function fetchProjectWorktrees(projectID: string, signal?: AbortSignal): Promise<ProjectWorktrees> {
+  const bridge = await desktopBridge();
+  if (bridge?.ProjectWorktrees) {
+    return projectWorktreesFromPayload(await bridge.ProjectWorktrees(projectID));
+  }
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/worktrees`), { signal });
+  if (!response.ok) throw new Error(`Unable to read project worktrees: ${response.status}`);
+  return projectWorktreesFromPayload(await response.json());
+}
+
+export async function checkoutProjectBranch(projectID: string, branch: string): Promise<ProjectBranches> {
+  const bridge = await desktopBridge();
+  if (bridge?.CheckoutProjectBranch) {
+    return projectBranchesFromPayload(await bridge.CheckoutProjectBranch(projectID, branch));
+  }
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/checkout`), {
+    body: JSON.stringify({ branch }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Unable to checkout branch: ${response.status}`);
+  return projectBranchesFromPayload(await response.json());
 }
 
 export async function fetchProjectSidebarData(signal?: AbortSignal): Promise<ProjectSidebarData> {
@@ -263,6 +314,37 @@ function projectDirectoryEntriesFromPayload(payload: unknown): ProjectDirectoryE
     if (!name || !path) return [];
     return [{ isDirectory: "isDirectory" in entry && Boolean(entry.isDirectory), name, path }];
   });
+}
+
+function projectBranchesFromPayload(payload: unknown): ProjectBranches {
+  if (!payload || typeof payload !== "object") {
+    return { branches: [], current: "", isRepo: false };
+  }
+  const current = "current" in payload && typeof payload.current === "string" ? payload.current.trim() : "";
+  const isRepo = "isRepo" in payload && Boolean(payload.isRepo);
+  const branches = "branches" in payload && Array.isArray(payload.branches)
+    ? payload.branches.filter((branch): branch is string => typeof branch === "string" && Boolean(branch.trim())).map((branch) => branch.trim())
+    : [];
+  return { branches, current, isRepo };
+}
+
+function projectWorktreesFromPayload(payload: unknown): ProjectWorktrees {
+  if (!payload || typeof payload !== "object" || !("worktrees" in payload) || !Array.isArray(payload.worktrees)) {
+    return { worktrees: [] };
+  }
+  return {
+    worktrees: payload.worktrees.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const path = "path" in entry && typeof entry.path === "string" ? entry.path.trim() : "";
+      if (!path) return [];
+      return [{
+        bare: "bare" in entry && Boolean(entry.bare),
+        branch: "branch" in entry && typeof entry.branch === "string" ? entry.branch.trim() : "",
+        current: "current" in entry && Boolean(entry.current),
+        path,
+      }];
+    }),
+  };
 }
 
 function isProject(value: unknown): value is Project {
