@@ -1,6 +1,8 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rename, writeFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const rolesTableCatalog = [
   { id: "world_knowledge", label: "world knowledge" },
@@ -197,6 +199,127 @@ export async function saveRolesTable(characteristics: string[]): Promise<RolesTa
   }
   await writeFile(configPath, config, { encoding: "utf8", mode: 0o600 });
   return readRolesTable();
+}
+
+const pluginDir = path.dirname(fileURLToPath(import.meta.url));
+const embeddedTemplatesDir = path.join(pluginDir, "..", "internal", "prompt", "templates");
+
+const knownPromptTemplates: Array<{ detail: string; id: string }> = [
+  { detail: "Main agent-mode system prompt", id: "agent" },
+  { detail: "At-mention workflow prompt", id: "atmention" },
+  { detail: "Side-question (/btw) prompt", id: "btw" },
+  { detail: "Side-question (/btw) system prompt", id: "btw_system" },
+  { detail: "Chat-mode system prompt", id: "chat" },
+  { detail: "Image workflow prompt", id: "images" },
+  { detail: "Conversation summarize prompt", id: "summarize" },
+  { detail: "Conversation summarize system prompt", id: "summarize_system" },
+  { detail: "Chat title generation prompt", id: "title" },
+];
+
+export type PromptTemplatePayload = {
+  content: string;
+  id: string;
+  modified: boolean;
+  title: string;
+};
+
+async function readEmbeddedTemplate(id: string): Promise<string> {
+  return readFile(path.join(embeddedTemplatesDir, `${id}.tmpl`), "utf8");
+}
+
+async function readDiskTemplate(id: string): Promise<string | null> {
+  try {
+    return await readFile(path.join(solomonHome(), "prompts", "templates", `${id}.tmpl`), "utf8");
+  } catch {
+    return null;
+  }
+}
+
+async function writeDiskTemplate(id: string, content: string): Promise<void> {
+  const templatesDirectory = path.join(solomonHome(), "prompts", "templates");
+  await mkdir(templatesDirectory, { recursive: true });
+  const target = path.join(templatesDirectory, `${id}.tmpl`);
+  const temporary = `${target}.tmp`;
+  await writeFile(temporary, content, { encoding: "utf8", mode: 0o600 });
+  await rename(temporary, target);
+}
+
+function sha256Hex(content: string): string {
+  return createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+async function upsertTomlMapEntry(section: string, key: string, value: string | number | null): Promise<void> {
+  const configPath = path.join(solomonHome(), "config.toml");
+  let text = "";
+  try {
+    text = await readFile(configPath, "utf8");
+  } catch {
+    text = "";
+  }
+  const sectionHeader = `[${section}]`;
+  const keyPattern = new RegExp(`^\\s*${key}\\s*=\\s*.*$`, "m");
+  const sectionIndex = text.indexOf(sectionHeader);
+  if (value === null) {
+    if (sectionIndex < 0) return;
+    const before = text.slice(0, sectionIndex);
+    const afterHeader = text.slice(sectionIndex + sectionHeader.length);
+    const nextSection = afterHeader.search(/\n\[/);
+    const sectionBody = nextSection >= 0 ? afterHeader.slice(0, nextSection) : afterHeader;
+    const rest = nextSection >= 0 ? afterHeader.slice(nextSection) : "";
+    text = `${before}${sectionHeader}${sectionBody.replace(keyPattern, "").replace(/\n{3,}/g, "\n\n")}${rest}`;
+    await writeFile(configPath, text, "utf8");
+    return;
+  }
+  const serialized = typeof value === "number" ? String(value) : JSON.stringify(value);
+  const line = `${key} = ${serialized}`;
+  if (sectionIndex < 0) {
+    text = `${text.trimEnd()}${text.trim() ? "\n\n" : ""}${sectionHeader}\n${line}\n`;
+    await writeFile(configPath, text, "utf8");
+    return;
+  }
+  const before = text.slice(0, sectionIndex);
+  const afterHeader = text.slice(sectionIndex + sectionHeader.length);
+  const nextSection = afterHeader.search(/\n\[/);
+  const sectionBody = nextSection >= 0 ? afterHeader.slice(0, nextSection) : afterHeader;
+  const rest = nextSection >= 0 ? afterHeader.slice(nextSection) : "";
+  const nextBody = keyPattern.test(sectionBody) ? sectionBody.replace(keyPattern, line) : `${sectionBody.trimEnd()}\n${line}\n`;
+  await writeFile(configPath, `${before}${sectionHeader}${nextBody}${rest}`, "utf8");
+}
+
+export async function readPromptTemplate(id: string): Promise<PromptTemplatePayload> {
+  if (!knownPromptTemplates.some((entry) => entry.id === id)) throw new Error(`unknown prompt template ${id}`);
+  const embedded = await readEmbeddedTemplate(id);
+  const disk = await readDiskTemplate(id);
+  return { content: disk ?? embedded, id, modified: disk !== null && disk !== embedded, title: `${id}.tmpl` };
+}
+
+export async function readPromptTemplates(): Promise<CatalogItem[]> {
+  return Promise.all(knownPromptTemplates.map(async ({ detail, id }) => {
+    const title = `${id}.tmpl`;
+    const disk = await readDiskTemplate(id);
+    if (disk === null) return { badge: "Missing", detail, id, title };
+    try {
+      const embedded = await readEmbeddedTemplate(id);
+      return disk !== embedded ? { badge: "Modified", detail, id, title } : { detail, id, title };
+    } catch {
+      return { detail, id, title };
+    }
+  }));
+}
+
+export async function acceptPromptTemplate(id: string, content: string): Promise<PromptTemplatePayload> {
+  await writeDiskTemplate(id, content);
+  const info = await stat(path.join(solomonHome(), "prompts", "templates", `${id}.tmpl`));
+  await upsertTomlMapEntry("prompt_templates", id, sha256Hex(content));
+  await upsertTomlMapEntry("prompt_template_mtime", id, Math.floor(info.mtimeMs / 1000));
+  return readPromptTemplate(id);
+}
+
+export async function resetPromptTemplate(id: string): Promise<PromptTemplatePayload> {
+  await writeDiskTemplate(id, await readEmbeddedTemplate(id));
+  await upsertTomlMapEntry("prompt_templates", id, null);
+  await upsertTomlMapEntry("prompt_template_mtime", id, null);
+  return readPromptTemplate(id);
 }
 
 export { rolesTableMax };

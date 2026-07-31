@@ -81,6 +81,13 @@ export function App() {
     setIsTerminalPanelOpen(false);
   }
 
+  function toggleCustomization() {
+    setIsCustomizationOpen((open) => {
+      if (!open) setIsRightSidePanelOpen(false);
+      return !open;
+    });
+  }
+
   function handleTerminalHeightChange(height: number) {
     setTerminalPanelHeight(Math.min(maxTerminalPanelHeight, Math.max(MIN_TERMINAL_PANEL_HEIGHT, height)));
   }
@@ -110,16 +117,16 @@ export function App() {
   }
 
   const preferredLeftWidth = isSidePanelOpen ? leftSidePanelWidth : 0;
-  const preferredRightWidth = isRightSidePanelOpen ? rightSidePanelWidth : 0;
+  const preferredRightWidth = isRightSidePanelOpen && !isCustomizationOpen ? rightSidePanelWidth : 0;
   const composerWidth = Math.min(MAX_COMPOSER_WIDTH, Math.max(0, viewportWidth - WELCOME_HORIZONTAL_PADDING));
   const fallbackMaximumPanelWidth = Math.max(
     0,
     Math.floor((viewportWidth - composerWidth) / 2) - TEXTBOX_SIDE_PANEL_GAP,
   );
-  const maximumLeftPanelWidth = composerBounds
+  const maximumLeftPanelWidth = !isCustomizationOpen && composerBounds
     ? Math.max(0, Math.floor(composerBounds.left) - TEXTBOX_SIDE_PANEL_GAP)
     : fallbackMaximumPanelWidth;
-  const maximumRightPanelWidth = composerBounds
+  const maximumRightPanelWidth = !isCustomizationOpen && composerBounds
     ? Math.max(0, Math.floor(viewportWidth - composerBounds.right) - TEXTBOX_SIDE_PANEL_GAP)
     : fallbackMaximumPanelWidth;
   const renderedLeftPanelWidth = Math.min(preferredLeftWidth, maximumLeftPanelWidth);
@@ -147,7 +154,7 @@ export function App() {
     >
       <div
         aria-hidden="true"
-        className={`window-drag-area${isSidePanelOpen ? " is-left-inset" : ""}${isRightSidePanelOpen ? " is-right-inset" : ""}`}
+        className={`window-drag-area${isSidePanelOpen ? " is-left-inset" : ""}${isRightSidePanelOpen && !isCustomizationOpen ? " is-right-inset" : ""}`}
       />
       <SidePanelToggle
         isOpen={isSidePanelOpen}
@@ -159,10 +166,14 @@ export function App() {
         </button>
       ) : null}
       <RightSidePanelToggle
-        isOpen={isRightSidePanelOpen}
-        onToggle={() => setIsRightSidePanelOpen((open) => !open)}
+        disabled={isCustomizationOpen}
+        isOpen={isRightSidePanelOpen && !isCustomizationOpen}
+        onToggle={() => {
+          if (isCustomizationOpen) return;
+          setIsRightSidePanelOpen((open) => !open);
+        }}
       />
-      {isRightSidePanelOpen ? (
+      {isRightSidePanelOpen && !isCustomizationOpen ? (
         <RightSidePanel
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           onWidthChange={resizeRightPanel}
@@ -177,7 +188,7 @@ export function App() {
           isCustomizationOpen={isCustomizationOpen}
           onNewProjectChat={openProjectNewChat}
           onOpenProjectTerminal={openProjectTerminal}
-          onToggleCustomization={() => setIsCustomizationOpen((open) => !open)}
+          onToggleCustomization={toggleCustomization}
           onWidthChange={resizeLeftPanel}
           width={renderedLeftPanelWidth}
         />

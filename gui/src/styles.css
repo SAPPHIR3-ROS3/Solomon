@@ -103,9 +103,14 @@ body {
   z-index: 11;
 }
 
-.right-side-panel-toggle:hover {
+.right-side-panel-toggle:hover:not(:disabled) {
   background: var(--color-surface-raised);
   color: var(--color-text);
+}
+
+.right-side-panel-toggle:disabled {
+  cursor: default;
+  opacity: 0.4;
 }
 
 .right-side-panel-toggle:focus-visible {
@@ -391,8 +396,7 @@ body {
 .customization-screen {
   background: var(--color-canvas);
   bottom: 0;
-  left: var(--left-panel-width);
-  right: var(--right-panel-width);
+  left: 0;
   overflow: auto;
   padding: 88px 36px 48px;
   position: fixed;
@@ -403,7 +407,8 @@ body {
 
 .customization-content {
   margin: 0 auto;
-  max-width: 1180px;
+  max-width: min(960px, calc(100% - 72px));
+  width: min(960px, calc(100% - 72px));
 }
 
 .customization-toolbar {
@@ -469,12 +474,39 @@ body {
 .customization-filters-shell {
   margin-top: 28px;
   min-width: 0;
+  position: relative;
   width: 100%;
 }
 
+.customization-filters-shell::before,
+.customization-filters-shell::after {
+  content: "";
+  height: 100%;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transition: opacity 80ms linear;
+  width: 18px;
+  z-index: 1;
+}
+
+.customization-filters-shell::before {
+  background: linear-gradient(to right, var(--color-canvas), transparent);
+  left: 0;
+  opacity: var(--customization-filters-left-fade, 0);
+}
+
+.customization-filters-shell::after {
+  background: linear-gradient(to left, var(--color-canvas), transparent);
+  opacity: var(--customization-filters-right-fade, 0);
+  right: 0;
+}
+
 .customization-filters-scrollport {
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 
@@ -888,6 +920,42 @@ body {
   background: color-mix(in srgb, var(--color-surface-raised) 58%, transparent);
 }
 
+.customization-prompt-picker-shell {
+  margin-top: 18px;
+}
+
+.customization-filter .customization-catalog-badge {
+  margin-left: 8px;
+}
+
+.customization-prompt-content,
+.customization-prompt-editor textarea {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-top: 18px;
+  min-height: min(52vh, 560px);
+  overflow: auto;
+  padding: 14px 16px;
+  white-space: pre-wrap;
+  width: 100%;
+}
+
+.customization-prompt-editor textarea {
+  display: block;
+  resize: vertical;
+}
+
+.customization-prompt-editor textarea:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 20%, transparent);
+  outline: none;
+}
+
 .customization-empty {
   color: var(--color-text-muted);
   font: 14px "Geist", ui-sans-serif, system-ui, sans-serif;
@@ -990,7 +1058,6 @@ body {
 
 @media (max-width: 720px) {
   .customization-screen {
-    left: 0;
     padding: 72px 16px 32px;
   }
 

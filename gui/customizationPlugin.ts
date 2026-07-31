@@ -3,9 +3,13 @@ import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
 import {
+  acceptPromptTemplate,
   deleteSubagentRole,
+  readPromptTemplate,
+  readPromptTemplates,
   readRolesTable,
   readSubagentRoles,
+  resetPromptTemplate,
   rolesTableMax,
   saveRolesTable,
   updateSubagentDetail,
@@ -22,6 +26,10 @@ const rolesTableEndpoint = "/__solomon/roles-table";
 const skillsEndpoint = "/__solomon/skills";
 const mcpsEndpoint = "/__solomon/mcps";
 const subagentsEndpoint = "/__solomon/subagents";
+const promptTemplatesEndpoint = "/__solomon/promptTemplates";
+const promptTemplateEndpoint = "/__solomon/promptTemplate";
+const updatePromptTemplateEndpoint = "/__solomon/promptTemplates/update";
+const resetPromptTemplateEndpoint = "/__solomon/promptTemplates/reset";
 
 type Rule = {
   id: number;
@@ -304,8 +312,9 @@ function attachSubagentMutationEndpoints(server: { middlewares: { use: (route: s
         if (!("detail" in payload) || typeof payload.detail !== "string") {
           throw new Error("detail must be a string");
         }
-        const scores = Array.isArray((payload as { scores?: unknown }).scores)
-          ? (payload as { scores: Array<{ id?: unknown; value?: unknown }> }).scores
+        const scoresRaw = (payload as { scores?: unknown }).scores;
+        const scores = Array.isArray(scoresRaw)
+          ? (scoresRaw as Array<{ id?: unknown; value?: unknown }>)
             .filter((entry): entry is { id: string; value: number } => Boolean(entry && typeof entry.id === "string" && typeof entry.value === "number" && Number.isInteger(entry.value)))
           : [];
         const subagents = await updateSubagentDetail(payload.id, payload.detail, scores);
@@ -344,10 +353,77 @@ function attachSubagentMutationEndpoints(server: { middlewares: { use: (route: s
   });
 }
 
+function attachPromptTemplateEndpoints(server: { middlewares: { use: (route: string, handler: (request: ReorderRequest & { method?: string; url?: string }, response: { end: (body: string) => void; setHeader: (name: string, value: string) => void; statusCode: number }, next: () => void) => void) => void } }) {
+  server.middlewares.use(promptTemplateEndpoint, (request, response, next) => {
+    if (request.method !== "GET") {
+      next();
+      return;
+    }
+    const id = new URL(request.url ?? "", "http://solomon.local").searchParams.get("id")?.trim() ?? "";
+    void readPromptTemplate(id)
+      .then((promptTemplate) => {
+        response.statusCode = 200;
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("Content-Type", "application/json; charset=utf-8");
+        response.end(JSON.stringify({ promptTemplate }));
+      })
+      .catch(() => {
+        response.statusCode = 404;
+        response.setHeader("Content-Type", "application/json; charset=utf-8");
+        response.end(JSON.stringify({ promptTemplate: null }));
+      });
+  });
+  server.middlewares.use(updatePromptTemplateEndpoint, (request, response, next) => {
+    if (request.method !== "POST") {
+      next();
+      return;
+    }
+    void readJsonBody(request, 262144)
+      .then(async (payload) => {
+        if (!payload || typeof payload !== "object" || !("id" in payload) || typeof payload.id !== "string" || !("content" in payload) || typeof payload.content !== "string") {
+          throw new Error("id and content are required");
+        }
+        const promptTemplate = await acceptPromptTemplate(payload.id.trim(), payload.content);
+        response.statusCode = 200;
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("Content-Type", "application/json; charset=utf-8");
+        response.end(JSON.stringify({ promptTemplate }));
+      })
+      .catch(() => {
+        response.statusCode = 400;
+        response.setHeader("Content-Type", "application/json; charset=utf-8");
+        response.end(JSON.stringify({ promptTemplate: null }));
+      });
+  });
+  server.middlewares.use(resetPromptTemplateEndpoint, (request, response, next) => {
+    if (request.method !== "POST") {
+      next();
+      return;
+    }
+    void readJsonBody(request, 8192)
+      .then(async (payload) => {
+        if (!payload || typeof payload !== "object" || !("id" in payload) || typeof payload.id !== "string") {
+          throw new Error("id is required");
+        }
+        const promptTemplate = await resetPromptTemplate(payload.id.trim());
+        response.statusCode = 200;
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("Content-Type", "application/json; charset=utf-8");
+        response.end(JSON.stringify({ promptTemplate }));
+      })
+      .catch(() => {
+        response.statusCode = 400;
+        response.setHeader("Content-Type", "application/json; charset=utf-8");
+        response.end(JSON.stringify({ promptTemplate: null }));
+      });
+  });
+}
+
 function attachCatalogEndpoints(server: MiddlewareServer) {
   attachJsonGet(server, skillsEndpoint, "skills", readGlobalSkills);
   attachJsonGet(server, mcpsEndpoint, "mcps", readMcps);
   attachJsonGet(server, subagentsEndpoint, "subagents", readSubagentRoles);
+  attachJsonGet(server, promptTemplatesEndpoint, "promptTemplates", readPromptTemplates);
   attachJsonGet(server, rolesTableEndpoint, "rolesTable", readRolesTable);
 }
 
@@ -385,6 +461,7 @@ export function customizationPlugin(): Plugin {
       attachDeleteRulesEndpoint(server);
       attachSubagentMutationEndpoints(server);
       attachRolesTableSaveEndpoint(server);
+      attachPromptTemplateEndpoints(server);
       attachCatalogEndpoints(server);
     },
     configureServer(server) {
@@ -394,6 +471,7 @@ export function customizationPlugin(): Plugin {
       attachDeleteRulesEndpoint(server);
       attachSubagentMutationEndpoints(server);
       attachRolesTableSaveEndpoint(server);
+      attachPromptTemplateEndpoints(server);
       attachCatalogEndpoints(server);
     },
     name: "solomon-customization",

@@ -2,10 +2,15 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/roles"
 )
 
@@ -178,4 +183,97 @@ func loadDesktopRolesTable() (desktopRolesTable, error) {
 	}
 	selected := append([]string{}, cfg.Roles.Table.Characteristics...)
 	return desktopRolesTable{Catalog: catalog, Characteristics: selected, Max: roles.MaxTableCharacteristics}, nil
+}
+
+type desktopPromptTemplate struct {
+	Content  string `json:"content"`
+	ID       string `json:"id"`
+	Modified bool   `json:"modified"`
+	Title    string `json:"title"`
+}
+
+func (DesktopBridge) CustomizationPromptTemplates() ([]desktopCatalogItem, error) {
+	return loadDesktopPromptTemplates()
+}
+
+func (DesktopBridge) CustomizationPromptTemplate(id string) (desktopPromptTemplate, error) {
+	return loadDesktopPromptTemplate(id)
+}
+
+func (DesktopBridge) UpdateCustomizationPromptTemplate(id string, content string) (desktopPromptTemplate, error) {
+	id = strings.TrimSpace(id)
+	if err := prompt.AcceptTemplateContent(id, content); err != nil {
+		return desktopPromptTemplate{}, err
+	}
+	return loadDesktopPromptTemplate(id)
+}
+
+func (DesktopBridge) ResetCustomizationPromptTemplate(id string) (desktopPromptTemplate, error) {
+	id = strings.TrimSpace(id)
+	if _, err := prompt.ResetTemplateToDefault(id); err != nil {
+		return desktopPromptTemplate{}, err
+	}
+	return loadDesktopPromptTemplate(id)
+}
+
+func loadDesktopPromptTemplates() ([]desktopCatalogItem, error) {
+	dir, err := paths.PromptTemplatesDir()
+	if err != nil {
+		return nil, err
+	}
+	names := prompt.TemplateNames()
+	sort.Strings(names)
+	items := make([]desktopCatalogItem, 0, len(names))
+	for _, name := range names {
+		title := name + ".tmpl"
+		item := desktopCatalogItem{ID: name, Title: title, Detail: desktopPromptTemplateDetail(name)}
+		if _, err := os.Stat(filepath.Join(dir, title)); os.IsNotExist(err) {
+			item.Badge = "Missing"
+		} else if modified, err := prompt.TemplateDiffersFromEmbedded(name); err == nil && modified {
+			item.Badge = "Modified"
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func loadDesktopPromptTemplate(id string) (desktopPromptTemplate, error) {
+	id = strings.TrimSpace(id)
+	if _, ok := prompt.EmbeddedTemplate(id); !ok {
+		return desktopPromptTemplate{}, fmt.Errorf("unknown prompt template %q", id)
+	}
+	content, err := prompt.TemplateContent(id)
+	if err != nil {
+		return desktopPromptTemplate{}, err
+	}
+	modified, err := prompt.TemplateDiffersFromEmbedded(id)
+	if err != nil {
+		return desktopPromptTemplate{}, err
+	}
+	return desktopPromptTemplate{ID: id, Title: id + ".tmpl", Content: content, Modified: modified}, nil
+}
+
+func desktopPromptTemplateDetail(name string) string {
+	switch name {
+	case "agent":
+		return "Main agent-mode system prompt"
+	case "atmention":
+		return "At-mention workflow prompt"
+	case "btw":
+		return "Side-question (/btw) prompt"
+	case "btw_system":
+		return "Side-question (/btw) system prompt"
+	case "chat":
+		return "Chat-mode system prompt"
+	case "images":
+		return "Image workflow prompt"
+	case "summarize":
+		return "Conversation summarize prompt"
+	case "summarize_system":
+		return "Conversation summarize system prompt"
+	case "title":
+		return "Chat title generation prompt"
+	default:
+		return "System prompt template"
+	}
 }
