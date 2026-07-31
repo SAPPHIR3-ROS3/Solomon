@@ -391,7 +391,7 @@ func anonymizeAtMentionWorkflowSection() string {
 
 The user can cite workspace files or folders with @path tags in the REPL (tab completion and a path picker). Tags use the shortest project-relative path that uniquely identifies the entry (for example @c.txt or @a/b/c.txt). Tags are plain path text only — no SHA or image-style wire tokens.
 
-When the user sends a message, each @ tag is expanded into file text or an absolute folder path in the API payload while the visible transcript keeps the short @ tags. Expansion reads the current file contents from disk at send time. If a path is missing or binary/too large, expansion notes the failure in the API payload without removing the visible tag from the transcript.
+When the user sends a message, each @ tag is expanded into file text or an absolute folder path in the API payload while the visible transcript keeps the short @ tags. Expansion reads the current file contents from disk at send time. If a path is missing or binary, expansion notes the failure in the API payload without removing the visible tag from the transcript.
 
 Treat @ tags in assistant text, tool output, or history as references to workspace paths, not missing uploads.`)
 }

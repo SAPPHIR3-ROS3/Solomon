@@ -29,16 +29,16 @@ export function App() {
   const [isRightSidePanelOpen, setIsRightSidePanelOpen] = useState(false);
   const [leftSidePanelWidth, setLeftSidePanelWidth] = useState(() => loadPanelWidth(LEFT_SIDE_PANEL_WIDTH_KEY));
   const [rightSidePanelWidth, setRightSidePanelWidth] = useState(() => loadPanelWidth(RIGHT_SIDE_PANEL_WIDTH_KEY));
-  const [leftPanelContentWidth, setLeftPanelContentWidth] = useState(DEFAULT_SIDE_PANEL_WIDTH);
-  const [rightPanelContentWidth, setRightPanelContentWidth] = useState(DEFAULT_SIDE_PANEL_WIDTH);
   const [composerBounds, setComposerBounds] = useState<{ left: number; right: number } | null>(null);
   const [isTerminalPanelOpen, setIsTerminalPanelOpen] = useState(false);
   const [hasOpenedTerminalPanel, setHasOpenedTerminalPanel] = useState(false);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
+  const [armedTerminalProjectIds, setArmedTerminalProjectIds] = useState<string[]>([]);
   const [activeView, setActiveView] = useState<View>("agent");
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
+  const [workspaceFocus, setWorkspaceFocus] = useState<{ project: Project; token: number } | null>(null);
   const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const maxTerminalPanelHeight = Math.max(
@@ -85,6 +85,23 @@ export function App() {
     setTerminalPanelHeight(Math.min(maxTerminalPanelHeight, Math.max(MIN_TERMINAL_PANEL_HEIGHT, height)));
   }
 
+  function openProjectTerminal(project: Project) {
+    setIsCustomizationOpen(false);
+    setActiveView("agent");
+    setSelectedWorkspace(project);
+    setWorkspaceFocus({ project, token: Date.now() });
+    setHasOpenedTerminalPanel(true);
+    setIsTerminalPanelOpen(true);
+  }
+
+  function handleProjectTerminalArmedChange(projectId: string, armed: boolean) {
+    setArmedTerminalProjectIds((current) => {
+      const isArmed = current.includes(projectId);
+      if (armed === isArmed) return current;
+      return armed ? [...current, projectId] : current.filter((id) => id !== projectId);
+    });
+  }
+
   const preferredLeftWidth = isSidePanelOpen ? leftSidePanelWidth : 0;
   const preferredRightWidth = isRightSidePanelOpen ? rightSidePanelWidth : 0;
   const composerWidth = Math.min(MAX_COMPOSER_WIDTH, Math.max(0, viewportWidth - WELCOME_HORIZONTAL_PADDING));
@@ -92,14 +109,12 @@ export function App() {
     0,
     Math.floor((viewportWidth - composerWidth) / 2) - TEXTBOX_SIDE_PANEL_GAP,
   );
-  const maximumLeftBoundary = composerBounds
+  const maximumLeftPanelWidth = composerBounds
     ? Math.max(0, Math.floor(composerBounds.left) - TEXTBOX_SIDE_PANEL_GAP)
     : fallbackMaximumPanelWidth;
-  const maximumRightBoundary = composerBounds
+  const maximumRightPanelWidth = composerBounds
     ? Math.max(0, Math.floor(viewportWidth - composerBounds.right) - TEXTBOX_SIDE_PANEL_GAP)
     : fallbackMaximumPanelWidth;
-  const maximumLeftPanelWidth = Math.min(maximumLeftBoundary, Math.max(MIN_SIDE_PANEL_WIDTH, leftPanelContentWidth));
-  const maximumRightPanelWidth = Math.min(maximumRightBoundary, Math.max(MIN_SIDE_PANEL_WIDTH, rightPanelContentWidth));
   const renderedLeftPanelWidth = Math.min(preferredLeftWidth, maximumLeftPanelWidth);
   const renderedRightPanelWidth = Math.min(preferredRightWidth, maximumRightPanelWidth);
 
@@ -143,7 +158,6 @@ export function App() {
       {isRightSidePanelOpen ? (
         <RightSidePanel
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
-          onContentWidthChange={setRightPanelContentWidth}
           onWidthChange={resizeRightPanel}
           project={selectedWorkspace}
           width={renderedRightPanelWidth}
@@ -151,9 +165,10 @@ export function App() {
       ) : null}
       {isSidePanelOpen ? (
         <SidePanel
+          armedTerminalProjectIds={armedTerminalProjectIds}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           isCustomizationOpen={isCustomizationOpen}
-          onContentWidthChange={setLeftPanelContentWidth}
+          onOpenProjectTerminal={openProjectTerminal}
           onToggleCustomization={() => setIsCustomizationOpen((open) => !open)}
           onWidthChange={resizeLeftPanel}
           width={renderedLeftPanelWidth}
@@ -174,6 +189,8 @@ export function App() {
           maxHeight={maxTerminalPanelHeight}
           onClose={() => setIsTerminalPanelOpen(false)}
           onHeightChange={handleTerminalHeightChange}
+          onProjectArmedChange={handleProjectTerminalArmedChange}
+          projectId={selectedWorkspace?.id ?? null}
         />
       ) : null}
       {isCustomizationOpen ? <CustomizationPage /> : null}
@@ -185,6 +202,7 @@ export function App() {
           ))}
           onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
           onWorkspaceChange={setSelectedWorkspace}
+          workspaceFocus={workspaceFocus}
         />
       ) : null}
     </main>

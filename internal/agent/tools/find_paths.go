@@ -29,7 +29,6 @@ func execFindPaths(ctx context.Context, env *Env, root string, a *findArgs) (any
 	candidates, err := parallelFileWalk(cctx, fileWalkOpts{
 		Root:             root,
 		RespectGitignore: false,
-		MaxFileBytes:     maxFindFileBytes,
 		SkipBinary:       false,
 	})
 	if err != nil {

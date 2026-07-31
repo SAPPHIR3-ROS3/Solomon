@@ -27,9 +27,9 @@ type SkipNotice struct {
 }
 
 type Notifier struct {
-	mu      sync.Mutex
-	skips   []SkipNotice
-	logged  map[string]struct{}
+	mu     sync.Mutex
+	skips  []SkipNotice
+	logged map[string]struct{}
 }
 
 func NewNotifier() *Notifier {
@@ -95,7 +95,7 @@ func formatSkipNotice(s SkipNotice) string {
 	case SkipGitignored:
 		return fmt.Sprintf("  %s: gitignored (%s) — read manually", tag, s.Path)
 	case SkipBinary:
-		return fmt.Sprintf("  %s: binary or too large (%s)", tag, s.Path)
+		return fmt.Sprintf("  %s: binary file (%s)", tag, s.Path)
 	case SkipExternal:
 		return fmt.Sprintf("  %s: outside project root (%s)", tag, s.Path)
 	case SkipDepth:

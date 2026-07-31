@@ -118,3 +118,18 @@ func TestInstructionsLoaderTruncation(t *testing.T) {
 		t.Fatalf("footer missing: %q", content)
 	}
 }
+
+func TestInstructionsLoaderDoesNotTruncateByDefault(t *testing.T) {
+	dir := t.TempDir()
+	body := strings.Repeat("x", 64*1024)
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, content, ok := instructions.NewLoader().LoadRepoRoot(dir)
+	if !ok {
+		t.Fatal("want loaded file")
+	}
+	if content != body {
+		t.Fatalf("default loader should retain all content: got %d bytes, want %d", len(content), len(body))
+	}
+}
