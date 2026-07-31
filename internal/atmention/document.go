@@ -11,8 +11,10 @@ import (
 )
 
 const MaxIncludeDepth = 4
-const DefaultMaxFileExpandBytes = 32 * 1024
-const replMaxFileExpandBytes = 4 << 20
+
+// DefaultMaxFileExpandBytes is unlimited. A caller may still provide a
+// positive MaxFileBytes when it explicitly needs a bounded expansion.
+const DefaultMaxFileExpandBytes int64 = 0
 
 type DocumentOpts struct {
 	ProjRoot     string
@@ -128,7 +130,7 @@ func expandDocumentTag(ctx context.Context, tagPath string, opts DocumentOpts) (
 		}
 		return "", err
 	}
-	if len(data) > replMaxFileExpandBytes || isBinary(data) {
+	if isBinary(data) {
 		if opts.Notify != nil {
 			opts.Notify.Add(SkipBinary, tagPath, abs)
 		}
@@ -159,9 +161,6 @@ func expandDocumentTag(ctx context.Context, tagPath string, opts DocumentOpts) (
 }
 
 func (o DocumentOpts) maxBytes() int64 {
-	if o.MaxFileBytes <= 0 {
-		return DefaultMaxFileExpandBytes
-	}
 	return o.MaxFileBytes
 }
 

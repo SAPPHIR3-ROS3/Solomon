@@ -10,10 +10,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/gitignore"
 )
 
-const (
-	maxFindFileBytes = 4 << 20
-	binaryProbeSize  = 8192
-)
+const binaryProbeSize = 8192
 
 type fileCandidate struct {
 	AbsPath string
@@ -32,9 +29,6 @@ func parallelFileWalk(ctx context.Context, opts fileWalkOpts) (<-chan fileCandid
 	root, err := filepath.Abs(opts.Root)
 	if err != nil {
 		return nil, err
-	}
-	if opts.MaxFileBytes <= 0 {
-		opts.MaxFileBytes = maxFindFileBytes
 	}
 	out := make(chan fileCandidate, 256)
 	go func() {
@@ -93,7 +87,7 @@ func parallelFileWalk(ctx context.Context, opts fileWalkOpts) (<-chan fileCandid
 			if err != nil {
 				return nil
 			}
-			if info.Size() > opts.MaxFileBytes {
+			if opts.MaxFileBytes > 0 && info.Size() > opts.MaxFileBytes {
 				return nil
 			}
 			if opts.SkipBinary && isBinaryFile(path) {

@@ -40,8 +40,6 @@ type Options struct {
 	ListenAddr string
 }
 
-const localPort = 8765
-
 type Health struct {
 	OK      bool      `json:"ok"`
 	Server  State     `json:"server"`
@@ -127,11 +125,7 @@ func Run(ctx context.Context, options Options) error {
 	}
 	listenAddr := options.ListenAddr
 	if listenAddr == "" {
-		if mode == "dev" {
-			listenAddr = "127.0.0.1:0"
-		} else {
-			listenAddr = "127.0.0.1:" + strconv.Itoa(localPort)
-		}
+		listenAddr = "127.0.0.1:0"
 	}
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {

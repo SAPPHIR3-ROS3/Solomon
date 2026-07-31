@@ -163,6 +163,22 @@ func TestExpandLineFile(t *testing.T) {
 	}
 }
 
+func TestExpandLineDoesNotRejectLargeTextFile(t *testing.T) {
+	dir := t.TempDir()
+	body := strings.Repeat("x", 4*1024*1024+1)
+	path := filepath.Join(dir, "large.txt")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := atmention.ExpandLine(context.Background(), "check @large.txt", dir, []atmention.Entry{{RelPath: "large.txt"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, body) {
+		t.Fatal("large text file should be attached in full")
+	}
+}
+
 func TestExpandLineFolderAbsolutePath(t *testing.T) {
 	dir := t.TempDir()
 	sub := filepath.Join(dir, "pkg")
