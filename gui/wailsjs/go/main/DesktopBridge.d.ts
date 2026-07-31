@@ -6,6 +6,10 @@ export function ModelCatalog():Promise<main.desktopModelCatalog>;
 
 export function CustomizationMcps():Promise<Array<main.desktopCatalogItem>>;
 
+export function CustomizationPromptTemplates():Promise<Array<main.desktopCatalogItem>>;
+
+export function CustomizationPromptTemplate(arg1:string):Promise<main.desktopPromptTemplate>;
+
 export function CustomizationRules():Promise<Array<main.desktopRule>>;
 
 export function CustomizationSkills():Promise<Array<main.desktopCatalogItem>>;
@@ -33,5 +37,9 @@ export function SaveReasoningEffort(arg1:string):Promise<string>;
 export function SaveUserName(arg1:string):Promise<string>;
 
 export function UpdateCustomizationRule(arg1:number,arg2:string):Promise<Array<main.desktopRule>>;
+
+export function UpdateCustomizationPromptTemplate(arg1:string,arg2:string):Promise<main.desktopPromptTemplate>;
+
+export function ResetCustomizationPromptTemplate(arg1:string):Promise<main.desktopPromptTemplate>;
 
 export function UpdateCustomizationSubagent(arg1:string,arg2:string,arg3:Array<main.desktopScorePatch>):Promise<Array<main.desktopCatalogItem>>;

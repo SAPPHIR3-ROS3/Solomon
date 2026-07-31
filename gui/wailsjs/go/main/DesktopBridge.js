@@ -10,6 +10,14 @@ export function CustomizationMcps() {
   return window['go']['main']['DesktopBridge']['CustomizationMcps']();
 }
 
+export function CustomizationPromptTemplates() {
+  return window['go']['main']['DesktopBridge']['CustomizationPromptTemplates']();
+}
+
+export function CustomizationPromptTemplate(arg1) {
+  return window['go']['main']['DesktopBridge']['CustomizationPromptTemplate'](arg1);
+}
+
 export function CustomizationRules() {
   return window['go']['main']['DesktopBridge']['CustomizationRules']();
 }
@@ -60,6 +68,14 @@ export function SaveUserName(arg1) {
 
 export function UpdateCustomizationRule(arg1, arg2) {
   return window['go']['main']['DesktopBridge']['UpdateCustomizationRule'](arg1, arg2);
+}
+
+export function UpdateCustomizationPromptTemplate(arg1, arg2) {
+  return window['go']['main']['DesktopBridge']['UpdateCustomizationPromptTemplate'](arg1, arg2);
+}
+
+export function ResetCustomizationPromptTemplate(arg1) {
+  return window['go']['main']['DesktopBridge']['ResetCustomizationPromptTemplate'](arg1);
 }
 
 export function UpdateCustomizationSubagent(arg1, arg2, arg3) {

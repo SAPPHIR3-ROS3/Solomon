@@ -98,6 +98,66 @@ export async function fetchCustomizationSubagents(signal?: AbortSignal): Promise
   return fetchCatalogItems("subagents", "CustomizationSubagents", signal);
 }
 
+export async function fetchCustomizationPromptTemplates(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
+  return fetchCatalogItems("promptTemplates", "CustomizationPromptTemplates", signal);
+}
+
+export type PromptTemplate = {
+  content: string;
+  id: string;
+  modified: boolean;
+  title: string;
+};
+
+export async function fetchCustomizationPromptTemplate(id: string, signal?: AbortSignal): Promise<PromptTemplate> {
+  const bridge = await desktopBridge();
+  if (bridge?.CustomizationPromptTemplate) return promptTemplateFromPayload(await bridge.CustomizationPromptTemplate(id));
+  const response = await fetch(await serverEndpoint(`/__solomon/promptTemplate?id=${encodeURIComponent(id)}`), { cache: "no-store", signal });
+  if (!response.ok) throw new Error(`Unable to load prompt template: ${response.status}`);
+  return promptTemplateFromPayload(await response.json());
+}
+
+export async function updateCustomizationPromptTemplate(id: string, content: string): Promise<PromptTemplate> {
+  const bridge = await desktopBridge();
+  if (bridge?.UpdateCustomizationPromptTemplate) return promptTemplateFromPayload(await bridge.UpdateCustomizationPromptTemplate(id, content));
+  const response = await fetch(await serverEndpoint("/__solomon/promptTemplates/update"), {
+    body: JSON.stringify({ id, content }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Unable to update prompt template: ${response.status}`);
+  return promptTemplateFromPayload(await response.json());
+}
+
+export async function resetCustomizationPromptTemplate(id: string): Promise<PromptTemplate> {
+  const bridge = await desktopBridge();
+  if (bridge?.ResetCustomizationPromptTemplate) return promptTemplateFromPayload(await bridge.ResetCustomizationPromptTemplate(id));
+  const response = await fetch(await serverEndpoint("/__solomon/promptTemplates/reset"), {
+    body: JSON.stringify({ id }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Unable to reset prompt template: ${response.status}`);
+  return promptTemplateFromPayload(await response.json());
+}
+
+function promptTemplateFromPayload(payload: unknown): PromptTemplate {
+  const value = payload && typeof payload === "object" && "promptTemplate" in payload
+    ? (payload as { promptTemplate: unknown }).promptTemplate
+    : payload;
+  if (!value || typeof value !== "object") throw new Error("Invalid prompt template payload");
+  const record = value as Record<string, unknown>;
+  if (typeof record.id !== "string" || typeof record.title !== "string" || typeof record.content !== "string") {
+    throw new Error("Invalid prompt template payload");
+  }
+  return {
+    content: record.content,
+    id: record.id,
+    modified: Boolean(record.modified),
+    title: record.title,
+  };
+}
+
 export async function updateCustomizationSubagent(id: string, detail: string, scores: Array<{ id: string; value: number }> = []): Promise<CustomizationCatalogItem[]> {
   const bridge = await desktopBridge();
   if (bridge?.UpdateCustomizationSubagent) return catalogItemsFromPayload(await bridge.UpdateCustomizationSubagent(id, detail, scores), "subagents");
@@ -155,8 +215,8 @@ export async function saveRolesTable(characteristics: string[]): Promise<RolesTa
 }
 
 async function fetchCatalogItems(
-  key: "skills" | "mcps" | "subagents",
-  methodName: "CustomizationSkills" | "CustomizationMcps" | "CustomizationSubagents",
+  key: "skills" | "mcps" | "subagents" | "promptTemplates",
+  methodName: "CustomizationSkills" | "CustomizationMcps" | "CustomizationSubagents" | "CustomizationPromptTemplates",
   signal?: AbortSignal,
 ): Promise<CustomizationCatalogItem[]> {
   const bridge = await desktopBridge();
@@ -173,7 +233,7 @@ function customizationRulesFromPayload(payload: unknown): CustomizationRule[] {
   return payload.rules.filter(isCustomizationRule);
 }
 
-function catalogItemsFromPayload(payload: unknown, key: "skills" | "mcps" | "subagents"): CustomizationCatalogItem[] {
+function catalogItemsFromPayload(payload: unknown, key: "skills" | "mcps" | "subagents" | "promptTemplates"): CustomizationCatalogItem[] {
   if (Array.isArray(payload)) return payload.filter(isCustomizationCatalogItem);
   if (!payload || typeof payload !== "object" || !(key in payload)) return [];
   const items = (payload as Record<string, unknown>)[key];
