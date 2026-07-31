@@ -228,7 +228,38 @@ body {
   color: var(--color-text-muted);
 }
 
+.right-side-panel-files-shell {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.right-side-panel-files-shell::before,
+.right-side-panel-files-shell::after {
+  content: "";
+  height: 28px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  transition: opacity 80ms linear;
+  z-index: 1;
+}
+
+.right-side-panel-files-shell::before {
+  background: linear-gradient(to bottom, var(--color-surface), transparent);
+  opacity: var(--right-side-panel-scroll-shadow-opacity, 0);
+  top: 0;
+}
+
+.right-side-panel-files-shell::after {
+  background: linear-gradient(to top, var(--color-surface), transparent);
+  bottom: 0;
+  opacity: var(--right-side-panel-bottom-scroll-shadow-opacity, 0);
+}
+
 .right-side-panel-files {
+  height: 100%;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
