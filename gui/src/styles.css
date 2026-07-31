@@ -178,6 +178,56 @@ body {
   overflow-wrap: anywhere;
 }
 
+.right-side-panel-search {
+  align-items: center;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  display: flex;
+  flex: none;
+  gap: 7px;
+  margin: 0 8px 8px;
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.right-side-panel-search:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 20%, transparent);
+  color: var(--color-text);
+}
+
+.right-side-panel-search:has(input:disabled) {
+  opacity: 0.55;
+}
+
+.right-side-panel-search svg {
+  fill: none;
+  flex: none;
+  height: 14px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 14px;
+}
+
+.right-side-panel-search input {
+  background: transparent;
+  border: 0;
+  color: var(--color-text);
+  font: 12px/1 "Geist", ui-sans-serif, system-ui, sans-serif;
+  height: 30px;
+  min-width: 0;
+  outline: 0;
+  width: 100%;
+}
+
+.right-side-panel-search input::placeholder {
+  color: var(--color-text-muted);
+}
+
 .right-side-panel-files {
   min-height: 0;
   overflow-x: hidden;
