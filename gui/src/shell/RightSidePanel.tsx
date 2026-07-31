@@ -49,12 +49,15 @@ export function RightSidePanel({ bottomInset, onWidthChange, project, width }: R
   const [entries, setEntries] = useState<Record<string, ProjectDirectoryEntry[]>>({});
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
   const filesRef = useRef<HTMLElement>(null);
   const restoredScrollPositionRef = useRef<{ projectID: string; scrollTop: number } | null>(null);
+  const nameFilter = query.trim().toLowerCase();
 
   useEffect(() => {
     setEntries({});
     setError("");
+    setQuery("");
     if (!project) return;
     const restoredState = loadExplorerState(project.id);
     const restoredDirectories = [...new Set(restoredState.expandedDirectories)].sort((left, right) => left.split("/").length - right.split("/").length);
@@ -129,12 +132,26 @@ export function RightSidePanel({ bottomInset, onWidthChange, project, width }: R
         <span>Explorer</span>
         {project ? <span className="right-side-panel-project" title={project.path}>{project.name}</span> : null}
       </header>
+      <label className="right-side-panel-search">
+        <SearchIcon />
+        <input
+          aria-label="Filter files"
+          disabled={!project}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Filter files…"
+          type="search"
+          value={query}
+        />
+      </label>
       <nav aria-label="Project files" className="right-side-panel-files" ref={filesRef}>
         {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
         {!error && !project ? <p className="right-side-panel-message">No project open.</p> : null}
         {project && !error && !entries[""] ? <p className="right-side-panel-message">Loading files…</p> : null}
         {entries[""]?.length === 0 ? <p className="right-side-panel-message">This folder is empty.</p> : null}
-        <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} onToggleDirectory={toggleDirectory} parentPath="" />
+        {nameFilter && entries[""] && !entries[""].some((entry) => entryMatchesFilter(entry, nameFilter, entries)) ? (
+          <p className="right-side-panel-message">No files match this search.</p>
+        ) : null}
+        <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
       </nav>
     </aside>
   );
@@ -144,13 +161,22 @@ type FileEntriesProps = {
   depth: number;
   entries: Record<string, ProjectDirectoryEntry[]>;
   expandedDirectories: Set<string>;
+  nameFilter: string;
   onToggleDirectory: (entry: ProjectDirectoryEntry) => void;
   parentPath: string;
 };
 
-function FileEntries({ depth, entries, expandedDirectories, onToggleDirectory, parentPath }: FileEntriesProps) {
-  return entries[parentPath]?.map((entry) => {
-    const isExpanded = entry.isDirectory && expandedDirectories.has(entry.path);
+function entryMatchesFilter(entry: ProjectDirectoryEntry, nameFilter: string, entries: Record<string, ProjectDirectoryEntry[]>): boolean {
+  if (!nameFilter) return true;
+  if (entry.name.toLowerCase().includes(nameFilter)) return true;
+  if (!entry.isDirectory) return false;
+  return (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
+}
+
+function FileEntries({ depth, entries, expandedDirectories, nameFilter, onToggleDirectory, parentPath }: FileEntriesProps) {
+  return entries[parentPath]?.filter((entry) => entryMatchesFilter(entry, nameFilter, entries)).map((entry) => {
+    const hasMatchingChild = Boolean(nameFilter) && entry.isDirectory && (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
+    const isExpanded = entry.isDirectory && (hasMatchingChild || expandedDirectories.has(entry.path));
     return (
       <div className="right-side-panel-file" key={entry.path}>
         <button
@@ -167,13 +193,22 @@ function FileEntries({ depth, entries, expandedDirectories, onToggleDirectory, p
         {isExpanded ? (
           <div className="right-side-panel-file-children">
             {entries[entry.path] ? (
-              <FileEntries depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} onToggleDirectory={onToggleDirectory} parentPath={entry.path} />
+              <FileEntries depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={onToggleDirectory} parentPath={entry.path} />
             ) : <span className="right-side-panel-loading">Loading…</span>}
           </div>
         ) : null}
       </div>
     );
   }) ?? null;
+}
+
+function SearchIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16">
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="M10.5 10.5 14 14" />
+    </svg>
+  );
 }
 
 const specialFolderTypes: Record<string, string> = {
@@ -189,6 +224,7 @@ const specialFolderTypes: Record<string, string> = {
   ".flutter": "folder_type_flutter",
   ".flutter-devtools": "folder_type_flutter",
   ".gemini": "folder_type_gemini",
+  ".git": "folder_type_git",
   ".gradle": "folder_type_gradle",
   ".github": "folder_type_github",
   ".node": "folder_type_node",
@@ -381,6 +417,15 @@ const fileIconsByExtension: Record<string, string> = {
 
 const fileIconsByName: Record<string, string> = {
   ".gitignore": "git",
+  "go.mod": "go_package",
+  "go.sum": "go_package",
+  gnumakefile: "makefile",
+  licence: "license",
+  "licence.md": "license",
+  "licence.txt": "license",
+  license: "license",
+  "license.md": "license",
+  "license.txt": "license",
   makefile: "makefile",
 };
 
