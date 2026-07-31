@@ -9,6 +9,7 @@ import {
   type ReasoningEffort,
 } from "../projects/projects";
 import { ModelControl } from "./ModelControl";
+import { BranchControl, WorktreeControl } from "./BranchControl";
 import "./welcome.css";
 import "./welcome-reasoning.css";
 
@@ -41,11 +42,12 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
   const [projects, setProjects] = useState<Project[]>([]);
   const [workspaceName, setWorkspaceName] = useState("Home");
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedProvider, setSelectedProvider] = useState("");
   const [draft, setDraft] = useState("");
   const [fastOn, setFastOn] = useState(false);
   const [agentOn, setAgentOn] = useState(true);
-  const [openMenu, setOpenMenu] = useState<"workspace" | "model" | "reasoning" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"workspace" | "model" | "reasoning" | "branch" | "worktree" | null>(null);
   const [visibility, setVisibility] = useState<Visibility>({ banner: true, title: true, folder: true, composer: true });
   const screenRef = useRef<HTMLElement>(null);
   const measureBannerRef = useRef<HTMLDivElement>(null);
@@ -86,15 +88,19 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
         if (focus) {
           const focused = data.projects.find((project) => project.id === focus.project.id) ?? focus.project;
           setWorkspaceName(focused.name);
+          setSelectedProject(focused);
           onWorkspaceChange?.(focused);
           return;
         }
-        onWorkspaceChange?.(data.projects.find((project) => project.name === "Home") ?? null);
+        const home = data.projects.find((project) => project.name === "Home") ?? null;
+        setSelectedProject(home);
+        onWorkspaceChange?.(home);
       })
       .catch(() => {
         setUserName("");
         setReasoning("none");
         setProjects([]);
+        setSelectedProject(null);
         if (!workspaceFocusRef.current) onWorkspaceChange?.(null);
       });
     return () => controller.abort();
@@ -103,6 +109,7 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
   useEffect(() => {
     if (!workspaceFocus) return;
     setWorkspaceName(workspaceFocus.project.name);
+    setSelectedProject(workspaceFocus.project);
     onWorkspaceChange?.(workspaceFocus.project);
   }, [onWorkspaceChange, workspaceFocus]);
 
@@ -166,16 +173,18 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
             <ChevronIcon />
           </button>
         </div>
-        <div className="welcome-composer" ref={measureComposerRef}>
-          <textarea aria-hidden="true" className="welcome-input" readOnly rows={3} tabIndex={-1} value={draft} />
-          <div className="welcome-toolbar">
-            <div className="welcome-toolbar-left">
-              <button className="welcome-model-trigger" tabIndex={-1} type="button"><span>Select model</span><ChevronIcon /></button>
-              <span aria-hidden="true" className="welcome-toolbar-sep" />
-              <button className="welcome-reasoning-label" tabIndex={-1} type="button"><strong>None</strong><ChevronIcon /></button>
-              <button className="welcome-mode is-agent" tabIndex={-1} type="button"><span className="welcome-mode-icon"><BotIcon /></span><span>Agent</span></button>
+        <div className="welcome-composer-dock" ref={measureComposerRef}>
+          <div className="welcome-composer">
+            <textarea aria-hidden="true" className="welcome-input" readOnly rows={3} tabIndex={-1} value={draft} />
+            <div className="welcome-toolbar">
+              <div className="welcome-toolbar-left">
+                <button className="welcome-model-trigger" tabIndex={-1} type="button"><span>Select model</span><ChevronIcon /></button>
+                <span aria-hidden="true" className="welcome-toolbar-sep" />
+                <button className="welcome-reasoning-label" tabIndex={-1} type="button"><strong>None</strong><ChevronIcon /></button>
+                <button className="welcome-mode is-agent" tabIndex={-1} type="button"><span className="welcome-mode-icon"><BotIcon /></span><span>Agent</span></button>
+              </div>
+              <button className="welcome-send" tabIndex={-1} type="button"><SendIcon /></button>
             </div>
-            <button className="welcome-send" tabIndex={-1} type="button"><SendIcon /></button>
           </div>
         </div>
       </div>
@@ -202,6 +211,7 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
               onOpenChange={(open) => setOpenMenu(open ? "workspace" : null)}
               onSelect={(project) => {
                 setWorkspaceName(project?.name ?? "Home");
+                setSelectedProject(project ?? null);
                 onWorkspaceChange?.(project ?? null);
               }}
               homeProject={projects.find((project) => project.name === "Home")}
@@ -213,62 +223,88 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
         ) : null}
 
         {visibility.composer ? (
-          <div className="welcome-composer" ref={composerRef}>
-            <textarea
-              aria-label="Ask Solomon"
-              className="welcome-input"
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Ask Solomon anything..."
-              rows={3}
-              value={draft}
-            />
-            <div className="welcome-toolbar">
-              <div className="welcome-toolbar-left">
-                <ModelControl
-                  onModelChange={(choice) => {
-                    setSelectedProvider(choice.provider);
-                    if (!fastModeAvailableFor(choice.provider)) setFastOn(false);
-                  }}
-                  onOpenChange={(open) => setOpenMenu(open ? "model" : null)}
-                  open={openMenu === "model"}
-                />
-                <span aria-hidden="true" className="welcome-toolbar-sep" />
-                <div className="welcome-toolbar-modes">
-                  <ReasoningControl
-                    fastAvailable={fastAvailable}
-                    fastOn={fastOn}
-                    onChange={(value) => {
-                      const previous = reasoning;
-                      setReasoning(value);
-                      void saveReasoningEffort(value).then(setReasoning).catch(() => setReasoning(previous));
+          <div className="welcome-composer-dock" ref={composerRef}>
+            <div className="welcome-composer">
+              <textarea
+                aria-label="Ask Solomon"
+                className="welcome-input"
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="Ask Solomon anything..."
+                rows={3}
+                value={draft}
+              />
+              <div className="welcome-toolbar">
+                <div className="welcome-toolbar-left">
+                  <ModelControl
+                    onModelChange={(choice) => {
+                      setSelectedProvider(choice.provider);
+                      if (!fastModeAvailableFor(choice.provider)) setFastOn(false);
                     }}
-                    onFastChange={setFastOn}
-                    onOpenChange={(open) => setOpenMenu(open ? "reasoning" : null)}
-                    open={openMenu === "reasoning"}
-                    value={reasoning}
+                    onOpenChange={(open) => setOpenMenu(open ? "model" : null)}
+                    open={openMenu === "model"}
                   />
-                  <button
-                    aria-pressed={agentOn}
-                    className={`welcome-mode ${agentOn ? "is-agent" : "is-chat"}`}
-                    onClick={() => setAgentOn((value) => !value)}
-                    type="button"
-                  >
-                    <span aria-hidden="true" className="welcome-mode-icon">
-                      {agentOn ? <CrownIcon /> : <ChatIcon />}
-                    </span>
-                    <span>{agentOn ? "Agent" : "Chat"}</span>
-                  </button>
+                  <span aria-hidden="true" className="welcome-toolbar-sep" />
+                  <div className="welcome-toolbar-modes">
+                    <ReasoningControl
+                      fastAvailable={fastAvailable}
+                      fastOn={fastOn}
+                      onChange={(value) => {
+                        const previous = reasoning;
+                        setReasoning(value);
+                        void saveReasoningEffort(value).then(setReasoning).catch(() => setReasoning(previous));
+                      }}
+                      onFastChange={setFastOn}
+                      onOpenChange={(open) => setOpenMenu(open ? "reasoning" : null)}
+                      open={openMenu === "reasoning"}
+                      value={reasoning}
+                    />
+                    <button
+                      aria-pressed={agentOn}
+                      className={`welcome-mode ${agentOn ? "is-agent" : "is-chat"}`}
+                      onClick={() => setAgentOn((value) => !value)}
+                      type="button"
+                    >
+                      <span aria-hidden="true" className="welcome-mode-icon">
+                        {agentOn ? <CrownIcon /> : <ChatIcon />}
+                      </span>
+                      <span>{agentOn ? "Agent" : "Chat"}</span>
+                    </button>
+                  </div>
                 </div>
+                <button aria-label="Send" className="welcome-send" type="button">
+                  <SendIcon />
+                </button>
               </div>
-              <button aria-label="Send" className="welcome-send" type="button">
-                <SendIcon />
-              </button>
+            </div>
+            <div className="welcome-git-controls">
+              <BranchControl
+                onOpenChange={(open) => setOpenMenu(open ? "branch" : null)}
+                open={openMenu === "branch"}
+                project={selectedProject}
+              />
+              <WorktreeControl
+                onOpenChange={(open) => setOpenMenu(open ? "worktree" : null)}
+                onSelect={(worktree) => {
+                  const matched = projects.find((entry) => projectPathsMatch(entry.path, worktree.path));
+                  if (!matched) return;
+                  setWorkspaceName(matched.name);
+                  setSelectedProject(matched);
+                  onWorkspaceChange?.(matched);
+                }}
+                open={openMenu === "worktree"}
+                project={selectedProject}
+              />
             </div>
           </div>
         ) : null}
       </div>
     </section>
   );
+}
+
+function projectPathsMatch(left: string, right: string): boolean {
+  const normalize = (value: string) => value.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return normalize(left) === normalize(right);
 }
 
 function fastModeAvailableFor(provider: string): boolean {

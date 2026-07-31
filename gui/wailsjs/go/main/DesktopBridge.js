@@ -42,6 +42,18 @@ export function ProjectSidebarData() {
   return window['go']['main']['DesktopBridge']['ProjectSidebarData']();
 }
 
+export function ProjectBranches(arg1) {
+  return window['go']['main']['DesktopBridge']['ProjectBranches'](arg1);
+}
+
+export function ProjectWorktrees(arg1) {
+  return window['go']['main']['DesktopBridge']['ProjectWorktrees'](arg1);
+}
+
+export function CheckoutProjectBranch(arg1, arg2) {
+  return window['go']['main']['DesktopBridge']['CheckoutProjectBranch'](arg1, arg2);
+}
+
 export function ReorderCustomizationRules(arg1) {
   return window['go']['main']['DesktopBridge']['ReorderCustomizationRules'](arg1);
 }

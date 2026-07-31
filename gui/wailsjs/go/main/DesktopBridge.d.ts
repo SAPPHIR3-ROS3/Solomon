@@ -24,6 +24,12 @@ export function ProjectSidebarData():Promise<main.desktopSidebarData>;
 
 export function ProjectDirectoryEntries(arg1:string,arg2:string):Promise<Array<unknown>>;
 
+export function ProjectBranches(arg1:string):Promise<main.desktopProjectBranches>;
+
+export function ProjectWorktrees(arg1:string):Promise<main.desktopProjectWorktrees>;
+
+export function CheckoutProjectBranch(arg1:string,arg2:string):Promise<main.desktopProjectBranches>;
+
 export function ReorderCustomizationRules(arg1:Array<number>):Promise<Array<main.desktopRule>>;
 
 export function RolesTable():Promise<main.desktopRolesTable>;
