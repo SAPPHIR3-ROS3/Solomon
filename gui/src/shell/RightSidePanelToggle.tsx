@@ -1,9 +1,10 @@
 type RightSidePanelToggleProps = {
+  disabled?: boolean;
   isOpen: boolean;
   onToggle: () => void;
 };
 
-export function RightSidePanelToggle({ isOpen, onToggle }: RightSidePanelToggleProps) {
+export function RightSidePanelToggle({ disabled = false, isOpen, onToggle }: RightSidePanelToggleProps) {
   const label = isOpen ? "Collapse right side panel" : "Expand right side panel";
 
   return (
@@ -12,6 +13,7 @@ export function RightSidePanelToggle({ isOpen, onToggle }: RightSidePanelToggleP
       aria-expanded={isOpen}
       aria-label={label}
       className={`right-side-panel-toggle${isOpen ? " is-active" : ""}`}
+      disabled={disabled}
       onClick={onToggle}
       title={label}
       type="button"

@@ -159,3 +159,50 @@ func ResetTemplateToEmbedded(name string) error {
 	}
 	return WriteTemplateFile(name, emb)
 }
+
+func AcceptTemplateContent(name, content string) error {
+	if _, ok := EmbeddedTemplate(name); !ok {
+		return os.ErrNotExist
+	}
+	if err := WriteTemplateFile(name, content); err != nil {
+		return err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if err := recordTemplateAccepted(cfg, name); err != nil {
+		return err
+	}
+	return config.Save(cfg)
+}
+
+func ResetTemplateToDefault(name string) (string, error) {
+	if err := ResetTemplateToEmbedded(name); err != nil {
+		return "", err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return "", err
+	}
+	clearTemplateTracking(cfg, name)
+	if err := config.Save(cfg); err != nil {
+		return "", err
+	}
+	return ReadTemplateFile(name)
+}
+
+func TemplateDiffersFromEmbedded(name string) (bool, error) {
+	emb, ok := EmbeddedTemplate(name)
+	if !ok {
+		return false, os.ErrNotExist
+	}
+	content, err := ReadTemplateFile(name)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return content != emb, nil
+}
