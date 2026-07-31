@@ -236,6 +236,70 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class desktopProjectBranches {
+	    branches: string[];
+	    current: string;
+	    isRepo: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new desktopProjectBranches(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.branches = source["branches"];
+	        this.current = source["current"];
+	        this.isRepo = source["isRepo"];
+	    }
+	}
+	export class desktopProjectWorktree {
+	    bare: boolean;
+	    branch: string;
+	    current: boolean;
+	    path: string;
+
+	    static createFrom(source: any = {}) {
+	        return new desktopProjectWorktree(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.bare = source["bare"];
+	        this.branch = source["branch"];
+	        this.current = source["current"];
+	        this.path = source["path"];
+	    }
+	}
+	export class desktopProjectWorktrees {
+	    worktrees: desktopProjectWorktree[];
+
+	    static createFrom(source: any = {}) {
+	        return new desktopProjectWorktrees(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.worktrees = this.convertValues(source["worktrees"], desktopProjectWorktree);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class desktopModelChoice {
 	    model: string;
 	    provider: string;
