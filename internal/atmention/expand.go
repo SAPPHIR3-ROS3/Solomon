@@ -44,8 +44,8 @@ func ExpandLine(ctx context.Context, visible, projRoot string, index []Entry) (a
 			b.WriteString(fmt.Sprintf("\n\n[atmention: file @%s: %v]", tag, err))
 			continue
 		}
-		if len(data) > replMaxFileExpandBytes || isBinary(data) {
-			b.WriteString(fmt.Sprintf("\n\n[atmention: file @%s: binary or too large to attach]", tag))
+		if isBinary(data) {
+			b.WriteString(fmt.Sprintf("\n\n[atmention: file @%s: binary file cannot be attached]", tag))
 			continue
 		}
 		b.WriteString(fmt.Sprintf("\n\n--- file %s ---\n%s", entry.RelPath, string(data)))

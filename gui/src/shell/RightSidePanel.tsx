@@ -2,31 +2,76 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { fetchProjectDirectoryEntries, type Project, type ProjectDirectoryEntry } from "../projects/projects";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
+const EXPLORER_STATE_STORAGE_PREFIX = "solomon.explorer-state.v1";
+
+type ExplorerState = {
+  expandedDirectories: string[];
+  scrollTop: number;
+};
+
+function explorerStateStorageKey(projectID: string) {
+  return `${EXPLORER_STATE_STORAGE_PREFIX}.${projectID}`;
+}
+
+function loadExplorerState(projectID: string): ExplorerState {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(explorerStateStorageKey(projectID)) ?? "null");
+    if (!value || typeof value !== "object") return { expandedDirectories: [], scrollTop: 0 };
+    const { expandedDirectories, scrollTop } = value as Partial<ExplorerState>;
+    return {
+      expandedDirectories: Array.isArray(expandedDirectories) ? expandedDirectories.filter((path): path is string => typeof path === "string") : [],
+      scrollTop: typeof scrollTop === "number" && Number.isFinite(scrollTop) && scrollTop > 0 ? scrollTop : 0,
+    };
+  } catch {
+    return { expandedDirectories: [], scrollTop: 0 };
+  }
+}
+
+function saveExplorerState(projectID: string, expandedDirectories: Set<string>, scrollTop: number) {
+  try {
+    window.localStorage.setItem(explorerStateStorageKey(projectID), JSON.stringify({
+      expandedDirectories: [...expandedDirectories],
+      scrollTop: Math.max(0, scrollTop),
+    } satisfies ExplorerState));
+  } catch {
+    // The app remains fully usable when browser storage is unavailable.
+  }
+}
+
 type RightSidePanelProps = {
   bottomInset: number;
-  onContentWidthChange: (width: number) => void;
   onWidthChange: (width: number) => void;
   project: Project | null;
   width: number;
 };
 
-export function RightSidePanel({ bottomInset, onContentWidthChange, onWidthChange, project, width }: RightSidePanelProps) {
+export function RightSidePanel({ bottomInset, onWidthChange, project, width }: RightSidePanelProps) {
   const [entries, setEntries] = useState<Record<string, ProjectDirectoryEntry[]>>({});
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
-  const panelRef = useRef<HTMLElement>(null);
   const filesRef = useRef<HTMLElement>(null);
-  const measureRef = useRef<HTMLSpanElement>(null);
+  const restoredScrollPositionRef = useRef<{ projectID: string; scrollTop: number } | null>(null);
 
   useEffect(() => {
     setEntries({});
-    setExpandedDirectories(new Set());
     setError("");
     if (!project) return;
+    const restoredState = loadExplorerState(project.id);
+    const restoredDirectories = [...new Set(restoredState.expandedDirectories)].sort((left, right) => left.split("/").length - right.split("/").length);
+    setExpandedDirectories(new Set(restoredDirectories));
+    restoredScrollPositionRef.current = { projectID: project.id, scrollTop: restoredState.scrollTop };
     let cancelled = false;
     void fetchProjectDirectoryEntries(project.id)
-      .then((rootEntries) => {
-        if (!cancelled) setEntries({ "": rootEntries });
+      .then(async (rootEntries) => {
+        const restoredEntries: Record<string, ProjectDirectoryEntry[]> = { "": rootEntries };
+        await Promise.all(restoredDirectories.map(async (path) => {
+          try {
+            restoredEntries[path] = await fetchProjectDirectoryEntries(project.id, path);
+          } catch {
+            // A folder may have been renamed or removed since the state was saved.
+          }
+        }));
+        if (!cancelled) setEntries(restoredEntries);
       })
       .catch(() => {
         if (!cancelled) setError("Could not load the project files.");
@@ -38,67 +83,23 @@ export function RightSidePanel({ bottomInset, onContentWidthChange, onWidthChang
 
   useEffect(() => {
     const files = filesRef.current;
-    const panel = panelRef.current;
-    const measure = measureRef.current;
-    if (!files || !panel || !measure) return;
+    if (!files || !project || !entries[""]) return;
+    const restoredPosition = restoredScrollPositionRef.current;
+    if (!restoredPosition || restoredPosition.projectID !== project.id) return;
+    const frame = window.requestAnimationFrame(() => {
+      files.scrollTop = restoredPosition.scrollTop;
+      restoredScrollPositionRef.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [entries, expandedDirectories, project]);
 
-    const updateContentWidth = () => {
-      const panelStyle = window.getComputedStyle(panel);
-      const filesStyle = window.getComputedStyle(files);
-      const sampleRow = files.querySelector<HTMLButtonElement>(".right-side-panel-file-row");
-      const sampleIcon = sampleRow?.querySelector("svg");
-      const sampleLabel = sampleRow?.querySelector("span");
-      if (!sampleRow || !sampleIcon || !sampleLabel) {
-        onContentWidthChange(240);
-        return;
-      }
-
-      const rowStyle = window.getComputedStyle(sampleRow);
-      const labelStyle = window.getComputedStyle(sampleLabel);
-      const children = files.querySelector(".right-side-panel-file-children");
-      const childrenStyle = children ? window.getComputedStyle(children) : null;
-      const nestPerLevel = childrenStyle
-        ? (Number.parseFloat(childrenStyle.marginLeft) || 0) + (Number.parseFloat(childrenStyle.paddingLeft) || 0)
-        : 17;
-      const iconWidth = sampleIcon.getBoundingClientRect().width || 15;
-      const gap = Number.parseFloat(rowStyle.gap) || 0;
-      const rowPad = (Number.parseFloat(rowStyle.paddingLeft) || 0) + (Number.parseFloat(rowStyle.paddingRight) || 0);
-      const filesPad = (Number.parseFloat(filesStyle.paddingLeft) || 0) + (Number.parseFloat(filesStyle.paddingRight) || 0);
-      const panelBorder = (Number.parseFloat(panelStyle.borderLeftWidth) || 0) + (Number.parseFloat(panelStyle.borderRightWidth) || 0);
-      const scrollbarGap = files.offsetWidth - files.clientWidth;
-      const scrollbar = files.scrollHeight > files.clientHeight ? Math.max(scrollbarGap, 10) : scrollbarGap;
-
-      measure.style.fontFamily = labelStyle.fontFamily;
-      measure.style.fontSize = labelStyle.fontSize;
-      measure.style.fontWeight = labelStyle.fontWeight;
-      measure.style.fontStyle = labelStyle.fontStyle;
-      measure.style.letterSpacing = labelStyle.letterSpacing;
-      measure.style.lineHeight = labelStyle.lineHeight;
-
-      let longest = 240;
-      for (const row of files.querySelectorAll<HTMLButtonElement>(".right-side-panel-file-row")) {
-        const label = row.querySelector("span");
-        if (!label) continue;
-        const depth = Number(row.dataset.depth) || 0;
-        measure.textContent = label.textContent ?? "";
-        const labelWidth = Math.max(measure.offsetWidth, label.scrollWidth);
-        longest = Math.max(
-          longest,
-          panelBorder + filesPad + depth * nestPerLevel + rowPad + iconWidth + gap + labelWidth + scrollbar,
-        );
-      }
-      onContentWidthChange(Math.ceil(longest));
-    };
-
-    const frame = window.requestAnimationFrame(updateContentWidth);
-    void document.fonts?.ready.then(updateContentWidth);
-    const resizeObserver = new ResizeObserver(updateContentWidth);
-    resizeObserver.observe(files);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      resizeObserver.disconnect();
-    };
-  }, [entries, expandedDirectories, onContentWidthChange, width]);
+  useEffect(() => {
+    const files = filesRef.current;
+    if (!files || !project) return;
+    const saveScrollPosition = () => saveExplorerState(project.id, expandedDirectories, files.scrollTop);
+    files.addEventListener("scroll", saveScrollPosition, { passive: true });
+    return () => files.removeEventListener("scroll", saveScrollPosition);
+  }, [expandedDirectories, project]);
 
   function toggleDirectory(entry: ProjectDirectoryEntry) {
     if (!project) return;
@@ -107,6 +108,7 @@ export function RightSidePanel({ bottomInset, onContentWidthChange, onWidthChang
       const next = new Set(current);
       if (isExpanded) next.delete(entry.path);
       else next.add(entry.path);
+      saveExplorerState(project.id, next, filesRef.current?.scrollTop ?? 0);
       return next;
     });
     if (isExpanded || entries[entry.path]) return;
@@ -120,7 +122,6 @@ export function RightSidePanel({ bottomInset, onContentWidthChange, onWidthChang
       aria-label="Right side panel"
       className="right-side-panel"
       id="right-side-panel"
-      ref={panelRef}
       style={{ "--right-side-panel-bottom-inset": `${bottomInset}px` } as CSSProperties}
     >
       <SidePanelResizeHandle onWidthChange={onWidthChange} side="right" width={width} />
@@ -135,7 +136,6 @@ export function RightSidePanel({ bottomInset, onContentWidthChange, onWidthChang
         {entries[""]?.length === 0 ? <p className="right-side-panel-message">This folder is empty.</p> : null}
         <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} onToggleDirectory={toggleDirectory} parentPath="" />
       </nav>
-      <span aria-hidden="true" className="right-side-panel-measure" ref={measureRef} />
     </aside>
   );
 }
@@ -161,7 +161,7 @@ function FileEntries({ depth, entries, expandedDirectories, onToggleDirectory, p
           title={entry.name}
           type="button"
         >
-          {entry.isDirectory ? <FolderIcon isOpen={isExpanded} /> : <FileIcon />}
+          {entry.isDirectory ? <FolderIcon name={entry.name} isOpen={isExpanded} /> : <FileIcon fileName={entry.name} />}
           <span>{entry.name}</span>
         </button>
         {isExpanded ? (
@@ -176,21 +176,223 @@ function FileEntries({ depth, entries, expandedDirectories, onToggleDirectory, p
   }) ?? null;
 }
 
-function FolderIcon({ isOpen }: { isOpen: boolean }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d={isOpen
-        ? "m5 10 1.5-2.5A2 2 0 0 1 8.2 6.5H20a2 2 0 0 1 1.94 2.5l-1.5 7.5a2 2 0 0 1-1.96 1.6H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4l1.5 2h8.5a2 2 0 0 1 2 2v1"
-        : "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8L10.5 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"}
-      />
-    </svg>
-  );
+const specialFolderTypes: Record<string, string> = {
+  ".android": "folder_type_android",
+  ".anthropic": "folder_type_claude",
+  ".cargo": "folder_type_cargo",
+  ".claude": "folder_type_claude",
+  ".copilot": "folder_type_github",
+  ".copilot-chat": "folder_type_github",
+  ".cursor": "folder_type_cursor",
+  ".cursor-server": "folder_type_cursor",
+  ".docker": "folder_type_docker",
+  ".flutter": "folder_type_flutter",
+  ".flutter-devtools": "folder_type_flutter",
+  ".gemini": "folder_type_gemini",
+  ".gradle": "folder_type_gradle",
+  ".github": "folder_type_github",
+  ".node": "folder_type_node",
+  ".python": "folder_type_python",
+  ".solomon": "folder_type_config",
+  ".vscode": "folder_type_vscode",
+  ".windsurf": "folder_type_windsurf",
+  android: "folder_type_android",
+  Applications: "folder_type_applications",
+  "Applications (Parallels)": "folder_type_applications",
+  anthropic: "folder_type_claude",
+  components: "folder_type_library",
+  docker: "folder_type_docker",
+  docs: "folder_type_docs",
+  Documents: "folder_type_docs",
+  Downloads: "folder_type_downloads",
+  flutter: "folder_type_flutter",
+  Flutter: "folder_type_flutter",
+  internal: "folder_type_src",
+  Library: "folder_type_library",
+  Movies: "folder_type_video",
+  movies: "folder_type_video",
+  Music: "folder_type_audio",
+  music: "folder_type_audio",
+  node_modules: "folder_type_node",
+  Photos: "folder_type_images",
+  photos: "folder_type_images",
+  Pictures: "folder_type_images",
+  pictures: "folder_type_images",
+  Public: "folder_type_public",
+  python: "folder_type_python",
+  scripts: "folder_type_tools",
+  src: "folder_type_src",
+  test: "folder_type_test",
+  tests: "folder_type_test",
+  tools: "folder_type_tools",
+  "ui-prototypes": "folder_type_library",
+  Videos: "folder_type_video",
+  videos: "folder_type_video",
+};
+
+const specialFolderBadges: Record<string, string> = {
+  ".bun": "bun",
+  ".cocoapods": "cocoapods",
+  ".codex": "openai",
+  ".conda": "anaconda",
+  ".dart-tool": "dart",
+  ".dartServer": "dart",
+  ".eclipse": "eclipseide",
+  ".homebrew": "homebrew",
+  ".jupyter": "jupyter",
+  ".jupiter": "jupyter",
+  ".openai": "openai",
+  ".opencode": "opencode",
+  ".ollama": "ollama",
+  ".npm": "npm",
+  ".rustup": "rust",
+  ".swiftpm": "swift",
+  bun: "bun",
+  cocoapods: "cocoapods",
+  eclipse: "eclipseide",
+  go: "go",
+  homebrew: "homebrew",
+  ipython: "jupyter",
+  jupyter: "jupyter",
+  jupiter: "jupyter",
+  miniforge3: "anaconda",
+  npm: "npm",
+  ollama: "ollama",
+  openai: "openai",
+  opencode: "opencode",
+  "oracle-cursor": "cursor",
+  rustup: "rust",
+  swiftpm: "swift",
+};
+
+const standaloneFolderIcons: Record<string, string> = {
+  Desktop: "desktop",
+};
+
+function FolderIcon({ name, isOpen }: { name: string; isOpen: boolean }) {
+  const standaloneIcon = standaloneFolderIcons[name];
+  if (standaloneIcon) return <img aria-hidden="true" className="right-side-panel-file-icon" src={`/vscode-icons/${standaloneIcon}.svg`} />;
+  const badge = specialFolderBadges[name];
+  const folderType = specialFolderTypes[name] ?? "default_folder";
+  const icon = <img aria-hidden="true" className="right-side-panel-folder-image" src={`/vscode-icons/${folderType}${isOpen ? "_opened" : ""}.svg`} />;
+  if (!badge) return <span aria-hidden="true" className="right-side-panel-file-icon">{icon}</span>;
+  return <span aria-hidden="true" className="right-side-panel-file-icon">{icon}<img className="right-side-panel-folder-badge" src={`/vscode-icons/${badge}.svg`} /></span>;
 }
 
-function FileIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M6 3h8l4 4v14H6zM14 3v5h5" />
-    </svg>
-  );
+const fileIconsByExtension: Record<string, string> = {
+  "7z": "file_type_zip",
+  aac: "file_type_audio",
+  ai: "file_type_image",
+  aif: "file_type_audio",
+  aiff: "file_type_audio",
+  avif: "file_type_image",
+  avi: "file_type_video",
+  bmp: "file_type_image",
+  bz2: "file_type_zip",
+  c: "c",
+  cc: "cpp",
+  cjs: "javascript",
+  coffee: "javascript",
+  cpp: "cpp",
+  css: "css",
+  cs: "csharp",
+  csh: "shell",
+  csx: "csharp",
+  cts: "typescript",
+  cxx: "cpp",
+  csv: "file_type_excel",
+  dart: "dart",
+  db: "file_type_db",
+  doc: "file_type_word",
+  docx: "file_type_word",
+  flac: "file_type_audio",
+  gif: "file_type_image",
+  gz: "file_type_zip",
+  h: "c",
+  htm: "html",
+  html: "html",
+  hpp: "cpp",
+  hxx: "cpp",
+  heic: "file_type_image",
+  ico: "file_type_image",
+  jpeg: "file_type_image",
+  jpg: "file_type_image",
+  java: "java",
+  jl: "julia",
+  js: "javascript",
+  jsx: "javascript",
+  key: "file_type_powerpoint",
+  kt: "kotlin",
+  kts: "kotlin",
+  lua: "lua",
+  m4a: "file_type_audio",
+  m4v: "file_type_video",
+  mkv: "file_type_video",
+  mov: "file_type_video",
+  mjs: "javascript",
+  mts: "typescript",
+  mp3: "file_type_mp3",
+  mp4: "file_type_video",
+  ods: "file_type_excel",
+  odt: "file_type_word",
+  ogg: "file_type_audio",
+  pdf: "file_type_pdf",
+  php: "php",
+  phtml: "php",
+  png: "file_type_image",
+  ppt: "file_type_powerpoint",
+  pptx: "file_type_powerpoint",
+  psd: "file_type_image",
+  py: "python",
+  pyi: "python",
+  pyw: "python",
+  pyx: "python",
+  rar: "file_type_zip",
+  rake: "ruby",
+  rb: "ruby",
+  rs: "rust",
+  sass: "css",
+  scss: "css",
+  sql: "file_type_db",
+  sqlite: "file_type_sqlite",
+  sqlite3: "file_type_sqlite",
+  svg: "file_type_image",
+  sh: "shell",
+  swift: "swift",
+  svelte: "svelte",
+  ts: "typescript",
+  tsx: "typescript",
+  vue: "vue",
+  xhtml: "html",
+  tar: "file_type_zip",
+  tiff: "file_type_image",
+  txt: "file_type_text",
+  wav: "file_type_audio",
+  webm: "file_type_video",
+  webp: "file_type_image",
+  xls: "file_type_excel",
+  xlsx: "file_type_excel",
+  xml: "file_type_xml",
+  xz: "file_type_zip",
+  yaml: "file_type_yaml",
+  yml: "file_type_yaml",
+  zip: "file_type_zip",
+};
+
+const fileIconsByName: Record<string, string> = {
+  ".gitignore": "git",
+  makefile: "makefile",
+};
+
+function FileIcon({ fileName }: { fileName: string }) {
+  const normalizedFileName = fileName.toLowerCase();
+  const extension = normalizedFileName.split(".").at(-1) ?? "";
+  const icon = fileIconsByName[normalizedFileName]
+    ?? (normalizedFileName.endsWith(".go") ? "go" : undefined)
+    ?? (normalizedFileName.endsWith(".json") ? "json" : undefined)
+    ?? (normalizedFileName.endsWith(".md") ? "markdown" : undefined)
+    ?? (normalizedFileName.endsWith(".env") || normalizedFileName === ".env" ? "env" : undefined)
+    ?? fileIconsByExtension[extension]
+    ?? "file";
+  return <img aria-hidden="true" className="right-side-panel-file-icon" src={`/vscode-icons/${icon}.svg`} />;
 }
