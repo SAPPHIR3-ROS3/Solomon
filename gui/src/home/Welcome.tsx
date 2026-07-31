@@ -24,6 +24,7 @@ type WelcomeProps = {
   onComposerBoundsChange?: (bounds: { left: number; right: number }) => void;
   onKeepAliveHeightChange?: (height: number) => void;
   onWorkspaceChange?: (project: Project | null) => void;
+  workspaceFocus?: { project: Project; token: number } | null;
 };
 
 type Visibility = {
@@ -35,7 +36,7 @@ type Visibility = {
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
-export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHeightChange, onWorkspaceChange }: WelcomeProps) {
+export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHeightChange, onWorkspaceChange, workspaceFocus = null }: WelcomeProps) {
   const [userName, setUserName] = useState("");
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -89,6 +90,11 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
       });
     return () => controller.abort();
   }, [onWorkspaceChange]);
+
+  useEffect(() => {
+    if (!workspaceFocus) return;
+    setWorkspaceName(workspaceFocus.project.name);
+  }, [workspaceFocus]);
 
   useLayoutEffect(() => {
     const screen = screenRef.current;

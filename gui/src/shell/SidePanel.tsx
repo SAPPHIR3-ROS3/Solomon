@@ -20,15 +20,24 @@ type ProjectRemovalDialog = {
 };
 
 type SidePanelProps = {
+  armedTerminalProjectIds: string[];
   bottomInset: number;
   isCustomizationOpen: boolean;
-  onContentWidthChange: (width: number) => void;
+  onOpenProjectTerminal: (project: Project) => void;
   onToggleCustomization: () => void;
   onWidthChange: (width: number) => void;
   width: number;
 };
 
-export function SidePanel({ bottomInset, isCustomizationOpen, onContentWidthChange, onToggleCustomization, onWidthChange, width }: SidePanelProps) {
+export function SidePanel({
+  armedTerminalProjectIds,
+  bottomInset,
+  isCustomizationOpen,
+  onOpenProjectTerminal,
+  onToggleCustomization,
+  onWidthChange,
+  width,
+}: SidePanelProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectContextMenu, setProjectContextMenu] = useState<ProjectContextMenu | null>(null);
   const [projectRemovalDialog, setProjectRemovalDialog] = useState<ProjectRemovalDialog | null>(null);
@@ -103,48 +112,6 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onContentWidthChan
       list.removeEventListener("scroll", updateScrollThumb);
     };
   }, [bottomInset, openProjectIds, projects, visibleChatCounts]);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const list = projectsListRef.current;
-      if (!list) return;
-      let longest = 240;
-      const horizontalPadding = 16;
-      const children = list.querySelector(".side-panel-project-children");
-      const childrenStyle = children ? window.getComputedStyle(children) : null;
-      const nestIndent = childrenStyle
-        ? (Number.parseFloat(childrenStyle.marginLeft) || 0) + (Number.parseFloat(childrenStyle.paddingLeft) || 0)
-        : 0;
-
-      for (const row of list.querySelectorAll<HTMLButtonElement>(".side-panel-chat")) {
-        const label = row.querySelector("span");
-        const time = row.querySelector("time");
-        if (!label || !time) continue;
-        const style = window.getComputedStyle(row);
-        const gap = Number.parseFloat(style.columnGap || style.gap) || 0;
-        longest = Math.max(
-          longest,
-          nestIndent + label.scrollWidth + time.getBoundingClientRect().width + gap
-            + Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight) + horizontalPadding,
-        );
-      }
-
-      for (const trigger of list.querySelectorAll<HTMLButtonElement>(".side-panel-project-trigger")) {
-        const label = trigger.querySelector("span");
-        const icon = trigger.querySelector("svg");
-        if (!label || !icon) continue;
-        const style = window.getComputedStyle(trigger);
-        const gap = Number.parseFloat(style.gap) || 0;
-        longest = Math.max(
-          longest,
-          label.scrollWidth + icon.getBoundingClientRect().width + gap + 32
-            + Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight) + horizontalPadding,
-        );
-      }
-      onContentWidthChange(Math.ceil(longest));
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [onContentWidthChange, openProjectIds, projects, visibleChatCounts]);
 
   useEffect(() => {
     if (!projectContextMenu) return;
@@ -352,6 +319,17 @@ export function SidePanel({ bottomInset, isCustomizationOpen, onContentWidthChan
                   <FolderIcon isOpen={isProjectOpen} />
                   <span>{project.name}</span>
                 </button>
+                {armedTerminalProjectIds.includes(project.id) ? (
+                  <button
+                    aria-label={`Open terminal for ${project.name}`}
+                    className="side-panel-project-terminal"
+                    onClick={() => onOpenProjectTerminal(project)}
+                    title={`Open terminal for ${project.name}`}
+                    type="button"
+                  >
+                    <ProjectTerminalIcon />
+                  </button>
+                ) : null}
                 <button aria-label={`New project in ${project.name}`} className="side-panel-project-new" title={`New project in ${project.name}`} type="button">
                   <PlusIcon />
                 </button>
@@ -538,6 +516,16 @@ function PlusIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function ProjectTerminalIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="m7 11 2-2-2-2" />
+      <path d="M11 13h4" />
+      <rect height="18" rx="2" ry="2" width="18" x="3" y="3" />
     </svg>
   );
 }

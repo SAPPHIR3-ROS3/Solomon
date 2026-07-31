@@ -43,7 +43,6 @@ func execFindText(ctx context.Context, env *Env, root string, a *findArgs) (any,
 	candidates, err := parallelFileWalk(cctx, fileWalkOpts{
 		Root:             root,
 		RespectGitignore: true,
-		MaxFileBytes:     maxFindFileBytes,
 		SkipBinary:       true,
 	})
 	if err != nil {

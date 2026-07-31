@@ -10,7 +10,9 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
-const DefaultMaxFileBytes = 32 * 1024
+// DefaultMaxFileBytes is unlimited. Set Loader.MaxFileBytes to a positive
+// value only when a caller deliberately wants to cap instruction content.
+const DefaultMaxFileBytes int64 = 0
 
 type cachedEntry struct {
 	modTime int64
@@ -31,8 +33,8 @@ func NewLoader() *Loader {
 }
 
 func (l *Loader) maxBytes() int64 {
-	if l == nil || l.MaxFileBytes <= 0 {
-		return DefaultMaxFileBytes
+	if l == nil {
+		return 0
 	}
 	return l.MaxFileBytes
 }
