@@ -85,6 +85,13 @@ export function App() {
     setTerminalPanelHeight(Math.min(maxTerminalPanelHeight, Math.max(MIN_TERMINAL_PANEL_HEIGHT, height)));
   }
 
+  function openProjectNewChat(project: Project) {
+    setIsCustomizationOpen(false);
+    setActiveView("agent");
+    setSelectedWorkspace(project);
+    setWorkspaceFocus({ project, token: Date.now() });
+  }
+
   function openProjectTerminal(project: Project) {
     setIsCustomizationOpen(false);
     setActiveView("agent");
@@ -168,6 +175,7 @@ export function App() {
           armedTerminalProjectIds={armedTerminalProjectIds}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           isCustomizationOpen={isCustomizationOpen}
+          onNewProjectChat={openProjectNewChat}
           onOpenProjectTerminal={openProjectTerminal}
           onToggleCustomization={() => setIsCustomizationOpen((open) => !open)}
           onWidthChange={resizeLeftPanel}
