@@ -23,6 +23,7 @@ type SidePanelProps = {
   armedTerminalProjectIds: string[];
   bottomInset: number;
   isCustomizationOpen: boolean;
+  onNewProjectChat: (project: Project) => void;
   onOpenProjectTerminal: (project: Project) => void;
   onToggleCustomization: () => void;
   onWidthChange: (width: number) => void;
@@ -33,6 +34,7 @@ export function SidePanel({
   armedTerminalProjectIds,
   bottomInset,
   isCustomizationOpen,
+  onNewProjectChat,
   onOpenProjectTerminal,
   onToggleCustomization,
   onWidthChange,
@@ -330,7 +332,13 @@ export function SidePanel({
                     <ProjectTerminalIcon />
                   </button>
                 ) : null}
-                <button aria-label={`New project in ${project.name}`} className="side-panel-project-new" title={`New project in ${project.name}`} type="button">
+                <button
+                  aria-label={`New chat in ${project.name}`}
+                  className="side-panel-project-new"
+                  onClick={() => onNewProjectChat(project)}
+                  title={`New chat in ${project.name}`}
+                  type="button"
+                >
                   <PlusIcon />
                 </button>
               </div>

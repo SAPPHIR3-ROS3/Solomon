@@ -54,7 +54,9 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
   const measureComposerRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const keepAliveHandlerRef = useRef(onKeepAliveHeightChange);
+  const workspaceFocusRef = useRef(workspaceFocus);
   keepAliveHandlerRef.current = onKeepAliveHeightChange;
+  workspaceFocusRef.current = workspaceFocus;
 
   useLayoutEffect(() => {
     const composer = composerRef.current;
@@ -80,13 +82,20 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
         setUserName(data.userName.trim());
         setReasoning(data.reasoningEffort);
         setProjects(data.projects);
+        const focus = workspaceFocusRef.current;
+        if (focus) {
+          const focused = data.projects.find((project) => project.id === focus.project.id) ?? focus.project;
+          setWorkspaceName(focused.name);
+          onWorkspaceChange?.(focused);
+          return;
+        }
         onWorkspaceChange?.(data.projects.find((project) => project.name === "Home") ?? null);
       })
       .catch(() => {
         setUserName("");
         setReasoning("none");
         setProjects([]);
-        onWorkspaceChange?.(null);
+        if (!workspaceFocusRef.current) onWorkspaceChange?.(null);
       });
     return () => controller.abort();
   }, [onWorkspaceChange]);
@@ -94,7 +103,8 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
   useEffect(() => {
     if (!workspaceFocus) return;
     setWorkspaceName(workspaceFocus.project.name);
-  }, [workspaceFocus]);
+    onWorkspaceChange?.(workspaceFocus.project);
+  }, [onWorkspaceChange, workspaceFocus]);
 
   useLayoutEffect(() => {
     const screen = screenRef.current;
@@ -163,7 +173,6 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
               <button className="welcome-model-trigger" tabIndex={-1} type="button"><span>Select model</span><ChevronIcon /></button>
               <span aria-hidden="true" className="welcome-toolbar-sep" />
               <button className="welcome-reasoning-label" tabIndex={-1} type="button"><strong>None</strong><ChevronIcon /></button>
-              {fastAvailable ? <button className="welcome-fast" tabIndex={-1} type="button"><BoltIcon /><span>Fast</span></button> : null}
               <button className="welcome-mode is-agent" tabIndex={-1} type="button"><span className="welcome-mode-icon"><BotIcon /></span><span>Agent</span></button>
             </div>
             <button className="welcome-send" tabIndex={-1} type="button"><SendIcon /></button>
@@ -185,7 +194,10 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
         ) : null}
 
         {visibility.folder ? (
-          <div className="welcome-folder-row">
+          <div
+            aria-hidden={openMenu === "model"}
+            className={`welcome-folder-row${openMenu === "model" ? " is-concealed" : ""}`}
+          >
             <WorkspaceControl
               onOpenChange={(open) => setOpenMenu(open ? "workspace" : null)}
               onSelect={(project) => {
@@ -221,36 +233,32 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
                   open={openMenu === "model"}
                 />
                 <span aria-hidden="true" className="welcome-toolbar-sep" />
-                <ReasoningControl
-                  onChange={(value) => {
-                    const previous = reasoning;
-                    setReasoning(value);
-                    void saveReasoningEffort(value).then(setReasoning).catch(() => setReasoning(previous));
-                  }}
-                  onOpenChange={(open) => setOpenMenu(open ? "reasoning" : null)}
-                  open={openMenu === "reasoning"}
-                  value={reasoning}
-                />
-                {fastAvailable ? <button
-                  aria-pressed={fastOn}
-                  className={`welcome-fast${fastOn ? " is-active" : ""}`}
-                  onClick={() => setFastOn((value) => !value)}
-                  type="button"
-                >
-                  <BoltIcon />
-                  <span>Fast</span>
-                </button> : null}
-                <button
-                  aria-pressed={agentOn}
-                  className={`welcome-mode ${agentOn ? "is-agent" : "is-chat"}`}
-                  onClick={() => setAgentOn((value) => !value)}
-                  type="button"
-                >
-                  <span aria-hidden="true" className="welcome-mode-icon">
-                    {agentOn ? <CrownIcon /> : <ChatIcon />}
-                  </span>
-                  <span>{agentOn ? "Agent" : "Chat"}</span>
-                </button>
+                <div className="welcome-toolbar-modes">
+                  <ReasoningControl
+                    fastAvailable={fastAvailable}
+                    fastOn={fastOn}
+                    onChange={(value) => {
+                      const previous = reasoning;
+                      setReasoning(value);
+                      void saveReasoningEffort(value).then(setReasoning).catch(() => setReasoning(previous));
+                    }}
+                    onFastChange={setFastOn}
+                    onOpenChange={(open) => setOpenMenu(open ? "reasoning" : null)}
+                    open={openMenu === "reasoning"}
+                    value={reasoning}
+                  />
+                  <button
+                    aria-pressed={agentOn}
+                    className={`welcome-mode ${agentOn ? "is-agent" : "is-chat"}`}
+                    onClick={() => setAgentOn((value) => !value)}
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="welcome-mode-icon">
+                      {agentOn ? <CrownIcon /> : <ChatIcon />}
+                    </span>
+                    <span>{agentOn ? "Agent" : "Chat"}</span>
+                  </button>
+                </div>
               </div>
               <button aria-label="Send" className="welcome-send" type="button">
                 <SendIcon />
@@ -382,11 +390,17 @@ function ReasoningControl({
   onChange,
   open,
   onOpenChange,
+  fastAvailable = false,
+  fastOn = false,
+  onFastChange,
 }: {
   value: ReasoningEffort;
   onChange: (value: ReasoningEffort) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  fastAvailable?: boolean;
+  fastOn?: boolean;
+  onFastChange?: (on: boolean) => void;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
@@ -418,43 +432,68 @@ function ReasoningControl({
     <div className="welcome-reasoning" ref={controlRef}>
       <button
         aria-expanded={isOpen}
-        aria-label="Change reasoning level"
+        aria-label={fastOn ? `Change reasoning level, fast mode on, ${selectedLabel}` : "Change reasoning level"}
         className="welcome-reasoning-label"
         onClick={() => setOpen(!isOpen)}
         type="button"
       >
         <strong className="welcome-reasoning-value">
-          <span aria-hidden="true" className="welcome-reasoning-value-sizer">Medium</span>
-          <span>{selectedLabel}</span>
+          <span aria-hidden="true" className="welcome-reasoning-value-sizer">
+            <span>Medium</span>
+            {fastAvailable ? <span className="welcome-reasoning-fast-mark"><BoltIcon /></span> : null}
+          </span>
+          <span className="welcome-reasoning-value-text">
+            <span>{selectedLabel}</span>
+            {fastAvailable ? (
+              <span aria-hidden={!fastOn} className={`welcome-reasoning-fast-mark${fastOn ? " is-on" : ""}`}>
+                <BoltIcon />
+              </span>
+            ) : null}
+          </span>
         </strong>
         <ChevronIcon className={isOpen ? "is-open" : undefined} />
       </button>
       {isOpen ? (
-        <div className="welcome-reasoning-popover">
+        <div className={`welcome-reasoning-popover${fastAvailable ? " has-fast" : ""}`}>
           <header>
             <span>Reasoning level</span>
             <strong>{selectedLabel}</strong>
           </header>
-          <div className="welcome-reasoning-scale">
-            <input
-              aria-label="Reasoning level"
-              aria-valuetext={selectedLabel}
-              max={reasoningOptions.length - 1}
-              min={0}
-              onChange={(event) => onChange(normalizeReasoningEffort(reasoningOptions[Number(event.target.value)]?.value ?? "none"))}
-              step={1}
-              style={{ "--reasoning-fill": `${(selectedIndex / (reasoningOptions.length - 1)) * 100}%` } as CSSProperties}
-              type="range"
-              value={selectedIndex}
-            />
-            <div aria-hidden="true" className="welcome-reasoning-ticks">
-              {reasoningOptions.map((option, index) => (
-                <span className={index <= selectedIndex ? "is-reached" : undefined} key={option.value}>
-                  <i />
-                  <small>{option.label}</small>
-                </span>
-              ))}
+          <div className={`welcome-reasoning-row${fastAvailable ? " has-fast" : ""}`}>
+            <div className="welcome-reasoning-scale">
+              <input
+                aria-label="Reasoning level"
+                aria-valuetext={selectedLabel}
+                max={reasoningOptions.length - 1}
+                min={0}
+                onChange={(event) => onChange(normalizeReasoningEffort(reasoningOptions[Number(event.target.value)]?.value ?? "none"))}
+                step={1}
+                style={{ "--reasoning-fill": `${(selectedIndex / (reasoningOptions.length - 1)) * 100}%` } as CSSProperties}
+                type="range"
+                value={selectedIndex}
+              />
+              <div aria-hidden="true" className="welcome-reasoning-ticks">
+                {reasoningOptions.map((option, index) => (
+                  <span className={index <= selectedIndex ? "is-reached" : undefined} key={option.value}>
+                    <i />
+                    <small>{option.label}</small>
+                  </span>
+                ))}
+              </div>
             </div>
+            {fastAvailable ? (
+              <div className="welcome-reasoning-fast-slot">
+                <button
+                  aria-pressed={fastOn}
+                  className={`welcome-reasoning-fast${fastOn ? " is-active" : ""}`}
+                  onClick={() => onFastChange?.(!fastOn)}
+                  type="button"
+                >
+                  <BoltIcon />
+                  <span>Fast</span>
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

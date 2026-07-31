@@ -1,4 +1,5 @@
 .welcome-reasoning {
+  --welcome-reasoning-bolt-size: 15px;
   position: relative;
 }
 
@@ -44,9 +45,44 @@
   grid-area: 1 / 1;
 }
 
+.welcome-reasoning-value-sizer,
+.welcome-reasoning-value-text {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  justify-content: center;
+}
+
 .welcome-reasoning-value-sizer {
   pointer-events: none;
   visibility: hidden;
+}
+
+.welcome-reasoning-fast-mark {
+  display: inline-flex;
+  flex: none;
+  height: var(--welcome-reasoning-bolt-size);
+  visibility: hidden;
+  width: var(--welcome-reasoning-bolt-size);
+}
+
+.welcome-reasoning-fast-mark.is-on {
+  visibility: visible;
+}
+
+.welcome-reasoning-fast-mark svg {
+  display: block;
+  fill: currentColor;
+  height: var(--welcome-reasoning-bolt-size);
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  width: var(--welcome-reasoning-bolt-size);
+}
+
+.welcome-reasoning-value-text .welcome-reasoning-fast-mark {
+  color: var(--color-crown-gold);
 }
 
 .welcome-reasoning-label .welcome-chevron {
@@ -71,6 +107,39 @@
   z-index: 13;
 }
 
+.welcome-reasoning-popover.has-fast {
+  --reasoning-side-gap: 24px;
+  padding-left: var(--reasoning-side-gap);
+  padding-right: var(--reasoning-side-gap);
+  width: max-content;
+}
+
+.welcome-reasoning-row {
+  margin-top: 15px;
+  width: 100%;
+}
+
+.welcome-reasoning-row.has-fast {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--reasoning-side-gap);
+  width: max-content;
+}
+
+.welcome-reasoning-row .welcome-reasoning-scale {
+  width: 100%;
+}
+
+.welcome-reasoning-row.has-fast .welcome-reasoning-scale {
+  flex: none;
+  width: 218px;
+}
+
+.welcome-reasoning-fast-slot {
+  display: flex;
+  flex: none;
+}
+
 .welcome-reasoning-popover header {
   align-items: center;
   color: var(--color-text-muted);
@@ -91,6 +160,10 @@
 .welcome-reasoning-scale {
   margin-top: 15px;
   position: relative;
+}
+
+.welcome-reasoning-row .welcome-reasoning-scale {
+  margin-top: 0;
 }
 
 .welcome-reasoning-scale input {
@@ -180,4 +253,57 @@
 
 .welcome-reasoning-ticks small {
   font-size: 7px;
+}
+
+.welcome-reasoning-fast {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-border) 88%, transparent);
+  box-sizing: border-box;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 650;
+  gap: 5px;
+  height: var(--welcome-control-height, 32px);
+  justify-content: center;
+  letter-spacing: 0.05em;
+  margin-top: -8px;
+  padding: 0 10px;
+  text-transform: uppercase;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.welcome-reasoning-fast svg {
+  display: block;
+  fill: transparent;
+  flex: none;
+  height: var(--welcome-reasoning-bolt-size);
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  transition: fill 0.16s ease;
+  width: var(--welcome-reasoning-bolt-size);
+}
+
+.welcome-reasoning-fast:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.welcome-reasoning-fast.is-active {
+  background: color-mix(in srgb, var(--color-crown-gold) 14%, var(--color-surface-raised));
+  box-shadow: inset 0 0 0 1px var(--color-crown-gold);
+  color: var(--color-crown-gold);
+}
+
+.welcome-reasoning-fast.is-active svg {
+  fill: currentColor;
 }
