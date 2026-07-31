@@ -110,6 +110,11 @@
   z-index: 2;
 }
 
+.welcome-folder-row.is-concealed {
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .welcome-workspace {
   align-items: center;
   appearance: none;
@@ -334,6 +339,15 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
+}
+
+.welcome-toolbar-modes {
+  --welcome-mode-gap: 8px;
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: var(--welcome-mode-gap);
   min-width: 0;
 }
 
