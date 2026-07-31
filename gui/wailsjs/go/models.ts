@@ -38,6 +38,24 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class desktopPromptTemplate {
+	    content: string;
+	    id: string;
+	    modified: boolean;
+	    title: string;
+
+	    static createFrom(source: any = {}) {
+	        return new desktopPromptTemplate(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.content = source["content"];
+	        this.id = source["id"];
+	        this.modified = source["modified"];
+	        this.title = source["title"];
+	    }
+	}
 	export class desktopSubagentScore {
 	    id: string;
 	    label: string;

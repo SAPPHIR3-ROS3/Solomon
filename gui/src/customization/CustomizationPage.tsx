@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { CatalogList, EditableCatalogList, RulesList, SearchIcon, catalogMatches, useRolesTableEditor } from "./catalog";
+import { SystemPromptsPanel } from "./prompts";
 import {
   deleteCustomizationRule,
   deleteCustomizationSubagent,
@@ -17,16 +18,16 @@ import {
   type SubagentScore,
 } from "./rules";
 
-const filters = ["Rules", "Global AGENTS.md", "MCPs", "Skills", "Subagents"] as const;
+const filters = ["System Prompts", "Rules", "Global AGENTS.md", "MCPs", "Skills", "Subagents"] as const;
 const CATALOG_POLL_MS = 1000;
-
+const FILTERS_FADE_DISTANCE = 12;
 type DropIndicator = {
   position: "before" | "after";
   ruleId: number;
 };
 
 export function CustomizationPage() {
-  const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("Rules");
+  const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("System Prompts");
   const [query, setQuery] = useState("");
   const [rules, setRules] = useState<CustomizationRule[]>([]);
   const [skills, setSkills] = useState<CustomizationCatalogItem[]>([]);
@@ -54,6 +55,9 @@ export function CustomizationPage() {
   const interactionLock = useRef(false);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const filtersScrollRef = useRef<HTMLDivElement | null>(null);
+  const [filtersLeftFade, setFiltersLeftFade] = useState(0);
+  const [filtersRightFade, setFiltersRightFade] = useState(0);
   const rolesTable = useRolesTableEditor(activeFilter === "Subagents");
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleRules = rules.filter((rule) => rule.text.toLocaleLowerCase().includes(normalizedQuery));
@@ -62,6 +66,25 @@ export function CustomizationPage() {
   const visibleSubagents = subagents.filter((item) => catalogMatches(item, normalizedQuery));
   const canReorderRules = !isSavingRuleOrder && !query.trim() && editingRuleId === null && !isDeletingRule;
   interactionLock.current = draggedRuleId !== null || isSavingRuleOrder || editingRuleId !== null || isSavingRuleText || isDeletingRule || editingSubagentId !== null || isSavingSubagent || isDeletingSubagent || rolesTable.isBusy;
+
+  useEffect(() => {
+    const scrollport = filtersScrollRef.current;
+    if (!scrollport) return;
+    const updateFades = () => {
+      const scrollableWidth = scrollport.scrollWidth - scrollport.clientWidth;
+      setFiltersLeftFade(Math.min(1, scrollport.scrollLeft / FILTERS_FADE_DISTANCE));
+      setFiltersRightFade(Math.min(1, Math.max(0, scrollableWidth - scrollport.scrollLeft) / FILTERS_FADE_DISTANCE));
+    };
+    const resizeObserver = new ResizeObserver(updateFades);
+    resizeObserver.observe(scrollport);
+    if (scrollport.firstElementChild) resizeObserver.observe(scrollport.firstElementChild);
+    scrollport.addEventListener("scroll", updateFades, { passive: true });
+    updateFades();
+    return () => {
+      resizeObserver.disconnect();
+      scrollport.removeEventListener("scroll", updateFades);
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -74,11 +97,6 @@ export function CustomizationPage() {
       .finally(() => {
         if (!controller.signal.aborted) setIsLoadingRules(false);
       });
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
     void Promise.all([
       fetchCustomizationSkills(controller.signal),
       fetchCustomizationMcps(controller.signal),
@@ -308,6 +326,7 @@ export function CustomizationPage() {
     MCPs: "Search MCPs...",
     Rules: "Search rules...",
     Skills: "Search skills...",
+    "System Prompts": "Search system prompts...",
     Subagents: "Search subagents...",
   } as const)[activeFilter];
 
@@ -316,6 +335,7 @@ export function CustomizationPage() {
     MCPs: mcps.length,
     Rules: rules.length,
     Skills: skills.length,
+    "System Prompts": null,
     Subagents: subagents.length,
   } as const)[activeFilter];
 
@@ -334,15 +354,21 @@ export function CustomizationPage() {
           </label>
         </div>
 
-        <div className="customization-filters-shell">
-          <div className="customization-filters-scrollport">
+        <div
+          className="customization-filters-shell"
+          style={{ "--customization-filters-left-fade": filtersLeftFade, "--customization-filters-right-fade": filtersRightFade } as CSSProperties}
+        >
+          <div className="customization-filters-scrollport" ref={filtersScrollRef}>
             <nav aria-label="Customization sections" className="customization-filters" role="tablist">
               {filters.map((filter) => (
                 <button
                   aria-selected={activeFilter === filter}
                   className={`customization-filter${activeFilter === filter ? " is-active" : ""}`}
                   key={filter}
-                  onClick={() => setActiveFilter(filter)}
+                  onClick={(event) => {
+                    setActiveFilter(filter);
+                    event.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+                  }}
                   role="tab"
                   type="button"
                 >
@@ -353,17 +379,20 @@ export function CustomizationPage() {
           </div>
         </div>
 
-        <div className="customization-list-head">
-          <div className="customization-list-head-title">
-            <h1>
-              {activeFilter}
-              {activeCount !== null ? <span className="customization-list-count">{activeCount}</span> : null}
-            </h1>
-            {rolesTable.button}
+        {activeFilter !== "System Prompts" ? (
+          <div className="customization-list-head">
+            <div className="customization-list-head-title">
+              <h1>
+                {activeFilter}
+                {activeCount !== null ? <span className="customization-list-count">{activeCount}</span> : null}
+              </h1>
+              {rolesTable.button}
+            </div>
+            {activeFilter === "Rules" ? <button className="customization-new" type="button">+ New</button> : null}
           </div>
-          {activeFilter === "Rules" ? <button className="customization-new" type="button">+ New</button> : null}
-        </div>
+        ) : null}
         {rolesTable.panel}
+        {activeFilter === "System Prompts" ? <SystemPromptsPanel query={query} /> : null}
         {activeFilter === "Rules" ? (
           <RulesList
             canReorder={canReorderRules}
