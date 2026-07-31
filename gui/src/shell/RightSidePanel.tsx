@@ -50,6 +50,8 @@ export function RightSidePanel({ bottomInset, onWidthChange, project, width }: R
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [scrollShadowOpacity, setScrollShadowOpacity] = useState(0);
+  const [bottomScrollShadowOpacity, setBottomScrollShadowOpacity] = useState(0);
   const filesRef = useRef<HTMLElement>(null);
   const restoredScrollPositionRef = useRef<{ projectID: string; scrollTop: number } | null>(null);
   const nameFilter = query.trim().toLowerCase();
@@ -58,6 +60,8 @@ export function RightSidePanel({ bottomInset, onWidthChange, project, width }: R
     setEntries({});
     setError("");
     setQuery("");
+    setScrollShadowOpacity(0);
+    setBottomScrollShadowOpacity(0);
     if (!project) return;
     const restoredState = loadExplorerState(project.id);
     const restoredDirectories = [...new Set(restoredState.expandedDirectories)].sort((left, right) => left.split("/").length - right.split("/").length);
@@ -99,10 +103,21 @@ export function RightSidePanel({ bottomInset, onWidthChange, project, width }: R
   useEffect(() => {
     const files = filesRef.current;
     if (!files || !project) return;
-    const saveScrollPosition = () => saveExplorerState(project.id, expandedDirectories, files.scrollTop);
-    files.addEventListener("scroll", saveScrollPosition, { passive: true });
-    return () => files.removeEventListener("scroll", saveScrollPosition);
-  }, [expandedDirectories, project]);
+    const updateScrollChrome = () => {
+      setScrollShadowOpacity(Math.min(1, files.scrollTop / 18));
+      const scrollableHeight = files.scrollHeight - files.clientHeight;
+      setBottomScrollShadowOpacity(Math.min(1, Math.max(0, scrollableHeight - files.scrollTop) / 18));
+      saveExplorerState(project.id, expandedDirectories, files.scrollTop);
+    };
+    const resizeObserver = new ResizeObserver(updateScrollChrome);
+    resizeObserver.observe(files);
+    files.addEventListener("scroll", updateScrollChrome, { passive: true });
+    updateScrollChrome();
+    return () => {
+      resizeObserver.disconnect();
+      files.removeEventListener("scroll", updateScrollChrome);
+    };
+  }, [bottomInset, entries, expandedDirectories, nameFilter, project]);
 
   function toggleDirectory(entry: ProjectDirectoryEntry) {
     if (!project) return;
@@ -143,16 +158,24 @@ export function RightSidePanel({ bottomInset, onWidthChange, project, width }: R
           value={query}
         />
       </label>
-      <nav aria-label="Project files" className="right-side-panel-files" ref={filesRef}>
-        {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
-        {!error && !project ? <p className="right-side-panel-message">No project open.</p> : null}
-        {project && !error && !entries[""] ? <p className="right-side-panel-message">Loading files…</p> : null}
-        {entries[""]?.length === 0 ? <p className="right-side-panel-message">This folder is empty.</p> : null}
-        {nameFilter && entries[""] && !entries[""].some((entry) => entryMatchesFilter(entry, nameFilter, entries)) ? (
-          <p className="right-side-panel-message">No files match this search.</p>
-        ) : null}
-        <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
-      </nav>
+      <div
+        className="right-side-panel-files-shell"
+        style={{
+          "--right-side-panel-scroll-shadow-opacity": scrollShadowOpacity,
+          "--right-side-panel-bottom-scroll-shadow-opacity": bottomScrollShadowOpacity,
+        } as CSSProperties}
+      >
+        <nav aria-label="Project files" className="right-side-panel-files" ref={filesRef}>
+          {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
+          {!error && !project ? <p className="right-side-panel-message">No project open.</p> : null}
+          {project && !error && !entries[""] ? <p className="right-side-panel-message">Loading files…</p> : null}
+          {entries[""]?.length === 0 ? <p className="right-side-panel-message">This folder is empty.</p> : null}
+          {nameFilter && entries[""] && !entries[""].some((entry) => entryMatchesFilter(entry, nameFilter, entries)) ? (
+            <p className="right-side-panel-message">No files match this search.</p>
+          ) : null}
+          <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
+        </nav>
+      </div>
     </aside>
   );
 }
