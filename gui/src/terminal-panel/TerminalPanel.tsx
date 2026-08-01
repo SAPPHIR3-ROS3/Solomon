@@ -10,6 +10,7 @@ const MAX_TERMINAL_PANES = 8;
 type TerminalTab = {
   hasRunCommand: boolean;
   id: string;
+  isRunning: boolean;
   title: string;
 };
 
@@ -26,7 +27,7 @@ type ProjectTerminalSession = {
 };
 
 function createTerminalTab(id: string): TerminalTab {
-  return { hasRunCommand: false, id, title: "Terminal" };
+  return { hasRunCommand: false, id, isRunning: false, title: "Terminal" };
 }
 
 function createTerminalPane(id: string, tabId: string): TerminalPane {
@@ -46,6 +47,10 @@ function sessionHasArmedTerminal(session: ProjectTerminalSession) {
   return session.panes.some((pane) => pane.tabs.some((tab) => tab.hasRunCommand));
 }
 
+function sessionHasRunningTerminal(session: ProjectTerminalSession) {
+  return session.panes.some((pane) => pane.tabs.some((tab) => tab.isRunning));
+}
+
 type TerminalPanelProps = {
   height: number;
   isOpen: boolean;
@@ -53,6 +58,7 @@ type TerminalPanelProps = {
   onClose: () => void;
   onHeightChange: (height: number) => void;
   onProjectArmedChange: (projectId: string, armed: boolean) => void;
+  onProjectRunningChange: (projectId: string, running: boolean) => void;
   projectId: string | null;
 };
 
@@ -63,13 +69,17 @@ export function TerminalPanel({
   onClose,
   onHeightChange,
   onProjectArmedChange,
+  onProjectRunningChange,
   projectId,
 }: TerminalPanelProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [sessions, setSessions] = useState<Record<string, ProjectTerminalSession>>({});
   const armedNotifyRef = useRef(onProjectArmedChange);
+  const runningNotifyRef = useRef(onProjectRunningChange);
   const knownArmedRef = useRef<Set<string>>(new Set());
+  const knownRunningRef = useRef<Set<string>>(new Set());
   armedNotifyRef.current = onProjectArmedChange;
+  runningNotifyRef.current = onProjectRunningChange;
   const panelMaxHeight = Math.max(MIN_HEIGHT, maxHeight);
 
   useEffect(() => {
@@ -78,17 +88,21 @@ export function TerminalPanel({
   }, [isOpen, projectId]);
 
   useEffect(() => {
-    const nextArmed = new Set(
-      Object.entries(sessions).flatMap(([id, session]) => (sessionHasArmedTerminal(session) ? [id] : [])),
-    );
-    const previousArmed = knownArmedRef.current;
-    for (const id of previousArmed) {
-      if (!nextArmed.has(id)) armedNotifyRef.current(id, false);
-    }
-    for (const id of nextArmed) {
-      if (!previousArmed.has(id)) armedNotifyRef.current(id, true);
-    }
+    const syncFlag = (
+      previous: Set<string>,
+      next: Set<string>,
+      notify: (projectId: string, active: boolean) => void,
+    ) => {
+      for (const id of previous) if (!next.has(id)) notify(id, false);
+      for (const id of next) if (!previous.has(id)) notify(id, true);
+    };
+    const entries = Object.entries(sessions);
+    const nextArmed = new Set(entries.flatMap(([id, session]) => (sessionHasArmedTerminal(session) ? [id] : [])));
+    const nextRunning = new Set(entries.flatMap(([id, session]) => (sessionHasRunningTerminal(session) ? [id] : [])));
+    syncFlag(knownArmedRef.current, nextArmed, armedNotifyRef.current);
+    syncFlag(knownRunningRef.current, nextRunning, runningNotifyRef.current);
     knownArmedRef.current = nextArmed;
+    knownRunningRef.current = nextRunning;
   }, [sessions]);
 
   function startResize(event: React.PointerEvent<HTMLButtonElement>) {
@@ -198,6 +212,16 @@ export function TerminalPanel({
     }));
   }
 
+  function setTabRunning(targetProjectId: string, tabId: string, isRunning: boolean) {
+    updateSession(targetProjectId, (session) => ({
+      ...session,
+      panes: session.panes.map((pane) => ({
+        ...pane,
+        tabs: pane.tabs.map((tab) => (tab.id === tabId && tab.isRunning !== isRunning ? { ...tab, isRunning } : tab)),
+      })),
+    }));
+  }
+
   const sessionEntries = Object.entries(sessions);
 
   return (
@@ -278,6 +302,7 @@ export function TerminalPanel({
                       <IntegratedShell
                         key={`${sessionProjectId}:${tab.id}`}
                         onCommandSubmit={() => markCommandRun(sessionProjectId, tab.id)}
+                        onRunningChange={(running) => setTabRunning(sessionProjectId, tab.id, running)}
                         tabId={`${sessionProjectId}:${tab.id}`}
                         visible={isActiveSession && tab.id === pane.activeTabId}
                       />
@@ -295,10 +320,12 @@ export function TerminalPanel({
 
 function IntegratedShell({
   onCommandSubmit,
+  onRunningChange,
   tabId,
   visible,
 }: {
   onCommandSubmit: () => void;
+  onRunningChange: (running: boolean) => void;
   tabId: string;
   visible: boolean;
 }) {
@@ -307,7 +334,9 @@ function IntegratedShell({
   const resizeRef = useRef<(() => void) | null>(null);
   const visibleRef = useRef(visible);
   const commandSubmitRef = useRef(onCommandSubmit);
+  const runningChangeRef = useRef(onRunningChange);
   commandSubmitRef.current = onCommandSubmit;
+  runningChangeRef.current = onRunningChange;
 
   useEffect(() => {
     visibleRef.current = visible;
@@ -368,8 +397,22 @@ function IntegratedShell({
       };
 
       nextSocket.onmessage = (event) => {
-        if (typeof event.data === "string") term.write(event.data);
-        else term.write(new Uint8Array(event.data as ArrayBuffer));
+        if (typeof event.data === "string") {
+          if (event.data.startsWith("{")) {
+            try {
+              const message = JSON.parse(event.data) as { running?: boolean; type?: string };
+              if (message.type === "solomon-status" && typeof message.running === "boolean") {
+                runningChangeRef.current(message.running);
+                return;
+              }
+            } catch {
+              // Fall through and write ordinary terminal output.
+            }
+          }
+          term.write(event.data);
+          return;
+        }
+        term.write(new Uint8Array(event.data as ArrayBuffer));
       };
       nextSocket.onopen = () => {
         attempts = 0;
@@ -380,7 +423,10 @@ function IntegratedShell({
         });
       };
       nextSocket.onerror = retry;
-      nextSocket.onclose = retry;
+      nextSocket.onclose = () => {
+        runningChangeRef.current(false);
+        retry();
+      };
     };
     connect();
 
@@ -411,64 +457,32 @@ function IntegratedShell({
 function terminalTheme() {
   const style = getComputedStyle(document.documentElement);
   const color = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
-
+  const canvas = color("--color-canvas", "#061c3b");
+  const text = color("--color-text", "#e8e5df");
+  const focus = color("--focus-ring", "#86c9f2");
+  const success = color("--color-success", "#237a52");
+  const danger = color("--color-danger", "#a83b3b");
+  const gold = color("--color-crown-gold", "#ffc704");
   return {
-    background: color("--color-canvas", "#061c3b"),
-    black: color("--color-canvas", "#061c3b"),
-    blue: color("--color-accent", "#3b8fd1"),
-    brightBlack: color("--color-text-muted", "#9ca3aa"),
-    brightBlue: color("--focus-ring", "#86c9f2"),
-    brightCyan: color("--focus-ring", "#86c9f2"),
-    brightGreen: color("--color-success", "#237a52"),
-    brightRed: color("--color-danger", "#a83b3b"),
-    brightWhite: color("--color-text", "#e8e5df"),
-    brightYellow: color("--color-crown-gold", "#ffc704"),
-    cursor: color("--focus-ring", "#86c9f2"),
-    cursorAccent: color("--color-canvas", "#061c3b"),
-    cyan: color("--focus-ring", "#86c9f2"),
-    foreground: color("--color-text", "#e8e5df"),
-    green: color("--color-success", "#237a52"),
-    red: color("--color-danger", "#a83b3b"),
-    selectionBackground: color("--color-surface-raised", "#0d3566"),
-    white: color("--color-text", "#e8e5df"),
-    yellow: color("--color-crown-gold", "#ffc704"),
+    background: canvas, black: canvas, blue: color("--color-accent", "#3b8fd1"), brightBlack: color("--color-text-muted", "#9ca3aa"),
+    brightBlue: focus, brightCyan: focus, brightGreen: success, brightRed: danger, brightWhite: text, brightYellow: gold,
+    cursor: focus, cursorAccent: canvas, cyan: focus, foreground: text, green: success, red: danger,
+    selectionBackground: color("--color-surface-raised", "#0d3566"), white: text, yellow: gold,
   };
 }
 
 function TerminalIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="m7 11 2-2-2-2" />
-      <path d="M11 13h4" />
-      <rect height="18" rx="2" ry="2" width="18" x="3" y="3" />
-    </svg>
-  );
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 11 2-2-2-2" /><path d="M11 13h4" /><rect height="18" rx="2" ry="2" width="18" x="3" y="3" /></svg>;
 }
 
 function TrashIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="m19 6-1 14H6L5 6" />
-      <path d="M10 11v6M14 11v6" />
-    </svg>
-  );
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="m19 6-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>;
 }
 
 function PlusIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>;
 }
 
 function SplitIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <rect height="18" rx="2" width="18" x="3" y="3" />
-      <path d="M12 3v18" />
-    </svg>
-  );
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><rect height="18" rx="2" width="18" x="3" y="3" /><path d="M12 3v18" /></svg>;
 }

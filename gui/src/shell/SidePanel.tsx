@@ -27,6 +27,7 @@ type SidePanelProps = {
   onOpenProjectTerminal: (project: Project) => void;
   onToggleCustomization: () => void;
   onWidthChange: (width: number) => void;
+  runningTerminalProjectIds: string[];
   width: number;
 };
 
@@ -38,6 +39,7 @@ export function SidePanel({
   onOpenProjectTerminal,
   onToggleCustomization,
   onWidthChange,
+  runningTerminalProjectIds,
   width,
 }: SidePanelProps) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -324,7 +326,7 @@ export function SidePanel({
                 {armedTerminalProjectIds.includes(project.id) ? (
                   <button
                     aria-label={`Open terminal for ${project.name}`}
-                    className="side-panel-project-terminal"
+                    className={`side-panel-project-terminal${runningTerminalProjectIds.includes(project.id) ? " is-running" : ""}`}
                     onClick={() => onOpenProjectTerminal(project)}
                     title={`Open terminal for ${project.name}`}
                     type="button"
