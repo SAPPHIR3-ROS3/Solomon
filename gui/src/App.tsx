@@ -34,6 +34,7 @@ export function App() {
   const [hasOpenedTerminalPanel, setHasOpenedTerminalPanel] = useState(false);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [armedTerminalProjectIds, setArmedTerminalProjectIds] = useState<string[]>([]);
+  const [runningTerminalProjectIds, setRunningTerminalProjectIds] = useState<string[]>([]);
   const [activeView, setActiveView] = useState<View>("agent");
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
@@ -116,6 +117,14 @@ export function App() {
     });
   }
 
+  function handleProjectTerminalRunningChange(projectId: string, running: boolean) {
+    setRunningTerminalProjectIds((current) => {
+      const isRunning = current.includes(projectId);
+      if (running === isRunning) return current;
+      return running ? [...current, projectId] : current.filter((id) => id !== projectId);
+    });
+  }
+
   const preferredLeftWidth = isSidePanelOpen ? leftSidePanelWidth : 0;
   const preferredRightWidth = isRightSidePanelOpen && !isCustomizationOpen ? rightSidePanelWidth : 0;
   const composerWidth = Math.min(MAX_COMPOSER_WIDTH, Math.max(0, viewportWidth - WELCOME_HORIZONTAL_PADDING));
@@ -190,6 +199,7 @@ export function App() {
           onOpenProjectTerminal={openProjectTerminal}
           onToggleCustomization={toggleCustomization}
           onWidthChange={resizeLeftPanel}
+          runningTerminalProjectIds={runningTerminalProjectIds}
           width={renderedLeftPanelWidth}
         />
       ) : null}
@@ -209,6 +219,7 @@ export function App() {
           onClose={() => setIsTerminalPanelOpen(false)}
           onHeightChange={handleTerminalHeightChange}
           onProjectArmedChange={handleProjectTerminalArmedChange}
+          onProjectRunningChange={handleProjectTerminalRunningChange}
           projectId={selectedWorkspace?.id ?? null}
         />
       ) : null}

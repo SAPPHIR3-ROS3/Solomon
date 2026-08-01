@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
@@ -7,8 +8,24 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { HttpServer, Plugin } from "vite";
 
 const terminalEndpoint = "/__solomon/terminal";
+const statusPollMs = 400;
 const requireFromConfig = createRequire(import.meta.url);
 const attachedServers = new WeakSet<HttpServer>();
+
+function shellHasForegroundJob(pid: number) {
+  if (process.platform === "win32") return false;
+  try {
+    const output = execFileSync("ps", ["-o", "pgid=,tpgid=", "-p", String(pid)], {
+      encoding: "utf8",
+      timeout: 500,
+    }).trim();
+    const [pgid, tpgid] = output.split(/\s+/).filter(Boolean);
+    if (!pgid || !tpgid || tpgid === "0" || tpgid === "-1") return false;
+    return pgid !== tpgid;
+  } catch {
+    return false;
+  }
+}
 
 function ensureNodePtySpawnHelper() {
   if (process.platform !== "darwin") return;
@@ -58,7 +75,20 @@ function attachTerminalWebSocket(httpServer: HttpServer | null) {
         return;
       }
 
+      let lastRunning: boolean | null = null;
+      let inputStatusTimer: ReturnType<typeof setTimeout> | undefined;
+      const publishStatus = (running: boolean) => {
+        if (lastRunning === running || ws.readyState !== WebSocket.OPEN) return;
+        lastRunning = running;
+        ws.send(JSON.stringify({ running, type: "solomon-status" }));
+      };
+      const statusTimer = setInterval(() => {
+        publishStatus(shellHasForegroundJob(ptyProcess.pid));
+      }, statusPollMs);
+
       const dispose = () => {
+        clearInterval(statusTimer);
+        if (inputStatusTimer !== undefined) clearTimeout(inputStatusTimer);
         try {
           ptyProcess.kill();
         } catch {
@@ -70,6 +100,7 @@ function attachTerminalWebSocket(httpServer: HttpServer | null) {
         if (ws.readyState === WebSocket.OPEN) ws.send(data);
       });
       ptyProcess.onExit(() => {
+        publishStatus(false);
         if (ws.readyState === WebSocket.OPEN) ws.close();
       });
       ws.on("message", (data) => {
@@ -86,9 +117,12 @@ function attachTerminalWebSocket(httpServer: HttpServer | null) {
           }
         }
         ptyProcess.write(text);
+        if (inputStatusTimer !== undefined) clearTimeout(inputStatusTimer);
+        inputStatusTimer = setTimeout(() => publishStatus(shellHasForegroundJob(ptyProcess.pid)), 50);
       });
       ws.on("close", dispose);
       ws.on("error", dispose);
+      publishStatus(false);
     });
   });
 }

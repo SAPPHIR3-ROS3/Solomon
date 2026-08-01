@@ -1340,7 +1340,6 @@ body {
 }
 
 .side-panel-project-terminal svg {
-  animation: side-panel-terminal-pulse 1.4s ease-in-out infinite;
   fill: none;
   height: 15px;
   stroke: currentColor;
@@ -1348,6 +1347,10 @@ body {
   stroke-linejoin: round;
   stroke-width: 1.5;
   width: 15px;
+}
+
+.side-panel-project-terminal.is-running svg {
+  animation: side-panel-terminal-pulse 1.4s ease-in-out infinite;
 }
 
 .side-panel-project-terminal:hover {
