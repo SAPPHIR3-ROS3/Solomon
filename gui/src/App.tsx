@@ -11,6 +11,8 @@ import { applyTheme, savedTheme } from "./theme";
 import { CustomizationPage } from "./customization/CustomizationPage";
 import { Welcome } from "./home/Welcome";
 import { type Project } from "./projects/projects";
+import { fakeAssistantReply, initialFakeChats, type FakeChat, type FakeChatMessage } from "./chat-test/fakeChats";
+import { TestChatTopbar, TestChatView } from "./chat-test/TestChatView";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
 const MIN_TERMINAL_PANEL_HEIGHT = 120;
@@ -39,6 +41,9 @@ export function App() {
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
+  const [fakeChats, setFakeChats] = useState<FakeChat[]>(initialFakeChats);
+  const [selectedFakeChatID, setSelectedFakeChatID] = useState<string | null>(null);
+  const [newChatFolderName, setNewChatFolderName] = useState<string | null>(null);
   const [workspaceFocus, setWorkspaceFocus] = useState<{ project: Project; token: number } | null>(null);
   const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
@@ -80,6 +85,8 @@ export function App() {
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setIsTerminalPanelOpen(false);
+    setSelectedFakeChatID(null);
+    setNewChatFolderName(null);
   }
 
   function toggleCustomization() {
@@ -98,6 +105,8 @@ export function App() {
     setActiveView("agent");
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
+    setSelectedFakeChatID(null);
+    setNewChatFolderName(null);
   }
 
   function openProjectTerminal(project: Project) {
@@ -105,9 +114,19 @@ export function App() {
     setActiveView("agent");
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
+    setSelectedFakeChatID(null);
+    setNewChatFolderName(null);
     setHasOpenedTerminalPanel(true);
     setIsTerminalPanelOpen(true);
   }
+
+  function sendFakeChatMessage(chatID: string, message: FakeChatMessage) {
+    setFakeChats((current) => current.map((chat) => (
+      chat.id === chatID ? { ...chat, messages: [...chat.messages, message, fakeAssistantReply(message.content)] } : chat
+    )));
+  }
+
+  const selectedFakeChat = fakeChats.find((chat) => chat.id === selectedFakeChatID) ?? null;
 
   function handleProjectTerminalArmedChange(projectId: string, armed: boolean) {
     setArmedTerminalProjectIds((current) => {
@@ -196,6 +215,20 @@ export function App() {
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           isCustomizationOpen={isCustomizationOpen}
           onNewProjectChat={openProjectNewChat}
+          onOpenFakeFolder={() => {
+            setIsCustomizationOpen(false);
+            setActiveView("agent");
+            setSelectedFakeChatID(null);
+            setSelectedWorkspace(null);
+            setWorkspaceFocus(null);
+            setNewChatFolderName("Test chats");
+          }}
+          onOpenFakeChat={(chatID) => {
+            setIsCustomizationOpen(false);
+            setActiveView("agent");
+            setSelectedFakeChatID(chatID);
+            setNewChatFolderName(null);
+          }}
           onOpenProjectTerminal={openProjectTerminal}
           onToggleCustomization={toggleCustomization}
           onWidthChange={resizeLeftPanel}
@@ -224,7 +257,7 @@ export function App() {
         />
       ) : null}
       {isCustomizationOpen ? <CustomizationPage /> : null}
-      {!isCustomizationOpen ? (
+      {!isCustomizationOpen && !selectedFakeChat ? (
         <Welcome
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           onComposerBoundsChange={(bounds) => setComposerBounds((current) => (
@@ -232,7 +265,28 @@ export function App() {
           ))}
           onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
           onWorkspaceChange={setSelectedWorkspace}
+          workspaceNameOverride={newChatFolderName}
           workspaceFocus={workspaceFocus}
+        />
+      ) : null}
+      {!isCustomizationOpen && selectedFakeChat ? (
+        <TestChatTopbar
+          onOpenFolder={() => {
+            setIsCustomizationOpen(false);
+            setActiveView("agent");
+            setSelectedFakeChatID(null);
+            setSelectedWorkspace(null);
+            setWorkspaceFocus(null);
+            setNewChatFolderName("Test chats");
+          }}
+          title={selectedFakeChat.title}
+        />
+      ) : null}
+      {!isCustomizationOpen && selectedFakeChat ? (
+        <TestChatView
+          bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
+          chat={selectedFakeChat}
+          onSend={sendFakeChatMessage}
         />
       ) : null}
     </main>
