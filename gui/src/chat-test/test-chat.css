@@ -97,7 +97,11 @@
 .test-chat-message span { color: var(--color-text-muted); display: block; font: 600 10px/1 "Geist", sans-serif; margin-bottom: 6px; text-transform: uppercase; }
 .test-chat-message p { margin: 0; white-space: pre-wrap; }
 .test-chat-composer-dock {
-  bottom: 8px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--color-canvas) 18%, transparent);
+  border-radius: 24px 24px 0 0;
+  bottom: 0;
   left: 36px;
   margin: 0;
   position: absolute;
@@ -107,20 +111,6 @@
   /* Keep the same 4px composer-to-controls spacing as the Home composer. */
   padding-bottom: 34px;
 }
-.test-chat-composer-dock::after {
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  background: color-mix(in srgb, var(--color-canvas) 18%, transparent);
-  border-radius: 24px 24px 0 0;
-  bottom: -8px;
-  content: "";
-  left: 0;
-  pointer-events: none;
-  position: absolute;
-  right: 0;
-  top: 0;
-  z-index: 0;
-}
 .test-chat-composer { position: relative; z-index: 1; }
 .test-chat-composer .welcome-composer {
   background: transparent;
@@ -128,11 +118,6 @@
   border-radius: 24px;
   overflow: hidden;
   box-shadow: 0 10px 24px rgb(0 0 0 / 42%), 0 3px 8px rgb(0 0 0 / 24%);
-}
-.test-chat-composer-dock .welcome-git-controls {
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-radius: 0;
 }
 .test-chat-composer { width: 100%; }
 .test-chat-composer .welcome-send:disabled { cursor: default; opacity: .45; }
