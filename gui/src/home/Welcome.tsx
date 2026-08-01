@@ -25,6 +25,7 @@ type WelcomeProps = {
   onComposerBoundsChange?: (bounds: { left: number; right: number }) => void;
   onKeepAliveHeightChange?: (height: number) => void;
   onWorkspaceChange?: (project: Project | null) => void;
+  workspaceNameOverride?: string | null;
   workspaceFocus?: { project: Project; token: number } | null;
 };
 
@@ -37,7 +38,7 @@ type Visibility = {
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
-export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHeightChange, onWorkspaceChange, workspaceFocus = null }: WelcomeProps) {
+export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHeightChange, onWorkspaceChange, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
   const [userName, setUserName] = useState("");
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -92,6 +93,12 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
           onWorkspaceChange?.(focused);
           return;
         }
+        if (workspaceNameOverride) {
+          setWorkspaceName(workspaceNameOverride);
+          setSelectedProject(null);
+          onWorkspaceChange?.(null);
+          return;
+        }
         const home = data.projects.find((project) => project.name === "Home") ?? null;
         setSelectedProject(home);
         onWorkspaceChange?.(home);
@@ -104,7 +111,13 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
         if (!workspaceFocusRef.current) onWorkspaceChange?.(null);
       });
     return () => controller.abort();
-  }, [onWorkspaceChange]);
+  }, [onWorkspaceChange, workspaceNameOverride]);
+
+  useEffect(() => {
+    if (!workspaceNameOverride) return;
+    setWorkspaceName(workspaceNameOverride);
+    setSelectedProject(null);
+  }, [workspaceNameOverride]);
 
   useEffect(() => {
     if (!workspaceFocus) return;
@@ -207,7 +220,12 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
             aria-hidden={openMenu === "model"}
             className={`welcome-folder-row${openMenu === "model" ? " is-concealed" : ""}`}
           >
-            <WorkspaceControl
+            {workspaceNameOverride ? (
+              <button aria-label={`Cartella ${workspaceNameOverride}`} className="welcome-workspace" type="button">
+                <FolderIcon />
+                <span>{workspaceNameOverride}</span>
+              </button>
+            ) : <WorkspaceControl
               onOpenChange={(open) => setOpenMenu(open ? "workspace" : null)}
               onSelect={(project) => {
                 setWorkspaceName(project?.name ?? "Home");
@@ -218,7 +236,7 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
               open={openMenu === "workspace"}
               projects={projects}
               workspaceName={workspaceName}
-            />
+            />}
           </div>
         ) : null}
 

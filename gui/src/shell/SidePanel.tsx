@@ -1,5 +1,6 @@
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { fetchProjectRemovalInfo, fetchProjectSidebarData, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
+import { initialFakeChats } from "../chat-test/fakeChats";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
 const INITIAL_CHAT_LIMIT = 5;
@@ -24,6 +25,8 @@ type SidePanelProps = {
   bottomInset: number;
   isCustomizationOpen: boolean;
   onNewProjectChat: (project: Project) => void;
+  onOpenFakeFolder: () => void;
+  onOpenFakeChat: (chatID: string) => void;
   onOpenProjectTerminal: (project: Project) => void;
   onToggleCustomization: () => void;
   onWidthChange: (width: number) => void;
@@ -36,6 +39,8 @@ export function SidePanel({
   bottomInset,
   isCustomizationOpen,
   onNewProjectChat,
+  onOpenFakeFolder,
+  onOpenFakeChat,
   onOpenProjectTerminal,
   onToggleCustomization,
   onWidthChange,
@@ -290,6 +295,28 @@ export function SidePanel({
           <span className="side-panel-action-label">Customization</span>
         </button>
       </div>
+      <div
+        className="side-panel-section-label"
+        style={{ "--side-panel-scroll-shadow-opacity": projectScrollShadowOpacity } as CSSProperties}
+      >
+        Chat di test
+      </div>
+      <section className="side-panel-project side-panel-test-folder">
+        <div className="side-panel-project-head">
+          <button className="side-panel-project-trigger" aria-label="Apri nuova chat nella cartella Test chats" onClick={onOpenFakeFolder} type="button">
+            <FolderIcon isOpen />
+            <span>Test chats</span>
+          </button>
+        </div>
+        <div className="side-panel-project-children">
+          {initialFakeChats.map((chat) => (
+            <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
+              <span>{chat.title}</span>
+              <time>test</time>
+            </button>
+          ))}
+        </div>
+      </section>
       <div
         className="side-panel-section-label"
         style={{ "--side-panel-scroll-shadow-opacity": projectScrollShadowOpacity } as CSSProperties}
