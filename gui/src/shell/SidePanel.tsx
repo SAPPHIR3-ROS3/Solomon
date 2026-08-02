@@ -299,32 +299,26 @@ export function SidePanel({
         className="side-panel-section-label"
         style={{ "--side-panel-scroll-shadow-opacity": projectScrollShadowOpacity } as CSSProperties}
       >
-        Chat di test
-      </div>
-      <section className="side-panel-project side-panel-test-folder">
-        <div className="side-panel-project-head">
-          <button className="side-panel-project-trigger" aria-label="Apri nuova chat nella cartella Test chats" onClick={onOpenFakeFolder} type="button">
-            <FolderIcon isOpen />
-            <span>Test chats</span>
-          </button>
-        </div>
-        <div className="side-panel-project-children">
-          {initialFakeChats.map((chat) => (
-            <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
-              <span>{chat.title}</span>
-              <time>test</time>
-            </button>
-          ))}
-        </div>
-      </section>
-      <div
-        className="side-panel-section-label"
-        style={{ "--side-panel-scroll-shadow-opacity": projectScrollShadowOpacity } as CSSProperties}
-      >
         Projects
       </div>
       <div className="side-panel-projects-shell">
       <nav aria-label="Projects" className="side-panel-projects" ref={projectsListRef}>
+        <section className="side-panel-project side-panel-test-folder">
+          <div className="side-panel-project-head">
+            <button className="side-panel-project-trigger" aria-label="Apri nuova chat nella cartella Test chats" onClick={onOpenFakeFolder} type="button">
+              <FolderIcon isOpen />
+              <span>Test chats</span>
+            </button>
+          </div>
+          <div className="side-panel-project-children">
+            {initialFakeChats.map((chat) => (
+              <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
+                <span>{chat.title}</span>
+                <time>test</time>
+              </button>
+            ))}
+          </div>
+        </section>
         {projects.map((project) => {
           const isProjectOpen = openProjectIds.has(project.id);
           const visibleChatCount = visibleChatCounts.get(project.id) ?? INITIAL_CHAT_LIMIT;
