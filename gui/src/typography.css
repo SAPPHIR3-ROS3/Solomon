@@ -1,0 +1,88 @@
+/* A modest reading-scale pass for UI text. Geometry and icon sizes stay unchanged. */
+
+body { font-size: 17px; }
+
+.side-panel-wordmark { font-size: 20px; }
+.side-panel-actions { padding-top: 4px; }
+.right-side-panel-head { font-size: 11px; }
+.right-side-panel-project { font-size: 12px; }
+.right-side-panel-search input { font-size: 13px; }
+.right-side-panel-file-row { font-size: 13px; }
+.right-side-panel-message, .right-side-panel-loading { font-size: 13px; }
+
+.side-panel-action { font-size: 13px; }
+.side-panel-section-label { font-size: 10px; }
+.side-panel-project-trigger, .side-panel-chat { font-size: 15px; }
+.side-panel-show-more { font-size: 16px; }
+.side-panel-chat time { font-size: 11px; }
+.side-panel-user-name, .side-panel-user-name-input { font-size: 14px; }
+.side-panel-user-error { font-size: 11px; }
+
+.view-switch button { font-size: 11px; }
+.terminal-tab { font-size: 11px; }
+.project-context-menu button { font-size: 14px; }
+
+.project-removal-dialog-eyebrow { font-size: 11px; }
+.project-removal-dialog h2 { font-size: 19px; }
+.project-removal-dialog p:not(.project-removal-dialog-eyebrow):not(.project-removal-dialog-error) { font-size: 15px; }
+.project-removal-dialog-error, .project-removal-dialog-loading { font-size: 14px; }
+.project-removal-dialog-details dt { font-size: 11px; }
+.project-removal-dialog-details dd, .project-removal-dialog-details small { font-size: 12px; }
+.project-removal-dialog-actions button { font-size: 14px; }
+
+.customization-search input { font-size: 16px; }
+.customization-filter, .customization-new { font-size: 14px; }
+.customization-list-head h1 { font-size: 19px; }
+.customization-list-count { font-size: 16px; }
+.customization-roles-table-hint { font-size: 14px; }
+.customization-roles-table-option { font-size: 14px; }
+.customization-rule-main { font-size: 16px; }
+.customization-catalog-badge { font-size: 12px; }
+.customization-catalog-detail { font-size: 14px; }
+.customization-rule-editor .customization-catalog-title { font-size: 15px; }
+.customization-rule-menu button { font-size: 14px; }
+.customization-prompt-content, .customization-prompt-editor textarea { font-size: 14px; }
+.customization-empty { font-size: 15px; }
+.customization-rule-error { font-size: 14px; }
+.customization-rule-editor textarea { font-size: 16px; }
+.customization-rule-cancel, .customization-rule-save { font-size: 14px; }
+
+.welcome-workspace { font-size: 14px; }
+.welcome-workspace-project, .welcome-workspace-show-more, .welcome-workspace-actions button { font-size: 13px; }
+.welcome-workspace-show-more { font-size: 12px; }
+.welcome-workspace-empty { font-size: 13px; }
+.welcome-input { font-size: 16px; }
+.welcome-menu { font-size: 13px; }
+.welcome-menu-label { font-size: 12px; }
+.welcome-fast, .welcome-mode { font-size: 12px; }
+
+.welcome-branch-trigger, .welcome-branch-menu > button { font-size: 11px; }
+.welcome-branch-error { font-size: 11px; }
+.welcome-reasoning-label { font-size: 12px; }
+.welcome-reasoning-label strong, .welcome-reasoning-value { font-size: 13px; }
+.welcome-reasoning-popover header { font-size: 9px; }
+.welcome-reasoning-popover header strong { font-size: 10px; }
+.welcome-reasoning-ticks span, .welcome-reasoning-ticks small { font-size: 8px; }
+.welcome-reasoning-fast { font-size: 12px; }
+
+.welcome-model-trigger { font-size: 13px; }
+.welcome-provider-rail > header { font-size: 9px; }
+.welcome-provider-rail > button strong { font-size: 13px; }
+.welcome-provider-rail > button small { font-size: 12px; }
+.welcome-model-search input { font-size: 13px; }
+.welcome-model-browser > header span { font-size: 13px; }
+.welcome-model-browser > header small { font-size: 12px; }
+.welcome-model-list > button strong { font-size: 12px; }
+.welcome-model-list > button small { font-size: 9px; }
+
+.test-chat-message { font-size: 15px; }
+.test-chat-message h1 { font-size: 24px; line-height: 1.333; }
+.test-chat-message h2 { font-size: 20px; line-height: 1.4; }
+.test-chat-message h3 { font-size: 18px; line-height: 1.55; }
+.test-chat-message h4 { font-size: 16px; line-height: 1.55; }
+.test-chat-message h5, .test-chat-message h6 { font-size: 14px; line-height: 1.625; }
+.test-chat-empty { font-size: 14px; }
+.test-chat-readonly-control { font-size: 11px; }
+.test-chat-message table { font-size: 14px; }
+.test-chat-message th { font-size: 12px; }
+.test-chat-code-block pre code { font-size: 14.3px; }
