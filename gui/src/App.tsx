@@ -10,6 +10,7 @@ import { TerminalPanel } from "./terminal-panel/TerminalPanel";
 import { applyTheme, savedTheme } from "./theme";
 import { CustomizationPage } from "./customization/CustomizationPage";
 import { Welcome } from "./home/Welcome";
+import { SettingsPage } from "./settings/SettingsPage";
 import { type Project } from "./projects/projects";
 import { fakeAssistantReply, initialFakeChats, type FakeChat, type FakeChatMessage } from "./chat-test/fakeChats";
 import { TestChatTopbar, TestChatView } from "./chat-test/TestChatView";
@@ -39,6 +40,7 @@ export function App() {
   const [runningTerminalProjectIds, setRunningTerminalProjectIds] = useState<string[]>([]);
   const [activeView, setActiveView] = useState<View>("agent");
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
   const [fakeChats, setFakeChats] = useState<FakeChat[]>(initialFakeChats);
@@ -82,11 +84,19 @@ export function App() {
   }, [maxTerminalPanelHeight]);
 
   function goHome() {
+    setIsSettingsOpen(false);
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setIsTerminalPanelOpen(false);
     setSelectedFakeChatID(null);
     setNewChatFolderName(null);
+  }
+
+  function openSettings() {
+    setIsSettingsOpen(true);
+    setIsCustomizationOpen(false);
+    setIsRightSidePanelOpen(false);
+    setIsTerminalPanelOpen(false);
   }
 
   function toggleCustomization() {
@@ -176,32 +186,37 @@ export function App() {
       data-client-os={client.os}
       data-client-surface={client.surface}
       style={{
-        "--left-panel-width": `${renderedLeftPanelWidth}px`,
+        "--left-panel-width": `${isSettingsOpen ? Math.min(leftSidePanelWidth, Math.max(0, viewportWidth)) : renderedLeftPanelWidth}px`,
         "--right-panel-width": `${renderedRightPanelWidth}px`,
+        "--settings-panel-width": `${Math.min(leftSidePanelWidth, Math.max(0, viewportWidth))}px`,
       } as CSSProperties}
     >
       <div
         aria-hidden="true"
-        className={`window-drag-area${isSidePanelOpen ? " is-left-inset" : ""}${isRightSidePanelOpen && !isCustomizationOpen ? " is-right-inset" : ""}`}
+        className={`window-drag-area${isSidePanelOpen || isSettingsOpen ? " is-left-inset" : ""}${isRightSidePanelOpen && !isCustomizationOpen && !isSettingsOpen ? " is-right-inset" : ""}`}
       />
-      <SidePanelToggle
-        isOpen={isSidePanelOpen}
-        onToggle={() => setIsSidePanelOpen((open) => !open)}
-      />
-      {isSidePanelOpen ? (
+      {!isSettingsOpen ? (
+        <SidePanelToggle
+          isOpen={isSidePanelOpen}
+          onToggle={() => setIsSidePanelOpen((open) => !open)}
+        />
+      ) : null}
+      {!isSettingsOpen && isSidePanelOpen ? (
         <button aria-label="Go to home" className="side-panel-wordmark" onClick={goHome} type="button">
           SOLOMON
         </button>
       ) : null}
-      <RightSidePanelToggle
-        disabled={isCustomizationOpen}
-        isOpen={isRightSidePanelOpen && !isCustomizationOpen}
-        onToggle={() => {
-          if (isCustomizationOpen) return;
-          setIsRightSidePanelOpen((open) => !open);
-        }}
-      />
-      {isRightSidePanelOpen && !isCustomizationOpen ? (
+      {!isSettingsOpen ? (
+        <RightSidePanelToggle
+          disabled={isCustomizationOpen}
+          isOpen={isRightSidePanelOpen && !isCustomizationOpen}
+          onToggle={() => {
+            if (isCustomizationOpen) return;
+            setIsRightSidePanelOpen((open) => !open);
+          }}
+        />
+      ) : null}
+      {!isSettingsOpen && isRightSidePanelOpen && !isCustomizationOpen ? (
         <RightSidePanel
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           onWidthChange={resizeRightPanel}
@@ -209,7 +224,7 @@ export function App() {
           width={renderedRightPanelWidth}
         />
       ) : null}
-      {isSidePanelOpen ? (
+      {!isSettingsOpen && isSidePanelOpen ? (
         <SidePanel
           armedTerminalProjectIds={armedTerminalProjectIds}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
@@ -230,21 +245,24 @@ export function App() {
             setNewChatFolderName(null);
           }}
           onOpenProjectTerminal={openProjectTerminal}
+          onOpenSettings={openSettings}
           onToggleCustomization={toggleCustomization}
           onWidthChange={resizeLeftPanel}
           runningTerminalProjectIds={runningTerminalProjectIds}
           width={renderedLeftPanelWidth}
         />
       ) : null}
-      {!isCustomizationOpen ? <ViewSwitch activeView={activeView} onChange={setActiveView} /> : null}
-      <TerminalPanelToggle
-        isOpen={isTerminalPanelOpen}
-        onToggle={() => {
-          if (!isTerminalPanelOpen) setHasOpenedTerminalPanel(true);
-          setIsTerminalPanelOpen((open) => !open);
-        }}
-      />
-      {hasOpenedTerminalPanel ? (
+      {!isSettingsOpen && !isCustomizationOpen ? <ViewSwitch activeView={activeView} onChange={setActiveView} /> : null}
+      {!isSettingsOpen ? (
+        <TerminalPanelToggle
+          isOpen={isTerminalPanelOpen}
+          onToggle={() => {
+            if (!isTerminalPanelOpen) setHasOpenedTerminalPanel(true);
+            setIsTerminalPanelOpen((open) => !open);
+          }}
+        />
+      ) : null}
+      {!isSettingsOpen && hasOpenedTerminalPanel ? (
         <TerminalPanel
           height={terminalPanelHeight}
           isOpen={isTerminalPanelOpen}
@@ -256,8 +274,9 @@ export function App() {
           projectId={selectedWorkspace?.id ?? null}
         />
       ) : null}
-      {isCustomizationOpen ? <CustomizationPage /> : null}
-      {!isCustomizationOpen && !selectedFakeChat ? (
+      {isSettingsOpen ? <SettingsPage onHome={goHome} /> : null}
+      {!isSettingsOpen && isCustomizationOpen ? <CustomizationPage /> : null}
+      {!isSettingsOpen && !isCustomizationOpen && !selectedFakeChat ? (
         <Welcome
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           onComposerBoundsChange={(bounds) => setComposerBounds((current) => (
@@ -269,7 +288,7 @@ export function App() {
           workspaceFocus={workspaceFocus}
         />
       ) : null}
-      {!isCustomizationOpen && selectedFakeChat ? (
+      {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
         <TestChatTopbar
           onOpenFolder={() => {
             setIsCustomizationOpen(false);
@@ -282,7 +301,7 @@ export function App() {
           title={selectedFakeChat.title}
         />
       ) : null}
-      {!isCustomizationOpen && selectedFakeChat ? (
+      {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
         <TestChatView
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           chat={selectedFakeChat}
