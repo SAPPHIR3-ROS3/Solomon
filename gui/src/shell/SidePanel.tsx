@@ -28,6 +28,7 @@ type SidePanelProps = {
   onOpenFakeFolder: () => void;
   onOpenFakeChat: (chatID: string) => void;
   onOpenProjectTerminal: (project: Project) => void;
+  onOpenSettings: () => void;
   onToggleCustomization: () => void;
   onWidthChange: (width: number) => void;
   runningTerminalProjectIds: string[];
@@ -42,6 +43,7 @@ export function SidePanel({
   onOpenFakeFolder,
   onOpenFakeChat,
   onOpenProjectTerminal,
+  onOpenSettings,
   onToggleCustomization,
   onWidthChange,
   runningTerminalProjectIds,
@@ -438,7 +440,7 @@ export function SidePanel({
             <button className="side-panel-user-name" onDoubleClick={beginUserNameEdit} title="Double-click to edit" type="button">
               {userName || "Unnamed user"}
             </button>
-            <button aria-label="User settings" className="side-panel-user-settings" title="User settings" type="button">
+            <button aria-label="User settings" className="side-panel-user-settings" onClick={onOpenSettings} title="User settings" type="button">
               <SettingsIcon />
             </button>
           </>
