@@ -1023,11 +1023,99 @@ body::-webkit-scrollbar-thumb:hover {
 
 .settings-model-provider-heading {
   border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font: 500 12px/1 "Geist Mono", ui-monospace, monospace;
-  letter-spacing: 0.02em;
   margin: 0;
+  padding: 0;
+}
+
+.settings-model-provider-heading > button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  font: 500 12px/1 "Geist Mono", ui-monospace, monospace;
+  gap: 12px;
+  justify-content: space-between;
+  letter-spacing: 0.02em;
+  min-width: 0;
   padding: 0 0 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.settings-model-provider-heading > button:hover {
+  color: var(--color-text);
+}
+
+.settings-model-provider-heading > button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+}
+
+.settings-model-provider-heading-main {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-model-provider-heading-icon {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  height: 16px;
+  justify-content: center;
+  width: 16px;
+}
+
+.settings-model-provider-heading-icon svg {
+  height: 15px;
+  width: 15px;
+}
+
+.settings-model-provider-heading-icon svg:not([fill="currentColor"]) {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.settings-model-provider-heading-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-model-provider-heading-meta {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: 10px;
+}
+
+.settings-model-provider-heading-meta small {
+  color: var(--color-text-muted);
+  font: 11px/1 "Geist Mono", ui-monospace, monospace;
+  letter-spacing: 0;
+}
+
+.settings-model-provider-chevron {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  transform: rotate(-90deg);
+  transition: transform 140ms ease;
+  width: 16px;
+}
+
+.settings-model-provider-chevron.is-open {
+  transform: rotate(0);
 }
 
 .settings-model-row,
@@ -1126,6 +1214,12 @@ body::-webkit-scrollbar-thumb:hover {
 .settings-model-toggle:disabled {
   cursor: wait;
   opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-model-provider-chevron {
+    transition: none;
+  }
 }
 
 .settings-model-row-copy,
