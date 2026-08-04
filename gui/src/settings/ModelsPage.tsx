@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   connectProvider,
   fetchModelCatalog,
@@ -199,40 +199,16 @@ export function ModelsPage() {
 
           <div className="settings-model-list">
             {visibleProviders.map((provider) => (
-              <section aria-label={provider.provider} className="settings-model-provider-group" key={provider.provider}>
-                <h3 className="settings-model-provider-heading">{provider.provider}</h3>
-                <div className="settings-model-provider-list">
-                  {provider.models.map((model) => {
-                    const key = provider.provider + ":" + model;
-                    const selected = key === currentKey;
-                    const enabled = !(provider.disabled ?? []).includes(model);
-                    return (
-                      <div className={"settings-model-row" + (selected ? " is-current" : "")} key={key}>
-                        <button aria-current={selected ? "true" : undefined} className="settings-model-select" disabled={Boolean(isSavingModel)} onClick={() => void selectModel(provider.provider, model)} type="button">
-                          <span className="settings-model-row-copy">
-                            <span className="settings-model-row-title">
-                              <strong>{model}</strong>
-                              <InputModeIcons modes={provider.metadata[model]?.input ?? []} />
-                            </span>
-                          </span>
-                          {isSavingModel === key ? <span className="settings-model-saving">Saving…</span> : selected ? <CheckIcon /> : null}
-                        </button>
-                        <button
-                          aria-checked={enabled}
-                          aria-label={`${enabled ? "Hide" : "Show"} ${model} in the chat model selector`}
-                          className={`settings-model-toggle${enabled ? " is-enabled" : ""}`}
-                          disabled={isUpdatingVisibility === key}
-                          onClick={() => void toggleModel(provider.provider, model, !enabled)}
-                          role="switch"
-                          type="button"
-                        >
-                          <span aria-hidden="true" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
+              <ProviderModelGroup
+                currentKey={currentKey}
+                isSavingModel={isSavingModel}
+                isUpdatingVisibility={isUpdatingVisibility}
+                key={provider.provider}
+                onSelectModel={selectModel}
+                onToggleModel={toggleModel}
+                provider={provider}
+                query={query}
+              />
             ))}
             {!visibleProviders.length && !state.loading ? <p className="settings-models-empty">No models match your search.</p> : null}
             {state.loading ? <p className="settings-models-empty">Loading models…</p> : null}
@@ -255,6 +231,84 @@ export function ModelsPage() {
           </section>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+function ProviderModelGroup({
+  currentKey,
+  isSavingModel,
+  isUpdatingVisibility,
+  onSelectModel,
+  onToggleModel,
+  provider,
+  query,
+}: {
+  currentKey: string;
+  isSavingModel: string;
+  isUpdatingVisibility: string;
+  onSelectModel: (provider: string, model: string) => Promise<void>;
+  onToggleModel: (provider: string, model: string, enabled: boolean) => Promise<void>;
+  provider: ProviderCatalog;
+  query: string;
+}) {
+  const [isOpen, setIsOpen] = useState(true);
+  const listId = useId();
+
+  useEffect(() => {
+    if (query.trim()) setIsOpen(true);
+  }, [query]);
+
+  return (
+    <section aria-label={provider.provider} className="settings-model-provider-group">
+      <h3 className="settings-model-provider-heading">
+        <button
+          aria-controls={listId}
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((open) => !open)}
+          type="button"
+        >
+          <span className="settings-model-provider-heading-main">
+            <span className="settings-model-provider-heading-icon"><ProviderIcon provider={provider.provider} /></span>
+            <span className="settings-model-provider-heading-name">{provider.provider}</span>
+          </span>
+          <span className="settings-model-provider-heading-meta">
+            <small>{provider.models.length} {provider.models.length === 1 ? "model" : "models"}</small>
+            <DisclosureIcon open={isOpen} />
+          </span>
+        </button>
+      </h3>
+      <div className="settings-model-provider-list" hidden={!isOpen} id={listId}>
+        {provider.models.map((model) => {
+          const key = provider.provider + ":" + model;
+          const selected = key === currentKey;
+          const enabled = !(provider.disabled ?? []).includes(model);
+          return (
+            <div className={"settings-model-row" + (selected ? " is-current" : "")} key={key}>
+              <button aria-current={selected ? "true" : undefined} className="settings-model-select" disabled={Boolean(isSavingModel)} onClick={() => void onSelectModel(provider.provider, model)} type="button">
+                <span className="settings-model-row-copy">
+                  <span className="settings-model-row-title">
+                    <strong>{model}</strong>
+                    <InputModeIcons modes={provider.metadata[model]?.input ?? []} />
+                  </span>
+                </span>
+                {isSavingModel === key ? <span className="settings-model-saving">Saving…</span> : selected ? <CheckIcon /> : null}
+              </button>
+              <button
+                aria-checked={enabled}
+                aria-label={`${enabled ? "Hide" : "Show"} ${model} in the chat model selector`}
+                className={`settings-model-toggle${enabled ? " is-enabled" : ""}`}
+                disabled={isUpdatingVisibility === key}
+                onClick={() => void onToggleModel(provider.provider, model, !enabled)}
+                role="switch"
+                type="button"
+              >
+                <span aria-hidden="true" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -337,4 +391,12 @@ function CheckIcon() {
 
 function CloseIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>;
+}
+
+function DisclosureIcon({ open }: { open: boolean }) {
+  return (
+    <svg aria-hidden="true" className={`settings-model-provider-chevron${open ? " is-open" : ""}`} viewBox="0 0 24 24">
+      <path d="m7 10 5 5 5-5" />
+    </svg>
+  );
 }
