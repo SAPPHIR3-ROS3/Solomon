@@ -46,6 +46,7 @@ type desktopModelChoice struct {
 
 type desktopProviderCatalog struct {
 	Complete bool                            `json:"complete"`
+	Disabled []string                        `json:"disabled,omitempty"`
 	Metadata map[string]desktopModelMetadata `json:"metadata"`
 	Models   []string                        `json:"models"`
 	Provider string                          `json:"provider"`
@@ -61,6 +62,12 @@ type desktopModelCatalog struct {
 	Current   desktopModelChoice       `json:"current"`
 	Providers []desktopProviderCatalog `json:"providers"`
 	Recent    []desktopModelChoice     `json:"recent"`
+}
+
+type desktopModelVisibility struct {
+	Enabled  bool   `json:"enabled"`
+	Model    string `json:"model"`
+	Provider string `json:"provider"`
 }
 
 func (DesktopBridge) ModelCatalog() (desktopModelCatalog, error) {
@@ -94,6 +101,18 @@ func (DesktopBridge) SaveCurrentModel(providerName, modelID string) (desktopMode
 		return desktopModelChoice{}, fmt.Errorf("save config.toml: %w", err)
 	}
 	return desktopModelChoice{Provider: providerName, Model: modelID}, nil
+}
+
+func (DesktopBridge) SetModelEnabled(providerName, modelID string, enabled bool) (desktopModelVisibility, error) {
+	providerName = strings.TrimSpace(providerName)
+	modelID = strings.TrimSpace(modelID)
+	if providerName == "" || modelID == "" {
+		return desktopModelVisibility{}, fmt.Errorf("provider and model are required")
+	}
+	if err := config.UpdateModelVisibility(providerName, modelID, enabled); err != nil {
+		return desktopModelVisibility{}, fmt.Errorf("save model visibility: %w", err)
+	}
+	return desktopModelVisibility{Enabled: enabled, Model: modelID, Provider: providerName}, nil
 }
 
 func buildDesktopModelCatalog(cfg *config.Root) desktopModelCatalog {
@@ -158,10 +177,11 @@ func buildDesktopModelCatalog(cfg *config.Root) desktopModelCatalog {
 				ids = ensureDesktopModelFirst(ids, cfg.Current.Model)
 			}
 			result.Providers[index] = desktopProviderCatalog{
-				Provider: provider.Name,
-				Models:   ids,
 				Complete: complete,
+				Disabled: config.HiddenModelIDs(cfg, provider.Name, ids),
 				Metadata: desktopModelsMetadata(modelsCatalog, provider, ids),
+				Models:   ids,
+				Provider: provider.Name,
 			}
 		}()
 	}
@@ -181,6 +201,7 @@ func mergeDesktopCachedProviders(configured []config.Provider, cached []desktopP
 	for _, provider := range configured {
 		if saved, ok := byName[provider.Name]; ok {
 			saved.Complete = false
+			saved.Disabled = config.HiddenModelIDs(cfg, provider.Name, saved.Models)
 			result = append(result, saved)
 			continue
 		}
@@ -188,7 +209,11 @@ func mergeDesktopCachedProviders(configured []config.Provider, cached []desktopP
 		if provider.Name == cfg.Current.Provider {
 			ids = ensureDesktopModelFirst(ids, cfg.Current.Model)
 		}
-		result = append(result, desktopProviderCatalog{Provider: provider.Name, Models: ids, Complete: false})
+		result = append(result, desktopProviderCatalog{
+			Disabled: config.HiddenModelIDs(cfg, provider.Name, ids),
+			Models:   ids,
+			Provider: provider.Name,
+		})
 	}
 	return result
 }

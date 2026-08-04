@@ -73,20 +73,25 @@ export function ModelControl({ onModelChange, open, onOpenChange }: ModelControl
     return out;
   }, [catalog.recent, selected]);
 
+  const visibleRecentModels = useMemo(() => recentModels.filter((choice) => {
+    const provider = catalog.providers.find((group) => group.provider === choice.provider);
+    return !provider?.disabled.includes(choice.model);
+  }), [catalog.providers, recentModels]);
+
   const showingRecents = activeProvider === recentProvider;
   const activeGroup = catalog.providers.find((group) => group.provider === activeProvider);
   const activeLabel = showingRecents ? "Recent" : activeProvider;
   const visibleModels = useMemo(() => {
     const source = showingRecents
-      ? recentModels.map((choice) => ({
+      ? visibleRecentModels.map((choice) => ({
           ...choice,
           info: catalog.providers.find((group) => group.provider === choice.provider)?.metadata[choice.model],
         }))
-      : (activeGroup?.models ?? []).map((model) => ({ provider: activeProvider, model, info: activeGroup?.metadata[model] }));
+      : (activeGroup?.models ?? []).filter((model) => !activeGroup?.disabled.includes(model)).map((model) => ({ provider: activeProvider, model, info: activeGroup?.metadata[model] }));
     const needle = query.trim().toLowerCase();
     if (!needle) return source;
     return source.filter((choice) => choice.model.toLowerCase().includes(needle) || choice.provider.toLowerCase().includes(needle));
-  }, [activeGroup, activeProvider, catalog.providers, query, recentModels, showingRecents]);
+  }, [activeGroup, activeProvider, catalog.providers, query, showingRecents, visibleRecentModels]);
 
   async function selectModel(choice: ModelChoice) {
     const previous = selected;
@@ -140,7 +145,7 @@ export function ModelControl({ onModelChange, open, onOpenChange }: ModelControl
             >
               <span><HistoryIcon /></span>
               <strong>Recent</strong>
-              <small>{recentModels.length}</small>
+              <small>{visibleRecentModels.length}</small>
             </button>
             {catalog.providers.map((group) => (
               <button
@@ -156,7 +161,7 @@ export function ModelControl({ onModelChange, open, onOpenChange }: ModelControl
               >
                 <span><ProviderIcon provider={group.provider} /></span>
                 <strong>{group.provider}</strong>
-                <small>{group.models.length}</small>
+                <small>{group.models.filter((model) => !group.disabled.includes(model)).length}</small>
               </button>
             ))}
           </nav>
@@ -216,7 +221,7 @@ const inputModeLabels: Record<string, string> = {
   video: "Video input",
 };
 
-function InputModeIcons({ modes }: { modes: string[] }) {
+export function InputModeIcons({ modes }: { modes: string[] }) {
   const supported = [...new Set(modes.map((mode) => mode.trim().toLowerCase()))]
     .filter((mode) => mode in inputModeLabels);
   if (!supported.length) return null;
@@ -292,7 +297,7 @@ function CheckIcon() {
   );
 }
 
-function ProviderIcon({ provider }: { provider: string }) {
+export function ProviderIcon({ provider }: { provider: string }) {
   const normalized = provider.toLowerCase();
   const compact = normalized.replace(/\s+/g, "");
   if (normalized.includes("chatgpt") || normalized.includes("openai")) {

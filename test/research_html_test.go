@@ -41,6 +41,12 @@ func TestHTMLRenderContainsTLDR(t *testing.T) {
 	if !strings.Contains(out, "https://example.com") {
 		t.Fatal("missing source link")
 	}
+	if !strings.Contains(out, "scrollbar-width: none") || !strings.Contains(out, "::-webkit-scrollbar") {
+		t.Fatal("scrollbar should be visually hidden in every supported engine")
+	}
+	if strings.Contains(out, "solomon-report-scroll-fade") {
+		t.Fatal("report should not render fixed scroll overlays that can obscure text")
+	}
 }
 
 func TestHasTLDRSection(t *testing.T) {
