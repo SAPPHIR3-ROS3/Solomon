@@ -10,6 +10,7 @@ Welcome to the in-repo wiki for Solomon. Articles are grouped by topic into **po
 | First run and REPL basics | [Usage and commands — Quickstart](user-guide/usage-and-commands.md#quickstart) |
 | Configure providers, MCP, web search | [Configuration](user-guide/configuration.md) |
 | REPL, slash commands, CLI modes | [Usage and commands](user-guide/usage-and-commands.md) |
+| Capire cosa si fa dalla GUI o dal terminale | [Interfaccia e terminale](user-guide/interface-and-terminal.md) |
 | Find chats, plans, skills, exports on disk | [Data layout](user-guide/data-layout.md) |
 | Automate in CI | [Machine output](user-guide/usage-and-commands.md#machine-readable-output---json---jsonl) · [GitHub Actions example](development/ci-github-actions.example.yml) |
 | Compare capabilities | [Feature catalog](features.md) |
@@ -35,8 +36,9 @@ Development: [Testing](development/testing.md), [Cookbook](development/cookbook.
 3. [Installation and PATH — PATH setup](user-guide/installation.md#binary-location) — if `solomon` is not on PATH after `go install`
 4. [Configuration](user-guide/configuration.md)
 5. [Usage and commands](user-guide/usage-and-commands.md)
-6. [Terminal setup](user-guide/terminal-setup.md) — monospace font and colors
-7. [Data layout](user-guide/data-layout.md)
+6. [Interfaccia e terminale](user-guide/interface-and-terminal.md) — dove trovare ogni operazione
+7. [Terminal setup](user-guide/terminal-setup.md) — monospace font and colors
+8. [Data layout](user-guide/data-layout.md)
 
 **Backends without native tool calling**
 

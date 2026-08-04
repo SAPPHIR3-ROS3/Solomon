@@ -6,6 +6,20 @@ Solomon avrà un **server locale per utente**, avviato e gestito in background c
 
 **Continuità:** durante lo sviluppo, aggiorna questo file quando un termine, un confine o una decisione diventa stabile. Mantienilo come contesto di lavoro locale per le sessioni future; la documentazione ufficiale sotto `docs/` viene aggiornata solo a funzionalità completata e verificata.
 
+## Chat GUI — stato di sviluppo
+
+La superficie conversazionale GUI è in costruzione. Prima dell'integrazione con il runtime, la sidebar mostra una cartella fissa **Test chats** sopra i progetti (e quindi sopra Home). Le fixture stanno in `gui/src/chat-test/fakeChats.ts`, sono intenzionalmente solo frontend e non leggono né scrivono `~/.solomon`. Sono un banco di prova per apertura conversazione, transcript, composer e interazione invio/risposta.
+
+`TestChatView` è una verticale temporanea: apre una fixture selezionata e aggiunge localmente messaggio utente e risposta simulata. Non deve diventare il client definitivo né introdurre API finte. Quando arriverà la conversations API, sostituire la sorgente fixture e il responder locale con un adapter condiviso browser/Wails, mantenendo il contratto di presentazione: chat selezionata, messaggi ordinati, stato turn e operazioni di invio.
+
+Il flusso target è: **sidebar chat → chat id + workspace espliciti → API/server → worker runtime → eventi streaming → store UI → transcript**. Il server non conserva un workspace/chat implicito; ciascuna richiesta deve riportare entrambi gli identificatori. La UI non legge direttamente i JSON reali delle conversazioni: browser e Wails usano un medesimo client di conversazione, con adapter di piattaforma come per projects e customization.
+
+La parity con il REPL richiederà almeno: messaggi user/assistant/system/tool, reasoning separato, streaming/stop/error/retry, immagini e @-mention, checkpoint/branch, usage per turno, compaction e stato plan/subagent. Implementare il modello di dati e gli eventi prima dei dettagli visivi; non collegare il composer al terminal panel come scorciatoia.
+
+La fixture `Test chats` usa un header persistente nella topbar con il formato `cartella / titolo`. Il nome cartella deve rimanere uguale a quello della sidebar; se lo spazio si riduce scompare prima il contesto cartella e il titolo viene abbreviato da sinistra per parole. Cliccando la cartella dall’header o dalla sidebar si apre una nuova chat vuota con la cartella `Test chats` preselezionata (in sola lettura finché non esisterà il modello cartelle reale).
+
+Nel transcript di test i messaggi user occupano tutta la larghezza del composer, mentre quelli assistant sono full-width senza card di sfondo. Il composer mantiene il markup/stile della textbox Home. La composizione visiva è a pila: un unico pannello inferiore applica il backdrop blur dalla sommità della textbox fino al bordo inferiore dell’area chat, con soli angoli superiori arrotondati e senza raggio in basso; il pannello usa una tinta `var(--color-surface)` trasparente quanto basta per mantenere visibile la sfocatura. Sopra questo pannello la textbox resta trasparente, tonda (`24px`) e separata tramite bordo e un’ombra concentrata verso il basso. La barra branch/worktree rimane dentro la stessa superficie sfocata, senza contorno o rientranze proprie. Non aggiungere un rettangolo opaco globale separato dalla pila.
+
 **File locale:** `CONTEXT.md` non va mai aggiunto a Git, committato o pubblicato. È esclusivamente contesto di lavoro locale.
 
 **Flusso Go:** quando una modifica coinvolge codice Go, il passaggio di applicazione e verifica locale concordato è `make install`. Non sostituirlo con `go run`, salvo istruzione esplicita dell'utente. Le modifiche esclusivamente sotto `gui/src/` non richiedono `make install` e vengono aggiornate da Vite/Wails in sviluppo.

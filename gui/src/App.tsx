@@ -11,7 +11,8 @@ import { applyTheme, savedTheme } from "./theme";
 import { CustomizationPage } from "./customization/CustomizationPage";
 import { Welcome } from "./home/Welcome";
 import { SettingsPage } from "./settings/SettingsPage";
-import { type Project } from "./projects/projects";
+import { type Project, type ProjectResearch } from "./projects/projects";
+import { ResearchReportView } from "./research/ResearchReportView";
 import { fakeAssistantReply, initialFakeChats, type FakeChat, type FakeChatMessage } from "./chat-test/fakeChats";
 import { TestChatTopbar, TestChatView } from "./chat-test/TestChatView";
 
@@ -45,10 +46,12 @@ export function App() {
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
   const [fakeChats, setFakeChats] = useState<FakeChat[]>(initialFakeChats);
   const [selectedFakeChatID, setSelectedFakeChatID] = useState<string | null>(null);
+  const [selectedResearch, setSelectedResearch] = useState<{ project: Project; research: ProjectResearch } | null>(null);
   const [newChatFolderName, setNewChatFolderName] = useState<string | null>(null);
   const [workspaceFocus, setWorkspaceFocus] = useState<{ project: Project; token: number } | null>(null);
   const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
-  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  const [viewportWidth, setViewportWidth] = useState(getViewportContentWidth);
+  const [viewportScrollbarWidth, setViewportScrollbarWidth] = useState(getViewportScrollbarWidth);
   const maxTerminalPanelHeight = Math.max(
     MIN_TERMINAL_PANEL_HEIGHT,
     viewportHeight - (welcomeKeepAliveHeight > 0 ? welcomeKeepAliveHeight : FALLBACK_KEEP_ALIVE_HEIGHT),
@@ -65,10 +68,16 @@ export function App() {
   useEffect(() => {
     const onResize = () => {
       setViewportHeight(window.innerHeight);
-      setViewportWidth(window.innerWidth);
+      setViewportWidth(getViewportContentWidth());
+      setViewportScrollbarWidth(getViewportScrollbarWidth());
     };
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(document.documentElement);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      resizeObserver.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -89,6 +98,7 @@ export function App() {
     setActiveView("agent");
     setIsTerminalPanelOpen(false);
     setSelectedFakeChatID(null);
+    setSelectedResearch(null);
     setNewChatFolderName(null);
   }
 
@@ -116,6 +126,7 @@ export function App() {
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedFakeChatID(null);
+    setSelectedResearch(null);
     setNewChatFolderName(null);
   }
 
@@ -125,6 +136,7 @@ export function App() {
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedFakeChatID(null);
+    setSelectedResearch(null);
     setNewChatFolderName(null);
     setHasOpenedTerminalPanel(true);
     setIsTerminalPanelOpen(true);
@@ -136,7 +148,18 @@ export function App() {
     )));
   }
 
+  function openFakeChat(chatID: string) {
+    setIsCustomizationOpen(false);
+    setActiveView("agent");
+    setSelectedFakeChatID(chatID);
+    setSelectedResearch(null);
+    setSelectedWorkspace(null);
+    setWorkspaceFocus(null);
+    setNewChatFolderName(null);
+  }
+
   const selectedFakeChat = fakeChats.find((chat) => chat.id === selectedFakeChatID) ?? null;
+  const isTestChatsExplorerActive = Boolean(selectedFakeChat) || newChatFolderName === "Test chats";
 
   function handleProjectTerminalArmedChange(projectId: string, armed: boolean) {
     setArmedTerminalProjectIds((current) => {
@@ -189,6 +212,7 @@ export function App() {
         "--left-panel-width": `${isSettingsOpen ? Math.min(leftSidePanelWidth, Math.max(0, viewportWidth)) : renderedLeftPanelWidth}px`,
         "--right-panel-width": `${renderedRightPanelWidth}px`,
         "--settings-panel-width": `${Math.min(leftSidePanelWidth, Math.max(0, viewportWidth))}px`,
+        "--viewport-scrollbar-width": `${viewportScrollbarWidth}px`,
       } as CSSProperties}
     >
       <div
@@ -220,7 +244,14 @@ export function App() {
         <RightSidePanel
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           onWidthChange={resizeRightPanel}
+          onOpenResearch={(research) => {
+            if (!selectedWorkspace) return;
+            setSelectedFakeChatID(null);
+            setNewChatFolderName(null);
+            setSelectedResearch({ project: selectedWorkspace, research });
+          }}
           project={selectedWorkspace}
+          testChatsActive={isTestChatsExplorerActive}
           width={renderedRightPanelWidth}
         />
       ) : null}
@@ -234,16 +265,12 @@ export function App() {
             setIsCustomizationOpen(false);
             setActiveView("agent");
             setSelectedFakeChatID(null);
+            setSelectedResearch(null);
             setSelectedWorkspace(null);
             setWorkspaceFocus(null);
             setNewChatFolderName("Test chats");
           }}
-          onOpenFakeChat={(chatID) => {
-            setIsCustomizationOpen(false);
-            setActiveView("agent");
-            setSelectedFakeChatID(chatID);
-            setNewChatFolderName(null);
-          }}
+          onOpenFakeChat={openFakeChat}
           onOpenProjectTerminal={openProjectTerminal}
           onOpenSettings={openSettings}
           onToggleCustomization={toggleCustomization}
@@ -276,7 +303,7 @@ export function App() {
       ) : null}
       {isSettingsOpen ? <SettingsPage onHome={goHome} /> : null}
       {!isSettingsOpen && isCustomizationOpen ? <CustomizationPage /> : null}
-      {!isSettingsOpen && !isCustomizationOpen && !selectedFakeChat ? (
+      {!isSettingsOpen && !isCustomizationOpen && !selectedFakeChat && !selectedResearch ? (
         <Welcome
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           onComposerBoundsChange={(bounds) => setComposerBounds((current) => (
@@ -301,12 +328,18 @@ export function App() {
           title={selectedFakeChat.title}
         />
       ) : null}
+      {!isSettingsOpen && !isCustomizationOpen && selectedResearch ? (
+        <TestChatTopbar breadcrumb={selectedResearch.project.name} onOpenFolder={() => openProjectNewChat(selectedResearch.project)} title={selectedResearch.research.title} />
+      ) : null}
       {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
         <TestChatView
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           chat={selectedFakeChat}
           onSend={sendFakeChatMessage}
         />
+      ) : null}
+      {!isSettingsOpen && !isCustomizationOpen && selectedResearch ? (
+        <ResearchReportView bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} project={selectedResearch.project} research={selectedResearch.research} />
       ) : null}
     </main>
   );
@@ -316,4 +349,12 @@ function loadPanelWidth(storageKey: string) {
   const storedWidth = Number(window.localStorage.getItem(storageKey));
   if (!Number.isFinite(storedWidth)) return DEFAULT_SIDE_PANEL_WIDTH;
   return Math.max(MIN_SIDE_PANEL_WIDTH, Math.round(storedWidth));
+}
+
+function getViewportContentWidth() {
+  return document.documentElement.clientWidth || window.innerWidth;
+}
+
+function getViewportScrollbarWidth() {
+  return Math.max(0, window.innerWidth - getViewportContentWidth());
 }
