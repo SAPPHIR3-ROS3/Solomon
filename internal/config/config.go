@@ -82,6 +82,7 @@ type Root struct {
 	Providers                 map[string]*Provider `toml:"-"`
 	Current                   Current              `toml:"current"`
 	RecentModels              map[string][]string  `toml:"recent_models,omitempty"`
+	HiddenModels              map[string][]string  `toml:"hidden_models,omitempty"`
 	SubagentTimeoutMinutes    int                  `toml:"subagent_timeout_minutes"`
 	ReasoningEffort           string               `toml:"reasoning_effort"`
 	SubagentReasoningEffort   string               `toml:"subagent_reasoning_effort"`
@@ -476,6 +477,96 @@ func NoteRecentModelUse(r *Root, providerName, modelID string) {
 		}
 	}
 	r.RecentModels[prov] = out
+}
+
+// ModelEnabled reports whether a model should be offered by the GUI model selector.
+// Models are enabled by default; only explicitly hidden models are stored.
+func ModelEnabled(r *Root, providerName, modelID string) bool {
+	if r == nil {
+		return true
+	}
+	providerName = strings.TrimSpace(providerName)
+	modelID = strings.TrimSpace(modelID)
+	if providerName == "" || modelID == "" {
+		return true
+	}
+	for _, hidden := range r.HiddenModels[providerName] {
+		if strings.TrimSpace(hidden) == modelID {
+			return false
+		}
+	}
+	return true
+}
+
+// SetModelEnabled changes the GUI visibility preference for one model.
+func SetModelEnabled(r *Root, providerName, modelID string, enabled bool) error {
+	if r == nil {
+		return errors.New("config is required")
+	}
+	providerName = strings.TrimSpace(providerName)
+	modelID = strings.TrimSpace(modelID)
+	if providerName == "" || modelID == "" {
+		return errors.New("provider and model are required")
+	}
+	if r.HiddenModels == nil {
+		r.HiddenModels = make(map[string][]string)
+	}
+	current := r.HiddenModels[providerName]
+	if enabled {
+		out := make([]string, 0, len(current))
+		for _, hidden := range current {
+			if strings.TrimSpace(hidden) == "" || strings.TrimSpace(hidden) == modelID {
+				continue
+			}
+			out = append(out, hidden)
+		}
+		if len(out) == 0 {
+			delete(r.HiddenModels, providerName)
+		} else {
+			r.HiddenModels[providerName] = out
+		}
+		return nil
+	}
+	for _, hidden := range current {
+		if strings.TrimSpace(hidden) == modelID {
+			return nil
+		}
+	}
+	r.HiddenModels[providerName] = append(current, modelID)
+	return nil
+}
+
+// HiddenModelIDs returns the hidden models for a provider that are present in
+// the supplied catalog. The catalog remains complete so settings can re-enable
+// every model later.
+func HiddenModelIDs(r *Root, providerName string, models []string) []string {
+	if r == nil || len(models) == 0 {
+		return nil
+	}
+	hidden := make(map[string]struct{}, len(r.HiddenModels[providerName]))
+	for _, model := range r.HiddenModels[strings.TrimSpace(providerName)] {
+		hidden[strings.TrimSpace(model)] = struct{}{}
+	}
+	if len(hidden) == 0 {
+		return nil
+	}
+	out := make([]string, 0)
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if _, ok := hidden[model]; !ok {
+			continue
+		}
+		if _, ok := seen[model]; ok {
+			continue
+		}
+		seen[model] = struct{}{}
+		out = append(out, model)
+	}
+	return out
 }
 
 func RecentModelUseEntries(r *Root, preferProvider string) []RecentModelUse {

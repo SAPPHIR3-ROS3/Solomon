@@ -14,6 +14,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research"
 	toml "github.com/pelletier/go-toml/v2"
 )
 
@@ -197,6 +198,57 @@ func (DesktopBridge) ProjectDirectoryEntries(projectID, relativePath string) ([]
 		return result[i].Name < result[j].Name
 	})
 	return result, nil
+}
+
+// ProjectResearch returns deep-research jobs persisted for one registered project.
+func (DesktopBridge) ProjectResearch(projectID string) ([]research.JobRecord, error) {
+	if _, err := desktopRegisteredProjectPath(projectID); err != nil {
+		return nil, err
+	}
+	slugs, err := chatstore.ListResearchJobFiles(projectID)
+	if err != nil {
+		return []research.JobRecord{}, nil
+	}
+	jobs := make([]research.JobRecord, 0, len(slugs))
+	for _, slug := range slugs {
+		var job research.JobRecord
+		if err := chatstore.ReadResearchJobFile(projectID, slug, &job); err == nil {
+			jobs = append(jobs, job)
+		}
+	}
+	sort.Slice(jobs, func(i, j int) bool {
+		left, right := jobs[i].FinishedAt, jobs[j].FinishedAt
+		if left.IsZero() {
+			left = jobs[i].StartedAt
+		}
+		if right.IsZero() {
+			right = jobs[j].StartedAt
+		}
+		return left.After(right)
+	})
+	return jobs, nil
+}
+
+func (DesktopBridge) ProjectResearchReport(projectID, researchID string) (string, error) {
+	jobs, err := (DesktopBridge{}).ProjectResearch(projectID)
+	if err != nil {
+		return "", err
+	}
+	for _, job := range jobs {
+		if job.ID != researchID {
+			continue
+		}
+		path, err := chatstore.ResearchHTMLPath(projectID, job.Slug)
+		if err != nil {
+			return "", err
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(body), nil
+	}
+	return "", fmt.Errorf("research report not found")
 }
 
 func desktopRegisteredProjectPath(projectID string) (string, error) {

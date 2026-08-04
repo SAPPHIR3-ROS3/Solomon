@@ -227,9 +227,10 @@ function isFileLink(href?: string) {
   return href.startsWith("./") || href.startsWith("../") || href.startsWith("/") || /\.[a-z\d]{1,8}(?:[?#].*)?$/i.test(href);
 }
 
-export function TestChatTopbar({ onOpenFolder, title }: { onOpenFolder: () => void; title: string }) {
+export function TestChatTopbar({ breadcrumb, onOpenFolder, title }: { breadcrumb?: string; onOpenFolder: () => void; title: string }) {
   const topbarRef = useRef<HTMLDivElement>(null);
   const contextRef = useRef<HTMLButtonElement>(null);
+  const folderName = breadcrumb ?? "Test chats";
   const [showContext, setShowContext] = useState(true);
   const [visibleTitle, setVisibleTitle] = useState(title);
 
@@ -238,6 +239,13 @@ export function TestChatTopbar({ onOpenFolder, title }: { onOpenFolder: () => vo
     const context = contextRef.current;
     if (!topbar || !context) return;
     const measure = () => {
+      // Research reports always keep the folder breadcrumb actionable; the
+      // report title can shrink and ellipsize when the available width is tight.
+      if (breadcrumb) {
+        setShowContext(true);
+        setVisibleTitle(title);
+        return;
+      }
       const available = topbar.clientWidth;
       const contextWidth = context.getBoundingClientRect().width;
       const fullTitleWidth = measureTopbarText(title);
@@ -247,22 +255,19 @@ export function TestChatTopbar({ onOpenFolder, title }: { onOpenFolder: () => vo
         return;
       }
       setShowContext(false);
-      const words = title.trim().split(/\s+/).filter(Boolean);
-      let kept = words;
-      while (kept.length > 1 && measureTopbarText(`… ${kept.join(" ")}`) > available) kept = kept.slice(1);
-      setVisibleTitle(kept.length < words.length ? `… ${kept.join(" ")}` : title);
+      setVisibleTitle(title);
     };
     const observer = new ResizeObserver(measure);
     observer.observe(topbar);
     measure();
     return () => observer.disconnect();
-  }, [title]);
+  }, [breadcrumb, title]);
 
   return (
-    <div aria-label={`Test chats / ${title}`} className="test-chat-topbar" ref={topbarRef}>
-      <button aria-label="Torna alla nuova chat nella cartella Test chats" className={`test-chat-topbar-context${showContext ? "" : " is-hidden"}`} onClick={onOpenFolder} ref={contextRef} type="button">
+    <div aria-label={`${folderName} / ${title}`} className="test-chat-topbar" ref={topbarRef}>
+      <button aria-label={`Torna alla nuova chat nella cartella ${folderName}`} className={`test-chat-topbar-context${showContext ? "" : " is-hidden"}`} onClick={onOpenFolder} ref={contextRef} type="button">
         <FolderIcon />
-        <span className="test-chat-topbar-folder">Test chats</span>
+        <span className="test-chat-topbar-folder">{folderName}</span>
         <span aria-hidden="true" className="test-chat-topbar-slash">/</span>
       </button>
       <span className="test-chat-topbar-title" title={title}>{visibleTitle}</span>
@@ -278,6 +283,7 @@ function measureTopbarText(value: string) {
   context.font = '650 20px "Geist", ui-sans-serif, system-ui, sans-serif';
   return context.measureText(value).width;
 }
+
 
 function AsciiCrown() {
   return (

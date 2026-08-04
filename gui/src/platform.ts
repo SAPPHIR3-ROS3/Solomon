@@ -18,8 +18,12 @@ type WailsServerBridge = {
 
 type WailsDesktopBridge = {
   ModelCatalog: () => Promise<unknown>;
+  ConnectProvider?: (request: { APIKey: string; BaseURL: string; Kind: number; Name: string }) => Promise<unknown>;
+  SetModelEnabled?: (provider: string, model: string, enabled: boolean) => Promise<unknown>;
   ProjectSidebarData: () => Promise<unknown>;
   ProjectDirectoryEntries?: (projectID: string, directoryPath: string) => Promise<unknown>;
+  ProjectResearch?: (projectID: string) => Promise<unknown>;
+  ProjectResearchReport?: (projectID: string, researchID: string) => Promise<string>;
   ProjectBranches?: (projectID: string) => Promise<unknown>;
   ProjectWorktrees?: (projectID: string) => Promise<unknown>;
   CheckoutProjectBranch?: (projectID: string, branch: string) => Promise<unknown>;
