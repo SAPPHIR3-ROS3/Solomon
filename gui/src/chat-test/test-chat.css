@@ -44,7 +44,7 @@
   min-width: 0;
   pointer-events: none;
   position: fixed;
-  right: 260px;
+  right: max(calc(50% + 121px), calc(var(--right-panel-width) + 16px));
   top: 0;
   z-index: 12;
 }
@@ -70,7 +70,7 @@
 .test-chat-topbar-context svg { fill: none; height: 20px; stroke: var(--color-text-muted); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; width: 20px; }
 .test-chat-topbar-folder { color: var(--color-text-muted); font-size: 20px; font-weight: 520; letter-spacing: -.03em; }
 .test-chat-topbar-slash { color: var(--color-text-muted); font-size: 24px; font-weight: 350; }
-.test-chat-topbar-title { color: var(--color-text); font-size: 20px; font-weight: 650; letter-spacing: -.035em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.test-chat-topbar-title { color: var(--color-text); flex: 1 1 auto; font-size: 20px; font-weight: 650; letter-spacing: -.035em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .test-chat-messages-shell, .test-chat-composer-dock { position: relative; z-index: 1; }
 .test-chat-empty { color: var(--color-text-muted); font: 13px/1.5 "Geist", sans-serif; margin: 0; }
 .test-chat-messages-shell { flex: 1; min-height: 0; overflow: hidden; width: calc(100% + 72px); }
@@ -122,7 +122,7 @@
 .test-chat-message .test-chat-code-line { align-items: baseline; display: flex; font: inherit; margin-bottom: 0; min-height: 1.55em; text-transform: none; }
 .test-chat-message .test-chat-line-number { color: var(--color-text-muted); display: block; flex: 0 0 2.2em; font: inherit; margin: 0 12px 0 0; padding-right: 9px; position: relative; text-align: right; text-transform: none; user-select: none; z-index: 1; }
 .test-chat-message .test-chat-line-content { color: inherit; display: block; font: inherit; margin: 0; min-width: max-content; text-transform: none; }
-.test-chat-file-link { background: color-mix(in srgb, var(--color-accent) 22%, transparent); border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 2px 4px; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.test-chat-file-link { background: color-mix(in srgb, var(--color-accent) 22%, transparent); border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 2px 4px; text-decoration: none; }
 .test-chat-file-link:hover { background: color-mix(in srgb, var(--color-accent) 34%, transparent); }
 .test-chat-composer-dock {
   backdrop-filter: blur(18px);

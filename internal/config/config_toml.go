@@ -27,6 +27,8 @@ type rootLegacyFile struct {
 
 	RecentModelUses []RecentModelUse `toml:"recent_model_uses,omitempty"`
 
+	HiddenModels map[string][]string `toml:"hidden_models,omitempty"`
+
 	SubagentTimeoutMinutes int `toml:"subagent_timeout_minutes"`
 
 	ReasoningEffort string `toml:"reasoning_effort"`
@@ -90,6 +92,8 @@ type rootFile struct {
 	Current Current `toml:"current"`
 
 	RecentModels map[string][]string `toml:"recent_models,omitempty"`
+
+	HiddenModels map[string][]string `toml:"hidden_models,omitempty"`
 
 	SubagentTimeoutMinutes int `toml:"subagent_timeout_minutes"`
 
@@ -184,6 +188,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		RecentModels: f.RecentModels,
 
+		HiddenModels: f.HiddenModels,
+
 		SubagentTimeoutMinutes: f.SubagentTimeoutMinutes,
 
 		ReasoningEffort: f.ReasoningEffort,
@@ -264,6 +270,8 @@ func rootToFile(r *Root) *rootFile {
 		Current: r.Current,
 
 		RecentModels: r.RecentModels,
+
+		HiddenModels: r.HiddenModels,
 
 		SubagentTimeoutMinutes: r.SubagentTimeoutMinutes,
 
@@ -383,6 +391,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		UserName: f.UserName,
 
 		Current: f.Current,
+
+		HiddenModels: f.HiddenModels,
 
 		SubagentTimeoutMinutes: f.SubagentTimeoutMinutes,
 

@@ -314,15 +314,59 @@ async function projectDirectoryEntries(projectID: string, directoryPath: string)
     .sort((left, right) => Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name));
 }
 
+async function projectResearch(projectID: string) {
+  if (!/^[a-f0-9]{64}$/.test(projectID)) throw new Error("Invalid project ID");
+  const home = solomonHome();
+  const rawMap: unknown = JSON.parse(await readFile(path.join(home, "projectsId.json"), "utf8"));
+  if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) throw new Error("Invalid projects map");
+  if (!Object.values(rawMap).includes(projectID)) throw new Error("Project is not registered");
+  let files: string[];
+  try {
+    files = (await readdir(path.join(home, "projects", projectID, "research"))).filter((file) => file.endsWith(".json"));
+  } catch {
+    return [];
+  }
+  const jobs = await Promise.all(files.map(async (file) => {
+    try {
+      const payload: unknown = JSON.parse(await readFile(path.join(home, "projects", projectID, "research", file), "utf8"));
+      return payload && typeof payload === "object" && !Array.isArray(payload) ? payload : null;
+    } catch {
+      return null;
+    }
+  }));
+  return jobs.filter((job): job is Record<string, unknown> => job !== null)
+    .sort((left, right) => String(right.finished_at ?? right.started_at ?? "").localeCompare(String(left.finished_at ?? left.started_at ?? "")));
+}
+
+async function projectResearchReport(projectID: string, researchID: string) {
+  const jobs = await projectResearch(projectID);
+  const job = jobs.find((entry) => entry.id === researchID);
+  if (!job || typeof job.slug !== "string" || !/^[a-z0-9][a-z0-9-]*$/i.test(job.slug)) throw new Error("Research report not found");
+  return readFile(path.join(solomonHome(), "projects", projectID, "research", `${job.slug}.html`), "utf8");
+}
+
 function attachProjectActionEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
   server.middlewares.use(projectActionEndpoint, (request, response, next) => {
     const route = request.url?.split("?")[0] ?? "";
-    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files|branches|checkout|worktrees))?\/?$/);
+    const reportMatch = route.match(/^\/?([a-f0-9]{64})\/research\/([^/]+)\/report\/?$/);
+    if (request.method === "GET" && reportMatch) {
+      void projectResearchReport(reportMatch[1], decodeURIComponent(reportMatch[2]))
+        .then((report) => { response.statusCode = 200; response.setHeader("Content-Type", "text/html; charset=utf-8"); response.end(report); })
+        .catch(() => { response.statusCode = 404; response.end("Research report not found"); });
+      return;
+    }
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files|research|branches|checkout|worktrees))?\/?$/);
     if (request.method === "GET" && match?.[2] === "files") {
       const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
       void projectDirectoryEntries(match[1], directoryPath)
         .then((entries) => respondWithJson(response, 200, entries))
         .catch(() => respondWithJson(response, 500, { error: "Unable to read project files" }));
+      return;
+    }
+    if (request.method === "GET" && match?.[2] === "research") {
+      void projectResearch(match[1])
+        .then((jobs) => respondWithJson(response, 200, jobs))
+        .catch(() => respondWithJson(response, 500, { error: "Unable to read project research" }));
       return;
     }
     if (request.method === "GET" && match?.[2] === "branches") {

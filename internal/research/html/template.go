@@ -50,6 +50,8 @@ main { max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
 .sources ol { padding-left: 1.25rem; }
 .stats { margin-top: 2rem; color: var(--muted); font-size: .85rem; font-family: system-ui, sans-serif; }
 article.report h2:last-of-type { margin-top: 2.5rem; padding: 1rem 1.25rem; background: var(--card); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; }
+html, body { scrollbar-width: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
 `
 }
 

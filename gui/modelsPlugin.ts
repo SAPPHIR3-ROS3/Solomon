@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -7,15 +7,19 @@ import type { Plugin } from "vite";
 
 const modelsEndpoint = "/__solomon/models";
 const currentModelEndpoint = "/__solomon/current-model";
+const modelVisibilityEndpoint = "/__solomon/model-visibility";
+const connectProviderEndpoint = "/__solomon/connect-provider";
 const skippedProviders = new Set(["Claude Sub"]);
 const recentModelCap = 64;
 const guiRoot = fileURLToPath(new URL(".", import.meta.url));
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const catalogHelper = path.join(guiRoot, "desktop", "model_catalog.go");
+const providerSetupHelper = path.join(guiRoot, "desktop", "provider_setup.go");
 
 type ModelChoice = { provider: string; model: string };
-type ProviderCatalog = { provider: string; models: string[]; complete: boolean };
+type ProviderCatalog = { provider: string; models: string[]; disabled: string[]; complete: boolean };
 type ModelCatalog = { current: ModelChoice; recent: ModelChoice[]; providers: ProviderCatalog[] };
+type ModelVisibility = { enabled: boolean; model: string; provider: string };
 
 let modelCatalogCache: { createdAt: number; catalog: ModelCatalog } | undefined;
 let modelCatalogInFlight: Promise<ModelCatalog> | undefined;
@@ -126,6 +130,20 @@ function parseRecentModels(source: string): Map<string, string[]> {
   return recent;
 }
 
+function parseHiddenModels(source: string): Map<string, string[]> {
+  const body = sectionBody(source, /^\s*\[hidden_models\]\s*$/m);
+  const hidden = new Map<string, string[]>();
+  for (const line of body.split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:"([^"]+)"|'((?:[^']|'')*)'|([A-Za-z0-9_-]+))\s*=\s*\[(.*)\]\s*(?:#.*)?$/);
+    if (!match) continue;
+    const provider = (match[1] || (match[2] ? match[2].replaceAll("''", "'") : "") || match[3] || "").trim();
+    if (!provider || skippedProviders.has(provider)) continue;
+    const models = Array.from(match[4].matchAll(/"([^"]+)"|'((?:[^']|'')*)'/g), (entry) => (entry[1] || entry[2]?.replaceAll("''", "'") || "").trim()).filter(Boolean);
+    if (models.length) hidden.set(provider, models);
+  }
+  return hidden;
+}
+
 function parseCurrent(source: string): ModelChoice {
   const body = sectionBody(source, /^\s*\[current\]\s*$/m);
   const provider = body.match(/^\s*provider\s*=\s*((?:"(?:[^"\\]|\\.)*")|(?:'(?:[^']|'')*')|[^\s#]+)\s*(?:#.*)?$/m);
@@ -152,6 +170,7 @@ async function readRecentModelCatalog(home: string): Promise<ModelCatalog> {
   const source = await readFile(configPath(home), "utf8");
   const current = parseCurrent(source);
   const recentMap = parseRecentModels(source);
+  const hiddenMap = parseHiddenModels(source);
   const providerNames = listProviderNames(source);
   for (const name of recentMap.keys()) {
     if (!providerNames.includes(name) && !skippedProviders.has(name)) providerNames.push(name);
@@ -161,7 +180,7 @@ async function readRecentModelCatalog(home: string): Promise<ModelCatalog> {
   }
   const providers: ProviderCatalog[] = providerNames.map((provider) => {
     const models = uniqueModels(recentMap.get(provider) ?? [], provider === current.provider ? current.model : "");
-    return { provider, models, complete: false };
+    return { provider, models, disabled: hiddenMap.get(provider) ?? [], complete: false };
   });
   const recent: ModelChoice[] = [];
   const prefer = current.provider;
@@ -262,6 +281,57 @@ function upsertRecentModels(source: string, provider: string, model: string): st
   return `${source.slice(0, headerEnd)}${nextBody.startsWith("\n") ? nextBody : `\n${nextBody.replace(/^\n/, "")}`}${after}`;
 }
 
+function upsertHiddenModels(source: string, provider: string, model: string, enabled: boolean): string {
+  const hidden = parseHiddenModels(source);
+  const current = hidden.get(provider) ?? [];
+  const models = enabled
+    ? current.filter((id) => id !== model)
+    : uniqueModels(current, model);
+  const key = quoteTomlKey(provider);
+  const match = source.match(/^\s*\[hidden_models\]\s*$/m);
+
+  if (!match || match.index === undefined) {
+    if (models.length === 0) return source;
+    return `${source.trimEnd()}\n\n[hidden_models]\n${key} = ${formatRecentArray(models)}\n`;
+  }
+
+  const headerEnd = match.index + match[0].length;
+  const rest = source.slice(headerEnd);
+  const next = rest.search(/^\s*\[/m);
+  const body = next === -1 ? rest : rest.slice(0, next);
+  const after = next === -1 ? "" : rest.slice(next);
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const linePattern = new RegExp(`^(\\s*${escapedKey}\\s*=\\s*)\\[(.*)\\](\\s*(?:#.*)?)$`, "m");
+  let nextBody = body;
+
+  if (linePattern.test(body)) {
+    nextBody = models.length === 0
+      ? body.replace(linePattern, "")
+      : body.replace(linePattern, (_full, prefix: string, _items: string, suffix: string) => `${prefix}${formatRecentArray(models)}${suffix}`);
+  } else if (models.length > 0) {
+    const insertion = `${key} = ${formatRecentArray(models)}\n`;
+    nextBody = body.endsWith("\n") || body.length === 0 ? `${body}${insertion}` : `${body}\n${insertion}`;
+  }
+
+  return `${source.slice(0, headerEnd)}${nextBody.startsWith("\n") ? nextBody : `\n${nextBody}`}${after}`;
+}
+
+async function writeModelVisibility(home: string, provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
+  const filePath = configPath(home);
+  const source = await readFile(filePath, "utf8");
+  const providers = listProviderNames(source);
+  if (!providers.includes(provider) && !parseRecentModels(source).has(provider)) {
+    throw new Error(`unknown provider ${provider}`);
+  }
+  const next = upsertHiddenModels(source, provider, model, enabled);
+  if (next !== source) {
+    const temporaryPath = `${filePath}.gui.tmp`;
+    await writeFile(temporaryPath, next, { encoding: "utf8", mode: 0o600 });
+    await rename(temporaryPath, filePath);
+  }
+  return { enabled, model, provider };
+}
+
 async function writeCurrentModel(home: string, provider: string, model: string): Promise<ModelChoice> {
   const filePath = configPath(home);
   const source = await readFile(filePath, "utf8");
@@ -317,15 +387,76 @@ function attachCurrentModelEndpoint(server: { middlewares: { use: (route: string
   });
 }
 
+function attachModelVisibilityEndpoint(server: { middlewares: { use: (route: string, handler: (request: JsonRequest, response: JsonResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(modelVisibilityEndpoint, (request, response, next) => {
+    if (request.method !== "PUT") {
+      next();
+      return;
+    }
+    void readJsonBody(request)
+      .then((payload) => {
+        if (!payload || typeof payload !== "object" || !("enabled" in payload) || !("model" in payload) || !("provider" in payload)) {
+          throw new Error("provider, model and enabled are required");
+        }
+        const enabled = typeof payload.enabled === "boolean" ? payload.enabled : undefined;
+        const model = typeof payload.model === "string" ? payload.model.trim() : "";
+        const provider = typeof payload.provider === "string" ? payload.provider.trim() : "";
+        if (enabled === undefined || !model || !provider) throw new Error("provider, model and enabled are required");
+        return writeModelVisibility(solomonHome(), provider, model, enabled);
+      })
+      .then((result) => {
+        modelCatalogCache = undefined;
+        respond(response, 200, result);
+      })
+      .catch((error: unknown) => respond(response, 500, { error: error instanceof Error ? error.message : "Unable to save model visibility" }));
+  });
+}
+
+function attachConnectProviderEndpoint(server: { middlewares: { use: (route: string, handler: (request: JsonRequest, response: JsonResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(connectProviderEndpoint, (request, response, next) => {
+    if (request.method !== "POST") {
+      next();
+      return;
+    }
+    void readJsonBody(request)
+      .then((payload) => new Promise<string>((resolve, reject) => {
+        const child = spawn("go", ["run", providerSetupHelper], {
+          cwd: repositoryRoot,
+          env: process.env,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (chunk) => { stdout += String(chunk); });
+        child.stderr.on("data", (chunk) => { stderr += String(chunk); });
+        child.once("error", reject);
+        child.once("close", (code) => {
+          if (code === 0) resolve(stdout.trim());
+          else reject(new Error(stderr.trim() || "provider setup failed"));
+        });
+        child.stdin.end(JSON.stringify(payload));
+      }))
+      .then((result) => {
+        modelCatalogCache = undefined;
+        respond(response, 200, JSON.parse(result) as object);
+      })
+      .catch((error: unknown) => respond(response, 500, { error: error instanceof Error ? error.message : "Unable to connect provider" }));
+  });
+}
+
 export function modelsPlugin(): Plugin {
   return {
     configurePreviewServer(server) {
       attachModelsEndpoint(server);
       attachCurrentModelEndpoint(server);
+      attachModelVisibilityEndpoint(server);
+      attachConnectProviderEndpoint(server);
     },
     configureServer(server) {
       attachModelsEndpoint(server);
       attachCurrentModelEndpoint(server);
+      attachModelVisibilityEndpoint(server);
+      attachConnectProviderEndpoint(server);
     },
     name: "solomon-models",
   };

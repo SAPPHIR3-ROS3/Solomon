@@ -35,6 +35,16 @@ export type ProjectDirectoryEntry = {
   path: string;
 };
 
+export type ProjectResearch = {
+  finishedAt: string;
+  id: string;
+  phase: string;
+  sourceCount: number;
+  startedAt: string;
+  status: string;
+  title: string;
+};
+
 export type ProjectBranches = {
   branches: string[];
   current: string;
@@ -62,6 +72,22 @@ export async function fetchProjectDirectoryEntries(projectID: string, directoryP
   ));
   if (!response.ok) throw new Error(`Unable to read project files: ${response.status}`);
   return projectDirectoryEntriesFromPayload(await response.json());
+}
+
+export async function fetchProjectResearch(projectID: string): Promise<ProjectResearch[]> {
+  const bridge = await desktopBridge();
+  if (bridge?.ProjectResearch) return projectResearchFromPayload(await bridge.ProjectResearch(projectID));
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/research`));
+  if (!response.ok) throw new Error(`Unable to read project research: ${response.status}`);
+  return projectResearchFromPayload(await response.json());
+}
+
+export async function fetchProjectResearchReport(projectID: string, researchID: string): Promise<string> {
+  const bridge = await desktopBridge();
+  if (bridge?.ProjectResearchReport) return bridge.ProjectResearchReport(projectID, researchID);
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/research/${encodeURIComponent(researchID)}/report`));
+  if (!response.ok) throw new Error(`Unable to read research report: ${response.status}`);
+  return response.text();
 }
 
 export async function fetchProjectBranches(projectID: string, signal?: AbortSignal): Promise<ProjectBranches> {
@@ -194,6 +220,7 @@ export type ModelInfo = {
 
 export type ProviderCatalog = {
   complete: boolean;
+  disabled: string[];
   metadata: Record<string, ModelInfo>;
   models: string[];
   provider: string;
@@ -204,6 +231,70 @@ export type ModelCatalog = {
   providers: ProviderCatalog[];
   recent: ModelChoice[];
 };
+
+export type ConnectProviderRequest = {
+  apiKey: string;
+  baseURL: string;
+  kind: number;
+  name: string;
+};
+
+export type ModelVisibility = {
+  enabled: boolean;
+  model: string;
+  provider: string;
+};
+
+const modelVisibilityStorageKey = "solomon.model-visibility";
+
+function modelVisibilityKey(provider: string, model: string) {
+  return `${provider}\u0000${model}`;
+}
+
+function readLocalModelVisibility(): Record<string, boolean> {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(modelVisibilityStorageKey) ?? "{}");
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === "boolean")) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalModelVisibility(provider: string, model: string, enabled: boolean) {
+  try {
+    const values = readLocalModelVisibility();
+    values[modelVisibilityKey(provider, model)] = enabled;
+    window.localStorage.setItem(modelVisibilityStorageKey, JSON.stringify(values));
+  } catch {
+    // Local storage is only a compatibility fallback; the config remains the source of truth.
+  }
+}
+
+function clearLocalModelVisibility(provider: string, model: string) {
+  try {
+    const values = readLocalModelVisibility();
+    delete values[modelVisibilityKey(provider, model)];
+    window.localStorage.setItem(modelVisibilityStorageKey, JSON.stringify(values));
+  } catch {
+    // Ignore unavailable local storage after a successful server save.
+  }
+}
+
+function applyLocalModelVisibility(providers: ProviderCatalog[]): ProviderCatalog[] {
+  const overrides = readLocalModelVisibility();
+  if (!Object.keys(overrides).length) return providers;
+  return providers.map((provider) => {
+    const disabled = new Set(provider.disabled);
+    for (const model of provider.models) {
+      const override = overrides[modelVisibilityKey(provider.provider, model)];
+      if (override === undefined) continue;
+      if (override) disabled.delete(model);
+      else disabled.add(model);
+    }
+    return { ...provider, disabled: [...disabled] };
+  });
+}
 
 export async function fetchModelCatalog(signal?: AbortSignal): Promise<ModelCatalog> {
   const bridge = await desktopBridge();
@@ -234,6 +325,67 @@ export async function saveCurrentModel(provider: string, model: string): Promise
   return modelChoiceFromPayload(await response.json());
 }
 
+export async function setModelEnabled(provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
+  const bridge = await desktopBridge();
+  if (bridge?.SetModelEnabled) {
+    const result = modelVisibilityFromPayload(await bridge.SetModelEnabled(provider, model, enabled));
+    if (result.provider !== provider || result.model !== model || result.enabled !== enabled) {
+      throw new Error("Unable to verify model visibility update");
+    }
+    clearLocalModelVisibility(provider, model);
+    return result;
+  }
+  let response: Response;
+  try {
+    response = await fetch(await serverEndpoint("/__solomon/model-visibility"), {
+      body: JSON.stringify({ enabled, model, provider }),
+      headers: { "Content-Type": "application/json" },
+      method: "PUT",
+    });
+  } catch {
+    writeLocalModelVisibility(provider, model, enabled);
+    return { enabled, model, provider };
+  }
+  if (!response.ok) {
+    if (response.status === 404 || response.status === 405) {
+      writeLocalModelVisibility(provider, model, enabled);
+      return { enabled, model, provider };
+    }
+    const payload = await response.json().catch(() => null);
+    const detail = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Unable to save model visibility";
+    throw new Error(detail);
+  }
+  const result = modelVisibilityFromPayload(await response.json());
+  if (result.provider !== provider || result.model !== model || result.enabled !== enabled) {
+    throw new Error("Unable to verify model visibility update");
+  }
+  clearLocalModelVisibility(provider, model);
+  return result;
+}
+
+export async function connectProvider(request: ConnectProviderRequest): Promise<ModelChoice> {
+  const bridge = await desktopBridge();
+  if (bridge?.ConnectProvider) {
+    return modelChoiceFromPayload(await bridge.ConnectProvider({
+      APIKey: request.apiKey,
+      BaseURL: request.baseURL,
+      Kind: request.kind,
+      Name: request.name,
+    }));
+  }
+  const response = await fetch(await serverEndpoint("/__solomon/connect-provider"), {
+    body: JSON.stringify(request),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Unable to connect provider";
+    throw new Error(detail);
+  }
+  return modelChoiceFromPayload(await response.json());
+}
+
 function modelCatalogFromPayload(payload: unknown): ModelCatalog {
   if (!payload || typeof payload !== "object") {
     return { current: { provider: "", model: "" }, providers: [], recent: [] };
@@ -251,13 +403,16 @@ function modelCatalogFromPayload(payload: unknown): ModelCatalog {
               return parsed ? [[id, parsed]] : [];
             }))
           : {};
-        return [{ provider: entry.provider, models, metadata, complete: "complete" in entry ? Boolean(entry.complete) : false }];
+        const disabled = "disabled" in entry && Array.isArray(entry.disabled)
+          ? entry.disabled.filter((model: unknown): model is string => typeof model === "string" && Boolean(model.trim()))
+          : [];
+        return [{ provider: entry.provider, models, metadata, complete: "complete" in entry ? Boolean(entry.complete) : false, disabled }];
       })
     : [];
   const recent = "recent" in payload && Array.isArray(payload.recent)
     ? payload.recent.map(modelChoiceFromPayload).filter((entry) => entry.provider && entry.model)
     : [];
-  return { current, providers, recent };
+  return { current, providers: applyLocalModelVisibility(providers), recent };
 }
 
 function modelInfoFromPayload(payload: unknown): ModelInfo | undefined {
@@ -276,6 +431,16 @@ function modelChoiceFromPayload(payload: unknown): ModelChoice {
   return {
     provider: "provider" in payload && typeof payload.provider === "string" ? payload.provider.trim() : "",
     model: "model" in payload && typeof payload.model === "string" ? payload.model.trim() : "",
+  };
+}
+
+function modelVisibilityFromPayload(payload: unknown): ModelVisibility {
+  if (!payload || typeof payload !== "object") return { enabled: false, model: "", provider: "" };
+  const record = payload as Record<string, unknown>;
+  return {
+    enabled: typeof record.enabled === "boolean" ? record.enabled : typeof record.Enabled === "boolean" ? record.Enabled : false,
+    model: typeof record.model === "string" ? record.model.trim() : typeof record.Model === "string" ? record.Model.trim() : "",
+    provider: typeof record.provider === "string" ? record.provider.trim() : typeof record.Provider === "string" ? record.Provider.trim() : "",
   };
 }
 
@@ -314,6 +479,26 @@ function projectDirectoryEntriesFromPayload(payload: unknown): ProjectDirectoryE
     if (!name || !path) return [];
     return [{ isDirectory: "isDirectory" in entry && Boolean(entry.isDirectory), name, path }];
   });
+}
+
+function projectResearchFromPayload(payload: unknown): ProjectResearch[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    const title = typeof record.title === "string" ? record.title.trim() : "";
+    if (!title) return [];
+    const stats = record.stats && typeof record.stats === "object" ? record.stats as Record<string, unknown> : {};
+    return [{
+      finishedAt: typeof record.finished_at === "string" ? record.finished_at : "",
+      id: typeof record.id === "string" ? record.id : title,
+      phase: typeof record.phase === "string" ? record.phase : "",
+      sourceCount: typeof stats.urls === "number" ? stats.urls : 0,
+      startedAt: typeof record.started_at === "string" ? record.started_at : "",
+      status: typeof record.status === "string" ? record.status : "",
+      title,
+    }];
+  }).sort((left, right) => Date.parse(right.finishedAt || right.startedAt) - Date.parse(left.finishedAt || left.startedAt));
 }
 
 function projectBranchesFromPayload(payload: unknown): ProjectBranches {
