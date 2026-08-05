@@ -1,4 +1,5 @@
 export type FakeChatMessage = {
+  createdAt?: number;
   id: string;
   role: "assistant" | "user";
   content: string;
@@ -6,6 +7,7 @@ export type FakeChatMessage = {
 
 export type FakeChat = {
   id: string;
+  isNewTestChat?: boolean;
   messages: FakeChatMessage[];
   title: string;
   worktree?: string;
@@ -51,16 +53,22 @@ export const initialFakeChats: FakeChat[] = [
       { id: "tool-assistant", role: "assistant", content: "## Un turno osservabile\n\nUn turno dell’agente dovrebbe rendere comprensibile sia **che cosa sta facendo** sia **che cosa ha ottenuto**. Mostrerei questi elementi nell’ordine in cui accadono:\n\n1. messaggio dell’utente;\n2. reasoning o piano sintetico;\n3. attività dei tool;\n4. risultato del tool;\n5. risposta finale;\n6. errori e metriche del turno.\n\n| Elemento | Serve a | Esempio |\n| --- | --- | --- |\n| Reasoning | spiegare il prossimo passo | “Cerco il file di configurazione” |\n| Tool call | mostrare l’azione | `read_file(path)` |\n| Risultato | rendere verificabile l’azione | file trovato, 84 righe |\n| Stato | indicare come è finito il turno | completato o interrotto |\n\nUn risultato tecnico potrebbe essere rappresentato così:\n\n```json\n{\n  \"status\": \"completed\",\n  \"tool\": \"read_file\",\n  \"duration_ms\": 184,\n  \"items\": 3\n}\n```\n\n> La trasparenza non significa mostrare ogni dettaglio interno: significa lasciare abbastanza tracce perché l’utente possa capire e verificare il lavoro." },
     ],
   },
-  {
-    id: "test-empty",
-    title: "Chat vuota",
-    messages: [],
-  },
 ];
+
+export function createNewFakeChat(): FakeChat {
+  return {
+    id: `test-new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    isNewTestChat: true,
+    messages: [],
+    title: "New chat",
+    worktree: "local",
+  };
+}
 
 export function fakeAssistantReply(text: string): FakeChatMessage {
   const quotedText = text.trim().split(/\r?\n/).map((line) => `> ${line || " "}`).join("\n");
   return {
+    createdAt: Date.now(),
     id: `assistant-${Date.now()}`,
     role: "assistant",
     content: `## Risposta di test\n\nHo ricevuto la richiesta e l’ho aggiunta al turno simulato. Per rendere visibile il comportamento del transcript, qui sotto mostro sia l’interpretazione sia l’output prodotto.\n\n### Richiesta originale\n\n${quotedText}\n\n### Interpretazione\n\n- il messaggio è stato ricevuto correttamente;\n- il contenuto resta disponibile nel contesto del turno;\n- la risposta seguente è solo un esempio, non un risultato del runtime reale.\n\n### Output simulato\n\n~~~text\nparse request\ncreate assistant turn\nrender markdown\n~~~\n\n**Stato:** risposta simulata\n\n> Il collegamento al runtime Solomon arriverà nel prossimo passaggio.\n\nSe vuoi, puoi inviare un altro messaggio usando \`**grassetto**\`, una lista o un blocco di codice per verificare il rendering in tempo reale.`,

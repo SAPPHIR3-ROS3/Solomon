@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { detectClient, initialClient } from "./platform";
 import { SidePanel } from "./shell/SidePanel";
 import { SidePanelToggle } from "./shell/SidePanelToggle";
@@ -13,7 +13,8 @@ import { Welcome } from "./home/Welcome";
 import { SettingsPage } from "./settings/SettingsPage";
 import { type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
-import { fakeAssistantReply, initialFakeChats, type FakeChat, type FakeChatMessage } from "./chat-test/fakeChats";
+import { fakeAssistantReply, type FakeChatMessage } from "./chat-test/fakeChats";
+import { createTestChat, getTestChat, updateTestChat, useTestChatStore } from "./chat-test/testChatStore";
 import { TestChatTopbar, TestChatView } from "./chat-test/TestChatView";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
@@ -26,6 +27,9 @@ const MAX_COMPOSER_WIDTH = 960;
 const TEXTBOX_SIDE_PANEL_GAP = 36;
 const LEFT_SIDE_PANEL_WIDTH_KEY = "solomon.left-side-panel-width";
 const RIGHT_SIDE_PANEL_WIDTH_KEY = "solomon.right-side-panel-width";
+const TEST_CHAT_STREAM_DELAY_MS = 65;
+const LOREM_WORDS = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure dolor in reprehenderit voluptate velit esse cillum dolore fugiat nulla pariatur".split(" ");
+const EMPTY_MESSAGE_IDS = new Set<string>();
 
 export function App() {
   const [client, setClient] = useState(initialClient);
@@ -44,10 +48,15 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
-  const [fakeChats, setFakeChats] = useState<FakeChat[]>(initialFakeChats);
+  const fakeChats = useTestChatStore();
   const [selectedFakeChatID, setSelectedFakeChatID] = useState<string | null>(null);
+  const [isNewTestChatOpen, setIsNewTestChatOpen] = useState(false);
+  const [newTestChatToken, setNewTestChatToken] = useState(0);
+  const [streamingFakeChatIDs, setStreamingFakeChatIDs] = useState<Set<string>>(() => new Set());
+  const [pendingFakeChatMessageIDs, setPendingFakeChatMessageIDs] = useState<Map<string, Set<string>>>(() => new Map());
+  const streamControllers = useRef(new Map<string, AbortController>());
+  const queuedFakeChatMessages = useRef(new Map<string, FakeChatMessage[]>());
   const [selectedResearch, setSelectedResearch] = useState<{ project: Project; research: ProjectResearch } | null>(null);
-  const [newChatFolderName, setNewChatFolderName] = useState<string | null>(null);
   const [workspaceFocus, setWorkspaceFocus] = useState<{ project: Project; token: number } | null>(null);
   const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
   const [viewportWidth, setViewportWidth] = useState(getViewportContentWidth);
@@ -98,8 +107,8 @@ export function App() {
     setActiveView("agent");
     setIsTerminalPanelOpen(false);
     setSelectedFakeChatID(null);
+    setIsNewTestChatOpen(false);
     setSelectedResearch(null);
-    setNewChatFolderName(null);
   }
 
   function openSettings() {
@@ -126,8 +135,8 @@ export function App() {
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedFakeChatID(null);
+    setIsNewTestChatOpen(false);
     setSelectedResearch(null);
-    setNewChatFolderName(null);
   }
 
   function openProjectTerminal(project: Project) {
@@ -136,30 +145,145 @@ export function App() {
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedFakeChatID(null);
+    setIsNewTestChatOpen(false);
     setSelectedResearch(null);
-    setNewChatFolderName(null);
     setHasOpenedTerminalPanel(true);
     setIsTerminalPanelOpen(true);
   }
 
+  function openNewFakeChat() {
+    setIsCustomizationOpen(false);
+    setActiveView("agent");
+    setSelectedFakeChatID(null);
+    setIsNewTestChatOpen(true);
+    setNewTestChatToken((current) => current + 1);
+    setSelectedResearch(null);
+    setSelectedWorkspace(null);
+    setWorkspaceFocus(null);
+  }
+
+  function sendNewFakeChatMessage(content: string) {
+    const chat = createTestChat();
+    setIsNewTestChatOpen(false);
+    setSelectedFakeChatID(chat.id);
+    sendFakeChatMessage(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, role: "user", content });
+  }
+
   function sendFakeChatMessage(chatID: string, message: FakeChatMessage) {
-    setFakeChats((current) => current.map((chat) => (
-      chat.id === chatID ? { ...chat, messages: [...chat.messages, message, fakeAssistantReply(message.content)] } : chat
-    )));
+    const chat = getTestChat(chatID);
+    if (!chat) return;
+    const isStreamingTestChat = chat.isNewTestChat === true;
+    if (!isStreamingTestChat) {
+      updateTestChat(chatID, (current) => ({
+        ...current,
+        messages: [...current.messages, message, fakeAssistantReply(message.content)],
+      }));
+      return;
+    }
+
+    updateTestChat(chatID, (current) => ({
+      ...current,
+      messages: [...current.messages, message],
+    }));
+
+    if (streamControllers.current.has(chatID)) {
+      markFakeChatMessagePending(chatID, message.id);
+      const queue = queuedFakeChatMessages.current.get(chatID) ?? [];
+      queue.push(message);
+      queuedFakeChatMessages.current.set(chatID, queue);
+      return;
+    }
+
+    startFakeChatStream(chatID, message);
+  }
+
+  function startFakeChatStream(chatID: string, message: FakeChatMessage) {
+    const assistantID = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    updateTestChat(chatID, (current) => ({
+      ...current,
+      messages: [...current.messages, { createdAt: Date.now(), id: assistantID, role: "assistant", content: "" }],
+    }));
+
+    const words = loremWordsForUserMessage(message.content);
+    const controller = new AbortController();
+    streamControllers.current.set(chatID, controller);
+    setStreamingFakeChatIDs((current) => new Set(current).add(chatID));
+    void streamLoremResponse(chatID, assistantID, words, controller);
+  }
+
+  function stopFakeChatStream(chatID: string) {
+    streamControllers.current.get(chatID)?.abort();
+  }
+
+  async function streamLoremResponse(chatID: string, assistantID: string, words: string[], controller: AbortController) {
+    try {
+      for (let index = 0; index < words.length; index += 1) {
+        await waitForStreamDelay(controller.signal);
+        if (controller.signal.aborted) return;
+        const content = words.slice(0, index + 1).join(" ");
+        updateTestChat(chatID, (current) => ({
+          ...current,
+          messages: current.messages.map((message) => (
+            message.id === assistantID ? { ...message, content } : message
+          )),
+        }));
+      }
+    } finally {
+      if (streamControllers.current.get(chatID) !== controller) return;
+      streamControllers.current.delete(chatID);
+
+      const queue = queuedFakeChatMessages.current.get(chatID);
+      const nextMessage = queue?.shift();
+      if (queue?.length === 0) queuedFakeChatMessages.current.delete(chatID);
+      if (nextMessage) {
+        markFakeChatMessageComplete(chatID, nextMessage.id);
+        startFakeChatStream(chatID, nextMessage);
+        return;
+      }
+
+      setStreamingFakeChatIDs((current) => {
+        const next = new Set(current);
+        next.delete(chatID);
+        return next;
+      });
+    }
+  }
+
+  function markFakeChatMessagePending(chatID: string, messageID: string) {
+    setPendingFakeChatMessageIDs((current) => {
+      const next = new Map(current);
+      const messageIDs = new Set(next.get(chatID));
+      messageIDs.add(messageID);
+      next.set(chatID, messageIDs);
+      return next;
+    });
+  }
+
+  function markFakeChatMessageComplete(chatID: string, messageID: string) {
+    setPendingFakeChatMessageIDs((current) => {
+      const previous = current.get(chatID);
+      if (!previous?.has(messageID)) return current;
+      const next = new Map(current);
+      const messageIDs = new Set(previous);
+      messageIDs.delete(messageID);
+      if (messageIDs.size) next.set(chatID, messageIDs);
+      else next.delete(chatID);
+      return next;
+    });
   }
 
   function openFakeChat(chatID: string) {
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setSelectedFakeChatID(chatID);
+    setIsNewTestChatOpen(false);
     setSelectedResearch(null);
     setSelectedWorkspace(null);
     setWorkspaceFocus(null);
-    setNewChatFolderName(null);
   }
 
   const selectedFakeChat = fakeChats.find((chat) => chat.id === selectedFakeChatID) ?? null;
-  const isTestChatsExplorerActive = Boolean(selectedFakeChat) || newChatFolderName === "Test chats";
+  const isTestChatsExplorerActive = Boolean(selectedFakeChat) || isNewTestChatOpen;
 
   function handleProjectTerminalArmedChange(projectId: string, armed: boolean) {
     setArmedTerminalProjectIds((current) => {
@@ -247,7 +371,7 @@ export function App() {
           onOpenResearch={(research) => {
             if (!selectedWorkspace) return;
             setSelectedFakeChatID(null);
-            setNewChatFolderName(null);
+            setIsNewTestChatOpen(false);
             setSelectedResearch({ project: selectedWorkspace, research });
           }}
           project={selectedWorkspace}
@@ -259,17 +383,10 @@ export function App() {
         <SidePanel
           armedTerminalProjectIds={armedTerminalProjectIds}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
+          fakeChats={fakeChats}
           isCustomizationOpen={isCustomizationOpen}
           onNewProjectChat={openProjectNewChat}
-          onOpenFakeFolder={() => {
-            setIsCustomizationOpen(false);
-            setActiveView("agent");
-            setSelectedFakeChatID(null);
-            setSelectedResearch(null);
-            setSelectedWorkspace(null);
-            setWorkspaceFocus(null);
-            setNewChatFolderName("Test chats");
-          }}
+          onNewFakeChat={openNewFakeChat}
           onOpenFakeChat={openFakeChat}
           onOpenProjectTerminal={openProjectTerminal}
           onOpenSettings={openSettings}
@@ -305,26 +422,21 @@ export function App() {
       {!isSettingsOpen && isCustomizationOpen ? <CustomizationPage /> : null}
       {!isSettingsOpen && !isCustomizationOpen && !selectedFakeChat && !selectedResearch ? (
         <Welcome
+          key={isNewTestChatOpen ? `new-test-chat-${newTestChatToken}` : "home"}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           onComposerBoundsChange={(bounds) => setComposerBounds((current) => (
             current?.left === bounds.left && current.right === bounds.right ? current : bounds
           ))}
           onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
+          onSend={isNewTestChatOpen ? sendNewFakeChatMessage : undefined}
           onWorkspaceChange={setSelectedWorkspace}
-          workspaceNameOverride={newChatFolderName}
+          workspaceNameOverride={isNewTestChatOpen ? "Test chats" : null}
           workspaceFocus={workspaceFocus}
         />
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
         <TestChatTopbar
-          onOpenFolder={() => {
-            setIsCustomizationOpen(false);
-            setActiveView("agent");
-            setSelectedFakeChatID(null);
-            setSelectedWorkspace(null);
-            setWorkspaceFocus(null);
-            setNewChatFolderName("Test chats");
-          }}
+          onOpenFolder={openNewFakeChat}
           title={selectedFakeChat.title}
         />
       ) : null}
@@ -335,7 +447,10 @@ export function App() {
         <TestChatView
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           chat={selectedFakeChat}
+          isStreaming={streamingFakeChatIDs.has(selectedFakeChat.id)}
           onSend={sendFakeChatMessage}
+          onStopStreaming={stopFakeChatStream}
+          pendingUserMessageIDs={pendingFakeChatMessageIDs.get(selectedFakeChat.id) ?? EMPTY_MESSAGE_IDS}
         />
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && selectedResearch ? (
@@ -343,6 +458,31 @@ export function App() {
       ) : null}
     </main>
   );
+}
+
+function loremWordsForUserMessage(content: string): string[] {
+  const userWordCount = content.trim().split(/\s+/).filter(Boolean).length;
+  const responseWordCount = userWordCount * 4;
+  return Array.from({ length: responseWordCount }, (_, index) => LOREM_WORDS[index % LOREM_WORDS.length]);
+}
+
+function waitForStreamDelay(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    let timeoutID = 0;
+    const stopWaiting = () => {
+      window.clearTimeout(timeoutID);
+      resolve();
+    };
+    timeoutID = window.setTimeout(() => {
+      signal.removeEventListener("abort", stopWaiting);
+      resolve();
+    }, TEST_CHAT_STREAM_DELAY_MS);
+    signal.addEventListener("abort", stopWaiting, { once: true });
+  });
 }
 
 function loadPanelWidth(storageKey: string) {
