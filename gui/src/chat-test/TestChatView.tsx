@@ -7,25 +7,34 @@ import type { FakeChat, FakeChatMessage } from "./fakeChats";
 import "./test-chat.css";
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
+const FIXTURE_MESSAGE_START_TIME = new Date("2026-01-01T09:00:00").getTime();
 
 type TestChatViewProps = {
   bottomInset?: number;
   chat: FakeChat;
+  isStreaming?: boolean;
   onSend: (chatID: string, message: FakeChatMessage) => void;
+  onStopStreaming: (chatID: string) => void;
+  pendingUserMessageIDs?: ReadonlySet<string>;
 };
 
-export function TestChatView({ bottomInset = 0, chat, onSend }: TestChatViewProps) {
+export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSend, onStopStreaming, pendingUserMessageIDs = new Set() }: TestChatViewProps) {
   const [draft, setDraft] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastMessageContent = chat.messages.at(-1)?.content ?? "";
+  const pendingMessageKey = [...pendingUserMessageIDs].join("-");
+  const indexedMessages = chat.messages.map((message, index) => ({ index, message }));
+  const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
+  const visibleMessages = indexedMessages.filter(({ message }) => !pendingUserMessageIDs.has(message.id));
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [chat.id, chat.messages.length]);
+  }, [chat.id, chat.messages.length, lastMessageContent, pendingMessageKey]);
 
   const send = () => {
     const content = draft.trim();
     if (!content) return;
-    onSend(chat.id, { id: `user-${Date.now()}`, role: "user", content });
+    onSend(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, role: "user", content });
     setDraft("");
   };
 
@@ -34,15 +43,29 @@ export function TestChatView({ bottomInset = 0, chat, onSend }: TestChatViewProp
       <AsciiCrown />
       <div className="test-chat-messages-shell">
         <div aria-live="polite" className="test-chat-messages">
-          {chat.messages.length ? chat.messages.map((message) => (
-            <article className={`test-chat-message is-${message.role}`} key={message.id}>
-              <MarkdownContent content={message.content} />
-            </article>
+          {chat.messages.length ? visibleMessages.map(({ index, message }) => (
+            <div className={`test-chat-turn is-${message.role}`} key={message.id}>
+              <article className={`test-chat-message is-${message.role}`}>
+                <MarkdownContent content={message.content} />
+              </article>
+              <MessageFooter index={index} message={message} />
+            </div>
           )) : <p className="test-chat-empty">Questa chat è pronta per il primo messaggio.</p>}
           <div ref={messagesEndRef} />
         </div>
       </div>
       <div className="welcome-composer-dock test-chat-composer-dock">
+        {pendingMessages.length ? (
+          <div className="test-chat-pending-messages">
+            {pendingMessages.map(({ message }) => (
+              <div className="test-chat-pending-turn test-chat-turn is-user" key={message.id}>
+              <article className="test-chat-message test-chat-pending-message is-user">
+                <MarkdownContent content={message.content} />
+              </article>
+            </div>
+            ))}
+          </div>
+        ) : null}
         <form className="test-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}>
           <div className="welcome-composer">
           <textarea
@@ -64,9 +87,14 @@ export function TestChatView({ bottomInset = 0, chat, onSend }: TestChatViewProp
               <button className="welcome-menu" type="button">Select model <ChevronIcon /></button>
               <span aria-hidden="true" className="welcome-toolbar-sep" />
               <button className="welcome-menu" type="button">None <ChevronIcon /></button>
-              <button className="welcome-mode is-agent" type="button">Agent</button>
+              <button className="welcome-mode is-agent" type="button">
+                <span aria-hidden="true" className="welcome-mode-icon"><CrownIcon /></span>
+                <span>Agent</span>
+              </button>
             </div>
-            <button aria-label="Send" className="welcome-send" disabled={!draft.trim()} type="submit"><SendIcon /></button>
+            {isStreaming ? (
+              <button aria-label="Stop streaming" className="welcome-send test-chat-stop" onClick={() => onStopStreaming(chat.id)} title="Stop streaming" type="button"><StopIcon /></button>
+            ) : <button aria-label="Send" className="welcome-send" disabled={!draft.trim()} type="submit"><SendIcon /></button>}
           </div>
           </div>
         </form>
@@ -77,6 +105,47 @@ export function TestChatView({ bottomInset = 0, chat, onSend }: TestChatViewProp
       </div>
     </section>
   );
+}
+
+function MessageFooter({ index, message }: { index: number; message: FakeChatMessage }) {
+  const [copied, setCopied] = useState(false);
+  const createdAt = message.createdAt ?? FIXTURE_MESSAGE_START_TIME + index * 60_000;
+
+  async function copyMessage() {
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(message.content);
+      else copyTextFallback(message.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      try {
+        copyTextFallback(message.content);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1400);
+      } catch {
+        // Clipboard access can be unavailable in a restricted webview.
+      }
+    }
+  }
+
+  return (
+    <footer className="test-chat-message-footer">
+      <time dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>
+      <button
+        aria-label={copied ? "Messaggio copiato" : "Copia messaggio"}
+        className="test-chat-copy-message"
+        onClick={() => void copyMessage()}
+        title={copied ? "Messaggio copiato" : "Copia messaggio"}
+        type="button"
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+      </button>
+    </footer>
+  );
+}
+
+function formatMessageTime(timestamp: number) {
+  return new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(timestamp);
 }
 
 function MarkdownContent({ content }: { content: string }) {
@@ -309,8 +378,21 @@ function ChevronIcon() {
   return <svg aria-hidden="true" className="welcome-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg>;
 }
 
+function CrownIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 1.8v16.2M9.4 4.4h5.2M4.4 15.8V12c0-1.6 1.2-2.5 2.6-2.5 1.4 0 2.4 1.1 2.6 2.5.3-2 1-3.6 2.4-3.6 1.4 0 2.1 1.6 2.4 3.6.2-1.4 1.2-2.5 2.6-2.5 1.4 0 2.6.9 2.6 2.5v3.8" />
+      <path d="M4 16.2h16l-.6 3.8H4.6z" />
+    </svg>
+  );
+}
+
 function SendIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-3-6-7-1Z" /><path d="m12 13 3-3" /></svg>;
+}
+
+function StopIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><rect height="9" rx="1.5" width="9" x="7.5" y="7.5" /></svg>;
 }
 
 function BranchIcon() {

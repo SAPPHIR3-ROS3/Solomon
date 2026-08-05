@@ -78,6 +78,8 @@
 .test-chat-messages-shell::before { background: linear-gradient(to bottom, var(--color-canvas), transparent); top: 0; }
 .test-chat-messages { display: flex; flex-direction: column; gap: 14px; height: 100%; min-height: 0; overflow: auto; padding: 24px 0 260px; scrollbar-width: none; }
 .test-chat-messages::-webkit-scrollbar { display: none; height: 0; width: 0; }
+.test-chat-turn { max-width: 80%; }
+.test-chat-turn.is-user, .test-chat-turn.is-assistant { align-self: stretch; max-width: none; width: 100%; }
 .test-chat-message { border: 1px solid var(--color-border); border-radius: 10px; font: 15px/1.55 "Geist", sans-serif; max-width: 80%; padding: 12px 14px; }
 .test-chat-message.is-user {
   align-self: stretch;
@@ -94,6 +96,14 @@
   padding: 0 17px;
   width: 100%;
 }
+.test-chat-message-footer { align-items: center; display: flex; margin-top: 6px; min-height: 26px; padding: 0 4px; }
+.test-chat-turn.is-user .test-chat-message-footer { padding: 0 14px; }
+.test-chat-turn.is-assistant .test-chat-message-footer { padding: 0 17px; }
+.test-chat-message-footer time { color: var(--color-text-muted); font: 560 12px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .03em; margin-left: auto; }
+.test-chat-copy-message { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 6px; padding: 0; width: 26px; }
+.test-chat-copy-message:hover { background: var(--color-surface-raised); color: var(--color-text); }
+.test-chat-copy-message:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.test-chat-copy-message svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 16px; }
 .test-chat-message span:not(.test-chat-code-line):not(.test-chat-line-number):not(.test-chat-line-content) { color: var(--color-text-muted); display: block; font: 600 10px/1 "Geist", sans-serif; margin-bottom: 6px; text-transform: uppercase; }
 .test-chat-message p { margin: 0; white-space: pre-wrap; }
 .test-chat-message ul, .test-chat-message ol { padding-left: 18px; }
@@ -140,6 +150,9 @@
   padding-bottom: 34px;
 }
 .test-chat-composer { position: relative; z-index: 1; }
+.test-chat-pending-messages { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; position: relative; z-index: 1; }
+.test-chat-pending-turn { width: 100%; }
+.test-chat-pending-message { border-radius: 24px; box-shadow: 0 8px 20px rgb(0 0 0 / 24%); flex: none; margin: 0; }
 .test-chat-composer .welcome-composer {
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
@@ -149,6 +162,11 @@
 }
 .test-chat-composer { width: 100%; }
 .test-chat-composer .welcome-send:disabled { cursor: default; opacity: .45; }
+.test-chat-composer .test-chat-stop {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #fff 18%, transparent), 0 0 18px color-mix(in srgb, var(--color-danger) 42%, transparent);
+}
+.test-chat-composer .test-chat-stop:hover { background: color-mix(in srgb, var(--color-danger) 84%, #fff); }
 .test-chat-readonly-control { align-items: center; color: #89959c; display: inline-flex; font: 570 10px/1 "Geist", sans-serif; gap: 6px; height: 28px; padding: 0 8px; user-select: none; }
 .test-chat-readonly-control svg { fill: none; height: 13px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 13px; }
 .test-chat-readonly-control:first-child svg { color: #5bd39a; }
