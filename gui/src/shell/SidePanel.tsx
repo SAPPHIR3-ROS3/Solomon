@@ -1,6 +1,6 @@
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { fetchProjectRemovalInfo, fetchProjectSidebarData, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
-import { initialFakeChats } from "../chat-test/fakeChats";
+import type { FakeChat } from "../chat-test/fakeChats";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
 const INITIAL_CHAT_LIMIT = 5;
@@ -23,9 +23,10 @@ type ProjectRemovalDialog = {
 type SidePanelProps = {
   armedTerminalProjectIds: string[];
   bottomInset: number;
+  fakeChats: FakeChat[];
   isCustomizationOpen: boolean;
   onNewProjectChat: (project: Project) => void;
-  onOpenFakeFolder: () => void;
+  onNewFakeChat: () => void;
   onOpenFakeChat: (chatID: string) => void;
   onOpenProjectTerminal: (project: Project) => void;
   onOpenSettings: () => void;
@@ -38,9 +39,10 @@ type SidePanelProps = {
 export function SidePanel({
   armedTerminalProjectIds,
   bottomInset,
+  fakeChats,
   isCustomizationOpen,
   onNewProjectChat,
-  onOpenFakeFolder,
+  onNewFakeChat,
   onOpenFakeChat,
   onOpenProjectTerminal,
   onOpenSettings,
@@ -55,6 +57,7 @@ export function SidePanel({
   const [projectRemovalError, setProjectRemovalError] = useState("");
   const [projectRemovalInfo, setProjectRemovalInfo] = useState<ProjectRemovalInfo | null>(null);
   const [isRemovingProject, setIsRemovingProject] = useState(false);
+  const [isTestChatsOpen, setIsTestChatsOpen] = useState(true);
   const [openProjectIds, setOpenProjectIds] = useState<Set<string>>(() => new Set());
   const [visibleChatCounts, setVisibleChatCounts] = useState<Map<string, number>>(() => new Map());
   const [projectScrollThumb, setProjectScrollThumb] = useState<ProjectScrollThumb>({ height: 0, isVisible: false, top: 0 });
@@ -307,19 +310,38 @@ export function SidePanel({
       <nav aria-label="Projects" className="side-panel-projects" ref={projectsListRef}>
         <section className="side-panel-project side-panel-test-folder">
           <div className="side-panel-project-head">
-            <button className="side-panel-project-trigger" aria-label="Apri nuova chat nella cartella Test chats" onClick={onOpenFakeFolder} type="button">
-              <FolderIcon isOpen />
+            <button
+              aria-expanded={isTestChatsOpen}
+              className="side-panel-project-trigger"
+              onClick={() => setIsTestChatsOpen((isOpen) => !isOpen)}
+              type="button"
+            >
+              <FolderIcon isOpen={isTestChatsOpen} />
               <span>Test chats</span>
             </button>
+            <button
+              aria-label="New chat in Test chats"
+              className="side-panel-project-new"
+              onClick={() => {
+                setIsTestChatsOpen(true);
+                onNewFakeChat();
+              }}
+              title="New chat in Test chats"
+              type="button"
+            >
+              <PlusIcon />
+            </button>
           </div>
-          <div className="side-panel-project-children">
-            {initialFakeChats.map((chat) => (
-              <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
-                <span>{chat.title}</span>
-                <time>test</time>
-              </button>
-            ))}
-          </div>
+          {isTestChatsOpen ? (
+            <div className="side-panel-project-children">
+              {fakeChats.map((chat) => (
+                <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
+                  <span>{chat.title}</span>
+                  <time>test</time>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </section>
         {projects.map((project) => {
           const isProjectOpen = openProjectIds.has(project.id);

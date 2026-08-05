@@ -24,6 +24,7 @@ type WelcomeProps = {
   bottomInset?: number;
   onComposerBoundsChange?: (bounds: { left: number; right: number }) => void;
   onKeepAliveHeightChange?: (height: number) => void;
+  onSend?: (content: string) => void;
   onWorkspaceChange?: (project: Project | null) => void;
   workspaceNameOverride?: string | null;
   workspaceFocus?: { project: Project; token: number } | null;
@@ -38,7 +39,7 @@ type Visibility = {
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
-export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHeightChange, onWorkspaceChange, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
+export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHeightChange, onSend, onWorkspaceChange, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
   const [userName, setUserName] = useState("");
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -166,6 +167,13 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
   const displayName = userName || "User";
   const fastAvailable = fastModeAvailableFor(selectedProvider);
 
+  function send() {
+    const content = draft.trim();
+    if (!content || !onSend) return;
+    onSend(content);
+    setDraft("");
+  }
+
   return (
     <section
       aria-label="Home"
@@ -242,11 +250,23 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
 
         {visibility.composer ? (
           <div className="welcome-composer-dock" ref={composerRef}>
-            <div className="welcome-composer">
+            <form
+              className="welcome-composer"
+              onSubmit={(event) => {
+                event.preventDefault();
+                send();
+              }}
+            >
               <textarea
                 aria-label="Ask Solomon"
                 className="welcome-input"
                 onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    send();
+                  }
+                }}
                 placeholder="Ask Solomon anything..."
                 rows={3}
                 value={draft}
@@ -289,11 +309,11 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
                     </button>
                   </div>
                 </div>
-                <button aria-label="Send" className="welcome-send" type="button">
+                <button aria-label="Send" className="welcome-send" disabled={Boolean(onSend) && !draft.trim()} type="submit">
                   <SendIcon />
                 </button>
               </div>
-            </div>
+            </form>
             <div className="welcome-git-controls">
               <BranchControl
                 onOpenChange={(open) => setOpenMenu(open ? "branch" : null)}
