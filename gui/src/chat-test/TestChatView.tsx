@@ -4,6 +4,8 @@ import remarkGfm from "remark-gfm";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
 import asciiColors from "../../../internal/logo/colors.txt?raw";
 import type { FakeChat, FakeChatMessage } from "./fakeChats";
+import { AtMentionInput, type ComposerImageAttachment } from "../home/AtMentionInput";
+import { testChatAtMentionEntries } from "../shell/RightSidePanel";
 import "./test-chat.css";
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
@@ -20,6 +22,7 @@ type TestChatViewProps = {
 
 export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSend, onStopStreaming, pendingUserMessageIDs = new Set() }: TestChatViewProps) {
   const [draft, setDraft] = useState("");
+  const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
   const pendingMessageKey = [...pendingUserMessageIDs].join("-");
@@ -36,6 +39,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSen
     if (!content) return;
     onSend(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, role: "user", content });
     setDraft("");
+    setImages([]);
   };
 
   return (
@@ -68,10 +72,13 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSen
         ) : null}
         <form className="test-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}>
           <div className="welcome-composer">
-          <textarea
+          <AtMentionInput
             aria-label="Messaggio di test"
             className="welcome-input"
-            onChange={(event) => setDraft(event.target.value)}
+            entries={testChatAtMentionEntries}
+            images={images}
+            onChange={setDraft}
+            onImagesChange={setImages}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -79,7 +86,6 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSen
               }
             }}
             placeholder="Ask Solomon anything..."
-            rows={3}
             value={draft}
           />
           <div className="welcome-toolbar">
@@ -94,7 +100,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSen
             </div>
             {isStreaming ? (
               <button aria-label="Stop streaming" className="welcome-send test-chat-stop" onClick={() => onStopStreaming(chat.id)} title="Stop streaming" type="button"><StopIcon /></button>
-            ) : <button aria-label="Send" className="welcome-send" disabled={!draft.trim()} type="submit"><SendIcon /></button>}
+            ) : <button aria-label="Send" className="welcome-send" disabled={!draft.trim() && images.length === 0} type="submit"><SendIcon /></button>}
           </div>
           </div>
         </form>

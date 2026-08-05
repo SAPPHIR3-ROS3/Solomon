@@ -41,6 +41,13 @@ const TEST_CHATS_ENTRIES: Record<string, ProjectDirectoryEntry[]> = {
   ],
 };
 
+export const testChatAtMentionEntries = Object.values(TEST_CHATS_ENTRIES)
+  .flat()
+  .map((entry) => ({
+    isDirectory: entry.isDirectory,
+    path: entry.path.replace(`${TEST_CHATS_DIRECTORY_PATH}/`, ""),
+  }));
+
 type ExplorerState = {
   expandedDirectories: string[];
   scrollTop: number;
