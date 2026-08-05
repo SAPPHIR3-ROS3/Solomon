@@ -98,6 +98,14 @@ func TestMatchQueryEmptyAndLimit(t *testing.T) {
 	}
 }
 
+func TestInitialPickerEntries(t *testing.T) {
+	entries := []atmention.Entry{{RelPath: "z.txt"}, {RelPath: "a.txt"}, {RelPath: "b.txt"}}
+	got := atmention.InitialPickerEntries(entries, 2)
+	if len(got) != 2 || got[0].RelPath != "a.txt" || got[1].RelPath != "b.txt" {
+		t.Fatalf("initial picker entries = %#v", got)
+	}
+}
+
 func TestResolveTagAmbiguousReadmePicksRoot(t *testing.T) {
 	all := []atmention.Entry{
 		{RelPath: "README.md"},

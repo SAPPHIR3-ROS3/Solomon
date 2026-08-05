@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {research} from '../models';
 
+export function AtMentionSuggestions(arg1:Array<main.desktopAtMentionEntry>,arg2:string):Promise<Array<main.desktopAtMentionSuggestion>>;
+
 export function CheckoutProjectBranch(arg1:string,arg2:string):Promise<main.desktopProjectBranches>;
 
 export function ConnectProvider(arg1:main.desktopConnectProviderRequest):Promise<main.desktopModelChoice>;
@@ -24,6 +26,8 @@ export function DeleteCustomizationRule(arg1:number):Promise<Array<main.desktopR
 export function DeleteCustomizationSubagent(arg1:string):Promise<Array<main.desktopCatalogItem>>;
 
 export function ModelCatalog():Promise<main.desktopModelCatalog>;
+
+export function ProjectAtMentionSuggestions(arg1:string,arg2:string):Promise<Array<main.desktopAtMentionSuggestion>>;
 
 export function ProjectBranches(arg1:string):Promise<main.desktopProjectBranches>;
 
