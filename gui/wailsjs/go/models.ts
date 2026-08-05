@@ -1,14 +1,44 @@
 export namespace main {
-
+	
+	export class desktopAtMentionEntry {
+	    isDirectory: boolean;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new desktopAtMentionEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.isDirectory = source["isDirectory"];
+	        this.path = source["path"];
+	    }
+	}
+	export class desktopAtMentionSuggestion {
+	    isDirectory: boolean;
+	    path: string;
+	    tag: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new desktopAtMentionSuggestion(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.isDirectory = source["isDirectory"];
+	        this.path = source["path"];
+	        this.tag = source["tag"];
+	    }
+	}
 	export class desktopSubagentScore {
 	    id: string;
 	    label: string;
 	    value: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopSubagentScore(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -22,11 +52,11 @@ export namespace main {
 	    id: string;
 	    scores?: desktopSubagentScore[];
 	    title: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopCatalogItem(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.badge = source["badge"];
@@ -35,7 +65,7 @@ export namespace main {
 	        this.scores = this.convertValues(source["scores"], desktopSubagentScore);
 	        this.title = source["title"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -57,11 +87,11 @@ export namespace main {
 	export class desktopCharacteristic {
 	    id: string;
 	    label: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopCharacteristic(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -72,11 +102,11 @@ export namespace main {
 	    id: string;
 	    lastMessageAt: string;
 	    title: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopChat(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -89,11 +119,11 @@ export namespace main {
 	    BaseURL: string;
 	    Kind: number;
 	    Name: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopConnectProviderRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.APIKey = source["APIKey"];
@@ -106,11 +136,11 @@ export namespace main {
 	    context?: number;
 	    input?: string[];
 	    output?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopModelMetadata(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.context = source["context"];
@@ -124,11 +154,11 @@ export namespace main {
 	    metadata: Record<string, desktopModelMetadata>;
 	    models: string[];
 	    provider: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopProviderCatalog(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.complete = source["complete"];
@@ -137,7 +167,7 @@ export namespace main {
 	        this.models = source["models"];
 	        this.provider = source["provider"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -159,11 +189,11 @@ export namespace main {
 	export class desktopModelChoice {
 	    model: string;
 	    provider: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopModelChoice(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.model = source["model"];
@@ -174,18 +204,18 @@ export namespace main {
 	    current: desktopModelChoice;
 	    providers: desktopProviderCatalog[];
 	    recent: desktopModelChoice[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopModelCatalog(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.current = this.convertValues(source["current"], desktopModelChoice);
 	        this.providers = this.convertValues(source["providers"], desktopProviderCatalog);
 	        this.recent = this.convertValues(source["recent"], desktopModelChoice);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -204,17 +234,17 @@ export namespace main {
 		    return a;
 		}
 	}
-
-
+	
+	
 	export class desktopModelVisibility {
 	    enabled: boolean;
 	    model: string;
 	    provider: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopModelVisibility(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.enabled = source["enabled"];
@@ -228,11 +258,11 @@ export namespace main {
 	    name: string;
 	    path: string;
 	    chatCount: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopProject(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.chats = this.convertValues(source["chats"], desktopChat);
@@ -241,7 +271,7 @@ export namespace main {
 	        this.path = source["path"];
 	        this.chatCount = source["chatCount"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -264,11 +294,11 @@ export namespace main {
 	    current: string;
 	    branches: string[];
 	    isRepo: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopProjectBranches(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.current = source["current"];
@@ -280,11 +310,11 @@ export namespace main {
 	    isDirectory: boolean;
 	    name: string;
 	    path: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopProjectDirectoryEntry(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.isDirectory = source["isDirectory"];
@@ -297,11 +327,11 @@ export namespace main {
 	    dataSizeBytes: number;
 	    projectPath: string;
 	    projectSizeBytes: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopProjectRemovalInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dataPath = source["dataPath"];
@@ -315,11 +345,11 @@ export namespace main {
 	    branch: string;
 	    bare: boolean;
 	    current: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopProjectWorktree(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -330,16 +360,16 @@ export namespace main {
 	}
 	export class desktopProjectWorktrees {
 	    worktrees: desktopProjectWorktree[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopProjectWorktrees(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.worktrees = this.convertValues(source["worktrees"], desktopProjectWorktree);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -363,11 +393,11 @@ export namespace main {
 	    id: string;
 	    modified: boolean;
 	    title: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopPromptTemplate(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.content = source["content"];
@@ -376,23 +406,23 @@ export namespace main {
 	        this.title = source["title"];
 	    }
 	}
-
+	
 	export class desktopRolesTable {
 	    catalog: desktopCharacteristic[];
 	    characteristics: string[];
 	    max: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopRolesTable(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.catalog = this.convertValues(source["catalog"], desktopCharacteristic);
 	        this.characteristics = source["characteristics"];
 	        this.max = source["max"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -414,11 +444,11 @@ export namespace main {
 	export class desktopRule {
 	    id: number;
 	    text: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopRule(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -428,11 +458,11 @@ export namespace main {
 	export class desktopScorePatch {
 	    id: string;
 	    value: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopScorePatch(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -443,18 +473,18 @@ export namespace main {
 	    projects: desktopProject[];
 	    reasoningEffort: string;
 	    userName: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new desktopSidebarData(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.projects = this.convertValues(source["projects"], desktopProject);
 	        this.reasoningEffort = source["reasoningEffort"];
 	        this.userName = source["userName"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -477,18 +507,18 @@ export namespace main {
 }
 
 export namespace research {
-
+	
 	export class Finding {
 	    url: string;
 	    title?: string;
 	    summary?: string;
 	    evidence?: string;
 	    rational?: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Finding(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.url = source["url"];
@@ -518,11 +548,11 @@ export namespace research {
 	    response_tokens?: number;
 	    total_tokens?: number;
 	    estimated_tokens?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new JobStats(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.duration_secs = source["duration_secs"];
@@ -552,11 +582,11 @@ export namespace research {
 	    detail?: string;
 	    // Go type: time
 	    at?: any;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new URLAttempt(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.url = source["url"];
@@ -564,7 +594,7 @@ export namespace research {
 	        this.detail = source["detail"];
 	        this.at = this.convertValues(source["at"], null);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -608,11 +638,11 @@ export namespace research {
 	    started_at: any;
 	    // Go type: time
 	    finished_at?: any;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new JobRecord(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -638,7 +668,7 @@ export namespace research {
 	        this.started_at = this.convertValues(source["started_at"], null);
 	        this.finished_at = this.convertValues(source["finished_at"], null);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -657,6 +687,7 @@ export namespace research {
 		    return a;
 		}
 	}
-
+	
 
 }
+

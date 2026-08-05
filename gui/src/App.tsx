@@ -51,7 +51,7 @@ export function App() {
   const fakeChats = useTestChatStore();
   const [selectedFakeChatID, setSelectedFakeChatID] = useState<string | null>(null);
   const [isNewTestChatOpen, setIsNewTestChatOpen] = useState(false);
-  const [newTestChatToken, setNewTestChatToken] = useState(0);
+  const [welcomeResetToken, setWelcomeResetToken] = useState(0);
   const [streamingFakeChatIDs, setStreamingFakeChatIDs] = useState<Set<string>>(() => new Set());
   const [pendingFakeChatMessageIDs, setPendingFakeChatMessageIDs] = useState<Map<string, Set<string>>>(() => new Map());
   const streamControllers = useRef(new Map<string, AbortController>());
@@ -102,6 +102,7 @@ export function App() {
   }, [maxTerminalPanelHeight]);
 
   function goHome() {
+    setWelcomeResetToken((current) => current + 1);
     setIsSettingsOpen(false);
     setIsCustomizationOpen(false);
     setActiveView("agent");
@@ -130,6 +131,7 @@ export function App() {
   }
 
   function openProjectNewChat(project: Project) {
+    setWelcomeResetToken((current) => current + 1);
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setSelectedWorkspace(project);
@@ -152,11 +154,11 @@ export function App() {
   }
 
   function openNewFakeChat() {
+    setWelcomeResetToken((current) => current + 1);
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setSelectedFakeChatID(null);
     setIsNewTestChatOpen(true);
-    setNewTestChatToken((current) => current + 1);
     setSelectedResearch(null);
     setSelectedWorkspace(null);
     setWorkspaceFocus(null);
@@ -273,6 +275,7 @@ export function App() {
   }
 
   function openFakeChat(chatID: string) {
+    setWelcomeResetToken((current) => current + 1);
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setSelectedFakeChatID(chatID);
@@ -420,20 +423,19 @@ export function App() {
       ) : null}
       {isSettingsOpen ? <SettingsPage onHome={goHome} /> : null}
       {!isSettingsOpen && isCustomizationOpen ? <CustomizationPage /> : null}
-      {!isSettingsOpen && !isCustomizationOpen && !selectedFakeChat && !selectedResearch ? (
-        <Welcome
-          key={isNewTestChatOpen ? `new-test-chat-${newTestChatToken}` : "home"}
-          bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
-          onComposerBoundsChange={(bounds) => setComposerBounds((current) => (
-            current?.left === bounds.left && current.right === bounds.right ? current : bounds
-          ))}
-          onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
-          onSend={isNewTestChatOpen ? sendNewFakeChatMessage : undefined}
-          onWorkspaceChange={setSelectedWorkspace}
-          workspaceNameOverride={isNewTestChatOpen ? "Test chats" : null}
-          workspaceFocus={workspaceFocus}
-        />
-      ) : null}
+      <Welcome
+        bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
+        isVisible={!isSettingsOpen && !isCustomizationOpen && !selectedFakeChat && !selectedResearch}
+        onComposerBoundsChange={(bounds) => setComposerBounds((current) => (
+          current?.left === bounds.left && current.right === bounds.right ? current : bounds
+        ))}
+        onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
+        onSend={isNewTestChatOpen ? sendNewFakeChatMessage : undefined}
+        onWorkspaceChange={setSelectedWorkspace}
+        resetToken={welcomeResetToken}
+        workspaceNameOverride={isTestChatsExplorerActive ? "Test chats" : null}
+        workspaceFocus={workspaceFocus}
+      />
       {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
         <TestChatTopbar
           onOpenFolder={openNewFakeChat}

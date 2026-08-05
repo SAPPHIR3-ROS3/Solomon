@@ -176,3 +176,18 @@ func MatchQuery(query string, all []Entry, limit int) []Entry {
 	}
 	return out
 }
+
+// InitialPickerEntries returns the first entries for graphical pickers before
+// the user has typed a query. The terminal keeps its historical empty-query
+// behaviour by continuing to call MatchQuery directly.
+func InitialPickerEntries(all []Entry, limit int) []Entry {
+	if limit <= 0 {
+		limit = MaxPickerResults
+	}
+	out := append([]Entry(nil), all...)
+	sortSlice(out)
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}

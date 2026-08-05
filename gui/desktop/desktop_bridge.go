@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
@@ -50,6 +52,19 @@ type desktopProjectDirectoryEntry struct {
 	Name        string `json:"name"`
 	Path        string `json:"path"`
 }
+
+type desktopAtMentionSuggestion struct {
+	IsDirectory bool   `json:"isDirectory"`
+	Path        string `json:"path"`
+	Tag         string `json:"tag"`
+}
+
+type desktopAtMentionEntry struct {
+	IsDirectory bool   `json:"isDirectory"`
+	Path        string `json:"path"`
+}
+
+var desktopAtMentionIndex = atmention.NewIndexCache()
 
 type desktopChat struct {
 	ID            string `json:"id"`
@@ -198,6 +213,47 @@ func (DesktopBridge) ProjectDirectoryEntries(projectID, relativePath string) ([]
 		return result[i].Name < result[j].Name
 	})
 	return result, nil
+}
+
+// ProjectAtMentionSuggestions delegates matching and tag shortening to the
+// same atmention package used by Solomon's terminal editor.
+func (DesktopBridge) ProjectAtMentionSuggestions(projectID, query string) ([]desktopAtMentionSuggestion, error) {
+	projectPath, err := desktopRegisteredProjectPath(projectID)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := desktopAtMentionIndex.Get(context.Background(), projectPath)
+	if err != nil {
+		return nil, err
+	}
+	return desktopAtMentionMatches(entries, query), nil
+}
+
+// AtMentionSuggestions lets virtual GUI folders (such as test chats) use the
+// terminal's matching and tag-shortening implementation without duplicating it
+// in TypeScript.
+func (DesktopBridge) AtMentionSuggestions(entries []desktopAtMentionEntry, query string) []desktopAtMentionSuggestion {
+	atEntries := make([]atmention.Entry, 0, len(entries))
+	for _, entry := range entries {
+		atEntries = append(atEntries, atmention.Entry{IsDir: entry.IsDirectory, RelPath: entry.Path})
+	}
+	return desktopAtMentionMatches(atEntries, query)
+}
+
+func desktopAtMentionMatches(entries []atmention.Entry, query string) []desktopAtMentionSuggestion {
+	matches := atmention.MatchQuery(query, entries, atmention.MaxPickerResults)
+	if strings.TrimSpace(query) == "" {
+		matches = atmention.InitialPickerEntries(entries, atmention.MaxPickerResults)
+	}
+	result := make([]desktopAtMentionSuggestion, 0, len(matches))
+	for _, entry := range matches {
+		result = append(result, desktopAtMentionSuggestion{
+			IsDirectory: entry.IsDir,
+			Path:        entry.RelPath,
+			Tag:         "@" + atmention.ShortTag(entry.RelPath, entries),
+		})
+	}
+	return result
 }
 
 // ProjectResearch returns deep-research jobs persisted for one registered project.
