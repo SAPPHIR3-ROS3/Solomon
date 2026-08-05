@@ -35,6 +35,14 @@ export type ProjectDirectoryEntry = {
   path: string;
 };
 
+export type ProjectAtMentionSuggestion = {
+  isDirectory: boolean;
+  path: string;
+  tag: string;
+};
+
+export type ProjectAtMentionEntry = Pick<ProjectAtMentionSuggestion, "isDirectory" | "path">;
+
 export type ProjectResearch = {
   finishedAt: string;
   id: string;
@@ -72,6 +80,21 @@ export async function fetchProjectDirectoryEntries(projectID: string, directoryP
   ));
   if (!response.ok) throw new Error(`Unable to read project files: ${response.status}`);
   return projectDirectoryEntriesFromPayload(await response.json());
+}
+
+export async function fetchProjectAtMentionSuggestions(projectID: string, query: string): Promise<ProjectAtMentionSuggestion[]> {
+  const bridge = await desktopBridge();
+  if (!bridge?.ProjectAtMentionSuggestions) return [];
+  return atMentionSuggestionsFromPayload(await bridge.ProjectAtMentionSuggestions(projectID, query));
+}
+
+export async function fetchAtMentionSuggestions(entries: ProjectAtMentionEntry[], query: string): Promise<ProjectAtMentionSuggestion[]> {
+  const bridge = await desktopBridge();
+  // Test chats are also used by the browser-only preview, where no Wails Go
+  // bridge exists. Keep that fixture usable there; desktop always delegates to
+  // the canonical atmention implementation above.
+  if (!bridge?.AtMentionSuggestions) return virtualAtMentionSuggestions(entries, query);
+  return atMentionSuggestionsFromPayload(await bridge.AtMentionSuggestions(entries, query));
 }
 
 export async function fetchProjectResearch(projectID: string): Promise<ProjectResearch[]> {
@@ -479,6 +502,60 @@ function projectDirectoryEntriesFromPayload(payload: unknown): ProjectDirectoryE
     if (!name || !path) return [];
     return [{ isDirectory: "isDirectory" in entry && Boolean(entry.isDirectory), name, path }];
   });
+}
+
+function atMentionSuggestionsFromPayload(payload: unknown): ProjectAtMentionSuggestion[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    const path = typeof record.path === "string" ? record.path : "";
+    const tag = typeof record.tag === "string" ? record.tag : "";
+    if (!path || !tag) return [];
+    return [{ isDirectory: Boolean(record.isDirectory), path, tag }];
+  });
+}
+
+function virtualAtMentionSuggestions(entries: ProjectAtMentionEntry[], query: string): ProjectAtMentionSuggestion[] {
+  const normalizedQuery = normalizeMentionPath(query);
+  const matches = normalizedQuery
+    ? entries.flatMap((entry) => {
+        const score = virtualMentionScore(normalizedQuery, entry.path);
+        return score === undefined ? [] : [{ entry, score }];
+      }).sort((left, right) => left.score - right.score || normalizeMentionPath(left.entry.path).localeCompare(normalizeMentionPath(right.entry.path)))
+    : entries.map((entry) => ({ entry, score: 0 })).sort((left, right) => normalizeMentionPath(left.entry.path).localeCompare(normalizeMentionPath(right.entry.path)));
+  return matches.slice(0, 10).map(({ entry }) => ({
+    ...entry,
+    tag: `@${virtualShortTag(entry.path, entries)}`,
+  }));
+}
+
+function virtualMentionScore(query: string, path: string): number | undefined {
+  const normalizedPath = normalizeMentionPath(path);
+  const base = normalizedPath.split("/").at(-1) ?? normalizedPath;
+  if (base.startsWith(query)) return 0;
+  if (normalizedPath.split("/").some((part) => part.startsWith(query))) return 1;
+  if (query.length >= 3 && base.includes(query)) return 2;
+  if (query.length >= 3 && normalizedPath.includes(query)) return 3;
+  return undefined;
+}
+
+function virtualShortTag(path: string, entries: ProjectAtMentionEntry[]): string {
+  const normalizedPath = normalizeMentionPath(path);
+  const parts = normalizedPath.split("/");
+  for (let index = 0; index < parts.length; index += 1) {
+    const suffix = parts.slice(index).join("/");
+    const count = entries.filter((entry) => {
+      const candidate = normalizeMentionPath(entry.path);
+      return candidate === suffix || candidate.endsWith(`/${suffix}`);
+    }).length;
+    if (count === 1) return suffix;
+  }
+  return normalizedPath;
+}
+
+function normalizeMentionPath(path: string): string {
+  return path.trim().replaceAll("\\", "/").replace(/^\.\//, "");
 }
 
 function projectResearchFromPayload(payload: unknown): ProjectResearch[] {

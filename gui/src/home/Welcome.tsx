@@ -10,6 +10,8 @@ import {
 } from "../projects/projects";
 import { ModelControl } from "./ModelControl";
 import { BranchControl, WorktreeControl } from "./BranchControl";
+import { AtMentionInput, type ComposerImageAttachment } from "./AtMentionInput";
+import { testChatAtMentionEntries } from "../shell/RightSidePanel";
 import "./welcome.css";
 import "./welcome-reasoning.css";
 
@@ -22,10 +24,12 @@ const reasoningOptions = [
 
 type WelcomeProps = {
   bottomInset?: number;
+  isVisible?: boolean;
   onComposerBoundsChange?: (bounds: { left: number; right: number }) => void;
   onKeepAliveHeightChange?: (height: number) => void;
   onSend?: (content: string) => void;
   onWorkspaceChange?: (project: Project | null) => void;
+  resetToken?: number;
   workspaceNameOverride?: string | null;
   workspaceFocus?: { project: Project; token: number } | null;
 };
@@ -39,7 +43,7 @@ type Visibility = {
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
-export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHeightChange, onSend, onWorkspaceChange, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
+export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onSend, onWorkspaceChange, resetToken = 0, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
   const [userName, setUserName] = useState("");
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -47,6 +51,7 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedProvider, setSelectedProvider] = useState("");
   const [draft, setDraft] = useState("");
+  const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [fastOn, setFastOn] = useState(false);
   const [agentOn, setAgentOn] = useState(true);
   const [openMenu, setOpenMenu] = useState<"workspace" | "model" | "reasoning" | "branch" | "worktree" | null>(null);
@@ -59,8 +64,10 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
   const composerRef = useRef<HTMLDivElement>(null);
   const keepAliveHandlerRef = useRef(onKeepAliveHeightChange);
   const workspaceFocusRef = useRef(workspaceFocus);
+  const workspaceNameOverrideRef = useRef(workspaceNameOverride);
   keepAliveHandlerRef.current = onKeepAliveHeightChange;
   workspaceFocusRef.current = workspaceFocus;
+  workspaceNameOverrideRef.current = workspaceNameOverride;
 
   useLayoutEffect(() => {
     const composer = composerRef.current;
@@ -94,8 +101,8 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
           onWorkspaceChange?.(focused);
           return;
         }
-        if (workspaceNameOverride) {
-          setWorkspaceName(workspaceNameOverride);
+        if (workspaceNameOverrideRef.current) {
+          setWorkspaceName(workspaceNameOverrideRef.current);
           setSelectedProject(null);
           onWorkspaceChange?.(null);
           return;
@@ -112,13 +119,20 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
         if (!workspaceFocusRef.current) onWorkspaceChange?.(null);
       });
     return () => controller.abort();
-  }, [onWorkspaceChange, workspaceNameOverride]);
+  }, [onWorkspaceChange]);
 
   useEffect(() => {
-    if (!workspaceNameOverride) return;
-    setWorkspaceName(workspaceNameOverride);
-    setSelectedProject(null);
-  }, [workspaceNameOverride]);
+    if (workspaceNameOverride) {
+      setWorkspaceName(workspaceNameOverride);
+      setSelectedProject(null);
+      return;
+    }
+    if (workspaceFocus) return;
+    const home = projects.find((project) => project.name === "Home") ?? null;
+    setWorkspaceName(home?.name ?? "Home");
+    setSelectedProject(home);
+    onWorkspaceChange?.(home);
+  }, [onWorkspaceChange, projects, workspaceFocus, workspaceNameOverride]);
 
   useEffect(() => {
     if (!workspaceFocus) return;
@@ -126,6 +140,16 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
     setSelectedProject(workspaceFocus.project);
     onWorkspaceChange?.(workspaceFocus.project);
   }, [onWorkspaceChange, workspaceFocus]);
+
+  useEffect(() => {
+    setDraft("");
+    setImages([]);
+    setOpenMenu(null);
+  }, [resetToken]);
+
+  useEffect(() => {
+    if (!isVisible) setOpenMenu(null);
+  }, [isVisible]);
 
   useLayoutEffect(() => {
     const screen = screenRef.current;
@@ -172,12 +196,14 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
     if (!content || !onSend) return;
     onSend(content);
     setDraft("");
+    setImages([]);
   }
 
   return (
     <section
       aria-label="Home"
-      className="welcome-screen"
+      aria-hidden={!isVisible}
+      className={`welcome-screen${isVisible ? "" : " is-hidden"}`}
       ref={screenRef}
       style={{ bottom: Math.max(0, bottomInset) }}
     >
@@ -257,10 +283,13 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
                 send();
               }}
             >
-              <textarea
+              <AtMentionInput
                 aria-label="Ask Solomon"
                 className="welcome-input"
-                onChange={(event) => setDraft(event.target.value)}
+                entries={workspaceNameOverride === "Test chats" ? testChatAtMentionEntries : undefined}
+                images={images}
+                onChange={setDraft}
+                onImagesChange={setImages}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
@@ -268,7 +297,7 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
                   }
                 }}
                 placeholder="Ask Solomon anything..."
-                rows={3}
+                projectID={selectedProject?.id}
                 value={draft}
               />
               <div className="welcome-toolbar">
@@ -309,7 +338,7 @@ export function Welcome({ bottomInset = 0, onComposerBoundsChange, onKeepAliveHe
                     </button>
                   </div>
                 </div>
-                <button aria-label="Send" className="welcome-send" disabled={Boolean(onSend) && !draft.trim()} type="submit">
+                <button aria-label="Send" className="welcome-send" disabled={Boolean(onSend) && !draft.trim() && images.length === 0} type="submit">
                   <SendIcon />
                 </button>
               </div>

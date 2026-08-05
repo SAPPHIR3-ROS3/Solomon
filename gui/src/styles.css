@@ -2993,16 +2993,6 @@ body::-webkit-scrollbar-thumb:hover {
   border-color: var(--color-border);
 }
 
-.side-panel-user::before {
-  background: var(--color-border);
-  content: "";
-  height: 1px;
-  inset: -6px 0 auto;
-  pointer-events: none;
-  position: absolute;
-  z-index: 1;
-}
-
 .side-panel-user::after {
   background: linear-gradient(to top, var(--color-surface), transparent);
   bottom: 100%;
