@@ -24,7 +24,6 @@ func InstallDirReady(dir string) bool {
 	return true
 }
 
-// InstallRuntime copies the embedded bundle into dir and ensures npm prod deps for the sidecar.
 func InstallRuntime(out BootstrapIO, dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -42,7 +41,6 @@ func InstallRuntime(out BootstrapIO, dir string) error {
 	return nil
 }
 
-// InstallRuntimeClean removes any previous runtime under dir, redeploys the embedded bundle, and reinstalls prod npm deps.
 func InstallRuntimeClean(out BootstrapIO, dir string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return err

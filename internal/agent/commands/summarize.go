@@ -161,15 +161,10 @@ func RenderCompactSummaryBody(body string) string {
 	return strings.Join(lines, "\n")
 }
 
-// SummarizeProgressLine returns the progress line text for a given number of dots.
 func SummarizeProgressLine(dots int) string {
 	return "Summarizing" + strings.Repeat(".", dots)
 }
 
-// summarizeProgress manages a live same-line progress indicator.
-// It prints "Summarizing" immediately and appends one dot every 5 seconds on the same line.
-// Call stop() exactly once when summarization finishes or fails; it blocks until the
-// goroutine has printed its final line, preventing output interleaving.
 type summarizeProgress struct {
 	out     io.Writer
 	done    chan struct{}

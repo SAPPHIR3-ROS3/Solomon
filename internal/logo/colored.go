@@ -48,12 +48,10 @@ func WelcomeLogoLines() []LogoLine {
 		}
 
 		ansiRaw := ab.String() + termcolor.ResetSeq()
-		// trimma a destra i Braille blank e spazi (sia da Plain che da ANSI)
 		plainTrimmed := strings.TrimRightFunc(txtLine, func(r rune) bool {
 			return r == '\u2800' || r == ' '
 		})
 
-		// Rimuove prima il Reset finale per poter trimmare i blank sottostanti.
 		ansiBody := strings.TrimSuffix(ansiRaw, termcolor.ResetSeq())
 		ansiTrimmed := trimANSIRight(ansiBody) + termcolor.ResetSeq()
 
@@ -62,8 +60,6 @@ func WelcomeLogoLines() []LogoLine {
 	return out
 }
 
-// trimANSIRight rimuove i caratteri Braille blank (U+2800) e spazi dalla fine di una stringa ANSI,
-// insieme alle sequenze di colore che li precedono. La stringa NON deve includere il Reset finale.
 func trimANSIRight(s string) string {
 	runes := []rune(s)
 	end := len(runes)
@@ -74,18 +70,16 @@ func trimANSIRight(s string) string {
 	
 		r := runes[pos]
 		if r == '\u2800' || r == ' ' {
-			end-- // rimuove il blank
-			// Ora salta la sequenza escape che precede questo blank (es. \x1b[38;2;R;G;Bm)
+			end--
 			for end > 0 && runes[end-1] != '\x1b' {
 				end--
 			}
 			if end > 0 && runes[end-1] == '\x1b' {
-				end-- // rimuove anche \x1b
+				end--
 			}
 			continue
 		}
 
-		// Se siamo su una sequenza escape senza blank dopo, fermiamoci
 		break
 	}
 
