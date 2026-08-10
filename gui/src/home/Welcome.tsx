@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
 import asciiColors from "../../../internal/logo/colors.txt?raw";
+import { serverEndpoint } from "../platform";
 import {
   fetchProjectSidebarData,
   normalizeReasoningEffort,
   saveReasoningEffort,
   type Project,
+  type ProjectTokenStats,
   type ReasoningEffort,
 } from "../projects/projects";
 import { ModelControl } from "./ModelControl";
@@ -21,6 +23,8 @@ const reasoningOptions = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ] as const;
+
+const emptyProjectTokenStats: ProjectTokenStats = { user: 0, reasoning: 0, response: 0, total: 0 };
 
 type WelcomeProps = {
   bottomInset?: number;
@@ -39,6 +43,9 @@ type Visibility = {
   title: boolean;
   folder: boolean;
   composer: boolean;
+  version: boolean;
+  chatCount: boolean;
+  tokenCount: boolean;
 };
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
@@ -54,13 +61,15 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [fastOn, setFastOn] = useState(false);
   const [agentOn, setAgentOn] = useState(true);
+  const [version, setVersion] = useState("dev");
   const [openMenu, setOpenMenu] = useState<"workspace" | "model" | "reasoning" | "branch" | "worktree" | null>(null);
-  const [visibility, setVisibility] = useState<Visibility>({ banner: true, title: true, folder: true, composer: true });
+  const [visibility, setVisibility] = useState<Visibility>({ banner: true, title: true, folder: true, composer: true, version: true, chatCount: true, tokenCount: true });
   const screenRef = useRef<HTMLElement>(null);
   const measureBannerRef = useRef<HTMLDivElement>(null);
   const measureTitleRef = useRef<HTMLHeadingElement>(null);
   const measureFolderRef = useRef<HTMLDivElement>(null);
   const measureComposerRef = useRef<HTMLDivElement>(null);
+  const measureMetaRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const keepAliveHandlerRef = useRef(onKeepAliveHeightChange);
   const workspaceFocusRef = useRef(workspaceFocus);
@@ -151,6 +160,19 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
     if (!isVisible) setOpenMenu(null);
   }, [isVisible]);
 
+  useEffect(() => {
+    if (!isVisible) return;
+    const controller = new AbortController();
+    void loadServerVersion(controller.signal)
+      .then((nextVersion) => {
+        if (!controller.signal.aborted) setVersion(nextVersion);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setVersion("dev");
+      });
+    return () => controller.abort();
+  }, [isVisible]);
+
   useLayoutEffect(() => {
     const screen = screenRef.current;
     if (!screen) return;
@@ -164,18 +186,21 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
       const titleH = measureTitleRef.current?.offsetHeight ?? 0;
       const folderH = measureFolderRef.current?.offsetHeight ?? 0;
       const composerH = measureComposerRef.current?.offsetHeight ?? 0;
-      keepAliveHandlerRef.current?.(padTop + folderH + composerH + padBottom);
-      const withAll = bannerH + folderH + composerH;
-      const withTitle = titleH + 10 + folderH + composerH;
-      const withFolder = folderH + composerH;
+      const metaH = measureMetaRef.current?.offsetHeight ?? 0;
+      const withAll = bannerH + folderH + composerH + metaH;
+      const withTitle = titleH + 10 + folderH + composerH + metaH;
+      const withFolder = folderH + composerH + metaH;
+      const withComposerAndMeta = composerH + metaH;
       let next: Visibility;
-      if (available >= withAll) next = { banner: true, title: true, folder: true, composer: true };
-      else if (available >= withTitle) next = { banner: false, title: true, folder: true, composer: true };
-      else if (available >= withFolder) next = { banner: false, title: false, folder: true, composer: true };
-      else if (available >= composerH) next = { banner: false, title: false, folder: false, composer: true };
-      else next = { banner: false, title: false, folder: false, composer: false };
+      if (available >= withAll) next = { banner: true, title: true, folder: true, composer: true, version: true, chatCount: true, tokenCount: true };
+      else if (available >= withTitle) next = { banner: false, title: true, folder: true, composer: true, version: true, chatCount: true, tokenCount: true };
+      else if (available >= withFolder) next = { banner: false, title: false, folder: true, composer: true, version: true, chatCount: true, tokenCount: true };
+      else if (available >= withComposerAndMeta) next = { banner: false, title: false, folder: false, composer: true, version: true, chatCount: true, tokenCount: true };
+      else if (available >= composerH) next = { banner: false, title: false, folder: false, composer: true, version: false, chatCount: false, tokenCount: false };
+      else next = { banner: false, title: false, folder: false, composer: false, version: false, chatCount: false, tokenCount: false };
+      keepAliveHandlerRef.current?.(padTop + folderH + composerH + (next.version || next.chatCount || next.tokenCount ? metaH : 0) + padBottom);
       setVisibility((current) => (
-        current.banner === next.banner && current.title === next.title && current.folder === next.folder && current.composer === next.composer
+        current.banner === next.banner && current.title === next.title && current.folder === next.folder && current.composer === next.composer && current.version === next.version && current.chatCount === next.chatCount && current.tokenCount === next.tokenCount
           ? current
           : next
       ));
@@ -186,9 +211,10 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
     if (measureComposerRef.current) observer.observe(measureComposerRef.current);
     update();
     return () => observer.disconnect();
-  }, [bottomInset, selectedProvider, userName]);
+  }, [bottomInset, selectedProject?.chatCount, selectedProject?.tokenStats?.total, selectedProvider, userName, version]);
 
   const displayName = userName || "User";
+  const tokenStats = selectedProject?.tokenStats ?? emptyProjectTokenStats;
   const fastAvailable = fastModeAvailableFor(selectedProvider);
 
   function send() {
@@ -232,6 +258,17 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
               </div>
               <button className="welcome-send" tabIndex={-1} type="button"><SendIcon /></button>
             </div>
+          </div>
+        </div>
+        <div className="welcome-meta-row" ref={measureMetaRef}>
+          <div className="welcome-version">
+            <strong>{formatVersion(version)}</strong>
+          </div>
+          <div className="welcome-chat-count">
+            <strong>{formatChatCount(selectedProject?.chatCount ?? 0)}</strong> {selectedProject?.chatCount === 1 ? "chat" : "chats"}
+          </div>
+          <div className="welcome-token-count" title="Approximate tokens used in this folder">
+            <WelcomeTokenBreakdown stats={tokenStats} />
           </div>
         </div>
       </div>
@@ -364,9 +401,62 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
             </div>
           </div>
         ) : null}
+        {visibility.version || visibility.chatCount || visibility.tokenCount ? (
+          <div className="welcome-meta-row">
+            <div className="welcome-version">
+              <strong>{formatVersion(version)}</strong>
+            </div>
+            <div className="welcome-chat-count">
+              <strong>{formatChatCount(selectedProject?.chatCount ?? 0)}</strong> {selectedProject?.chatCount === 1 ? "chat" : "chats"}
+            </div>
+            <div className="welcome-token-count" title="Approximate tokens used in this folder">
+              <WelcomeTokenBreakdown stats={tokenStats} />
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );
+}
+
+async function loadServerVersion(signal: AbortSignal): Promise<string> {
+  const response = await fetch(await serverEndpoint("/health"), { cache: "no-store", signal });
+  if (!response.ok) throw new Error(`Unable to load server version: ${response.status}`);
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object" || !("server" in payload) || !payload.server || typeof payload.server !== "object" || !("version" in payload.server) || typeof payload.server.version !== "string") {
+    return "dev";
+  }
+  return payload.server.version.trim() || "dev";
+}
+
+function formatVersion(value: string): string {
+  const normalized = value.trim().replace(/^v/i, "");
+  return `v${normalized || "dev"}`;
+}
+
+function formatChatCount(value: number): string {
+  return Math.max(0, Math.round(value)).toLocaleString("en-US");
+}
+
+function WelcomeTokenBreakdown({ stats }: { stats: ProjectTokenStats }) {
+  const total = stats.total || stats.user + stats.reasoning + stats.response;
+  return (
+    <span aria-label={`Approximate tokens: ${stats.user} user, ${stats.reasoning} reasoning, ${stats.response} response, ${total} total`} className="welcome-token-breakdown">
+      <span className="welcome-token-approximation">~</span>
+      <span className="welcome-token-part is-user">{formatTokenValue(stats.user)}</span>
+      <i className="welcome-token-separator">+</i>
+      <span className="welcome-token-part is-reasoning">{formatTokenValue(stats.reasoning)}</span>
+      <i className="welcome-token-separator">+</i>
+      <span className="welcome-token-part is-response">{formatTokenValue(stats.response)}</span>
+      <i className="welcome-token-separator">=</i>
+      <span className="welcome-token-part is-total">{formatTokenValue(total)}</span>
+      <span className="welcome-token-label">tokens</span>
+    </span>
+  );
+}
+
+function formatTokenValue(value: number): string {
+  return Math.max(0, Math.round(value)).toLocaleString("en-US");
 }
 
 function projectPathsMatch(left: string, right: string): boolean {

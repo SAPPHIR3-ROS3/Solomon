@@ -104,6 +104,10 @@
 .test-chat-copy-message:hover { background: var(--color-surface-raised); color: var(--color-text); }
 .test-chat-copy-message:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .test-chat-copy-message svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 16px; }
+.test-chat-delete-message { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 2px; padding: 0; width: 26px; }
+.test-chat-delete-message:hover { background: color-mix(in srgb, var(--color-danger) 18%, transparent); color: #e57373; }
+.test-chat-delete-message:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.test-chat-delete-message svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 16px; }
 .test-chat-message span:not(.test-chat-code-line):not(.test-chat-line-number):not(.test-chat-line-content) { color: var(--color-text-muted); display: block; font: 600 10px/1 "Geist", sans-serif; margin-bottom: 6px; text-transform: uppercase; }
 .test-chat-message p { margin: 0; white-space: pre-wrap; }
 .test-chat-message ul, .test-chat-message ol { padding-left: 18px; }
@@ -172,3 +176,23 @@
 .test-chat-readonly-control:first-child svg { color: #5bd39a; }
 
 .test-chat-topbar-title { direction: ltr; text-align: left; unicode-bidi: plaintext; }
+
+.test-chat-delete-dialog-backdrop { align-items: center; backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px); background: color-mix(in srgb, #000 66%, transparent); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 40; }
+.test-chat-delete-dialog { background: var(--color-surface); border: 1px solid color-mix(in srgb, var(--color-border) 84%, #e57373); border-radius: 14px; box-shadow: 0 26px 80px color-mix(in srgb, #000 58%, transparent), 0 0 0 1px color-mix(in srgb, #e57373 12%, transparent); max-width: 420px; padding: 24px; width: min(100%, 420px); }
+.test-chat-delete-dialog-marker { align-items: center; background: color-mix(in srgb, #e57373 16%, transparent); border: 1px solid color-mix(in srgb, #e57373 44%, transparent); border-radius: 10px; color: #e57373; display: flex; height: 34px; justify-content: center; margin-bottom: 17px; width: 34px; }
+.test-chat-delete-dialog-marker svg { fill: none; height: 18px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 18px; }
+.test-chat-delete-dialog-eyebrow { color: #e57373; font: 600 10px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .09em; margin: 0 0 7px; text-transform: uppercase; }
+.test-chat-delete-dialog h2 { color: var(--color-text); font: 500 19px/1.2 "Geist", ui-sans-serif, system-ui, sans-serif; letter-spacing: -.02em; margin: 0; }
+.test-chat-delete-dialog > p:not(.test-chat-delete-dialog-eyebrow) { color: var(--color-text-muted); font: 14px/1.5 "Geist", ui-sans-serif, system-ui, sans-serif; margin: 11px 0 0; }
+.test-chat-delete-dialog-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 24px; }
+.test-chat-delete-dialog-actions button { appearance: none; background: transparent; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text-muted); cursor: pointer; font: 600 12px/1 "Geist", ui-sans-serif, system-ui, sans-serif; min-height: 34px; padding: 0 13px; }
+.test-chat-delete-dialog-actions button:hover { background: var(--color-surface-raised); color: var(--color-text); }
+.test-chat-delete-dialog-actions button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.test-chat-delete-dialog-actions button.is-danger { background: #a83b3b; border-color: #c75a5a; color: #fff; }
+.test-chat-delete-dialog-actions button.is-danger:hover { background: #c14f4f; }
+
+@media (max-width: 520px) {
+  .test-chat-delete-dialog { padding: 20px; }
+  .test-chat-delete-dialog-actions { flex-direction: column-reverse; }
+  .test-chat-delete-dialog-actions button { width: 100%; }
+}

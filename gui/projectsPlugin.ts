@@ -3,7 +3,7 @@ import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
-import { checkoutProjectBranch, projectBranches, projectWorktrees } from "./projectBranches";
+import { checkoutProjectBranch, projectBranches, projectGitHistory, projectWorktrees } from "./projectBranches";
 
 const projectsEndpoint = "/__solomon/projects";
 const userNameEndpoint = "/__solomon/user-name";
@@ -17,6 +17,14 @@ type Project = {
   name: string;
   path: string;
   chatCount: number;
+  tokenStats: ProjectTokenStats;
+};
+
+type ProjectTokenStats = {
+  user: number;
+  reasoning: number;
+  response: number;
+  total: number;
 };
 
 type SidebarChat = Omit<Chat, "lastActivity">;
@@ -167,6 +175,7 @@ async function readProjects(): Promise<Project[]> {
             name: projectDisplayName(projectPath),
             path: projectPath,
             chatCount: chats.length,
+            tokenStats: await readProjectTokenStats(projectDirectory),
             chats: chats.map(({ lastActivity: _, ...chat }) => chat),
             lastActivity,
           };
@@ -204,6 +213,101 @@ async function readChat(chatDirectory: string, fileName: string): Promise<Chat |
   } catch {
     return null;
   }
+}
+
+async function readProjectTokenStats(projectDirectory: string): Promise<ProjectTokenStats> {
+  try {
+    const payload: unknown = JSON.parse(await readFile(path.join(projectDirectory, "welcome_stats.json"), "utf8"));
+    if (payload && typeof payload === "object" && "chats" in payload && payload.chats && typeof payload.chats === "object" && !Array.isArray(payload.chats)) {
+      const stats = Object.values(payload.chats).reduce((result, chat) => {
+        if (!chat || typeof chat !== "object") return result;
+        const values = chat as Record<string, unknown>;
+        result.user += nonNegativeNumber(values.user_sum);
+        result.reasoning += nonNegativeNumber(values.reason_sum);
+        result.response += nonNegativeNumber(values.resp_sum);
+        return result;
+      }, emptyProjectTokenStats());
+      return withTokenTotal(stats);
+    }
+  } catch {
+    // Older projects may not have a materialized stats file yet.
+  }
+
+  let files: string[];
+  try {
+    files = (await readdir(path.join(projectDirectory, "chats"))).filter((file) => file.endsWith(".json"));
+  } catch {
+    return emptyProjectTokenStats();
+  }
+  const estimates = await Promise.all(files.map(async (file) => {
+    try {
+      return approximateSessionTokenStats(JSON.parse(await readFile(path.join(projectDirectory, "chats", file), "utf8")));
+    } catch {
+      return emptyProjectTokenStats();
+    }
+  }));
+  return withTokenTotal(estimates.reduce((total, estimate) => ({
+    user: total.user + estimate.user,
+    reasoning: total.reasoning + estimate.reasoning,
+    response: total.response + estimate.response,
+    total: 0,
+  }), emptyProjectTokenStats()));
+}
+
+function approximateSessionTokenStats(payload: unknown): ProjectTokenStats {
+  if (!payload || typeof payload !== "object" || !("messages" in payload) || !Array.isArray(payload.messages)) return emptyProjectTokenStats();
+  const messages = payload.messages.filter((message): message is Record<string, unknown> => Boolean(message && typeof message === "object"));
+  const hasStoredUsage = messages.some((message) => (
+    message.role === "assistant"
+      && (nonNegativeNumber(message.turn_total_tokens) > 0
+        || nonNegativeNumber(message.user_prompt_tokens) > 0
+        || nonNegativeNumber(message.reasoning_tokens) > 0
+        || nonNegativeNumber(message.response_tokens) > 0)
+  ));
+  const stats = messages.reduce<ProjectTokenStats>((result, record) => {
+    const role = typeof record.role === "string" ? record.role : "";
+    const storedTotal = nonNegativeNumber(record.turn_total_tokens);
+    const storedUser = nonNegativeNumber(record.user_prompt_tokens);
+    const storedReasoning = nonNegativeNumber(record.reasoning_tokens);
+    const storedResponse = nonNegativeNumber(record.response_tokens);
+    const storedParts = storedUser + storedReasoning + storedResponse;
+    if (role === "assistant" && (storedTotal > 0 || storedParts > 0)) {
+      result.user += storedUser;
+      result.reasoning += storedReasoning;
+      result.response += storedResponse || (storedParts === 0 ? storedTotal : 0);
+      return result;
+    }
+    if (role === "user" && hasStoredUsage) return result;
+    const reasoningText = typeof record.reasoning_text === "string" ? record.reasoning_text : "";
+    const responseText = [record.content, record.api_content]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ");
+    if (role === "user") result.user += approximateTextTokens(responseText);
+    else if (reasoningText) {
+      result.reasoning += approximateTextTokens(reasoningText);
+      result.response += approximateTextTokens(responseText);
+    } else {
+      result.response += approximateTextTokens(responseText);
+    }
+    return result;
+  }, emptyProjectTokenStats());
+  return withTokenTotal(stats);
+}
+
+function emptyProjectTokenStats(): ProjectTokenStats {
+  return { user: 0, reasoning: 0, response: 0, total: 0 };
+}
+
+function withTokenTotal(stats: ProjectTokenStats): ProjectTokenStats {
+  return { ...stats, total: stats.user + stats.reasoning + stats.response };
+}
+
+function approximateTextTokens(value: string): number {
+  return Math.ceil(value.length / 4);
+}
+
+function nonNegativeNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 }
 
 function attachProjectsEndpoint(server: { middlewares: { use: (route: string, handler: (request: { method?: string }, response: { end: (body: string) => void; setHeader: (name: string, value: string) => void; statusCode: number }, next: () => void) => void) => void } }) {
@@ -355,7 +459,7 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
         .catch(() => { response.statusCode = 404; response.end("Research report not found"); });
       return;
     }
-    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files|research|branches|checkout|worktrees))?\/?$/);
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files|research|history|branches|checkout|worktrees))?\/?$/);
     if (request.method === "GET" && match?.[2] === "files") {
       const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
       void projectDirectoryEntries(match[1], directoryPath)
@@ -367,6 +471,12 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
       void projectResearch(match[1])
         .then((jobs) => respondWithJson(response, 200, jobs))
         .catch(() => respondWithJson(response, 500, { error: "Unable to read project research" }));
+      return;
+    }
+    if (request.method === "GET" && match?.[2] === "history") {
+      void projectGitHistory(match[1])
+        .then((history) => respondWithJson(response, 200, history))
+        .catch(() => respondWithJson(response, 500, { error: "Unable to read project Git history" }));
       return;
     }
     if (request.method === "GET" && match?.[2] === "branches") {
@@ -403,7 +513,7 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
       next();
       return;
     }
-    if (!match || match[2] === "removal-info" || match[2] === "files" || match[2] === "branches" || match[2] === "checkout" || match[2] === "worktrees") {
+    if (!match || match[2] === "removal-info" || match[2] === "files" || match[2] === "research" || match[2] === "history" || match[2] === "branches" || match[2] === "checkout" || match[2] === "worktrees") {
       respondWithJson(response, 400, { error: "Invalid project ID" });
       return;
     }

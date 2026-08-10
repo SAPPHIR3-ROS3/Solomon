@@ -15,15 +15,18 @@ type TestChatViewProps = {
   bottomInset?: number;
   chat: FakeChat;
   isStreaming?: boolean;
+  onDeleteMessage: (chatID: string, messageID: string) => void;
   onSend: (chatID: string, message: FakeChatMessage) => void;
   onStopStreaming: (chatID: string) => void;
   pendingUserMessageIDs?: ReadonlySet<string>;
 };
 
-export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSend, onStopStreaming, pendingUserMessageIDs = new Set() }: TestChatViewProps) {
+export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDeleteMessage, onSend, onStopStreaming, pendingUserMessageIDs = new Set() }: TestChatViewProps) {
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<FakeChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
   const pendingMessageKey = [...pendingUserMessageIDs].join("-");
   const indexedMessages = chat.messages.map((message, index) => ({ index, message }));
@@ -33,6 +36,19 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSen
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
   }, [chat.id, chat.messages.length, lastMessageContent, pendingMessageKey]);
+
+  useEffect(() => {
+    if (!deleteTarget) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDeleteTarget(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    const focusTimer = window.setTimeout(() => deleteCancelRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      window.clearTimeout(focusTimer);
+    };
+  }, [deleteTarget]);
 
   const send = () => {
     const content = draft.trim();
@@ -52,7 +68,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSen
               <article className={`test-chat-message is-${message.role}`}>
                 <MarkdownContent content={message.content} />
               </article>
-              <MessageFooter index={index} message={message} />
+              <MessageFooter index={index} message={message} onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined} />
             </div>
           )) : <p className="test-chat-empty">Questa chat è pronta per il primo messaggio.</p>}
           <div ref={messagesEndRef} />
@@ -109,11 +125,47 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onSen
           <span className="test-chat-readonly-control"><WorktreeIcon />{chat.worktree ?? "Worktree"}</span>
         </div>
       </div>
+      {deleteTarget ? (
+        <div
+          className="test-chat-delete-dialog-backdrop"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setDeleteTarget(null);
+          }}
+          role="presentation"
+        >
+          <section
+            aria-describedby="test-chat-delete-dialog-description"
+            aria-labelledby="test-chat-delete-dialog-title"
+            aria-modal="true"
+            className="test-chat-delete-dialog"
+            onPointerDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div aria-hidden="true" className="test-chat-delete-dialog-marker"><CloseIcon /></div>
+            <p className="test-chat-delete-dialog-eyebrow">Conferma eliminazione</p>
+            <h2 id="test-chat-delete-dialog-title">Eliminare questo messaggio?</h2>
+            <p id="test-chat-delete-dialog-description">Verrà eliminata anche la risposta dell’assistente. Questa azione non può essere annullata.</p>
+            <div className="test-chat-delete-dialog-actions">
+              <button ref={deleteCancelRef} onClick={() => setDeleteTarget(null)} type="button">Annulla</button>
+              <button
+                className="is-danger"
+                onClick={() => {
+                  onDeleteMessage(chat.id, deleteTarget.id);
+                  setDeleteTarget(null);
+                }}
+                type="button"
+              >
+                Elimina messaggio
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
 
-function MessageFooter({ index, message }: { index: number; message: FakeChatMessage }) {
+function MessageFooter({ index, message, onRequestDelete }: { index: number; message: FakeChatMessage; onRequestDelete?: () => void }) {
   const [copied, setCopied] = useState(false);
   const createdAt = message.createdAt ?? FIXTURE_MESSAGE_START_TIME + index * 60_000;
 
@@ -146,6 +198,11 @@ function MessageFooter({ index, message }: { index: number; message: FakeChatMes
       >
         {copied ? <CheckIcon /> : <CopyIcon />}
       </button>
+      {onRequestDelete ? (
+        <button aria-label="Elimina messaggio" className="test-chat-delete-message" onClick={onRequestDelete} title="Elimina messaggio" type="button">
+          <CloseIcon />
+        </button>
+      ) : null}
     </footer>
   );
 }
@@ -415,6 +472,10 @@ function CopyIcon() {
 
 function CheckIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>;
+}
+
+function CloseIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>;
 }
 
 function FolderIcon() {

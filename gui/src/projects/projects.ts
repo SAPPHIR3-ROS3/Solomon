@@ -1,9 +1,18 @@
 import { desktopBridge, serverEndpoint } from "../platform";
 
+export const PROJECT_GIT_BRANCH_CHANGED_EVENT = "solomon:git-branch-changed";
+
 export type Chat = {
   id: string;
   lastMessageAt: string;
   title: string;
+};
+
+export type ProjectTokenStats = {
+  user: number;
+  reasoning: number;
+  response: number;
+  total: number;
 };
 
 export type Project = {
@@ -12,6 +21,7 @@ export type Project = {
   name: string;
   path: string;
   chatCount: number;
+  tokenStats?: ProjectTokenStats;
 };
 
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
@@ -55,6 +65,22 @@ export type ProjectResearch = {
 
 export type ProjectBranches = {
   branches: string[];
+  current: string;
+  isRepo: boolean;
+};
+
+export type ProjectGitCommit = {
+  author: string;
+  authoredAt: string;
+  hash: string;
+  parents: string[];
+  refs: string[];
+  shortHash: string;
+  subject: string;
+};
+
+export type ProjectGitHistory = {
+  commits: ProjectGitCommit[];
   current: string;
   isRepo: boolean;
 };
@@ -121,6 +147,16 @@ export async function fetchProjectBranches(projectID: string, signal?: AbortSign
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/branches`), { signal });
   if (!response.ok) throw new Error(`Unable to read project branches: ${response.status}`);
   return projectBranchesFromPayload(await response.json());
+}
+
+export async function fetchProjectGitHistory(projectID: string, signal?: AbortSignal): Promise<ProjectGitHistory> {
+  const bridge = await desktopBridge();
+  if (bridge?.ProjectGitHistory) {
+    return projectGitHistoryFromPayload(await bridge.ProjectGitHistory(projectID));
+  }
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/history`), { signal });
+  if (!response.ok) throw new Error(`Unable to read project Git history: ${response.status}`);
+  return projectGitHistoryFromPayload(await response.json());
 }
 
 export async function fetchProjectWorktrees(projectID: string, signal?: AbortSignal): Promise<ProjectWorktrees> {
@@ -588,6 +624,37 @@ function projectBranchesFromPayload(payload: unknown): ProjectBranches {
     ? payload.branches.filter((branch): branch is string => typeof branch === "string" && Boolean(branch.trim())).map((branch) => branch.trim())
     : [];
   return { branches, current, isRepo };
+}
+
+function projectGitHistoryFromPayload(payload: unknown): ProjectGitHistory {
+  if (!payload || typeof payload !== "object") {
+    return { commits: [], current: "", isRepo: false };
+  }
+  const current = "current" in payload && typeof payload.current === "string" ? payload.current.trim() : "";
+  const isRepo = "isRepo" in payload && Boolean(payload.isRepo);
+  const commits = "commits" in payload && Array.isArray(payload.commits)
+    ? payload.commits.flatMap((entry): ProjectGitCommit[] => {
+      if (!entry || typeof entry !== "object") return [];
+      const record = entry as Record<string, unknown>;
+      const hash = typeof record.hash === "string" ? record.hash.trim() : "";
+      const shortHash = typeof record.shortHash === "string" ? record.shortHash.trim() : "";
+      const subject = typeof record.subject === "string" ? record.subject.trim() : "";
+      if (!hash || !shortHash || !subject) return [];
+      const stringArray = (value: unknown) => Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
+        : [];
+      return [{
+        author: typeof record.author === "string" ? record.author.trim() : "Unknown author",
+        authoredAt: typeof record.authoredAt === "string" ? record.authoredAt : "",
+        hash,
+        parents: stringArray(record.parents),
+        refs: stringArray(record.refs),
+        shortHash,
+        subject,
+      }];
+    })
+    : [];
+  return { commits, current, isRepo };
 }
 
 function projectWorktreesFromPayload(payload: unknown): ProjectWorktrees {

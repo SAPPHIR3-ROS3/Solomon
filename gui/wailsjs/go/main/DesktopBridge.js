@@ -62,6 +62,10 @@ export function ProjectDirectoryEntries(arg1, arg2) {
   return window['go']['main']['DesktopBridge']['ProjectDirectoryEntries'](arg1, arg2);
 }
 
+export function ProjectGitHistory(arg1) {
+  return window['go']['main']['DesktopBridge']['ProjectGitHistory'](arg1);
+}
+
 export function ProjectRemovalInfo(arg1) {
   return window['go']['main']['DesktopBridge']['ProjectRemovalInfo'](arg1);
 }
