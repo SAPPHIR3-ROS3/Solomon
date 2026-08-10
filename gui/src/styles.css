@@ -385,7 +385,8 @@ html {
 .right-side-panel-history-graph {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-color: var(--color-border) transparent;
   scrollbar-width: thin;
 }
@@ -484,11 +485,11 @@ html {
 .right-side-panel-history-graph li > small.right-side-panel-history-refs {
   align-items: center;
   display: flex;
-  flex: 0 1 132px;
+  flex: 0 0 auto;
   gap: 3px;
   justify-content: flex-end;
-  max-width: 132px;
   margin-left: auto;
+  max-width: calc(100% - 5px);
   min-width: 0;
   overflow: hidden;
   padding: 0;
@@ -506,7 +507,7 @@ html {
   flex: 0 1 auto;
   font: inherit;
   height: 18px;
-  max-width: 118px;
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
   padding: 0 5px;
@@ -539,6 +540,7 @@ button.right-side-panel-history-ref:hover {
   border-color: #7ac9ff;
   color: #061c3b;
   justify-content: center;
+  flex: 0 0 18px;
   min-width: 18px;
   padding: 0;
   width: 18px;
