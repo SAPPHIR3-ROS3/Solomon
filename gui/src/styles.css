@@ -327,6 +327,246 @@ html {
   color: var(--color-text);
 }
 
+/* The Git view follows Deep v5's dense graph treatment while inheriting the
+ * panel's existing palette. */
+.right-side-panel-history {
+  --right-side-panel-history-panel: var(--color-surface);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 8px;
+}
+
+.right-side-panel-history-header {
+  align-items: center;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  display: flex;
+  font: 9px "Geist Mono", ui-monospace, monospace;
+  height: 29px;
+  justify-content: space-between;
+  letter-spacing: .08em;
+  padding: 0 8px;
+  text-transform: uppercase;
+}
+
+.right-side-panel-history-header > span {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.right-side-panel-history-header > span > svg {
+  color: var(--color-text-muted);
+  fill: none;
+  height: 12px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  transform: rotate(90deg);
+  width: 12px;
+}
+
+.right-side-panel-history-header small {
+  color: var(--color-text-muted);
+  font: 9px "Geist Mono", ui-monospace, monospace;
+  letter-spacing: 0;
+  max-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.right-side-panel-history-graph {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+}
+
+.right-side-panel-history-graph::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.right-side-panel-history-graph::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.right-side-panel-history-graph::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 10px;
+}
+
+.right-side-panel-history-graph ol {
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+  position: relative;
+}
+
+.right-side-panel-history-graph-canvas {
+  height: 100%;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: var(--right-side-panel-history-graph-width, 64px);
+}
+
+.right-side-panel-history-graph-canvas path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.right-side-panel-history-graph li {
+  align-items: center;
+  color: var(--color-text);
+  display: flex;
+  font: 11px "Geist", ui-sans-serif, system-ui, sans-serif;
+  gap: 5px;
+  height: 22px;
+  min-width: 0;
+  padding: 0 7px 0 var(--right-side-panel-history-content-offset, 24px);
+  position: relative;
+}
+
+.right-side-panel-history-graph li > span.right-side-panel-history-commit {
+  align-items: baseline;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.right-side-panel-history-graph li > span.right-side-panel-history-commit > span.right-side-panel-history-subject {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right-side-panel-history-graph li > small {
+  color: var(--color-text-muted);
+  flex: none;
+  font: 9px "Geist Mono", ui-monospace, monospace;
+  max-width: 78px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right-side-panel-history-graph li > span.right-side-panel-history-commit > small.right-side-panel-history-author {
+  color: var(--color-text-muted);
+  flex: 0 0 auto;
+  font: 9px "Geist Mono", ui-monospace, monospace;
+  max-width: 96px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right-side-panel-history-graph li > small.right-side-panel-history-refs {
+  align-items: center;
+  display: flex;
+  flex: 0 1 132px;
+  gap: 3px;
+  justify-content: flex-end;
+  max-width: 132px;
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.right-side-panel-history-ref {
+  align-items: center;
+  appearance: none;
+  background: color-mix(in srgb, var(--color-accent) 38%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--focus-ring) 48%, transparent);
+  border-radius: 999px;
+  box-sizing: border-box;
+  color: var(--color-text);
+  display: inline-flex;
+  flex: 0 1 auto;
+  font: inherit;
+  height: 18px;
+  max-width: 118px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.right-side-panel-history-ref {
+  cursor: pointer;
+}
+
+button.right-side-panel-history-ref:hover {
+  border-color: var(--focus-ring);
+  filter: brightness(1.12);
+}
+
+.right-side-panel-history-ref.is-current {
+  background: #168ee8;
+  border-color: #7ac9ff;
+  color: #061c3b;
+  font-weight: 600;
+}
+
+.right-side-panel-history-ref.is-remote {
+  background: color-mix(in srgb, var(--color-info) 48%, var(--color-surface));
+}
+
+.right-side-panel-history-ref.is-aligned {
+  background: #168ee8;
+  border-color: #7ac9ff;
+  color: #061c3b;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0;
+  width: 18px;
+}
+
+.right-side-panel-history-ref-icon {
+  fill: none;
+  flex: none;
+  height: 13px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+  width: 15px;
+}
+
+.right-side-panel-history-ref.is-tag {
+  background: #f2bd3d;
+  border-color: #ffe19a;
+  color: #17243a;
+}
+
+.right-side-panel-history > .right-side-panel-message {
+  color: var(--color-text-muted);
+  font: 10px/1.4 "Geist Mono", ui-monospace, monospace;
+  margin: 12px 8px;
+}
+
 .research-report-view {
   bottom: 0;
   box-sizing: border-box;

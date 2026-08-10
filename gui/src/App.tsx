@@ -199,6 +199,40 @@ export function App() {
     startFakeChatStream(chatID, message);
   }
 
+  function deleteFakeChatMessage(chatID: string, messageID: string) {
+    const chat = getTestChat(chatID);
+    if (!chat) return;
+    const messageIndex = chat.messages.findIndex((message) => message.id === messageID && message.role === "user");
+    if (messageIndex === -1) return;
+
+    const assistantResponse = chat.messages[messageIndex + 1]?.role === "assistant" ? chat.messages[messageIndex + 1] : undefined;
+    const messageIDs = new Set([messageID, ...(assistantResponse ? [assistantResponse.id] : [])]);
+    updateTestChat(chatID, (current) => ({
+      ...current,
+      messages: current.messages.filter((message) => !messageIDs.has(message.id)),
+    }));
+
+    const queuedMessages = queuedFakeChatMessages.current.get(chatID);
+    if (queuedMessages?.some((message) => message.id === messageID)) {
+      const nextQueue = queuedMessages.filter((message) => message.id !== messageID);
+      if (nextQueue.length) queuedFakeChatMessages.current.set(chatID, nextQueue);
+      else queuedFakeChatMessages.current.delete(chatID);
+      setPendingFakeChatMessageIDs((current) => {
+        const previous = current.get(chatID);
+        if (!previous?.has(messageID)) return current;
+        const next = new Map(current);
+        const nextIDs = new Set(previous);
+        nextIDs.delete(messageID);
+        if (nextIDs.size) next.set(chatID, nextIDs);
+        else next.delete(chatID);
+        return next;
+      });
+    }
+
+    const latestAssistantID = [...chat.messages].reverse().find((message) => message.role === "assistant")?.id;
+    if (assistantResponse?.id === latestAssistantID) streamControllers.current.get(chatID)?.abort();
+  }
+
   function startFakeChatStream(chatID: string, message: FakeChatMessage) {
     const assistantID = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     updateTestChat(chatID, (current) => ({
@@ -450,6 +484,7 @@ export function App() {
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           chat={selectedFakeChat}
           isStreaming={streamingFakeChatIDs.has(selectedFakeChat.id)}
+          onDeleteMessage={deleteFakeChatMessage}
           onSend={sendFakeChatMessage}
           onStopStreaming={stopFakeChatStream}
           pendingUserMessageIDs={pendingFakeChatMessageIDs.get(selectedFakeChat.id) ?? EMPTY_MESSAGE_IDS}

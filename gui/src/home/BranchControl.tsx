@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  PROJECT_GIT_BRANCH_CHANGED_EVENT,
   checkoutProjectBranch,
   fetchProjectBranches,
   fetchProjectWorktrees,
@@ -60,6 +61,25 @@ export function BranchControl({
         setError("");
       });
     return () => controller.abort();
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (!project?.id) return;
+    const refreshBranchState = (event: Event) => {
+      if (!(event instanceof CustomEvent) || event.detail?.projectID !== project.id) return;
+      void fetchProjectBranches(project.id)
+        .then((info) => {
+          setCurrent(info.current);
+          setBranches(info.branches);
+          setIsRepo(info.isRepo);
+          setError("");
+        })
+        .catch(() => {
+          setError("Could not refresh branches");
+        });
+    };
+    window.addEventListener(PROJECT_GIT_BRANCH_CHANGED_EVENT, refreshBranchState);
+    return () => window.removeEventListener(PROJECT_GIT_BRANCH_CHANGED_EVENT, refreshBranchState);
   }, [project?.id]);
 
   useEffect(() => {

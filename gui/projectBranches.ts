@@ -51,6 +51,52 @@ export async function projectBranches(projectID: string) {
   return { current, branches, isRepo: true };
 }
 
+export type ProjectGitCommit = {
+  author: string;
+  authoredAt: string;
+  hash: string;
+  parents: string[];
+  refs: string[];
+  shortHash: string;
+  subject: string;
+};
+
+export async function projectGitHistory(projectID: string) {
+  const root = await registeredProjectRoot(projectID);
+  if ((await runGit(root, ["rev-parse", "--is-inside-work-tree"]).catch(() => "")) !== "true") {
+    return { commits: [] as ProjectGitCommit[], current: "", isRepo: false };
+  }
+
+  const [current, output] = await Promise.all([
+    runGit(root, ["branch", "--show-current"]).catch(() => ""),
+    runGit(root, [
+      "log",
+      "--no-color",
+      "--decorate=short",
+      "--date=iso-strict",
+      "--topo-order",
+      "--format=%H%x00%h%x00%an%x00%aI%x00%s%x00%D%x00%P",
+    ]),
+  ]);
+
+  const commits = output
+    ? output.split(/\r?\n/).flatMap((line) => {
+      const [hash, shortHash, author, authoredAt, subject, rawRefs, rawParents] = line.split("\u0000");
+      if (!hash || !shortHash || !subject) return [];
+      return [{
+        author,
+        authoredAt,
+        hash,
+        parents: rawParents ? rawParents.split(" ").filter(Boolean) : [],
+        refs: rawRefs ? rawRefs.split(",").map((ref) => ref.trim()).filter(Boolean) : [],
+        shortHash,
+        subject,
+      }];
+    })
+    : [];
+  return { commits, current, isRepo: true };
+}
+
 export async function checkoutProjectBranch(projectID: string, branch: string) {
   const name = branch.trim();
   if (!validGitBranchName(name)) throw new Error("Invalid branch name");
