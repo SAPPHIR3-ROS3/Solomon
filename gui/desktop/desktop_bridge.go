@@ -32,12 +32,20 @@ type desktopSidebarData struct {
 }
 
 type desktopProject struct {
-	Chats     []desktopChat `json:"chats"`
-	ID        string        `json:"id"`
-	Name      string        `json:"name"`
-	Path      string        `json:"path"`
-	ChatCount int           `json:"chatCount"`
-	activity  time.Time
+	Chats      []desktopChat     `json:"chats"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Path       string            `json:"path"`
+	ChatCount  int               `json:"chatCount"`
+	TokenStats desktopTokenStats `json:"tokenStats"`
+	activity   time.Time
+}
+
+type desktopTokenStats struct {
+	User      int64 `json:"user"`
+	Reasoning int64 `json:"reasoning"`
+	Response  int64 `json:"response"`
+	Total     int64 `json:"total"`
 }
 
 type desktopProjectRemovalInfo struct {
@@ -542,7 +550,15 @@ func loadDesktopProjects() ([]desktopProject, error) {
 		if err != nil {
 			return nil, err
 		}
-		project := desktopProject{ID: projectID, Name: desktopProjectDisplayName(projectPath), Path: projectPath, Chats: make([]desktopChat, 0, len(chats)), ChatCount: len(chats)}
+		_, userTokens, reasoningTokens, responseTokens, statsErr := chatstore.ProjectWelcomeStats(projectID)
+		tokenStats := desktopTokenStats{}
+		if statsErr == nil {
+			tokenStats = desktopTokenStats{
+				User: userTokens, Reasoning: reasoningTokens, Response: responseTokens,
+				Total: userTokens + reasoningTokens + responseTokens,
+			}
+		}
+		project := desktopProject{ID: projectID, Name: desktopProjectDisplayName(projectPath), Path: projectPath, Chats: make([]desktopChat, 0, len(chats)), ChatCount: len(chats), TokenStats: tokenStats}
 		if project.Name == "." || project.Name == string(filepath.Separator) {
 			project.Name = projectPath
 		}
