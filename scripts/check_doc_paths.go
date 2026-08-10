@@ -1,6 +1,5 @@
 //go:build ignore
 
-// check_doc_paths verifies markdown links and cited repo paths in docs/, README.md, and TODO.md.
 package main
 
 import (

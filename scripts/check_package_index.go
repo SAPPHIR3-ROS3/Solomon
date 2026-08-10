@@ -1,7 +1,5 @@
 //go:build ignore
 
-// check_package_index verifies that every Go package under internal/ and cmd/
-// is listed in docs/architecture/package-index.md.
 package main
 
 import (

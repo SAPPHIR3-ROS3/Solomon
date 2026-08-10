@@ -22,14 +22,12 @@ func SplitAtInclusiveDisplay(msgs []chatstore.Message, displayN int) (keep, drop
 	return append([]chatstore.Message(nil), msgs[:idx+1]...), append([]chatstore.Message(nil), msgs[idx+1:]...), nil
 }
 
-// FullCheckpointID represents a parsed checkpoint identifier like "#006a".
 type FullCheckpointID struct {
-	Seq   int
-	Suffix string // e.g. "a", "b", "" (main branch)
-	Raw   string  // original user input for display
+	Seq    int
+	Suffix string
+	Raw    string
 }
 
-// ParseFullCheckpointID parses strings like "#006a", "006a", "#010", "010".
 func ParseFullCheckpointID(raw string) (*FullCheckpointID, error) {
 	raw = strings.TrimSpace(raw)
 	if len(raw) == 0 {
