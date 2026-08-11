@@ -336,7 +336,7 @@ html {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  padding: 0 8px;
+  padding: 0 2px;
 }
 
 .right-side-panel-history-header {
@@ -349,7 +349,7 @@ html {
   height: 29px;
   justify-content: space-between;
   letter-spacing: .08em;
-  padding: 0 8px;
+  padding: 0 2px;
   text-transform: uppercase;
 }
 
@@ -440,7 +440,7 @@ html {
   gap: 5px;
   height: 22px;
   min-width: 0;
-  padding: 0 7px 0 var(--right-side-panel-history-content-offset, 24px);
+  padding: 0 2px 0 var(--right-side-panel-history-content-offset, 18px);
   position: relative;
 }
 

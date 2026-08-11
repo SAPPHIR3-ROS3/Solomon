@@ -381,13 +381,17 @@ type GitHistoryViewProps = {
   project: Project | null;
 };
 
+const gitHistoryLaneStep = 12;
+const gitHistoryGraphInset = 7;
+const gitHistoryContentInset = 6;
+
 function GitHistoryView({ error, history, loading, onBranchChanged, project }: GitHistoryViewProps) {
   const [branchError, setBranchError] = useState("");
   const [branchLoading, setBranchLoading] = useState(false);
   const commits = useMemo(() => gitHistoryLanes(history.commits), [history.commits]);
   const graphHeight = Math.max(22, commits.length * 22);
   const graphLaneCount = Math.max(1, ...commits.map((commit) => Math.max(commit.laneCount, commit.lane + 1)));
-  const graphWidth = Math.max(64, 16 + graphLaneCount * 12);
+  const graphWidth = Math.max(64, 10 + graphLaneCount * gitHistoryLaneStep);
 
   async function selectBranch(branch: string) {
     if (!project || branchLoading) return;
@@ -418,8 +422,8 @@ function GitHistoryView({ error, history, loading, onBranchChanged, project }: G
           <ol style={{ "--right-side-panel-history-graph-width": `${graphWidth}px` } as CSSProperties}>
             <svg aria-hidden="true" className="right-side-panel-history-graph-canvas" viewBox={`0 0 ${graphWidth} ${graphHeight}`}>
               {commits.flatMap(({ hash, connections }, rowIndex) => connections.map(({ sourceLane, targetLane, colorLane, sourceRowOffset, targetRowOffset }, connectionIndex) => {
-                const sourceX = 13 + sourceLane * 12;
-                const targetX = 13 + targetLane * 12;
+                const sourceX = gitHistoryGraphInset + sourceLane * gitHistoryLaneStep;
+                const targetX = gitHistoryGraphInset + targetLane * gitHistoryLaneStep;
                 const startY = (rowIndex + sourceRowOffset) * 22 + 11;
                 const endY = (rowIndex + targetRowOffset) * 22 + 11;
                 return <path d={gitHistoryConnectionPath(sourceX, targetX, startY, endY)} key={`${hash}-${connectionIndex}`} stroke={gitHistoryLaneColors[colorLane % gitHistoryLaneColors.length]} />;
@@ -427,7 +431,7 @@ function GitHistoryView({ error, history, loading, onBranchChanged, project }: G
               {commits.map(({ hash, lane, colorLane, parents, refs }, rowIndex) => {
                 const laneColor = gitHistoryLaneColors[colorLane % gitHistoryLaneColors.length];
                 const isCurrent = refs.some((reference) => reference.includes("HEAD ->"));
-                const x = 13 + lane * 12;
+                const x = gitHistoryGraphInset + lane * gitHistoryLaneStep;
                 const y = rowIndex * 22 + 11;
                 if (parents.length > 1) return <g key={hash}>
                   <circle cx={x} cy={y} r="5" fill="var(--right-side-panel-history-panel)" stroke={laneColor} strokeWidth="2" />
@@ -443,7 +447,7 @@ function GitHistoryView({ error, history, loading, onBranchChanged, project }: G
                 ...reference,
                 isAligned: reference.kind === "remote" && localBranchNames.has(reference.label.replace(/^[^/]+\//, "")),
               }));
-              return <li key={commit.hash} style={{ "--right-side-panel-history-content-offset": `${12 + commit.laneCount * 12}px` } as CSSProperties} title={`${commit.shortHash} · ${commit.author || "Unknown author"} · ${gitCommitDate(commit.authoredAt)}`}>
+              return <li key={commit.hash} style={{ "--right-side-panel-history-content-offset": `${gitHistoryContentInset + commit.laneCount * gitHistoryLaneStep}px` } as CSSProperties} title={`${commit.shortHash} · ${commit.author || "Unknown author"} · ${gitCommitDate(commit.authoredAt)}`}>
                 <span className="right-side-panel-history-commit">
                   <span className="right-side-panel-history-subject" title={commit.subject}>{commit.subject}</span>
                   <small className="right-side-panel-history-author" title={commit.author || "Unknown author"}>{commit.author || "Unknown author"}</small>
@@ -505,6 +509,7 @@ function gitHistoryLanes(commits: ProjectGitHistory["commits"]): GitHistoryLaneC
     colorLane: colorLane ?? nextColorLane++,
     hash,
   });
+  const connectionKeys = new Set<string>();
 
   return commits.map((commit, rowIndex) => {
     let lane = lanes.findIndex((activeLane) => activeLane.hash === commit.hash);
@@ -515,7 +520,8 @@ function gitHistoryLanes(commits: ProjectGitHistory["commits"]): GitHistoryLaneC
     const lanesBefore = [...lanes];
     const laneCount = lanes.length;
     const currentLane = lanes[lane];
-    const parentLanes = commit.parents.map((parent, parentIndex) => newLane(parent, parentIndex === 0 ? currentLane.colorLane : undefined));
+    const parentLanes = commit.parents.map((parent, parentIndex) => lanes.find((activeLane) => activeLane.hash === parent)
+      ?? newLane(parent, parentIndex === 0 ? currentLane.colorLane : undefined));
     const nextLanes = [...lanes];
     if (parentLanes.length > 0) {
       // Keep the first parent on the current lane. New side branches go
@@ -526,8 +532,16 @@ function gitHistoryLanes(commits: ProjectGitHistory["commits"]): GitHistoryLaneC
     } else {
       nextLanes.splice(lane, 1);
     }
-    const activeLanes = nextLanes.filter((activeLane) => activeLane.hash !== commit.hash);
+    const activeLanes = nextLanes
+      .filter((activeLane) => activeLane.hash !== commit.hash)
+      .filter((activeLane, index, allLanes) => allLanes.findIndex((candidate) => candidate.hash === activeLane.hash) === index);
     const connections: GitHistoryLaneConnection[] = [];
+    const addConnection = (connection: GitHistoryLaneConnection) => {
+      const key = `${connection.sourceLane}:${rowIndex + connection.sourceRowOffset}:${connection.targetLane}:${rowIndex + connection.targetRowOffset}`;
+      if (connectionKeys.has(key)) return;
+      connectionKeys.add(key);
+      connections.push(connection);
+    };
     const nextCommitHash = commits[rowIndex + 1]?.hash;
     const nextCommitHasDuplicateLanes = nextCommitHash
       ? activeLanes.filter((activeLane) => activeLane.hash === nextCommitHash).length > 1
@@ -535,15 +549,15 @@ function gitHistoryLanes(commits: ProjectGitHistory["commits"]): GitHistoryLaneC
     const nextCommitLane = nextCommitHash ? activeLanes.findIndex((activeLane) => activeLane.hash === nextCommitHash) : -1;
     lanesBefore.forEach((activeLane, sourceLane) => {
       if (sourceLane === lane) {
-        parentLanes.forEach((parentLane) => {
+        parentLanes.forEach((parentLane, parentIndex) => {
           const targetLane = activeLanes.indexOf(parentLane);
-          if (targetLane >= 0) connections.push({ colorLane: parentLane.colorLane, sourceLane, sourceRowOffset: 0, targetLane, targetRowOffset: 1 });
+          if (targetLane >= 0) addConnection({ colorLane: parentIndex === 0 ? currentLane.colorLane : parentLane.colorLane, sourceLane, sourceRowOffset: 0, targetLane, targetRowOffset: 1 });
         });
         return;
       }
       if (activeLane.hash === commit.hash) {
         if (activeLane.skipNextConvergence) return;
-        connections.push({ colorLane: activeLane.colorLane, sourceLane, sourceRowOffset: -1, targetLane: lane, targetRowOffset: 0 });
+        addConnection({ colorLane: activeLane.colorLane, sourceLane, sourceRowOffset: -1, targetLane: lane, targetRowOffset: 0 });
         return;
       }
       const targetLane = activeLanes.indexOf(activeLane);
@@ -551,11 +565,11 @@ function gitHistoryLanes(commits: ProjectGitHistory["commits"]): GitHistoryLaneC
       if (nextCommitHasDuplicateLanes && activeLane.hash === nextCommitHash && targetLane !== nextCommitLane) {
         if (sourceLane !== targetLane) {
           activeLane.skipNextConvergence = true;
-          connections.push({ colorLane: activeLane.colorLane, sourceLane, sourceRowOffset: 0, targetLane: nextCommitLane, targetRowOffset: 1 });
+          addConnection({ colorLane: activeLane.colorLane, sourceLane, sourceRowOffset: 0, targetLane: nextCommitLane, targetRowOffset: 1 });
         }
         return;
       }
-      connections.push({ colorLane: activeLane.colorLane, sourceLane, sourceRowOffset: 0, targetLane, targetRowOffset: 1 });
+      addConnection({ colorLane: activeLane.colorLane, sourceLane, sourceRowOffset: 0, targetLane, targetRowOffset: 1 });
     });
     lanes = activeLanes;
     return { ...commit, colorLane: currentLane.colorLane, connections, lane, laneCount };
