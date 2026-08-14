@@ -97,6 +97,47 @@ export async function projectGitHistory(projectID: string) {
   return { commits, current, isRepo: true };
 }
 
+export async function projectGitStatus(projectID: string) {
+  const root = await registeredProjectRoot(projectID);
+  if ((await runGit(root, ["rev-parse", "--is-inside-work-tree"]).catch(() => "")) !== "true") {
+    return { staged: {} as Record<string, string>, changes: {} as Record<string, string>, isRepo: false };
+  }
+
+  const [stagedOutput, changesOutput, untrackedOutput] = await Promise.all([
+    runGit(root, ["diff", "--cached", "--name-status", "-z"]),
+    runGit(root, ["diff", "--name-status", "-z"]),
+    runGit(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
+  ]);
+  const changes = parseGitStatusOutput(changesOutput);
+  for (const filePath of untrackedOutput.split("\0").map((value) => value.trim()).filter(Boolean)) {
+    changes[filePath] = "U";
+  }
+  return {
+    changes,
+    isRepo: true,
+    staged: parseGitStatusOutput(stagedOutput),
+  };
+}
+
+function parseGitStatusOutput(output: string): Record<string, string> {
+  const status: Record<string, string> = {};
+  const fields = output.split("\0");
+  for (let index = 0; index < fields.length;) {
+    const code = fields[index++]?.trim() ?? "";
+    if (!code) continue;
+    const statusCode = code[0] ?? "M";
+    if (statusCode === "R" || statusCode === "C") {
+      index += 1;
+      const nextPath = fields[index++]?.trim() ?? "";
+      if (nextPath) status[nextPath] = statusCode;
+      continue;
+    }
+    const filePath = fields[index++]?.trim() ?? "";
+    if (filePath) status[filePath] = statusCode;
+  }
+  return status;
+}
+
 export async function checkoutProjectBranch(projectID: string, branch: string) {
   const name = branch.trim();
   if (!validGitBranchName(name)) throw new Error("Invalid branch name");

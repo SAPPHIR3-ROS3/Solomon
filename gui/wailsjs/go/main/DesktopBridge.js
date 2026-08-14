@@ -66,6 +66,10 @@ export function ProjectGitHistory(arg1) {
   return window['go']['main']['DesktopBridge']['ProjectGitHistory'](arg1);
 }
 
+export function ProjectGitStatus(arg1) {
+  return window['go']['main']['DesktopBridge']['ProjectGitStatus'](arg1);
+}
+
 export function ProjectRemovalInfo(arg1) {
   return window['go']['main']['DesktopBridge']['ProjectRemovalInfo'](arg1);
 }

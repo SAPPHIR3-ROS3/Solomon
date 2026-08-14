@@ -29,6 +29,20 @@ func TestParseDesktopGitHistory(t *testing.T) {
 	}
 }
 
+func TestParseDesktopGitStatus(t *testing.T) {
+	output := []byte("M\x00gui/src/App.tsx\x00R100\x00old-name.tsx\x00new-name.tsx\x00")
+	status := parseDesktopGitStatus(output)
+	if got, want := status["gui/src/App.tsx"], "M"; got != want {
+		t.Fatalf("modified status = %q, want %q", got, want)
+	}
+	if got, want := status["new-name.tsx"], "R"; got != want {
+		t.Fatalf("renamed status = %q, want %q", got, want)
+	}
+	if _, ok := status["old-name.tsx"]; ok {
+		t.Fatal("old rename path should not be listed")
+	}
+}
+
 func sameStrings(left, right []string) bool {
 	if len(left) != len(right) {
 		return false

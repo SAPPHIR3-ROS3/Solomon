@@ -35,6 +35,8 @@ export function ProjectDirectoryEntries(arg1:string,arg2:string):Promise<Array<m
 
 export function ProjectGitHistory(arg1:string):Promise<main.desktopProjectGitHistory>;
 
+export function ProjectGitStatus(arg1:string):Promise<main.desktopProjectGitStatus>;
+
 export function ProjectRemovalInfo(arg1:string):Promise<main.desktopProjectRemovalInfo>;
 
 export function ProjectResearch(arg1:string):Promise<Array<research.JobRecord>>;

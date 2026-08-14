@@ -85,6 +85,12 @@ export type ProjectGitHistory = {
   isRepo: boolean;
 };
 
+export type ProjectGitStatus = {
+  changes: Record<string, string>;
+  isRepo: boolean;
+  staged: Record<string, string>;
+};
+
 export type ProjectWorktree = {
   bare: boolean;
   branch: string;
@@ -157,6 +163,16 @@ export async function fetchProjectGitHistory(projectID: string, signal?: AbortSi
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/history`), { signal });
   if (!response.ok) throw new Error(`Unable to read project Git history: ${response.status}`);
   return projectGitHistoryFromPayload(await response.json());
+}
+
+export async function fetchProjectGitStatus(projectID: string, signal?: AbortSignal): Promise<ProjectGitStatus> {
+  const bridge = await desktopBridge();
+  if (bridge?.ProjectGitStatus) {
+    return projectGitStatusFromPayload(await bridge.ProjectGitStatus(projectID));
+  }
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/status`), { signal });
+  if (!response.ok) throw new Error(`Unable to read project Git status: ${response.status}`);
+  return projectGitStatusFromPayload(await response.json());
 }
 
 export async function fetchProjectWorktrees(projectID: string, signal?: AbortSignal): Promise<ProjectWorktrees> {
@@ -655,6 +671,24 @@ function projectGitHistoryFromPayload(payload: unknown): ProjectGitHistory {
     })
     : [];
   return { commits, current, isRepo };
+}
+
+function projectGitStatusFromPayload(payload: unknown): ProjectGitStatus {
+  if (!payload || typeof payload !== "object") {
+    return { changes: {}, isRepo: false, staged: {} };
+  }
+  const readStatusMap = (value: unknown) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.entries(value).reduce<Record<string, string>>((result, [filePath, status]) => {
+      if (typeof filePath === "string" && filePath && typeof status === "string" && status) result[filePath] = status[0] ?? status;
+      return result;
+    }, {});
+  };
+  return {
+    changes: readStatusMap("changes" in payload ? payload.changes : null),
+    isRepo: "isRepo" in payload && Boolean(payload.isRepo),
+    staged: readStatusMap("staged" in payload ? payload.staged : null),
+  };
 }
 
 function projectWorktreesFromPayload(payload: unknown): ProjectWorktrees {

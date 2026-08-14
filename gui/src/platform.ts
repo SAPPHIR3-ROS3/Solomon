@@ -28,6 +28,7 @@ type WailsDesktopBridge = {
   ProjectResearchReport?: (projectID: string, researchID: string) => Promise<string>;
   ProjectBranches?: (projectID: string) => Promise<unknown>;
   ProjectGitHistory?: (projectID: string) => Promise<unknown>;
+  ProjectGitStatus?: (projectID: string) => Promise<unknown>;
   ProjectWorktrees?: (projectID: string) => Promise<unknown>;
   CheckoutProjectBranch?: (projectID: string, branch: string) => Promise<unknown>;
   ProjectRemovalInfo?: (projectID: string) => Promise<unknown>;
