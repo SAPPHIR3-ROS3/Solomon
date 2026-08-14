@@ -1,5 +1,5 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { checkoutProjectBranch, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectResearch } from "../projects/projects";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch } from "../projects/projects";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
 const EXPLORER_STATE_STORAGE_PREFIX = "solomon.explorer-state.v1";
@@ -11,6 +11,7 @@ const TEST_CHATS_CONVERSATIONS_PATH = `${TEST_CHATS_FIXTURES_PATH}/conversations
 const TEST_CHATS_TOOL_RESULTS_PATH = `${TEST_CHATS_FIXTURES_PATH}/tool-results`;
 const TEST_CHATS_SNAPSHOTS_PATH = `${TEST_CHATS_DIRECTORY_PATH}/snapshots`;
 const EMPTY_GIT_HISTORY: ProjectGitHistory = { commits: [], current: "", isRepo: false };
+const EMPTY_GIT_STATUS: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
 const TEST_CHATS_ENTRIES: Record<string, ProjectDirectoryEntry[]> = {
   [TEST_CHATS_DIRECTORY_PATH]: [
     { isDirectory: true, name: "fixtures", path: TEST_CHATS_FIXTURES_PATH },
@@ -107,7 +108,9 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
   const [gitHistoryError, setGitHistoryError] = useState("");
   const [gitHistoryLoading, setGitHistoryLoading] = useState(false);
   const [gitHistoryProjectID, setGitHistoryProjectID] = useState("");
-  const [gitHistoryRefreshKey, setGitHistoryRefreshKey] = useState(0);
+  const [gitStatus, setGitStatus] = useState<ProjectGitStatus>(EMPTY_GIT_STATUS);
+  const [gitStatusError, setGitStatusError] = useState("");
+  const [gitStatusLoading, setGitStatusLoading] = useState(false);
   const filesRef = useRef<HTMLElement>(null);
   const restoredScrollPositionRef = useRef<{ projectID: string; scrollTop: number } | null>(null);
   const nameFilter = query.trim().toLowerCase();
@@ -140,6 +143,9 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     setGitHistoryError("");
     setGitHistoryLoading(Boolean(project) && !testChatsActive);
     setGitHistoryProjectID(project && !testChatsActive ? project.id : "");
+    setGitStatus(EMPTY_GIT_STATUS);
+    setGitStatusError("");
+    setGitStatusLoading(Boolean(project) && !testChatsActive);
     if (!project || testChatsActive) return;
     let cancelled = false;
     void fetchProjectGitHistory(project.id)
@@ -152,10 +158,20 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
       .finally(() => {
         if (!cancelled) setGitHistoryLoading(false);
       });
+    void fetchProjectGitStatus(project.id)
+      .then((status) => {
+        if (!cancelled) setGitStatus(status);
+      })
+      .catch(() => {
+        if (!cancelled) setGitStatusError("Could not load Git changes for this folder.");
+      })
+      .finally(() => {
+        if (!cancelled) setGitStatusLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [gitHistoryRefreshKey, project, testChatsActive]);
+  }, [project, testChatsActive]);
 
   useEffect(() => {
     setEntries({});
@@ -304,7 +320,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
             <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
           </nav>
         </div>
-      </> : visibleView === "history" ? <GitHistoryView error={gitHistoryError} history={gitHistory} loading={gitHistoryLoading} onBranchChanged={() => setGitHistoryRefreshKey((current) => current + 1)} project={project} /> : <section aria-label="Deep research" className="right-side-panel-research" id="right-side-panel-research" role="tabpanel">
+      </> : visibleView === "history" ? <GitHistoryView error={gitHistoryError} gitStatus={gitStatus} gitStatusError={gitStatusError} gitStatusLoading={gitStatusLoading} history={gitHistory} loading={gitHistoryLoading} project={project} /> : <section aria-label="Deep research" className="right-side-panel-research" id="right-side-panel-research" role="tabpanel">
         {!project && testChatsActive ? <p className="right-side-panel-message">No deep research in Test chats yet.</p> : null}
         {!project && !testChatsActive ? <p className="right-side-panel-message">Open a project to view its deep research.</p> : null}
         {researchLoading ? <p className="right-side-panel-message">Loading deep research…</p> : null}
@@ -327,6 +343,9 @@ type FileEntriesProps = {
   depth: number;
   entries: Record<string, ProjectDirectoryEntry[]>;
   expandedDirectories: Set<string>;
+  collapsedDirectories?: Set<string>;
+  fileStatus?: Record<string, string>;
+  folderStatus?: Record<string, string>;
   nameFilter: string;
   onOpenFile?: (entry: ProjectDirectoryEntry) => void;
   onToggleDirectory: (entry: ProjectDirectoryEntry) => void;
@@ -342,16 +361,17 @@ function entryMatchesFilter(entry: ProjectDirectoryEntry, nameFilter: string, en
   return (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
 }
 
-export function FileEntries({ depth, entries, expandedDirectories, iconMode = "all", nameFilter, onOpenFile, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
+export function FileEntries({ collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
   return entries[parentPath]?.filter((entry) => entryMatchesFilter(entry, nameFilter, entries)).map((entry) => {
     const hasMatchingChild = Boolean(nameFilter) && entry.isDirectory && (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
-    const isExpanded = entry.isDirectory && (hasMatchingChild || expandedDirectories.has(entry.path));
+    const isExpanded = entry.isDirectory && (hasMatchingChild || (collapsedDirectories ? !collapsedDirectories.has(entry.path) : expandedDirectories.has(entry.path)));
+    const status = entry.isDirectory ? folderStatus?.[entry.path] : fileStatus?.[entry.path];
     return (
       <div className="right-side-panel-file" key={entry.path}>
         <button
           aria-expanded={entry.isDirectory ? isExpanded : undefined}
           aria-current={!entry.isDirectory && entry.path === selectedPath ? "page" : undefined}
-          className={`right-side-panel-file-row${!entry.isDirectory && entry.path === selectedPath ? " is-active" : ""}`}
+          className={`right-side-panel-file-row${!entry.isDirectory && entry.path === selectedPath ? " is-active" : ""}${status ? ` status-${status}` : ""}`}
           data-depth={depth}
           onClick={() => entry.isDirectory ? onToggleDirectory(entry) : onOpenFile?.(entry)}
           title={entry.name}
@@ -360,11 +380,13 @@ export function FileEntries({ depth, entries, expandedDirectories, iconMode = "a
           {iconMode === "all" ? (entry.isDirectory ? <FolderIcon name={entry.name} isOpen={isExpanded} /> : <FileIcon fileName={entry.name} />) : null}
           {iconMode === "folders-chat" && entry.isDirectory ? <ChatFolderIcon isOpen={isExpanded} /> : null}
           <span>{entry.name}</span>
+          {entry.isDirectory && !isExpanded && status ? <i aria-label={`Folder status: ${gitStatusLabel(status)}`} className={`right-side-panel-folder-status status-${status}`} /> : null}
+          {!entry.isDirectory && status ? <i aria-label={gitStatusLabel(status)} className={`right-side-panel-file-status status-${status}`}>{status}</i> : null}
         </button>
         {isExpanded ? (
           <div className="right-side-panel-file-children">
             {entries[entry.path] ? (
-              <FileEntries depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
+              <FileEntries collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={folderStatus} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
             ) : <span className="right-side-panel-loading">Loading…</span>}
           </div>
         ) : null}
@@ -375,52 +397,192 @@ export function FileEntries({ depth, entries, expandedDirectories, iconMode = "a
 
 type GitHistoryViewProps = {
   error: string;
+  gitStatus: ProjectGitStatus;
+  gitStatusError: string;
+  gitStatusLoading: boolean;
   history: ProjectGitHistory;
   loading: boolean;
-  onBranchChanged: () => void;
   project: Project | null;
 };
 
 const gitHistoryLaneStep = 12;
 const gitHistoryGraphInset = 7;
 const gitHistoryContentInset = 6;
+const emptyGitExpandedDirectories = new Set<string>();
 
-function GitHistoryView({ error, history, loading, onBranchChanged, project }: GitHistoryViewProps) {
+function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, history, loading, project }: GitHistoryViewProps) {
   const [branchError, setBranchError] = useState("");
+  const [branches, setBranches] = useState<string[]>([]);
+  const [branchesError, setBranchesError] = useState("");
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [branchLoading, setBranchLoading] = useState(false);
-  const commits = useMemo(() => gitHistoryLanes(history.commits), [history.commits]);
-  const graphHeight = Math.max(22, commits.length * 22);
+  const [collapsedGitFolders, setCollapsedGitFolders] = useState<Set<string>>(() => new Set());
+  const [stagedChangesCollapsed, setStagedChangesCollapsed] = useState(false);
+  const [changesCollapsed, setChangesCollapsed] = useState(false);
+  const [graphCollapsed, setGraphCollapsed] = useState(false);
+  const [graphPanelHeight, setGraphPanelHeight] = useState(220);
+  const [graphResizing, setGraphResizing] = useState(false);
+  const [commitMessage, setCommitMessage] = useState("");
+  const branchPickerRef = useRef<HTMLDivElement>(null);
+  const [graphHistory, setGraphHistory] = useState(history);
+  const commits = useMemo(() => gitHistoryLanes(graphHistory.commits), [graphHistory.commits]);
+  const graphContentHeight = Math.max(22, commits.length * 22);
   const graphLaneCount = Math.max(1, ...commits.map((commit) => Math.max(commit.laneCount, commit.lane + 1)));
   const graphWidth = Math.max(64, 10 + graphLaneCount * gitHistoryLaneStep);
+  const stagedEntries = useMemo(() => gitStatusEntries(gitStatus.staged), [gitStatus.staged]);
+  const changedEntries = useMemo(() => gitStatusEntries(gitStatus.changes), [gitStatus.changes]);
+  const stagedFolderStatus = useMemo(() => gitStatusFolderStatuses(gitStatus.staged), [gitStatus.staged]);
+  const changedFolderStatus = useMemo(() => gitStatusFolderStatuses(gitStatus.changes), [gitStatus.changes]);
+  const stagedCount = Object.keys(gitStatus.staged).length;
+  const changedCount = Object.keys(gitStatus.changes).length;
+
+  useEffect(() => {
+    setGraphHistory(history);
+  }, [history]);
+
+  useEffect(() => {
+    setBranches([]);
+    setBranchesError("");
+    setBranchMenuOpen(false);
+    if (!project) return;
+    let cancelled = false;
+    setBranchesLoading(true);
+    void fetchProjectBranches(project.id)
+      .then((info) => {
+        if (!cancelled) setBranches(info.branches);
+      })
+      .catch(() => {
+        if (!cancelled) setBranchesError("Unable to load branches.");
+      })
+      .finally(() => {
+        if (!cancelled) setBranchesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project]);
+
+  useEffect(() => {
+    if (!branchMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !branchPickerRef.current?.contains(event.target)) setBranchMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setBranchMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [branchMenuOpen]);
+
+  function toggleGitFolder(entry: ProjectDirectoryEntry) {
+    setCollapsedGitFolders((current) => {
+      const next = new Set(current);
+      if (next.has(entry.path)) next.delete(entry.path);
+      else next.add(entry.path);
+      return next;
+    });
+  }
+
+  function startGraphResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    const panel = event.currentTarget.parentElement?.parentElement;
+    if (!panel) return;
+    setGraphResizing(true);
+    const startY = event.clientY;
+    const startHeight = graphPanelHeight;
+    const panelHeight = panel.getBoundingClientRect().height;
+    const maxHeight = Math.max(140, panelHeight - 135);
+    const resize = (moveEvent: PointerEvent) => setGraphPanelHeight(Math.min(maxHeight, Math.max(140, startHeight + startY - moveEvent.clientY)));
+    const stop = () => {
+      setGraphResizing(false);
+      document.removeEventListener("pointermove", resize);
+      document.removeEventListener("pointerup", stop);
+      document.removeEventListener("pointercancel", stop);
+    };
+    document.addEventListener("pointermove", resize);
+    document.addEventListener("pointerup", stop);
+    document.addEventListener("pointercancel", stop);
+  }
 
   async function selectBranch(branch: string) {
     if (!project || branchLoading) return;
     setBranchLoading(true);
     setBranchError("");
     try {
-      await checkoutProjectBranch(project.id, branch);
+      const nextBranches = await checkoutProjectBranch(project.id, branch);
+      setBranches(nextBranches.branches);
+      const nextHistory = await fetchProjectGitHistory(project.id);
+      setGraphHistory(nextHistory);
+      setBranchMenuOpen(false);
       window.dispatchEvent(new CustomEvent(PROJECT_GIT_BRANCH_CHANGED_EVENT, { detail: { projectID: project.id } }));
-      onBranchChanged();
     } catch {
-      setBranchError(`Unable to checkout ${branch}.`);
+      setBranchError(`Unable to refresh the graph for ${branch}.`);
     } finally {
       setBranchLoading(false);
     }
   }
 
   return (
-    <section aria-label="Git history" className="right-side-panel-history" id="right-side-panel-history" role="tabpanel">
-      {loading ? <p className="right-side-panel-message">Loading Git history…</p> : null}
-      {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
-      {branchError ? <p className="right-side-panel-message" role="status">{branchError}</p> : null}
-      {!loading && !error ? <>
-        <header aria-label="Git graph" className="right-side-panel-history-header">
-          <span><HistoryChevronIcon /><span>Graph</span></span>
-          <small>{history.current || "Detached HEAD"}</small>
+    <section aria-label="Git history" className="right-side-panel-history" id="right-side-panel-history" role="tabpanel" style={{ "--right-side-panel-history-graph-height": `${graphCollapsed ? 29 : graphPanelHeight}px` } as CSSProperties}>
+      <div className="right-side-panel-history-notices">
+        {loading ? <p className="right-side-panel-message">Loading Git history…</p> : null}
+        {gitStatusLoading ? <p className="right-side-panel-message">Loading Git changes…</p> : null}
+        {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
+        {gitStatusError ? <p className="right-side-panel-message" role="status">{gitStatusError}</p> : null}
+        {branchError ? <p className="right-side-panel-message" role="status">{branchError}</p> : null}
+      </div>
+      <div aria-label="Create commit" className="right-side-panel-history-commit-form">
+        <input aria-label="Commit message" onChange={(event) => setCommitMessage(event.target.value)} placeholder="Commit message" type="text" value={commitMessage} />
+        <button disabled={!commitMessage.trim()} title="Commit staged changes" type="button">Commit</button>
+      </div>
+      <div aria-label="Changed files" className="right-side-panel-history-list">
+        <section aria-label="Staged changes" className={`right-side-panel-history-change-section${stagedCount === 0 ? " is-empty" : stagedChangesCollapsed ? " is-collapsed" : ""}`}>
+          <header className="right-side-panel-history-section-header">
+            {stagedCount ? <button aria-expanded={!stagedChangesCollapsed} onClick={() => setStagedChangesCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!stagedChangesCollapsed} /><span>Staged Changes</span></button> : <span className="right-side-panel-history-section-label">Staged Changes</span>}
+            <small>{stagedCount}</small>
+          </header>
+          {stagedCount > 0 && !stagedChangesCollapsed ? <div aria-label="Staged files" className="right-side-panel-history-tree">
+            <FileEntries collapsedDirectories={collapsedGitFolders} depth={0} entries={stagedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.staged} folderStatus={stagedFolderStatus} nameFilter="" onToggleDirectory={toggleGitFolder} parentPath="" />
+          </div> : null}
+        </section>
+        <section aria-label="Changes" className={`right-side-panel-history-change-section${changedCount === 0 ? " is-empty" : changesCollapsed ? " is-collapsed" : ""}`}>
+          <header className="right-side-panel-history-section-header">
+            {changedCount ? <button aria-expanded={!changesCollapsed} onClick={() => setChangesCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!changesCollapsed} /><span>Changes</span></button> : <span className="right-side-panel-history-section-label">Changes</span>}
+            <small>{changedCount}</small>
+          </header>
+          {changedCount > 0 && !changesCollapsed ? <div aria-label="Changed files" className="right-side-panel-history-tree">
+            <FileEntries collapsedDirectories={collapsedGitFolders} depth={0} entries={changedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.changes} folderStatus={changedFolderStatus} nameFilter="" onToggleDirectory={toggleGitFolder} parentPath="" />
+          </div> : null}
+        </section>
+      </div>
+      <section aria-label="Git graph" className={`right-side-panel-history-graph-panel${graphResizing ? " is-resizing" : ""}`}>
+        {graphCollapsed ? null : <button aria-label="Resize Git graph" className="right-side-panel-history-graph-resize" onPointerDown={startGraphResize} title="Drag to resize Git graph" type="button" />}
+        <header aria-label="Git graph" className="right-side-panel-history-section-header graph">
+          <button aria-expanded={!graphCollapsed} onClick={() => setGraphCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!graphCollapsed} /><span>Graph</span></button>
+          <div className="right-side-panel-history-branch-picker" ref={branchPickerRef}>
+            <button aria-expanded={branchMenuOpen} aria-haspopup="listbox" className="right-side-panel-history-branch-trigger" disabled={branchLoading} onClick={() => setBranchMenuOpen((open) => !open)} type="button">
+              <span>{graphHistory.current || "Detached HEAD"}</span>
+            </button>
+            {branchMenuOpen ? <div aria-label="Branches" className="right-side-panel-history-branch-menu" role="listbox">
+              {branchesLoading ? <span className="right-side-panel-history-branch-menu-message">Loading branches…</span> : null}
+              {!branchesLoading && branchesError ? <span className="right-side-panel-history-branch-menu-message">{branchesError}</span> : null}
+              {!branchesLoading && !branchesError && branches.length === 0 ? <span className="right-side-panel-history-branch-menu-message">No local branches.</span> : null}
+              {!branchesLoading && !branchesError ? branches.map((branch) => <button aria-selected={branch === history.current} className={`right-side-panel-history-branch-option${branch === history.current ? " is-current" : ""}`} key={branch} onClick={() => void selectBranch(branch)} role="option" type="button">
+                <span>{branch}</span>
+                {branch === history.current ? <i aria-hidden="true">✓</i> : null}
+              </button>) : null}
+            </div> : null}
+          </div>
         </header>
-        {history.commits.length === 0 ? <p className="right-side-panel-message">No commits in this repository yet.</p> : <section aria-label="Git graph entries" className="right-side-panel-history-graph">
-          <ol style={{ "--right-side-panel-history-graph-width": `${graphWidth}px` } as CSSProperties}>
-            <svg aria-hidden="true" className="right-side-panel-history-graph-canvas" viewBox={`0 0 ${graphWidth} ${graphHeight}`}>
+        <section aria-label="Git graph entries" className="right-side-panel-history-graph">
+          {!loading && !error && graphHistory.commits.length === 0 ? <p className="right-side-panel-history-empty">No commits in this repository yet.</p> : null}
+          {!graphCollapsed && graphHistory.commits.length > 0 ? <ol style={{ "--right-side-panel-history-graph-width": `${graphWidth}px` } as CSSProperties}>
+            <svg aria-hidden="true" className="right-side-panel-history-graph-canvas" viewBox={`0 0 ${graphWidth} ${graphContentHeight}`}>
               {commits.flatMap(({ hash, connections }, rowIndex) => connections.map(({ sourceLane, targetLane, colorLane, sourceRowOffset, targetRowOffset }, connectionIndex) => {
                 const sourceX = gitHistoryGraphInset + sourceLane * gitHistoryLaneStep;
                 const targetX = gitHistoryGraphInset + targetLane * gitHistoryLaneStep;
@@ -463,11 +625,61 @@ function GitHistoryView({ error, history, loading, onBranchChanged, project }: G
                 </small> : null}
               </li>;
             })}
-          </ol>
-        </section>}
-      </> : null}
+          </ol> : null}
+        </section>
+      </section>
     </section>
   );
+}
+
+function gitStatusLabel(status: string) {
+  if (status === "A" || status === "U") return "added";
+  if (status === "D") return "deleted";
+  if (status === "R") return "renamed";
+  if (status === "C") return "copied";
+  if (status === "M") return "modified";
+  return "changed";
+}
+
+function gitStatusFolderStatuses(fileStatus: Record<string, string>) {
+  const folderStatus: Record<string, string> = {};
+  const priority: Record<string, number> = { R: 1, C: 1, A: 2, U: 2, M: 3, D: 4 };
+  for (const [filePath, status] of Object.entries(fileStatus)) {
+    const parts = filePath.split("/");
+    parts.pop();
+    let folderPath = "";
+    for (const part of parts) {
+      folderPath = folderPath ? `${folderPath}/${part}` : part;
+      if ((priority[status] ?? 0) > (priority[folderStatus[folderPath]] ?? 0)) folderStatus[folderPath] = status;
+    }
+  }
+  return folderStatus;
+}
+
+function gitStatusEntries(fileStatus: Record<string, string>) {
+  const entries: Record<string, ProjectDirectoryEntry[]> = { "": [] };
+  const addEntry = (parentPath: string, entry: ProjectDirectoryEntry) => {
+    entries[parentPath] ??= [];
+    if (!entries[parentPath].some((candidate) => candidate.path === entry.path)) entries[parentPath].push(entry);
+  };
+  for (const filePath of Object.keys(fileStatus).sort((left, right) => left.localeCompare(right))) {
+    const normalizedPath = filePath.replaceAll("\\", "/").replace(/^\.\//, "");
+    const parts = normalizedPath.split("/").filter(Boolean);
+    const fileName = parts.pop();
+    if (!fileName) continue;
+    let parentPath = "";
+    for (const part of parts) {
+      const directoryPath = parentPath ? `${parentPath}/${part}` : part;
+      addEntry(parentPath, { isDirectory: true, name: part, path: directoryPath });
+      entries[directoryPath] ??= [];
+      parentPath = directoryPath;
+    }
+    addEntry(parentPath, { isDirectory: false, name: fileName, path: normalizedPath });
+  }
+  for (const directoryEntries of Object.values(entries)) {
+    directoryEntries.sort((left, right) => Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name));
+  }
+  return entries;
 }
 
 type GitHistoryLaneConnection = {
@@ -644,9 +856,9 @@ function CloudIcon() {
   );
 }
 
-function HistoryChevronIcon() {
+function HistoryChevronIcon({ open = true }: { open?: boolean }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className={open ? "open" : ""} viewBox="0 0 24 24">
       <path d="m9 18 6-6-6-6" />
     </svg>
   );
