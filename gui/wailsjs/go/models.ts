@@ -364,6 +364,22 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class desktopProjectGitStatus {
+	    staged: {[key: string]: string};
+	    changes: {[key: string]: string};
+	    isRepo: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new desktopProjectGitStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.staged = source["staged"];
+	        this.changes = source["changes"];
+	        this.isRepo = source["isRepo"];
+	    }
+	}
 	export class desktopProjectDirectoryEntry {
 	    isDirectory: boolean;
 	    name: string;

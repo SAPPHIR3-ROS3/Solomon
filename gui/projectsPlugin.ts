@@ -3,7 +3,7 @@ import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
-import { checkoutProjectBranch, projectBranches, projectGitHistory, projectWorktrees } from "./projectBranches";
+import { checkoutProjectBranch, projectBranches, projectGitHistory, projectGitStatus, projectWorktrees } from "./projectBranches";
 
 const projectsEndpoint = "/__solomon/projects";
 const userNameEndpoint = "/__solomon/user-name";
@@ -459,7 +459,7 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
         .catch(() => { response.statusCode = 404; response.end("Research report not found"); });
       return;
     }
-    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files|research|history|branches|checkout|worktrees))?\/?$/);
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files|research|history|status|branches|checkout|worktrees))?\/?$/);
     if (request.method === "GET" && match?.[2] === "files") {
       const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
       void projectDirectoryEntries(match[1], directoryPath)
@@ -477,6 +477,12 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
       void projectGitHistory(match[1])
         .then((history) => respondWithJson(response, 200, history))
         .catch(() => respondWithJson(response, 500, { error: "Unable to read project Git history" }));
+      return;
+    }
+    if (request.method === "GET" && match?.[2] === "status") {
+      void projectGitStatus(match[1])
+        .then((status) => respondWithJson(response, 200, status))
+        .catch(() => respondWithJson(response, 500, { error: "Unable to read project Git status" }));
       return;
     }
     if (request.method === "GET" && match?.[2] === "branches") {
@@ -513,7 +519,7 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
       next();
       return;
     }
-    if (!match || match[2] === "removal-info" || match[2] === "files" || match[2] === "research" || match[2] === "history" || match[2] === "branches" || match[2] === "checkout" || match[2] === "worktrees") {
+    if (!match || match[2] === "removal-info" || match[2] === "files" || match[2] === "research" || match[2] === "history" || match[2] === "status" || match[2] === "branches" || match[2] === "checkout" || match[2] === "worktrees") {
       respondWithJson(response, 400, { error: "Invalid project ID" });
       return;
     }
