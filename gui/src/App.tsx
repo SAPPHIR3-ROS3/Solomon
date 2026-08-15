@@ -33,7 +33,7 @@ const EMPTY_MESSAGE_IDS = new Set<string>();
 
 export function App() {
   const [client, setClient] = useState(initialClient);
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(true);
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [isRightSidePanelOpen, setIsRightSidePanelOpen] = useState(false);
   const [leftSidePanelWidth, setLeftSidePanelWidth] = useState(() => loadPanelWidth(LEFT_SIDE_PANEL_WIDTH_KEY));
   const [rightSidePanelWidth, setRightSidePanelWidth] = useState(() => loadPanelWidth(RIGHT_SIDE_PANEL_WIDTH_KEY));
