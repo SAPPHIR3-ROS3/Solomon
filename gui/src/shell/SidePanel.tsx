@@ -278,12 +278,6 @@ export function SidePanel({
       <div className="side-panel-actions">
         <button className="side-panel-action" type="button">
           <span aria-hidden="true" className="side-panel-action-icon">
-            <NewProjectIcon />
-          </span>
-          <span className="side-panel-action-label">New Project</span>
-        </button>
-        <button className="side-panel-action" type="button">
-          <span aria-hidden="true" className="side-panel-action-icon">
             <SearchIcon />
           </span>
           <span className="side-panel-action-label">Search</span>
@@ -598,14 +592,6 @@ function CloseIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  );
-}
-
-function NewProjectIcon() {
-  return (
-    <svg viewBox="0 0 24 24">
-      <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h11A2.5 2.5 0 0 1 21 6.5v7A2.5 2.5 0 0 1 18.5 16H12l-4 3v-3H7.5A2.5 2.5 0 0 1 5 13.5V6.5Z" />
     </svg>
   );
 }
