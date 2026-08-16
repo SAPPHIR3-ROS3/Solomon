@@ -1,6 +1,8 @@
 import { desktopBridge, serverEndpoint } from "../platform";
 
 export const PROJECT_GIT_BRANCH_CHANGED_EVENT = "solomon:git-branch-changed";
+const USER_NAME_CACHE_KEY = "solomon:user-name";
+const HOME_STATS_CACHE_KEY = "solomon:home-stats";
 
 export type Chat = {
   id: string;
@@ -22,6 +24,11 @@ export type Project = {
   path: string;
   chatCount: number;
   tokenStats?: ProjectTokenStats;
+};
+
+export type CachedHomeStats = {
+  chatCount: number;
+  tokenStats: ProjectTokenStats;
 };
 
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
@@ -111,6 +118,18 @@ export async function fetchProjectDirectoryEntries(projectID: string, directoryP
     `/__solomon/projects/${encodeURIComponent(projectID)}/files?path=${encodeURIComponent(directoryPath)}`,
   ));
   if (!response.ok) throw new Error(`Unable to read project files: ${response.status}`);
+  return projectDirectoryEntriesFromPayload(await response.json());
+}
+
+export async function fetchHomeDirectoryEntries(directoryPath = "", signal?: AbortSignal): Promise<ProjectDirectoryEntry[]> {
+  const bridge = await desktopBridge();
+  if (bridge?.HomeDirectoryEntries) {
+    return projectDirectoryEntriesFromPayload(await bridge.HomeDirectoryEntries(directoryPath));
+  }
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/home-directories?path=${encodeURIComponent(directoryPath)}`,
+  ), { signal });
+  if (!response.ok) throw new Error(`Unable to read home directories: ${response.status}`);
   return projectDirectoryEntriesFromPayload(await response.json());
 }
 
@@ -206,6 +225,65 @@ export async function fetchProjectSidebarData(signal?: AbortSignal): Promise<Pro
   if (!response.ok) throw new Error(`Unable to load projects: ${response.status}`);
   const payload: unknown = await response.json();
   return projectSidebarDataFromPayload(payload);
+}
+
+export function getCachedUserName(): string | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage.getItem(USER_NAME_CACHE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function cacheUserName(userName: string): void {
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(USER_NAME_CACHE_KEY, userName);
+  } catch {
+    // Local storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+export function getCachedHomeStats(): CachedHomeStats | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(HOME_STATS_CACHE_KEY);
+    if (!raw) return null;
+
+    const payload: unknown = JSON.parse(raw);
+    if (!payload || typeof payload !== "object") return null;
+    const record = payload as Record<string, unknown>;
+    const tokenStats = record.tokenStats;
+    if (!tokenStats || typeof tokenStats !== "object") return null;
+    const tokenRecord = tokenStats as Record<string, unknown>;
+    const isCount = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
+    if (!isCount(record.chatCount) || !isCount(tokenRecord.user) || !isCount(tokenRecord.reasoning) || !isCount(tokenRecord.response) || !isCount(tokenRecord.total)) {
+      return null;
+    }
+
+    return {
+      chatCount: record.chatCount,
+      tokenStats: {
+        reasoning: tokenRecord.reasoning,
+        response: tokenRecord.response,
+        total: tokenRecord.total,
+        user: tokenRecord.user,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function cacheHomeStats(project: Project): void {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(HOME_STATS_CACHE_KEY, JSON.stringify({
+      chatCount: project.chatCount,
+      tokenStats: project.tokenStats ?? { reasoning: 0, response: 0, total: 0, user: 0 },
+    }));
+  } catch {
+    // Local storage can be unavailable in private or restricted browser contexts.
+  }
 }
 
 export async function saveUserName(userName: string): Promise<string> {

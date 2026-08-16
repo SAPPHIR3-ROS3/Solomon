@@ -25,6 +25,8 @@ export function DeleteCustomizationRule(arg1:number):Promise<Array<main.desktopR
 
 export function DeleteCustomizationSubagent(arg1:string):Promise<Array<main.desktopCatalogItem>>;
 
+export function HomeDirectoryEntries(arg1:string):Promise<Array<main.desktopProjectDirectoryEntry>>;
+
 export function ModelCatalog():Promise<main.desktopModelCatalog>;
 
 export function ProjectAtMentionSuggestions(arg1:string,arg2:string):Promise<Array<main.desktopAtMentionSuggestion>>;
