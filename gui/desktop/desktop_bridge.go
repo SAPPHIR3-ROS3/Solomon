@@ -223,6 +223,43 @@ func (DesktopBridge) ProjectDirectoryEntries(projectID, relativePath string) ([]
 	return result, nil
 }
 
+// HomeDirectoryEntries returns one directory level below the user's home
+// directory. The requested path is constrained to that home directory.
+func (DesktopBridge) HomeDirectoryEntries(relativePath string) ([]desktopProjectDirectoryEntry, error) {
+	root, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	root, err = filepath.Abs(filepath.Clean(root))
+	if err != nil {
+		return nil, err
+	}
+	target := filepath.Clean(filepath.Join(root, relativePath))
+	relativeTarget, err := filepath.Rel(root, target)
+	if err != nil || filepath.IsAbs(relativeTarget) || relativeTarget == ".." || strings.HasPrefix(relativeTarget, ".."+string(filepath.Separator)) {
+		return nil, fmt.Errorf("invalid home directory")
+	}
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]desktopProjectDirectoryEntry, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		entryPath := entry.Name()
+		if relativeTarget != "." {
+			entryPath = filepath.Join(relativeTarget, entryPath)
+		}
+		result = append(result, desktopProjectDirectoryEntry{IsDirectory: true, Name: entry.Name(), Path: entryPath})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+	return result, nil
+}
+
 // ProjectAtMentionSuggestions delegates matching and tag shortening to the
 // same atmention package used by Solomon's terminal editor.
 func (DesktopBridge) ProjectAtMentionSuggestions(projectID, query string) ([]desktopAtMentionSuggestion, error) {

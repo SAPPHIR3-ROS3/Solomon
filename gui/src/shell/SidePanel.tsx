@@ -1,5 +1,5 @@
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
-import { fetchProjectRemovalInfo, fetchProjectSidebarData, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
+import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCachedUserName, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
 import type { FakeChat } from "../chat-test/fakeChats";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
@@ -27,6 +27,7 @@ type SidePanelProps = {
   isCustomizationOpen: boolean;
   onNewProjectChat: (project: Project) => void;
   onNewFakeChat: () => void;
+  onOpenNewProject: () => void;
   onOpenFakeChat: (chatID: string) => void;
   onOpenProjectTerminal: (project: Project) => void;
   onOpenSettings: () => void;
@@ -43,6 +44,7 @@ export function SidePanel({
   isCustomizationOpen,
   onNewProjectChat,
   onNewFakeChat,
+  onOpenNewProject,
   onOpenFakeChat,
   onOpenProjectTerminal,
   onOpenSettings,
@@ -63,7 +65,7 @@ export function SidePanel({
   const [projectScrollThumb, setProjectScrollThumb] = useState<ProjectScrollThumb>({ height: 0, isVisible: false, top: 0 });
   const [projectScrollShadowOpacity, setProjectScrollShadowOpacity] = useState(0);
   const [projectBottomScrollShadowOpacity, setProjectBottomScrollShadowOpacity] = useState(0);
-  const [userName, setUserName] = useState("");
+  const [userName, setUserName] = useState(() => getCachedUserName() ?? "");
   const [userNameDraft, setUserNameDraft] = useState("");
   const [isEditingUserName, setIsEditingUserName] = useState(false);
   const [isSavingUserName, setIsSavingUserName] = useState(false);
@@ -77,11 +79,12 @@ export function SidePanel({
       .then((data) => {
         setProjects(data.projects);
         setOpenProjectIds(new Set(data.projects.map((project) => project.id)));
-        setUserName(data.userName);
+        const nextUserName = data.userName.trim();
+        cacheUserName(nextUserName);
+        setUserName(nextUserName);
       })
       .catch(() => {
         setProjects([]);
-        setUserName("");
       });
     return () => controller.abort();
   }, []);
@@ -235,7 +238,9 @@ export function SidePanel({
     setUserNameError("");
     try {
       const savedUserName = await saveUserName(userNameDraft.trim());
-      setUserName(savedUserName);
+      const nextUserName = savedUserName.trim();
+      cacheUserName(nextUserName);
+      setUserName(nextUserName);
       setIsEditingUserName(false);
     } catch {
       setUserNameError("Could not save the name. Try again.");
@@ -298,7 +303,16 @@ export function SidePanel({
         className="side-panel-section-label"
         style={{ "--side-panel-scroll-shadow-opacity": projectScrollShadowOpacity } as CSSProperties}
       >
-        Projects
+        <span>Projects</span>
+        <button
+          aria-label="New project"
+          className="side-panel-section-new-project"
+          onClick={onOpenNewProject}
+          title="New project"
+          type="button"
+        >
+          <PlusIcon />
+        </button>
       </div>
       <div className="side-panel-projects-shell">
       <nav aria-label="Projects" className="side-panel-projects" ref={projectsListRef}>

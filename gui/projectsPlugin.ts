@@ -6,6 +6,7 @@ import type { Plugin } from "vite";
 import { checkoutProjectBranch, projectBranches, projectGitHistory, projectGitStatus, projectWorktrees } from "./projectBranches";
 
 const projectsEndpoint = "/__solomon/projects";
+const homeDirectoryEntriesEndpoint = "/__solomon/home-directories";
 const userNameEndpoint = "/__solomon/user-name";
 const reasoningEffortEndpoint = "/__solomon/reasoning-effort";
 const projectActionEndpoint = "/__solomon/projects/";
@@ -331,6 +332,19 @@ function attachProjectsEndpoint(server: { middlewares: { use: (route: string, ha
   });
 }
 
+function attachHomeDirectoryEntriesEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(homeDirectoryEntriesEndpoint, (request, response, next) => {
+    if (request.method !== "GET") {
+      next();
+      return;
+    }
+    const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
+    void homeDirectoryEntries(directoryPath)
+      .then((entries) => respondWithJson(response, 200, entries))
+      .catch(() => respondWithJson(response, 500, { error: "Unable to read home directories" }));
+  });
+}
+
 async function removeProject(projectID: string, removeData: boolean) {
   if (!/^[a-f0-9]{64}$/.test(projectID)) throw new Error("Invalid project ID");
   const home = solomonHome();
@@ -416,6 +430,25 @@ async function projectDirectoryEntries(projectID: string, directoryPath: string)
       path: relativeTarget ? path.join(relativeTarget, entry.name) : entry.name,
     }))
     .sort((left, right) => Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name));
+}
+
+async function homeDirectoryEntries(directoryPath: string) {
+  const root = path.resolve(homedir());
+  const target = path.resolve(root, directoryPath);
+  const relativeTarget = path.relative(root, target);
+  if (path.isAbsolute(relativeTarget) || relativeTarget === ".." || relativeTarget.startsWith(`..${path.sep}`)) {
+    throw new Error("Invalid home directory");
+  }
+
+  const entries = await readdir(target, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      isDirectory: true,
+      name: entry.name,
+      path: relativeTarget ? path.join(relativeTarget, entry.name) : entry.name,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 async function projectResearch(projectID: string) {
@@ -620,12 +653,14 @@ export function projectsPlugin(): Plugin {
     configurePreviewServer(server) {
       attachProjectActionEndpoint(server);
       attachProjectsEndpoint(server);
+      attachHomeDirectoryEntriesEndpoint(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
     },
     configureServer(server) {
       attachProjectActionEndpoint(server);
       attachProjectsEndpoint(server);
+      attachHomeDirectoryEntriesEndpoint(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
     },

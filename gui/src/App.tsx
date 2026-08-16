@@ -10,6 +10,7 @@ import { TerminalPanel } from "./terminal-panel/TerminalPanel";
 import { applyTheme, savedTheme } from "./theme";
 import { CustomizationPage } from "./customization/CustomizationPage";
 import { Welcome } from "./home/Welcome";
+import { NewProjectDialog } from "./projects/NewProjectDialog";
 import { SettingsPage } from "./settings/SettingsPage";
 import { type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
@@ -46,6 +47,7 @@ export function App() {
   const [activeView, setActiveView] = useState<View>("agent");
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
   const fakeChats = useTestChatStore();
@@ -102,6 +104,7 @@ export function App() {
   }, [maxTerminalPanelHeight]);
 
   function goHome() {
+    setIsNewProjectDialogOpen(false);
     setWelcomeResetToken((current) => current + 1);
     setIsSettingsOpen(false);
     setIsCustomizationOpen(false);
@@ -110,6 +113,14 @@ export function App() {
     setSelectedFakeChatID(null);
     setIsNewTestChatOpen(false);
     setSelectedResearch(null);
+  }
+
+  function openNewProjectDialog() {
+    setIsNewProjectDialogOpen(true);
+  }
+
+  function closeNewProjectDialog() {
+    setIsNewProjectDialogOpen(false);
   }
 
   function openSettings() {
@@ -424,6 +435,7 @@ export function App() {
           isCustomizationOpen={isCustomizationOpen}
           onNewProjectChat={openProjectNewChat}
           onNewFakeChat={openNewFakeChat}
+          onOpenNewProject={openNewProjectDialog}
           onOpenFakeChat={openFakeChat}
           onOpenProjectTerminal={openProjectTerminal}
           onOpenSettings={openSettings}
@@ -464,12 +476,14 @@ export function App() {
           current?.left === bounds.left && current.right === bounds.right ? current : bounds
         ))}
         onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
+        onOpenNewProject={openNewProjectDialog}
         onSend={isNewTestChatOpen ? sendNewFakeChatMessage : undefined}
         onWorkspaceChange={setSelectedWorkspace}
         resetToken={welcomeResetToken}
         workspaceNameOverride={isTestChatsExplorerActive ? "Test chats" : null}
         workspaceFocus={workspaceFocus}
       />
+      <NewProjectDialog isOpen={isNewProjectDialogOpen} onClose={closeNewProjectDialog} />
       {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
         <TestChatTopbar
           onOpenFolder={openNewFakeChat}

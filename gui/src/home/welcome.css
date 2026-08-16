@@ -120,6 +120,10 @@
   visibility: hidden;
 }
 
+.welcome-folder-row.is-workspace-open {
+  z-index: 15;
+}
+
 .welcome-workspace {
   align-items: center;
   appearance: none;

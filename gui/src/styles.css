@@ -1043,21 +1043,24 @@ button.right-side-panel-history-ref:hover {
 .right-side-panel-files::-webkit-scrollbar,
 .side-panel-projects::-webkit-scrollbar,
 .customization-prompt-content::-webkit-scrollbar,
-.customization-prompt-editor textarea::-webkit-scrollbar {
+.customization-prompt-editor textarea::-webkit-scrollbar,
+.new-project-dialog-folder-list::-webkit-scrollbar {
   width: 10px;
 }
 
 .right-side-panel-files::-webkit-scrollbar-track,
 .side-panel-projects::-webkit-scrollbar-track,
 .customization-prompt-content::-webkit-scrollbar-track,
-.customization-prompt-editor textarea::-webkit-scrollbar-track {
+.customization-prompt-editor textarea::-webkit-scrollbar-track,
+.new-project-dialog-folder-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .right-side-panel-files::-webkit-scrollbar-thumb,
 .side-panel-projects::-webkit-scrollbar-thumb,
 .customization-prompt-content::-webkit-scrollbar-thumb,
-.customization-prompt-editor textarea::-webkit-scrollbar-thumb {
+.customization-prompt-editor textarea::-webkit-scrollbar-thumb,
+.new-project-dialog-folder-list::-webkit-scrollbar-thumb {
   background: var(--color-border);
   background-clip: padding-box;
   border: 3px solid transparent;
@@ -1067,7 +1070,8 @@ button.right-side-panel-history-ref:hover {
 .right-side-panel-files::-webkit-scrollbar-thumb:hover,
 .side-panel-projects::-webkit-scrollbar-thumb:hover,
 .customization-prompt-content::-webkit-scrollbar-thumb:hover,
-.customization-prompt-editor textarea::-webkit-scrollbar-thumb:hover {
+.customization-prompt-editor textarea::-webkit-scrollbar-thumb:hover,
+.new-project-dialog-folder-list::-webkit-scrollbar-thumb:hover {
   background: var(--color-surface-raised);
   background-clip: padding-box;
   border: 3px solid transparent;
@@ -3116,17 +3120,57 @@ button.right-side-panel-history-ref:hover {
 }
 
 .side-panel-section-label {
+  align-items: center;
   color: var(--color-text-muted);
+  display: flex;
   font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
+  justify-content: space-between;
   letter-spacing: 0.12em;
+  line-height: 12px;
   margin-top: 8px;
-  padding: 0 14px;
+  padding: 2px 14px;
   position: relative;
-  text-align: center;
+  text-align: left;
   text-transform: uppercase;
   z-index: 2;
+}
+
+.side-panel-section-new-project {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: 20px;
+  justify-content: center;
+  margin-left: 8px;
+  padding: 0;
+  width: 20px;
+}
+
+.side-panel-section-new-project:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.side-panel-section-new-project:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.side-panel-section-new-project svg {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  width: 16px;
 }
 
 .side-panel-section-label::after {
