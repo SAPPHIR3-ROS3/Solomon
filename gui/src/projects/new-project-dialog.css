@@ -1,0 +1,287 @@
+.new-project-dialog-backdrop {
+  align-items: center;
+  background: color-mix(in srgb, #000 52%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 40;
+}
+
+.new-project-dialog {
+  background: var(--color-surface);
+  border-radius: 14px;
+  box-shadow: 0 24px 72px color-mix(in srgb, #000 52%, transparent);
+  max-width: 760px;
+  padding: 0 16px;
+  width: min(100%, 760px);
+}
+
+.new-project-dialog-search {
+  align-items: center;
+  background: var(--color-surface);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  display: flex;
+  gap: 9px;
+  height: 68px;
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+
+.new-project-dialog-search:focus-within {
+  background: var(--color-surface);
+}
+
+.new-project-dialog-search input {
+  background: transparent;
+  border: 0;
+  color: var(--color-text);
+  flex: 1;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 24px;
+  line-height: 30px;
+  min-width: 0;
+  outline: 0;
+  padding: 0;
+  width: auto;
+}
+
+.new-project-dialog-search input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.new-project-dialog-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.new-project-dialog-search input::-ms-clear {
+  display: none;
+}
+
+.new-project-dialog-search-back {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: 40px;
+  justify-content: center;
+  padding: 0;
+  transform: translateY(2px);
+  width: 40px;
+}
+
+.new-project-dialog-search-back:hover,
+.new-project-dialog-search-back:focus-visible {
+  background: transparent;
+  color: var(--color-text);
+  outline: none;
+}
+
+.new-project-dialog-search-back svg {
+  fill: none;
+  height: 24px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 24px;
+}
+
+.new-project-dialog-sources-label {
+  color: var(--color-text-muted);
+  display: block;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 520;
+  line-height: 16px;
+  margin: 14px 0 6px;
+}
+
+.new-project-dialog-sources {
+  display: grid;
+  gap: 7px;
+  margin: 0 -16px;
+}
+
+.new-project-dialog-source {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 15px;
+  font: inherit;
+  min-height: 68px;
+  padding: 10px 16px;
+  text-align: left;
+  transition: background-color 140ms ease;
+  width: 100%;
+}
+
+.new-project-dialog-source:hover,
+.new-project-dialog-source.is-active {
+  background: var(--color-surface-raised);
+}
+
+.new-project-dialog-source-icon {
+  align-items: center;
+  color: var(--color-crown-gold);
+  display: flex;
+  flex: none;
+}
+
+.new-project-dialog-source-icon svg {
+  fill: none;
+  height: 32px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.55;
+  width: 32px;
+}
+
+.new-project-dialog-source-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.new-project-dialog-source-copy strong {
+  color: var(--color-text);
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 520;
+}
+
+.new-project-dialog-source-copy > span {
+  color: var(--color-text-muted);
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.new-project-dialog-empty {
+  color: var(--color-text-muted);
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  margin: 5px 2px 2px;
+}
+
+.new-project-dialog-folder-picker {
+  margin: 14px -16px 0;
+}
+
+.new-project-dialog-folder-list {
+  display: grid;
+  overflow-y: auto;
+  max-height: 440px;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+}
+
+.new-project-dialog-folder-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--color-text);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 12px;
+  height: 44px;
+  min-width: 0;
+  padding: 0 16px;
+  text-align: left;
+  width: 100%;
+}
+
+.new-project-dialog-folder-row:hover,
+.new-project-dialog-folder-row:focus-visible {
+  background: var(--color-surface-raised);
+  outline: none;
+}
+
+.new-project-dialog-folder-row > span:nth-child(2) {
+  flex: 1;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-project-dialog-folder-row > svg {
+  fill: none;
+  flex: none;
+  height: 16px;
+  stroke: var(--color-text-muted);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 16px;
+}
+
+.new-project-dialog-folder-icon {
+  color: var(--color-crown-gold);
+  display: flex;
+  flex: none;
+}
+
+.new-project-dialog-folder-icon svg {
+  fill: none;
+  height: 22px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.55;
+  width: 22px;
+}
+
+.new-project-dialog-folder-message {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  height: 44px;
+  margin: 0;
+  padding: 0 16px;
+}
+
+.new-project-dialog-folder-message.is-error {
+  color: var(--color-danger);
+}
+
+@media (max-width: 520px) {
+  .new-project-dialog {
+    padding: 0 12px;
+  }
+
+  .new-project-dialog-search {
+    margin: 0 -12px;
+  }
+
+  .new-project-dialog-sources,
+  .new-project-dialog-folder-picker {
+    margin-left: -12px;
+    margin-right: -12px;
+  }
+
+  .new-project-dialog-folder-row,
+  .new-project-dialog-folder-message {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

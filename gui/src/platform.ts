@@ -21,6 +21,7 @@ type WailsDesktopBridge = {
   ConnectProvider?: (request: { APIKey: string; BaseURL: string; Kind: number; Name: string }) => Promise<unknown>;
   SetModelEnabled?: (provider: string, model: string, enabled: boolean) => Promise<unknown>;
   ProjectSidebarData: () => Promise<unknown>;
+  HomeDirectoryEntries?: (relativePath: string) => Promise<unknown>;
   ProjectDirectoryEntries?: (projectID: string, directoryPath: string) => Promise<unknown>;
   ProjectAtMentionSuggestions?: (projectID: string, query: string) => Promise<unknown>;
   AtMentionSuggestions?: (entries: Array<{ isDirectory: boolean; path: string }>, query: string) => Promise<unknown>;

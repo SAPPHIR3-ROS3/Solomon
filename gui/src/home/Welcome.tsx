@@ -3,7 +3,11 @@ import asciiBanner from "../../../internal/logo/logo.txt?raw";
 import asciiColors from "../../../internal/logo/colors.txt?raw";
 import { serverEndpoint } from "../platform";
 import {
+  cacheHomeStats,
+  cacheUserName,
   fetchProjectSidebarData,
+  getCachedHomeStats,
+  getCachedUserName,
   normalizeReasoningEffort,
   saveReasoningEffort,
   type Project,
@@ -31,6 +35,7 @@ type WelcomeProps = {
   isVisible?: boolean;
   onComposerBoundsChange?: (bounds: { left: number; right: number }) => void;
   onKeepAliveHeightChange?: (height: number) => void;
+  onOpenNewProject?: () => void;
   onSend?: (content: string) => void;
   onWorkspaceChange?: (project: Project | null) => void;
   resetToken?: number;
@@ -50,10 +55,11 @@ type Visibility = {
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
-export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onSend, onWorkspaceChange, resetToken = 0, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
-  const [userName, setUserName] = useState("");
+export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onOpenNewProject, onSend, onWorkspaceChange, resetToken = 0, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
+  const [userName, setUserName] = useState(() => getCachedUserName() ?? "");
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
   const [projects, setProjects] = useState<Project[]>([]);
+  const [homeStats, setHomeStats] = useState(() => getCachedHomeStats());
   const [workspaceName, setWorkspaceName] = useState("Home");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedProvider, setSelectedProvider] = useState("");
@@ -99,9 +105,14 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
     const controller = new AbortController();
     void fetchProjectSidebarData(controller.signal)
       .then((data) => {
-        setUserName(data.userName.trim());
+        const nextUserName = data.userName.trim();
+        cacheUserName(nextUserName);
+        setUserName(nextUserName);
         setReasoning(data.reasoningEffort);
         setProjects(data.projects);
+        const home = data.projects.find((project) => project.name === "Home") ?? null;
+        setHomeStats(home ? { chatCount: home.chatCount, tokenStats: home.tokenStats ?? emptyProjectTokenStats } : null);
+        if (home) cacheHomeStats(home);
         const focus = workspaceFocusRef.current;
         if (focus) {
           const focused = data.projects.find((project) => project.id === focus.project.id) ?? focus.project;
@@ -116,12 +127,10 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
           onWorkspaceChange?.(null);
           return;
         }
-        const home = data.projects.find((project) => project.name === "Home") ?? null;
         setSelectedProject(home);
         onWorkspaceChange?.(home);
       })
       .catch(() => {
-        setUserName("");
         setReasoning("none");
         setProjects([]);
         setSelectedProject(null);
@@ -211,10 +220,12 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
     if (measureComposerRef.current) observer.observe(measureComposerRef.current);
     update();
     return () => observer.disconnect();
-  }, [bottomInset, selectedProject?.chatCount, selectedProject?.tokenStats?.total, selectedProvider, userName, version]);
+  }, [bottomInset, homeStats?.chatCount, homeStats?.tokenStats?.total, selectedProject?.chatCount, selectedProject?.tokenStats?.total, selectedProvider, userName, version, workspaceNameOverride]);
 
   const displayName = userName || "User";
-  const tokenStats = selectedProject?.tokenStats ?? emptyProjectTokenStats;
+  const homeStatsFallback = !workspaceNameOverride && (!selectedProject || selectedProject.name === "Home") ? homeStats : null;
+  const displayChatCount = selectedProject?.chatCount ?? homeStatsFallback?.chatCount ?? 0;
+  const tokenStats = selectedProject?.tokenStats ?? homeStatsFallback?.tokenStats ?? emptyProjectTokenStats;
   const fastAvailable = fastModeAvailableFor(selectedProvider);
 
   function send() {
@@ -265,7 +276,7 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
             <strong>{formatVersion(version)}</strong>
           </div>
           <div className="welcome-chat-count">
-            <strong>{formatChatCount(selectedProject?.chatCount ?? 0)}</strong> {selectedProject?.chatCount === 1 ? "chat" : "chats"}
+            <strong>{formatChatCount(displayChatCount)}</strong> {displayChatCount === 1 ? "chat" : "chats"}
           </div>
           <div className="welcome-token-count" title="Approximate tokens used in this folder">
             <WelcomeTokenBreakdown stats={tokenStats} />
@@ -289,7 +300,7 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
         {visibility.folder ? (
           <div
             aria-hidden={openMenu === "model"}
-            className={`welcome-folder-row${openMenu === "model" ? " is-concealed" : ""}`}
+            className={`welcome-folder-row${openMenu === "model" ? " is-concealed" : ""}${openMenu === "workspace" ? " is-workspace-open" : ""}`}
           >
             {workspaceNameOverride ? (
               <button aria-label={`Cartella ${workspaceNameOverride}`} className="welcome-workspace" type="button">
@@ -297,6 +308,7 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
                 <span>{workspaceNameOverride}</span>
               </button>
             ) : <WorkspaceControl
+              onOpenNewProject={onOpenNewProject}
               onOpenChange={(open) => setOpenMenu(open ? "workspace" : null)}
               onSelect={(project) => {
                 setWorkspaceName(project?.name ?? "Home");
@@ -407,7 +419,7 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
               <strong>{formatVersion(version)}</strong>
             </div>
             <div className="welcome-chat-count">
-              <strong>{formatChatCount(selectedProject?.chatCount ?? 0)}</strong> {selectedProject?.chatCount === 1 ? "chat" : "chats"}
+              <strong>{formatChatCount(displayChatCount)}</strong> {displayChatCount === 1 ? "chat" : "chats"}
             </div>
             <div className="welcome-token-count" title="Approximate tokens used in this folder">
               <WelcomeTokenBreakdown stats={tokenStats} />
@@ -473,6 +485,7 @@ function fastModeAvailableFor(provider: string): boolean {
 }
 
 function WorkspaceControl({
+  onOpenNewProject,
   workspaceName,
   projects,
   homeProject,
@@ -480,6 +493,7 @@ function WorkspaceControl({
   onOpenChange,
   onSelect,
 }: {
+  onOpenNewProject?: () => void;
   workspaceName: string;
   projects: Project[];
   homeProject?: Project;
@@ -558,11 +572,14 @@ function WorkspaceControl({
               <HomeIcon />
               <span>Home</span>
             </button>
-            <button onClick={() => onOpenChange(false)} role="menuitem" type="button">
-              <OpenProjectIcon />
-              <span>Open Project</span>
-            </button>
-            <button onClick={() => onOpenChange(false)} role="menuitem" type="button">
+            <button
+              onClick={() => {
+                onOpenChange(false);
+                onOpenNewProject?.();
+              }}
+              role="menuitem"
+              type="button"
+            >
               <PlusIcon />
               <span>New Project</span>
             </button>
@@ -770,15 +787,6 @@ function HomeIcon() {
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
       <path d="M9 21v-7h6v7" />
-    </svg>
-  );
-}
-
-function OpenProjectIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-      <path d="m13 11 3 3-3 3M16 14H9" />
     </svg>
   );
 }

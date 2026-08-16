@@ -46,6 +46,10 @@ export function DeleteCustomizationSubagent(arg1) {
   return window['go']['main']['DesktopBridge']['DeleteCustomizationSubagent'](arg1);
 }
 
+export function HomeDirectoryEntries(arg1) {
+  return window['go']['main']['DesktopBridge']['HomeDirectoryEntries'](arg1);
+}
+
 export function ModelCatalog() {
   return window['go']['main']['DesktopBridge']['ModelCatalog']();
 }
