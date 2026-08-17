@@ -3,10 +3,22 @@ import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
-import { checkoutProjectBranch, projectBranches, projectGitHistory, projectGitStatus, projectWorktrees } from "./projectBranches";
+import {
+  checkoutHomeDirectoryBranch,
+  checkoutProjectBranch,
+  homeDirectoryBranches,
+  homeDirectoryWorktrees,
+  projectBranches,
+  projectGitHistory,
+  projectGitStatus,
+  projectWorktrees,
+} from "./projectBranches";
 
 const projectsEndpoint = "/__solomon/projects";
 const homeDirectoryEntriesEndpoint = "/__solomon/home-directories";
+const homeDirectoryBranchesEndpoint = "/__solomon/home-git-branches";
+const homeDirectoryWorktreesEndpoint = "/__solomon/home-git-worktrees";
+const homeDirectoryCheckoutEndpoint = "/__solomon/home-git-checkout";
 const userNameEndpoint = "/__solomon/user-name";
 const reasoningEffortEndpoint = "/__solomon/reasoning-effort";
 const projectActionEndpoint = "/__solomon/projects/";
@@ -345,6 +357,47 @@ function attachHomeDirectoryEntriesEndpoint(server: { middlewares: { use: (route
   });
 }
 
+function attachHomeGitEndpoints(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(homeDirectoryBranchesEndpoint, (request, response, next) => {
+    if (request.method !== "GET") {
+      next();
+      return;
+    }
+    const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
+    void homeDirectoryBranches(directoryPath)
+      .then((info) => respondWithJson(response, 200, info))
+      .catch(() => respondWithJson(response, 500, { error: "Unable to read home directory branches" }));
+  });
+
+  server.middlewares.use(homeDirectoryWorktreesEndpoint, (request, response, next) => {
+    if (request.method !== "GET") {
+      next();
+      return;
+    }
+    const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
+    void homeDirectoryWorktrees(directoryPath)
+      .then((info) => respondWithJson(response, 200, info))
+      .catch(() => respondWithJson(response, 500, { error: "Unable to read home directory worktrees" }));
+  });
+
+  server.middlewares.use(homeDirectoryCheckoutEndpoint, (request, response, next) => {
+    if (request.method !== "POST") {
+      next();
+      return;
+    }
+    const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
+    void readJsonBody(request)
+      .then(async (payload) => {
+        if (!payload || typeof payload !== "object" || !("branch" in payload) || typeof payload.branch !== "string") {
+          respondWithJson(response, 400, { error: "branch must be a string" });
+          return;
+        }
+        respondWithJson(response, 200, await checkoutHomeDirectoryBranch(directoryPath, payload.branch));
+      })
+      .catch(() => respondWithJson(response, 500, { error: "Unable to checkout home directory branch" }));
+  });
+}
+
 async function removeProject(projectID: string, removeData: boolean) {
   if (!/^[a-f0-9]{64}$/.test(projectID)) throw new Error("Invalid project ID");
   const home = solomonHome();
@@ -442,13 +495,12 @@ async function homeDirectoryEntries(directoryPath: string) {
 
   const entries = await readdir(target, { withFileTypes: true });
   return entries
-    .filter((entry) => entry.isDirectory())
     .map((entry) => ({
-      isDirectory: true,
+      isDirectory: entry.isDirectory(),
       name: entry.name,
       path: relativeTarget ? path.join(relativeTarget, entry.name) : entry.name,
     }))
-    .sort((left, right) => left.name.localeCompare(right.name));
+    .sort((left, right) => Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name));
 }
 
 async function projectResearch(projectID: string) {
@@ -654,6 +706,7 @@ export function projectsPlugin(): Plugin {
       attachProjectActionEndpoint(server);
       attachProjectsEndpoint(server);
       attachHomeDirectoryEntriesEndpoint(server);
+      attachHomeGitEndpoints(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
     },
@@ -661,6 +714,7 @@ export function projectsPlugin(): Plugin {
       attachProjectActionEndpoint(server);
       attachProjectsEndpoint(server);
       attachHomeDirectoryEntriesEndpoint(server);
+      attachHomeGitEndpoints(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
     },

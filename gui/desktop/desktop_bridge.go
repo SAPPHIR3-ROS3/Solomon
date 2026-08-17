@@ -245,16 +245,16 @@ func (DesktopBridge) HomeDirectoryEntries(relativePath string) ([]desktopProject
 	}
 	result := make([]desktopProjectDirectoryEntry, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
 		entryPath := entry.Name()
 		if relativeTarget != "." {
 			entryPath = filepath.Join(relativeTarget, entryPath)
 		}
-		result = append(result, desktopProjectDirectoryEntry{IsDirectory: true, Name: entry.Name(), Path: entryPath})
+		result = append(result, desktopProjectDirectoryEntry{IsDirectory: entry.IsDir(), Name: entry.Name(), Path: entryPath})
 	}
 	sort.Slice(result, func(i, j int) bool {
+		if result[i].IsDirectory != result[j].IsDirectory {
+			return result[i].IsDirectory
+		}
 		return result[i].Name < result[j].Name
 	})
 	return result, nil

@@ -50,6 +50,18 @@ export function HomeDirectoryEntries(arg1) {
   return window['go']['main']['DesktopBridge']['HomeDirectoryEntries'](arg1);
 }
 
+export function HomeDirectoryBranches(arg1) {
+  return window['go']['main']['DesktopBridge']['HomeDirectoryBranches'](arg1);
+}
+
+export function HomeDirectoryWorktrees(arg1) {
+  return window['go']['main']['DesktopBridge']['HomeDirectoryWorktrees'](arg1);
+}
+
+export function CheckoutHomeDirectoryBranch(arg1, arg2) {
+  return window['go']['main']['DesktopBridge']['CheckoutHomeDirectoryBranch'](arg1, arg2);
+}
+
 export function ModelCatalog() {
   return window['go']['main']['DesktopBridge']['ModelCatalog']();
 }

@@ -6,10 +6,12 @@ export type FakeChatMessage = {
 };
 
 export type FakeChat = {
+  createdAt?: number;
   id: string;
   isNewTestChat?: boolean;
   messages: FakeChatMessage[];
   title: string;
+  workspaceID?: string;
   worktree?: string;
 };
 
@@ -55,14 +57,25 @@ export const initialFakeChats: FakeChat[] = [
   },
 ];
 
-export function createNewFakeChat(): FakeChat {
+export function createNewFakeChat(workspaceID?: string, title = "New chat", createdAt = Date.now()): FakeChat {
   return {
-    id: `test-new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt,
+    id: `test-new-${createdAt}-${Math.random().toString(36).slice(2, 8)}`,
     isNewTestChat: true,
     messages: [],
-    title: "New chat",
+    title,
+    workspaceID,
     worktree: "local",
   };
+}
+
+// Browser-only equivalent of chatstore.NewPlaceholderChatID. Solomon uses
+// the UTC RFC3339Nano timestamp as the temporary title/id and replaces colons
+// so it can be used safely in a filename. Date exposes milliseconds in the
+// browser, so preserve the same shape with zero-padded microseconds.
+export function newPlaceholderChatID(now = new Date()): string {
+  const [dateAndTime, milliseconds = "000"] = now.toISOString().slice(0, -1).split(".");
+  return `newchat-${dateAndTime.replaceAll(":", "-")}.${milliseconds.padEnd(6, "0")}Z`;
 }
 
 export function fakeAssistantReply(text: string): FakeChatMessage {

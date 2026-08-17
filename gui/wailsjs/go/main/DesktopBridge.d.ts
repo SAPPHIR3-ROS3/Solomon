@@ -27,6 +27,12 @@ export function DeleteCustomizationSubagent(arg1:string):Promise<Array<main.desk
 
 export function HomeDirectoryEntries(arg1:string):Promise<Array<main.desktopProjectDirectoryEntry>>;
 
+export function HomeDirectoryBranches(arg1:string):Promise<main.desktopProjectBranches>;
+
+export function HomeDirectoryWorktrees(arg1:string):Promise<main.desktopProjectWorktrees>;
+
+export function CheckoutHomeDirectoryBranch(arg1:string,arg2:string):Promise<main.desktopProjectBranches>;
+
 export function ModelCatalog():Promise<main.desktopModelCatalog>;
 
 export function ProjectAtMentionSuggestions(arg1:string,arg2:string):Promise<Array<main.desktopAtMentionSuggestion>>;

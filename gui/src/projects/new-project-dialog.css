@@ -95,6 +95,37 @@
   width: 24px;
 }
 
+.new-project-dialog-search-confirm {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--color-crown-gold);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: 40px;
+  justify-content: center;
+  padding: 0;
+  width: 40px;
+}
+
+.new-project-dialog-search-confirm:hover,
+.new-project-dialog-search-confirm:focus-visible {
+  background: transparent;
+  color: var(--color-text);
+  outline: none;
+}
+
+.new-project-dialog-search-confirm svg {
+  fill: none;
+  height: 24px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 24px;
+}
+
 .new-project-dialog-sources-label {
   color: var(--color-text-muted);
   display: block;
