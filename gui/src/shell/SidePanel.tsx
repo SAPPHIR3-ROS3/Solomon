@@ -1,5 +1,6 @@
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCachedUserName, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
+import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import type { FakeChat } from "../chat-test/fakeChats";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
@@ -28,12 +29,14 @@ type SidePanelProps = {
   onNewProjectChat: (project: Project) => void;
   onNewFakeChat: () => void;
   onOpenNewProject: () => void;
+  onOpenTemporaryWorkspace: () => void;
   onOpenFakeChat: (chatID: string) => void;
   onOpenProjectTerminal: (project: Project) => void;
   onOpenSettings: () => void;
   onToggleCustomization: () => void;
   onWidthChange: (width: number) => void;
   runningTerminalProjectIds: string[];
+  temporaryWorkspace: TemporaryWorkspace | null;
   width: number;
 };
 
@@ -45,12 +48,14 @@ export function SidePanel({
   onNewProjectChat,
   onNewFakeChat,
   onOpenNewProject,
+  onOpenTemporaryWorkspace,
   onOpenFakeChat,
   onOpenProjectTerminal,
   onOpenSettings,
   onToggleCustomization,
   onWidthChange,
   runningTerminalProjectIds,
+  temporaryWorkspace,
   width,
 }: SidePanelProps) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -60,6 +65,7 @@ export function SidePanel({
   const [projectRemovalInfo, setProjectRemovalInfo] = useState<ProjectRemovalInfo | null>(null);
   const [isRemovingProject, setIsRemovingProject] = useState(false);
   const [isTestChatsOpen, setIsTestChatsOpen] = useState(true);
+  const [isTemporaryWorkspaceOpen, setIsTemporaryWorkspaceOpen] = useState(true);
   const [openProjectIds, setOpenProjectIds] = useState<Set<string>>(() => new Set());
   const [visibleChatCounts, setVisibleChatCounts] = useState<Map<string, number>>(() => new Map());
   const [projectScrollThumb, setProjectScrollThumb] = useState<ProjectScrollThumb>({ height: 0, isVisible: false, top: 0 });
@@ -96,6 +102,10 @@ export function SidePanel({
   }, [isEditingUserName]);
 
   useEffect(() => {
+    if (temporaryWorkspace) setIsTemporaryWorkspaceOpen(true);
+  }, [temporaryWorkspace?.id]);
+
+  useEffect(() => {
     const list = projectsListRef.current;
     if (!list) return;
 
@@ -128,7 +138,7 @@ export function SidePanel({
       resizeObserver.disconnect();
       list.removeEventListener("scroll", updateScrollThumb);
     };
-  }, [bottomInset, openProjectIds, projects, visibleChatCounts]);
+  }, [bottomInset, fakeChats, openProjectIds, projects, temporaryWorkspace?.id, visibleChatCounts]);
 
   useEffect(() => {
     if (!projectContextMenu) return;
@@ -316,6 +326,40 @@ export function SidePanel({
       </div>
       <div className="side-panel-projects-shell">
       <nav aria-label="Projects" className="side-panel-projects" ref={projectsListRef}>
+        {temporaryWorkspace ? (
+          <section className="side-panel-project side-panel-temporary-project">
+            <div className="side-panel-project-head">
+              <button
+                aria-expanded={isTemporaryWorkspaceOpen}
+                className="side-panel-project-trigger"
+                onClick={() => {
+                  setIsTemporaryWorkspaceOpen((isOpen) => !isOpen);
+                  onOpenTemporaryWorkspace();
+                }}
+                title={temporaryWorkspace.displayPath}
+                type="button"
+              >
+                <FolderIcon isOpen={isTemporaryWorkspaceOpen} />
+                <span>{temporaryWorkspace.name}</span>
+              </button>
+            </div>
+            {isTemporaryWorkspaceOpen ? (
+              <div className="side-panel-project-children">
+                {fakeChats
+                  .filter((chat) => chat.workspaceID === temporaryWorkspace.id)
+                  .sort((left, right) => (right.createdAt ?? 0) - (left.createdAt ?? 0))
+                  .map((chat) => (
+                    <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
+                      <span>{chat.title}</span>
+                      <time dateTime={chat.createdAt ? new Date(chat.createdAt).toISOString() : undefined}>
+                        {chat.createdAt ? formatRelativeTime(new Date(chat.createdAt).toISOString()) : ""}
+                      </time>
+                    </button>
+                  ))}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
         <section className="side-panel-project side-panel-test-folder">
           <div className="side-panel-project-head">
             <button
@@ -342,7 +386,7 @@ export function SidePanel({
           </div>
           {isTestChatsOpen ? (
             <div className="side-panel-project-children">
-              {fakeChats.map((chat) => (
+              {fakeChats.filter((chat) => !chat.workspaceID).map((chat) => (
                 <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
                   <span>{chat.title}</span>
                   <time>test</time>

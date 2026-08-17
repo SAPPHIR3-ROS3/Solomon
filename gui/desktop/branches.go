@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -30,18 +31,61 @@ func (DesktopBridge) ProjectBranches(projectID string) (desktopProjectBranches, 
 	return loadDesktopProjectBranches(projectID)
 }
 
+func (DesktopBridge) HomeDirectoryBranches(relativePath string) (desktopProjectBranches, error) {
+	root, err := desktopHomeDirectoryRoot(relativePath)
+	if err != nil {
+		return desktopProjectBranches{}, err
+	}
+	return loadDesktopBranchesAtRoot(root)
+}
+
 func (DesktopBridge) ProjectWorktrees(projectID string) (desktopProjectWorktrees, error) {
 	return loadDesktopProjectWorktrees(projectID)
 }
 
-func (DesktopBridge) CheckoutProjectBranch(projectID, branch string) (desktopProjectBranches, error) {
-	branch = strings.TrimSpace(branch)
-	if !validDesktopGitBranchName(branch) {
-		return desktopProjectBranches{}, fmt.Errorf("invalid branch name")
+func (DesktopBridge) HomeDirectoryWorktrees(relativePath string) (desktopProjectWorktrees, error) {
+	root, err := desktopHomeDirectoryRoot(relativePath)
+	if err != nil {
+		return desktopProjectWorktrees{}, err
 	}
+	worktrees, err := loadDesktopWorktreesAtRoot(root)
+	if err != nil {
+		return desktopProjectWorktrees{}, err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return desktopProjectWorktrees{}, err
+	}
+	home, err = filepath.Abs(filepath.Clean(home))
+	if err != nil {
+		return desktopProjectWorktrees{}, err
+	}
+	for index := range worktrees.Worktrees {
+		worktrees.Worktrees[index].Path = desktopHomeRelativePath(home, worktrees.Worktrees[index].Path)
+	}
+	return worktrees, nil
+}
+
+func (DesktopBridge) CheckoutProjectBranch(projectID, branch string) (desktopProjectBranches, error) {
 	root, err := desktopRegisteredProjectRoot(projectID)
 	if err != nil {
 		return desktopProjectBranches{}, err
+	}
+	return checkoutDesktopBranch(root, branch)
+}
+
+func (DesktopBridge) CheckoutHomeDirectoryBranch(relativePath, branch string) (desktopProjectBranches, error) {
+	root, err := desktopHomeDirectoryRoot(relativePath)
+	if err != nil {
+		return desktopProjectBranches{}, err
+	}
+	return checkoutDesktopBranch(root, branch)
+}
+
+func checkoutDesktopBranch(root, branch string) (desktopProjectBranches, error) {
+	branch = strings.TrimSpace(branch)
+	if !validDesktopGitBranchName(branch) {
+		return desktopProjectBranches{}, fmt.Errorf("invalid branch name")
 	}
 	if !desktopIsGitRepo(root) {
 		return desktopProjectBranches{}, fmt.Errorf("project is not a git repository")
@@ -65,7 +109,7 @@ func (DesktopBridge) CheckoutProjectBranch(projectID, branch string) (desktopPro
 			return desktopProjectBranches{}, fmt.Errorf("checkout branch: %w", err)
 		}
 	}
-	return loadDesktopProjectBranches(projectID)
+	return loadDesktopBranchesAtRoot(root)
 }
 
 func loadDesktopProjectBranches(projectID string) (desktopProjectBranches, error) {
@@ -73,6 +117,10 @@ func loadDesktopProjectBranches(projectID string) (desktopProjectBranches, error
 	if err != nil {
 		return desktopProjectBranches{}, err
 	}
+	return loadDesktopBranchesAtRoot(root)
+}
+
+func loadDesktopBranchesAtRoot(root string) (desktopProjectBranches, error) {
 	if !desktopIsGitRepo(root) {
 		return desktopProjectBranches{IsRepo: false}, nil
 	}
@@ -88,6 +136,10 @@ func loadDesktopProjectWorktrees(projectID string) (desktopProjectWorktrees, err
 	if err != nil {
 		return desktopProjectWorktrees{}, err
 	}
+	return loadDesktopWorktreesAtRoot(root)
+}
+
+func loadDesktopWorktreesAtRoot(root string) (desktopProjectWorktrees, error) {
 	if !desktopCanListWorktrees(root) {
 		return desktopProjectWorktrees{Worktrees: []desktopProjectWorktree{}}, nil
 	}
@@ -96,6 +148,34 @@ func loadDesktopProjectWorktrees(projectID string) (desktopProjectWorktrees, err
 		return desktopProjectWorktrees{}, err
 	}
 	return desktopProjectWorktrees{Worktrees: worktrees}, nil
+}
+
+func desktopHomeDirectoryRoot(relativePath string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	root, err := filepath.Abs(filepath.Clean(home))
+	if err != nil {
+		return "", err
+	}
+	target := filepath.Clean(filepath.Join(root, relativePath))
+	relativeTarget, err := filepath.Rel(root, target)
+	if err != nil || filepath.IsAbs(relativeTarget) || relativeTarget == ".." || strings.HasPrefix(relativeTarget, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid home directory")
+	}
+	return target, nil
+}
+
+func desktopHomeRelativePath(home, target string) string {
+	relative, err := filepath.Rel(home, target)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return target
+	}
+	if relative == "." {
+		return ""
+	}
+	return filepath.ToSlash(relative)
 }
 
 func desktopRegisteredProjectRoot(projectID string) (string, error) {
