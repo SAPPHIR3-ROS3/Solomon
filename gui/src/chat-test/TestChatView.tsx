@@ -19,9 +19,11 @@ type TestChatViewProps = {
   onSend: (chatID: string, message: FakeChatMessage) => void;
   onStopStreaming: (chatID: string) => void;
   pendingUserMessageIDs?: ReadonlySet<string>;
+  workspaceName?: string;
+  workspacePath?: string;
 };
 
-export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDeleteMessage, onSend, onStopStreaming, pendingUserMessageIDs = new Set() }: TestChatViewProps) {
+export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDeleteMessage, onSend, onStopStreaming, pendingUserMessageIDs = new Set(), workspaceName, workspacePath }: TestChatViewProps) {
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<FakeChatMessage | null>(null);
@@ -121,6 +123,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
           </div>
         </form>
         <div aria-label="Contesto Git in sola lettura" className="welcome-git-controls">
+          {workspaceName ? <span className="test-chat-readonly-control is-workspace" title={workspacePath}><FolderIcon />{workspaceName}</span> : null}
           <span className="test-chat-readonly-control"><BranchIcon />main</span>
           <span className="test-chat-readonly-control"><WorktreeIcon />{chat.worktree ?? "Worktree"}</span>
         </div>

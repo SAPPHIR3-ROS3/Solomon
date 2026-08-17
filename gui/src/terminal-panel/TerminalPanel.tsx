@@ -60,6 +60,7 @@ type TerminalPanelProps = {
   onProjectArmedChange: (projectId: string, armed: boolean) => void;
   onProjectRunningChange: (projectId: string, running: boolean) => void;
   projectId: string | null;
+  workingDirectory?: string;
 };
 
 export function TerminalPanel({
@@ -71,6 +72,7 @@ export function TerminalPanel({
   onProjectArmedChange,
   onProjectRunningChange,
   projectId,
+  workingDirectory = "",
 }: TerminalPanelProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [sessions, setSessions] = useState<Record<string, ProjectTerminalSession>>({});
@@ -305,6 +307,7 @@ export function TerminalPanel({
                         onRunningChange={(running) => setTabRunning(sessionProjectId, tab.id, running)}
                         tabId={`${sessionProjectId}:${tab.id}`}
                         visible={isActiveSession && tab.id === pane.activeTabId}
+                        workingDirectory={isActiveSession ? workingDirectory : ""}
                       />
                     ))}
                   </div>
@@ -323,11 +326,13 @@ function IntegratedShell({
   onRunningChange,
   tabId,
   visible,
+  workingDirectory,
 }: {
   onCommandSubmit: () => void;
   onRunningChange: (running: boolean) => void;
   tabId: string;
   visible: boolean;
+  workingDirectory: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -378,7 +383,7 @@ function IntegratedShell({
     resizeRef.current = sendResize;
 
     const connect = () => {
-      const nextSocket = new WebSocket(terminalSocketUrl());
+      const nextSocket = new WebSocket(terminalSocketUrl(workingDirectory));
       socket = nextSocket;
       nextSocket.binaryType = "arraybuffer";
 
@@ -449,7 +454,7 @@ function IntegratedShell({
       socket?.close();
       term.dispose();
     };
-  }, [tabId]);
+  }, [tabId, workingDirectory]);
 
   return <div aria-hidden={!visible} className={`terminal-panel-host${visible ? " is-visible" : ""}`} ref={hostRef} />;
 }

@@ -174,6 +174,18 @@ export async function fetchProjectBranches(projectID: string, signal?: AbortSign
   return projectBranchesFromPayload(await response.json());
 }
 
+export async function fetchHomeDirectoryBranches(directoryPath: string, signal?: AbortSignal): Promise<ProjectBranches> {
+  const bridge = await desktopBridge();
+  if (bridge?.HomeDirectoryBranches) {
+    return projectBranchesFromPayload(await bridge.HomeDirectoryBranches(directoryPath));
+  }
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/home-git-branches?path=${encodeURIComponent(directoryPath)}`,
+  ), { signal });
+  if (!response.ok) throw new Error(`Unable to read home directory branches: ${response.status}`);
+  return projectBranchesFromPayload(await response.json());
+}
+
 export async function fetchProjectGitHistory(projectID: string, signal?: AbortSignal): Promise<ProjectGitHistory> {
   const bridge = await desktopBridge();
   if (bridge?.ProjectGitHistory) {
@@ -204,6 +216,18 @@ export async function fetchProjectWorktrees(projectID: string, signal?: AbortSig
   return projectWorktreesFromPayload(await response.json());
 }
 
+export async function fetchHomeDirectoryWorktrees(directoryPath: string, signal?: AbortSignal): Promise<ProjectWorktrees> {
+  const bridge = await desktopBridge();
+  if (bridge?.HomeDirectoryWorktrees) {
+    return projectWorktreesFromPayload(await bridge.HomeDirectoryWorktrees(directoryPath));
+  }
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/home-git-worktrees?path=${encodeURIComponent(directoryPath)}`,
+  ), { signal });
+  if (!response.ok) throw new Error(`Unable to read home directory worktrees: ${response.status}`);
+  return projectWorktreesFromPayload(await response.json());
+}
+
 export async function checkoutProjectBranch(projectID: string, branch: string): Promise<ProjectBranches> {
   const bridge = await desktopBridge();
   if (bridge?.CheckoutProjectBranch) {
@@ -215,6 +239,22 @@ export async function checkoutProjectBranch(projectID: string, branch: string): 
     method: "POST",
   });
   if (!response.ok) throw new Error(`Unable to checkout branch: ${response.status}`);
+  return projectBranchesFromPayload(await response.json());
+}
+
+export async function checkoutHomeDirectoryBranch(directoryPath: string, branch: string): Promise<ProjectBranches> {
+  const bridge = await desktopBridge();
+  if (bridge?.CheckoutHomeDirectoryBranch) {
+    return projectBranchesFromPayload(await bridge.CheckoutHomeDirectoryBranch(directoryPath, branch));
+  }
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/home-git-checkout?path=${encodeURIComponent(directoryPath)}`,
+  ), {
+    body: JSON.stringify({ branch }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Unable to checkout home directory branch: ${response.status}`);
   return projectBranchesFromPayload(await response.json());
 }
 

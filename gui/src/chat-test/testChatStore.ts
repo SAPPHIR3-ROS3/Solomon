@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { createNewFakeChat, initialFakeChats, type FakeChat } from "./fakeChats";
+import { createNewFakeChat, initialFakeChats, newPlaceholderChatID, type FakeChat } from "./fakeChats";
 
 function cloneFakeChat(chat: FakeChat): FakeChat {
   return {
@@ -49,6 +49,16 @@ export function createTestChat(): FakeChat {
   const chat = createNewFakeChat();
   saveTestChat(chat);
   return chat;
+}
+
+export function createTemporaryWorkspaceChat(workspaceID: string): FakeChat {
+  const createdAt = Date.now();
+  const placeholderID = newPlaceholderChatID(new Date(createdAt));
+  const chat = {
+    ...createNewFakeChat(workspaceID, placeholderID, createdAt),
+    id: placeholderID,
+  };
+  return saveTestChat(chat);
 }
 
 export function updateTestChat(

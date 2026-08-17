@@ -14,6 +14,7 @@ import {
   type ProjectTokenStats,
   type ReasoningEffort,
 } from "../projects/projects";
+import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { ModelControl } from "./ModelControl";
 import { BranchControl, WorktreeControl } from "./BranchControl";
 import { AtMentionInput, type ComposerImageAttachment } from "./AtMentionInput";
@@ -36,9 +37,13 @@ type WelcomeProps = {
   onComposerBoundsChange?: (bounds: { left: number; right: number }) => void;
   onKeepAliveHeightChange?: (height: number) => void;
   onOpenNewProject?: () => void;
+  onOpenTemporaryWorkspace?: () => void;
+  onTemporaryWorkspacePathChange?: (path: string) => void;
   onSend?: (content: string) => void;
   onWorkspaceChange?: (project: Project | null) => void;
+  isTemporaryWorkspaceActive?: boolean;
   resetToken?: number;
+  temporaryWorkspace?: TemporaryWorkspace | null;
   workspaceNameOverride?: string | null;
   workspaceFocus?: { project: Project; token: number } | null;
 };
@@ -55,7 +60,7 @@ type Visibility = {
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
-export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onOpenNewProject, onSend, onWorkspaceChange, resetToken = 0, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
+export function Welcome({ bottomInset = 0, isTemporaryWorkspaceActive = false, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onOpenNewProject, onOpenTemporaryWorkspace, onTemporaryWorkspacePathChange, onSend, onWorkspaceChange, resetToken = 0, temporaryWorkspace = null, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
   const [userName, setUserName] = useState(() => getCachedUserName() ?? "");
   const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -80,9 +85,13 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
   const keepAliveHandlerRef = useRef(onKeepAliveHeightChange);
   const workspaceFocusRef = useRef(workspaceFocus);
   const workspaceNameOverrideRef = useRef(workspaceNameOverride);
+  const temporaryWorkspaceRef = useRef(temporaryWorkspace);
+  const temporaryWorkspaceActiveRef = useRef(isTemporaryWorkspaceActive);
   keepAliveHandlerRef.current = onKeepAliveHeightChange;
   workspaceFocusRef.current = workspaceFocus;
   workspaceNameOverrideRef.current = workspaceNameOverride;
+  temporaryWorkspaceRef.current = temporaryWorkspace;
+  temporaryWorkspaceActiveRef.current = isTemporaryWorkspaceActive;
 
   useLayoutEffect(() => {
     const composer = composerRef.current;
@@ -127,6 +136,12 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
           onWorkspaceChange?.(null);
           return;
         }
+        if (temporaryWorkspaceActiveRef.current && temporaryWorkspaceRef.current) {
+          setWorkspaceName(temporaryWorkspaceRef.current.name);
+          setSelectedProject(null);
+          onWorkspaceChange?.(null);
+          return;
+        }
         setSelectedProject(home);
         onWorkspaceChange?.(home);
       })
@@ -146,11 +161,16 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
       return;
     }
     if (workspaceFocus) return;
+    if (isTemporaryWorkspaceActive && temporaryWorkspace) {
+      setWorkspaceName(temporaryWorkspace.name);
+      setSelectedProject(null);
+      return;
+    }
     const home = projects.find((project) => project.name === "Home") ?? null;
     setWorkspaceName(home?.name ?? "Home");
     setSelectedProject(home);
     onWorkspaceChange?.(home);
-  }, [onWorkspaceChange, projects, workspaceFocus, workspaceNameOverride]);
+  }, [isTemporaryWorkspaceActive, onWorkspaceChange, projects, temporaryWorkspace, workspaceFocus, workspaceNameOverride]);
 
   useEffect(() => {
     if (!workspaceFocus) return;
@@ -315,9 +335,13 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
                 setSelectedProject(project ?? null);
                 onWorkspaceChange?.(project ?? null);
               }}
+              onSelectTemporaryWorkspace={() => {
+                onOpenTemporaryWorkspace?.();
+              }}
               homeProject={projects.find((project) => project.name === "Home")}
               open={openMenu === "workspace"}
               projects={projects}
+              temporaryWorkspace={temporaryWorkspace}
               workspaceName={workspaceName}
             />}
           </div>
@@ -394,13 +418,19 @@ export function Welcome({ bottomInset = 0, isVisible = true, onComposerBoundsCha
             </form>
             <div className="welcome-git-controls">
               <BranchControl
+                directoryPath={isTemporaryWorkspaceActive ? temporaryWorkspace?.path : undefined}
                 onOpenChange={(open) => setOpenMenu(open ? "branch" : null)}
                 open={openMenu === "branch"}
                 project={selectedProject}
               />
               <WorktreeControl
+                directoryPath={isTemporaryWorkspaceActive ? temporaryWorkspace?.path : undefined}
                 onOpenChange={(open) => setOpenMenu(open ? "worktree" : null)}
                 onSelect={(worktree) => {
+                  if (isTemporaryWorkspaceActive) {
+                    onTemporaryWorkspacePathChange?.(worktree.path);
+                    return;
+                  }
                   const matched = projects.find((entry) => projectPathsMatch(entry.path, worktree.path));
                   if (!matched) return;
                   setWorkspaceName(matched.name);
@@ -492,6 +522,8 @@ function WorkspaceControl({
   open,
   onOpenChange,
   onSelect,
+  onSelectTemporaryWorkspace,
+  temporaryWorkspace,
 }: {
   onOpenNewProject?: () => void;
   workspaceName: string;
@@ -500,6 +532,8 @@ function WorkspaceControl({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (project?: Project) => void;
+  onSelectTemporaryWorkspace?: () => void;
+  temporaryWorkspace?: TemporaryWorkspace | null;
 }) {
   const [showAll, setShowAll] = useState(false);
   const controlRef = useRef<HTMLDivElement>(null);
@@ -544,6 +578,21 @@ function WorkspaceControl({
       {open ? (
         <div aria-label="Project directory" className="welcome-workspace-menu" role="menu">
           <div className="welcome-workspace-recents">
+            {temporaryWorkspace ? (
+              <button
+                className="welcome-workspace-project is-temporary"
+                onClick={() => {
+                  onSelectTemporaryWorkspace?.();
+                  onOpenChange(false);
+                }}
+                role="menuitem"
+                title={temporaryWorkspace.displayPath}
+                type="button"
+              >
+                <FolderIcon />
+                <span>{temporaryWorkspace.name}</span>
+              </button>
+            ) : null}
             {recentProjects.length ? recentProjects.map((project) => (
               <button
                 className="welcome-workspace-project"

@@ -34,7 +34,14 @@ async function runGit(root: string, args: string[]): Promise<string> {
 }
 
 export async function projectBranches(projectID: string) {
-  const root = await registeredProjectRoot(projectID);
+  return branchesAtRoot(await registeredProjectRoot(projectID));
+}
+
+export async function homeDirectoryBranches(directoryPath: string) {
+  return branchesAtRoot(await homeDirectoryRoot(directoryPath));
+}
+
+async function branchesAtRoot(root: string) {
   try {
     if ((await runGit(root, ["rev-parse", "--is-inside-work-tree"])) !== "true") {
       return { current: "", branches: [] as string[], isRepo: false };
@@ -139,13 +146,21 @@ function parseGitStatusOutput(output: string): Record<string, string> {
 }
 
 export async function checkoutProjectBranch(projectID: string, branch: string) {
+  return checkoutBranchAtRoot(await registeredProjectRoot(projectID), branch);
+}
+
+export async function checkoutHomeDirectoryBranch(directoryPath: string, branch: string) {
+  return checkoutBranchAtRoot(await homeDirectoryRoot(directoryPath), branch);
+}
+
+async function checkoutBranchAtRoot(root: string, branch: string) {
   const name = branch.trim();
   if (!validGitBranchName(name)) throw new Error("Invalid branch name");
-  const info = await projectBranches(projectID);
+  const info = await branchesAtRoot(root);
   if (!info.isRepo) throw new Error("Project is not a git repository");
   if (!info.branches.includes(name)) throw new Error("Branch not found");
-  if (name !== info.current) await runGit(await registeredProjectRoot(projectID), ["checkout", name]);
-  return projectBranches(projectID);
+  if (name !== info.current) await runGit(root, ["checkout", name]);
+  return branchesAtRoot(root);
 }
 
 export type ProjectWorktree = {
@@ -156,7 +171,21 @@ export type ProjectWorktree = {
 };
 
 export async function projectWorktrees(projectID: string) {
-  const root = await registeredProjectRoot(projectID);
+  return worktreesAtRoot(await registeredProjectRoot(projectID));
+}
+
+export async function homeDirectoryWorktrees(directoryPath: string) {
+  const info = await worktreesAtRoot(await homeDirectoryRoot(directoryPath));
+  const home = path.resolve(homedir());
+  return {
+    worktrees: info.worktrees.map((worktree) => ({
+      ...worktree,
+      path: homeRelativePath(home, worktree.path),
+    })),
+  };
+}
+
+async function worktreesAtRoot(root: string) {
   try {
     const inside = await runGit(root, ["rev-parse", "--is-inside-work-tree"]).catch(() => "");
     const bare = await runGit(root, ["rev-parse", "--is-bare-repository"]).catch(() => "");
@@ -197,4 +226,21 @@ export async function projectWorktrees(projectID: string) {
   flush();
   worktrees.sort((left, right) => Number(left.bare) - Number(right.bare) || left.path.localeCompare(right.path));
   return { worktrees };
+}
+
+async function homeDirectoryRoot(directoryPath: string): Promise<string> {
+  const root = path.resolve(homedir());
+  const target = path.resolve(root, directoryPath);
+  const relativeTarget = path.relative(root, target);
+  if (path.isAbsolute(relativeTarget) || relativeTarget === ".." || relativeTarget.startsWith(`..${path.sep}`)) {
+    throw new Error("Invalid home directory");
+  }
+  return target;
+}
+
+function homeRelativePath(home: string, target: string): string {
+  const relative = path.relative(home, target);
+  return relative && !relative.startsWith(`..${path.sep}`) && relative !== ".."
+    ? relative.replaceAll(path.sep, "/")
+    : target;
 }

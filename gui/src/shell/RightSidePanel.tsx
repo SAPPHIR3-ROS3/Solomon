@@ -1,5 +1,6 @@
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch } from "../projects/projects";
+import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch } from "../projects/projects";
+import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
 const EXPLORER_STATE_STORAGE_PREFIX = "solomon.explorer-state.v1";
@@ -90,10 +91,11 @@ type RightSidePanelProps = {
   onOpenResearch: (research: ProjectResearch) => void;
   project: Project | null;
   testChatsActive: boolean;
+  temporaryWorkspace: TemporaryWorkspace | null;
   width: number;
 };
 
-export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, project, testChatsActive, width }: RightSidePanelProps) {
+export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, project, testChatsActive, temporaryWorkspace, width }: RightSidePanelProps) {
   const [activeView, setActiveView] = useState<"files" | "history" | "research">("files");
   const [entries, setEntries] = useState<Record<string, ProjectDirectoryEntry[]>>({});
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
@@ -179,7 +181,9 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     setQuery("");
     setScrollShadowOpacity(0);
     setBottomScrollShadowOpacity(0);
-    const explorerID = testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
+    const explorerID = !project && temporaryWorkspace
+      ? temporaryWorkspace.id
+      : testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
     if (!explorerID) {
       setExpandedDirectories(new Set());
       restoredScrollPositionRef.current = null;
@@ -190,20 +194,25 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
       .sort((left, right) => left.split("/").length - right.split("/").length);
     setExpandedDirectories(new Set(restoredDirectories));
     restoredScrollPositionRef.current = { projectID: explorerID, scrollTop: restoredState.scrollTop };
-    if (testChatsActive) {
+    if (testChatsActive && !temporaryWorkspace && !project) {
       setEntries({ "": TEST_CHATS_ENTRIES[TEST_CHATS_DIRECTORY_PATH], ...TEST_CHATS_ENTRIES });
       return;
     }
-    if (!project) return;
+    if (!project && !temporaryWorkspace) return;
     let cancelled = false;
-    void fetchProjectDirectoryEntries(project.id)
+    const fetchRootEntries = project
+      ? fetchProjectDirectoryEntries(project.id)
+      : fetchHomeDirectoryEntries(temporaryWorkspace!.path);
+    void fetchRootEntries
       .then(async (rootEntries) => {
         const restoredEntries: Record<string, ProjectDirectoryEntry[]> = {
           "": rootEntries,
         };
         await Promise.all(restoredDirectories.map(async (path) => {
           try {
-            restoredEntries[path] = await fetchProjectDirectoryEntries(project.id, path);
+            restoredEntries[path] = project
+              ? await fetchProjectDirectoryEntries(project.id, path)
+              : await fetchHomeDirectoryEntries(path);
           } catch {
             // A folder may have been renamed or removed since the state was saved.
           }
@@ -216,13 +225,15 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     return () => {
       cancelled = true;
     };
-  }, [project, testChatsActive]);
+  }, [project, temporaryWorkspace, testChatsActive]);
 
   useEffect(() => {
     const files = filesRef.current;
     if (!files || !entries[""]) return;
     const restoredPosition = restoredScrollPositionRef.current;
-    const explorerID = testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
+    const explorerID = !project && temporaryWorkspace
+      ? temporaryWorkspace.id
+      : testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
     if (!explorerID) return;
     if (!restoredPosition || restoredPosition.projectID !== explorerID) return;
     const frame = window.requestAnimationFrame(() => {
@@ -230,12 +241,14 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
       restoredScrollPositionRef.current = null;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [entries, expandedDirectories, project, testChatsActive]);
+  }, [entries, expandedDirectories, project, temporaryWorkspace, testChatsActive]);
 
   useEffect(() => {
     const files = filesRef.current;
     if (!files) return;
-    const explorerID = testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
+    const explorerID = !project && temporaryWorkspace
+      ? temporaryWorkspace.id
+      : testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
     if (!explorerID) return;
     const updateScrollChrome = () => {
       setScrollShadowOpacity(Math.min(1, files.scrollTop / 18));
@@ -251,11 +264,13 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
       resizeObserver.disconnect();
       files.removeEventListener("scroll", updateScrollChrome);
     };
-  }, [bottomInset, entries, expandedDirectories, nameFilter, project, testChatsActive]);
+  }, [bottomInset, entries, expandedDirectories, nameFilter, project, temporaryWorkspace, testChatsActive]);
 
   function toggleDirectory(entry: ProjectDirectoryEntry) {
     const isExpanded = expandedDirectories.has(entry.path);
-    const explorerID = testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
+    const explorerID = !project && temporaryWorkspace
+      ? temporaryWorkspace.id
+      : testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
     if (!explorerID) return;
     setExpandedDirectories((current) => {
       const next = new Set(current);
@@ -265,8 +280,13 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
       return next;
     });
     if (isExpanded || entries[entry.path]) return;
-    if (!project) return;
-    void fetchProjectDirectoryEntries(project.id, entry.path)
+    const fetchChildEntries = !project && temporaryWorkspace
+        ? fetchHomeDirectoryEntries(entry.path)
+        : project
+          ? fetchProjectDirectoryEntries(project.id, entry.path)
+          : null;
+    if (!fetchChildEntries) return;
+    void fetchChildEntries
       .then((childEntries) => setEntries((current) => ({ ...current, [entry.path]: childEntries })))
       .catch(() => setError("Could not load this folder."));
   }
@@ -297,7 +317,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
           <SearchIcon />
           <input
             aria-label="Filter files"
-            disabled={!testChatsActive && !project}
+            disabled={!testChatsActive && !project && !temporaryWorkspace}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Filter files…"
             type="search"
@@ -311,10 +331,10 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
             "--right-side-panel-bottom-scroll-shadow-opacity": bottomScrollShadowOpacity,
           } as CSSProperties}
         >
-          <nav aria-label={testChatsActive ? "Test chats files" : "Project files"} className="right-side-panel-files" id="right-side-panel-files" ref={filesRef} role="tabpanel">
+          <nav aria-label={!project && temporaryWorkspace ? `${temporaryWorkspace.name} files` : testChatsActive ? "Test chats files" : "Project files"} className="right-side-panel-files" id="right-side-panel-files" ref={filesRef} role="tabpanel">
             {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
-            {!error && (testChatsActive || project) && !entries[""] ? <p className="right-side-panel-message">Loading files…</p> : null}
-            {!error && !testChatsActive && !project ? <p className="right-side-panel-message">No project open.</p> : null}
+            {!error && (testChatsActive || project || temporaryWorkspace) && !entries[""] ? <p className="right-side-panel-message">Loading files…</p> : null}
+            {!error && !testChatsActive && !project && !temporaryWorkspace ? <p className="right-side-panel-message">No project open.</p> : null}
             {entries[""]?.length === 0 ? <p className="right-side-panel-message">This folder is empty.</p> : null}
             {nameFilter && entries[""] && !entries[""].some((entry) => entryMatchesFilter(entry, nameFilter, entries)) ? <p className="right-side-panel-message">No files match this search.</p> : null}
             <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />

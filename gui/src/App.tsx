@@ -15,8 +15,9 @@ import { SettingsPage } from "./settings/SettingsPage";
 import { type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
 import { fakeAssistantReply, type FakeChatMessage } from "./chat-test/fakeChats";
-import { createTestChat, getTestChat, updateTestChat, useTestChatStore } from "./chat-test/testChatStore";
+import { createTemporaryWorkspaceChat, createTestChat, getTestChat, updateTestChat, useTestChatStore } from "./chat-test/testChatStore";
 import { TestChatTopbar, TestChatView } from "./chat-test/TestChatView";
+import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
 const MIN_TERMINAL_PANEL_HEIGHT = 120;
@@ -48,6 +49,8 @@ export function App() {
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
+  const [temporaryWorkspace, setTemporaryWorkspace] = useState<TemporaryWorkspace | null>(null);
+  const [activeTemporaryWorkspaceID, setActiveTemporaryWorkspaceID] = useState<string | null>(null);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
   const fakeChats = useTestChatStore();
@@ -123,6 +126,48 @@ export function App() {
     setIsNewProjectDialogOpen(false);
   }
 
+  function selectLocalFolder(selection: LocalFolderSelection) {
+    const nextWorkspace = {
+      ...selection,
+      id: `temporary-local:${selection.path || "home"}`,
+    };
+    setTemporaryWorkspace(nextWorkspace);
+    setActiveTemporaryWorkspaceID(nextWorkspace.id);
+    setIsNewProjectDialogOpen(false);
+    setWelcomeResetToken((current) => current + 1);
+    setSelectedFakeChatID(null);
+    setIsNewTestChatOpen(false);
+    setSelectedResearch(null);
+    setSelectedWorkspace(null);
+    setWorkspaceFocus(null);
+  }
+
+  function openTemporaryWorkspace() {
+    if (!temporaryWorkspace) return;
+    setActiveTemporaryWorkspaceID(temporaryWorkspace.id);
+    setWelcomeResetToken((current) => current + 1);
+    setActiveView("agent");
+    setSelectedFakeChatID(null);
+    setIsNewTestChatOpen(false);
+    setSelectedResearch(null);
+    setSelectedWorkspace(null);
+    setWorkspaceFocus(null);
+  }
+
+  function selectTemporaryWorkspacePath(worktreePath: string) {
+    if (!temporaryWorkspace) return;
+    const normalizedPath = normalizeTemporaryWorkspacePath(worktreePath);
+    const pathParts = normalizedPath.split("/").filter(Boolean);
+    setTemporaryWorkspace((current) => current ? {
+      ...current,
+      displayPath: normalizedPath ? `~/${normalizedPath}/` : "~/",
+      name: pathParts.at(-1) ?? "Home",
+      path: normalizedPath,
+    } : current);
+    setActiveTemporaryWorkspaceID(temporaryWorkspace.id);
+    setWelcomeResetToken((current) => current + 1);
+  }
+
   function openSettings() {
     setIsSettingsOpen(true);
     setIsCustomizationOpen(false);
@@ -145,6 +190,7 @@ export function App() {
     setWelcomeResetToken((current) => current + 1);
     setIsCustomizationOpen(false);
     setActiveView("agent");
+    setActiveTemporaryWorkspaceID(null);
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedFakeChatID(null);
@@ -155,6 +201,7 @@ export function App() {
   function openProjectTerminal(project: Project) {
     setIsCustomizationOpen(false);
     setActiveView("agent");
+    setActiveTemporaryWorkspaceID(null);
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedFakeChatID(null);
@@ -168,6 +215,7 @@ export function App() {
     setWelcomeResetToken((current) => current + 1);
     setIsCustomizationOpen(false);
     setActiveView("agent");
+    setActiveTemporaryWorkspaceID(null);
     setSelectedFakeChatID(null);
     setIsNewTestChatOpen(true);
     setSelectedResearch(null);
@@ -179,6 +227,17 @@ export function App() {
     const chat = createTestChat();
     setIsNewTestChatOpen(false);
     setSelectedFakeChatID(chat.id);
+    sendFakeChatMessage(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, role: "user", content });
+  }
+
+  function sendTemporaryWorkspaceMessage(content: string) {
+    if (!temporaryWorkspace) return;
+    const chat = createTemporaryWorkspaceChat(temporaryWorkspace.id);
+    setIsNewTestChatOpen(false);
+    setSelectedFakeChatID(chat.id);
+    setSelectedResearch(null);
+    setSelectedWorkspace(null);
+    setWorkspaceFocus(null);
     sendFakeChatMessage(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, role: "user", content });
   }
 
@@ -323,6 +382,8 @@ export function App() {
     setWelcomeResetToken((current) => current + 1);
     setIsCustomizationOpen(false);
     setActiveView("agent");
+    const chat = getTestChat(chatID);
+    setActiveTemporaryWorkspaceID(chat?.workspaceID ?? null);
     setSelectedFakeChatID(chatID);
     setIsNewTestChatOpen(false);
     setSelectedResearch(null);
@@ -331,7 +392,14 @@ export function App() {
   }
 
   const selectedFakeChat = fakeChats.find((chat) => chat.id === selectedFakeChatID) ?? null;
+  const selectedTemporaryWorkspace = selectedFakeChat?.workspaceID === temporaryWorkspace?.id ? temporaryWorkspace : null;
   const isTestChatsExplorerActive = Boolean(selectedFakeChat) || isNewTestChatOpen;
+  const workspaceNameOverride = selectedTemporaryWorkspace?.name ?? (isTestChatsExplorerActive ? "Test chats" : null);
+
+  function handleWorkspaceChange(project: Project | null) {
+    setSelectedWorkspace(project);
+    if (project) setActiveTemporaryWorkspaceID(null);
+  }
 
   function handleProjectTerminalArmedChange(projectId: string, armed: boolean) {
     setArmedTerminalProjectIds((current) => {
@@ -424,6 +492,7 @@ export function App() {
           }}
           project={selectedWorkspace}
           testChatsActive={isTestChatsExplorerActive}
+          temporaryWorkspace={activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace : null}
           width={renderedRightPanelWidth}
         />
       ) : null}
@@ -436,12 +505,14 @@ export function App() {
           onNewProjectChat={openProjectNewChat}
           onNewFakeChat={openNewFakeChat}
           onOpenNewProject={openNewProjectDialog}
+          onOpenTemporaryWorkspace={openTemporaryWorkspace}
           onOpenFakeChat={openFakeChat}
           onOpenProjectTerminal={openProjectTerminal}
           onOpenSettings={openSettings}
           onToggleCustomization={toggleCustomization}
           onWidthChange={resizeLeftPanel}
           runningTerminalProjectIds={runningTerminalProjectIds}
+          temporaryWorkspace={temporaryWorkspace}
           width={renderedLeftPanelWidth}
         />
       ) : null}
@@ -464,7 +535,8 @@ export function App() {
           onHeightChange={handleTerminalHeightChange}
           onProjectArmedChange={handleProjectTerminalArmedChange}
           onProjectRunningChange={handleProjectTerminalRunningChange}
-          projectId={selectedWorkspace?.id ?? null}
+          projectId={selectedWorkspace?.id ?? (activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace.id : "home")}
+          workingDirectory={selectedWorkspace?.path ?? (activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace.path : "")}
         />
       ) : null}
       {isSettingsOpen ? <SettingsPage onHome={goHome} /> : null}
@@ -477,16 +549,23 @@ export function App() {
         ))}
         onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
         onOpenNewProject={openNewProjectDialog}
-        onSend={isNewTestChatOpen ? sendNewFakeChatMessage : undefined}
-        onWorkspaceChange={setSelectedWorkspace}
+        onOpenTemporaryWorkspace={openTemporaryWorkspace}
+        onTemporaryWorkspacePathChange={selectTemporaryWorkspacePath}
+        onSend={isNewTestChatOpen
+          ? sendNewFakeChatMessage
+          : activeTemporaryWorkspaceID === temporaryWorkspace?.id ? sendTemporaryWorkspaceMessage : undefined}
+        onWorkspaceChange={handleWorkspaceChange}
+        isTemporaryWorkspaceActive={activeTemporaryWorkspaceID === temporaryWorkspace?.id}
+        temporaryWorkspace={temporaryWorkspace}
         resetToken={welcomeResetToken}
-        workspaceNameOverride={isTestChatsExplorerActive ? "Test chats" : null}
+        workspaceNameOverride={workspaceNameOverride}
         workspaceFocus={workspaceFocus}
       />
-      <NewProjectDialog isOpen={isNewProjectDialogOpen} onClose={closeNewProjectDialog} />
+      <NewProjectDialog isOpen={isNewProjectDialogOpen} onConfirmLocalFolder={selectLocalFolder} onClose={closeNewProjectDialog} />
       {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
         <TestChatTopbar
-          onOpenFolder={openNewFakeChat}
+          breadcrumb={selectedTemporaryWorkspace?.name}
+          onOpenFolder={selectedTemporaryWorkspace ? openTemporaryWorkspace : openNewFakeChat}
           title={selectedFakeChat.title}
         />
       ) : null}
@@ -502,6 +581,8 @@ export function App() {
           onSend={sendFakeChatMessage}
           onStopStreaming={stopFakeChatStream}
           pendingUserMessageIDs={pendingFakeChatMessageIDs.get(selectedFakeChat.id) ?? EMPTY_MESSAGE_IDS}
+          workspaceName={selectedTemporaryWorkspace?.name}
+          workspacePath={selectedTemporaryWorkspace?.displayPath}
         />
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && selectedResearch ? (
@@ -548,4 +629,12 @@ function getViewportContentWidth() {
 
 function getViewportScrollbarWidth() {
   return Math.max(0, window.innerWidth - getViewportContentWidth());
+}
+
+function normalizeTemporaryWorkspacePath(value: string) {
+  return value
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^~\/?/, "")
+    .replace(/^\/+|\/+$/g, "");
 }

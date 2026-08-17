@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchHomeDirectoryEntries, type ProjectDirectoryEntry } from "./projects";
+import type { LocalFolderSelection } from "./temporaryWorkspace";
 import "./new-project-dialog.css";
 
 type NewProjectDialogProps = {
   isOpen: boolean;
+  onConfirmLocalFolder: (selection: LocalFolderSelection) => void;
   onClose: () => void;
 };
 
@@ -22,7 +24,7 @@ const projectSources = [
   },
 ] as const;
 
-export function NewProjectDialog({ isOpen, onClose }: NewProjectDialogProps) {
+export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewProjectDialogProps) {
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [folderEntries, setFolderEntries] = useState<ProjectDirectoryEntry[]>([]);
@@ -31,6 +33,8 @@ export function NewProjectDialog({ isOpen, onClose }: NewProjectDialogProps) {
   const [isFolderLoading, setIsFolderLoading] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const normalizedQuery = query.trim().toLowerCase();
   const visibleSources = projectSources.filter((source) => (
     !normalizedQuery
@@ -49,11 +53,11 @@ export function NewProjectDialog({ isOpen, onClose }: NewProjectDialogProps) {
     searchRef.current?.focus();
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !isFolderPickerOpen) return;
@@ -87,7 +91,28 @@ export function NewProjectDialog({ isOpen, onClose }: NewProjectDialogProps) {
       setQuery(value);
       return;
     }
-    setQuery(value.startsWith(folderLocation) ? value.slice(folderLocation.length) : "");
+
+    const normalizedValue = value.replaceAll("\\", "/");
+    if (normalizedValue === "~" || normalizedValue === "~/") {
+      setFolderPath("");
+      setQuery("");
+      return;
+    }
+    if (!normalizedValue.startsWith("~/")) {
+      setQuery(value);
+      return;
+    }
+
+    const relativeValue = normalizedValue.slice(2);
+    const lastSlash = relativeValue.lastIndexOf("/");
+    if (lastSlash < 0) {
+      setFolderPath("");
+      setQuery(relativeValue);
+      return;
+    }
+
+    setFolderPath(normalizeFolderPath(relativeValue.slice(0, lastSlash)));
+    setQuery(relativeValue.slice(lastSlash + 1));
   }
 
   function openLocalFolderPicker() {
@@ -110,8 +135,19 @@ export function NewProjectDialog({ isOpen, onClose }: NewProjectDialogProps) {
   }
 
   function openFolder(entry: ProjectDirectoryEntry) {
+    if (!entry.isDirectory) return;
     setFolderPath(normalizeFolderPath(entry.path));
     setQuery("");
+  }
+
+  function confirmCurrentFolder() {
+    const normalizedPath = normalizeFolderPath(folderPath);
+    const pathParts = normalizedPath.split("/").filter(Boolean);
+    onConfirmLocalFolder({
+      displayPath: folderLocation,
+      name: pathParts.at(-1) ?? "Home",
+      path: normalizedPath,
+    });
   }
 
   if (!isOpen) return null;
@@ -140,6 +176,11 @@ export function NewProjectDialog({ isOpen, onClose }: NewProjectDialogProps) {
             type="search"
             value={isFolderPickerOpen ? `${folderLocation}${query}` : query}
           />
+          {isFolderPickerOpen ? (
+            <button aria-label={`Use folder ${folderLocation}`} className="new-project-dialog-search-confirm" onClick={confirmCurrentFolder} title="Use this folder" type="button">
+              <CheckIcon />
+            </button>
+          ) : null}
         </div>
 
         {isFolderPickerOpen ? (
@@ -223,6 +264,14 @@ function ChevronRightIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="m10 5 7 7-7 7" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="m5 12.5 4.2 4.2L19 7" />
     </svg>
   );
 }

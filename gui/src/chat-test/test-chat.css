@@ -174,6 +174,7 @@
 .test-chat-readonly-control { align-items: center; color: #89959c; display: inline-flex; font: 570 10px/1 "Geist", sans-serif; gap: 6px; height: 28px; padding: 0 8px; user-select: none; }
 .test-chat-readonly-control svg { fill: none; height: 13px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 13px; }
 .test-chat-readonly-control:first-child svg { color: #5bd39a; }
+.test-chat-readonly-control.is-workspace svg { color: var(--color-crown-gold); }
 
 .test-chat-topbar-title { direction: ltr; text-align: left; unicode-bidi: plaintext; }
 

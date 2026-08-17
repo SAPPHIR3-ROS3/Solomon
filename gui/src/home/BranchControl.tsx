@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   PROJECT_GIT_BRANCH_CHANGED_EVENT,
+  checkoutHomeDirectoryBranch,
   checkoutProjectBranch,
+  fetchHomeDirectoryBranches,
+  fetchHomeDirectoryWorktrees,
   fetchProjectBranches,
   fetchProjectWorktrees,
   type Project,
@@ -10,12 +13,14 @@ import {
 import "./welcome-branch.css";
 
 type BranchControlProps = {
+  directoryPath?: string;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
   project: Project | null;
 };
 
 export function BranchControl({
+  directoryPath,
   project,
   open,
   onOpenChange,
@@ -34,7 +39,7 @@ export function BranchControl({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!project?.id) {
+    if (!project?.id && directoryPath === undefined) {
       setCurrent("");
       setBranches([]);
       setIsRepo(false);
@@ -46,7 +51,10 @@ export function BranchControl({
     const controller = new AbortController();
     onOpenChange?.(false);
     if (open === undefined) setInternalOpen(false);
-    void fetchProjectBranches(project.id, controller.signal)
+    const request = project?.id
+      ? fetchProjectBranches(project.id, controller.signal)
+      : fetchHomeDirectoryBranches(directoryPath ?? "", controller.signal);
+    void request
       .then((info) => {
         setCurrent(info.current);
         setBranches(info.branches);
@@ -61,7 +69,7 @@ export function BranchControl({
         setError("");
       });
     return () => controller.abort();
-  }, [project?.id]);
+  }, [directoryPath, project?.id]);
 
   useEffect(() => {
     if (!project?.id) return;
@@ -98,10 +106,10 @@ export function BranchControl({
     };
   }, [isOpen]);
 
-  if (!isRepo || !project) return null;
+  if (!isRepo || (!project && directoryPath === undefined)) return null;
 
   async function selectBranch(branch: string) {
-    if (!project || branch === current || busy) {
+    if ((!project && directoryPath === undefined) || branch === current || busy) {
       setOpen(false);
       return;
     }
@@ -110,7 +118,9 @@ export function BranchControl({
     setCurrent(branch);
     setError("");
     try {
-      const info = await checkoutProjectBranch(project.id, branch);
+      const info = project?.id
+        ? await checkoutProjectBranch(project.id, branch)
+        : await checkoutHomeDirectoryBranch(directoryPath ?? "", branch);
       setCurrent(info.current);
       setBranches(info.branches);
       setIsRepo(info.isRepo);
@@ -163,6 +173,7 @@ export function BranchControl({
 }
 
 type WorktreeControlProps = {
+  directoryPath?: string;
   onOpenChange?: (open: boolean) => void;
   onSelect?: (worktree: ProjectWorktree) => void;
   open?: boolean;
@@ -170,6 +181,7 @@ type WorktreeControlProps = {
 };
 
 export function WorktreeControl({
+  directoryPath,
   project,
   open,
   onOpenChange,
@@ -185,7 +197,7 @@ export function WorktreeControl({
   const [worktrees, setWorktrees] = useState<ProjectWorktree[]>([]);
 
   useEffect(() => {
-    if (!project?.id) {
+    if (!project?.id && directoryPath === undefined) {
       setWorktrees([]);
       onOpenChange?.(false);
       if (open === undefined) setInternalOpen(false);
@@ -194,14 +206,17 @@ export function WorktreeControl({
     const controller = new AbortController();
     onOpenChange?.(false);
     if (open === undefined) setInternalOpen(false);
-    void fetchProjectWorktrees(project.id, controller.signal)
+    const request = project?.id
+      ? fetchProjectWorktrees(project.id, controller.signal)
+      : fetchHomeDirectoryWorktrees(directoryPath ?? "", controller.signal);
+    void request
       .then((info) => setWorktrees(info.worktrees.filter((worktree) => !worktree.bare)))
       .catch(() => {
         if (controller.signal.aborted) return;
         setWorktrees([]);
       });
     return () => controller.abort();
-  }, [project?.id]);
+  }, [directoryPath, project?.id]);
 
   useEffect(() => {
     if (!isOpen) return;

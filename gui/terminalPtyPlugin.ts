@@ -46,6 +46,13 @@ function integratedShellPath() {
   return process.platform === "win32" ? "powershell.exe" : "/bin/zsh";
 }
 
+function terminalWorkingDirectory(requestedPath: string | null) {
+  const value = requestedPath?.trim() ?? "";
+  if (!value) return homedir();
+  const candidate = path.isAbsolute(value) ? path.resolve(value) : path.resolve(homedir(), value);
+  return existsSync(candidate) ? candidate : homedir();
+}
+
 function attachTerminalWebSocket(httpServer: HttpServer | null) {
   if (!httpServer || attachedServers.has(httpServer)) return;
   attachedServers.add(httpServer);
@@ -59,12 +66,13 @@ function attachTerminalWebSocket(httpServer: HttpServer | null) {
     wss.handleUpgrade(request, socket, head, (ws) => {
       const shellPath = integratedShellPath();
       const shellArgs = process.platform === "win32" ? ["-NoLogo"] : ["-i"];
+      const requestURL = new URL(request.url ?? "", "http://127.0.0.1");
       let ptyProcess: pty.IPty;
 
       try {
         ptyProcess = pty.spawn(shellPath, shellArgs, {
           cols: 80,
-          cwd: homedir(),
+          cwd: terminalWorkingDirectory(requestURL.searchParams.get("path")),
           env: { ...process.env, COLORTERM: "truecolor", TERM: "xterm-256color" } as Record<string, string>,
           name: "xterm-256color",
           rows: 24,
