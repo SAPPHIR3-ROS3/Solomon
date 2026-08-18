@@ -1,4 +1,6 @@
 export type FakeChatMessage = {
+  checkpointBranch?: string;
+  checkpointSeq?: number;
   createdAt?: number;
   id: string;
   role: "assistant" | "user";
