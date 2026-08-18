@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { detectClient, initialClient } from "./platform";
 import { SidePanel } from "./shell/SidePanel";
 import { SidePanelToggle } from "./shell/SidePanelToggle";
@@ -396,10 +396,16 @@ export function App() {
   const isTestChatsExplorerActive = Boolean(selectedFakeChat) || isNewTestChatOpen;
   const workspaceNameOverride = selectedTemporaryWorkspace?.name ?? (isTestChatsExplorerActive ? "Test chats" : null);
 
-  function handleWorkspaceChange(project: Project | null) {
+  const handleWorkspaceChange = useCallback((project: Project | null) => {
     setSelectedWorkspace(project);
     if (project) setActiveTemporaryWorkspaceID(null);
-  }
+  }, []);
+
+  const handleComposerBoundsChange = useCallback((bounds: { left: number; right: number }) => {
+    setComposerBounds((current) => (
+      current?.left === bounds.left && current.right === bounds.right ? current : bounds
+    ));
+  }, []);
 
   function handleProjectTerminalArmedChange(projectId: string, armed: boolean) {
     setArmedTerminalProjectIds((current) => {
@@ -544,9 +550,7 @@ export function App() {
       <Welcome
         bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
         isVisible={!isSettingsOpen && !isCustomizationOpen && !selectedFakeChat && !selectedResearch}
-        onComposerBoundsChange={(bounds) => setComposerBounds((current) => (
-          current?.left === bounds.left && current.right === bounds.right ? current : bounds
-        ))}
+        onComposerBoundsChange={handleComposerBoundsChange}
         onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
         onOpenNewProject={openNewProjectDialog}
         onOpenTemporaryWorkspace={openTemporaryWorkspace}
