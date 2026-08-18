@@ -11,6 +11,18 @@ import "./test-chat.css";
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 const FIXTURE_MESSAGE_START_TIME = new Date("2026-01-01T09:00:00").getTime();
 
+type CheckpointMetadata = {
+  branch: string;
+  label: string;
+  sequence: number;
+};
+
+type IndexedChatMessage = {
+  checkpoint: CheckpointMetadata;
+  index: number;
+  message: FakeChatMessage;
+};
+
 type TestChatViewProps = {
   bottomInset?: number;
   chat: FakeChat;
@@ -31,7 +43,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
   const pendingMessageKey = [...pendingUserMessageIDs].join("-");
-  const indexedMessages = chat.messages.map((message, index) => ({ index, message }));
+  const indexedMessages = indexChatMessages(chat.messages);
   const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
   const visibleMessages = indexedMessages.filter(({ message }) => !pendingUserMessageIDs.has(message.id));
 
@@ -63,11 +75,16 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   return (
     <section aria-label={`Test chat: ${chat.title}`} className="test-chat-view" style={{ bottom: Math.max(0, bottomInset) }}>
       <AsciiCrown />
-      <div className="test-chat-messages-shell">
-        <div aria-live="polite" className="test-chat-messages">
-          {chat.messages.length ? visibleMessages.map(({ index, message }) => (
-            <div className={`test-chat-turn is-${message.role}`} key={message.id}>
+      <div aria-live="polite" className="test-chat-messages-shell">
+        <div className="test-chat-messages">
+          {chat.messages.length ? visibleMessages.map(({ checkpoint, index, message }) => (
+            <div
+              className={`test-chat-turn is-${message.role}`}
+              data-checkpoint={checkpoint.label}
+              key={message.id}
+            >
               <article className={`test-chat-message is-${message.role}`}>
+                <CheckpointLabel label={checkpoint.label} />
                 <MarkdownContent content={message.content} />
               </article>
               <MessageFooter index={index} message={message} onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined} />
@@ -166,6 +183,44 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
       ) : null}
     </section>
   );
+}
+
+function CheckpointLabel({ label }: { label: string }) {
+  return (
+    <span aria-label={`Checkpoint ${label}`} className="test-chat-checkpoint-label" title={`Checkpoint ${label}`}>
+      {label}
+    </span>
+  );
+}
+
+function indexChatMessages(messages: FakeChatMessage[]): IndexedChatMessage[] {
+  let fallbackSequence = -1;
+  let fallbackBranch = "";
+
+  return messages.map((message, index) => {
+    const hasExplicitSequence = typeof message.checkpointSeq === "number" && Number.isFinite(message.checkpointSeq);
+    if (hasExplicitSequence) {
+      fallbackSequence = Math.max(0, Math.floor(message.checkpointSeq!));
+      fallbackBranch = message.checkpointBranch ?? "";
+    } else if (message.role === "user" || fallbackSequence < 0) {
+      fallbackSequence += 1;
+      fallbackBranch = "";
+    }
+
+    const sequence = hasExplicitSequence ? Math.max(0, Math.floor(message.checkpointSeq!)) : Math.max(0, fallbackSequence);
+    const branch = message.checkpointBranch ?? fallbackBranch;
+    const label = formatCheckpointLabel(sequence, branch);
+
+    return {
+      checkpoint: { branch, label, sequence },
+      index,
+      message,
+    };
+  });
+}
+
+function formatCheckpointLabel(sequence: number, branch: string) {
+  return `[#${String(sequence).padStart(3, "0")}${branch}]`;
 }
 
 function MessageFooter({ index, message, onRequestDelete }: { index: number; message: FakeChatMessage; onRequestDelete?: () => void }) {
