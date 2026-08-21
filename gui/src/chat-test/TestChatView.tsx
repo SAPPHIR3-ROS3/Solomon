@@ -3,7 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
 import asciiColors from "../../../internal/logo/colors.txt?raw";
-import type { FakeChat, FakeChatMessage } from "./fakeChats";
+import type { FakeChat, FakeChatImage, FakeChatMessage } from "./fakeChats";
 import { AtMentionInput, type ComposerImageAttachment } from "../home/AtMentionInput";
 import { testChatAtMentionEntries } from "../shell/RightSidePanel";
 import "./test-chat.css";
@@ -18,7 +18,7 @@ type CheckpointMetadata = {
 };
 
 type IndexedChatMessage = {
-  checkpoint: CheckpointMetadata;
+  checkpoint?: CheckpointMetadata;
   index: number;
   message: FakeChatMessage;
 };
@@ -64,10 +64,11 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
     };
   }, [deleteTarget]);
 
-  const send = () => {
+  const send = async () => {
     const content = draft.trim();
-    if (!content) return;
-    onSend(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, role: "user", content });
+    if (!content && images.length === 0) return;
+    const messageImages = await Promise.all(images.map(snapshotComposerImage));
+    onSend(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, images: messageImages, role: "user", content });
     setDraft("");
     setImages([]);
   };
@@ -78,17 +79,20 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
       <div aria-live="polite" className="test-chat-messages-shell">
         <div className="test-chat-messages">
           {chat.messages.length ? visibleMessages.map(({ checkpoint, index, message }) => (
-            <div
-              className={`test-chat-turn is-${message.role}`}
-              data-checkpoint={checkpoint.label}
-              key={message.id}
-            >
-              <article className={`test-chat-message is-${message.role}`}>
-                <CheckpointLabel label={checkpoint.label} />
-                <MarkdownContent content={message.content} />
-              </article>
-              <MessageFooter index={index} message={message} onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined} />
-            </div>
+            message.kind === "compaction" ? <CompactionCard key={message.id} message={message} /> : (
+              <div
+                className={`test-chat-turn is-${message.role}`}
+                data-checkpoint={checkpoint?.label}
+                key={message.id}
+              >
+                <article className={`test-chat-message is-${message.role}`}>
+                  {checkpoint ? <CheckpointLabel label={checkpoint.label} /> : null}
+                  {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
+                  <MarkdownContent content={message.content} />
+                </article>
+                <MessageFooter index={index} message={message} onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined} />
+              </div>
+            )
           )) : <p className="test-chat-empty">Questa chat è pronta per il primo messaggio.</p>}
           <div ref={messagesEndRef} />
         </div>
@@ -99,13 +103,14 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
             {pendingMessages.map(({ message }) => (
               <div className="test-chat-pending-turn test-chat-turn is-user" key={message.id}>
               <article className="test-chat-message test-chat-pending-message is-user">
+                {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
                 <MarkdownContent content={message.content} />
               </article>
             </div>
             ))}
           </div>
         ) : null}
-        <form className="test-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}>
+        <form className="test-chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
           <div className="welcome-composer">
           <AtMentionInput
             aria-label="Messaggio di test"
@@ -117,7 +122,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                send();
+                void send();
               }
             }}
             placeholder="Ask Solomon anything..."
@@ -193,11 +198,177 @@ function CheckpointLabel({ label }: { label: string }) {
   );
 }
 
+async function snapshotComposerImage(image: ComposerImageAttachment): Promise<FakeChatImage> {
+  if (!image.blob) return { name: image.name, url: image.url };
+  return { name: image.name, url: await blobToDataUrl(image.blob) };
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("Unable to read image attachment")));
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Unable to encode image attachment"));
+    });
+    reader.readAsDataURL(blob);
+  });
+}
+
+function ChatImageAttachments({ images }: { images: FakeChatImage[] }) {
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const selectedImage = selectedImageIndex === null ? undefined : images[selectedImageIndex];
+
+  useEffect(() => {
+    if (selectedImageIndex === null) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedImageIndex(null);
+      if (images.length < 2) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        setSelectedImageIndex((current) => {
+          if (current === null) return current;
+          const offset = event.key === "ArrowLeft" ? -1 : 1;
+          return (current + offset + images.length) % images.length;
+        });
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [images.length, selectedImageIndex]);
+
+  useEffect(() => {
+    if (selectedImageIndex !== null && selectedImageIndex >= images.length) setSelectedImageIndex(null);
+  }, [images.length, selectedImageIndex]);
+
+  function moveSelectedImage(offset: number) {
+    setSelectedImageIndex((current) => current === null ? current : (current + offset + images.length) % images.length);
+  }
+
+  return (
+    <>
+      <div aria-label="Immagini allegate" className="composer-image-previews test-chat-message-images">
+        {images.map((image, index) => (
+          <figure
+            className="composer-image-preview"
+            key={`${image.name}-${index}`}
+            onClick={() => setSelectedImageIndex(index)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSelectedImageIndex(index);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <img alt={`Apri anteprima di ${image.name}`} src={image.url} />
+          </figure>
+        ))}
+      </div>
+      {selectedImage ? (
+        <div
+          aria-label={`Anteprima immagine: ${selectedImage.name}`}
+          aria-modal="true"
+          className="composer-image-lightbox test-chat-message-lightbox"
+          onClick={() => setSelectedImageIndex(null)}
+          role="dialog"
+        >
+          <button aria-label="Chiudi anteprima" className="test-chat-image-lightbox-close" onClick={() => setSelectedImageIndex(null)} type="button"><CloseIcon /></button>
+          {images.length > 1 ? (
+            <button aria-label="Immagine precedente" className="composer-image-lightbox-nav is-previous" onClick={(event) => { event.stopPropagation(); moveSelectedImage(-1); }} type="button">
+              <ChatImageArrowIcon direction="left" />
+            </button>
+          ) : null}
+          <div className="composer-image-lightbox-stage" onClick={(event) => event.stopPropagation()}>
+            <img alt={selectedImage.name} className="composer-image-lightbox-image" src={selectedImage.url} />
+          </div>
+          {images.length > 1 ? (
+            <button aria-label="Immagine successiva" className="composer-image-lightbox-nav is-next" onClick={(event) => { event.stopPropagation(); moveSelectedImage(1); }} type="button">
+              <ChatImageArrowIcon direction="right" />
+            </button>
+          ) : null}
+          {images.length > 1 ? <div className="composer-image-lightbox-count test-chat-image-lightbox-count">{selectedImageIndex! + 1} / {images.length}</div> : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function ChatImageArrowIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d={direction === "left" ? "m14 6-6 6 6 6" : "m10 6 6 6-6 6"} />
+    </svg>
+  );
+}
+
+function CompactionCard({ message }: { message: FakeChatMessage }) {
+  const retainedMessages = message.retainedMessages ?? [];
+
+  return (
+    <section aria-label="Compattazione del contesto" className="test-chat-compaction" data-message-kind="compaction">
+      <details>
+        <summary className="test-chat-compaction-summary">
+          <span className="test-chat-compaction-title">Contesto compattato</span>
+          <svg aria-hidden="true" className="test-chat-compaction-chevron" viewBox="0 0 24 24">
+            <path d="m7 10 5 5 5-5" />
+          </svg>
+        </summary>
+        <div className="test-chat-compaction-body">
+          <details className="test-chat-compaction-section" open>
+            <summary className="test-chat-compaction-section-summary">
+              <span className="test-chat-compaction-eyebrow">Riassunto</span>
+              <svg aria-hidden="true" className="test-chat-compaction-section-chevron" viewBox="0 0 24 24">
+                <path d="m7 10 5 5 5-5" />
+              </svg>
+            </summary>
+            <div className="test-chat-compaction-section-body">
+              <div className="test-chat-compaction-markdown">
+                <MarkdownContent content={message.summary ?? ""} />
+              </div>
+            </div>
+          </details>
+          <details className="test-chat-compaction-section" open>
+            <summary className="test-chat-compaction-section-summary">
+              <span className="test-chat-compaction-eyebrow">Ultimi messaggi</span>
+              <svg aria-hidden="true" className="test-chat-compaction-section-chevron" viewBox="0 0 24 24">
+                <path d="m7 10 5 5 5-5" />
+              </svg>
+            </summary>
+            <div className="test-chat-compaction-section-body">
+              <div className="test-chat-retained-messages">
+                {retainedMessages.map((retainedMessage, index) => (
+                  <div className={`test-chat-retained-message is-${retainedMessage.role}`} key={`${retainedMessage.role}-${index}`}>
+                    <div className="test-chat-retained-content">
+                      {retainedMessage.images?.length ? <ChatImageAttachments images={retainedMessage.images} /> : null}
+                      <MarkdownContent content={retainedMessage.content} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
+        </div>
+      </details>
+    </section>
+  );
+}
+
 function indexChatMessages(messages: FakeChatMessage[]): IndexedChatMessage[] {
   let fallbackSequence = -1;
   let fallbackBranch = "";
 
   return messages.map((message, index) => {
+    if (message.kind === "compaction") {
+      return { index, message };
+    }
+
     const hasExplicitSequence = typeof message.checkpointSeq === "number" && Number.isFinite(message.checkpointSeq);
     if (hasExplicitSequence) {
       fallbackSequence = Math.max(0, Math.floor(message.checkpointSeq!));
