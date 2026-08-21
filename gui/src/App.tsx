@@ -318,7 +318,21 @@ export function App() {
   }
 
   function stopFakeChatStream(chatID: string) {
-    streamControllers.current.get(chatID)?.abort();
+    const controller = streamControllers.current.get(chatID);
+    if (!controller) return;
+
+    const chat = getTestChat(chatID);
+    const assistantID = [...(chat?.messages ?? [])].reverse().find((message) => message.role === "assistant")?.id;
+    if (assistantID) {
+      updateTestChat(chatID, (current) => ({
+        ...current,
+        messages: current.messages.map((message) => (
+          message.id === assistantID ? { ...message, status: "interrupted" } : message
+        )),
+      }));
+    }
+
+    controller.abort();
   }
 
   async function streamLoremResponse(chatID: string, assistantID: string, words: string[], controller: AbortController) {
