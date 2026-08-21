@@ -1,10 +1,25 @@
+export type FakeChatImage = {
+  name: string;
+  url: string;
+};
+
+export type FakeRetainedMessage = {
+  content: string;
+  images?: FakeChatImage[];
+  role: "assistant" | "user";
+};
+
 export type FakeChatMessage = {
   checkpointBranch?: string;
   checkpointSeq?: number;
   createdAt?: number;
   id: string;
+  images?: FakeChatImage[];
+  kind?: "compaction";
   role: "assistant" | "user";
   content: string;
+  retainedMessages?: FakeRetainedMessage[];
+  summary?: string;
 };
 
 export type FakeChat = {
@@ -43,10 +58,35 @@ export const initialFakeChats: FakeChat[] = [
       { id: "brief-assistant-8", role: "assistant", content: "## Qualità e interruzioni\n\nVerificherei la qualità della risposta su tre dimensioni diverse:\n\n- **completezza:** la risposta copre la richiesta senza fermarsi a metà;\n- **coerenza:** mantiene il contesto e non contraddice i messaggi precedenti;\n- **recuperabilità:** l’utente può correggere, riprovare o riprendere il flusso.\n\n### Casi da simulare\n\n1. Risposta interrotta durante lo streaming.\n2. Timeout subito dopo il primo token.\n3. Retry dopo un errore temporaneo.\n4. Interruzione volontaria con il pulsante di stop.\n5. Chiusura e riapertura della conversazione.\n\nPer ogni caso registrerei **causa**, **punto dell’interruzione**, **stato mostrato all’utente** e **azione disponibile**.\n\n~~Controllo manuale alla fine e basta~~ non è sufficiente: il test deve verificare anche quello che succede nei secondi intermedi, quando la risposta è ancora in streaming." },
       { id: "brief-user-9", role: "user", content: "Come gestiresti invece i messaggi molto lunghi e le conversazioni che non entrano più nel contesto disponibile?" },
       { id: "brief-assistant-9", role: "assistant", content: "## Conversazioni oltre il contesto\n\nQuando una chat diventa molto lunga, non cercherei di nascondere il problema. Mostrerei uno stato esplicito e conserverei un riepilogo leggibile, mantenendo il punto di lettura dell’utente.\n\nLa strategia potrebbe avere quattro passaggi:\n\n1. **Misurare** il contesto usato e quello ancora disponibile.\n2. **Compattare** i turni più vecchi, separando decisioni, vincoli e dettagli ormai superati.\n3. **Conservare** il riepilogo come parte visibile della conversazione.\n4. **Riprendere** il lavoro indicando quali informazioni sono state riutilizzate.\n\nUn riepilogo strutturato potrebbe assomigliare a questo:\n\n```text\n[decisioni] usare Markdown nel transcript\n[vincoli] non modificare la grafica\n[aperto] collegare la chat al runtime reale\n```\n\n> Compattare non significa cancellare in silenzio: l’utente deve poter capire perché la risposta continua a essere coerente." },
-      { id: "brief-user-10", role: "user", content: "Vorrei includere anche una verifica su immagini, file allegati e riferimenti a percorsi del progetto, perché sono elementi importanti per il lavoro quotidiano." },
+      { id: "brief-user-10", role: "user", content: "Vorrei includere anche una verifica su immagini, file allegati e riferimenti a percorsi del progetto, perché sono elementi importanti per il lavoro quotidiano.", images: [{ name: "product-brief-reference.svg", url: "/vscode-icons/file_type_image.svg" }] },
       { id: "brief-assistant-10", role: "assistant", content: "## Allegati e riferimenti\n\nPer immagini, file e percorsi del progetto distinguerei sempre tra **contenuto disponibile**, **contenuto in caricamento** e **contenuto non accessibile**. La risposta non dovrebbe trattare questi tre casi nello stesso modo.\n\n| Caso | Cosa mostrare | Azione possibile |\n| --- | --- | --- |\n| File pronto | nome, tipo e dimensione | aprire o rimuovere |\n| Upload in corso | progresso e stato | annullare |\n| File mancante | errore comprensibile | ritentare o sostituire |\n| Percorso non valido | percorso ricevuto | correggere riferimento |\n\nAggiungerei test per:\n\n- immagini incollate e immagini troppo grandi;\n- file mancanti o duplicati;\n- percorsi relativi e assoluti;\n- riferimenti allo stesso documento in più messaggi;\n- allegati rimossi mentre la risposta è ancora in streaming.\n\nPer i riferimenti al codice, un link come [`gui/src/chat-test/fakeChats.ts`](../chat-test/fakeChats.ts) dovrebbe restare leggibile anche quando il messaggio viene riaperto. L’errore deve spiegare **che cosa manca** e **come risolverlo**, non limitarsi a dire “fallito”." },
       { id: "brief-user-11", role: "user", content: "Puoi chiudere con un riepilogo operativo che il team possa usare durante la riunione di go-live?" },
       { id: "brief-assistant-11", role: "assistant", content: "## Riepilogo operativo\n\n### Prima della finestra\n\n- [ ] confermare responsabili e orario;\n- [ ] validare test, metriche e baseline;\n- [ ] provare il rollback;\n- [ ] controllare streaming, allegati e persistenza;\n- [ ] preparare monitoraggio e comunicazioni.\n\n### Durante il rollout\n\nProcederei per percentuali crescenti:\n\n1. 10% degli utenti;\n2. controllo degli errori e della latenza;\n3. 25% se i segnali sono stabili;\n4. nuovo controllo prima del 50%;\n5. estensione completa solo dopo l’ultima decisione.\n\n> Go solo se il percorso principale funziona, il rollback è eseguibile e ogni segnale rosso ha un proprietario.\n\n**Decisione finale:** procedere a piccoli passi, registrando dopo ogni fase cosa è stato osservato, quale scelta è stata fatta e perché." },
+      { id: "brief-user-12", role: "user", content: "Per la fase pilota, quali informazioni raccoglieresti direttamente dagli utenti oltre alle metriche tecniche?" },
+      { id: "brief-assistant-12", role: "assistant", content: "Raccoglierei il punto in cui l’utente ha completato o abbandonato il flusso, la chiarezza percepita dei passaggi e un commento libero sui momenti di esitazione. Una domanda breve dopo il primo utilizzo sarebbe più utile di un questionario lungo: **che cosa ti ha aiutato e che cosa ti ha rallentato?**" },
+      { id: "brief-user-13", role: "user", content: "Quali decisioni dovremmo prendere prima di aprire il pilota, così da non improvvisare durante la raccolta dei feedback?" },
+      { id: "brief-assistant-13", role: "assistant", content: "Definirei in anticipo il pubblico, la durata, il canale per i feedback e il proprietario di ogni segnale. Fisserei anche la soglia che fa scattare una correzione e il momento in cui il team si riunisce per decidere se continuare." },
+      { id: "brief-user-14", role: "user", content: "Aggiungi una nota su come distinguere un problema del prodotto da un problema di onboarding o di comunicazione." },
+      { id: "brief-assistant-14", role: "assistant", content: "Confronterei il comportamento tra utenti che hanno ricevuto la stessa introduzione e utenti che hanno seguito un percorso diverso. Se l’errore scompare con istruzioni più chiare, è un problema di onboarding; se resta anche dopo la spiegazione, va trattato come problema del prodotto." },
+      { id: "brief-user-15", role: "user", content: "Ora vorrei una traccia breve per la riunione di chiusura del pilota, con decisioni, evidenze e azioni successive." },
+      { id: "brief-assistant-15", role: "assistant", content: "La riunione dovrebbe seguire questo ordine: **obiettivo**, risultati rispetto alla baseline, feedback ricorrenti, incidenti e mitigazioni, decisione sul rollout e azioni con responsabile e scadenza. Chiuderei con un verbale di una pagina, così la decisione resta verificabile anche per chi non era presente." },
+      {
+        id: "brief-compaction",
+        kind: "compaction",
+        role: "assistant",
+        content: "",
+        summary: "La conversazione ha definito un piano di rilascio graduale per la nuova esperienza chat. L’obiettivo è ridurre il tempo necessario per arrivare al primo messaggio utile, mantenendo chiari il contesto, lo stato della risposta e le azioni disponibili quando qualcosa si interrompe.\n\n**Responsabilità e flusso**\n\nIl percorso principale comprende apertura della chat, scelta del contesto, primo messaggio, risposta e nuova richiesta. Prodotto, engineering e supporto devono avere un responsabile esplicito; una persona dedicata raccoglie le evidenze e coordina la decisione di go/no-go.\n\n**Decisioni prese**\n\n- procedere per percentuali crescenti, dal 10% al 25%, 50% e 100%;\n- confrontare ogni fase con la baseline precedente;\n- conservare un riepilogo leggibile quando la conversazione supera il contesto disponibile;\n- distinguere contenuto pronto, contenuto in caricamento e contenuto non accessibile;\n- rendere verificabili interruzioni, retry, allegati e riapertura della conversazione.\n\n**Criteri di rilascio**\n\nIl pilota deve raccogliere sia segnali tecnici sia feedback sull’esperienza: tempo al primo token, success rate, errori, timeout, costi, qualità percepita e punti di abbandono. Un segnale giallo ricorrente rallenta il rollout; un segnale rosso sul percorso principale lo interrompe.\n\nPrima della finestra devono essere completati smoke test, verifica responsive, prova di rollback, controllo della persistenza e preparazione del monitoraggio. Il rollback deve avere una versione stabile già verificata, un proprietario nominato e una procedura abbastanza breve da poter essere eseguita durante un incidente reale.\n\nAl termine del pilota il team confronterà risultati, feedback ricorrenti, incidenti e mitigazioni. La decisione finale dovrà indicare se correggere, rallentare o proseguire il rollout, con un’azione assegnata e una scadenza per ogni punto ancora aperto.",
+        retainedMessages: [
+          { role: "user", content: "Per la fase pilota, quali informazioni raccoglieresti direttamente dagli utenti oltre alle metriche tecniche?" },
+          { role: "assistant", content: "Raccoglierei il punto in cui l’utente ha completato o abbandonato il flusso, la chiarezza percepita dei passaggi e un commento libero sui momenti di esitazione." },
+          { role: "user", content: "Quali decisioni dovremmo prendere prima di aprire il pilota, così da non improvvisare durante la raccolta dei feedback?" },
+          { role: "assistant", content: "Definirei in anticipo il pubblico, la durata, il canale per i feedback e il proprietario di ogni segnale." },
+          { role: "user", content: "Aggiungi una nota su come distinguere un problema del prodotto da un problema di onboarding o di comunicazione." },
+          { role: "assistant", content: "Confronterei il comportamento tra utenti che hanno ricevuto la stessa introduzione e utenti che hanno seguito un percorso diverso." },
+          { role: "user", content: "Ora vorrei una traccia breve per la riunione di chiusura del pilota, con decisioni, evidenze e azioni successive." },
+          { role: "assistant", content: "La riunione dovrebbe seguire questo ordine: obiettivo, risultati rispetto alla baseline, feedback, incidenti, decisione sul rollout e azioni con responsabile e scadenza." },
+        ],
+      },
     ],
   },
   {
