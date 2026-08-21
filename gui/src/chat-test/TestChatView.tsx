@@ -42,6 +42,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
+  const lastMessageStatus = chat.messages.at(-1)?.status ?? "";
   const pendingMessageKey = [...pendingUserMessageIDs].join("-");
   const indexedMessages = indexChatMessages(chat.messages);
   const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
@@ -49,7 +50,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [chat.id, chat.messages.length, lastMessageContent, pendingMessageKey]);
+  }, [chat.id, chat.messages.length, lastMessageContent, lastMessageStatus, pendingMessageKey]);
 
   useEffect(() => {
     if (!deleteTarget) return;
@@ -90,6 +91,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
                   {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
                   <MarkdownContent content={message.content} />
                 </article>
+                {message.status === "interrupted" ? <InterruptedGenerationMarker /> : null}
                 <MessageFooter index={index} message={message} onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined} />
               </div>
             )
@@ -195,6 +197,16 @@ function CheckpointLabel({ label }: { label: string }) {
     <span aria-label={`Checkpoint ${label}`} className="test-chat-checkpoint-label" title={`Checkpoint ${label}`}>
       {label}
     </span>
+  );
+}
+
+function InterruptedGenerationMarker() {
+  return (
+    <div aria-label="Generation stopped" className="test-chat-interrupted" role="status">
+      <span aria-hidden="true" className="test-chat-interrupted-line is-left" />
+      <span className="test-chat-interrupted-label">generation stopped</span>
+      <span aria-hidden="true" className="test-chat-interrupted-line is-right" />
+    </div>
   );
 }
 
