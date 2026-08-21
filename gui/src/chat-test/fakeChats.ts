@@ -17,6 +17,7 @@ export type FakeChatMessage = {
   images?: FakeChatImage[];
   kind?: "compaction";
   role: "assistant" | "user";
+  status?: "interrupted";
   content: string;
   retainedMessages?: FakeRetainedMessage[];
   summary?: string;
@@ -95,6 +96,8 @@ export const initialFakeChats: FakeChat[] = [
     messages: [
       { id: "tool-user", role: "user", content: "Quali elementi deve mostrare un turno dell’agente?" },
       { id: "tool-assistant", role: "assistant", content: "## Un turno osservabile\n\nUn turno dell’agente dovrebbe rendere comprensibile sia **che cosa sta facendo** sia **che cosa ha ottenuto**. Mostrerei questi elementi nell’ordine in cui accadono:\n\n1. messaggio dell’utente;\n2. reasoning o piano sintetico;\n3. attività dei tool;\n4. risultato del tool;\n5. risposta finale;\n6. errori e metriche del turno.\n\n| Elemento | Serve a | Esempio |\n| --- | --- | --- |\n| Reasoning | spiegare il prossimo passo | “Cerco il file di configurazione” |\n| Tool call | mostrare l’azione | `read_file(path)` |\n| Risultato | rendere verificabile l’azione | file trovato, 84 righe |\n| Stato | indicare come è finito il turno | completato o interrotto |\n\nUn risultato tecnico potrebbe essere rappresentato così:\n\n```json\n{\n  \"status\": \"completed\",\n  \"tool\": \"read_file\",\n  \"duration_ms\": 184,\n  \"items\": 3\n}\n```\n\n> La trasparenza non significa mostrare ogni dettaglio interno: significa lasciare abbastanza tracce perché l’utente possa capire e verificare il lavoro." },
+      { id: "tool-user-interrupted", role: "user", content: "E se interrompessi la risposta a metà?" },
+      { id: "tool-assistant-interrupted", role: "assistant", status: "interrupted", content: "Mostrerei il testo già generato e chiuderei il turno con uno stato esplicito, così è chiaro che la risposta non è completa." },
     ],
   },
 ];
