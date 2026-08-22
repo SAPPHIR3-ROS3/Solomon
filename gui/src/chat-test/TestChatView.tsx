@@ -43,6 +43,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
   const lastMessageStatus = chat.messages.at(-1)?.status ?? "";
+  const lastMessageWorkedFor = chat.messages.at(-1)?.workedFor ?? null;
   const pendingMessageKey = [...pendingUserMessageIDs].join("-");
   const indexedMessages = indexChatMessages(chat.messages);
   const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
@@ -50,7 +51,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [chat.id, chat.messages.length, lastMessageContent, lastMessageStatus, pendingMessageKey]);
+  }, [chat.id, chat.messages.length, lastMessageContent, lastMessageStatus, lastMessageWorkedFor, pendingMessageKey]);
 
   useEffect(() => {
     if (!deleteTarget) return;
@@ -439,6 +440,7 @@ function MessageFooter({ index, message, onRequestDelete }: { index: number; mes
       >
         {copied ? <CheckIcon /> : <CopyIcon />}
       </button>
+      {message.workedFor !== undefined ? <span className="test-chat-worked-for">worked for {formatWorkedDuration(message.workedFor)}</span> : null}
       {onRequestDelete ? (
         <button aria-label="Elimina messaggio" className="test-chat-delete-message" onClick={onRequestDelete} title="Elimina messaggio" type="button">
           <CloseIcon />
@@ -450,6 +452,14 @@ function MessageFooter({ index, message, onRequestDelete }: { index: number; mes
 
 function formatMessageTime(timestamp: number) {
   return new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(timestamp);
+}
+
+function formatWorkedDuration(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "0s";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds - hours * 3600) / 60);
+  const remainingSeconds = Number((seconds - hours * 3600 - minutes * 60).toFixed(3));
+  return `${hours ? `${hours}h` : ""}${minutes || hours ? `${minutes}m` : ""}${remainingSeconds}s`;
 }
 
 function MarkdownContent({ content }: { content: string }) {
