@@ -305,6 +305,7 @@ export function App() {
 
   function startFakeChatStream(chatID: string, message: FakeChatMessage) {
     const assistantID = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const startedAt = Date.now();
     updateTestChat(chatID, (current) => ({
       ...current,
       messages: [...current.messages, { createdAt: Date.now(), id: assistantID, role: "assistant", content: "" }],
@@ -314,7 +315,7 @@ export function App() {
     const controller = new AbortController();
     streamControllers.current.set(chatID, controller);
     setStreamingFakeChatIDs((current) => new Set(current).add(chatID));
-    void streamLoremResponse(chatID, assistantID, words, controller);
+    void streamLoremResponse(chatID, assistantID, words, controller, startedAt);
   }
 
   function stopFakeChatStream(chatID: string) {
@@ -335,7 +336,7 @@ export function App() {
     controller.abort();
   }
 
-  async function streamLoremResponse(chatID: string, assistantID: string, words: string[], controller: AbortController) {
+  async function streamLoremResponse(chatID: string, assistantID: string, words: string[], controller: AbortController, startedAt: number) {
     try {
       for (let index = 0; index < words.length; index += 1) {
         await waitForStreamDelay(controller.signal);
@@ -351,6 +352,12 @@ export function App() {
     } finally {
       if (streamControllers.current.get(chatID) !== controller) return;
       streamControllers.current.delete(chatID);
+      updateTestChat(chatID, (current) => ({
+        ...current,
+        messages: current.messages.map((message) => (
+          message.id === assistantID ? { ...message, workedFor: (Date.now() - startedAt) / 1000 } : message
+        )),
+      }));
 
       const queue = queuedFakeChatMessages.current.get(chatID);
       const nextMessage = queue?.shift();
