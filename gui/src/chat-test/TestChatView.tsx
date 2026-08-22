@@ -1,4 +1,4 @@
-import { isValidElement, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { isValidElement, type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
@@ -42,7 +42,9 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
+  const lastMessageReasoning = chat.messages.at(-1)?.reasoning ?? "";
   const lastMessageStatus = chat.messages.at(-1)?.status ?? "";
+  const lastMessageThoughtFor = chat.messages.at(-1)?.thoughtFor ?? null;
   const lastMessageWorkedFor = chat.messages.at(-1)?.workedFor ?? null;
   const pendingMessageKey = [...pendingUserMessageIDs].join("-");
   const indexedMessages = indexChatMessages(chat.messages);
@@ -51,7 +53,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [chat.id, chat.messages.length, lastMessageContent, lastMessageStatus, lastMessageWorkedFor, pendingMessageKey]);
+  }, [chat.id, chat.messages.length, lastMessageContent, lastMessageReasoning, lastMessageStatus, lastMessageThoughtFor, lastMessageWorkedFor, pendingMessageKey]);
 
   useEffect(() => {
     if (!deleteTarget) return;
@@ -82,19 +84,13 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
         <div className="test-chat-messages">
           {chat.messages.length ? visibleMessages.map(({ checkpoint, index, message }) => (
             message.kind === "compaction" ? <CompactionCard key={message.id} message={message} /> : (
-              <div
-                className={`test-chat-turn is-${message.role}`}
-                data-checkpoint={checkpoint?.label}
+              <ChatMessageTurn
+                checkpoint={checkpoint}
+                index={index}
                 key={message.id}
-              >
-                <article className={`test-chat-message is-${message.role}`}>
-                  {checkpoint ? <CheckpointLabel label={checkpoint.label} /> : null}
-                  {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
-                  <MarkdownContent content={message.content} />
-                </article>
-                {message.status === "interrupted" ? <InterruptedGenerationMarker /> : null}
-                <MessageFooter index={index} message={message} onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined} />
-              </div>
+                message={message}
+                onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined}
+              />
             )
           )) : <p className="test-chat-empty">Questa chat è pronta per il primo messaggio.</p>}
           <div ref={messagesEndRef} />
@@ -373,6 +369,30 @@ function CompactionCard({ message }: { message: FakeChatMessage }) {
   );
 }
 
+function ChatMessageTurn({ checkpoint, index, message, onRequestDelete }: { checkpoint?: CheckpointMetadata; index: number; message: FakeChatMessage; onRequestDelete?: () => void }) {
+  const [isReasoningCollapsed, setIsReasoningCollapsed] = useState(true);
+  const canCollapseReasoning = message.role === "assistant" && Boolean(message.reasoning || message.thoughtFor !== undefined);
+
+  function handleMessageClick(event: MouseEvent<HTMLElement>) {
+    if (!canCollapseReasoning) return;
+    if (event.target instanceof HTMLElement && event.target.closest("a, button, input, textarea, select, summary")) return;
+    setIsReasoningCollapsed((current) => !current);
+  }
+
+  return (
+    <div className={`test-chat-turn is-${message.role}`} data-checkpoint={checkpoint?.label}>
+      <article className={`test-chat-message is-${message.role}`} onClick={canCollapseReasoning ? handleMessageClick : undefined}>
+        {checkpoint ? <CheckpointLabel label={checkpoint.label} /> : null}
+        {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
+        {canCollapseReasoning ? <ReasoningBlock isCollapsed={isReasoningCollapsed} message={message} onToggle={() => setIsReasoningCollapsed((current) => !current)} /> : null}
+        <MarkdownContent content={message.content} />
+      </article>
+      {message.status === "interrupted" ? <InterruptedGenerationMarker /> : null}
+      <MessageFooter index={index} message={message} onRequestDelete={onRequestDelete} />
+    </div>
+  );
+}
+
 function indexChatMessages(messages: FakeChatMessage[]): IndexedChatMessage[] {
   let fallbackSequence = -1;
   let fallbackBranch = "";
@@ -447,6 +467,34 @@ function MessageFooter({ index, message, onRequestDelete }: { index: number; mes
         </button>
       ) : null}
     </footer>
+  );
+}
+
+function ReasoningBlock({ isCollapsed, message, onToggle }: { isCollapsed: boolean; message: FakeChatMessage; onToggle: () => void }) {
+  const reasoning = message.reasoning?.trim();
+
+  return (
+    <div
+      aria-expanded={!isCollapsed}
+      aria-label="Reasoning del modello"
+      className={`test-chat-reasoning${isCollapsed ? " is-collapsed" : ""}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle();
+      }}
+      role="button"
+      tabIndex={0}
+      title="Clic per comprimere o espandere il ragionamento"
+    >
+      {!isCollapsed && reasoning ? <div className="test-chat-reasoning-copy">{reasoning}</div> : null}
+      {message.thoughtFor !== undefined ? <div className="test-chat-thought-for">thought for {formatWorkedDuration(message.thoughtFor)}</div> : null}
+    </div>
   );
 }
 
