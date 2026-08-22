@@ -147,7 +147,8 @@
 .test-chat-message-footer { align-items: center; display: flex; margin-top: 6px; min-height: 26px; padding: 0 4px; }
 .test-chat-turn.is-user .test-chat-message-footer { padding: 0 14px; }
 .test-chat-turn.is-assistant .test-chat-message-footer { padding: 0 17px; }
-.test-chat-message-footer time { color: var(--color-text-muted); font: 560 12px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .03em; margin-left: auto; }
+.test-chat-message-footer time { color: var(--color-text-muted); font: 560 12px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .03em; }
+.test-chat-worked-for { color: var(--color-text-muted); font: 560 12px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .03em; margin-left: auto; white-space: nowrap; }
 .test-chat-copy-message { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 6px; padding: 0; width: 26px; }
 .test-chat-copy-message:hover { background: var(--color-surface-raised); color: var(--color-text); }
 .test-chat-copy-message:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }

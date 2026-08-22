@@ -18,6 +18,7 @@ export type FakeChatMessage = {
   kind?: "compaction";
   role: "assistant" | "user";
   status?: "interrupted";
+  workedFor?: number;
   content: string;
   retainedMessages?: FakeRetainedMessage[];
   summary?: string;
@@ -35,7 +36,7 @@ export type FakeChat = {
 
 // Deliberately UI-only fixtures. They are never written to ~/.solomon and let
 // us iterate on the conversation surface before wiring the worker/API.
-export const initialFakeChats: FakeChat[] = [
+const initialFakeChatFixtures: FakeChat[] = [
   {
     id: "test-product-brief",
     title: "Product brief",
@@ -95,12 +96,29 @@ export const initialFakeChats: FakeChat[] = [
     title: "Tool e risultati",
     messages: [
       { id: "tool-user", role: "user", content: "Quali elementi deve mostrare un turno dell’agente?" },
-      { id: "tool-assistant", role: "assistant", content: "## Un turno osservabile\n\nUn turno dell’agente dovrebbe rendere comprensibile sia **che cosa sta facendo** sia **che cosa ha ottenuto**. Mostrerei questi elementi nell’ordine in cui accadono:\n\n1. messaggio dell’utente;\n2. reasoning o piano sintetico;\n3. attività dei tool;\n4. risultato del tool;\n5. risposta finale;\n6. errori e metriche del turno.\n\n| Elemento | Serve a | Esempio |\n| --- | --- | --- |\n| Reasoning | spiegare il prossimo passo | “Cerco il file di configurazione” |\n| Tool call | mostrare l’azione | `read_file(path)` |\n| Risultato | rendere verificabile l’azione | file trovato, 84 righe |\n| Stato | indicare come è finito il turno | completato o interrotto |\n\nUn risultato tecnico potrebbe essere rappresentato così:\n\n```json\n{\n  \"status\": \"completed\",\n  \"tool\": \"read_file\",\n  \"duration_ms\": 184,\n  \"items\": 3\n}\n```\n\n> La trasparenza non significa mostrare ogni dettaglio interno: significa lasciare abbastanza tracce perché l’utente possa capire e verificare il lavoro." },
+      { id: "tool-assistant", role: "assistant", workedFor: 6.42, content: "## Un turno osservabile\n\nUn turno dell’agente dovrebbe rendere comprensibile sia **che cosa sta facendo** sia **che cosa ha ottenuto**. Mostrerei questi elementi nell’ordine in cui accadono:\n\n1. messaggio dell’utente;\n2. reasoning o piano sintetico;\n3. attività dei tool;\n4. risultato del tool;\n5. risposta finale;\n6. errori e metriche del turno.\n\n| Elemento | Serve a | Esempio |\n| --- | --- | --- |\n| Reasoning | spiegare il prossimo passo | “Cerco il file di configurazione” |\n| Tool call | mostrare l’azione | `read_file(path)` |\n| Risultato | rendere verificabile l’azione | file trovato, 84 righe |\n| Stato | indicare come è finito il turno | completato o interrotto |\n\nUn risultato tecnico potrebbe essere rappresentato così:\n\n```json\n{\n  \"status\": \"completed\",\n  \"tool\": \"read_file\",\n  \"duration_ms\": 184,\n  \"items\": 3\n}\n```\n\n> La trasparenza non significa mostrare ogni dettaglio interno: significa lasciare abbastanza tracce perché l’utente possa capire e verificare il lavoro." },
       { id: "tool-user-interrupted", role: "user", content: "E se interrompessi la risposta a metà?" },
-      { id: "tool-assistant-interrupted", role: "assistant", status: "interrupted", content: "Mostrerei il testo già generato e chiuderei il turno con uno stato esplicito, così è chiaro che la risposta non è completa." },
+      { id: "tool-assistant-interrupted", role: "assistant", status: "interrupted", workedFor: 1.83, content: "Mostrerei il testo già generato e chiuderei il turno con uno stato esplicito, così è chiaro che la risposta non è completa." },
     ],
   },
 ];
+
+export const initialFakeChats: FakeChat[] = initialFakeChatFixtures.map(addFixtureWorkedFor);
+
+function addFixtureWorkedFor(chat: FakeChat): FakeChat {
+  return {
+    ...chat,
+    messages: chat.messages.map((message) => {
+      if (message.role !== "assistant" || message.kind === "compaction" || message.workedFor !== undefined) return message;
+      return { ...message, workedFor: estimateFakeWorkedFor(message.content) };
+    }),
+  };
+}
+
+function estimateFakeWorkedFor(content: string) {
+  const seconds = 0.84 + content.trim().length / 240;
+  return Number(Math.min(12.8, seconds).toFixed(2));
+}
 
 export function createNewFakeChat(workspaceID?: string, title = "New chat", createdAt = Date.now()): FakeChat {
   return {
@@ -129,6 +147,7 @@ export function fakeAssistantReply(text: string): FakeChatMessage {
     createdAt: Date.now(),
     id: `assistant-${Date.now()}`,
     role: "assistant",
+    workedFor: estimateFakeWorkedFor(text),
     content: `## Risposta di test\n\nHo ricevuto la richiesta e l’ho aggiunta al turno simulato. Per rendere visibile il comportamento del transcript, qui sotto mostro sia l’interpretazione sia l’output prodotto.\n\n### Richiesta originale\n\n${quotedText}\n\n### Interpretazione\n\n- il messaggio è stato ricevuto correttamente;\n- il contenuto resta disponibile nel contesto del turno;\n- la risposta seguente è solo un esempio, non un risultato del runtime reale.\n\n### Output simulato\n\n~~~text\nparse request\ncreate assistant turn\nrender markdown\n~~~\n\n**Stato:** risposta simulata\n\n> Il collegamento al runtime Solomon arriverà nel prossimo passaggio.\n\nSe vuoi, puoi inviare un altro messaggio usando \`**grassetto**\`, una lista o un blocco di codice per verificare il rendering in tempo reale.`,
   };
 }
