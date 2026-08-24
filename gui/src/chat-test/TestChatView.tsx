@@ -425,7 +425,11 @@ function ToolActivity({ checkpoint, toolCalls }: { checkpoint?: CheckpointMetada
 
 function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; tool: FakeChatToolCall }) {
   const status = tool.status ?? tool.result?.status ?? "running";
-  const isShell = tool.name === "shell";
+  const isFind = tool.name === "find";
+  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind;
+  const findParameters = isFind
+    ? tool.parameters ?? (tool.input ? [{ label: "pattern", value: tool.input }] : [])
+    : [];
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -443,23 +447,35 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
         <div className="test-chat-tool-body">
           <div className="test-chat-tool-execution">
             <div className="test-chat-tool-name-row">
-              {isShell ? (
+              {isInlineTool ? (
                 <>
                   <strong className="test-chat-tool-name test-chat-tool-label">Tool:</strong>
                   <strong className="test-chat-tool-name">{tool.name}</strong>
-                  {tool.input ? <span className="test-chat-tool-command">{tool.input}</span> : null}
+                  {isFind ? <span className="test-chat-tool-command">{tool.mode ?? "text"}</span> : tool.input ? <span className="test-chat-tool-command">{tool.input}</span> : null}
                 </>
               ) : (
                 <strong className="test-chat-tool-name">{tool.name}</strong>
               )}
             </div>
-            {tool.input && !isShell ? (
+            {tool.input && !isInlineTool ? (
               <div className="test-chat-tool-input">
                 <span aria-hidden="true" className="test-chat-tool-prompt">$</span>
                 <pre><code>{tool.input}</code></pre>
               </div>
             ) : null}
-            {tool.result ? <ToolResultCard result={tool.result} /> : <div aria-label="Tool running" className="test-chat-tool-running"><span aria-hidden="true" /></div>}
+            {isFind && findParameters.length ? (
+              <div className="test-chat-tool-parameters">
+                {findParameters.map((parameter) => (
+                  <div className="test-chat-tool-parameter" key={`${parameter.label}-${parameter.value}`}>
+                    <span className="test-chat-tool-parameter-label">{parameter.label}:</span>
+                    <span className="test-chat-tool-parameter-value"> {parameter.value}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {tool.result ? (
+              tool.name === "readFile" ? null : <ToolResultCard result={tool.result} toolName={tool.name} />
+            ) : <div aria-label="Tool running" className="test-chat-tool-running"><span aria-hidden="true" /></div>}
           </div>
         </div>
       </details>
@@ -477,7 +493,11 @@ function resolveToolCheckpoint(tool: FakeChatToolCall, parentCheckpoint: Checkpo
   return { branch, label: formatCheckpointLabel(sequence, branch), sequence };
 }
 
-function ToolResultCard({ result }: { result: FakeChatToolResult }) {
+function ToolResultCard({ result, toolName }: { result: FakeChatToolResult; toolName: string }) {
+  return toolName === "find" ? <FindToolResultCard result={result} /> : <GenericToolResultCard result={result} />;
+}
+
+function GenericToolResultCard({ result }: { result: FakeChatToolResult }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const output = (result.output ?? "").replace(/\r\n?/g, "\n");
   const firstLine = output.split("\n")[0] || "—";
@@ -496,6 +516,37 @@ function ToolResultCard({ result }: { result: FakeChatToolResult }) {
           <span aria-hidden="true" className="test-chat-tool-result-ellipsis">...</span>
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function FindToolResultCard({ result }: { result: FakeChatToolResult }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const outputItems = (result.output ?? "").replace(/\r\n?/g, "\n").split("\n").filter(Boolean);
+  const items = result.items?.length ? result.items : outputItems;
+  const count = typeof result.count === "number" ? result.count : items.length;
+
+  if (!isExpanded) {
+    return (
+      <div className={`test-chat-tool-result is-${result.status}`}>
+        <button aria-expanded={false} aria-label="Show find results" className="test-chat-tool-result-toggle" onClick={() => setIsExpanded(true)} type="button">
+          <span className="test-chat-tool-result-prefix">Result:</span>
+          <span className="test-chat-tool-result-text">{count} {count === 1 ? "match" : "matches"}</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`test-chat-tool-result test-chat-tool-result-list is-${result.status} is-expanded`}>
+      <div className="test-chat-tool-result-list-label">Result:</div>
+      <div className="test-chat-tool-result-items">
+        {items.map((item) => (
+          <button aria-label="Collapse find results" className="test-chat-tool-result-item" key={item} onClick={() => setIsExpanded(false)} type="button">
+            {item}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

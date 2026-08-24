@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -323,6 +324,41 @@ func TestFormatToolResultDisplayLines_readFileOmitsContent(t *testing.T) {
 	}
 	if !strings.Contains(lines[0], "TODO.md") || !strings.Contains(lines[0], "141") {
 		t.Fatalf("want path and line count: %q", lines[0])
+	}
+}
+
+func TestFormatToolResultDisplayLines_findUsesCount(t *testing.T) {
+	payload := `{"files":true,"pattern":"*.go","matches":["a.go","b.go"],"count":2}`
+	lines := tooling.FormatToolResultDisplayLines("find", payload)
+	if len(lines) != 1 {
+		t.Fatalf("lines: %v", lines)
+	}
+	plain := termcolor.Plain(lines[0])
+	if plain != "Tool: find → 2 matches" {
+		t.Fatalf("want count in find result, got %q", plain)
+	}
+}
+
+func TestFormatToolDisplayLines_findPutsParametersBelowMode(t *testing.T) {
+	args, _ := json.Marshal(map[string]any{
+		"pattern":  "tool card",
+		"files":    false,
+		"path":     "gui/src/chat-test",
+		"pathGlob": "**/*.tsx",
+	})
+	lines := tooling.FormatToolDisplayLines("find", args)
+	plain := make([]string, len(lines))
+	for i, line := range lines {
+		plain[i] = termcolor.Plain(line)
+	}
+	want := []string{
+		"Tool: find text",
+		"      pattern: tool card",
+		"      path: gui/src/chat-test",
+		"      pathGlob: **/*.tsx",
+	}
+	if !reflect.DeepEqual(plain, want) {
+		t.Fatalf("find display lines = %#v, want %#v", plain, want)
 	}
 }
 
