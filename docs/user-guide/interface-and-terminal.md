@@ -22,7 +22,7 @@ Solomon espone alcune funzioni nella GUI e altre nel terminale. Questa pagina in
 | Cambiare reasoning | GUI | Condivisa | Controllo reasoning nella Home; `/reasoning` |
 | Attivare fast mode | Prevista | Terminale | `/fast` |
 | Cambiare lingua delle risposte | Prevista | Terminale | `/language` |
-| Mostrare reasoning e statistiche | Prevista | Terminale | `/thinking`, `/stats` |
+| Mostrare reasoning e statistiche | GUI (test chat) | Terminale | Transcript della test chat; `/thinking`, `/stats` |
 | Esplorare file del progetto | GUI | Condivisa | File explorer; `find`, `readFile`, `shell` |
 | Cambiare branch o worktree | GUI | Condivisa | Controlli della Home; comandi `git` nel terminale |
 | Aprire un terminale del progetto | GUI | Terminale | Terminal panel; shell locale |
@@ -46,6 +46,22 @@ La GUI è pensata per le operazioni visuali e contestuali:
 - impostazioni che non richiedono di conoscere TOML, percorsi locali o comandi.
 
 La sezione Docs carica i file Markdown inclusi nella cartella `docs/` e li rende navigabili e leggibili senza uscire dall'applicazione.
+
+## Transcript osservabile nella GUI di test
+
+Le test chat della GUI includono una superficie di transcript pensata per verificare la resa visuale dei turni osservabili. Le fixture si trovano in [`gui/src/chat-test/fakeChats.ts`](../../gui/src/chat-test/fakeChats.ts), mentre il renderer è in [`gui/src/chat-test/TestChatView.tsx`](../../gui/src/chat-test/TestChatView.tsx).
+
+La superficie mostra:
+
+- reasoning collassabile, con il relativo `thought for`;
+- statistiche del turno dell'assistente nel popup informativo;
+- tool call con stato, icona, intent, comando e risultato;
+- un checkpoint dedicato a ogni tool call, oltre ai checkpoint dei messaggi;
+- anteprima della prima riga del risultato, con `...` cliccabile per espandere l'output completo;
+- catena di tool call inizialmente contratta per singola card;
+- controllo `Collapse tool calls` che sostituisce la catena con una sola cella `Show N tool calls`, mantenendo il punto di riapertura visibile.
+
+Le etichette e i controlli dell'interfaccia sono in inglese anche quando il contenuto della chat è in italiano. Queste test chat sono fixture frontend: documentano e verificano il transcript della GUI, ma non rappresentano una persistenza o un collegamento runtime aggiuntivo.
 
 ## Terminale
 

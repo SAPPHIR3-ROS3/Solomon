@@ -3,7 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
 import asciiColors from "../../../internal/logo/colors.txt?raw";
-import type { FakeChat, FakeChatImage, FakeChatMessage } from "./fakeChats";
+import type { FakeChat, FakeChatImage, FakeChatMessage, FakeChatStats, FakeChatToolCall, FakeChatToolResult } from "./fakeChats";
 import { AtMentionInput, type ComposerImageAttachment } from "../home/AtMentionInput";
 import { testChatAtMentionEntries } from "../shell/RightSidePanel";
 import "./test-chat.css";
@@ -92,7 +92,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
                 onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined}
               />
             )
-          )) : <p className="test-chat-empty">Questa chat è pronta per il primo messaggio.</p>}
+          )) : <p className="test-chat-empty">This chat is ready for the first message.</p>}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -112,7 +112,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
         <form className="test-chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
           <div className="welcome-composer">
           <AtMentionInput
-            aria-label="Messaggio di test"
+            aria-label="Test message"
             className="welcome-input"
             entries={testChatAtMentionEntries}
             images={images}
@@ -143,7 +143,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
           </div>
           </div>
         </form>
-        <div aria-label="Contesto Git in sola lettura" className="welcome-git-controls">
+        <div aria-label="Read-only Git context" className="welcome-git-controls">
           {workspaceName ? <span className="test-chat-readonly-control is-workspace" title={workspacePath}><FolderIcon />{workspaceName}</span> : null}
           <span className="test-chat-readonly-control"><BranchIcon />main</span>
           <span className="test-chat-readonly-control"><WorktreeIcon />{chat.worktree ?? "Worktree"}</span>
@@ -166,11 +166,11 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
             role="dialog"
           >
             <div aria-hidden="true" className="test-chat-delete-dialog-marker"><CloseIcon /></div>
-            <p className="test-chat-delete-dialog-eyebrow">Conferma eliminazione</p>
-            <h2 id="test-chat-delete-dialog-title">Eliminare questo messaggio?</h2>
-            <p id="test-chat-delete-dialog-description">Verrà eliminata anche la risposta dell’assistente. Questa azione non può essere annullata.</p>
+            <p className="test-chat-delete-dialog-eyebrow">Delete confirmation</p>
+            <h2 id="test-chat-delete-dialog-title">Delete this message?</h2>
+            <p id="test-chat-delete-dialog-description">The assistant's reply will also be deleted. This action cannot be undone.</p>
             <div className="test-chat-delete-dialog-actions">
-              <button ref={deleteCancelRef} onClick={() => setDeleteTarget(null)} type="button">Annulla</button>
+              <button ref={deleteCancelRef} onClick={() => setDeleteTarget(null)} type="button">Cancel</button>
               <button
                 className="is-danger"
                 onClick={() => {
@@ -179,7 +179,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
                 }}
                 type="button"
               >
-                Elimina messaggio
+                Delete message
               </button>
             </div>
           </section>
@@ -261,7 +261,7 @@ function ChatImageAttachments({ images }: { images: FakeChatImage[] }) {
 
   return (
     <>
-      <div aria-label="Immagini allegate" className="composer-image-previews test-chat-message-images">
+      <div aria-label="Attached images" className="composer-image-previews test-chat-message-images">
         {images.map((image, index) => (
           <figure
             className="composer-image-preview"
@@ -276,21 +276,21 @@ function ChatImageAttachments({ images }: { images: FakeChatImage[] }) {
             role="button"
             tabIndex={0}
           >
-            <img alt={`Apri anteprima di ${image.name}`} src={image.url} />
+            <img alt={`Open preview of ${image.name}`} src={image.url} />
           </figure>
         ))}
       </div>
       {selectedImage ? (
         <div
-          aria-label={`Anteprima immagine: ${selectedImage.name}`}
+          aria-label={`Image preview: ${selectedImage.name}`}
           aria-modal="true"
           className="composer-image-lightbox test-chat-message-lightbox"
           onClick={() => setSelectedImageIndex(null)}
           role="dialog"
         >
-          <button aria-label="Chiudi anteprima" className="test-chat-image-lightbox-close" onClick={() => setSelectedImageIndex(null)} type="button"><CloseIcon /></button>
+          <button aria-label="Close preview" className="test-chat-image-lightbox-close" onClick={() => setSelectedImageIndex(null)} type="button"><CloseIcon /></button>
           {images.length > 1 ? (
-            <button aria-label="Immagine precedente" className="composer-image-lightbox-nav is-previous" onClick={(event) => { event.stopPropagation(); moveSelectedImage(-1); }} type="button">
+            <button aria-label="Previous image" className="composer-image-lightbox-nav is-previous" onClick={(event) => { event.stopPropagation(); moveSelectedImage(-1); }} type="button">
               <ChatImageArrowIcon direction="left" />
             </button>
           ) : null}
@@ -298,7 +298,7 @@ function ChatImageAttachments({ images }: { images: FakeChatImage[] }) {
             <img alt={selectedImage.name} className="composer-image-lightbox-image" src={selectedImage.url} />
           </div>
           {images.length > 1 ? (
-            <button aria-label="Immagine successiva" className="composer-image-lightbox-nav is-next" onClick={(event) => { event.stopPropagation(); moveSelectedImage(1); }} type="button">
+            <button aria-label="Next image" className="composer-image-lightbox-nav is-next" onClick={(event) => { event.stopPropagation(); moveSelectedImage(1); }} type="button">
               <ChatImageArrowIcon direction="right" />
             </button>
           ) : null}
@@ -321,10 +321,10 @@ function CompactionCard({ message }: { message: FakeChatMessage }) {
   const retainedMessages = message.retainedMessages ?? [];
 
   return (
-    <section aria-label="Compattazione del contesto" className="test-chat-compaction" data-message-kind="compaction">
+    <section aria-label="Context compaction" className="test-chat-compaction" data-message-kind="compaction">
       <details>
         <summary className="test-chat-compaction-summary">
-          <span className="test-chat-compaction-title">Contesto compattato</span>
+          <span className="test-chat-compaction-title">Context compacted</span>
           <svg aria-hidden="true" className="test-chat-compaction-chevron" viewBox="0 0 24 24">
             <path d="m7 10 5 5 5-5" />
           </svg>
@@ -332,7 +332,7 @@ function CompactionCard({ message }: { message: FakeChatMessage }) {
         <div className="test-chat-compaction-body">
           <details className="test-chat-compaction-section" open>
             <summary className="test-chat-compaction-section-summary">
-              <span className="test-chat-compaction-eyebrow">Riassunto</span>
+              <span className="test-chat-compaction-eyebrow">Summary</span>
               <svg aria-hidden="true" className="test-chat-compaction-section-chevron" viewBox="0 0 24 24">
                 <path d="m7 10 5 5 5-5" />
               </svg>
@@ -345,7 +345,7 @@ function CompactionCard({ message }: { message: FakeChatMessage }) {
           </details>
           <details className="test-chat-compaction-section" open>
             <summary className="test-chat-compaction-section-summary">
-              <span className="test-chat-compaction-eyebrow">Ultimi messaggi</span>
+              <span className="test-chat-compaction-eyebrow">Recent messages</span>
               <svg aria-hidden="true" className="test-chat-compaction-section-chevron" viewBox="0 0 24 24">
                 <path d="m7 10 5 5 5-5" />
               </svg>
@@ -385,10 +385,117 @@ function ChatMessageTurn({ checkpoint, index, message, onRequestDelete }: { chec
         {checkpoint ? <CheckpointLabel label={checkpoint.label} /> : null}
         {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
         {canCollapseReasoning ? <ReasoningBlock isCollapsed={isReasoningCollapsed} message={message} onToggle={() => setIsReasoningCollapsed((current) => !current)} /> : null}
+        {message.toolCalls?.length ? <ToolActivity checkpoint={checkpoint} toolCalls={message.toolCalls} /> : null}
         <MarkdownContent content={message.content} />
       </article>
       {message.status === "interrupted" ? <InterruptedGenerationMarker /> : null}
       <MessageFooter index={index} message={message} onRequestDelete={onRequestDelete} />
+    </div>
+  );
+}
+
+function ToolActivity({ checkpoint, toolCalls }: { checkpoint?: CheckpointMetadata; toolCalls: FakeChatToolCall[] }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const activityRef = useRef<HTMLElement>(null);
+  const shouldAnchorOnCollapseRef = useRef(false);
+  const collapseLabel = isCollapsed ? `Show ${toolCalls.length} tool calls` : "Collapse tool calls";
+
+  useLayoutEffect(() => {
+    if (!isCollapsed || !shouldAnchorOnCollapseRef.current) return;
+    shouldAnchorOnCollapseRef.current = false;
+    activityRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [isCollapsed]);
+
+  function toggleCollapsed() {
+    if (!isCollapsed) shouldAnchorOnCollapseRef.current = true;
+    setIsCollapsed((current) => !current);
+  }
+
+  return (
+    <section aria-label="Tool activity" className={`test-chat-tool-activity${isCollapsed ? " is-collapsed" : ""}`} onClick={(event) => event.stopPropagation()} ref={activityRef}>
+      {!isCollapsed ? toolCalls.map((tool, index) => (
+        <ToolCallCard key={tool.id} checkpoint={resolveToolCheckpoint(tool, checkpoint, index)} tool={tool} />
+      )) : null}
+      <button aria-expanded={!isCollapsed} aria-label={collapseLabel} className="test-chat-tool-collapse-all" onClick={toggleCollapsed} type="button">
+        {collapseLabel}
+      </button>
+    </section>
+  );
+}
+
+function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; tool: FakeChatToolCall }) {
+  const status = tool.status ?? tool.result?.status ?? "running";
+  const isShell = tool.name === "shell";
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className={`test-chat-tool-card is-${status}`} data-checkpoint={checkpoint.label}>
+      <CheckpointLabel label={checkpoint.label} />
+      <details aria-busy={status === "running"} onToggle={(event) => setIsOpen(event.currentTarget.open)} open={isOpen}>
+        <summary className="test-chat-tool-summary">
+          <i aria-hidden="true" className="test-chat-tool-status-dot" />
+          <HammerIcon />
+          {tool.intent ? <span className="test-chat-tool-intent" title={tool.intent}>{tool.intent}</span> : null}
+          <svg aria-hidden="true" className="test-chat-tool-chevron" viewBox="0 0 24 24">
+            <path d="m7 10 5 5 5-5" />
+          </svg>
+        </summary>
+        <div className="test-chat-tool-body">
+          <div className="test-chat-tool-execution">
+            <div className="test-chat-tool-name-row">
+              {isShell ? (
+                <>
+                  <strong className="test-chat-tool-name test-chat-tool-label">Tool:</strong>
+                  <strong className="test-chat-tool-name">{tool.name}</strong>
+                  {tool.input ? <span className="test-chat-tool-command">{tool.input}</span> : null}
+                </>
+              ) : (
+                <strong className="test-chat-tool-name">{tool.name}</strong>
+              )}
+            </div>
+            {tool.input && !isShell ? (
+              <div className="test-chat-tool-input">
+                <span aria-hidden="true" className="test-chat-tool-prompt">$</span>
+                <pre><code>{tool.input}</code></pre>
+              </div>
+            ) : null}
+            {tool.result ? <ToolResultCard result={tool.result} /> : <div aria-label="Tool running" className="test-chat-tool-running"><span aria-hidden="true" /></div>}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function resolveToolCheckpoint(tool: FakeChatToolCall, parentCheckpoint: CheckpointMetadata | undefined, index: number): CheckpointMetadata {
+  const hasExplicitSequence = typeof tool.checkpointSeq === "number" && Number.isFinite(tool.checkpointSeq);
+  const sequence = hasExplicitSequence
+    ? Math.max(0, Math.floor(tool.checkpointSeq!))
+    : Math.max(0, (parentCheckpoint?.sequence ?? 0) + index + 1);
+  const branch = tool.checkpointBranch ?? parentCheckpoint?.branch ?? "";
+
+  return { branch, label: formatCheckpointLabel(sequence, branch), sequence };
+}
+
+function ToolResultCard({ result }: { result: FakeChatToolResult }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const output = (result.output ?? "").replace(/\r\n?/g, "\n");
+  const firstLine = output.split("\n")[0] || "—";
+  const hasHiddenOutput = result.truncated || output.includes("\n");
+  const displayedOutput = isExpanded ? output || "—" : firstLine;
+  const toggleLabel = isExpanded ? "Collapse result" : "Show full result";
+
+  return (
+    <div className={`test-chat-tool-result is-${result.status}${isExpanded ? " is-expanded" : ""}`}>
+      <button aria-expanded={isExpanded} aria-label={toggleLabel} className="test-chat-tool-result-toggle" onClick={() => setIsExpanded((current) => !current)} type="button">
+        <span className="test-chat-tool-result-prefix">Result:</span>
+        <span className="test-chat-tool-result-text">{displayedOutput}</span>
+      </button>
+      {hasHiddenOutput && !isExpanded ? (
+        <button aria-expanded={isExpanded} aria-label={toggleLabel} className="test-chat-tool-result-more" onClick={() => setIsExpanded((current) => !current)} type="button">
+          <span aria-hidden="true" className="test-chat-tool-result-ellipsis">...</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -413,6 +520,9 @@ function indexChatMessages(messages: FakeChatMessage[]): IndexedChatMessage[] {
 
     const sequence = hasExplicitSequence ? Math.max(0, Math.floor(message.checkpointSeq!)) : Math.max(0, fallbackSequence);
     const branch = message.checkpointBranch ?? fallbackBranch;
+    if (message.role === "assistant" && message.toolCalls?.length) {
+      fallbackSequence = Math.max(fallbackSequence, sequence + message.toolCalls.length);
+    }
     const label = formatCheckpointLabel(sequence, branch);
 
     return {
@@ -429,7 +539,29 @@ function formatCheckpointLabel(sequence: number, branch: string) {
 
 function MessageFooter({ index, message, onRequestDelete }: { index: number; message: FakeChatMessage; onRequestDelete?: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const statsRef = useRef<HTMLDivElement>(null);
   const createdAt = message.createdAt ?? FIXTURE_MESSAGE_START_TIME + index * 60_000;
+  const stats = message.role === "assistant" ? message.stats : undefined;
+
+  useEffect(() => {
+    if (!isStatsOpen) return;
+
+    const closeOnPointerDown = (event: PointerEvent) => {
+      if (statsRef.current && event.target instanceof Node && statsRef.current.contains(event.target)) return;
+      setIsStatsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsStatsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnPointerDown);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnPointerDown);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isStatsOpen]);
 
   async function copyMessage() {
     try {
@@ -451,22 +583,69 @@ function MessageFooter({ index, message, onRequestDelete }: { index: number; mes
   return (
     <footer className="test-chat-message-footer">
       <time dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>
+      {stats ? (
+        <div className="test-chat-stats-control" ref={statsRef}>
+          <button
+            aria-controls={`message-stats-${message.id}`}
+            aria-expanded={isStatsOpen}
+            aria-label={isStatsOpen ? "Hide turn statistics" : "Show turn statistics"}
+            className="test-chat-stats-trigger"
+            onClick={(event) => {
+              event.stopPropagation();
+              setIsStatsOpen((current) => !current);
+            }}
+            title={isStatsOpen ? "Hide turn statistics" : "Show turn statistics"}
+            type="button"
+          >
+            <InfoIcon />
+          </button>
+          {isStatsOpen ? <MessageStatsPopover id={`message-stats-${message.id}`} stats={stats} workedFor={message.workedFor} /> : null}
+        </div>
+      ) : null}
       <button
-        aria-label={copied ? "Messaggio copiato" : "Copia messaggio"}
+        aria-label={copied ? "Message copied" : "Copy message"}
         className="test-chat-copy-message"
         onClick={() => void copyMessage()}
-        title={copied ? "Messaggio copiato" : "Copia messaggio"}
+        title={copied ? "Message copied" : "Copy message"}
         type="button"
       >
         {copied ? <CheckIcon /> : <CopyIcon />}
       </button>
       {message.workedFor !== undefined ? <span className="test-chat-worked-for">worked for {formatWorkedDuration(message.workedFor)}</span> : null}
       {onRequestDelete ? (
-        <button aria-label="Elimina messaggio" className="test-chat-delete-message" onClick={onRequestDelete} title="Elimina messaggio" type="button">
+        <button aria-label="Delete message" className="test-chat-delete-message" onClick={onRequestDelete} title="Delete message" type="button">
           <CloseIcon />
         </button>
       ) : null}
     </footer>
+  );
+}
+
+function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: FakeChatStats; workedFor?: number }) {
+  const rows = [
+    ["context", formatStatsTokenCount(stats.contextTokens)],
+    ["user", formatStatsTokenCount(stats.userTokens)],
+    ["reasoning", formatStatsTokenCount(stats.reasoningTokens)],
+    ["response", formatStatsTokenCount(stats.responseTokens)],
+    ["total", formatStatsTokenCount(stats.totalTokens)],
+    ["t/s", `${formatStatsDecimal(stats.outputTokensPerSecond)} t/s`],
+    ["ttft", `${formatStatsDecimal(stats.ttftSeconds)}s`],
+    ["pp", `${formatStatsDecimal(stats.promptTokensPerSecond)} t/s`],
+    ["worked for", workedFor === undefined ? "—" : formatWorkedDuration(workedFor)],
+  ] as const;
+
+  return (
+    <div aria-label="Turn statistics" className="test-chat-stats-popover" id={id} role="dialog">
+      <div className="test-chat-stats-title">Turn statistics</div>
+      <dl>
+        {rows.map(([label, value]) => (
+          <div className={`test-chat-stats-row${label === "total" ? " is-total" : ""}`} key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -476,7 +655,7 @@ function ReasoningBlock({ isCollapsed, message, onToggle }: { isCollapsed: boole
   return (
     <div
       aria-expanded={!isCollapsed}
-      aria-label="Reasoning del modello"
+      aria-label="Model reasoning"
       className={`test-chat-reasoning${isCollapsed ? " is-collapsed" : ""}`}
       onClick={(event) => {
         event.stopPropagation();
@@ -490,7 +669,7 @@ function ReasoningBlock({ isCollapsed, message, onToggle }: { isCollapsed: boole
       }}
       role="button"
       tabIndex={0}
-      title="Clic per comprimere o espandere il ragionamento"
+      title="Click to collapse or expand reasoning"
     >
       {!isCollapsed && reasoning ? <div className="test-chat-reasoning-copy">{reasoning}</div> : null}
       {message.thoughtFor !== undefined ? <div className="test-chat-thought-for">thought for {formatWorkedDuration(message.thoughtFor)}</div> : null}
@@ -510,6 +689,16 @@ function formatWorkedDuration(seconds: number) {
   return `${hours ? `${hours}h` : ""}${minutes || hours ? `${minutes}m` : ""}${remainingSeconds}s`;
 }
 
+function formatStatsTokenCount(value: number) {
+  if (!Number.isFinite(value)) return "—";
+  return Math.max(0, Math.round(value)).toLocaleString("it-IT");
+}
+
+function formatStatsDecimal(value: number) {
+  if (!Number.isFinite(value)) return "—";
+  return value.toFixed(2).replace(/\.?(0+)$/, "");
+}
+
 function MarkdownContent({ content }: { content: string }) {
   return (
     <Markdown
@@ -517,7 +706,7 @@ function MarkdownContent({ content }: { content: string }) {
         a: ({ children, href, ...props }) => (
           <a {...props} className={`${props.className ?? ""}${isFileLink(href) ? " test-chat-file-link" : ""}`.trim()} href={href} rel="noreferrer" target="_blank">{children}</a>
         ),
-        input: (props) => <input {...props} aria-label="Attività completata" className="test-chat-checkbox" disabled />,
+        input: (props) => <input {...props} aria-label="Completed activity" className="test-chat-checkbox" disabled />,
         pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
         table: ({ children, ...props }) => (
           <div className="test-chat-table-wrap">
@@ -563,10 +752,10 @@ function CodeBlock({ children }: { children?: ReactNode }) {
       <div className="test-chat-code-toolbar">
         <div className="test-chat-code-language">{language ?? "Code"}</div>
         <button
-          aria-label={copied ? "Codice copiato" : "Copia codice"}
+          aria-label={copied ? "Code copied" : "Copy code"}
           className="test-chat-copy-code"
           onClick={() => void copyCode()}
-          title={copied ? "Codice copiato" : "Copia codice"}
+          title={copied ? "Code copied" : "Copy code"}
           type="button"
         >
           {copied ? <CheckIcon /> : <CopyIcon />}
@@ -696,7 +885,7 @@ export function TestChatTopbar({ breadcrumb, onOpenFolder, title }: { breadcrumb
 
   return (
     <div aria-label={`${folderName} / ${title}`} className="test-chat-topbar" ref={topbarRef}>
-      <button aria-label={`Torna alla nuova chat nella cartella ${folderName}`} className={`test-chat-topbar-context${showContext ? "" : " is-hidden"}`} onClick={onOpenFolder} ref={contextRef} type="button">
+      <button aria-label={`Back to new chat in ${folderName}`} className={`test-chat-topbar-context${showContext ? "" : " is-hidden"}`} onClick={onOpenFolder} ref={contextRef} type="button">
         <FolderIcon />
         <span className="test-chat-topbar-folder">{folderName}</span>
         <span aria-hidden="true" className="test-chat-topbar-slash">/</span>
@@ -753,6 +942,10 @@ function SendIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-3-6-7-1Z" /><path d="m12 13 3-3" /></svg>;
 }
 
+function InfoIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 10.5v5M12 7.5h.01" /></svg>;
+}
+
 function StopIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><rect height="9" rx="1.5" width="9" x="7.5" y="7.5" /></svg>;
 }
@@ -775,6 +968,16 @@ function CheckIcon() {
 
 function CloseIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>;
+}
+
+function HammerIcon() {
+  return (
+    <svg aria-hidden="true" className="test-chat-tool-hammer-icon" viewBox="0 0 80.4375 96.03515625">
+      <g fillRule="nonzero" transform="scale(1,-1) translate(0,-96.03515625)">
+        <path d="M 12.58984375,18.025390625 L 8.03515625,22.55859375 Q 6.251953125,24.36328125 6.3701171875,26.3291015625 Q 6.48828125,28.294921875 8.59375,30.12109375 L 38.84375,56.67578125 L 46.814453125,48.705078125 L 20.15234375,18.583984375 Q 18.3046875,16.5 16.349609375,16.3603515625 Q 14.39453125,16.220703125 12.58984375,18.025390625 Z M 61.703125,41.59375 L 59.640625,43.61328125 Q 58.78125,44.4296875 58.5986328125,45.095703125 Q 58.416015625,45.76171875 58.48046875,46.771484375 L 58.716796875,49.62890625 L 56.482421875,51.884765625 L 52.20703125,51.025390625 Q 50.896484375,50.767578125 50.0048828125,51.00390625 Q 49.11328125,51.240234375 48.296875,52.056640625 L 42.044921875,58.30859375 Q 40.94921875,59.42578125 40.6484375,60.6826171875 Q 40.34765625,61.939453125 41.013671875,63.59375 L 43.18359375,69.05078125 Q 40.1328125,70.984375 36.6201171875,71.0166015625 Q 33.107421875,71.048828125 29.08984375,69.953125 Q 28.359375,69.73828125 27.671875,69.953125 Q 26.984375,70.16796875 26.51171875,70.640625 Q 25.931640625,71.306640625 25.888671875,72.2841796875 Q 25.845703125,73.26171875 26.791015625,74.185546875 Q 29.111328125,76.505859375 32.0546875,77.81640625 Q 34.998046875,79.126953125 38.2314453125,79.470703125 Q 41.46484375,79.814453125 44.6982421875,79.234375 Q 47.931640625,78.654296875 50.853515625,77.2041015625 Q 53.775390625,75.75390625 56.07421875,73.4765625 L 61.810546875,67.783203125 Q 63.25,66.365234375 63.744140625,64.96875 Q 64.23828125,63.572265625 63.916015625,62.154296875 L 63.03515625,58.39453125 L 65.291015625,56.16015625 L 68.169921875,56.4609375 Q 68.814453125,56.50390625 69.2978515625,56.439453125 Q 69.78125,56.375 70.2431640625,56.1064453125 Q 70.705078125,55.837890625 71.263671875,55.279296875 L 73.34765625,53.216796875 Q 74.12109375,52.443359375 74.1533203125,51.5517578125 Q 74.185546875,50.66015625 73.43359375,49.88671875 L 65.033203125,41.529296875 Q 64.259765625,40.755859375 63.3896484375,40.7880859375 Q 62.51953125,40.8203125 61.703125,41.59375 Z" />
+      </g>
+    </svg>
+  );
 }
 
 function FolderIcon() {
