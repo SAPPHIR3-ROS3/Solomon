@@ -178,6 +178,10 @@
 .test-chat-tool-name { font: 650 12px/1.5 "Geist Mono", ui-monospace, monospace; letter-spacing: .01em; overflow-wrap: anywhere; white-space: pre-wrap; }
 .test-chat-tool-label { color: var(--color-text-muted); }
 .test-chat-tool-command { color: var(--color-text); flex: 1 1 auto; font: 400 12px/1.5 "Geist Mono", ui-monospace, monospace; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.test-chat-tool-parameters { color: color-mix(in srgb, var(--color-text) 86%, var(--color-text-muted)); display: flex; flex-direction: column; gap: 2px; padding: 0 11px 9px 55px; }
+.test-chat-tool-parameter { font: 400 12px/1.5 "Geist Mono", ui-monospace, monospace; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.test-chat-tool-parameter-label { color: var(--color-text-muted); }
+.test-chat-tool-parameter-value { color: var(--color-text); }
 .test-chat-tool-input { align-items: flex-start; background: transparent; display: flex; gap: 9px; margin: 0; min-width: 0; padding: 10px 11px; }
 .test-chat-tool-prompt { color: var(--color-accent); flex: 0 0 auto; font: 650 12px/1.5 "Geist Mono", ui-monospace, monospace; user-select: none; }
 .test-chat-tool-input pre { flex: 1 1 auto; margin: 0; max-height: 180px; min-width: 0; overflow: auto; }
@@ -192,6 +196,12 @@
 .test-chat-tool-result.is-error .test-chat-tool-result-text { color: color-mix(in srgb, #fff 82%, var(--color-danger)); }
 .test-chat-tool-result-more { color: var(--color-text-muted); margin-top: 0; }
 .test-chat-tool-result-ellipsis { color: inherit; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; }
+.test-chat-tool-result-list { align-items: flex-start; display: flex; gap: 8px; padding-top: 0; }
+.test-chat-tool-result-list-label { color: var(--color-text-muted); flex: 0 0 auto; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; }
+.test-chat-tool-result-items { display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; min-width: 0; }
+.test-chat-tool-result-item { appearance: none; background: transparent; border: 0; border-radius: 3px; color: color-mix(in srgb, var(--color-text) 82%, var(--color-text-muted)); cursor: pointer; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; margin: 0; min-width: 0; overflow-wrap: anywhere; padding: 0; text-align: left; white-space: pre-wrap; width: 100%; }
+.test-chat-tool-result-item:hover { color: var(--color-text); }
+.test-chat-tool-result-item:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
 .test-chat-tool-running { align-items: center; display: flex; min-height: 34px; padding: 0 11px 0 30px; }
 .test-chat-tool-running span { animation: test-chat-tool-pulse 1.15s ease-in-out infinite; background: var(--color-crown-gold); border-radius: 50%; height: 6px; width: 6px; }
 @keyframes test-chat-tool-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-crown-gold) 0%, transparent); opacity: .42; } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-crown-gold) 18%, transparent); opacity: 1; } }
@@ -223,7 +233,7 @@
 .test-chat-delete-message:hover { background: color-mix(in srgb, var(--color-danger) 18%, transparent); color: #e57373; }
 .test-chat-delete-message:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .test-chat-delete-message svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 16px; }
-.test-chat-message span:not(.test-chat-code-line):not(.test-chat-line-number):not(.test-chat-line-content):not(.test-chat-checkpoint-label):not(.test-chat-tool-intent):not(.test-chat-tool-prompt):not(.test-chat-tool-command):not(.test-chat-tool-result-prefix):not(.test-chat-tool-result-text):not(.test-chat-tool-result-ellipsis) { color: var(--color-text-muted); display: block; font: 600 10px/1 "Geist", sans-serif; margin-bottom: 6px; text-transform: uppercase; }
+.test-chat-message span:not(.test-chat-code-line):not(.test-chat-line-number):not(.test-chat-line-content):not(.test-chat-checkpoint-label):not(.test-chat-tool-intent):not(.test-chat-tool-prompt):not(.test-chat-tool-command):not(.test-chat-tool-parameter-label):not(.test-chat-tool-parameter-value):not(.test-chat-tool-result-prefix):not(.test-chat-tool-result-text):not(.test-chat-tool-result-ellipsis) { color: var(--color-text-muted); display: block; font: 600 10px/1 "Geist", sans-serif; margin-bottom: 6px; text-transform: uppercase; }
 .test-chat-message p { margin: 0; white-space: pre-wrap; }
 .test-chat-message ul, .test-chat-message ol { padding-left: 18px; }
 .test-chat-message ul.contains-task-list { list-style: none; padding-left: 0; }
