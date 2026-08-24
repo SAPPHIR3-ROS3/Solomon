@@ -15,9 +15,16 @@ export type FakeChatStats = {
 };
 
 export type FakeChatToolResult = {
+  count?: number;
+  items?: string[];
   output?: string;
   status: "error" | "success";
   truncated?: boolean;
+};
+
+export type FakeChatToolParameter = {
+  label: string;
+  value: string;
 };
 
 export type FakeChatToolCall = {
@@ -27,7 +34,9 @@ export type FakeChatToolCall = {
   id: string;
   input?: string;
   intent?: string;
+  mode?: "files" | "text";
   name: string;
+  parameters?: FakeChatToolParameter[];
   result?: FakeChatToolResult;
   status?: "error" | "running" | "success";
 };
@@ -92,8 +101,17 @@ const allAvailableFakeToolCalls = ([
     id: "tool-find-view",
     input: "tool card intent",
     intent: "Cerco i riferimenti alle tool card nel progetto.",
+    mode: "text",
     name: "find",
-    result: { output: "gui/src/chat-test/TestChatView.tsx: tool intent\ngui/src/chat-test/test-chat.css: tool card", status: "success" },
+    parameters: [
+      { label: "pattern", value: "tool card intent" },
+      { label: "path", value: "gui/src/chat-test" },
+    ],
+    result: {
+      count: 2,
+      items: ["gui/src/chat-test/TestChatView.tsx: tool intent", "gui/src/chat-test/test-chat.css: tool card"],
+      status: "success",
+    },
     status: "success",
   },
   {

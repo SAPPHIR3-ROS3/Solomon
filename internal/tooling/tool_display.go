@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
@@ -85,16 +86,46 @@ func ExtractToolIntent(rawArgs json.RawMessage) string {
 }
 
 func formatFindToolDisplayLines(m map[string]json.RawMessage) []string {
-	body := jsonDisplayString(m["pattern"])
+	mode := "text"
 	if jsonDisplayBool(m["files"]) {
-		body = "files • " + body
-	} else {
-		body = "text • " + body
+		mode = "files"
 	}
+	lines := []string{termcolor.ToolHeaderLine("find", mode)}
+	appendFindToolParameter(&lines, "pattern", jsonDisplayString(m["pattern"]))
 	if p := jsonDisplayString(m["path"]); p != "" && p != "." {
-		body += " • " + p
+		appendFindToolParameter(&lines, "path", p)
 	}
-	return []string{termcolor.ToolHeaderLine("find", body)}
+	appendFindToolParameter(&lines, "pathGlob", jsonDisplayString(m["pathGlob"]))
+	appendFindToolParameter(&lines, "outputMode", jsonDisplayString(m["outputMode"]))
+	if jsonDisplayBool(m["caseInsensitive"]) {
+		appendFindToolParameter(&lines, "caseInsensitive", "true")
+	}
+	if n := jsonDisplayIntPtr(m["contextBefore"]); n != nil {
+		appendFindToolParameter(&lines, "contextBefore", strconv.Itoa(*n))
+	}
+	if n := jsonDisplayIntPtr(m["contextAfter"]); n != nil {
+		appendFindToolParameter(&lines, "contextAfter", strconv.Itoa(*n))
+	}
+	if n := jsonDisplayIntPtr(m["context"]); n != nil {
+		appendFindToolParameter(&lines, "context", strconv.Itoa(*n))
+	}
+	if n := jsonDisplayIntPtr(m["headLimit"]); n != nil {
+		appendFindToolParameter(&lines, "headLimit", strconv.Itoa(*n))
+	}
+	if jsonDisplayBool(m["multiline"]) {
+		appendFindToolParameter(&lines, "multiline", "true")
+	}
+	if n := jsonDisplayIntPtr(m["timeoutSeconds"]); n != nil {
+		appendFindToolParameter(&lines, "timeoutSeconds", strconv.Itoa(*n))
+	}
+	return lines
+}
+
+func appendFindToolParameter(lines *[]string, label, value string) {
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+	*lines = append(*lines, termcolor.WrapTool("      "+label+": "+value))
 }
 
 func jsonDisplayBool(raw json.RawMessage) bool {
@@ -403,7 +434,7 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 		}
 		return formatGenericToolResultBody(m)
 	case "find":
-		if n, ok := jsonDisplayInt(m["matches"]); ok {
+		if n, ok := jsonDisplayInt(m["count"]); ok {
 			return fmt.Sprintf("→ %d matches", n)
 		}
 		return "→ done"
