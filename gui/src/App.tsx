@@ -14,7 +14,7 @@ import { NewProjectDialog } from "./projects/NewProjectDialog";
 import { SettingsPage } from "./settings/SettingsPage";
 import { type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
-import { fakeAssistantReply, type FakeChatMessage } from "./chat-test/fakeChats";
+import { estimateFakeStats, fakeAssistantReply, type FakeChatMessage } from "./chat-test/fakeChats";
 import { createTemporaryWorkspaceChat, createTestChat, getTestChat, updateTestChat, useTestChatStore } from "./chat-test/testChatStore";
 import { TestChatTopbar, TestChatView } from "./chat-test/TestChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
@@ -355,7 +355,9 @@ export function App() {
       updateTestChat(chatID, (current) => ({
         ...current,
         messages: current.messages.map((message) => (
-          message.id === assistantID ? { ...message, workedFor: (Date.now() - startedAt) / 1000 } : message
+          message.id === assistantID
+            ? { ...message, stats: estimateFakeStats(message.content), workedFor: (Date.now() - startedAt) / 1000 }
+            : message
         )),
       }));
 

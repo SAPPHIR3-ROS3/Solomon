@@ -3,6 +3,35 @@ export type FakeChatImage = {
   url: string;
 };
 
+export type FakeChatStats = {
+  contextTokens: number;
+  outputTokensPerSecond: number;
+  promptTokensPerSecond: number;
+  reasoningTokens: number;
+  responseTokens: number;
+  totalTokens: number;
+  ttftSeconds: number;
+  userTokens: number;
+};
+
+export type FakeChatToolResult = {
+  output?: string;
+  status: "error" | "success";
+  truncated?: boolean;
+};
+
+export type FakeChatToolCall = {
+  checkpointBranch?: string;
+  checkpointSeq?: number;
+  defaultOpen?: boolean;
+  id: string;
+  input?: string;
+  intent?: string;
+  name: string;
+  result?: FakeChatToolResult;
+  status?: "error" | "running" | "success";
+};
+
 export type FakeRetainedMessage = {
   content: string;
   images?: FakeChatImage[];
@@ -18,8 +47,10 @@ export type FakeChatMessage = {
   kind?: "compaction";
   role: "assistant" | "user";
   reasoning?: string;
+  stats?: FakeChatStats;
   status?: "interrupted";
   thoughtFor?: number;
+  toolCalls?: FakeChatToolCall[];
   workedFor?: number;
   content: string;
   retainedMessages?: FakeRetainedMessage[];
@@ -35,6 +66,245 @@ export type FakeChat = {
   workspaceID?: string;
   worktree?: string;
 };
+
+// Mirrors Solomon's built-in tool registry for the test transcript. The
+// orchestration runner is intentionally omitted from this showcase.
+const allAvailableFakeToolCalls = ([
+  {
+    id: "tool-shell-check",
+    input: "go test ./gui/...",
+    intent: "Verifico il renderer della chat prima di mostrare un turno osservabile.",
+    name: "shell",
+    result: { output: "?    solomon/gui    [no test files]\n✓ build completed", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-read-view",
+    input: "gui/src/chat-test/TestChatView.tsx",
+    intent: "Leggo il transcript per collegare attività, risultato e risposta.",
+    name: "readFile",
+    result: { output: "function ChatMessageTurn(...) {\n  // render reasoning, tools and response\n}", status: "success", truncated: true },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-find-view",
+    input: "tool card intent",
+    intent: "Cerco i riferimenti alle tool card nel progetto.",
+    name: "find",
+    result: { output: "gui/src/chat-test/TestChatView.tsx: tool intent\ngui/src/chat-test/test-chat.css: tool card", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-list-dir",
+    input: "gui/src/chat-test",
+    intent: "Elenco i file della chat di test.",
+    name: "listDir",
+    result: { output: "TestChatView.tsx\nfakeChats.ts\ntest-chat.css", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-tree",
+    input: "gui/src/chat-test",
+    intent: "Controllo la struttura della chat di test.",
+    name: "tree",
+    result: { output: "chat-test/\n├── TestChatView.tsx\n├── fakeChats.ts\n└── test-chat.css", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-edit-view",
+    input: "gui/src/chat-test/TestChatView.tsx",
+    intent: "Aggiorno il renderer della tool card.",
+    name: "editFile",
+    result: { output: "edit applied", status: "success" },
+    status: "success",
+  },
+  {
+    id: "tool-search-tools",
+    input: "workspace file tools",
+    intent: "Cerco nel catalogo gli strumenti disponibili per il workspace.",
+    name: "searchTools",
+    result: { output: "shell · readFile · editFile · find", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-search-skill",
+    input: "frontend design",
+    intent: "Cerco una skill adatta alla modifica dell’interfaccia.",
+    name: "searchSkill",
+    result: { output: "frontend-design", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-load-skill",
+    input: "frontend-design",
+    intent: "Carico le istruzioni della skill selezionata.",
+    name: "loadSkill",
+    result: { output: "# Frontend Design\nDesign guidance loaded", status: "success", truncated: true },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-subagent",
+    input: "review the chat transcript renderer",
+    intent: "Delego una revisione mirata del renderer.",
+    name: "subagent",
+    result: { output: "review completed", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-switch-mode",
+    input: "agent",
+    intent: "Passo alla modalità agente per eseguire modifiche.",
+    name: "switchMode",
+    result: { output: "mode: agent", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-list-sub-agents",
+    input: "configured roles",
+    intent: "Controllo gli agenti secondari configurati.",
+    name: "listSubAgents",
+    result: { output: "no active subagents", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-docs-retrieval",
+    input: "chat transcript tool calls",
+    intent: "Cerco nella documentazione la convenzione del transcript.",
+    name: "docsRetrieval",
+    result: { output: "2 documentation snippets found", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-create-plan",
+    input: "chat-tools: inventory the available tools",
+    intent: "Creo un piano per censire gli strumenti della chat.",
+    name: "createPlan",
+    result: { output: "plan created: chat-tools", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-edit-plan",
+    input: "chat-tools: add tool inventory",
+    intent: "Aggiorno il piano con l’inventario dei tool.",
+    name: "editPlan",
+    result: { output: "plan updated", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-build-plan",
+    input: "chat-tools",
+    intent: "Preparo il brief di implementazione dal piano.",
+    name: "buildPlan",
+    result: { output: "implementation brief ready", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-add-todo",
+    input: "Validate the complete tool inventory",
+    intent: "Aggiungo il controllo dell’inventario al piano.",
+    name: "addTodo",
+    result: { output: "todo added", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-todo-list",
+    input: "chat-tools",
+    intent: "Controllo le attività ancora aperte.",
+    name: "todoList",
+    result: { output: "[ ] Validate the complete tool inventory", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-check-todo",
+    input: "sha1:abc123",
+    intent: "Segno come completata l’attività verificata.",
+    name: "checkTodo",
+    result: { output: "todo checked", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-remove-todo",
+    input: "sha1:abc123",
+    intent: "Rimuovo l’attività già completata dal piano.",
+    name: "removeTodo",
+    result: { output: "todo removed", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-check-plan",
+    input: "chat-tools",
+    intent: "Controllo lo stato del piano prima di procedere.",
+    name: "checkPlan",
+    result: { output: "status: implementing", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-delete-plan",
+    input: "chat-tools",
+    intent: "Rimuovo il piano temporaneo non più necessario.",
+    name: "deletePlan",
+    result: { output: "plan deleted", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-fetch-web",
+    input: "https://example.com/solomon-guide",
+    intent: "Recupero il contenuto della guida indicata.",
+    name: "fetchWeb",
+    result: { output: "# Solomon guide\nTool transcript reference", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-web-search",
+    input: "tool card result UI",
+    intent: "Cerco un esempio lasciando visibile la ricerca in corso.",
+    name: "webSearch",
+    status: "running",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-deep-research",
+    input: "tool call UI patterns",
+    intent: "Avvio una ricerca approfondita sui pattern di tool call.",
+    name: "deepResearch",
+    result: { output: "jobId: research-001", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-research-status",
+    input: "research-001",
+    intent: "Controllo lo stato della ricerca avviata.",
+    name: "researchStatus",
+    result: { output: "status: completed", status: "success" },
+    status: "success",
+  },
+] satisfies FakeChatToolCall[]).map((tool, index) => ({
+  ...tool,
+  checkpointSeq: index + 2,
+}));
 
 // Deliberately UI-only fixtures. They are never written to ~/.solomon and let
 // us iterate on the conversation surface before wiring the worker/API.
@@ -95,12 +365,21 @@ const initialFakeChatFixtures: FakeChat[] = [
   },
   {
     id: "test-tool-result",
-    title: "Tool e risultati",
+    title: "Tool disponibili",
     messages: [
-      { id: "tool-user", role: "user", content: "Quali elementi deve mostrare un turno dell’agente?" },
-      { id: "tool-assistant", role: "assistant", reasoning: "Prima chiarirei il risultato atteso del turno, poi sceglierei il passaggio minimo necessario per verificarlo. Il ragionamento resta separato dall’output così il percorso è leggibile senza confondersi con la risposta finale.", thoughtFor: 2.18, workedFor: 6.42, content: "## Un turno osservabile\n\nUn turno dell’agente dovrebbe rendere comprensibile sia **che cosa sta facendo** sia **che cosa ha ottenuto**. Mostrerei questi elementi nell’ordine in cui accadono:\n\n1. messaggio dell’utente;\n2. reasoning o piano sintetico;\n3. attività dei tool;\n4. risultato del tool;\n5. risposta finale;\n6. errori e metriche del turno.\n\n| Elemento | Serve a | Esempio |\n| --- | --- | --- |\n| Reasoning | spiegare il prossimo passo | “Cerco il file di configurazione” |\n| Tool call | mostrare l’azione | `read_file(path)` |\n| Risultato | rendere verificabile l’azione | file trovato, 84 righe |\n| Stato | indicare come è finito il turno | completato o interrotto |\n\nUn risultato tecnico potrebbe essere rappresentato così:\n\n```json\n{\n  \"status\": \"completed\",\n  \"tool\": \"read_file\",\n  \"duration_ms\": 184,\n  \"items\": 3\n}\n```\n\n> La trasparenza non significa mostrare ogni dettaglio interno: significa lasciare abbastanza tracce perché l’utente possa capire e verificare il lavoro." },
-      { id: "tool-user-interrupted", role: "user", content: "E se interrompessi la risposta a metà?" },
-      { id: "tool-assistant-interrupted", role: "assistant", status: "interrupted", workedFor: 1.83, content: "Mostrerei il testo già generato e chiuderei il turno con uno stato esplicito, così è chiaro che la risposta non è completa." },
+      { checkpointSeq: 0, id: "tool-user", role: "user", content: "Quali elementi deve mostrare un turno dell’agente?" },
+      {
+        checkpointSeq: 1,
+        id: "tool-assistant",
+        role: "assistant",
+        reasoning: "Prima chiarirei il risultato atteso del turno, poi sceglierei il passaggio minimo necessario per verificarlo. Il ragionamento resta separato dall’output così il percorso è leggibile senza confondersi con la risposta finale.",
+        thoughtFor: 2.18,
+        workedFor: 6.42,
+        toolCalls: allAvailableFakeToolCalls,
+        content: "## Un turno osservabile\n\nUn turno dell’agente dovrebbe rendere comprensibile sia **che cosa sta facendo** sia **che cosa ha ottenuto**. Mostrerei questi elementi nell’ordine in cui accadono:\n\n1. messaggio dell’utente;\n2. reasoning o piano sintetico;\n3. attività dei tool;\n4. risultato del tool;\n5. risposta finale;\n6. errori e metriche del turno.\n\n| Elemento | Serve a | Esempio |\n| --- | --- | --- |\n| Reasoning | spiegare il prossimo passo | “Cerco il file di configurazione” |\n| Tool call | mostrare l’azione | `read_file(path)` |\n| Risultato | rendere verificabile l’azione | file trovato, 84 righe |\n| Stato | indicare come è finito il turno | completato o interrotto |\n\nUn risultato tecnico potrebbe essere rappresentato così:\n\n```json\n{\n  \"status\": \"completed\",\n  \"tool\": \"read_file\",\n  \"items\": 3\n}\n```\n\n> La trasparenza non significa mostrare ogni dettaglio interno: significa lasciare abbastanza tracce perché l’utente possa capire e verificare il lavoro."
+      },
+      { checkpointSeq: 28, id: "tool-user-interrupted", role: "user", content: "E se interrompessi la risposta a metà?" },
+      { checkpointSeq: 28, id: "tool-assistant-interrupted", role: "assistant", status: "interrupted", workedFor: 1.83, content: "Mostrerei il testo già generato e chiuderei il turno con uno stato esplicito, così è chiaro che la risposta non è completa." },
     ],
   },
 ];
@@ -115,6 +394,7 @@ function addFixtureWorkedFor(chat: FakeChat): FakeChat {
       return {
         ...message,
         reasoning: message.reasoning ?? estimateFakeReasoning(message.content),
+        stats: message.stats ?? estimateFakeStats(message.content),
         thoughtFor: message.thoughtFor ?? estimateFakeThoughtFor(message.content),
         workedFor: message.workedFor ?? estimateFakeWorkedFor(message.content),
       };
@@ -142,6 +422,27 @@ function estimateFakeWorkedFor(content: string) {
   return Number(Math.min(12.8, seconds).toFixed(2));
 }
 
+export function estimateFakeStats(content: string): FakeChatStats {
+  const responseTokens = Math.max(1, Math.ceil(content.trim().length / 4));
+  const reasoningTokens = Math.max(24, Math.round(responseTokens * 0.36));
+  const contextTokens = 640 + Math.min(3200, responseTokens * 2);
+  const userTokens = Math.max(8, Math.ceil(content.trim().length / 18));
+  const totalTokens = contextTokens + userTokens + reasoningTokens + responseTokens;
+  const workedFor = estimateFakeWorkedFor(content);
+  const promptDuration = Math.max(0.7, 0.48 + contextTokens / 1600);
+
+  return {
+    contextTokens,
+    outputTokensPerSecond: Number((responseTokens / Math.max(0.3, workedFor)).toFixed(1)),
+    promptTokensPerSecond: Number(((contextTokens + userTokens) / promptDuration).toFixed(1)),
+    reasoningTokens,
+    responseTokens,
+    totalTokens,
+    ttftSeconds: Number((0.42 + responseTokens / 1600).toFixed(2)),
+    userTokens,
+  };
+}
+
 export function createNewFakeChat(workspaceID?: string, title = "New chat", createdAt = Date.now()): FakeChat {
   return {
     createdAt,
@@ -164,14 +465,18 @@ export function newPlaceholderChatID(now = new Date()): string {
 }
 
 export function fakeAssistantReply(text: string): FakeChatMessage {
+  const createdAt = Date.now();
   const quotedText = text.trim().split(/\r?\n/).map((line) => `> ${line || " "}`).join("\n");
+  const content = `## Risposta di test\n\nHo ricevuto la richiesta e l’ho aggiunta al turno simulato. Per rendere visibile il comportamento del transcript, qui sotto mostro sia l’interpretazione sia l’output prodotto.\n\n### Richiesta originale\n\n${quotedText}\n\n### Interpretazione\n\n- il messaggio è stato ricevuto correttamente;\n- il contenuto resta disponibile nel contesto del turno;\n- la risposta seguente è solo un esempio, non un risultato del runtime reale.\n\n### Output simulato\n\n~~~text\nparse request\ncreate assistant turn\nrender markdown\n~~~\n\n**Stato:** risposta simulata\n\n> Il collegamento al runtime Solomon arriverà nel prossimo passaggio.\n\nSe vuoi, puoi inviare un altro messaggio usando \`**grassetto**\`, una lista o un blocco di codice per verificare il rendering in tempo reale.`;
+
   return {
-    createdAt: Date.now(),
-    id: `assistant-${Date.now()}`,
+    createdAt,
+    id: `assistant-${createdAt}`,
     role: "assistant",
     reasoning: "Raccolgo la richiesta, verifico il formato atteso e preparo una risposta di test separando il percorso dall’output.",
+    stats: estimateFakeStats(content),
     thoughtFor: 0.84,
     workedFor: estimateFakeWorkedFor(text),
-    content: `## Risposta di test\n\nHo ricevuto la richiesta e l’ho aggiunta al turno simulato. Per rendere visibile il comportamento del transcript, qui sotto mostro sia l’interpretazione sia l’output prodotto.\n\n### Richiesta originale\n\n${quotedText}\n\n### Interpretazione\n\n- il messaggio è stato ricevuto correttamente;\n- il contenuto resta disponibile nel contesto del turno;\n- la risposta seguente è solo un esempio, non un risultato del runtime reale.\n\n### Output simulato\n\n~~~text\nparse request\ncreate assistant turn\nrender markdown\n~~~\n\n**Stato:** risposta simulata\n\n> Il collegamento al runtime Solomon arriverà nel prossimo passaggio.\n\nSe vuoi, puoi inviare un altro messaggio usando \`**grassetto**\`, una lista o un blocco di codice per verificare il rendering in tempo reale.`,
+    content,
   };
 }
