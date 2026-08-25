@@ -11,9 +11,9 @@ import (
 )
 
 func signatureAddTodo(name, todo string) {}
-func signatureTodoList() {}
-func signatureCheckTodo(sha1 string) {}
-func signatureRemoveTodo(sha1 string) {}
+func signatureTodoList()                 {}
+func signatureCheckTodo(sha1 string)     {}
+func signatureRemoveTodo(sha1 string)    {}
 
 type addTodoArgs struct {
 	Name string `json:"name"`
@@ -140,7 +140,12 @@ func execTodoList(env *Env, raw json.RawMessage) (any, error) {
 	for _, it := range open {
 		out[it.SHA] = it.Text
 	}
-	return out, nil
+	return map[string]any{
+		"completed": len(sec.Todo.Checklist) - len(open),
+		"count":     len(open),
+		"total":     len(sec.Todo.Checklist),
+		"todos":     out,
+	}, nil
 }
 
 func execCheckTodo(env *Env, raw json.RawMessage) (any, error) {

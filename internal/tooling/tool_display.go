@@ -429,7 +429,7 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 		if body := formatPlanToolResultBody(toolName, m); body != "" {
 			return body
 		}
-		if toolName == "todoList" || toolName == "editPlan" {
+		if toolName == "editPlan" {
 			return ""
 		}
 		return formatGenericToolResultBody(m)
@@ -515,8 +515,6 @@ func toolResultDisplaySuppressed(toolName string, m map[string]json.RawMessage) 
 	switch toolName {
 	case "editFile", "editPlan", "addTodo", "checkTodo", "removeTodo", "createPlan", "buildPlan", "checkPlan", "deletePlan":
 		return hasOK && len(rawOK) > 0 && jsonDisplayBool(rawOK)
-	case "todoList":
-		return true
 	default:
 		return false
 	}
