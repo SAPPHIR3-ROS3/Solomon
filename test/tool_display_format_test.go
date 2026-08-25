@@ -297,11 +297,14 @@ func TestFormatToolResultDisplayLines_addTodoFailureShowsReason(t *testing.T) {
 	}
 }
 
-func TestFormatToolResultDisplayLines_todoListSilent(t *testing.T) {
-	payload := `{"abc123":"Do work","def456":"Other"}`
+func TestFormatToolResultDisplayLines_todoListSummary(t *testing.T) {
+	payload := `{"completed":1,"count":1,"todos":{"abc123":"Do work"},"total":2}`
 	lines := tooling.FormatToolResultDisplayLines("todoList", payload)
-	if len(lines) != 0 {
-		t.Fatalf("want no todoList result line, got %v", lines)
+	if len(lines) != 1 {
+		t.Fatalf("want todoList result line, got %v", lines)
+	}
+	if got := termcolor.Plain(lines[0]); got != "Tool: todoList → 2 todos • 1 completed" {
+		t.Fatalf("unexpected todoList result: %q", got)
 	}
 }
 

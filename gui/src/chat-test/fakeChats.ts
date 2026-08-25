@@ -16,10 +16,18 @@ export type FakeChatStats = {
 
 export type FakeChatToolResult = {
   count?: number;
+  completed?: number;
   items?: string[];
   output?: string;
+  summary?: string;
   status: "error" | "success";
+  todoItems?: FakeChatTodoItem[];
   truncated?: boolean;
+};
+
+export type FakeChatTodoItem = {
+  checked: boolean;
+  text: string;
 };
 
 export type FakeChatToolParameter = {
@@ -31,13 +39,18 @@ export type FakeChatToolCall = {
   checkpointBranch?: string;
   checkpointSeq?: number;
   defaultOpen?: boolean;
+  delete?: boolean;
+  full?: boolean;
   id: string;
   input?: string;
   intent?: string;
   mode?: "files" | "text";
   name: string;
+  newString?: string;
+  oldString?: string;
   parameters?: FakeChatToolParameter[];
   result?: FakeChatToolResult;
+  renameTo?: string;
   status?: "error" | "running" | "success";
 };
 
@@ -120,7 +133,11 @@ const allAvailableFakeToolCalls = ([
     input: "gui/src/chat-test",
     intent: "Elenco i file della chat di test.",
     name: "listDir",
-    result: { output: "TestChatView.tsx\nfakeChats.ts\ntest-chat.css", status: "success" },
+    result: {
+      count: 3,
+      items: ["TestChatView.tsx", "fakeChats.ts", "test-chat.css"],
+      status: "success",
+    },
     status: "success",
   },
   {
@@ -129,16 +146,42 @@ const allAvailableFakeToolCalls = ([
     input: "gui/src/chat-test",
     intent: "Controllo la struttura della chat di test.",
     name: "tree",
-    result: { output: "chat-test/\n├── TestChatView.tsx\n├── fakeChats.ts\n└── test-chat.css", status: "success" },
+    result: {
+      output: "chat-test/\n├── TestChatView.tsx\n├── fakeChats.ts\n└── test-chat.css",
+      status: "success",
+      summary: "3 nodes",
+    },
     status: "success",
   },
   {
     defaultOpen: false,
     id: "tool-edit-view",
+    input: "old/path.ts",
+    name: "editFile",
+    renameTo: "new/path.ts",
+    intent: "Rinomino il file del renderer.",
+    result: { output: "renamed", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-edit-apply",
     input: "gui/src/chat-test/TestChatView.tsx",
     intent: "Aggiorno il renderer della tool card.",
     name: "editFile",
-    result: { output: "edit applied", status: "success" },
+    oldString: "function ChatMessageTurn(...) {\n  return <article>...</article>\n}",
+    newString: "function ChatMessageTurn({ message }) {\n  return <article className=\"chat-turn\">...</article>\n}",
+    result: { output: "edited", status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    delete: true,
+    id: "tool-edit-delete",
+    input: "gui/src/chat-test/obsolete.ts",
+    intent: "Rimuovo il file non più utilizzato.",
+    name: "editFile",
+    result: { output: "deleted", status: "success" },
     status: "success",
   },
   {
@@ -206,18 +249,21 @@ const allAvailableFakeToolCalls = ([
   {
     defaultOpen: false,
     id: "tool-create-plan",
-    input: "chat-tools: inventory the available tools",
+    input: "chat-tools",
     intent: "Creo un piano per censire gli strumenti della chat.",
     name: "createPlan",
+    parameters: [{ label: "goal", value: "inventory the available tools" }],
     result: { output: "plan created: chat-tools", status: "success" },
     status: "success",
   },
   {
     defaultOpen: false,
     id: "tool-edit-plan",
-    input: "chat-tools: add tool inventory",
+    input: "chat-tools",
     intent: "Aggiorno il piano con l’inventario dei tool.",
     name: "editPlan",
+    oldString: "## Tools\n- shell\n- readFile\n- editFile\n- find",
+    newString: "## Tools\n- shell\n- readFile\n- editFile\n- find\n- createPlan",
     result: { output: "plan updated", status: "success" },
     status: "success",
   },
@@ -233,9 +279,10 @@ const allAvailableFakeToolCalls = ([
   {
     defaultOpen: false,
     id: "tool-add-todo",
-    input: "Validate the complete tool inventory",
+    input: "chat-tools",
     intent: "Aggiungo il controllo dell’inventario al piano.",
     name: "addTodo",
+    parameters: [{ label: "todo", value: "Validate the complete tool inventory" }],
     result: { output: "todo added", status: "success" },
     status: "success",
   },
@@ -245,13 +292,21 @@ const allAvailableFakeToolCalls = ([
     input: "chat-tools",
     intent: "Controllo le attività ancora aperte.",
     name: "todoList",
-    result: { output: "[ ] Validate the complete tool inventory", status: "success" },
+    result: {
+      completed: 1,
+      count: 2,
+      status: "success",
+      todoItems: [
+        { checked: false, text: "Validate the complete tool inventory" },
+        { checked: true, text: "Confirm the terminal tool order" },
+      ],
+    },
     status: "success",
   },
   {
     defaultOpen: false,
     id: "tool-check-todo",
-    input: "sha1:abc123",
+    input: "abc123",
     intent: "Segno come completata l’attività verificata.",
     name: "checkTodo",
     result: { output: "todo checked", status: "success" },
@@ -259,8 +314,17 @@ const allAvailableFakeToolCalls = ([
   },
   {
     defaultOpen: false,
+    id: "tool-check-todo-failed",
+    input: "def456",
+    intent: "Provo a completare un’attività non più presente nel piano.",
+    name: "checkTodo",
+    result: { output: "sha not found", status: "error" },
+    status: "error",
+  },
+  {
+    defaultOpen: false,
     id: "tool-remove-todo",
-    input: "sha1:abc123",
+    input: "abc123",
     intent: "Rimuovo l’attività già completata dal piano.",
     name: "removeTodo",
     result: { output: "todo removed", status: "success" },
@@ -268,6 +332,16 @@ const allAvailableFakeToolCalls = ([
   },
   {
     defaultOpen: false,
+    id: "tool-remove-todo-failed",
+    input: "def456",
+    intent: "Provo a rimuovere un’attività non più presente nel piano.",
+    name: "removeTodo",
+    result: { output: "sha not found", status: "error" },
+    status: "error",
+  },
+  {
+    defaultOpen: false,
+    full: true,
     id: "tool-check-plan",
     input: "chat-tools",
     intent: "Controllo lo stato del piano prima di procedere.",
@@ -290,6 +364,7 @@ const allAvailableFakeToolCalls = ([
     input: "https://example.com/solomon-guide",
     intent: "Recupero il contenuto della guida indicata.",
     name: "fetchWeb",
+    parameters: [{ label: "timeout", value: "30" }],
     result: { output: "# Solomon guide\nTool transcript reference", status: "success" },
     status: "success",
   },
@@ -299,6 +374,12 @@ const allAvailableFakeToolCalls = ([
     input: "tool card result UI",
     intent: "Cerco un esempio lasciando visibile la ricerca in corso.",
     name: "webSearch",
+    parameters: [
+      { label: "engine", value: "searxng" },
+      { label: "maxResults", value: "5" },
+      { label: "timeout", value: "45" },
+      { label: "extras", value: "{\n  \"baseURL\": \"https://search.example.com\"\n}" },
+    ],
     status: "running",
   },
   {

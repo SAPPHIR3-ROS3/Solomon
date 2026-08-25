@@ -61,6 +61,21 @@ La superficie mostra:
 - catena di tool call inizialmente contratta per singola card;
 - controllo `Collapse tool calls` che sostituisce la catena con una sola cella `Show N tool calls`, mantenendo il punto di riapertura visibile.
 
+### Convenzioni delle tool card
+
+La riga di intent resta sempre separata dalla resa del tool. Aprendo una card, il contenuto segue la sintassi del terminale e mantiene i parametri leggibili:
+
+- `shell`, `readFile`, `listDir` e `tree` mostrano il comando o il percorso sulla riga `Tool:`;
+- `find` mostra la modalità e i parametri indentati, con un risultato iniziale a conteggio che può essere aperto per vedere gli elementi;
+- `editFile` e `editPlan` mostrano rename, delete o diff in blocchi old/new espandibili;
+- i plan tool mostrano i parametri sulla seconda riga; `todoList` parte dal riepilogo dei todo e apre la lista con quelli completati per primi;
+- `deletePlan` mostra il nome del piano in rosso e non mostra un risultato aggiuntivo se l’operazione riesce;
+- `fetchWeb` mostra URL e `timeout` su righe separate e nasconde il risultato in caso di successo;
+- `webSearch` mostra la query sulla riga `Tool:`, i parametri indentati e gli oggetti `extras` come JSON formattato;
+- durante un tool in esecuzione, il pallino animato resta sulla linea verticale della catena, insieme agli altri indicatori di stato.
+
+I risultati che contengono una lista o un output lungo usano una preview cliccabile; l’espansione avviene direttamente sulla card, senza pulsanti aggiuntivi visibili.
+
 Le etichette e i controlli dell'interfaccia sono in inglese anche quando il contenuto della chat è in italiano. Queste test chat sono fixture frontend: documentano e verificano il transcript della GUI, ma non rappresentano una persistenza o un collegamento runtime aggiuntivo.
 
 ## Terminale
