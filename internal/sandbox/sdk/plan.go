@@ -43,6 +43,12 @@ func TodoList(name string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	var envelope struct {
+		Todos map[string]string `json:"todos"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err == nil && envelope.Todos != nil {
+		return envelope.Todos, nil
+	}
 	var out map[string]string
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, err

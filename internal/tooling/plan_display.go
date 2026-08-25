@@ -114,7 +114,21 @@ func formatPlanToolResultBody(toolName string, m map[string]json.RawMessage) str
 			return "→ " + p
 		}
 	case "todoList":
-		return ""
+		n, ok := jsonDisplayInt(m["total"])
+		if !ok {
+			n, ok = jsonDisplayInt(m["count"])
+		}
+		if ok {
+			label := "todos"
+			if n == 1 {
+				label = "todo"
+			}
+			body := fmt.Sprintf("→ %d %s", n, label)
+			if completed, ok := jsonDisplayInt(m["completed"]); ok {
+				body += fmt.Sprintf(" • %d completed", completed)
+			}
+			return body
+		}
 	}
 	return ""
 }

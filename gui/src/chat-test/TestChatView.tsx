@@ -426,9 +426,26 @@ function ToolActivity({ checkpoint, toolCalls }: { checkpoint?: CheckpointMetada
 function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; tool: FakeChatToolCall }) {
   const status = tool.status ?? tool.result?.status ?? "running";
   const isFind = tool.name === "find";
-  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind;
-  const findParameters = isFind
-    ? tool.parameters ?? (tool.input ? [{ label: "pattern", value: tool.input }] : [])
+  const isCreatePlan = tool.name === "createPlan";
+  const isEditPlan = tool.name === "editPlan";
+  const isBuildPlan = tool.name === "buildPlan";
+  const isAddTodo = tool.name === "addTodo";
+  const isTodoList = tool.name === "todoList";
+  const isCheckTodo = tool.name === "checkTodo";
+  const isRemoveTodo = tool.name === "removeTodo";
+  const isCheckPlan = tool.name === "checkPlan";
+  const isDeletePlan = tool.name === "deletePlan";
+  const isFetchWeb = tool.name === "fetchWeb";
+  const isWebSearch = tool.name === "webSearch";
+  const isRename = tool.name === "editFile" && Boolean(tool.renameTo);
+  const isDelete = tool.name === "editFile" && Boolean(tool.delete);
+  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind || tool.name === "listDir" || tool.name === "tree" || tool.name === "editFile" || tool.name === "loadSkill" || tool.name === "docsRetrieval" || isCreatePlan || isEditPlan || isBuildPlan || isAddTodo || isTodoList || isCheckTodo || isRemoveTodo || isCheckPlan || isDeletePlan || isFetchWeb || isWebSearch;
+  const isDangerousArgument = isDelete || isRemoveTodo || isDeletePlan;
+  const inlineCommand = tool.name === "editFile" && tool.renameTo
+    ? `${tool.input ?? ""} → ${tool.renameTo}`
+    : tool.input;
+  const toolParameters = isFind || isCreatePlan || isAddTodo || isFetchWeb || isWebSearch
+    ? tool.parameters ?? (isFind && tool.input ? [{ label: "pattern", value: tool.input }] : [])
     : [];
   const [isOpen, setIsOpen] = useState(false);
 
@@ -451,7 +468,7 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
                 <>
                   <strong className="test-chat-tool-name test-chat-tool-label">Tool:</strong>
                   <strong className="test-chat-tool-name">{tool.name}</strong>
-                  {isFind ? <span className="test-chat-tool-command">{tool.mode ?? "text"}</span> : tool.input ? <span className="test-chat-tool-command">{tool.input}</span> : null}
+                  {isFind ? <span className="test-chat-tool-command">{tool.mode ?? "text"}</span> : inlineCommand ? <span className={`test-chat-tool-command${isDangerousArgument ? " is-delete" : ""}`}>{inlineCommand}</span> : null}
                 </>
               ) : (
                 <strong className="test-chat-tool-name">{tool.name}</strong>
@@ -463,24 +480,92 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
                 <pre><code>{tool.input}</code></pre>
               </div>
             ) : null}
-            {isFind && findParameters.length ? (
+            {isCheckPlan && tool.full ? (
               <div className="test-chat-tool-parameters">
-                {findParameters.map((parameter) => (
-                  <div className="test-chat-tool-parameter" key={`${parameter.label}-${parameter.value}`}>
-                    <span className="test-chat-tool-parameter-label">{parameter.label}:</span>
-                    <span className="test-chat-tool-parameter-value"> {parameter.value}</span>
+                <div className="test-chat-tool-parameter">
+                  <span className="test-chat-tool-parameter-value">full</span>
+                </div>
+              </div>
+            ) : null}
+            {(isFind || isCreatePlan || isAddTodo || isFetchWeb || isWebSearch) && toolParameters.length ? (
+              <div className="test-chat-tool-parameters">
+                {toolParameters.map((parameter) => (
+                  <div className={`test-chat-tool-parameter${isAddTodo && parameter.label === "todo" ? " is-todo" : ""}`} key={`${parameter.label}-${parameter.value}`}>
+                    {isAddTodo && parameter.label === "todo" ? (
+                      <>
+                        <span aria-hidden="true" className="test-chat-tool-todo-checkbox" />
+                        <span className="test-chat-tool-parameter-value">{parameter.value}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="test-chat-tool-parameter-label">{parameter.label}:</span>
+                        <span className="test-chat-tool-parameter-value"> {parameter.value}</span>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
             ) : null}
+            {(tool.name === "editFile" || isEditPlan) && !isRename && !isDelete && (tool.oldString !== undefined || tool.newString !== undefined) ? (
+              <EditFileDiffCard newString={tool.newString} oldString={tool.oldString} />
+            ) : null}
             {tool.result ? (
-              tool.name === "readFile" ? null : <ToolResultCard result={tool.result} toolName={tool.name} />
-            ) : <div aria-label="Tool running" className="test-chat-tool-running"><span aria-hidden="true" /></div>}
+              tool.name === "readFile" || (tool.name === "editFile" && status === "success") || (tool.name === "loadSkill" && status === "success") || (tool.name === "docsRetrieval" && status === "success") || (isCreatePlan && status === "success") || (isEditPlan && status === "success") || (isBuildPlan && status === "success") || (isAddTodo && status === "success") || (isCheckTodo && status === "success") || (isRemoveTodo && status === "success") || (isCheckPlan && status === "success") || (isDeletePlan && status === "success") || (isFetchWeb && status === "success") ? null : <ToolResultCard result={tool.result} toolName={tool.name} />
+            ) : null}
           </div>
         </div>
       </details>
     </div>
   );
+}
+
+function EditFileDiffCard({ newString, oldString }: { newString?: string; oldString?: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const oldLines = splitEditFileLines(oldString);
+  const newLines = splitEditFileLines(newString);
+  const canExpand = oldLines.length > 1 || newLines.length > 1;
+  const visibleOldLines = isExpanded ? oldLines : oldLines.slice(0, 1);
+  const visibleNewLines = isExpanded ? newLines : newLines.slice(0, 1);
+  const toggleExpanded = () => {
+    if (canExpand) setIsExpanded((current) => !current);
+  };
+
+  return (
+    <div className={`test-chat-tool-edit-diff${isExpanded ? " is-expanded" : ""}`}>
+      {visibleOldLines.map((line, index) => (
+        <button
+          aria-expanded={canExpand ? isExpanded : undefined}
+          aria-label={canExpand ? (isExpanded ? "Collapse removed lines" : "Show all removed lines") : undefined}
+          className="test-chat-tool-edit-line is-old"
+          key={`old-${index}`}
+          onClick={toggleExpanded}
+          type="button"
+        >
+          {line || " "}
+        </button>
+      ))}
+      {visibleNewLines.map((line, index) => (
+        <button
+          aria-expanded={canExpand ? isExpanded : undefined}
+          aria-label={canExpand ? (isExpanded ? "Collapse added lines" : "Show all added lines") : undefined}
+          className="test-chat-tool-edit-line is-new"
+          key={`new-${index}`}
+          onClick={toggleExpanded}
+          type="button"
+        >
+          {line || " "}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function splitEditFileLines(value?: string): string[] {
+  const normalized = (value ?? "").replace(/\r\n?/g, "\n");
+  if (!normalized) return [];
+  const lines = normalized.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  return lines;
 }
 
 function resolveToolCheckpoint(tool: FakeChatToolCall, parentCheckpoint: CheckpointMetadata | undefined, index: number): CheckpointMetadata {
@@ -494,14 +579,22 @@ function resolveToolCheckpoint(tool: FakeChatToolCall, parentCheckpoint: Checkpo
 }
 
 function ToolResultCard({ result, toolName }: { result: FakeChatToolResult; toolName: string }) {
-  return toolName === "find" ? <FindToolResultCard result={result} /> : <GenericToolResultCard result={result} />;
+  if (toolName === "find") {
+    return <CountedToolResultCard collapseLabel="find results" plural="matches" result={result} singular="match" />;
+  }
+  if (toolName === "listDir") {
+    return <CountedToolResultCard collapseLabel="directory entries" plural="entries" result={result} singular="entry" />;
+  }
+  if (toolName === "todoList") {
+    return <TodoListResultCard result={result} />;
+  }
+  return <GenericToolResultCard result={result} />;
 }
 
 function GenericToolResultCard({ result }: { result: FakeChatToolResult }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const output = (result.output ?? "").replace(/\r\n?/g, "\n");
-  const firstLine = output.split("\n")[0] || "—";
-  const hasHiddenOutput = result.truncated || output.includes("\n");
+  const firstLine = result.summary ?? (output.split("\n")[0] || "—");
   const displayedOutput = isExpanded ? output || "—" : firstLine;
   const toggleLabel = isExpanded ? "Collapse result" : "Show full result";
 
@@ -511,16 +604,21 @@ function GenericToolResultCard({ result }: { result: FakeChatToolResult }) {
         <span className="test-chat-tool-result-prefix">Result:</span>
         <span className="test-chat-tool-result-text">{displayedOutput}</span>
       </button>
-      {hasHiddenOutput && !isExpanded ? (
-        <button aria-expanded={isExpanded} aria-label={toggleLabel} className="test-chat-tool-result-more" onClick={() => setIsExpanded((current) => !current)} type="button">
-          <span aria-hidden="true" className="test-chat-tool-result-ellipsis">...</span>
-        </button>
-      ) : null}
     </div>
   );
 }
 
-function FindToolResultCard({ result }: { result: FakeChatToolResult }) {
+function CountedToolResultCard({
+  collapseLabel,
+  plural,
+  result,
+  singular,
+}: {
+  collapseLabel: string;
+  plural: string;
+  result: FakeChatToolResult;
+  singular: string;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const outputItems = (result.output ?? "").replace(/\r\n?/g, "\n").split("\n").filter(Boolean);
   const items = result.items?.length ? result.items : outputItems;
@@ -529,9 +627,9 @@ function FindToolResultCard({ result }: { result: FakeChatToolResult }) {
   if (!isExpanded) {
     return (
       <div className={`test-chat-tool-result is-${result.status}`}>
-        <button aria-expanded={false} aria-label="Show find results" className="test-chat-tool-result-toggle" onClick={() => setIsExpanded(true)} type="button">
+        <button aria-expanded={false} aria-label={`Show ${collapseLabel}`} className="test-chat-tool-result-toggle" onClick={() => setIsExpanded(true)} type="button">
           <span className="test-chat-tool-result-prefix">Result:</span>
-          <span className="test-chat-tool-result-text">{count} {count === 1 ? "match" : "matches"}</span>
+          <span className="test-chat-tool-result-text">{count} {count === 1 ? singular : plural}</span>
         </button>
       </div>
     );
@@ -542,13 +640,56 @@ function FindToolResultCard({ result }: { result: FakeChatToolResult }) {
       <div className="test-chat-tool-result-list-label">Result:</div>
       <div className="test-chat-tool-result-items">
         {items.map((item) => (
-          <button aria-label="Collapse find results" className="test-chat-tool-result-item" key={item} onClick={() => setIsExpanded(false)} type="button">
+          <button aria-label={`Collapse ${collapseLabel}`} className="test-chat-tool-result-item" key={item} onClick={() => setIsExpanded(false)} type="button">
             {item}
           </button>
         ))}
       </div>
     </div>
   );
+}
+
+function TodoListResultCard({ result }: { result: FakeChatToolResult }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const items = result.todoItems?.length ? result.todoItems : parseTodoItems(result.output);
+  const orderedItems = [...items.filter((item) => item.checked), ...items.filter((item) => !item.checked)];
+  const count = typeof result.count === "number" ? result.count : items.length;
+  const completed = typeof result.completed === "number" ? result.completed : items.filter((item) => item.checked).length;
+  const summary = `${count} ${count === 1 ? "todo" : "todos"}, ${completed} completed`;
+
+  if (!isExpanded) {
+    return (
+      <div className={`test-chat-tool-result is-${result.status}`}>
+        <button aria-expanded={false} aria-label="Show todo list" className="test-chat-tool-result-toggle" onClick={() => setIsExpanded(true)} type="button">
+          <span className="test-chat-tool-result-prefix">Result:</span>
+          <span className="test-chat-tool-result-text">{summary}</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`test-chat-tool-result test-chat-tool-result-list is-${result.status} is-expanded`}>
+      <div className="test-chat-tool-result-list-label">Result:</div>
+      <div className="test-chat-tool-result-items">
+        {orderedItems.map((item) => (
+          <button aria-label={`Collapse todo list: ${item.text}`} className="test-chat-tool-result-todo-item" key={`${item.checked}-${item.text}`} onClick={() => setIsExpanded(false)} type="button">
+            <span aria-hidden="true" className={`test-chat-tool-result-todo-checkbox${item.checked ? " is-checked" : ""}`} />
+            <span>{item.text}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function parseTodoItems(output?: string) {
+  return (output ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.match(/^\s*-\s*\[([ xX])\]\s*(.+?)\s*$/))
+    .filter((match): match is RegExpMatchArray => Boolean(match))
+    .map((match) => ({ checked: match[1].toLowerCase() === "x", text: match[2] }));
 }
 
 function indexChatMessages(messages: FakeChatMessage[]): IndexedChatMessage[] {
