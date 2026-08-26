@@ -37,11 +37,18 @@ func (r *Runtime) switchModeCountdown(ctx context.Context, target string) (cance
 	}
 	fmt.Fprintln(out, termcolor.WrapSystem("Press Ctrl+C to cancel mode switch"))
 	width := switchModeCountdownWidth
+	terminalW := terminalWidth(out)
+	interactive := terminalW > 0
 	if width <= 0 {
-		width = terminalWidth(out)
+		width = terminalW
 	}
 	if width <= 0 {
 		width = 120
+	}
+	// Avoid an automatic terminal wrap at the rightmost cell. A wrapped
+	// progress frame cannot be reliably replaced by the next frame.
+	if interactive && width > 1 {
+		width--
 	}
 	duration := switchModeCountdownDuration
 	step := duration / time.Duration(width)
@@ -58,33 +65,45 @@ func (r *Runtime) switchModeCountdown(ctx context.Context, target string) (cance
 	for filled < width {
 		select {
 		case <-ctx.Done():
-			fmt.Fprint(out, "\n")
+			finishSwitchModeProgress(out)
 			return true, ctx.Err()
 		case <-sigCh:
-			fmt.Fprint(out, "\n")
+			finishSwitchModeProgress(out)
 			return true, nil
 		case <-tick.C:
 			filled++
-			bar := termcolor.WrapBoldGold(strings.Repeat("─", filled)) + strings.Repeat(" ", width-filled)
-			fmt.Fprintf(out, "\r%s", bar)
+			if interactive {
+				bar := termcolor.WrapBoldGold(strings.Repeat("─", filled)) + strings.Repeat(" ", width-filled)
+				writeSwitchModeProgress(out, bar)
+			}
 		}
 		if time.Now().After(deadline) {
 			break
 		}
 	}
-	fmt.Fprint(out, "\n")
+	finishSwitchModeProgress(out)
 	r.Mode = target
 	commands.PrintSystem(out, "Mode: "+target)
 	return false, nil
 }
 
+const switchModeClearLine = "\r\x1b[2K"
+
+func writeSwitchModeProgress(out io.Writer, bar string) {
+	fmt.Fprintf(out, "%s%s", switchModeClearLine, bar)
+	flushWriter(out)
+}
+
+func finishSwitchModeProgress(out io.Writer) {
+	// Keep the last (full or partial) frame visible and commit it with a
+	// single newline instead of clearing it from the transcript.
+	fmt.Fprintln(out)
+	flushWriter(out)
+}
+
 func terminalWidth(out io.Writer) int {
-	f, ok := out.(*os.File)
-	if !ok {
-		return 0
-	}
-	fd := int(f.Fd())
-	if !term.IsTerminal(fd) {
+	fd, ok := terminalFD(out)
+	if !ok || !term.IsTerminal(fd) {
 		return 0
 	}
 	w, _, err := term.GetSize(fd)
@@ -92,6 +111,20 @@ func terminalWidth(out io.Writer) int {
 		return 0
 	}
 	return w
+}
+
+func terminalFD(out io.Writer) (int, bool) {
+	if out == nil {
+		return 0, false
+	}
+	if f, ok := out.(interface{ TerminalFD() (uintptr, bool) }); ok {
+		fd, ok := f.TerminalFD()
+		return int(fd), ok
+	}
+	if f, ok := out.(interface{ Fd() uintptr }); ok {
+		return int(f.Fd()), true
+	}
+	return 0, false
 }
 
 func SwitchModeCountdownForTest(r *Runtime, ctx context.Context, target string) (cancelled bool, err error) {

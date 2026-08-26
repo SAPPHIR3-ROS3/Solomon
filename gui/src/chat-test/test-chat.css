@@ -293,6 +293,26 @@
 .test-chat-pending-messages { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; position: relative; z-index: 1; }
 .test-chat-pending-turn { width: 100%; }
 .test-chat-pending-message { border-radius: 24px; box-shadow: 0 8px 20px rgb(0 0 0 / 24%); flex: none; margin: 0; }
+.test-chat-mode-switch {
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--color-surface-raised) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 42%), 0 3px 8px rgb(0 0 0 / 24%);
+  margin: 0 0 8px;
+  overflow: hidden;
+  padding: 10px 12px 11px;
+}
+.test-chat-mode-switch-header { align-items: center; display: flex; gap: 12px; justify-content: space-between; min-height: 28px; }
+.test-chat-mode-switch-copy { align-items: center; color: var(--color-text); display: inline-flex; font: 600 12px/1 "Geist", sans-serif; gap: 8px; min-width: 0; }
+.test-chat-mode-switch-icon { color: var(--color-crown-gold); display: grid; flex: none; height: 16px; place-items: center; width: 16px; }
+.test-chat-mode-switch-icon svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 16px; }
+.test-chat-mode-switch-cancel { appearance: none; background: color-mix(in srgb, var(--color-surface-raised) 36%, transparent); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text-muted); cursor: pointer; flex: none; font: 600 11px/1 "Geist", sans-serif; min-height: 28px; padding: 0 10px; transition: background 160ms ease, border-color 160ms ease, color 160ms ease; }
+.test-chat-mode-switch-cancel:hover { background: color-mix(in srgb, var(--color-surface-raised) 58%, transparent); border-color: var(--color-text-muted); color: var(--color-text); }
+.test-chat-mode-switch-cancel:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.test-chat-mode-switch-progress { background: color-mix(in srgb, var(--color-canvas) 72%, var(--color-border)); border-radius: 999px; height: 3px; margin-top: 10px; overflow: hidden; width: 100%; }
+.test-chat-mode-switch-progress span { background: var(--color-crown-gold); border-radius: inherit; display: block; height: 100%; transform-origin: left center; transition: transform 50ms linear; width: 100%; }
 .test-chat-composer .welcome-composer {
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
@@ -307,6 +327,9 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, #fff 18%, transparent), 0 0 18px color-mix(in srgb, var(--color-danger) 42%, transparent);
 }
 .test-chat-composer .test-chat-stop:hover { background: color-mix(in srgb, var(--color-danger) 84%, #fff); }
+@media (prefers-reduced-motion: reduce) {
+  .test-chat-mode-switch-progress span { transition: none; }
+}
 .test-chat-readonly-control { align-items: center; color: #89959c; display: inline-flex; font: 570 10px/1 "Geist", sans-serif; gap: 6px; height: 28px; padding: 0 8px; user-select: none; }
 .test-chat-readonly-control svg { fill: none; height: 13px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 13px; }
 .test-chat-readonly-control:first-child svg { color: #5bd39a; }

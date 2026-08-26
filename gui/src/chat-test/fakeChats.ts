@@ -84,6 +84,7 @@ export type FakeChat = {
   id: string;
   isNewTestChat?: boolean;
   messages: FakeChatMessage[];
+  modeSwitchTarget?: "agent";
   title: string;
   workspaceID?: string;
   worktree?: string;
@@ -189,7 +190,12 @@ const allAvailableFakeToolCalls = ([
     input: "workspace file tools",
     intent: "Cerco nel catalogo gli strumenti disponibili per il workspace.",
     name: "searchTools",
-    result: { output: "shell · readFile · editFile · find", status: "success" },
+    result: {
+      count: 4,
+      items: ["shell", "readFile", "editFile", "find"],
+      output: "shell · readFile · editFile · find",
+      status: "success",
+    },
     status: "success",
   },
   {
@@ -198,7 +204,7 @@ const allAvailableFakeToolCalls = ([
     input: "frontend design",
     intent: "Cerco una skill adatta alla modifica dell’interfaccia.",
     name: "searchSkill",
-    result: { output: "frontend-design", status: "success" },
+    result: { count: 1, output: "frontend-design", status: "success" },
     status: "success",
   },
   {
@@ -464,6 +470,7 @@ const initialFakeChatFixtures: FakeChat[] = [
   },
   {
     id: "test-tool-result",
+    modeSwitchTarget: "agent",
     title: "Tool disponibili",
     messages: [
       { checkpointSeq: 0, id: "tool-user", role: "user", content: "Quali elementi deve mostrare un turno dell’agente?" },
