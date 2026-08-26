@@ -10,6 +10,7 @@ import "./test-chat.css";
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 const FIXTURE_MESSAGE_START_TIME = new Date("2026-01-01T09:00:00").getTime();
+const MODE_SWITCH_DURATION_MS = 5000;
 
 type CheckpointMetadata = {
   branch: string;
@@ -39,6 +40,9 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<FakeChatMessage | null>(null);
+  const [composerMode, setComposerMode] = useState<"agent" | "chat">(chat.modeSwitchTarget ? "chat" : "agent");
+  const [isModeSwitchPending, setIsModeSwitchPending] = useState(Boolean(chat.modeSwitchTarget));
+  const [modeSwitchProgress, setModeSwitchProgress] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
@@ -50,6 +54,33 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const indexedMessages = indexChatMessages(chat.messages);
   const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
   const visibleMessages = indexedMessages.filter(({ message }) => !pendingUserMessageIDs.has(message.id));
+
+  useEffect(() => {
+    if (chat.modeSwitchTarget !== "agent") {
+      setComposerMode("agent");
+      setIsModeSwitchPending(false);
+      setModeSwitchProgress(0);
+      return;
+    }
+
+    setComposerMode("chat");
+    setIsModeSwitchPending(true);
+    setModeSwitchProgress(0);
+    const startedAt = performance.now();
+    const progressTimer = window.setInterval(() => {
+      setModeSwitchProgress(Math.min(1, (performance.now() - startedAt) / MODE_SWITCH_DURATION_MS));
+    }, 50);
+    const completeTimer = window.setTimeout(() => {
+      setModeSwitchProgress(1);
+      setComposerMode("agent");
+      setIsModeSwitchPending(false);
+    }, MODE_SWITCH_DURATION_MS);
+
+    return () => {
+      window.clearInterval(progressTimer);
+      window.clearTimeout(completeTimer);
+    };
+  }, [chat.id, chat.modeSwitchTarget]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
@@ -76,6 +107,12 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
     setDraft("");
     setImages([]);
   };
+
+  function cancelModeSwitch() {
+    setIsModeSwitchPending(false);
+    setModeSwitchProgress(0);
+    setComposerMode("chat");
+  }
 
   return (
     <section aria-label={`Test chat: ${chat.title}`} className="test-chat-view" style={{ bottom: Math.max(0, bottomInset) }}>
@@ -109,6 +146,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
             ))}
           </div>
         ) : null}
+        {isModeSwitchPending ? <ModeSwitchNotice progress={modeSwitchProgress} onCancel={cancelModeSwitch} /> : null}
         <form className="test-chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
           <div className="welcome-composer">
           <AtMentionInput
@@ -132,14 +170,14 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
               <button className="welcome-menu" type="button">Select model <ChevronIcon /></button>
               <span aria-hidden="true" className="welcome-toolbar-sep" />
               <button className="welcome-menu" type="button">None <ChevronIcon /></button>
-              <button className="welcome-mode is-agent" type="button">
-                <span aria-hidden="true" className="welcome-mode-icon"><CrownIcon /></span>
-                <span>Agent</span>
+              <button aria-pressed={composerMode === "agent"} className={`welcome-mode ${composerMode === "agent" ? "is-agent" : "is-chat"}`} type="button">
+                <span aria-hidden="true" className="welcome-mode-icon">{composerMode === "agent" ? <CrownIcon /> : <ChatIcon />}</span>
+                <span>{composerMode === "agent" ? "Agent" : "Chat"}</span>
               </button>
             </div>
             {isStreaming ? (
               <button aria-label="Stop streaming" className="welcome-send test-chat-stop" onClick={() => onStopStreaming(chat.id)} title="Stop streaming" type="button"><StopIcon /></button>
-            ) : <button aria-label="Send" className="welcome-send" disabled={!draft.trim() && images.length === 0} type="submit"><SendIcon /></button>}
+            ) : <button aria-label="Send" className="welcome-send" disabled={isModeSwitchPending || (!draft.trim() && images.length === 0)} type="submit"><SendIcon /></button>}
           </div>
           </div>
         </form>
@@ -369,6 +407,25 @@ function CompactionCard({ message }: { message: FakeChatMessage }) {
   );
 }
 
+function ModeSwitchNotice({ onCancel, progress }: { onCancel: () => void; progress: number }) {
+  const percentage = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+
+  return (
+    <section aria-label="Switching to Agent mode" className="test-chat-mode-switch" aria-live="polite">
+      <div className="test-chat-mode-switch-header">
+        <div className="test-chat-mode-switch-copy">
+          <span aria-hidden="true" className="test-chat-mode-switch-icon"><CrownIcon /></span>
+          <span>Switching to Agent mode</span>
+        </div>
+        <button className="test-chat-mode-switch-cancel" onClick={onCancel} type="button">Stay in Chat</button>
+      </div>
+      <div aria-label={`${percentage}% complete`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={percentage} className="test-chat-mode-switch-progress" role="progressbar">
+        <span style={{ transform: `scaleX(${progress})` }} />
+      </div>
+    </section>
+  );
+}
+
 function ChatMessageTurn({ checkpoint, index, message, onRequestDelete }: { checkpoint?: CheckpointMetadata; index: number; message: FakeChatMessage; onRequestDelete?: () => void }) {
   const [isReasoningCollapsed, setIsReasoningCollapsed] = useState(true);
   const canCollapseReasoning = message.role === "assistant" && Boolean(message.reasoning || message.thoughtFor !== undefined);
@@ -437,9 +494,11 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
   const isDeletePlan = tool.name === "deletePlan";
   const isFetchWeb = tool.name === "fetchWeb";
   const isWebSearch = tool.name === "webSearch";
+  const isSearchSkill = tool.name === "searchSkill";
+  const isSearchTools = tool.name === "searchTools";
   const isRename = tool.name === "editFile" && Boolean(tool.renameTo);
   const isDelete = tool.name === "editFile" && Boolean(tool.delete);
-  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind || tool.name === "listDir" || tool.name === "tree" || tool.name === "editFile" || tool.name === "loadSkill" || tool.name === "docsRetrieval" || isCreatePlan || isEditPlan || isBuildPlan || isAddTodo || isTodoList || isCheckTodo || isRemoveTodo || isCheckPlan || isDeletePlan || isFetchWeb || isWebSearch;
+  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind || tool.name === "listDir" || tool.name === "tree" || tool.name === "editFile" || tool.name === "loadSkill" || isSearchSkill || isSearchTools || tool.name === "docsRetrieval" || isCreatePlan || isEditPlan || isBuildPlan || isAddTodo || isTodoList || isCheckTodo || isRemoveTodo || isCheckPlan || isDeletePlan || isFetchWeb || isWebSearch;
   const isDangerousArgument = isDelete || isRemoveTodo || isDeletePlan;
   const inlineCommand = tool.name === "editFile" && tool.renameTo
     ? `${tool.input ?? ""} → ${tool.renameTo}`
@@ -581,6 +640,12 @@ function resolveToolCheckpoint(tool: FakeChatToolCall, parentCheckpoint: Checkpo
 function ToolResultCard({ result, toolName }: { result: FakeChatToolResult; toolName: string }) {
   if (toolName === "find") {
     return <CountedToolResultCard collapseLabel="find results" plural="matches" result={result} singular="match" />;
+  }
+  if (toolName === "searchSkill") {
+    return <CountedToolResultCard collapseLabel="skill matches" plural="matches" result={result} singular="match" />;
+  }
+  if (toolName === "searchTools") {
+    return <CountedToolResultCard collapseLabel="tool matches" plural="matches" result={result} singular="match" />;
   }
   if (toolName === "listDir") {
     return <CountedToolResultCard collapseLabel="directory entries" plural="entries" result={result} singular="entry" />;
@@ -1128,6 +1193,10 @@ function CrownIcon() {
       <path d="M4 16.2h16l-.6 3.8H4.6z" />
     </svg>
   );
+}
+
+function ChatIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h11A2.5 2.5 0 0 1 21 6.5v7A2.5 2.5 0 0 1 18.5 16H12l-4 3v-3H7.5A2.5 2.5 0 0 1 5 13.5V6.5Z" /></svg>;
 }
 
 function SendIcon() {
