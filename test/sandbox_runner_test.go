@@ -363,9 +363,9 @@ func TestOrchestrateDeferredEditsShareCheckpointSeq(t *testing.T) {
 	}
 	const cpSeq = 7
 	env := &agenttools.Env{
-		ProjRoot:           proj,
-		AllowDeferredTools: true,
-		CheckpointStageProjAbs:  func(string) {},
+		ProjRoot:               proj,
+		AllowDeferredTools:     true,
+		CheckpointStageProjAbs: func(string) {},
 		CheckpointBeforeProjAbs: func(path string) {
 			_ = store.RecordBefore(path)
 		},
@@ -412,6 +412,24 @@ func TestSwitchModeCountdownCompletes(t *testing.T) {
 	}
 	if rt.Mode != "chat" {
 		t.Fatalf("mode=%q", rt.Mode)
+	}
+}
+
+func TestSwitchModeCountdownNonTTYDoesNotAccumulateProgressFrames(t *testing.T) {
+	t.Cleanup(agentruntime.ResetSwitchModeCountdownForTest)
+	agentruntime.SetSwitchModeCountdownForTest(5*time.Millisecond, 8)
+	var out bytes.Buffer
+	rt := &agentruntime.Runtime{Mode: "agent", Out: &out}
+
+	cancelled, err := agentruntime.SwitchModeCountdownForTest(rt, context.Background(), "chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cancelled {
+		t.Fatal("expected complete")
+	}
+	if strings.Contains(out.String(), "\r") {
+		t.Fatalf("non-TTY output contains carriage-return progress frames: %q", out.String())
 	}
 }
 
