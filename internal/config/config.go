@@ -246,6 +246,8 @@ func ClampTimeoutMinutes(n int) error {
 
 func ParseReasoningEffortToken(s string) (string, error) {
 	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "_", "-")
+	s = strings.Join(strings.Fields(s), "-")
 	switch s {
 	case "none":
 		return "none", nil
@@ -255,8 +257,12 @@ func ParseReasoningEffortToken(s string) (string, error) {
 		return "medium", nil
 	case "high":
 		return "high", nil
+	case "xhigh", "x-high", "extra-high":
+		return "xhigh", nil
+	case "max":
+		return "max", nil
 	default:
-		return "", fmt.Errorf("reasoning must be none, low, med, or high")
+		return "", fmt.Errorf("reasoning must be none, low, med, medium, high, xhigh (extra high), or max")
 	}
 }
 
@@ -285,6 +291,10 @@ func (r *Root) GlobalReasoningEffort() shared.ReasoningEffort {
 		return shared.ReasoningEffortMedium
 	case "high":
 		return shared.ReasoningEffortHigh
+	case "xhigh", "max":
+		// The OpenAI SDK's named constants lag some provider-specific effort
+		// values, but the wire type intentionally accepts arbitrary strings.
+		return shared.ReasoningEffort(c)
 	default:
 		return ""
 	}

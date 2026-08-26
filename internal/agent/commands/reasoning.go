@@ -28,7 +28,7 @@ func Reasoning(d Deps, parts []string) error {
 			}
 			return nil
 		}
-		canonical, err := config.ParseReasoningEffortToken(parts[2])
+		canonical, err := config.ParseReasoningEffortToken(strings.Join(parts[2:], " "))
 		if err != nil {
 			return err
 		}
@@ -39,7 +39,7 @@ func Reasoning(d Deps, parts []string) error {
 		PrintSystemf(d.Out, "subagent_reasoning_effort=%s (saved)", canonical)
 		return nil
 	}
-	canonical, err := config.ParseReasoningEffortToken(parts[1])
+	canonical, err := config.ParseReasoningEffortToken(strings.Join(parts[1:], " "))
 	if err != nil {
 		return err
 	}

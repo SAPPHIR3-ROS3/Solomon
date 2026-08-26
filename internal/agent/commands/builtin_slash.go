@@ -61,7 +61,7 @@ func getSlashBuiltins() []slashBuiltin {
 			return d.SubmitUserMessage(strings.Join(parts[1:], " "))
 		}},
 		{[]string{"log"}, "/log", "/log {error|warning|info|debug|result} visible log verbosity", nil, func(d Deps, parts []string) error { return SlashLog(d, parts) }},
-		{[]string{"reasoning"}, "/reasoning", "/reasoning | /reasoning {none|low|med|high} main; /reasoning sub {none|low|med|high}", nil, func(d Deps, parts []string) error { return Reasoning(d, parts) }},
+		{[]string{"reasoning"}, "/reasoning", "/reasoning | /reasoning {none|low|med|medium|high|xhigh|extra-high|max} main; /reasoning sub {none|low|med|medium|high|xhigh|extra-high|max}", nil, func(d Deps, parts []string) error { return Reasoning(d, parts) }},
 		{[]string{"subagent"}, "/subagent", "/subagent | /subagent resume|stop|cancel <id|title>", nil, func(d Deps, parts []string) error { return Subagent(d, parts) }},
 		{[]string{"research"}, "/research", "/research <query> | /research list|status|resume|stop|cancel|delete — deep web research (HTML report)", nil, func(d Deps, parts []string) error { return Research(d, parts) }},
 		{[]string{"timeout"}, "/timeout", "/timeout <minutes> subagent segment (1–180)", nil, func(d Deps, parts []string) error { return Timeout(d, parts) }},
