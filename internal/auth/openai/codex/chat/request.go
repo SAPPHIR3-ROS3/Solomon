@@ -44,15 +44,28 @@ func buildReasoningFromChat(chat map[string]any) map[string]any {
 	if e, ok := chat["reasoning_effort"].(string); ok {
 		effort = strings.TrimSpace(e)
 	}
+	effort = normalizeReasoningEffort(effort)
 	if effort == "" || effort == "none" {
 		return nil
 	}
 	out := map[string]any{"summary": "auto"}
 	switch strings.ToLower(effort) {
-	case "minimal", "low", "medium", "high", "xhigh":
+	case "minimal", "low", "medium", "high", "xhigh", "max":
 		out["effort"] = strings.ToLower(effort)
 	}
 	return out
+}
+
+func normalizeReasoningEffort(effort string) string {
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	effort = strings.ReplaceAll(effort, "_", "-")
+	effort = strings.Join(strings.Fields(effort), "-")
+	switch effort {
+	case "x-high", "extra-high":
+		return "xhigh"
+	default:
+		return effort
+	}
 }
 
 func extractSystemInstructions(chat map[string]any) string {

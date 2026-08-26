@@ -124,7 +124,7 @@ Install skills with `/add` (skills.sh URL, `npx skills add …`, or local `SKILL
 
 ### Reasoning and thinking display
 
-`/reasoning` sets main-chat effort (`none|low|med|high`); `/thinking` toggles streamed reasoning preview (dim) and tool echo styling. Nested runs use `subagent_reasoning_effort` by default and can override it per tool call with `reasoningEffort`. Extended thinking blocks on Anthropic are **(in the future)** in [TODO.md](../TODO.md). Codex and Claude Code expose comparable effort controls.
+`/reasoning` sets main-chat effort (`none|low|med|medium|high|xhigh|max`; `xhigh` is shown as **Extra high**); `/thinking` toggles streamed reasoning preview (dim) and tool echo styling. Nested runs use `subagent_reasoning_effort` by default and can override it per tool call with `reasoningEffort`. Extended thinking blocks on Anthropic are **(in the future)** in [TODO.md](../TODO.md). Codex and Claude Code expose comparable effort controls.
 
 ### Clipboard images in the REPL
 

@@ -62,7 +62,7 @@ func subagentOpenAI() openai.ChatCompletionToolUnionParam {
 		"resume":            map[string]any{"type": "string", "description": "Subchat ID to resume"},
 		"interrupt":         map[string]any{"type": "boolean", "description": "Cancel the active run for resume before applying the new task"},
 		"run_in_background": map[string]any{"type": "boolean", "description": "Async: true = do not block parent (returns subchatId, status running). False/omit = sync: wait until done (returns output, status done)."},
-		"reasoningEffort":   map[string]any{"type": "string", "description": "Override reasoning: none, low, medium, high"},
+		"reasoningEffort":   map[string]any{"type": "string", "description": "Override reasoning: none, low, medium, high, xhigh (extra high), or max"},
 		"roleProvider":      map[string]any{"type": "string", "description": "Optional provider from listSubAgents; requires roleModel"},
 		"roleModel":         map[string]any{"type": "string", "description": "Optional model from listSubAgents; requires roleProvider"},
 	}, []string{"sysPromptPath", "task"})
