@@ -31,7 +31,7 @@ export type CachedHomeStats = {
   tokenStats: ProjectTokenStats;
 };
 
-export type ReasoningEffort = "none" | "low" | "medium" | "high";
+export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export type ProjectSidebarData = {
   projects: Project[];
@@ -393,9 +393,10 @@ export async function saveReasoningEffort(effort: string): Promise<ReasoningEffo
 }
 
 export function normalizeReasoningEffort(value: string): ReasoningEffort {
-  const normalized = value.trim().toLowerCase();
+  const normalized = value.trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
   if (normalized === "med") return "medium";
-  if (normalized === "none" || normalized === "low" || normalized === "medium" || normalized === "high") return normalized;
+  if (normalized === "x-high" || normalized === "extra-high") return "xhigh";
+  if (normalized === "none" || normalized === "low" || normalized === "medium" || normalized === "high" || normalized === "xhigh" || normalized === "max") return normalized;
   return "none";
 }
 

@@ -135,7 +135,7 @@ Highlights:
 | `/docs` | Search embedded Solomon docs (`/docs <query>`); keeps `/docs …` visible in chat |
 | `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
 | `/cursortools` | Confirm deprecated Cursor native tools stay off — only after `/connect` → Cursor API |
-| `/reasoning`, `/thinking` | Main-chat reasoning effort; streamed reasoning preview |
+| `/reasoning`, `/thinking` | Main-chat reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`/Extra high, `max`); streamed reasoning preview |
 | `/subagent` | List and control persisted subagent sessions |
 | `/log`, `/stats`, `/max_response`, `/timeout` | Log verbosity; token footer; output cap; subagent minutes |
 | `/name`, `/language` | User name and reply language in system prompt (saved) |

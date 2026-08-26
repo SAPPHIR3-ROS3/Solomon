@@ -293,8 +293,12 @@ func oauthEffortFromConfig(cfg *config.Root, override string) string {
 	switch c {
 	case "low":
 		return "low"
-	case "med":
+	case "medium":
 		return "medium"
+	case "xhigh", "max":
+		// Anthropic's adaptive-thinking API calls its top profile "max";
+		// map OpenAI's extra-high spelling to the equivalent provider level.
+		return "max"
 	default:
 		return "high"
 	}

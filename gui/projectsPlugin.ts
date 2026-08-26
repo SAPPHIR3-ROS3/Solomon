@@ -22,7 +22,7 @@ const homeDirectoryCheckoutEndpoint = "/__solomon/home-git-checkout";
 const userNameEndpoint = "/__solomon/user-name";
 const reasoningEffortEndpoint = "/__solomon/reasoning-effort";
 const projectActionEndpoint = "/__solomon/projects/";
-const reasoningEfforts = new Set(["none", "low", "medium", "high"]);
+const reasoningEfforts = new Set(["none", "low", "medium", "high", "xhigh", "max"]);
 
 type Project = {
   chats: SidebarChat[];
@@ -103,8 +103,9 @@ async function writeUserName(home: string, userName: string): Promise<void> {
 }
 
 function normalizeReasoningEffort(value: string): string {
-  const normalized = value.trim().toLowerCase();
+  const normalized = value.trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
   if (normalized === "med") return "medium";
+  if (normalized === "x-high" || normalized === "extra-high") return "xhigh";
   return reasoningEfforts.has(normalized) ? normalized : "";
 }
 
@@ -690,7 +691,7 @@ function attachReasoningEffortEndpoint(server: { middlewares: { use: (route: str
         }
         const reasoningEffort = normalizeReasoningEffort(payload.reasoningEffort);
         if (!reasoningEffort) {
-          respondWithJson(response, 400, { error: "reasoning must be none, low, med, or high" });
+          respondWithJson(response, 400, { error: "reasoning must be none, low, med, medium, high, xhigh (extra high), or max" });
           return;
         }
         await writeReasoningEffort(solomonHome(), reasoningEffort);

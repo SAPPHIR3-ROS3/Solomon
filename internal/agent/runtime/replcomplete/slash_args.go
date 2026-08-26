@@ -3,7 +3,7 @@ package replcomplete
 func slashStaticArgCandidates(cmd string) []string {
 	switch cmd {
 	case "reasoning":
-		return []string{"none", "low", "med", "medium", "high"}
+		return []string{"none", "low", "med", "medium", "high", "xhigh", "extra-high", "max"}
 	case "thinking", "terminal", "fast", "anonymizeprompt", "cursortools":
 		return []string{"on", "off", "yes", "no", "true", "false", "1", "0"}
 	case "legacytools", "legacy":

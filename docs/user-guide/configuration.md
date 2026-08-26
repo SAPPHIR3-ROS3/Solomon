@@ -14,7 +14,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `user_name` | Shown / used in-session |
 | `subagent_timeout_minutes` | Subagent slices (wizard default 20) |
 | `[api_resilience]` | LLM HTTP retry, backoff, circuit breaker, timeouts (optional; defaults in code) |
-| `reasoning_effort` | Main chat reasoning profile |
+| `reasoning_effort` | Main chat reasoning profile (`none`, `low`, `medium`, `high`, `xhigh`/Extra high, or `max`) |
 | `subagent_reasoning_effort` | Default reasoning profile for nested runs; tool calls may override it |
 | `log_level`, `max_response_tokens` | Verbosity and cap |
 | `show_thinking`, `show_usage_stats` | Streams / footer |

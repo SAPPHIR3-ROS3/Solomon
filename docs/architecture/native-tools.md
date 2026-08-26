@@ -54,7 +54,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `resume` | Omitted | Existing `subchatId` to continue instead of creating a new session |
 | `run_in_background` | `false` | `false` waits for output; `true` returns `subchatId` and `status=running` immediately |
 | `interrupt` | `false` | Requires `resume`; cancels the active resumed run before applying the new task |
-| `reasoningEffort` | `subagent_reasoning_effort` | Per-run override: `none`, `low`, `medium`, or `high` |
+| `reasoningEffort` | `subagent_reasoning_effort` | Per-run override: `none`, `low`, `medium`, `high`, `xhigh` (extra high), or `max` |
 | `roleProvider`, `roleModel` | Omitted | Select a configured `[[roles.subagent]]` provider/model pair; both are required together |
 
 The tool returns `{ok, output, subchatId, status}` on success. Synchronous runs normally finish with `status=done` and include `output`; background runs return immediately with `status=running`. Timeout, cancellation, and recoverable nested errors persist the partial transcript with `status=paused` where possible. `subagent` is not exposed through `searchTools` and cannot be invoked from an `orchestrate` script.

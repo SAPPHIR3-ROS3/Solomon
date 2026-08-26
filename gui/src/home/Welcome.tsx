@@ -27,6 +27,8 @@ const reasoningOptions = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
+  { value: "xhigh", label: "Extra high" },
+  { value: "max", label: "Max" },
 ] as const;
 
 const emptyProjectTokenStats: ProjectTokenStats = { user: 0, reasoning: 0, response: 0, total: 0 };
@@ -698,7 +700,7 @@ function ReasoningControl({
       >
         <strong className="welcome-reasoning-value">
           <span aria-hidden="true" className="welcome-reasoning-value-sizer">
-            <span>Medium</span>
+            <span>Extra high</span>
             {fastAvailable ? <span className="welcome-reasoning-fast-mark"><BoltIcon /></span> : null}
           </span>
           <span className="welcome-reasoning-value-text">

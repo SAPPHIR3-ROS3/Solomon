@@ -141,11 +141,13 @@ function isFastVariant(v: ModelVariant): boolean {
 }
 
 function normalizeReasoningEffort(v: string | undefined): string {
-  const s = (v ?? "").trim().toLowerCase();
+  const s = (v ?? "").trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
   if (!s || s === "none") {
     return "";
   }
-  return s === "med" ? "medium" : s;
+  if (s === "med") return "medium";
+  if (s === "x-high" || s === "extra-high") return "xhigh";
+  return s;
 }
 
 function upsertReasoningParam(params: ModelParamValue[], info: ModelInfo, effort: string): void {

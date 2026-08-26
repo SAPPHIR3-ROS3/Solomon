@@ -588,11 +588,14 @@ const deepReasoningOptions = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
+  { value: "xhigh", label: "Extra high" },
+  { value: "max", label: "Max" },
 ] as const;
 
 function normalizeDeepReasoning(value: string) {
-  const normalized = value.trim().toLowerCase();
+  const normalized = value.trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
   if (normalized === "med") return "medium";
+  if (normalized === "x-high" || normalized === "extra-high") return "xhigh";
   return deepReasoningOptions.some((option) => option.value === normalized) ? normalized : "high";
 }
 
