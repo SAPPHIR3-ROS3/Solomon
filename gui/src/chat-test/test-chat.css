@@ -26,6 +26,8 @@
   }
 }
 .test-chat-view {
+  --test-chat-content-max-width: 960px;
+  --test-chat-horizontal-padding: 36px;
   --test-chat-send-disabled-color: #a18d43;
   --test-chat-composer-surface-top: 100%;
   --test-chat-pulse-opacity: .45;
@@ -38,8 +40,8 @@
   flex-direction: column;
   left: 0;
   margin: 0 auto;
-  max-width: 960px;
-  padding: var(--top-bar-height) 36px 8px;
+  max-width: calc(var(--test-chat-content-max-width) + (var(--test-chat-horizontal-padding) * 2));
+  padding: var(--top-bar-height) var(--test-chat-horizontal-padding) 8px;
   position: fixed;
   right: 0;
   top: 0;
@@ -107,7 +109,7 @@
 .test-chat-topbar-title { color: var(--color-text); flex: 1 1 auto; font-size: 20px; font-weight: 650; letter-spacing: -.035em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .test-chat-messages-shell, .test-chat-composer-dock { position: relative; z-index: 1; }
 .test-chat-empty { color: var(--color-text-muted); font: 13px/1.5 "Geist", sans-serif; margin: 0; }
-.test-chat-messages-shell { --checkpoint-rail-width: 54px; flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; width: calc(100% + 72px + var(--checkpoint-rail-width)); }
+.test-chat-messages-shell { --checkpoint-rail-width: 54px; flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; width: calc(100% + var(--checkpoint-rail-width)); }
 .test-chat-messages-shell::-webkit-scrollbar { display: none; height: 0; width: 0; }
 .test-chat-messages-shell::before { content: ""; height: 42px; left: 0; pointer-events: none; position: absolute; right: 0; z-index: 2; }
 .test-chat-messages-shell::before { background: linear-gradient(to bottom, var(--color-canvas), transparent); top: 0; }
@@ -206,7 +208,7 @@
 .test-chat-subagent-stop:hover { background: color-mix(in srgb, var(--color-surface-raised) 58%, var(--color-canvas)); border-color: color-mix(in srgb, var(--color-border) 78%, transparent); color: var(--color-text); }
 .test-chat-subagent-stop:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .test-chat-subagent-task { color: color-mix(in srgb, var(--color-text) 84%, var(--color-text-muted)); font: 400 21px/1.45 "Geist", sans-serif; margin: 8px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
-.test-chat-subchat-panel { background: var(--color-canvas); border: 1px solid color-mix(in srgb, var(--color-border) 86%, transparent); border-radius: 14px; box-shadow: 0 24px 70px rgb(0 0 0 / 48%), 0 0 0 1px color-mix(in srgb, var(--color-border) 18%, transparent); display: flex; flex-direction: column; inset: calc(var(--top-bar-height) + 34px) -36px calc(var(--test-chat-composer-dock-height, 204px) + 8px) 36px; min-height: 0; overflow: hidden; position: absolute; z-index: 2; }
+.test-chat-subchat-panel { background: var(--color-canvas); border: 1px solid color-mix(in srgb, var(--color-border) 86%, transparent); border-radius: 14px; box-shadow: 0 24px 70px rgb(0 0 0 / 48%), 0 0 0 1px color-mix(in srgb, var(--color-border) 18%, transparent); display: flex; flex-direction: column; inset: calc(var(--top-bar-height) + 34px) var(--test-chat-horizontal-padding) calc(var(--test-chat-composer-dock-height, 204px) + 8px) var(--test-chat-horizontal-padding); min-height: 0; overflow: hidden; position: absolute; z-index: 2; }
 .test-chat-subchat-header { align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--color-border) 78%, transparent); display: flex; flex: 0 0 auto; min-height: 56px; padding: 0 13px 0 16px; }
 .test-chat-subchat-heading { align-items: center; display: flex; gap: 10px; min-width: 0; }
 .test-chat-subchat-status-dot { background: var(--color-crown-gold); border: 2px solid var(--color-canvas); border-radius: 50%; box-sizing: content-box; flex: 0 0 auto; height: 8px; width: 8px; }
@@ -351,10 +353,10 @@
   background: transparent;
   border-radius: 0;
   bottom: 0;
-  left: 36px;
+  left: var(--test-chat-horizontal-padding);
   margin: 0;
   position: absolute;
-  right: -36px;
+  right: var(--test-chat-horizontal-padding);
   width: auto;
   z-index: 4;
   /* Keep the same 4px composer-to-controls spacing as the Home composer. */
