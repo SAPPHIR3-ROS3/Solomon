@@ -1,4 +1,4 @@
-import { isValidElement, type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { isValidElement, type CSSProperties, type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
@@ -6,11 +6,17 @@ import asciiColors from "../../../internal/logo/colors.txt?raw";
 import type { FakeChat, FakeChatImage, FakeChatMessage, FakeChatStats, FakeChatToolCall, FakeChatToolResult } from "./fakeChats";
 import { AtMentionInput, type ComposerImageAttachment } from "../home/AtMentionInput";
 import { testChatAtMentionEntries } from "../shell/RightSidePanel";
+import { resetFakeChatSubagents } from "./testChatStore";
 import "./test-chat.css";
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 const FIXTURE_MESSAGE_START_TIME = new Date("2026-01-01T09:00:00").getTime();
 const MODE_SWITCH_DURATION_MS = 5000;
+const PULSE_DURATION_MS = 1150;
+
+function synchronizedPulseDelay() {
+  return `${-(performance.now() % PULSE_DURATION_MS)}ms`;
+}
 
 type CheckpointMetadata = {
   branch: string;
@@ -30,19 +36,21 @@ type TestChatViewProps = {
   isStreaming?: boolean;
   onDeleteMessage: (chatID: string, messageID: string) => void;
   onSend: (chatID: string, message: FakeChatMessage) => void;
+  onStopTool: (chatID: string, messageID: string, toolID: string) => void;
   onStopStreaming: (chatID: string) => void;
   pendingUserMessageIDs?: ReadonlySet<string>;
   workspaceName?: string;
   workspacePath?: string;
 };
 
-export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDeleteMessage, onSend, onStopStreaming, pendingUserMessageIDs = new Set(), workspaceName, workspacePath }: TestChatViewProps) {
+export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDeleteMessage, onSend, onStopTool, onStopStreaming, pendingUserMessageIDs = new Set(), workspaceName, workspacePath }: TestChatViewProps) {
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<FakeChatMessage | null>(null);
   const [composerMode, setComposerMode] = useState<"agent" | "chat">(chat.modeSwitchTarget ? "chat" : "agent");
   const [isModeSwitchPending, setIsModeSwitchPending] = useState(Boolean(chat.modeSwitchTarget));
   const [modeSwitchProgress, setModeSwitchProgress] = useState(0);
+  const [openSubagent, setOpenSubagent] = useState<{ messageID: string; toolID: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
@@ -54,6 +62,14 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const indexedMessages = indexChatMessages(chat.messages);
   const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
   const visibleMessages = indexedMessages.filter(({ message }) => !pendingUserMessageIDs.has(message.id));
+  const openSubagentTool = openSubagent
+    ? chat.messages.find((message) => message.id === openSubagent.messageID)?.toolCalls?.find((tool) => tool.id === openSubagent.toolID)
+    : undefined;
+
+  useEffect(() => {
+    resetFakeChatSubagents(chat.id);
+    setOpenSubagent(null);
+  }, [chat.id]);
 
   useEffect(() => {
     if (chat.modeSwitchTarget !== "agent") {
@@ -115,7 +131,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   }
 
   return (
-    <section aria-label={`Test chat: ${chat.title}`} className="test-chat-view" style={{ bottom: Math.max(0, bottomInset) }}>
+    <section aria-label={`Test chat: ${chat.title}`} className="test-chat-view" style={{ "--test-chat-pulse-delay": synchronizedPulseDelay(), bottom: Math.max(0, bottomInset) } as CSSProperties}>
       <AsciiCrown />
       <div aria-live="polite" className="test-chat-messages-shell">
         <div className="test-chat-messages">
@@ -126,13 +142,16 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
                 index={index}
                 key={message.id}
                 message={message}
+                onOpenSubagent={(tool) => setOpenSubagent({ messageID: message.id, toolID: tool.id })}
                 onRequestDelete={message.role === "user" ? () => setDeleteTarget(message) : undefined}
+                onStopTool={(toolID) => onStopTool(chat.id, message.id, toolID)}
               />
             )
           )) : <p className="test-chat-empty">This chat is ready for the first message.</p>}
           <div ref={messagesEndRef} />
         </div>
       </div>
+      {openSubagentTool ? <SubagentChatPanel onCollapse={() => setOpenSubagent(null)} tool={openSubagentTool} /> : null}
       <div className="welcome-composer-dock test-chat-composer-dock">
         {pendingMessages.length ? (
           <div className="test-chat-pending-messages">
@@ -426,7 +445,7 @@ function ModeSwitchNotice({ onCancel, progress }: { onCancel: () => void; progre
   );
 }
 
-function ChatMessageTurn({ checkpoint, index, message, onRequestDelete }: { checkpoint?: CheckpointMetadata; index: number; message: FakeChatMessage; onRequestDelete?: () => void }) {
+function ChatMessageTurn({ checkpoint, index, message, onOpenSubagent, onRequestDelete, onStopTool }: { checkpoint?: CheckpointMetadata; index: number; message: FakeChatMessage; onOpenSubagent?: (tool: FakeChatToolCall) => void; onRequestDelete?: () => void; onStopTool?: (toolID: string) => void }) {
   const [isReasoningCollapsed, setIsReasoningCollapsed] = useState(true);
   const canCollapseReasoning = message.role === "assistant" && Boolean(message.reasoning || message.thoughtFor !== undefined);
 
@@ -442,7 +461,7 @@ function ChatMessageTurn({ checkpoint, index, message, onRequestDelete }: { chec
         {checkpoint ? <CheckpointLabel label={checkpoint.label} /> : null}
         {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
         {canCollapseReasoning ? <ReasoningBlock isCollapsed={isReasoningCollapsed} message={message} onToggle={() => setIsReasoningCollapsed((current) => !current)} /> : null}
-        {message.toolCalls?.length ? <ToolActivity checkpoint={checkpoint} toolCalls={message.toolCalls} /> : null}
+        {message.toolCalls?.length ? <ToolActivity checkpoint={checkpoint} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} toolCalls={message.toolCalls} /> : null}
         <MarkdownContent content={message.content} />
       </article>
       {message.status === "interrupted" ? <InterruptedGenerationMarker /> : null}
@@ -451,8 +470,8 @@ function ChatMessageTurn({ checkpoint, index, message, onRequestDelete }: { chec
   );
 }
 
-function ToolActivity({ checkpoint, toolCalls }: { checkpoint?: CheckpointMetadata; toolCalls: FakeChatToolCall[] }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+function ToolActivity({ checkpoint, onOpenSubagent, onStopTool, toolCalls }: { checkpoint?: CheckpointMetadata; onOpenSubagent?: (tool: FakeChatToolCall) => void; onStopTool?: (toolID: string) => void; toolCalls: FakeChatToolCall[] }) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const activityRef = useRef<HTMLElement>(null);
   const shouldAnchorOnCollapseRef = useRef(false);
   const collapseLabel = isCollapsed ? `Show ${toolCalls.length} tool calls` : "Collapse tool calls";
@@ -471,7 +490,9 @@ function ToolActivity({ checkpoint, toolCalls }: { checkpoint?: CheckpointMetada
   return (
     <section aria-label="Tool activity" className={`test-chat-tool-activity${isCollapsed ? " is-collapsed" : ""}`} onClick={(event) => event.stopPropagation()} ref={activityRef}>
       {!isCollapsed ? toolCalls.map((tool, index) => (
-        <ToolCallCard key={tool.id} checkpoint={resolveToolCheckpoint(tool, checkpoint, index)} tool={tool} />
+        tool.name === "subagent"
+          ? <SubagentCard checkpoint={resolveToolCheckpoint(tool, checkpoint, index)} key={tool.id} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} tool={tool} />
+          : <ToolCallCard key={tool.id} checkpoint={resolveToolCheckpoint(tool, checkpoint, index)} tool={tool} />
       )) : null}
       <button aria-expanded={!isCollapsed} aria-label={collapseLabel} className="test-chat-tool-collapse-all" onClick={toggleCollapsed} type="button">
         {collapseLabel}
@@ -496,11 +517,14 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
   const isWebSearch = tool.name === "webSearch";
   const isSearchSkill = tool.name === "searchSkill";
   const isSearchTools = tool.name === "searchTools";
+  const isListSubAgents = tool.name === "listSubAgents";
   const isRename = tool.name === "editFile" && Boolean(tool.renameTo);
   const isDelete = tool.name === "editFile" && Boolean(tool.delete);
-  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind || tool.name === "listDir" || tool.name === "tree" || tool.name === "editFile" || tool.name === "loadSkill" || isSearchSkill || isSearchTools || tool.name === "docsRetrieval" || isCreatePlan || isEditPlan || isBuildPlan || isAddTodo || isTodoList || isCheckTodo || isRemoveTodo || isCheckPlan || isDeletePlan || isFetchWeb || isWebSearch;
+  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind || tool.name === "listDir" || tool.name === "tree" || tool.name === "editFile" || tool.name === "loadSkill" || isSearchSkill || isSearchTools || isListSubAgents || tool.name === "docsRetrieval" || isCreatePlan || isEditPlan || isBuildPlan || isAddTodo || isTodoList || isCheckTodo || isRemoveTodo || isCheckPlan || isDeletePlan || isFetchWeb || isWebSearch;
   const isDangerousArgument = isDelete || isRemoveTodo || isDeletePlan;
-  const inlineCommand = tool.name === "editFile" && tool.renameTo
+  const inlineCommand = isListSubAgents
+    ? ""
+    : tool.name === "editFile" && tool.renameTo
     ? `${tool.input ?? ""} → ${tool.renameTo}`
     : tool.input;
   const toolParameters = isFind || isCreatePlan || isAddTodo || isFetchWeb || isWebSearch
@@ -569,13 +593,229 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
               <EditFileDiffCard newString={tool.newString} oldString={tool.oldString} />
             ) : null}
             {tool.result ? (
-              tool.name === "readFile" || (tool.name === "editFile" && status === "success") || (tool.name === "loadSkill" && status === "success") || (tool.name === "docsRetrieval" && status === "success") || (isCreatePlan && status === "success") || (isEditPlan && status === "success") || (isBuildPlan && status === "success") || (isAddTodo && status === "success") || (isCheckTodo && status === "success") || (isRemoveTodo && status === "success") || (isCheckPlan && status === "success") || (isDeletePlan && status === "success") || (isFetchWeb && status === "success") ? null : <ToolResultCard result={tool.result} toolName={tool.name} />
+              isListSubAgents || tool.name === "readFile" || (tool.name === "editFile" && status === "success") || (tool.name === "loadSkill" && status === "success") || (tool.name === "docsRetrieval" && status === "success") || (isCreatePlan && status === "success") || (isEditPlan && status === "success") || (isBuildPlan && status === "success") || (isAddTodo && status === "success") || (isCheckTodo && status === "success") || (isRemoveTodo && status === "success") || (isCheckPlan && status === "success") || (isDeletePlan && status === "success") || (isFetchWeb && status === "success") ? null : <ToolResultCard result={tool.result} toolName={tool.name} />
             ) : null}
           </div>
         </div>
       </details>
     </div>
   );
+}
+
+function SubagentCard({ checkpoint, onOpenSubagent, onStopTool, tool }: { checkpoint: CheckpointMetadata; onOpenSubagent?: (tool: FakeChatToolCall) => void; onStopTool?: (toolID: string) => void; tool: FakeChatToolCall }) {
+  const status = tool.status ?? tool.result?.status ?? "running";
+
+  return (
+    <section
+      aria-label="Open subagent chat"
+      className={`test-chat-subagent-card is-${status}`}
+      data-checkpoint={checkpoint.label}
+      onClick={() => onOpenSubagent?.(tool)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onOpenSubagent?.(tool);
+      }}
+      role="button"
+      tabIndex={0}
+    >
+      <CheckpointLabel label={checkpoint.label} />
+      <div className="test-chat-subagent-content">
+        <div className="test-chat-subagent-heading">
+          <i aria-hidden="true" className="test-chat-subagent-status-dot" />
+          <span className="test-chat-subagent-title">Subagent</span>
+          {status === "running" ? (
+            <button
+              aria-label="Stop subagent"
+              className="test-chat-subagent-stop"
+              onClick={(event) => {
+                event.stopPropagation();
+                onStopTool?.(tool.id);
+              }}
+              title="Stop subagent"
+              type="button"
+            >
+              Stop
+            </button>
+          ) : null}
+        </div>
+        {tool.input ? <p className="test-chat-subagent-task">{tool.input}</p> : null}
+      </div>
+    </section>
+  );
+}
+
+function SubagentChatPanel({ onCollapse, tool }: { onCollapse: () => void; tool: FakeChatToolCall }) {
+  const status = tool.status ?? tool.result?.status ?? "running";
+  const transcript = createSubagentTranscript(tool.input ?? "");
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCollapse();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onCollapse]);
+
+  return (
+    <section
+      aria-label="Subagent chat"
+      aria-modal="true"
+      className={`test-chat-subchat-panel is-${status}`}
+      onClick={(event) => event.stopPropagation()}
+      role="dialog"
+    >
+      <header className="test-chat-subchat-header">
+        <div className="test-chat-subchat-heading">
+          <i aria-hidden="true" className="test-chat-subchat-status-dot" />
+          <span className="test-chat-subchat-title">Subagent chat</span>
+        </div>
+        <button aria-label="Collapse subagent chat" className="test-chat-subchat-collapse" onClick={onCollapse} title="Collapse subagent chat" type="button">
+          <CollapseSubchatIcon />
+        </button>
+      </header>
+      <div className="test-chat-subchat-body">
+        <div className="test-chat-subchat-task">
+          <span className="test-chat-subchat-task-label">Task</span>
+          <p>{tool.input ?? "No task provided."}</p>
+        </div>
+        <div className="test-chat-subchat-transcript">
+          {transcript.map((message, index) => (
+            <ChatMessageTurn index={index} key={message.id} message={message} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function createSubagentTranscript(task: string): FakeChatMessage[] {
+  const messages: FakeChatMessage[] = [
+    {
+      content: `Analizzo il renderer della chat per capire come viene composto il turno osservabile e quali parti posso riusare nella subchat. Il punto di partenza è il task: “${task}”.`,
+      id: "subagent-assistant-1",
+      role: "assistant",
+      toolCalls: [
+        {
+          checkpointSeq: 1,
+          id: "subagent-tool-shell",
+          input: "rg -n \"ChatMessageTurn|ToolActivity\" gui/src/chat-test/TestChatView.tsx",
+          intent: "Inspect the current chat renderer.",
+          name: "shell",
+          result: { output: "ChatMessageTurn\nToolActivity\nToolCallCard", status: "success" },
+          status: "success",
+        },
+      ],
+      workedFor: 1.12,
+    },
+    {
+      content: "Il turno principale usa già una colonna assistant a larghezza completa, mentre i contenuti vengono mantenuti dentro un articolo senza bolla. Riutilizzo quindi quella stessa struttura per evitare che la subchat sembri un pannello separato dal transcript.",
+      id: "subagent-assistant-2",
+      role: "assistant",
+      workedFor: 0.84,
+    },
+    {
+      content: "Ora controllo gli stili associati ai messaggi e alle tool call, così la sequenza mantiene la stessa gerarchia visiva anche quando il contenuto diventa abbastanza lungo da richiedere lo scroll.",
+      id: "subagent-assistant-3",
+      role: "assistant",
+      toolCalls: [
+        {
+          checkpointSeq: 2,
+          id: "subagent-tool-read-file",
+          input: "gui/src/chat-test/test-chat.css",
+          intent: "Read the message and tool spacing rules.",
+          name: "readFile",
+          result: { output: ".test-chat-message.is-assistant\n.test-chat-tool-activity\n.test-chat-message-footer", status: "success" },
+          status: "success",
+        },
+      ],
+      workedFor: 1.46,
+    },
+    {
+      content: "La prima verifica conferma che i messaggi assistant devono restare trasparenti e allineati alla colonna principale. Le tool call possono quindi stare tra un messaggio e l’altro, mantenendo i loro card e i loro checkpoint senza introdurre una seconda griglia orizzontale.",
+      id: "subagent-assistant-4",
+      role: "assistant",
+      workedFor: 1.08,
+    },
+    {
+      content: "Cerco anche eventuali riferimenti duplicati, perché una subchat lunga deve mostrare una progressione credibile: lettura del codice, confronto con il comportamento esistente e infine una modifica mirata.",
+      id: "subagent-assistant-5",
+      role: "assistant",
+      toolCalls: [
+        {
+          checkpointSeq: 3,
+          id: "subagent-tool-find",
+          input: "test-chat",
+          intent: "Find related transcript styles and fixtures.",
+          mode: "text",
+          name: "find",
+          parameters: [
+            { label: "pattern", value: "test-chat" },
+            { label: "path", value: "gui/src/chat-test" },
+          ],
+          result: {
+            count: 8,
+            items: [
+              "gui/src/chat-test/TestChatView.tsx",
+              "gui/src/chat-test/test-chat.css",
+              "gui/src/chat-test/fakeChats.ts",
+            ],
+            status: "success",
+          },
+          status: "success",
+        },
+      ],
+      workedFor: 1.71,
+    },
+    {
+      content: "A questo punto la struttura è coerente: task in apertura, stato del subagent, messaggi assistant normali e tool call alternate. Il contenuto resta volutamente leggibile anche durante lo scroll, così il punto di lettura non si perde quando il subagent produce molti passaggi intermedi.",
+      id: "subagent-assistant-6",
+      role: "assistant",
+      workedFor: 1.36,
+    },
+    {
+      content: "Applico una piccola correzione al renderer per verificare che il risultato della ricerca e il messaggio successivo rimangano due elementi distinti, come nella chat principale.",
+      id: "subagent-assistant-7",
+      role: "assistant",
+      toolCalls: [
+        {
+          checkpointSeq: 4,
+          id: "subagent-tool-edit-file",
+          input: "gui/src/chat-test/TestChatView.tsx",
+          intent: "Keep transcript entries in the same visual order.",
+          name: "editFile",
+          oldString: "<div className=\"subchat-body\">",
+          newString: "<div className=\"subchat-body\"><div className=\"subchat-transcript\">",
+          result: { output: "edit applied", status: "success" },
+          status: "success",
+        },
+      ],
+      workedFor: 1.92,
+    },
+    {
+      content: "La revisione è completata. Il transcript della subchat ora può contenere abbastanza passaggi da essere scorrevole e ogni messaggio assistant mantiene la resa della chat normale, senza trasformarsi in una card o in un blocco centrato separato.",
+      id: "subagent-assistant-8",
+      role: "assistant",
+      workedFor: 1.24,
+    },
+  ];
+  const reasoning = [
+    "Devo prima individuare il punto in cui il turno viene composto, così la subchat può riusare la stessa gerarchia del renderer principale.",
+    "La struttura assistant esistente è già adatta: basta mantenere il contenuto sulla colonna completa e non introdurre una bolla aggiuntiva.",
+    "Per evitare differenze visive controllo le regole comuni di messaggi, tool activity e footer prima di costruire il transcript.",
+    "Il confronto conferma che la tool call deve rimanere un elemento autonomo tra due messaggi assistant, senza spostare la colonna del testo.",
+    "Una sequenza credibile deve seguire l’ordine reale del lavoro: cercare, leggere, confrontare e solo alla fine modificare.",
+    "Ora posso verificare che la subchat resti leggibile anche quando il numero di passaggi supera lo spazio iniziale disponibile.",
+    "La modifica deve essere circoscritta al transcript: il risultato della ricerca e la risposta successiva devono restare separati.",
+    "Concludo dopo aver verificato sia la struttura dei turni sia il comportamento dello scroll nella superficie espansa.",
+  ];
+  const thoughtFor = [0.52, 0.41, 0.68, 0.57, 0.74, 0.49, 0.63, 0.46];
+
+  return messages.map((message, index) => ({
+    ...message,
+    reasoning: reasoning[index],
+    thoughtFor: thoughtFor[index],
+  }));
 }
 
 function EditFileDiffCard({ newString, oldString }: { newString?: string; oldString?: string }) {
@@ -1209,6 +1449,10 @@ function InfoIcon() {
 
 function StopIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><rect height="9" rx="1.5" width="9" x="7.5" y="7.5" /></svg>;
+}
+
+function CollapseSubchatIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 4H4v5M15 20h5v-5M4 8l5-5M20 16l-5 5" /></svg>;
 }
 
 function BranchIcon() {
