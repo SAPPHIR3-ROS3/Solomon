@@ -248,6 +248,22 @@ const allAvailableFakeToolCalls = ([
   },
   {
     defaultOpen: false,
+    id: "tool-subagent-research",
+    input: "review the deep research status presentation",
+    intent: "Delego una revisione della presentazione della deep research.",
+    name: "subagent",
+    status: "running",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-subagent-pulse",
+    input: "check synchronized activity indicators",
+    intent: "Verifico la sincronizzazione degli indicatori di attività.",
+    name: "subagent",
+    status: "running",
+  },
+  {
+    defaultOpen: false,
     id: "tool-switch-mode",
     input: "agent",
     intent: "Passo alla modalità agente per eseguire modifiche.",
