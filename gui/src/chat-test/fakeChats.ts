@@ -51,7 +51,7 @@ export type FakeChatToolCall = {
   parameters?: FakeChatToolParameter[];
   result?: FakeChatToolResult;
   renameTo?: string;
-  status?: "error" | "running" | "success";
+  status?: "error" | "interrupted" | "running" | "success";
 };
 
 export type FakeRetainedMessage = {
@@ -222,8 +222,23 @@ const allAvailableFakeToolCalls = ([
     input: "review the chat transcript renderer",
     intent: "Delego una revisione mirata del renderer.",
     name: "subagent",
-    result: { output: "review completed", status: "success" },
+    status: "running",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-subagent-layout",
+    input: "audit the subchat visual hierarchy",
+    intent: "Delego una verifica della gerarchia visiva della subchat.",
+    name: "subagent",
     status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-subagent-scroll",
+    input: "verify the subchat scrolling behavior",
+    intent: "Delego un controllo dello scorrimento del transcript.",
+    name: "subagent",
+    status: "running",
   },
   {
     defaultOpen: false,
