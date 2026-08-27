@@ -30,6 +30,11 @@ type IndexedChatMessage = {
   message: FakeChatMessage;
 };
 
+type ActiveSubagent = {
+  messageID: string;
+  tool: FakeChatToolCall;
+};
+
 type TestChatViewProps = {
   bottomInset?: number;
   chat: FakeChat;
@@ -51,7 +56,11 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const [isModeSwitchPending, setIsModeSwitchPending] = useState(Boolean(chat.modeSwitchTarget));
   const [modeSwitchProgress, setModeSwitchProgress] = useState(0);
   const [openSubagent, setOpenSubagent] = useState<{ messageID: string; toolID: string } | null>(null);
+  const [isSubagentIndicatorExpanded, setIsSubagentIndicatorExpanded] = useState(false);
+  const viewRef = useRef<HTMLElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const composerDockRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLFormElement>(null);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const lastMessageContent = chat.messages.at(-1)?.content ?? "";
   const lastMessageReasoning = chat.messages.at(-1)?.reasoning ?? "";
@@ -59,9 +68,15 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   const lastMessageThoughtFor = chat.messages.at(-1)?.thoughtFor ?? null;
   const lastMessageWorkedFor = chat.messages.at(-1)?.workedFor ?? null;
   const pendingMessageKey = [...pendingUserMessageIDs].join("-");
+  const [pulseDelay] = useState(() => synchronizedPulseDelay());
   const indexedMessages = indexChatMessages(chat.messages);
   const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
   const visibleMessages = indexedMessages.filter(({ message }) => !pendingUserMessageIDs.has(message.id));
+  const activeSubagents: ActiveSubagent[] = chat.messages.flatMap((message) => (
+    (message.toolCalls ?? [])
+      .filter((tool) => tool.name === "subagent" && (tool.status ?? tool.result?.status ?? "running") === "running")
+      .map((tool) => ({ messageID: message.id, tool }))
+  ));
   const openSubagentTool = openSubagent
     ? chat.messages.find((message) => message.id === openSubagent.messageID)?.toolCalls?.find((tool) => tool.id === openSubagent.toolID)
     : undefined;
@@ -69,7 +84,12 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   useEffect(() => {
     resetFakeChatSubagents(chat.id);
     setOpenSubagent(null);
+    setIsSubagentIndicatorExpanded(false);
   }, [chat.id]);
+
+  useEffect(() => {
+    if (activeSubagents.length === 0) setIsSubagentIndicatorExpanded(false);
+  }, [activeSubagents.length]);
 
   useEffect(() => {
     if (chat.modeSwitchTarget !== "agent") {
@@ -102,6 +122,24 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
     messagesEndRef.current?.scrollIntoView({ block: "end" });
   }, [chat.id, chat.messages.length, lastMessageContent, lastMessageReasoning, lastMessageStatus, lastMessageThoughtFor, lastMessageWorkedFor, pendingMessageKey]);
 
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    const dock = composerDockRef.current;
+    const composer = composerRef.current;
+    if (!view || !dock || !composer) return;
+    const measureDock = () => {
+      const dockRect = dock.getBoundingClientRect();
+      const composerRect = composer.getBoundingClientRect();
+      view.style.setProperty("--test-chat-composer-dock-height", `${Math.ceil(dockRect.height)}px`);
+      view.style.setProperty("--test-chat-composer-surface-top", `${Math.max(0, composerRect.top - dockRect.top)}px`);
+    };
+    const observer = new ResizeObserver(measureDock);
+    observer.observe(dock);
+    observer.observe(composer);
+    measureDock();
+    return () => observer.disconnect();
+  }, [activeSubagents.length, isModeSwitchPending, isSubagentIndicatorExpanded, pendingMessageKey]);
+
   useEffect(() => {
     if (!deleteTarget) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -131,7 +169,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
   }
 
   return (
-    <section aria-label={`Test chat: ${chat.title}`} className="test-chat-view" style={{ "--test-chat-pulse-delay": synchronizedPulseDelay(), bottom: Math.max(0, bottomInset) } as CSSProperties}>
+    <section aria-label={`Test chat: ${chat.title}`} className="test-chat-view" ref={viewRef} style={{ "--test-chat-pulse-delay": pulseDelay, bottom: Math.max(0, bottomInset) } as CSSProperties}>
       <AsciiCrown />
       <div aria-live="polite" className="test-chat-messages-shell">
         <div className="test-chat-messages">
@@ -152,7 +190,7 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
         </div>
       </div>
       {openSubagentTool ? <SubagentChatPanel onCollapse={() => setOpenSubagent(null)} tool={openSubagentTool} /> : null}
-      <div className="welcome-composer-dock test-chat-composer-dock">
+      <div className="welcome-composer-dock test-chat-composer-dock" ref={composerDockRef}>
         {pendingMessages.length ? (
           <div className="test-chat-pending-messages">
             {pendingMessages.map(({ message }) => (
@@ -165,8 +203,17 @@ export function TestChatView({ bottomInset = 0, chat, isStreaming = false, onDel
             ))}
           </div>
         ) : null}
+        {activeSubagents.length ? (
+          <SubagentActivityIndicator
+            isExpanded={isSubagentIndicatorExpanded}
+            onOpenSubagent={(messageID, toolID) => setOpenSubagent({ messageID, toolID })}
+            onToggle={() => setIsSubagentIndicatorExpanded((current) => !current)}
+            subagents={activeSubagents}
+          />
+        ) : null}
         {isModeSwitchPending ? <ModeSwitchNotice progress={modeSwitchProgress} onCancel={cancelModeSwitch} /> : null}
-        <form className="test-chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
+        <div aria-hidden="true" className="test-chat-composer-background" />
+        <form className="test-chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }} ref={composerRef}>
           <div className="welcome-composer">
           <AtMentionInput
             aria-label="Test message"
@@ -441,6 +488,41 @@ function ModeSwitchNotice({ onCancel, progress }: { onCancel: () => void; progre
       <div aria-label={`${percentage}% complete`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={percentage} className="test-chat-mode-switch-progress" role="progressbar">
         <span style={{ transform: `scaleX(${progress})` }} />
       </div>
+  </section>
+  );
+}
+
+function SubagentActivityIndicator({ isExpanded, onOpenSubagent, onToggle, subagents }: { isExpanded: boolean; onOpenSubagent: (messageID: string, toolID: string) => void; onToggle: () => void; subagents: ActiveSubagent[] }) {
+  const count = subagents.length;
+
+  return (
+    <section aria-label={`${count} subagents working`} className={`test-chat-subagent-indicator${isExpanded ? " is-expanded" : ""}`}>
+      <button aria-expanded={isExpanded} className="test-chat-subagent-indicator-toggle" onClick={onToggle} type="button">
+        <i aria-hidden="true" className="test-chat-subagent-indicator-dot" />
+        <span className="test-chat-subagent-indicator-label">
+          <span className="test-chat-subagent-indicator-count">{count}</span>
+          <span>subagents working</span>
+        </span>
+        <svg aria-hidden="true" className="test-chat-subagent-indicator-chevron" viewBox="0 0 24 24">
+          <path d="m7 10 5 5 5-5" />
+        </svg>
+      </button>
+      {isExpanded ? (
+        <div className="test-chat-subagent-indicator-list">
+          {subagents.map(({ messageID, tool }) => (
+            <button
+              aria-label={`Open subagent chat: ${tool.input ?? "Untitled subagent"}`}
+              className="test-chat-subagent-indicator-item"
+              key={tool.id}
+              onClick={() => onOpenSubagent(messageID, tool.id)}
+              type="button"
+            >
+              <i aria-hidden="true" className="test-chat-subagent-indicator-item-dot" />
+              <span>{tool.input ?? "Untitled subagent"}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
