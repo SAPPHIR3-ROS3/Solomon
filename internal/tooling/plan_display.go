@@ -135,11 +135,7 @@ func formatPlanToolResultBody(toolName string, m map[string]json.RawMessage) str
 
 func formatDeepResearchToolDisplayLines(m map[string]json.RawMessage) []string {
 	query := strings.TrimSpace(jsonDisplayString(m["query"]))
-	lines := []string{termcolor.ToolHeaderLine("deepResearch", "")}
-	if query != "" {
-		lines = append(lines, termcolor.WrapTool(query))
-	}
-	return lines
+	return []string{termcolor.ToolHeaderLine("deepResearch", query)}
 }
 
 func formatResearchStatusToolDisplayLines(m map[string]json.RawMessage) []string {
@@ -151,12 +147,22 @@ func formatResearchToolResultBody(m map[string]json.RawMessage) string {
 	if err := jsonDisplayString(m["error"]); err != "" {
 		return "→ " + firstDisplayLine(err, 120)
 	}
-	if title := jsonDisplayString(m["title"]); title != "" {
-		st := jsonDisplayString(m["status"])
-		if st != "" {
-			return "→ " + firstDisplayLine(title, 80) + " (" + st + ")"
+	jobID := jsonDisplayString(m["jobId"])
+	title := jsonDisplayString(m["title"])
+	status := jsonDisplayString(m["status"])
+	if jobID != "" || title != "" {
+		parts := make([]string, 0, 2)
+		if jobID != "" {
+			parts = append(parts, jobID)
 		}
-		return "→ " + firstDisplayLine(title, 120)
+		if title != "" {
+			parts = append(parts, firstDisplayLine(title, 80))
+		}
+		body := "→ " + strings.Join(parts, " • ")
+		if status != "" {
+			body += " (" + status + ")"
+		}
+		return body
 	}
 	return ""
 }
