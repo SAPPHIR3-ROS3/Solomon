@@ -72,3 +72,20 @@ export function updateTestChat(
   if (nextChat === currentChat) return currentChat;
   return saveTestChat(nextChat);
 }
+
+export function resetFakeChatSubagents(chatID: string): FakeChat | null {
+  return updateTestChat(chatID, (current) => {
+    let changed = false;
+    const messages = current.messages.map((message) => {
+      if (!message.toolCalls?.some((tool) => tool.name === "subagent" && tool.status === "interrupted")) return message;
+      changed = true;
+      return {
+        ...message,
+        toolCalls: message.toolCalls.map((tool) => (
+          tool.name === "subagent" && tool.status === "interrupted" ? { ...tool, status: "running" as const } : tool
+        )),
+      };
+    });
+    return changed ? { ...current, messages } : current;
+  });
+}

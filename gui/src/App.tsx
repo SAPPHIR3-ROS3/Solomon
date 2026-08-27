@@ -336,6 +336,22 @@ export function App() {
     controller.abort();
   }
 
+  function stopFakeSubagent(chatID: string, messageID: string, toolID: string) {
+    updateTestChat(chatID, (current) => ({
+      ...current,
+      messages: current.messages.map((message) => (
+        message.id !== messageID
+          ? message
+          : {
+              ...message,
+              toolCalls: message.toolCalls?.map((tool) => (
+                tool.id === toolID ? { ...tool, status: "interrupted" } : tool
+              )),
+            }
+      )),
+    }));
+  }
+
   async function streamLoremResponse(chatID: string, assistantID: string, words: string[], controller: AbortController, startedAt: number) {
     try {
       for (let index = 0; index < words.length; index += 1) {
@@ -606,6 +622,7 @@ export function App() {
           isStreaming={streamingFakeChatIDs.has(selectedFakeChat.id)}
           onDeleteMessage={deleteFakeChatMessage}
           onSend={sendFakeChatMessage}
+          onStopTool={stopFakeSubagent}
           onStopStreaming={stopFakeChatStream}
           pendingUserMessageIDs={pendingFakeChatMessageIDs.get(selectedFakeChat.id) ?? EMPTY_MESSAGE_IDS}
           workspaceName={selectedTemporaryWorkspace?.name}
