@@ -283,6 +283,16 @@
 .test-chat-tool-result-item { appearance: none; background: transparent; border: 0; border-radius: 3px; color: color-mix(in srgb, var(--color-text) 82%, var(--color-text-muted)); cursor: pointer; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; margin: 0; min-width: 0; overflow-wrap: anywhere; padding: 0; text-align: left; white-space: pre-wrap; width: 100%; }
 .test-chat-tool-result-item:hover { color: var(--color-text); }
 .test-chat-tool-result-item:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
+.test-chat-research-status-result { column-gap: 8px; display: grid; font: 400 12px/1.45 "Geist", sans-serif; grid-template-columns: max-content minmax(0, 1fr); row-gap: 2px; }
+.test-chat-research-status-prefix { color: var(--color-text-muted); grid-column: 1; }
+.test-chat-research-status-value { color: color-mix(in srgb, var(--color-text) 82%, var(--color-text-muted)); grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
+.test-chat-research-status-value.is-running { color: var(--color-crown-gold); }
+.test-chat-research-status-value.is-done { color: var(--color-success); }
+.test-chat-research-status-value.is-paused { color: var(--color-text-muted); }
+.test-chat-research-status-value.is-failed,
+.test-chat-research-status-value.is-cancelled { color: var(--color-danger); }
+.test-chat-research-status-parameter { display: flex; gap: 8px; grid-column: 2; min-width: 0; }
+.test-chat-research-status-label { color: var(--color-text-muted); flex: 0 0 auto; }
 .test-chat-tool-result-todo-item { align-items: flex-start; appearance: none; background: transparent; border: 0; border-radius: 3px; color: color-mix(in srgb, var(--color-text) 82%, var(--color-text-muted)); cursor: pointer; display: flex; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; gap: 8px; margin: 0; min-width: 0; overflow-wrap: anywhere; padding: 0; text-align: left; white-space: pre-wrap; width: 100%; }
 .test-chat-tool-result-todo-item:hover { color: var(--color-text); }
 .test-chat-tool-result-todo-item:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
@@ -319,7 +329,7 @@
 .test-chat-delete-message:hover { background: color-mix(in srgb, var(--color-danger) 18%, transparent); color: #e57373; }
 .test-chat-delete-message:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .test-chat-delete-message svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 16px; }
-.test-chat-message span:not(.test-chat-code-line):not(.test-chat-line-number):not(.test-chat-line-content):not(.test-chat-checkpoint-label):not(.test-chat-tool-intent):not(.test-chat-tool-prompt):not(.test-chat-tool-command):not(.test-chat-tool-parameter-label):not(.test-chat-tool-parameter-value):not(.test-chat-tool-result-prefix):not(.test-chat-tool-result-text) { color: var(--color-text-muted); display: block; font: 600 10px/1 "Geist", sans-serif; margin-bottom: 6px; text-transform: uppercase; }
+.test-chat-message span:not(.test-chat-code-line):not(.test-chat-line-number):not(.test-chat-line-content):not(.test-chat-checkpoint-label):not(.test-chat-tool-intent):not(.test-chat-tool-prompt):not(.test-chat-tool-command):not(.test-chat-tool-parameter-label):not(.test-chat-tool-parameter-value):not(.test-chat-tool-result-prefix):not(.test-chat-tool-result-text):not(.test-chat-research-status-prefix):not(.test-chat-research-status-label):not(.test-chat-research-status-value) { color: var(--color-text-muted); display: block; font: 600 10px/1 "Geist", sans-serif; margin-bottom: 6px; text-transform: uppercase; }
 .test-chat-message p { margin: 0; white-space: pre-wrap; }
 .test-chat-message ul, .test-chat-message ol { padding-left: 18px; }
 .test-chat-message ul.contains-task-list { list-style: none; padding-left: 0; }

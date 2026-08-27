@@ -18,9 +18,15 @@ export type FakeChatToolResult = {
   count?: number;
   completed?: number;
   items?: string[];
+  jobId?: string;
+  maxRounds?: number;
   output?: string;
+  phase?: string;
+  researchStatus?: "cancelled" | "done" | "failed" | "paused" | "running";
+  round?: number;
   summary?: string;
   status: "error" | "success";
+  title?: string;
   todoItems?: FakeChatTodoItem[];
   truncated?: boolean;
 };
@@ -409,7 +415,7 @@ const allAvailableFakeToolCalls = ([
     input: "tool call UI patterns",
     intent: "Avvio una ricerca approfondita sui pattern di tool call.",
     name: "deepResearch",
-    result: { output: "jobId: research-001", status: "success" },
+    result: { jobId: "research-001", researchStatus: "running", status: "success", title: "Tool call UI patterns" },
     status: "success",
   },
   {
@@ -418,7 +424,43 @@ const allAvailableFakeToolCalls = ([
     input: "research-001",
     intent: "Controllo lo stato della ricerca avviata.",
     name: "researchStatus",
-    result: { output: "status: completed", status: "success" },
+    result: { maxRounds: 3, phase: "reading", researchStatus: "running", round: 1, status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-research-status-paused",
+    input: "research-002",
+    intent: "Controllo una ricerca sospesa durante l’analisi.",
+    name: "researchStatus",
+    result: { maxRounds: 3, phase: "analyzing", researchStatus: "paused", round: 2, status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-research-status-done",
+    input: "research-003",
+    intent: "Verifico una ricerca completata e il report disponibile.",
+    name: "researchStatus",
+    result: { maxRounds: 3, phase: "writing", researchStatus: "done", round: 3, status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-research-status-failed",
+    input: "research-004",
+    intent: "Controllo una ricerca terminata con errore.",
+    name: "researchStatus",
+    result: { maxRounds: 3, phase: "error", researchStatus: "failed", round: 1, status: "success" },
+    status: "success",
+  },
+  {
+    defaultOpen: false,
+    id: "tool-research-status-cancelled",
+    input: "research-005",
+    intent: "Controllo una ricerca annullata dall’utente.",
+    name: "researchStatus",
+    result: { maxRounds: 3, phase: "searching", researchStatus: "cancelled", round: 1, status: "success" },
     status: "success",
   },
 ] satisfies FakeChatToolCall[]).map((tool, index) => ({
