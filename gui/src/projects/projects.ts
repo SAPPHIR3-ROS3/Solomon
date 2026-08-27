@@ -63,7 +63,9 @@ export type ProjectAtMentionEntry = Pick<ProjectAtMentionSuggestion, "isDirector
 export type ProjectResearch = {
   finishedAt: string;
   id: string;
+  maxRounds?: number;
   phase: string;
+  round?: number;
   sourceCount: number;
   startedAt: string;
   status: string;
@@ -740,7 +742,9 @@ function projectResearchFromPayload(payload: unknown): ProjectResearch[] {
     return [{
       finishedAt: typeof record.finished_at === "string" ? record.finished_at : "",
       id: typeof record.id === "string" ? record.id : title,
+      maxRounds: typeof record.max_rounds === "number" ? record.max_rounds : undefined,
       phase: typeof record.phase === "string" ? record.phase : "",
+      round: typeof record.round === "number" ? record.round : undefined,
       sourceCount: typeof stats.urls === "number" ? stats.urls : 0,
       startedAt: typeof record.started_at === "string" ? record.started_at : "",
       status: typeof record.status === "string" ? record.status : "",

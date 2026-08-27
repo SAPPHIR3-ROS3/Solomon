@@ -17,7 +17,9 @@ const TEST_CHATS_RESEARCH: ProjectResearch[] = [
   {
     finishedAt: "",
     id: "research-001",
+    maxRounds: 3,
     phase: "reading",
+    round: 1,
     sourceCount: 12,
     startedAt: "2026-08-27T14:42:00.000Z",
     status: "running",
@@ -953,7 +955,15 @@ function ResearchIcon() {
 }
 
 function researchMeta(job: ProjectResearch) {
-  const parts = [job.sourceCount ? `${job.sourceCount} sources` : "No sources"];
+  const parts: string[] = [];
+  if (job.status === "running") {
+    if (typeof job.round === "number") {
+      const maxRounds = typeof job.maxRounds === "number" && job.maxRounds > 0 ? `/${job.maxRounds}` : "";
+      parts.push(`round ${job.round}${maxRounds}`);
+    }
+    if (job.phase) parts.push(job.phase);
+  }
+  parts.push(job.sourceCount ? `${job.sourceCount} sources` : "No sources");
   const date = job.finishedAt || job.startedAt;
   if (date) {
     const parsedDate = new Date(date);
