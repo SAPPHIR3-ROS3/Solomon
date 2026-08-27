@@ -76,7 +76,7 @@
   font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
   gap: 10px;
   height: var(--top-bar-height);
-  left: calc(var(--left-panel-width) + 16px);
+  left: max(calc(var(--left-panel-width) + 16px), calc(var(--side-panel-toggle-end) + 8px));
   min-width: 0;
   pointer-events: none;
   position: fixed;
