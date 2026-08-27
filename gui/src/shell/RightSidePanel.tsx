@@ -13,6 +13,53 @@ const TEST_CHATS_TOOL_RESULTS_PATH = `${TEST_CHATS_FIXTURES_PATH}/tool-results`;
 const TEST_CHATS_SNAPSHOTS_PATH = `${TEST_CHATS_DIRECTORY_PATH}/snapshots`;
 const EMPTY_GIT_HISTORY: ProjectGitHistory = { commits: [], current: "", isRepo: false };
 const EMPTY_GIT_STATUS: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
+const TEST_CHATS_RESEARCH: ProjectResearch[] = [
+  {
+    finishedAt: "",
+    id: "research-001",
+    phase: "reading",
+    sourceCount: 12,
+    startedAt: "2026-08-27T14:42:00.000Z",
+    status: "running",
+    title: "Tool call UI patterns",
+  },
+  {
+    finishedAt: "",
+    id: "research-002",
+    phase: "analyzing",
+    sourceCount: 7,
+    startedAt: "2026-08-25T09:20:00.000Z",
+    status: "paused",
+    title: "Async agent workflows",
+  },
+  {
+    finishedAt: "2026-08-26T18:15:00.000Z",
+    id: "research-003",
+    phase: "writing",
+    sourceCount: 24,
+    startedAt: "2026-08-26T17:48:00.000Z",
+    status: "done",
+    title: "Background research UX for Solomon",
+  },
+  {
+    finishedAt: "",
+    id: "research-004",
+    phase: "error",
+    sourceCount: 3,
+    startedAt: "2026-08-24T11:05:00.000Z",
+    status: "failed",
+    title: "Source extraction reliability",
+  },
+  {
+    finishedAt: "",
+    id: "research-005",
+    phase: "searching",
+    sourceCount: 5,
+    startedAt: "2026-08-23T16:30:00.000Z",
+    status: "cancelled",
+    title: "Web research scope",
+  },
+];
 const TEST_CHATS_ENTRIES: Record<string, ProjectDirectoryEntry[]> = {
   [TEST_CHATS_DIRECTORY_PATH]: [
     { isDirectory: true, name: "fixtures", path: TEST_CHATS_FIXTURES_PATH },
@@ -122,6 +169,11 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
   useEffect(() => {
     setResearch([]);
     setResearchError("");
+    setResearchLoading(false);
+    if (testChatsActive) {
+      setResearch(TEST_CHATS_RESEARCH);
+      return;
+    }
     setResearchLoading(Boolean(project));
     if (!project) return;
     let cancelled = false;
@@ -138,7 +190,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     return () => {
       cancelled = true;
     };
-  }, [project]);
+  }, [project, testChatsActive]);
 
   useEffect(() => {
     setGitHistory(EMPTY_GIT_HISTORY);
@@ -341,18 +393,18 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
           </nav>
         </div>
       </> : visibleView === "history" ? <GitHistoryView error={gitHistoryError} gitStatus={gitStatus} gitStatusError={gitStatusError} gitStatusLoading={gitStatusLoading} history={gitHistory} loading={gitHistoryLoading} project={project} /> : <section aria-label="Deep research" className="right-side-panel-research" id="right-side-panel-research" role="tabpanel">
-        {!project && testChatsActive ? <p className="right-side-panel-message">No deep research in Test chats yet.</p> : null}
         {!project && !testChatsActive ? <p className="right-side-panel-message">Open a project to view its deep research.</p> : null}
         {researchLoading ? <p className="right-side-panel-message">Loading deep research…</p> : null}
         {researchError ? <p className="right-side-panel-message" role="status">{researchError}</p> : null}
+        {!researchLoading && !researchError && !project && testChatsActive && research.length === 0 ? <p className="right-side-panel-message">No deep research in Test chats yet.</p> : null}
         {!researchLoading && !researchError && project && research.length === 0 ? <p className="right-side-panel-message">No deep research in this folder.</p> : null}
-        {!researchLoading && !researchError ? research.map((job) => <button className="right-side-panel-research-item" key={job.id} onClick={() => onOpenResearch(job)} type="button">
+        {!researchLoading && !researchError ? research.map((job) => <button className={`right-side-panel-research-item is-${job.status || "unknown"}`} key={job.id} onClick={() => onOpenResearch(job)} type="button">
           <ResearchIcon />
           <div>
             <h2>{job.title}</h2>
             <p>{researchMeta(job)}</p>
           </div>
-          <span className={`right-side-panel-research-status is-${job.status || "unknown"}`}>{researchStatusLabel(job.status)}</span>
+          {job.status !== "done" && job.status !== "running" ? <span className={`right-side-panel-research-status is-${job.status || "unknown"}`}>{researchStatusLabel(job.status)}</span> : null}
         </button>) : null}
       </section>}
     </aside>

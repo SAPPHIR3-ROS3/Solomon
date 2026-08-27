@@ -600,9 +600,10 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
   const isSearchSkill = tool.name === "searchSkill";
   const isSearchTools = tool.name === "searchTools";
   const isListSubAgents = tool.name === "listSubAgents";
+  const isResearchStatus = tool.name === "researchStatus";
   const isRename = tool.name === "editFile" && Boolean(tool.renameTo);
   const isDelete = tool.name === "editFile" && Boolean(tool.delete);
-  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind || tool.name === "listDir" || tool.name === "tree" || tool.name === "editFile" || tool.name === "loadSkill" || isSearchSkill || isSearchTools || isListSubAgents || tool.name === "docsRetrieval" || isCreatePlan || isEditPlan || isBuildPlan || isAddTodo || isTodoList || isCheckTodo || isRemoveTodo || isCheckPlan || isDeletePlan || isFetchWeb || isWebSearch;
+  const isInlineTool = tool.name === "shell" || tool.name === "readFile" || isFind || tool.name === "listDir" || tool.name === "tree" || tool.name === "editFile" || tool.name === "loadSkill" || isSearchSkill || isSearchTools || isListSubAgents || isResearchStatus || tool.name === "deepResearch" || tool.name === "docsRetrieval" || isCreatePlan || isEditPlan || isBuildPlan || isAddTodo || isTodoList || isCheckTodo || isRemoveTodo || isCheckPlan || isDeletePlan || isFetchWeb || isWebSearch;
   const isDangerousArgument = isDelete || isRemoveTodo || isDeletePlan;
   const inlineCommand = isListSubAgents
     ? ""
@@ -972,10 +973,62 @@ function ToolResultCard({ result, toolName }: { result: FakeChatToolResult; tool
   if (toolName === "listDir") {
     return <CountedToolResultCard collapseLabel="directory entries" plural="entries" result={result} singular="entry" />;
   }
+  if (toolName === "deepResearch") {
+    return <DeepResearchResultCard result={result} />;
+  }
   if (toolName === "todoList") {
     return <TodoListResultCard result={result} />;
   }
+  if (toolName === "researchStatus") {
+    return <ResearchStatusResultCard result={result} />;
+  }
   return <GenericToolResultCard result={result} />;
+}
+
+function DeepResearchResultCard({ result }: { result: FakeChatToolResult }) {
+  const status = result.researchStatus ?? "unknown";
+
+  return (
+    <div className={`test-chat-tool-result test-chat-research-status-result is-${result.status}`}>
+      <span className="test-chat-research-status-prefix">Result:</span>
+      <span className={`test-chat-research-status-value is-${status}`}>{status}</span>
+      {result.jobId ? (
+        <div className="test-chat-research-status-parameter">
+          <span className="test-chat-research-status-label">jobId:</span>
+          <span className="test-chat-research-status-value">{result.jobId}</span>
+        </div>
+      ) : null}
+      {result.title ? (
+        <div className="test-chat-research-status-parameter">
+          <span className="test-chat-research-status-label">title:</span>
+          <span className="test-chat-research-status-value">{result.title}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ResearchStatusResultCard({ result }: { result: FakeChatToolResult }) {
+  const status = result.researchStatus ?? "unknown";
+
+  return (
+    <div className={`test-chat-tool-result test-chat-research-status-result is-${result.status}`}>
+      <span className="test-chat-research-status-prefix">Result:</span>
+      <span className={`test-chat-research-status-value is-${status}`}>{status}</span>
+      {result.phase ? (
+        <div className="test-chat-research-status-parameter">
+          <span className="test-chat-research-status-label">phase:</span>
+          <span className="test-chat-research-status-value">{result.phase}</span>
+        </div>
+      ) : null}
+      {typeof result.round === "number" && typeof result.maxRounds === "number" ? (
+        <div className="test-chat-research-status-parameter">
+          <span className="test-chat-research-status-label">round:</span>
+          <span className="test-chat-research-status-value">{result.round}/{result.maxRounds}</span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function GenericToolResultCard({ result }: { result: FakeChatToolResult }) {

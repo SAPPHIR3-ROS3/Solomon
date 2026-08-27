@@ -290,6 +290,30 @@ html {
   width: 16px;
 }
 
+.right-side-panel-research-item.is-failed > svg,
+.right-side-panel-research-item.is-cancelled > svg {
+  stroke: var(--color-danger);
+}
+
+.right-side-panel-research-item.is-paused > svg {
+  stroke: var(--color-text-muted);
+}
+
+.right-side-panel-research-item.is-running > svg {
+  animation: test-chat-pulse-clock 1.15s ease-in-out infinite;
+  filter: drop-shadow(0 0 var(--test-chat-pulse-ring-size) color-mix(in srgb, var(--color-crown-gold) var(--test-chat-pulse-ring-opacity), transparent));
+  opacity: var(--test-chat-pulse-opacity);
+  stroke: var(--color-crown-gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .right-side-panel-research-item.is-running > svg {
+    animation: none;
+    filter: none;
+    opacity: 1;
+  }
+}
+
 .right-side-panel-research-item h2,
 .right-side-panel-research-item p {
   margin: 0;
@@ -324,9 +348,10 @@ html {
   color: #fff;
 }
 
-.right-side-panel-research-status.is-running {
-  background: color-mix(in srgb, var(--color-info) 32%, transparent);
-  color: var(--color-text);
+.right-side-panel-research-status.is-failed,
+.right-side-panel-research-status.is-cancelled {
+  background: color-mix(in srgb, var(--color-danger) 18%, transparent);
+  color: var(--color-danger);
 }
 
 /* The Git view follows Deep v5's dense graph treatment while inheriting the
