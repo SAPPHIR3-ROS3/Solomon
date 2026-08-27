@@ -402,7 +402,11 @@
 .test-chat-subagent-indicator-count { color: var(--color-crown-gold); font: 650 12px/1 "Geist Mono", ui-monospace, monospace; }
 .test-chat-subagent-indicator-chevron { fill: none; flex: 0 0 auto; height: 14px; margin-left: 2px; stroke: var(--color-text-muted); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; transition: transform 160ms ease; width: 14px; }
 .test-chat-subagent-indicator.is-expanded .test-chat-subagent-indicator-chevron { transform: rotate(180deg); }
-.test-chat-subagent-indicator-list { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px 8px; }
+.test-chat-subagent-indicator-list { display: flex; flex-direction: column; gap: 2px; max-height: 114px; overflow-y: auto; overscroll-behavior: contain; padding: 6px 8px 8px; scrollbar-color: var(--color-border) transparent; scrollbar-width: thin; }
+.test-chat-subagent-indicator-list::-webkit-scrollbar { width: 10px; }
+.test-chat-subagent-indicator-list::-webkit-scrollbar-track { background: transparent; }
+.test-chat-subagent-indicator-list::-webkit-scrollbar-thumb { background: var(--color-border); background-clip: padding-box; border: 3px solid transparent; border-radius: 999px; }
+.test-chat-subagent-indicator-list::-webkit-scrollbar-thumb:hover { background: var(--color-surface-raised); background-clip: padding-box; border: 3px solid transparent; }
 .test-chat-subagent-indicator-item { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 8px; color: var(--color-text); cursor: pointer; display: flex; font: 400 13px/1.35 "Geist", sans-serif; gap: 20px; min-height: 32px; min-width: 0; padding: 6px 8px 6px 12px; text-align: left; width: 100%; }
 .test-chat-subagent-indicator-item:hover { background: color-mix(in srgb, var(--color-surface-raised) 48%, transparent); }
 .test-chat-subagent-indicator-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
