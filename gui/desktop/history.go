@@ -4,17 +4,11 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/desktopgit"
 )
 
-type desktopProjectGitCommit struct {
-	Author     string   `json:"author"`
-	AuthoredAt string   `json:"authoredAt"`
-	Hash       string   `json:"hash"`
-	Parents    []string `json:"parents"`
-	Refs       []string `json:"refs"`
-	ShortHash  string   `json:"shortHash"`
-	Subject    string   `json:"subject"`
-}
+type desktopProjectGitCommit = desktopgit.Commit
 
 type desktopProjectGitHistory struct {
 	Commits []desktopProjectGitCommit `json:"commits"`
@@ -60,40 +54,5 @@ func loadDesktopProjectGitHistory(projectID string) (desktopProjectGitHistory, e
 }
 
 func parseDesktopGitHistory(output []byte) []desktopProjectGitCommit {
-	commits := make([]desktopProjectGitCommit, 0)
-	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		fields := strings.Split(strings.TrimRight(line, "\r"), "\x00")
-		if len(fields) < 7 {
-			continue
-		}
-		hash := strings.TrimSpace(fields[0])
-		shortHash := strings.TrimSpace(fields[1])
-		subject := strings.TrimSpace(fields[4])
-		if hash == "" || shortHash == "" || subject == "" {
-			continue
-		}
-		commits = append(commits, desktopProjectGitCommit{
-			Author:     strings.TrimSpace(fields[2]),
-			AuthoredAt: strings.TrimSpace(fields[3]),
-			Hash:       hash,
-			Parents:    strings.Fields(fields[6]),
-			Refs:       splitDesktopGitRefs(fields[5]),
-			ShortHash:  shortHash,
-			Subject:    subject,
-		})
-	}
-	return commits
-}
-
-func splitDesktopGitRefs(value string) []string {
-	if strings.TrimSpace(value) == "" {
-		return []string{}
-	}
-	refs := make([]string, 0, 2)
-	for _, value := range strings.Split(value, ",") {
-		if ref := strings.TrimSpace(value); ref != "" {
-			refs = append(refs, ref)
-		}
-	}
-	return refs
+	return desktopgit.ParseHistory(output)
 }

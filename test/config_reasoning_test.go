@@ -1,6 +1,10 @@
-package config
+package test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+)
 
 func TestParseReasoningEffortToken(t *testing.T) {
 	tests := []struct {
@@ -19,7 +23,7 @@ func TestParseReasoningEffortToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := ParseReasoningEffortToken(tt.input)
+			got, err := config.ParseReasoningEffortToken(tt.input)
 			if err != nil {
 				t.Fatalf("ParseReasoningEffortToken(%q) returned error: %v", tt.input, err)
 			}
@@ -32,7 +36,7 @@ func TestParseReasoningEffortToken(t *testing.T) {
 
 func TestGlobalReasoningEffortPreservesOpenAIExtendedLevels(t *testing.T) {
 	for _, effort := range []string{"xhigh", "max"} {
-		cfg := &Root{ReasoningEffort: effort}
+		cfg := &config.Root{ReasoningEffort: effort}
 		if got := string(cfg.GlobalReasoningEffort()); got != effort {
 			t.Fatalf("GlobalReasoningEffort() for %q = %q, want %q", effort, got, effort)
 		}
