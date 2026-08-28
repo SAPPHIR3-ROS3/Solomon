@@ -466,22 +466,18 @@ func TestFormatToolDisplayLines_deepResearch(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := tooling.FormatToolDisplayLines("deepResearch", args)
-	if len(lines) != 2 {
+	if len(lines) != 1 {
 		t.Fatalf("lines: %#v", lines)
 	}
 	plain0 := termcolor.Plain(lines[0])
-	if plain0 != "Tool: deepResearch" {
+	if plain0 != "Tool: deepResearch Best GGUF model for 8GB VRAM" {
 		t.Fatalf("header %q", plain0)
 	}
-	plain1 := termcolor.Plain(lines[1])
-	if plain1 != "Best GGUF model for 8GB VRAM" {
-		t.Fatalf("query %q", plain1)
-	}
-	if strings.Contains(plain0, "comparison") || strings.Contains(plain1, "category") {
+	if strings.Contains(plain0, "comparison") || strings.Contains(plain0, "category") {
 		t.Fatalf("category must not appear: %#v", lines)
 	}
-	if strings.Contains(plain1, "{") {
-		t.Fatalf("should not show JSON: %q", plain1)
+	if strings.Contains(plain0, "{") {
+		t.Fatalf("should not show JSON: %q", plain0)
 	}
 }
 
