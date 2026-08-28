@@ -17,6 +17,8 @@ export type FakeChatStats = {
 export type FakeChatToolResult = {
   count?: number;
   completed?: number;
+  durationMs?: number;
+  error?: string;
   items?: string[];
   jobId?: string;
   maxRounds?: number;
@@ -24,6 +26,7 @@ export type FakeChatToolResult = {
   phase?: string;
   researchStatus?: "cancelled" | "done" | "failed" | "paused" | "running";
   round?: number;
+  sdkCalls?: number;
   summary?: string;
   status: "error" | "success";
   title?: string;
@@ -96,8 +99,7 @@ export type FakeChat = {
   worktree?: string;
 };
 
-// Mirrors Solomon's built-in tool registry for the test transcript. The
-// orchestration runner is intentionally omitted from this showcase.
+// Mirrors Solomon's built-in tool registry for the test transcript.
 const allAvailableFakeToolCalls = ([
   {
     id: "tool-shell-check",
@@ -559,6 +561,69 @@ const initialFakeChatFixtures: FakeChat[] = [
       },
       { checkpointSeq: 28, id: "tool-user-interrupted", role: "user", content: "E se interrompessi la risposta a metà?" },
       { checkpointSeq: 28, id: "tool-assistant-interrupted", role: "assistant", status: "interrupted", workedFor: 1.83, content: "Mostrerei il testo già generato e chiuderei il turno con uno stato esplicito, così è chiaro che la risposta non è completa." },
+    ],
+  },
+  {
+    id: "test-code-mode",
+    title: "Code Mode",
+    worktree: "local",
+    messages: [
+      { id: "code-mode-user", role: "user", content: "Vorrei capire come organizzare questo lavoro prima di iniziare a implementarlo." },
+      { id: "code-mode-assistant", role: "assistant", content: "Partiamo dagli obiettivi e dal flusso che vuoi ottenere, poi definiamo insieme i dettagli." },
+      { id: "code-mode-user-2", role: "user", content: "La GUI dovrebbe usare lo stesso processo di Solomon che usa il terminale." },
+      { id: "code-mode-assistant-2", role: "assistant", content: "Sì, la GUI sarà un’altra superficie per lo stesso runtime. Prima definiamo cosa deve essere visibile durante il lavoro." },
+      { id: "code-mode-user-3", role: "user", content: "Per ora vorrei concentrarmi solo sulla UX e lasciare l’implementazione a dopo." },
+      { id: "code-mode-assistant-3", role: "assistant", content: "Va bene. Possiamo esplorare la struttura della conversazione, gli stati e la gerarchia delle informazioni senza fissare ancora il comportamento tecnico." },
+      { id: "code-mode-user-4", role: "user", content: "Ora fammi vedere come apparirebbe un primo passaggio di Code Mode nella conversazione." },
+      {
+        id: "code-mode-assistant-4",
+        role: "assistant",
+        reasoning: "Cerco prima le firme necessarie e poi preparo uno script orchestrate che restituisce un risultato verificabile.",
+        toolCalls: [
+          {
+            id: "code-mode-search-tools",
+            input: "workspace file tools",
+            intent: "Cerco le firme SDK necessarie prima di eseguire lo script.",
+            name: "searchTools",
+            result: {
+              count: 4,
+              items: ["readFile", "find", "listDir", "shell"],
+              output: "readFile · find · listDir · shell",
+              status: "success",
+            },
+            status: "success",
+          },
+          {
+            defaultOpen: true,
+            id: "code-mode-orchestrate",
+            input: `package main
+
+import (
+\t"fmt"
+\t"sdk"
+)
+
+func main() {
+\tfiles, err := sdk.Glob("gui/src/chat-test/*")
+\tif err != nil {
+\t\tfmt.Println(err)
+\t\treturn
+\t}
+\tfmt.Printf("GUI test chat: %d file(s)\\n", len(files))
+}`,
+            intent: "Leggo la struttura della chat di test e restituisco un riepilogo.",
+            name: "orchestrate",
+            result: {
+              durationMs: 1280,
+              output: "GUI test chat: 3 file(s)\nRuntime: Solomon daemon",
+              sdkCalls: 1,
+              status: "success",
+            },
+            status: "success",
+          },
+        ],
+        content: "Questo è il primo passaggio: la GUI mostra la chiamata `orchestrate` come un’attività di Code Mode, mentre il risultato resta aggregato nel turno.",
+      },
     ],
   },
 ];

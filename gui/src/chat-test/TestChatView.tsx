@@ -1,4 +1,9 @@
 import { isValidElement, type CSSProperties, type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { go } from "@codemirror/lang-go";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { EditorState } from "@codemirror/state";
+import { EditorView as CodeMirrorView, lineNumbers } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
@@ -13,6 +18,17 @@ const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim()
 const FIXTURE_MESSAGE_START_TIME = new Date("2026-01-01T09:00:00").getTime();
 const MODE_SWITCH_DURATION_MS = 5000;
 const PULSE_DURATION_MS = 1150;
+
+const codeModeHighlightStyle = HighlightStyle.define([
+  { tag: [tags.keyword, tags.controlKeyword, tags.modifier, tags.operatorKeyword], color: "#77ddd1" },
+  { tag: [tags.typeName, tags.className, tags.namespace, tags.definition(tags.typeName)], color: "#7ee0d5" },
+  { tag: [tags.function(tags.variableName), tags.labelName], color: "#e8aa76" },
+  { tag: [tags.string, tags.special(tags.string)], color: "#e79be1" },
+  { tag: [tags.number, tags.bool, tags.null], color: "#e7c15f" },
+  { tag: tags.comment, color: "#7f8981" },
+  { tag: [tags.propertyName, tags.variableName], color: "#e1e4db" },
+  { tag: [tags.operator, tags.punctuation], color: "#eed85b" },
+]);
 
 function synchronizedPulseDelay() {
   return `${-(performance.now() % PULSE_DURATION_MS)}ms`;
@@ -543,7 +559,7 @@ function ChatMessageTurn({ checkpoint, index, message, onOpenSubagent, onRequest
         {checkpoint ? <CheckpointLabel label={checkpoint.label} /> : null}
         {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
         {canCollapseReasoning ? <ReasoningBlock isCollapsed={isReasoningCollapsed} message={message} onToggle={() => setIsReasoningCollapsed((current) => !current)} /> : null}
-        {message.toolCalls?.length ? <ToolActivity checkpoint={checkpoint} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} toolCalls={message.toolCalls} /> : null}
+        {message.toolCalls?.length ? <ToolActivity onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} toolCalls={message.toolCalls} /> : null}
         <MarkdownContent content={message.content} />
       </article>
       {message.status === "interrupted" ? <InterruptedGenerationMarker /> : null}
@@ -552,8 +568,8 @@ function ChatMessageTurn({ checkpoint, index, message, onOpenSubagent, onRequest
   );
 }
 
-function ToolActivity({ checkpoint, onOpenSubagent, onStopTool, toolCalls }: { checkpoint?: CheckpointMetadata; onOpenSubagent?: (tool: FakeChatToolCall) => void; onStopTool?: (toolID: string) => void; toolCalls: FakeChatToolCall[] }) {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+function ToolActivity({ onOpenSubagent, onStopTool, toolCalls }: { onOpenSubagent?: (tool: FakeChatToolCall) => void; onStopTool?: (toolID: string) => void; toolCalls: FakeChatToolCall[] }) {
+  const [isCollapsed, setIsCollapsed] = useState(() => !toolCalls.some((tool) => tool.name === "orchestrate"));
   const activityRef = useRef<HTMLElement>(null);
   const shouldAnchorOnCollapseRef = useRef(false);
   const collapseLabel = isCollapsed ? `Show ${toolCalls.length} tool calls` : "Collapse tool calls";
@@ -571,10 +587,10 @@ function ToolActivity({ checkpoint, onOpenSubagent, onStopTool, toolCalls }: { c
 
   return (
     <section aria-label="Tool activity" className={`test-chat-tool-activity${isCollapsed ? " is-collapsed" : ""}`} onClick={(event) => event.stopPropagation()} ref={activityRef}>
-      {!isCollapsed ? toolCalls.map((tool, index) => (
+      {!isCollapsed ? toolCalls.map((tool) => (
         tool.name === "subagent"
-          ? <SubagentCard checkpoint={resolveToolCheckpoint(tool, checkpoint, index)} key={tool.id} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} tool={tool} />
-          : <ToolCallCard key={tool.id} checkpoint={resolveToolCheckpoint(tool, checkpoint, index)} tool={tool} />
+          ? <SubagentCard key={tool.id} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} tool={tool} />
+          : <ToolCallCard key={tool.id} tool={tool} />
       )) : null}
       <button aria-expanded={!isCollapsed} aria-label={collapseLabel} className="test-chat-tool-collapse-all" onClick={toggleCollapsed} type="button">
         {collapseLabel}
@@ -583,7 +599,11 @@ function ToolActivity({ checkpoint, onOpenSubagent, onStopTool, toolCalls }: { c
   );
 }
 
-function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; tool: FakeChatToolCall }) {
+function ToolCallCard({ tool }: { tool: FakeChatToolCall }) {
+  if (tool.name === "orchestrate") {
+    return <OrchestrateToolCard tool={tool} />;
+  }
+
   const status = tool.status ?? tool.result?.status ?? "running";
   const isFind = tool.name === "find";
   const isCreatePlan = tool.name === "createPlan";
@@ -613,11 +633,10 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
   const toolParameters = isFind || isCreatePlan || isAddTodo || isFetchWeb || isWebSearch
     ? tool.parameters ?? (isFind && tool.input ? [{ label: "pattern", value: tool.input }] : [])
     : [];
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(() => tool.defaultOpen ?? false);
 
   return (
-    <div className={`test-chat-tool-card is-${status}`} data-checkpoint={checkpoint.label}>
-      <CheckpointLabel label={checkpoint.label} />
+    <div className={`test-chat-tool-card is-${status}`}>
       <details aria-busy={status === "running"} onToggle={(event) => setIsOpen(event.currentTarget.open)} open={isOpen}>
         <summary className="test-chat-tool-summary">
           <i aria-hidden="true" className="test-chat-tool-status-dot" />
@@ -685,14 +704,135 @@ function ToolCallCard({ checkpoint, tool }: { checkpoint: CheckpointMetadata; to
   );
 }
 
-function SubagentCard({ checkpoint, onOpenSubagent, onStopTool, tool }: { checkpoint: CheckpointMetadata; onOpenSubagent?: (tool: FakeChatToolCall) => void; onStopTool?: (toolID: string) => void; tool: FakeChatToolCall }) {
+function OrchestrateToolCard({ tool }: { tool: FakeChatToolCall }) {
+  const status = tool.status ?? tool.result?.status ?? "running";
+  const [isOpen, setIsOpen] = useState(() => tool.defaultOpen ?? false);
+  const [isSourceOpen, setIsSourceOpen] = useState(false);
+  const result = tool.result;
+  const sdkCalls = result?.sdkCalls;
+  const duration = formatOrchestrateDuration(result?.durationMs);
+  const source = tool.input?.replace(/\r\n?/g, "\n") ?? "";
+  const sourcePanelID = `${tool.id}-source`;
+
+  return (
+    <div className={`test-chat-tool-card test-chat-code-mode-card is-${status}`}>
+      <details aria-busy={status === "running"} onToggle={(event) => setIsOpen(event.currentTarget.open)} open={isOpen}>
+        <summary className="test-chat-tool-summary test-chat-code-mode-summary">
+          <i aria-hidden="true" className="test-chat-tool-status-dot" />
+          <HammerIcon />
+          <span className="test-chat-code-mode-label">CODE</span>
+          {tool.intent ? <span className="test-chat-tool-intent" title={tool.intent}>{tool.intent}</span> : null}
+          <svg aria-hidden="true" className="test-chat-tool-chevron" viewBox="0 0 24 24">
+            <path d="m7 10 5 5 5-5" />
+          </svg>
+        </summary>
+        <div className="test-chat-tool-body test-chat-code-mode-body">
+          <div className="test-chat-code-mode-row test-chat-code-mode-tool-row">
+            <span className="test-chat-code-mode-row-label">Tool:</span>
+            <strong className="test-chat-code-mode-row-value">orchestrate</strong>
+          </div>
+          <div className="test-chat-code-mode-row test-chat-code-mode-sdk-row">
+            <span className="test-chat-code-mode-row-label">SDK calls</span>
+            <span className="test-chat-code-mode-row-value">{sdkCalls ?? "—"}</span>
+            {duration ? <span className="test-chat-code-mode-row-meta">{duration}</span> : null}
+          </div>
+          <button
+            aria-controls={sourcePanelID}
+            aria-expanded={isSourceOpen}
+            className="test-chat-code-mode-source-toggle"
+            disabled={!source}
+            onClick={() => setIsSourceOpen((current) => !current)}
+            type="button"
+          >
+            {isSourceOpen ? "Hide source" : "Show source"}
+            <svg aria-hidden="true" className="test-chat-code-mode-source-chevron" viewBox="0 0 24 24">
+              <path d="m7 10 5 5 5-5" />
+            </svg>
+          </button>
+          {isSourceOpen ? (
+            <div aria-label="Orchestration source" className="test-chat-code-mode-source" id={sourcePanelID}>
+              <CodeModeSource source={source} />
+            </div>
+          ) : null}
+          {result ? <OrchestrateResult result={result} status={status} /> : (
+            <div className="test-chat-code-mode-pending">Waiting for the daemon result…</div>
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function CodeModeSource({ source }: { source: string }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const parent = hostRef.current;
+    if (!parent) return;
+
+    const view = new CodeMirrorView({
+      parent,
+      state: EditorState.create({
+        doc: source,
+        extensions: [
+          lineNumbers(),
+          EditorState.readOnly.of(true),
+          CodeMirrorView.editable.of(false),
+          syntaxHighlighting(codeModeHighlightStyle, { fallback: true }),
+          go(),
+          CodeMirrorView.theme(
+            {
+              "&": { background: "transparent", color: "#dce6e9", height: "100%" },
+              ".cm-scroller": { fontFamily: '\"Geist Mono\", \"SFMono-Regular\", \"Cascadia Code\", ui-monospace, monospace', overflow: "auto" },
+              ".cm-content": { caretColor: "transparent", padding: "10px 0 11px" },
+              ".cm-line": { padding: "0 12px 0 8px" },
+              ".cm-gutters": { background: "transparent", border: "none", color: "#52616a", minWidth: "48px" },
+              ".cm-gutterElement": { padding: "0 9px 0 8px" },
+              ".cm-activeLine, .cm-activeLineGutter": { background: "transparent" },
+              "&.cm-focused": { outline: "none" },
+              ".cm-selectionBackground, ::selection": { background: "transparent !important" },
+            },
+            { dark: true },
+          ),
+        ],
+      }),
+    });
+
+    return () => view.destroy();
+  }, [source]);
+
+  return <div className="test-chat-code-mode-source-editor"><div ref={hostRef} /></div>;
+}
+
+function OrchestrateResult({ result, status }: { result: FakeChatToolResult; status: NonNullable<FakeChatToolCall["status"]> }) {
+  const output = (result.output ?? "").replace(/\r\n?/g, "\n").trim();
+  const error = result.error?.trim();
+  const body = error || output || result.summary || (status === "success" ? "Script completed without printed output." : "No result output.");
+
+  return (
+    <div className={`test-chat-code-mode-result is-${result.status}`}>
+      <div className="test-chat-code-mode-result-heading">
+        <span className="test-chat-code-mode-result-label">Result</span>
+        {result.truncated ? <span className="test-chat-code-mode-result-truncated">truncated</span> : null}
+      </div>
+      <pre className={error ? "is-error" : undefined}>{body}</pre>
+    </div>
+  );
+}
+
+function formatOrchestrateDuration(durationMs?: number) {
+  if (durationMs === undefined || !Number.isFinite(durationMs) || durationMs < 0) return "";
+  const seconds = durationMs / 1000;
+  return `${seconds.toFixed(seconds >= 10 ? 1 : 2).replace(/0+$/, "").replace(/\.$/, "")}s`;
+}
+
+function SubagentCard({ onOpenSubagent, onStopTool, tool }: { onOpenSubagent?: (tool: FakeChatToolCall) => void; onStopTool?: (toolID: string) => void; tool: FakeChatToolCall }) {
   const status = tool.status ?? tool.result?.status ?? "running";
 
   return (
     <section
       aria-label="Open subagent chat"
       className={`test-chat-subagent-card is-${status}`}
-      data-checkpoint={checkpoint.label}
       onClick={() => onOpenSubagent?.(tool)}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
@@ -702,7 +842,6 @@ function SubagentCard({ checkpoint, onOpenSubagent, onStopTool, tool }: { checkp
       role="button"
       tabIndex={0}
     >
-      <CheckpointLabel label={checkpoint.label} />
       <div className="test-chat-subagent-content">
         <div className="test-chat-subagent-heading">
           <i aria-hidden="true" className="test-chat-subagent-status-dot" />
@@ -948,16 +1087,6 @@ function splitEditFileLines(value?: string): string[] {
   const lines = normalized.split("\n");
   if (lines.at(-1) === "") lines.pop();
   return lines;
-}
-
-function resolveToolCheckpoint(tool: FakeChatToolCall, parentCheckpoint: CheckpointMetadata | undefined, index: number): CheckpointMetadata {
-  const hasExplicitSequence = typeof tool.checkpointSeq === "number" && Number.isFinite(tool.checkpointSeq);
-  const sequence = hasExplicitSequence
-    ? Math.max(0, Math.floor(tool.checkpointSeq!))
-    : Math.max(0, (parentCheckpoint?.sequence ?? 0) + index + 1);
-  const branch = tool.checkpointBranch ?? parentCheckpoint?.branch ?? "";
-
-  return { branch, label: formatCheckpointLabel(sequence, branch), sequence };
 }
 
 function ToolResultCard({ result, toolName }: { result: FakeChatToolResult; toolName: string }) {
