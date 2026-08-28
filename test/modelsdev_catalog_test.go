@@ -1,13 +1,17 @@
-package modelsdev
+package test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsdev"
+)
 
 func TestLookupMatchesProviderNameAndExactModelID(t *testing.T) {
-	catalog := Catalog{
+	catalog := modelsdev.Catalog{
 		"openrouter": {
 			ID:   "openrouter",
 			Name: "OpenRouter",
-			Models: map[string]Model{
+			Models: map[string]modelsdev.Model{
 				"anthropic/claude-test": {ID: "anthropic/claude-test"},
 			},
 		},
@@ -21,10 +25,10 @@ func TestLookupMatchesProviderNameAndExactModelID(t *testing.T) {
 }
 
 func TestLookupMatchesChatGPTSubscriptionToOpenAI(t *testing.T) {
-	catalog := Catalog{
+	catalog := modelsdev.Catalog{
 		"openai": {
 			ID:     "openai",
-			Models: map[string]Model{"gpt-test": {ID: "gpt-test"}},
+			Models: map[string]modelsdev.Model{"gpt-test": {ID: "gpt-test"}},
 		},
 	}
 	if _, ok := catalog.Lookup("ChatGPT Sub", "https://chatgpt.com/backend-api/codex/v1", "gpt-test"); !ok {
@@ -33,12 +37,12 @@ func TestLookupMatchesChatGPTSubscriptionToOpenAI(t *testing.T) {
 }
 
 func TestLookupUsesOfficialProviderForCursorModels(t *testing.T) {
-	catalog := Catalog{
+	catalog := modelsdev.Catalog{
 		"anthropic": {
-			Models: map[string]Model{"claude-test": {ID: "claude-test"}},
+			Models: map[string]modelsdev.Model{"claude-test": {ID: "claude-test"}},
 		},
 		"openrouter": {
-			Models: map[string]Model{"claude-test": {ID: "claude-test"}},
+			Models: map[string]modelsdev.Model{"claude-test": {ID: "claude-test"}},
 		},
 	}
 	if _, ok := catalog.Lookup("Cursor API", "", "claude-test"); !ok {
@@ -50,10 +54,10 @@ func TestLookupUsesOfficialProviderForCursorModels(t *testing.T) {
 }
 
 func TestLookupMatchesProviderAPIHost(t *testing.T) {
-	catalog := Catalog{
+	catalog := modelsdev.Catalog{
 		"custom": {
 			API: "https://api.example.test/v1",
-			Models: map[string]Model{
+			Models: map[string]modelsdev.Model{
 				"model-a": {ID: "model-a"},
 			},
 		},
@@ -64,14 +68,14 @@ func TestLookupMatchesProviderAPIHost(t *testing.T) {
 }
 
 func TestLookupDoesNotConflateProviderPathsOnOneHost(t *testing.T) {
-	catalog := Catalog{
+	catalog := modelsdev.Catalog{
 		"first": {
 			API:    "https://api.example.test/first/v1",
-			Models: map[string]Model{"model-a": {ID: "model-a"}},
+			Models: map[string]modelsdev.Model{"model-a": {ID: "model-a"}},
 		},
 		"second": {
 			API:    "https://api.example.test/second/v1",
-			Models: map[string]Model{"model-b": {ID: "model-b"}},
+			Models: map[string]modelsdev.Model{"model-b": {ID: "model-b"}},
 		},
 	}
 	if _, ok := catalog.Lookup("my provider", "https://api.example.test/second/v1", "model-a"); ok {

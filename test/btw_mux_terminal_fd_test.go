@@ -1,6 +1,10 @@
-package btw
+package test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/btw"
+)
 
 type muxTestWriter struct {
 	fd uintptr
@@ -11,7 +15,7 @@ func (w muxTestWriter) Fd() uintptr                 { return w.fd }
 
 func TestOutputMuxTerminalFD(t *testing.T) {
 	const want = uintptr(42)
-	mux := NewOutputMux(muxTestWriter{fd: want})
+	mux := btw.NewOutputMux(muxTestWriter{fd: want})
 
 	got, ok := mux.TerminalFD()
 	if !ok || got != want {
@@ -20,7 +24,7 @@ func TestOutputMuxTerminalFD(t *testing.T) {
 }
 
 func TestOutputMuxTerminalFDWithoutDescriptor(t *testing.T) {
-	mux := NewOutputMux(discardMuxTestWriter{})
+	mux := btw.NewOutputMux(discardMuxTestWriter{})
 
 	if got, ok := mux.TerminalFD(); ok || got != 0 {
 		t.Fatalf("TerminalFD() = (%d, %t), want (0, false)", got, ok)

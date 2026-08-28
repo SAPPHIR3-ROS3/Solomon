@@ -1,31 +1,32 @@
-package config
+package test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	to "github.com/pelletier/go-toml/v2"
 )
 
 func TestModelVisibilityDefaultsEnabledAndCanToggle(t *testing.T) {
-	r := &Root{}
-	if !ModelEnabled(r, "OpenAI", "gpt-5") {
+	r := &config.Root{}
+	if !config.ModelEnabled(r, "OpenAI", "gpt-5") {
 		t.Fatal("models should be enabled by default")
 	}
-	if err := SetModelEnabled(r, "OpenAI", "gpt-5", false); err != nil {
+	if err := config.SetModelEnabled(r, "OpenAI", "gpt-5", false); err != nil {
 		t.Fatalf("disable model: %v", err)
 	}
-	if ModelEnabled(r, "OpenAI", "gpt-5") {
+	if config.ModelEnabled(r, "OpenAI", "gpt-5") {
 		t.Fatal("disabled model should not be enabled")
 	}
-	if got := HiddenModelIDs(r, "OpenAI", []string{"gpt-5", "gpt-4.1"}); len(got) != 1 || got[0] != "gpt-5" {
+	if got := config.HiddenModelIDs(r, "OpenAI", []string{"gpt-5", "gpt-4.1"}); len(got) != 1 || got[0] != "gpt-5" {
 		t.Fatalf("hidden models = %#v, want [gpt-5]", got)
 	}
-	if err := SetModelEnabled(r, "OpenAI", "gpt-5", true); err != nil {
+	if err := config.SetModelEnabled(r, "OpenAI", "gpt-5", true); err != nil {
 		t.Fatalf("enable model: %v", err)
 	}
-	if !ModelEnabled(r, "OpenAI", "gpt-5") || len(r.HiddenModels) != 0 {
+	if !config.ModelEnabled(r, "OpenAI", "gpt-5") || len(r.HiddenModels) != 0 {
 		t.Fatal("enabled model should be removed from hidden preferences")
 	}
 }
@@ -33,21 +34,21 @@ func TestModelVisibilityDefaultsEnabledAndCanToggle(t *testing.T) {
 func TestModelVisibilityRoundTripsThroughConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SOLOMON_HOME", home)
-	r := &Root{Providers: map[string]*Provider{"OpenAI": {Name: "OpenAI"}}}
-	if err := SetModelEnabled(r, "OpenAI", "gpt-5", false); err != nil {
+	r := &config.Root{Providers: map[string]*config.Provider{"OpenAI": {Name: "OpenAI"}}}
+	if err := config.SetModelEnabled(r, "OpenAI", "gpt-5", false); err != nil {
 		t.Fatalf("disable model: %v", err)
 	}
-	if err := Save(r); err != nil {
+	if err := config.Save(r); err != nil {
 		t.Fatalf("save config: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(home, "config.toml")); err != nil {
 		t.Fatalf("config file was not written: %v", err)
 	}
-	loaded, err := Load()
+	loaded, err := config.Load()
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if ModelEnabled(loaded, "OpenAI", "gpt-5") {
+	if config.ModelEnabled(loaded, "OpenAI", "gpt-5") {
 		t.Fatal("hidden model preference did not survive config round trip")
 	}
 }
@@ -73,11 +74,11 @@ model = 'gpt-5'
 	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte(configSource), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	previousLister := RolesModelLister
-	RolesModelLister = nil
-	t.Cleanup(func() { RolesModelLister = previousLister })
+	previousLister := config.RolesModelLister
+	config.RolesModelLister = nil
+	t.Cleanup(func() { config.RolesModelLister = previousLister })
 
-	if err := UpdateModelVisibility("OpenAI", "gpt-5", false); err != nil {
+	if err := config.UpdateModelVisibility("OpenAI", "gpt-5", false); err != nil {
 		t.Fatalf("update model visibility: %v", err)
 	}
 
@@ -85,7 +86,9 @@ model = 'gpt-5'
 	if err != nil {
 		t.Fatalf("read updated config: %v", err)
 	}
-	var file rootFile
+	var file struct {
+		HiddenModels map[string][]string `toml:"hidden_models,omitempty"`
+	}
 	if err := to.Unmarshal(b, &file); err != nil {
 		t.Fatalf("parse updated config: %v", err)
 	}

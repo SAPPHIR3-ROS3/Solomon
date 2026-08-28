@@ -1,4 +1,4 @@
-package agentruntime
+package test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
@@ -55,11 +56,11 @@ func TestSubagentBackgroundStopAndResumeLifecycle(t *testing.T) {
 		Providers:               map[string]*config.Provider{"test": prov},
 		SubagentReasoningEffort: "high",
 	}
-	r := NewTestRuntime(cfg, prov, projHex, t.TempDir(), &chatstore.Session{ID: "parent"}, io.Discard)
+	r := agentruntime.NewTestRuntime(cfg, prov, projHex, t.TempDir(), &chatstore.Session{ID: "parent"}, io.Discard)
 	b := &lifecycleBackend{started: make(chan struct{})}
 	r.Backend = b
 
-	res, err := r.runSubagentTool(context.Background(), NestedRunConfig{
+	res, err := r.RunSubagentToolForTest(context.Background(), agentruntime.NestedRunConfig{
 		Task:            "background work",
 		RunInBackground: true,
 		Origin:          chatstore.SubOriginParent,
@@ -75,7 +76,7 @@ func TestSubagentBackgroundStopAndResumeLifecycle(t *testing.T) {
 		t.Fatal("background subagent did not start")
 	}
 
-	if err := r.controlSubagent(res.SubchatID, "stop"); err != nil {
+	if err := r.ControlSubagentForTest(res.SubchatID, "stop"); err != nil {
 		t.Fatal(err)
 	}
 	sess, err := chatstore.FindSubSessionByID(projHex, res.SubchatID)
@@ -86,7 +87,7 @@ func TestSubagentBackgroundStopAndResumeLifecycle(t *testing.T) {
 		t.Fatalf("after stop status=%q", sess.Status)
 	}
 
-	if err := r.controlSubagent(res.SubchatID, "resume"); err != nil {
+	if err := r.ControlSubagentForTest(res.SubchatID, "resume"); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(2 * time.Second)

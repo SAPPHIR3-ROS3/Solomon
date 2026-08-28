@@ -37,6 +37,14 @@ func (r *Runtime) RunAgentTurnsForTest(ctx context.Context) error {
 	return r.runAgentTurns(ctx)
 }
 
+func (r *Runtime) RunSubagentToolForTest(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
+	return r.runSubagentTool(ctx, cfg)
+}
+
+func (r *Runtime) ControlSubagentForTest(id, action string) error {
+	return r.controlSubagent(id, action)
+}
+
 func StopAgentGenerationForTest() {
 	turnloop.StopForTest(errUserStopGeneration)
 }

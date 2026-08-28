@@ -1,8 +1,11 @@
-package main
+package test
 
 import (
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/desktopgit"
 )
 
 func TestParseDesktopGitHistory(t *testing.T) {
@@ -11,7 +14,7 @@ func TestParseDesktopGitHistory(t *testing.T) {
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x00aaaaaaa\x00Grace Hopper\x002026-08-09T09:15:00+02:00\x00Ship it\x00\x00cccccccccccccccccccccccccccccccccccccccc",
 	}, "\n")
 
-	commits := parseDesktopGitHistory([]byte(output))
+	commits := desktopgit.ParseHistory([]byte(output))
 	if len(commits) != 2 {
 		t.Fatalf("parseDesktopGitHistory() returned %d commits, want 2", len(commits))
 	}
@@ -21,7 +24,7 @@ func TestParseDesktopGitHistory(t *testing.T) {
 	if got, want := len(commits[0].Parents), 2; got != want {
 		t.Fatalf("first parent count = %d, want %d", got, want)
 	}
-	if got, want := commits[0].Refs, []string{"HEAD -> main", "tag: v1.0"}; !sameStrings(got, want) {
+	if got, want := commits[0].Refs, []string{"HEAD -> main", "tag: v1.0"}; !slices.Equal(got, want) {
 		t.Fatalf("first refs = %#v, want %#v", got, want)
 	}
 	if got, want := commits[1].Author, "Grace Hopper"; got != want {
@@ -31,7 +34,7 @@ func TestParseDesktopGitHistory(t *testing.T) {
 
 func TestParseDesktopGitStatus(t *testing.T) {
 	output := []byte("M\x00gui/src/App.tsx\x00R100\x00old-name.tsx\x00new-name.tsx\x00")
-	status := parseDesktopGitStatus(output)
+	status := desktopgit.ParseStatus(output)
 	if got, want := status["gui/src/App.tsx"], "M"; got != want {
 		t.Fatalf("modified status = %q, want %q", got, want)
 	}
@@ -41,16 +44,4 @@ func TestParseDesktopGitStatus(t *testing.T) {
 	if _, ok := status["old-name.tsx"]; ok {
 		t.Fatal("old rename path should not be listed")
 	}
-}
-
-func sameStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }
