@@ -57,6 +57,7 @@ func TestSubagentBackgroundStopAndResumeLifecycle(t *testing.T) {
 		SubagentReasoningEffort: "high",
 	}
 	r := agentruntime.NewTestRuntime(cfg, prov, projHex, t.TempDir(), &chatstore.Session{ID: "parent"}, io.Discard)
+	stopCursorSidecar(t)
 	b := &lifecycleBackend{started: make(chan struct{})}
 	r.Backend = b
 
@@ -70,6 +71,11 @@ func TestSubagentBackgroundStopAndResumeLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := r.ControlSubagentForTest(res.SubchatID, "stop"); err != nil {
+			t.Logf("cleanup subagent: %v", err)
+		}
+	})
 	select {
 	case <-b.started:
 	case <-time.After(2 * time.Second):
