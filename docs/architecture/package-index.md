@@ -97,6 +97,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/termcolor/` | Lipgloss palette, usage line, `NO_COLOR` | [Supporting packages](supporting-packages.md) |
 | `internal/clipboard/` | Cross-platform image paste in REPL | [Supporting packages](supporting-packages.md) |
 | `internal/claudecode/` | Claude Code version lookup (GitHub releases, disk cache) for OAuth headers | [LLM layer](llm-layer.md) |
+| `internal/desktopgit/` | Machine-readable Git history and status parsing for the desktop bridge | [Supporting packages](supporting-packages.md) |
 | `internal/title/` | Chat title slug and LLM refinement | [Supporting packages](supporting-packages.md) |
 | `internal/modelsapi/` | List models from provider API | [Supporting packages](supporting-packages.md) |
 | `internal/modelcatalogcache/` | Persistent cache for provider model catalog lookups | [Supporting packages](supporting-packages.md) |
@@ -171,6 +172,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/claudecode/` | Support |
 | `internal/clipboard/` | Support |
 | `internal/config/` | Core |
+| `internal/desktopgit/` | Support |
 | `internal/docs/` | Feature |
 | `internal/gitignore/` | Feature |
 | `internal/instructions/` | Feature |

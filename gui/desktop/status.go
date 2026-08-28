@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/desktopgit"
 )
 
 type desktopProjectGitStatus struct {
@@ -61,36 +63,7 @@ func desktopGitStatusCommand(root string, args ...string) ([]byte, error) {
 }
 
 func parseDesktopGitStatus(output []byte) map[string]string {
-	status := make(map[string]string)
-	fields := strings.Split(string(output), "\x00")
-	for index := 0; index < len(fields); {
-		code := strings.TrimSpace(fields[index])
-		index++
-		if code == "" {
-			continue
-		}
-		statusCode := code[0]
-		if statusCode == 'R' || statusCode == 'C' {
-			if index < len(fields) {
-				index++
-			}
-			if index < len(fields) {
-				if filePath := normalizeDesktopGitPath(fields[index]); filePath != "" {
-					status[filePath] = string(statusCode)
-				}
-				index++
-			}
-			continue
-		}
-		if index >= len(fields) {
-			break
-		}
-		if filePath := normalizeDesktopGitPath(fields[index]); filePath != "" {
-			status[filePath] = string(statusCode)
-		}
-		index++
-	}
-	return status
+	return desktopgit.ParseStatus(output)
 }
 
 func normalizeDesktopGitPath(value string) string {
