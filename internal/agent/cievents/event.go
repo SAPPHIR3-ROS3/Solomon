@@ -71,11 +71,15 @@ func AssistantEnd(turn int, content, reasoning string, toolCalls []map[string]an
 	return e
 }
 
-func ToolStart(turn int, id, name string, arguments json.RawMessage) Event {
+func ToolStart(turn int, id, name string, arguments json.RawMessage, checkpointSeq int, checkpointBranch string) Event {
 	e := baseEvent(TypeToolStart)
 	e["turn"] = turn
 	e["id"] = id
 	e["name"] = name
+	e["checkpoint_seq"] = checkpointSeq
+	if checkpointBranch != "" {
+		e["checkpoint_branch"] = checkpointBranch
+	}
 	var args any
 	if len(arguments) > 0 {
 		_ = json.Unmarshal(arguments, &args)

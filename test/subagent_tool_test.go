@@ -56,7 +56,7 @@ func TestParseSubagentArgsInterrupt(t *testing.T) {
 	}
 }
 
-func TestFormatToolDisplayLines_subagentAsyncModeInHeader(t *testing.T) {
+func TestFormatToolDisplayLines_subagentAsyncModeOmittedFromHeader(t *testing.T) {
 	args, _ := json.Marshal(map[string]any{
 		"sysPromptPath":     "agent.tmpl",
 		"task":              "Rispondi solamente OK",
@@ -67,7 +67,7 @@ func TestFormatToolDisplayLines_subagentAsyncModeInHeader(t *testing.T) {
 		t.Fatalf("want at least 2 lines, got %d", len(lines))
 	}
 	plain0 := termcolor.Plain(lines[0])
-	if plain0 != "Tool: subagent agent (async)" {
+	if plain0 != "Tool: subagent agent" {
 		t.Fatalf("header %q", plain0)
 	}
 	if len(lines) != 2 {

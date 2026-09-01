@@ -47,7 +47,10 @@ func (r *Runtime) Close() error {
 	if r != nil && r.MCP != nil {
 		errMCP = r.MCP.Close()
 	}
-	sandboxparent.CloseGlobal()
+	if r != nil && r.sandboxRetained {
+		sandboxparent.ReleaseGlobal()
+		r.sandboxRetained = false
+	}
 	if r != nil && r.RL != nil {
 		_ = r.RL.Terminal.ExitRawMode()
 	}

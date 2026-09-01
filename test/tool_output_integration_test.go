@@ -23,6 +23,7 @@ func TestRuntimeToolOutputWiringTruncatesShellResult(t *testing.T) {
 		},
 	}
 	rt := agentruntime.NewRuntime(nil, cfg, p, testProjectHex, t.TempDir(), &chatstore.Session{ID: "integ-session"})
+	defer rt.Close()
 	if rt.ToolOut == nil {
 		t.Fatal("ToolOut not initialized on Runtime")
 	}

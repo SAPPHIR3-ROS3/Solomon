@@ -1,6 +1,9 @@
 package cievents
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 func ToolResult(turn int, id, name string, result json.RawMessage, errMsg string) Event {
 	e := baseEvent(TypeToolResult)
@@ -21,10 +24,15 @@ func ToolResult(turn int, id, name string, result json.RawMessage, errMsg string
 	return e
 }
 
-func ErrorEvent(code int, message string) Event {
+func ErrorEvent(code int, message string, detail ...string) Event {
 	e := baseEvent(TypeError)
 	e["code"] = code
 	e["message"] = message
+	if len(detail) > 0 {
+		if value := strings.TrimSpace(detail[0]); value != "" && value != message {
+			e["detail"] = value
+		}
+	}
 	return e
 }
 
