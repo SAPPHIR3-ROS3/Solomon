@@ -13,7 +13,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureEditPlan(name, oldStr, newStr, intent string) {}
+func signatureEditPlan(name, oldStr, newStr string) {}
 
 type editPlanArgs struct {
 	Name   string `json:"name"`

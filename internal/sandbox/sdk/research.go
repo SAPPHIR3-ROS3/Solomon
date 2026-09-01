@@ -1,7 +1,7 @@
 package sdk
 
-func DeepResearch(query, category string) (map[string]any, error) {
-	args := map[string]any{"query": query}
+func DeepResearch(query, category, intent string) (map[string]any, error) {
+	args := map[string]any{"query": query, "intent": intent}
 	if category != "" {
 		args["category"] = category
 	}
@@ -12,8 +12,8 @@ func DeepResearch(query, category string) (map[string]any, error) {
 	return decodeMap(raw)
 }
 
-func ResearchStatus(jobID string) (map[string]any, error) {
-	raw, err := callTool("researchStatus", map[string]any{"jobId": jobID})
+func ResearchStatus(jobID, intent string) (map[string]any, error) {
+	raw, err := callTool("researchStatus", map[string]any{"jobId": jobID, "intent": intent})
 	if err != nil {
 		return nil, err
 	}

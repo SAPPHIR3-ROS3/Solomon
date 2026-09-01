@@ -7,6 +7,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"github.com/openai/openai-go/v2"
 )
 
@@ -80,10 +81,7 @@ func TestCountTurnPrompt_matchesMessageParams(t *testing.T) {
 	wire := llm.MessageParams(req.System, req.Messages, req.ImageFiles)
 	tools := make([]openai.ChatCompletionToolUnionParam, 0)
 	for _, d := range req.Tools {
-		props := d.Parameters
-		if props == nil {
-			props = map[string]any{"type": "object", "properties": map[string]any{}}
-		}
+		props := tooling.SchemaWithRequiredToolIntent(d.Parameters)
 		tools = append(tools, openai.ChatCompletionToolUnionParam{
 			OfFunction: &openai.ChatCompletionFunctionToolParam{
 				Function: openai.FunctionDefinitionParam{

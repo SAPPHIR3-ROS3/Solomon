@@ -10,7 +10,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureListSubAgents() {}
+func signatureListSubAgents(intent string) {}
 
 func listSubAgentsSummary() string {
 	return "List configured subagent roles from [[roles.subagent]] with manually assigned scores for [roles.table] characteristics. Compare the configured values, then pass provider and model to subagent."

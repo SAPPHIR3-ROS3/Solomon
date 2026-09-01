@@ -22,7 +22,7 @@ func TestAgentModeBlocksDirectMCP(t *testing.T) {
 	env := &tools.Env{MCP: mgr}
 	_, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{
 		Name: "MCP.github.create_issue",
-		Args: json.RawMessage(`{}`),
+		Args: json.RawMessage(`{"intent":"test direct MCP guard"}`),
 	})
 	if err == nil {
 		t.Fatal("expected direct MCP tool to be blocked in agent mode")

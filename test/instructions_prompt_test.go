@@ -57,6 +57,7 @@ func TestInstructionsPromptSectionsConditional(t *testing.T) {
 }
 
 func TestImagesWorkflowSection_inPrompts(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
 	section := prompt.ImagesWorkflowSection()
 	if section == "" {
 		t.Fatal("empty images workflow section")
@@ -83,8 +84,8 @@ func TestImagesWorkflowSection_inPrompts(t *testing.T) {
 	if !strings.Contains(chat, "## Session images") {
 		t.Fatalf("chat prompt missing images section")
 	}
-	if !strings.Contains(agent, "PLAN mode cannot paste") {
-		t.Fatalf("images workflow missing plan-specific note: %q", agent)
+	if !strings.Contains(agent, "image paste and attachments remain available while a plan is active") {
+		t.Fatalf("images workflow missing planning-state note: %q", agent)
 	}
 	sumSys, err := prompt.RenderSummarizeSystem(prompt.SummarizeData{})
 	if err != nil {

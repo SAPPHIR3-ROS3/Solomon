@@ -17,7 +17,7 @@ import (
 func TestSearchToolsQuery(t *testing.T) {
 	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",
-		Args: json.RawMessage(`{"query":"edit file"}`),
+		Args: json.RawMessage(`{"query":"edit file","intent":"discover edit tools"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -35,7 +35,7 @@ func TestSearchToolsQuery(t *testing.T) {
 func TestSearchToolsGlobReadFilesQuery(t *testing.T) {
 	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",
-		Args: json.RawMessage(`{"query":"Find Glob read files"}`),
+		Args: json.RawMessage(`{"query":"Find Glob read files","intent":"discover file search tools"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestSearchToolsGlobReadFilesQuery(t *testing.T) {
 func TestSearchToolsEmptyQueryRejected(t *testing.T) {
 	_, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",
-		Args: json.RawMessage(`{"query":""}`),
+		Args: json.RawMessage(`{"query":"","intent":"check empty search"}`),
 	})
 	if err == nil {
 		t.Fatal("expected error for empty query")
@@ -69,7 +69,7 @@ func TestAgentModeRejectsDirectReadFile(t *testing.T) {
 	dir := t.TempDir()
 	_, err := agenttools.Exec(context.Background(), &agenttools.Env{ProjRoot: dir}, "agent", tooling.Invocation{
 		Name: "readFile",
-		Args: json.RawMessage(`{"path":"x.txt"}`),
+		Args: json.RawMessage(`{"path":"x.txt","intent":"test direct read guard"}`),
 	})
 	if err == nil {
 		t.Fatal("expected mode guard error")
@@ -79,7 +79,7 @@ func TestAgentModeRejectsDirectReadFile(t *testing.T) {
 func TestAgentModeAllowsSearchSkill(t *testing.T) {
 	_, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchSkill",
-		Args: json.RawMessage(`{"query":"commit message"}`),
+		Args: json.RawMessage(`{"query":"commit message","intent":"find commit guidance"}`),
 	})
 	if err == nil {
 		return
@@ -92,7 +92,7 @@ func TestAgentModeAllowsSearchSkill(t *testing.T) {
 func TestAgentModeRejectsLoadSkillInAgentWithoutSkill(t *testing.T) {
 	_, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "loadSkill",
-		Args: json.RawMessage(`{"name":"definitely-missing-skill-xyz"}`),
+		Args: json.RawMessage(`{"name":"definitely-missing-skill-xyz","intent":"test missing skill"}`),
 	})
 	if err == nil {
 		t.Fatal("expected load error for missing skill")
@@ -104,7 +104,7 @@ func TestDeferredHostAllowsReadFile(t *testing.T) {
 	env := &agenttools.Env{ProjRoot: dir, AllowDeferredTools: true}
 	_, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{
 		Name: "readFile",
-		Args: json.RawMessage(`{"path":"missing.txt"}`),
+		Args: json.RawMessage(`{"path":"missing.txt","intent":"read missing file"}`),
 	})
 	if err == nil {
 		t.Fatal("expected read error for missing file")
@@ -114,7 +114,7 @@ func TestDeferredHostAllowsReadFile(t *testing.T) {
 func TestOrchestrateCompileError(t *testing.T) {
 	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "orchestrate",
-		Args: json.RawMessage(`{"source":"this is not valid go"}`),
+		Args: json.RawMessage(`{"source":"this is not valid go","intent":"test compile errors"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -150,19 +150,19 @@ func main() {
 	if err := sdk.ReplaceInFile("a.txt", "line2", "LINE2", "patch"); err != nil {
 		panic(err)
 	}
-	r, err := sdk.ReadFileFromLineInfo("a.txt", 2)
+	r, err := sdk.ReadFileFromLineInfo("a.txt", 2, "read line 2 from a.txt")
 	if err != nil {
 		panic(err)
 	}
-	paths, err := sdk.GlobInLimit(".", "*.txt", 10)
+	paths, err := sdk.GlobInLimit(".", "*.txt", 10, "find text files")
 	if err != nil {
 		panic(err)
 	}
-	matches, err := sdk.GrepPathGlob("LINE2", "*.txt")
+	matches, err := sdk.GrepPathGlob("LINE2", "*.txt", "find matching text")
 	if err != nil {
 		panic(err)
 	}
-	lines, err := sdk.GrepLinesPathGlob("LINE2", "*.txt")
+	lines, err := sdk.GrepLinesPathGlob("LINE2", "*.txt", "inspect matching lines")
 	if err != nil {
 		panic(err)
 	}
@@ -182,10 +182,49 @@ func main() {
 	}
 }
 
+func TestSDKRejectsMissingIntentBeforeHostCall(t *testing.T) {
+	src := `package main
+
+import (
+	"fmt"
+	"sdk"
+)
+
+func main() {
+	_, err := sdk.ReadFile("a.txt", "")
+	if err == nil {
+		panic("missing intent was accepted")
+	}
+	fmt.Print(err)
+}
+`
+	wasm, err := compile.BuildWASM(compile.Options{Source: src})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mc := &mockCaller{}
+	ctx := context.Background()
+	rn, err := run.NewRunner(ctx, mc, run.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rn.Close(ctx)
+	out, err := rn.Run(ctx, wasm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "non-empty intent string") {
+		t.Fatalf("unexpected SDK validation output: %q", out)
+	}
+	if mc.calls != 0 {
+		t.Fatalf("host caller invoked despite missing intent: %d", mc.calls)
+	}
+}
+
 func TestSearchToolsSDKHelpers(t *testing.T) {
 	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",
-		Args: json.RawMessage(`{"query":"Glob"}`),
+		Args: json.RawMessage(`{"query":"Glob","intent":"discover glob helpers"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -215,7 +254,7 @@ import (
 )
 
 func main() {
-	c, err := sdk.ReadFile("foo.txt")
+	c, err := sdk.ReadFile("foo.txt", "read foo.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -248,7 +287,7 @@ func main() {
 func TestSearchToolsExcludesSubagent(t *testing.T) {
 	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",
-		Args: json.RawMessage(`{"query":"subagent"}`),
+		Args: json.RawMessage(`{"query":"subagent","intent":"verify deferred catalog"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -267,7 +306,7 @@ func TestOrchestrateHostRejectsSubagent(t *testing.T) {
 	env := &agenttools.Env{AllowDeferredTools: true}
 	_, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{
 		Name: "subagent",
-		Args: json.RawMessage(`{"sysPromptPath":"agent.tmpl","task":"ok"}`),
+		Args: json.RawMessage(`{"sysPromptPath":"agent.tmpl","task":"ok","intent":"test nested tool guard"}`),
 	})
 	if err == nil {
 		t.Fatal("expected subagent rejected from orchestrate host")
@@ -284,7 +323,7 @@ func TestAgentModeAllowsSubagentWhenRuntimeWired(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := &agenttools.Env{
-		ProjRoot: dir,
+		ProjRoot:    dir,
 		CurrentMode: func() string { return "agent" },
 		SetMode:     func(string) {},
 		RunSubagent: func(context.Context, agenttools.SubagentRequest) (agenttools.SubagentResponse, error) {
@@ -293,7 +332,7 @@ func TestAgentModeAllowsSubagentWhenRuntimeWired(t *testing.T) {
 	}
 	_, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{
 		Name: "subagent",
-		Args: json.RawMessage(`{"sysPromptPath":"sys.txt","task":"ok"}`),
+		Args: json.RawMessage(`{"sysPromptPath":"sys.txt","task":"ok","intent":"run nested test"}`),
 	})
 	if err != nil {
 		t.Fatalf("agent native subagent: %v", err)

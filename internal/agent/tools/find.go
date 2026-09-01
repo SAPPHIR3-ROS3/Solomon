@@ -11,7 +11,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureFind(pattern string, files bool) {}
+func signatureFind(pattern string, files bool, intent string) {}
 
 func findOpenAI() openai.ChatCompletionToolUnionParam {
 	return nativeToolUnion("find", "Search the project: files=true lists paths matching a glob pattern; files=false searches file contents with a Go regexp.", map[string]any{
@@ -52,18 +52,18 @@ func appendFindDump(b *dumpBuilder) error {
 }
 
 type findArgs struct {
-	Pattern          string `json:"pattern"`
-	Files            bool   `json:"files"`
-	Path             string `json:"path"`
-	PathGlob         string `json:"pathGlob"`
-	OutputMode       string `json:"outputMode"`
-	CaseInsensitive  bool   `json:"caseInsensitive"`
-	ContextBefore    *int   `json:"contextBefore"`
-	ContextAfter     *int   `json:"contextAfter"`
-	Context          *int   `json:"context"`
-	HeadLimit        *int   `json:"headLimit"`
-	Multiline        bool   `json:"multiline"`
-	TimeoutSeconds   *int   `json:"timeoutSeconds,omitempty"`
+	Pattern         string `json:"pattern"`
+	Files           bool   `json:"files"`
+	Path            string `json:"path"`
+	PathGlob        string `json:"pathGlob"`
+	OutputMode      string `json:"outputMode"`
+	CaseInsensitive bool   `json:"caseInsensitive"`
+	ContextBefore   *int   `json:"contextBefore"`
+	ContextAfter    *int   `json:"contextAfter"`
+	Context         *int   `json:"context"`
+	HeadLimit       *int   `json:"headLimit"`
+	Multiline       bool   `json:"multiline"`
+	TimeoutSeconds  *int   `json:"timeoutSeconds,omitempty"`
 }
 
 func execFind(ctx context.Context, env *Env, raw json.RawMessage) (any, error) {

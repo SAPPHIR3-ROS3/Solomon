@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -20,7 +21,7 @@ type orchestrateArgs struct {
 }
 
 func orchestrateOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and deferred tool catalog. Scripts run in WASM: use sdk.Shell for host commands (not os/exec). sdk.Shell returns (string, error) — assign output to a variable and fmt.Println it; bare sdk.Shell calls do not appear in the tool result. Read/transform/write files via SDK — do not paste large bodies with backticks into Go raw strings. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", map[string]any{
+	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and the deferred tool catalog. SDK helpers include file reads/edits, Find/Glob/Grep, ListDir/Tree, Shell, web/docs/research, and plan helpers. Connected MCP schemas may be discoverable with searchTools, but no generic MCP SDK entry point is exposed. Scripts run in WASM: use sdk.Shell for host commands (not os/exec). sdk.Shell returns (string, error) — assign output to a variable and fmt.Println it; bare sdk.Shell calls do not appear in the tool result. Read/transform/write files via SDK — do not paste large bodies with backticks into Go raw strings. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", map[string]any{
 		"source": map[string]any{"type": "string", "description": "Complete Go source: package main, import sandbox SDK via import \"sdk\", func main()"},
 		"intent": map[string]any{"type": "string", "description": "Brief phrase describing what this script does"},
 	}, []string{"source", "intent"})
@@ -31,7 +32,7 @@ func appendOrchestrateDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via import \"sdk\" only. Helpers: ReadFile, ReplaceInFile(path,old,new,intent), WriteFile(path,content,intent), Glob/Grep, Shell (not os/exec), WebSearch, FetchWeb, DocsRetrieval. Do not embed markdown backticks in Go raw strings — ReadFile/transform/WriteFile instead. sdk.Shell returns (string, error): assign to a variable and fmt.Println it — bare calls are invisible in the tool result. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", sig)
+	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via import \"sdk\" only. Helpers include ReadFile, ReadFileLines, ReplaceInFile, WriteFile, DeleteFile, RenameFile, Find/Glob/Grep, ListDir/Tree, Shell (not os/exec), WebSearch, FetchWeb, DocsRetrieval, plan, and research helpers. Connected MCP schemas may be discoverable with searchTools, but no generic MCP SDK entry point is exposed. Do not embed markdown backticks in Go raw strings — ReadFile/transform/WriteFile instead. sdk.Shell returns (string, error): assign to a variable and fmt.Println it — bare calls are invisible in the tool result. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", sig)
 	return nil
 }
 
@@ -39,6 +40,9 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 	var a orchestrateArgs
 	if err := json.Unmarshal(raw, &a); err != nil {
 		return nil, err
+	}
+	if env == nil {
+		return nil, fmt.Errorf("orchestrate: runtime environment unavailable")
 	}
 	cacheDir, _ := compile.CacheDir()
 	wasm, err := compile.BuildWASM(compile.Options{Source: a.Source, CacheDir: cacheDir})

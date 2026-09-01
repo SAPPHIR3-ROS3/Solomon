@@ -173,14 +173,45 @@ func (c *Client) writeJSON(v any) error {
 var (
 	globalMu     sync.Mutex
 	globalClient *Client
+	globalRefs   int
 )
 
 func Global(ctx context.Context) (*Client, error) {
 	globalMu.Lock()
 	defer globalMu.Unlock()
+	if err := ensureGlobalLocked(ctx); err != nil {
+		return nil, err
+	}
+	return globalClient, nil
+}
+
+// RetainGlobal keeps the shared sandbox worker alive across concurrent runtimes.
+func RetainGlobal(ctx context.Context) error {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	if err := ensureGlobalLocked(ctx); err != nil {
+		return err
+	}
+	globalRefs++
+	return nil
+}
+
+// ReleaseGlobal drops one retain. The worker closes when the last retain is gone.
+func ReleaseGlobal() {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	if globalRefs > 0 {
+		globalRefs--
+	}
+	if globalRefs == 0 {
+		closeGlobalLocked()
+	}
+}
+
+func ensureGlobalLocked(ctx context.Context) error {
 	if globalClient != nil {
 		if pingErr := globalClient.ping(); pingErr == nil {
-			return globalClient, nil
+			return nil
 		} else {
 			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker reconnecting after ping failure", logging.LogOptions{Params: map[string]any{"err": pingErr.Error()}})
 		}
@@ -189,10 +220,18 @@ func Global(ctx context.Context) (*Client, error) {
 	}
 	c, err := Start(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	globalClient = c
-	return c, nil
+	return nil
+}
+
+func closeGlobalLocked() {
+	if globalClient == nil {
+		return
+	}
+	_ = globalClient.Close()
+	globalClient = nil
 }
 
 func RunGlobal(ctx context.Context, wasm []byte, mode string, exec ToolExec) (ipc.RunDone, error) {
@@ -226,10 +265,8 @@ func Warm(ctx context.Context, version string) {
 func CloseGlobal() {
 	globalMu.Lock()
 	defer globalMu.Unlock()
-	if globalClient != nil {
-		_ = globalClient.Close()
-		globalClient = nil
-	}
+	globalRefs = 0
+	closeGlobalLocked()
 }
 
 func SimulateWorkerCrash() {
@@ -276,6 +313,7 @@ func forgetGlobal(c *Client) {
 	defer globalMu.Unlock()
 	if globalClient == c {
 		globalClient = nil
+		globalRefs = 0
 	}
 }
 

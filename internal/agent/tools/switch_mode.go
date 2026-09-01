@@ -10,7 +10,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureSwitchMode(mode string) {}
+func signatureSwitchMode(mode, intent string) {}
 
 type switchModeArgs struct {
 	Mode string `json:"mode"`

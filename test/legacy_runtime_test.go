@@ -18,7 +18,7 @@ func TestResolveTurnInvocations_nativePreferredWhenOptional(t *testing.T) {
 		Cfg:  &config.Root{Tools: config.Tools{Legacy: true}},
 	}
 	turn := llm.AssistantTurnResult{
-		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{"command":"go test"}`}},
+		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{"command":"go test","intent":"run tests"}`}},
 		Content:   `<tool_calls><tool name="readFile"><args>{"path":"x"}</args></tool></tool_calls>`,
 	}
 	invs, ids, reject, malformed := r.ResolveTurnInvocations(turn, nil)
@@ -37,7 +37,7 @@ func TestResolveTurnInvocations_cursorProviderUsesNativeWithoutForce(t *testing.
 		Prov: &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI},
 	}
 	turn := llm.AssistantTurnResult{
-		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{"command":"go test"}`}},
+		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{"command":"go test","intent":"run tests"}`}},
 	}
 	invs, ids, reject, malformed := r.ResolveTurnInvocations(turn, nil)
 	if reject || malformed != nil {
@@ -55,7 +55,7 @@ func TestResolveTurnInvocations_nonCursorCleanConfigUsesNative(t *testing.T) {
 		Prov: &config.Provider{Name: "openai", AuthKind: config.AuthKindAPIKey},
 	}
 	turn := llm.AssistantTurnResult{
-		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{"command":"go test"}`}},
+		ToolCalls: []llm.AssistantToolCall{{ID: "c1", Name: "shell", Arguments: `{"command":"go test","intent":"run tests"}`}},
 	}
 	invs, ids, reject, malformed := r.ResolveTurnInvocations(turn, nil)
 	if reject || malformed != nil || len(invs) != 1 || ids[0] != "c1" {
@@ -82,7 +82,7 @@ func TestResolveTurnInvocations_legacyXML(t *testing.T) {
 		Mode: "agent",
 		Cfg:  &config.Root{Tools: config.Tools{Legacy: true, LegacyForce: true}},
 	}
-	block := `<tool_calls><tool name="shell"><args>{"command":"go test"}</args></tool></tool_calls>`
+	block := `<tool_calls><tool name="shell"><intent>run tests</intent><args>{"command":"go test"}</args></tool></tool_calls>`
 	turn := llm.AssistantTurnResult{Content: block}
 	invs, ids, reject, malformed := r.ResolveTurnInvocations(turn, nil)
 	if reject || malformed != nil {
@@ -91,7 +91,7 @@ func TestResolveTurnInvocations_legacyXML(t *testing.T) {
 	if len(invs) != 1 || invs[0].Name != "shell" || ids[0] != "" {
 		t.Fatalf("invs=%+v ids=%v", invs, ids)
 	}
-	if string(invs[0].Args) != `{"command":"go test"}` {
+	if string(invs[0].Args) != `{"command":"go test","intent":"run tests"}` {
 		t.Fatalf("args=%s", invs[0].Args)
 	}
 }
@@ -101,7 +101,7 @@ func TestResolveTurnInvocations_unknownToolName(t *testing.T) {
 		Mode: "agent",
 		Cfg:  &config.Root{Tools: config.Tools{Legacy: true, LegacyForce: true}},
 	}
-	block := `<tool_calls><tool name="notRegistered"><args>{}</args></tool></tool_calls>`
+	block := `<tool_calls><tool name="notRegistered"><intent>validate tool name</intent><args>{}</args></tool></tool_calls>`
 	turn := llm.AssistantTurnResult{Content: block}
 	_, _, reject, malformed := r.ResolveTurnInvocations(turn, nil)
 	if reject || !errors.Is(malformed, tooling.ErrUnknownLegacyTool) {

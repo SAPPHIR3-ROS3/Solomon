@@ -103,29 +103,38 @@ test("bridgeToolInvocation blocks redirect tools even when mapped target is allo
     null,
   );
   assert.deepEqual(
-    mapCursorToolInvocation("Read", { path: "main.go" }, bridgeCtx("readFile")),
-    { name: "readFile", args: { path: "main.go" } },
+    mapCursorToolInvocation(
+      "Read",
+      { path: "main.go", intent: "inspect main.go" },
+      bridgeCtx("readFile"),
+    ),
+    { name: "readFile", args: { path: "main.go" }, intent: "inspect main.go" },
   );
 });
 
 test("maps str_replace cursor alias into editFile via mapper", () => {
   const inv = mapCursorToolInvocation(
     "str_replace",
-    { path: "a.go", old_string: "foo", new_string: "bar" },
+    { path: "a.go", old_string: "foo", new_string: "bar", intent: "replace foo" },
     bridgeCtx("editFile"),
   );
   assert.deepEqual(inv, {
     name: "editFile",
     args: { path: "a.go", oldString: "foo", newString: "bar" },
-    intent: "edit file",
+    intent: "replace foo",
   });
 });
 
 test("maps ListDir cursor alias into find glob listing via mapper", () => {
-  const inv = mapCursorToolInvocation("ListDir", { path: "internal" }, bridgeCtx("find"));
+  const inv = mapCursorToolInvocation(
+    "ListDir",
+    { path: "internal", intent: "list internal files" },
+    bridgeCtx("find"),
+  );
   assert.deepEqual(inv, {
     name: "find",
     args: { pattern: "**/*", files: true, path: "internal" },
+    intent: "list internal files",
   });
 });
 
@@ -287,20 +296,37 @@ test("converts OpenAI request tools into MCP tool definitions (legacy helper)", 
   assert.equal(mcp.length, 2);
   assert.equal(mcp[0]?.name, "find");
   assert.equal(mcp[0]?.description, "Search files");
-  assert.deepEqual(mcp[0]?.inputSchema.required, ["pattern"]);
+  assert.deepEqual(mcp[0]?.inputSchema.required, ["pattern", "intent"]);
   assert.equal(mcp[1]?.name, "subagent");
+  assert.deepEqual(mcp[1]?.inputSchema.required, ["intent"]);
 });
 
 test("passes through any allowed Solomon tool without manual mapping", () => {
   const ctx = bridgeCtx("loadSkill", "searchSkill");
-  const inv = bridgeToolInvocation("loadSkill", { name: "babysit" }, ctx);
-  assert.deepEqual(inv, { name: "loadSkill", args: { name: "babysit" } });
+  const inv = bridgeToolInvocation(
+    "loadSkill",
+    { name: "babysit", intent: "load babysit skill" },
+    ctx,
+  );
+  assert.deepEqual(inv, {
+    name: "loadSkill",
+    args: { name: "babysit" },
+    intent: "load babysit skill",
+  });
 });
 
 test("maps WebFetch cursor alias to fetchWeb via mapper when allowed", () => {
   const ctx = bridgeCtx("fetchWeb");
-  const inv = mapCursorToolInvocation("WebFetch", { url: "https://example.com" }, ctx);
-  assert.deepEqual(inv, { name: "fetchWeb", args: { url: "https://example.com" } });
+  const inv = mapCursorToolInvocation(
+    "WebFetch",
+    { url: "https://example.com", intent: "inspect example.com" },
+    ctx,
+  );
+  assert.deepEqual(inv, {
+    name: "fetchWeb",
+    args: { url: "https://example.com" },
+    intent: "inspect example.com",
+  });
   assert.equal(bridgeToolInvocation("WebFetch", { url: "https://example.com" }, ctx), null);
 });
 
@@ -484,8 +510,8 @@ test("completed browser tool events stay blocked (2.4)", () => {
 
 test("blocks deferred solomon MCP tools and passes native subagent (2.3)", () => {
   for (const [toolName, args, expectBlocked] of [
-    ["find", { pattern: "foo", files: false }, "mcp:find"],
-    ["subagent", { task: "explore auth", sysPromptPath: "agent.tmpl" }, null],
+    ["find", { pattern: "foo", files: false, intent: "find foo" }, "mcp:find"],
+    ["subagent", { task: "explore auth", sysPromptPath: "agent.tmpl", intent: "explore auth" }, null],
   ] as const) {
     const pending = [];
     let detected = false;
@@ -551,7 +577,7 @@ test("finalizeTurnToolResults hard-denies without orchestrate footer (2.10)", ()
 });
 
 test("finalizeTurnToolResults passes native orchestrate without correction (2.10)", () => {
-  const xml = '<tool_calls><tool name="orchestrate"><args>{"code":"package main"}</args></tool></tool_calls>';
+  const xml = '<tool_calls><tool name="orchestrate"><intent>run orchestration</intent><args>{"code":"package main"}</args></tool></tool_calls>';
   const result = finalizeTurnToolResults(
     { pendingBridged: [], blockedTools: [] },
     xml,
@@ -565,10 +591,10 @@ test("finalizeTurnToolResults passes native orchestrate without correction (2.10
 test("finalizeTurnToolResults merges SDK bridged and native XML invocations (2.10)", () => {
   const result = finalizeTurnToolResults(
     {
-      pendingBridged: [{ name: "subagent", args: { task: "explore auth" } }],
+      pendingBridged: [{ name: "subagent", args: { task: "explore auth" }, intent: "explore auth" }],
       blockedTools: [],
     },
-    '<tool_calls><tool name="orchestrate"><args>{"code":"package main"}</args></tool></tool_calls>',
+    '<tool_calls><tool name="orchestrate"><intent>run orchestration</intent><args>{"code":"package main"}</args></tool></tool_calls>',
     nativeTurnOpts,
   );
   assert.equal(result.bridged.length, 2);
@@ -681,7 +707,11 @@ test("drainAgentToolStream forceStopRun on bridged native subagent (2.11)", asyn
         type: "tool_call",
         name: "mcp",
         status: "running",
-        args: { providerIdentifier: "solomon", toolName: "subagent", args: { task: "explore auth" } },
+        args: {
+          providerIdentifier: "solomon",
+          toolName: "subagent",
+          args: { task: "explore auth", intent: "explore auth" },
+        },
       },
       { type: "assistant", message: { content: [{ type: "text", text: "late text" }] } },
     ],
@@ -720,7 +750,7 @@ test("drainAgentToolStream forceStopRun on deferred readFile direct call (2.11)"
         type: "tool_call",
         name: "readFile",
         status: "running",
-        args: { path: "main.go" },
+        args: { path: "main.go", intent: "read main.go" },
       },
     ],
     ["orchestrate", "readFile"],

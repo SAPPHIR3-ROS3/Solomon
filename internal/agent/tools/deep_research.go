@@ -12,7 +12,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureDeepResearch(query string, category string) {}
+func signatureDeepResearch(query, category string) {}
 
 type deepResearchArgs struct {
 	Query    string `json:"query"`

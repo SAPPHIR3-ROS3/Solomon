@@ -11,7 +11,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureResearchStatus(jobID string) {}
+func signatureResearchStatus(jobID, intent string) {}
 
 type researchStatusArgs struct {
 	JobID string `json:"jobId"`

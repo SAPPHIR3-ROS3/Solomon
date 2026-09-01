@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/packages/param"
 	"github.com/openai/openai-go/v2/shared"
@@ -69,10 +70,7 @@ func (b *OpenAIBackend) ListModels(ctx context.Context) ([]string, error) {
 func openaiToolsFromDefs(defs []ToolDef) []openai.ChatCompletionToolUnionParam {
 	var out []openai.ChatCompletionToolUnionParam
 	for _, d := range defs {
-		props := d.Parameters
-		if props == nil {
-			props = map[string]any{"type": "object", "properties": map[string]any{}}
-		}
+		props := tooling.SchemaWithRequiredToolIntent(d.Parameters)
 		out = append(out, openai.ChatCompletionToolUnionParam{
 			OfFunction: &openai.ChatCompletionFunctionToolParam{
 				Function: shared.FunctionDefinitionParam{

@@ -80,7 +80,7 @@ func TestAnthropicBackend_StreamText_MockHTTP(t *testing.T) {
 		map[string]any{
 			"type": "message_delta",
 			"usage": map[string]any{
-				"input_tokens":                  42,
+				"input_tokens":                42,
 				"output_tokens":               12,
 				"cache_read_input_tokens":     5,
 				"cache_creation_input_tokens": 3,
@@ -205,7 +205,7 @@ func TestAnthropicBackend_StreamTurn_MockHTTP_TextAndTool(t *testing.T) {
 }
 
 func TestAnthropicBackend_StreamTurn_LegacyEarlyStopIgnoresToolUse(t *testing.T) {
-	block := `<tool_calls><tool name="shell"><args>{"command":"go test"}</args></tool></tool_calls>`
+	block := `<tool_calls><tool name="shell"><intent>run the test command</intent><args>{"command":"go test"}</args></tool></tool_calls>`
 	sse := anthropicSSEBody(
 		map[string]any{
 			"type":  "content_block_delta",

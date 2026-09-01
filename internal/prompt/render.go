@@ -94,9 +94,9 @@ type Data struct {
 	ImagesWorkflow        string
 	AtMentionWorkflow     string
 
-	PlanningActive    bool
-	ActivePlanName    string
-	PlanImplementing  bool
+	PlanningActive   bool
+	ActivePlanName   string
+	PlanImplementing bool
 
 	Anonymize bool
 }
@@ -107,10 +107,10 @@ type TitleData struct {
 }
 
 type SummarizeData struct {
-	Transcript        string
-	Language          string
-	DisableThinking   bool
-	ImagesWorkflow    string
+	Transcript      string
+	Language        string
+	DisableThinking bool
+	ImagesWorkflow  string
 }
 
 type BtwData struct {
@@ -121,27 +121,40 @@ type BtwData struct {
 }
 
 func AnonymizeNativeToolInvocationSyntax() string {
-	return strings.TrimSpace(`Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations.`)
+	return strings.TrimSpace(`Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty string "intent" argument describing why it is being made. Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations.`)
 }
 
 func ExternalToolBridgeInvocationSyntax() string {
 	return strings.TrimSpace(`Cursor proxy: invoke Solomon tools via native API tool_calls (function calling) only. Tool names and JSON argument schemas match ## Available tools below. Do not emit <tool_calls> XML blocks, Tool: lines, markdown pseudo-calls, or plain-text tool narration — only API tool_calls execute on the host. Never use Cursor IDE built-ins (Read, StrReplace, Shell, Task, …).
 
 Rules:
-- Native entry tools: orchestrate, searchTools, subagent, listSubAgents, switchMode, searchSkill, loadSkill, docsRetrieval, and MCP.* when connected.
+- Native entry tools: orchestrate, searchTools, subagent, listSubAgents, switchMode, searchSkill, loadSkill, docsRetrieval, and buildPlan while a planning session is active.
 - Use exact tool names from ## Available tools below.
 - Optional brief prose may precede tool_calls; do not describe a tool call in text instead of invoking it.
-- Workspace read/edit/shell/find/MCP work: call searchTools when unsure which deferred SDK to use, then orchestrate (package main, import "sdk" only).
+- Workspace read/edit/shell/find work: call searchTools when unsure which deferred SDK to use, then orchestrate (package main, import "sdk" only).
 - subagent is a native tool_call only — never invoke it inside orchestrate scripts.
 - Deferred tools (readFile, editFile, shell, find, plan tools, …) are for orchestrate SDK use only — never direct native tool_calls.
+- Connected MCP schemas may appear in the catalog returned by searchTools, but MCP tools are not direct native calls in the current agent surface; do not emit MCP.* calls unless that exact tool is explicitly present in the API tools for this turn.
+
+` + NativeToolInvocationSyntax(false))
+}
+
+func ExternalToolBridgeChatInvocationSyntax() string {
+	return strings.TrimSpace(`Cursor proxy: invoke chat tools via native API tool_calls (function calling) only. Tool names and JSON argument schemas match ## Available tools below. Do not emit Cursor IDE built-ins, <tool_calls> XML blocks, Tool: lines, markdown pseudo-calls, or plain-text tool narration — only API tool_calls execute on the host.
+
+Rules:
+- Chat native tools: docsRetrieval, fetchWeb, webSearch, deepResearch, researchStatus, and switchMode.
+- Chat has no direct workspace read, edit, shell, find, plan, skill, subagent, or MCP tool surface.
+- Use switchMode to move to agent mode before workspace implementation; after the switch, follow the agent/orchestrate workflow.
+- Use exact tool names from ## Available tools below.
 
 ` + NativeToolInvocationSyntax(false))
 }
 
 func NativeToolInvocationSyntax(legacyFallbackEnabled bool) string {
-	first := "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Use API tool_calls only; do not emit standalone Tool: lines in assistant text unless legacy text fallback is explicitly enabled for this chat."
+	first := "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty string \"intent\" argument describing why it is being made. Use API tool_calls only; do not emit standalone Tool: lines in assistant text unless legacy text fallback is explicitly enabled for this chat."
 	if !legacyFallbackEnabled {
-		first = "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations."
+		first = "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty string \"intent\" argument describing why it is being made. Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations."
 	}
 	return strings.TrimSpace(first + `
 
@@ -159,10 +172,22 @@ Legacy text tools force is ON. Native API tool_calls are disabled; you must invo
 ` + legacyToolInvocationSyntaxBody(planningActive))
 }
 
+func LegacyOnlyChatToolInvocationSyntax() string {
+	return strings.TrimSpace(`
+Legacy text tools force is ON. Native API tool_calls are disabled; you must invoke every available chat tool via XML (no function calling):
+` + legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesChat())
+}
+
 func LegacyToolInvocationSyntaxAppend(planningActive bool) string {
 	return strings.TrimSpace(`
 Optional legacy text tools are enabled: you may invoke tools with native API tool_calls (preferred) or wrap invocations in XML when helpful:
 ` + legacyToolInvocationSyntaxBody(planningActive))
+}
+
+func LegacyChatToolInvocationSyntaxAppend() string {
+	return strings.TrimSpace(`
+Optional legacy text tools are enabled: you may invoke available chat tools with native API tool_calls (preferred) or wrap invocations in XML when helpful:
+` + legacyToolInvocationSyntaxCommon() + legacyToolInvocationSyntaxExamplesChat())
 }
 
 func ToolInvocationSyntaxSection(legacyEnabled, legacyForced, planningActive bool) string {
@@ -182,7 +207,7 @@ Preferred wrapper (Solomon canonical):
 
 <tool_calls>
 <tool name="TOOL_NAME">
-<intent>brief purpose when the tool supports intent</intent>
+<intent>brief purpose</intent>
 <args>{"key":"value"}</args>
 </tool>
 </tool_calls>
@@ -198,6 +223,7 @@ Rules:
 - Use exactly one tool-invocation region per assistant reply that calls tools (prefer one <tool_calls> wrapper).
 - Put optional prose before the block; do not emit text after the closing tag (</tool_calls> or last </tool> / </tool_call>).
 - Each <args> must be a valid JSON object matching the tool schema (for JSON-in-<tool_call>, put arguments in the "arguments" or "args" field).
+- Every tool invocation requires a non-empty intent: use the <intent> element in the canonical wrapper, or an "intent" string inside JSON arguments for the alternate JSON forms.
 - Multiple tools: include multiple <tool> entries (or multiple <tool_call> JSON objects) in order of execution.
 `
 }
@@ -207,7 +233,8 @@ func legacyToolInvocationSyntaxExamplesPlan() string {
 Examples (PLAN):
 <tool_calls>
 <tool name="createPlan">
-<args>{"name": "feature.md", "planText": "# Goal\n\n## Steps\n1. ..."}</args>
+<intent>Create the implementation plan</intent>
+<args>{"name": "feature.md", "goal": "Implement the requested feature"}</args>
 </tool>
 </tool_calls>
 
@@ -221,16 +248,53 @@ Examples (PLAN):
 `
 }
 
+func legacyToolInvocationSyntaxExamplesChat() string {
+	return `
+Examples (CHAT):
+<tool_calls>
+<tool name="docsRetrieval">
+<intent>Find the relevant documentation</intent>
+<args>{"query": "configuration"}</args>
+</tool>
+</tool_calls>
+
+Examples (CHAT):
+<tool_calls>
+<tool name="webSearch">
+<intent>Find current information</intent>
+<args>{"query": "latest project release"}</args>
+</tool>
+</tool_calls>
+
+Examples (CHAT):
+<tool_calls>
+<tool name="fetchWeb">
+<intent>Inspect the referenced web page</intent>
+<args>{"url": "https://example.com"}</args>
+</tool>
+</tool_calls>
+
+Examples (CHAT):
+<tool_calls>
+<tool name="deepResearch">
+<intent>Start background research</intent>
+<args>{"query": "compare the available approaches"}</args>
+</tool>
+</tool_calls>
+`
+}
+
 func legacyToolInvocationSyntaxExamplesDeferred() string {
 	return `
-Examples (BUILD):
+Examples (DEFERRED TOOLS):
 <tool_calls>
 <tool name="readFile">
+<intent>Inspect the requested source file</intent>
 <args>{"path": "cmd/app/main.go"}</args>
 </tool>
 </tool_calls>
 
-Examples (BUILD):
+Examples (DEFERRED TOOLS):
 <tool_calls>
 <tool name="shell">
 <intent>Run full test suite</intent>
@@ -238,7 +302,7 @@ Examples (BUILD):
 </tool>
 </tool_calls>
 
-Examples (BUILD):
+Examples (DEFERRED TOOLS):
 <tool_calls>
 <tool name="editFile">
 <intent>Fix variable name</intent>
@@ -246,7 +310,7 @@ Examples (BUILD):
 </tool>
 </tool_calls>
 
-Examples (BUILD):
+Examples (DEFERRED TOOLS):
 <tool_calls>
 <tool name="editFile">
 <intent>Remove obsolete helper</intent>
@@ -254,21 +318,23 @@ Examples (BUILD):
 </tool>
 </tool_calls>
 
-Examples (BUILD):
+Examples (DEFERRED TOOLS):
 <tool_calls>
 <tool name="find">
+<intent>Find Go files in the workspace</intent>
 <args>{"pattern": "**/*.go", "files": true}</args>
 </tool>
 </tool_calls>
 
-Examples (BUILD):
+Examples (DEFERRED TOOLS):
 <tool_calls>
 <tool name="find">
+<intent>Find the tool registration code</intent>
 <args>{"pattern": "RegisterTool", "files": false, "pathGlob": "*.go"}</args>
 </tool>
 </tool_calls>
 
-Examples (BUILD, multiple tools):
+Examples (DEFERRED TOOLS, multiple tools):
 <tool_calls>
 <tool name="shell">
 <intent>Run unit tests</intent>
@@ -373,23 +439,23 @@ func templateRawExpanded(name, projRoot string) string {
 func anonymizeImagesWorkflowSection() string {
 	return strings.TrimSpace(`## Session images
 
-The user can paste a clipboard image in the REPL with Ctrl+V (readline key 22). PNG, JPEG, or GIF bytes are stored under the chat images directory and recorded with path plus index N in session ImageFiles (N is a non-negative integer, usually 0 for the first paste in the session).
+The user can paste a clipboard image in the terminal REPL with Ctrl+V (readline key 22), or paste/attach an image from the chat composer. PNG, JPEG, or GIF bytes are stored under the chat images directory and recorded with path plus index N in session ImageFiles (N is a non-negative integer, usually 0 for the first paste in the session).
 
-Visible paste label (REPL input and echoed user lines): a short bracketed token whose inner text is the word img, a hyphen, and the index N. The REPL buffer stores only this visible label.
+Visible paste label (composer/REPL input and echoed user lines): a short bracketed token whose inner text is the word img, a hyphen, and the index N. The input buffer stores only this visible label.
 
 Wire token (user message JSON on disk; basis for API attach): the same visible prefix, then U+200B (zero-width space), then exactly 32 Unicode private-use runes (U+E000–U+E0FF) each encoding one byte of the raw SHA-256 digest of the image file, then a closing bracket. Legacy transcripts may use 64 lowercase hex digits instead of PUA for the digest payload.
 
-When the user sends a line, bare visible labels with a valid ImageFiles entry are expanded to the wire token. Vision is attached only if the wire digest matches the file on disk and the bytes are a recognized image; otherwise the marker is removed from the API payload (no image part and no literal marker sent upstream).
+When the user sends a message, bare visible labels with a valid ImageFiles entry are expanded to the wire token. Vision is attached only if the wire digest matches the file on disk and the bytes are a recognized image; otherwise the marker is removed from the API payload (no image part and no literal marker sent upstream).
 
 You receive image bytes in a user turn only when that attach succeeded. The same visible label appearing in assistant text, tool output, plans, quoted code, or summaries is UI or documentation—not a missing upload. Do not ask the user to re-send an image unless their current turn clearly needs a screenshot and you received no vision content.
 
-PLAN mode cannot paste or attach images; apply the rules above when reading markers in transcript history.`)
+Planning is session state, not a separate input mode; image paste and attachments remain available while a plan is active. Apply the rules above when reading markers in transcript history.`)
 }
 
 func anonymizeAtMentionWorkflowSection() string {
-	return strings.TrimSpace(`## @ file and folder mentions (REPL)
+	return strings.TrimSpace(`## @ file and folder mentions (REPL and chat composer)
 
-The user can cite workspace files or folders with @path tags in the REPL (tab completion and a path picker). Tags use the shortest project-relative path that uniquely identifies the entry (for example @c.txt or @a/b/c.txt). Tags are plain path text only — no SHA or image-style wire tokens.
+The user can cite workspace files or folders with @path tags in the terminal REPL (tab completion and a path picker) or the chat composer (path picker). Tags use the shortest project-relative path that uniquely identifies the entry (for example @c.txt or @a/b/c.txt). Tags are plain path text only — no SHA or image-style wire tokens.
 
 When the user sends a message, each @ tag is expanded into file text or an absolute folder path in the API payload while the visible transcript keeps the short @ tags. Expansion reads the current file contents from disk at send time. If a path is missing or binary, expansion notes the failure in the API payload without removing the visible tag from the transcript.
 

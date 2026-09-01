@@ -9,7 +9,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureCreatePlan(name string, goal string) {}
+func signatureCreatePlan(name, goal string) {}
 
 type createPlanArgs struct {
 	Name string `json:"name"`

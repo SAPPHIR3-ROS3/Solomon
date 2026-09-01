@@ -1,13 +1,12 @@
 import type { BridgedToolInvocation } from "./context.js";
 import { escapeXmlAttr, escapeXmlText } from "../xml-utils.js";
+import { invocationIntent } from "../tool-intent.js";
 
 export function formatBridgedToolCallsBlock(tools: BridgedToolInvocation[]): string {
   const parts: string[] = ["<tool_calls>"];
   for (const t of tools) {
     parts.push(`<tool name="${escapeXmlAttr(t.name)}">`);
-    if (t.intent && String(t.intent).trim() !== "") {
-      parts.push(`<intent>${escapeXmlText(String(t.intent))}</intent>`);
-    }
+    parts.push(`<intent>${escapeXmlText(invocationIntent(t) ?? "")}</intent>`);
     parts.push(`<args>${escapeXmlText(JSON.stringify(t.args ?? {}))}</args>`);
     parts.push("</tool>");
   }

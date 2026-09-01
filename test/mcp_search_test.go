@@ -19,7 +19,7 @@ func TestSearchToolsListsNativeMCPTools(t *testing.T) {
 		Schema:      map[string]any{"type": "object", "properties": map[string]any{"title": map[string]any{"type": "string"}}},
 	}})
 	env := &tools.Env{MCP: mgr}
-	raw, err := json.Marshal(map[string]string{"query": "mcp"})
+	raw, err := json.Marshal(map[string]string{"query": "mcp", "intent": "discover MCP tools"})
 	if err != nil {
 		t.Fatal(err)
 	}
