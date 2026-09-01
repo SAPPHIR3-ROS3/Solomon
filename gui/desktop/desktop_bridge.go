@@ -26,6 +26,7 @@ import (
 type DesktopBridge struct{}
 
 type desktopSidebarData struct {
+	FastMode        bool             `json:"fastMode"`
 	Projects        []desktopProject `json:"projects"`
 	ReasoningEffort string           `json:"reasoningEffort"`
 	UserName        string           `json:"userName"`
@@ -99,9 +100,9 @@ func (DesktopBridge) ProjectSidebarData() (desktopSidebarData, error) {
 		return desktopSidebarData{}, err
 	}
 	// A malformed optional section must not hide projects and chats. Read the
-	// root TOML field directly; config.Load is still used for writes.
-	userName := loadDesktopUserName()
-	return desktopSidebarData{Projects: projects, ReasoningEffort: loadDesktopReasoningEffort(), UserName: userName}, nil
+	// root TOML fields directly; config.Load is still used for writes.
+	settings := loadDesktopSettings()
+	return desktopSidebarData{FastMode: settings.FastMode, Projects: projects, ReasoningEffort: settings.ReasoningEffort, UserName: settings.UserName}, nil
 }
 
 func (DesktopBridge) SaveUserName(userName string) (string, error) {
@@ -134,6 +135,18 @@ func (DesktopBridge) SaveReasoningEffort(effort string) (string, error) {
 		return "", fmt.Errorf("save config.toml: %w", err)
 	}
 	return canonical, nil
+}
+
+func (DesktopBridge) SaveFastMode(enabled bool) (bool, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return false, fmt.Errorf("read config.toml: %w", err)
+	}
+	cfg.FastMode = &enabled
+	if err := config.Save(cfg); err != nil {
+		return false, fmt.Errorf("save config.toml: %w", err)
+	}
+	return enabled, nil
 }
 
 // RemoveProjectFromSidebar unregisters a project while keeping its on-disk
@@ -634,44 +647,39 @@ func desktopProjectDisplayName(projectPath string) string {
 	return name
 }
 
-func loadDesktopUserName() string {
-	configPath, err := paths.ConfigPath()
-	if err != nil {
-		return ""
-	}
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return ""
-	}
-	var root struct {
-		UserName string `toml:"user_name"`
-	}
-	if toml.Unmarshal(data, &root) != nil {
-		return ""
-	}
-	return strings.TrimSpace(root.UserName)
+type desktopSettings struct {
+	FastMode        bool
+	ReasoningEffort string
+	UserName        string
 }
 
-func loadDesktopReasoningEffort() string {
+func loadDesktopSettings() desktopSettings {
+	settings := desktopSettings{FastMode: true, ReasoningEffort: "none"}
 	configPath, err := paths.ConfigPath()
 	if err != nil {
-		return "none"
+		return settings
 	}
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return "none"
+		return settings
 	}
 	var root struct {
+		FastMode        *bool  `toml:"fast_mode"`
 		ReasoningEffort string `toml:"reasoning_effort"`
+		UserName        string `toml:"user_name"`
 	}
 	if toml.Unmarshal(data, &root) != nil {
-		return "none"
+		return settings
 	}
 	canonical, err := config.ParseReasoningEffortToken(root.ReasoningEffort)
-	if err != nil {
-		return "none"
+	if err == nil {
+		settings.ReasoningEffort = canonical
 	}
-	return canonical
+	if root.FastMode != nil {
+		settings.FastMode = *root.FastMode
+	}
+	settings.UserName = strings.TrimSpace(root.UserName)
+	return settings
 }
 
 func loadDesktopRules() ([]desktopRule, error) {

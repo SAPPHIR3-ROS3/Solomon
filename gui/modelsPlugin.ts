@@ -17,7 +17,7 @@ const catalogHelper = path.join(guiRoot, "desktop", "model_catalog.go");
 const providerSetupHelper = path.join(guiRoot, "desktop", "provider_setup.go");
 
 type ModelChoice = { provider: string; model: string };
-type ProviderCatalog = { provider: string; models: string[]; disabled: string[]; complete: boolean };
+type ProviderCatalog = { provider: string; models: string[]; disabled: string[]; complete: boolean; supportsFastMode: boolean };
 type ModelCatalog = { current: ModelChoice; recent: ModelChoice[]; providers: ProviderCatalog[] };
 type ModelVisibility = { enabled: boolean; model: string; provider: string };
 
@@ -180,7 +180,7 @@ async function readRecentModelCatalog(home: string): Promise<ModelCatalog> {
   }
   const providers: ProviderCatalog[] = providerNames.map((provider) => {
     const models = uniqueModels(recentMap.get(provider) ?? [], provider === current.provider ? current.model : "");
-    return { provider, models, disabled: hiddenMap.get(provider) ?? [], complete: false };
+    return { provider, models, disabled: hiddenMap.get(provider) ?? [], complete: false, supportsFastMode: false };
   });
   const recent: ModelChoice[] = [];
   const prefer = current.provider;

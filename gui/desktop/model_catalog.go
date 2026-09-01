@@ -24,11 +24,12 @@ type modelChoice struct {
 }
 
 type providerCatalog struct {
-	Complete bool                     `json:"complete"`
-	Disabled []string                 `json:"disabled,omitempty"`
-	Metadata map[string]modelMetadata `json:"metadata"`
-	Models   []string                 `json:"models"`
-	Provider string                   `json:"provider"`
+	Complete         bool                     `json:"complete"`
+	SupportsFastMode bool                     `json:"supportsFastMode"`
+	Disabled         []string                 `json:"disabled,omitempty"`
+	Metadata         map[string]modelMetadata `json:"metadata"`
+	Models           []string                 `json:"models"`
+	Provider         string                   `json:"provider"`
 }
 
 type modelMetadata struct {
@@ -140,11 +141,12 @@ func buildCatalog(cfg *config.Root) catalogResponse {
 				ids = ensureModelFirst(ids, cfg.Current.Model)
 			}
 			result.Providers[index] = providerCatalog{
-				Complete: complete,
-				Disabled: config.HiddenModelIDs(cfg, provider.Name, ids),
-				Metadata: modelsMetadata(modelsCatalog, provider, ids),
-				Models:   ids,
-				Provider: provider.Name,
+				Complete:         complete,
+				SupportsFastMode: config.FastModeSupportedByProvider(&provider),
+				Disabled:         config.HiddenModelIDs(cfg, provider.Name, ids),
+				Metadata:         modelsMetadata(modelsCatalog, provider, ids),
+				Models:           ids,
+				Provider:         provider.Name,
 			}
 			if listErr != nil {
 				fmt.Fprintf(os.Stderr, "%s: %v\n", provider.Name, listErr)
@@ -167,6 +169,7 @@ func mergeCachedProviders(configured []config.Provider, cached []providerCatalog
 	for _, provider := range configured {
 		if saved, ok := byName[provider.Name]; ok {
 			saved.Complete = false
+			saved.SupportsFastMode = config.FastModeSupportedByProvider(&provider)
 			saved.Disabled = config.HiddenModelIDs(cfg, provider.Name, saved.Models)
 			result = append(result, saved)
 			continue
@@ -176,9 +179,10 @@ func mergeCachedProviders(configured []config.Provider, cached []providerCatalog
 			ids = ensureModelFirst(ids, cfg.Current.Model)
 		}
 		result = append(result, providerCatalog{
-			Disabled: config.HiddenModelIDs(cfg, provider.Name, ids),
-			Models:   ids,
-			Provider: provider.Name,
+			Disabled:         config.HiddenModelIDs(cfg, provider.Name, ids),
+			SupportsFastMode: config.FastModeSupportedByProvider(&provider),
+			Models:           ids,
+			Provider:         provider.Name,
 		})
 	}
 	return result
