@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import {
   connectProvider,
   fetchModelCatalog,
+  getCachedModelCatalog,
   saveCurrentModel,
   setModelEnabled,
   type ModelCatalog,
@@ -48,7 +49,7 @@ function catalogWithModelVisibility(catalog: ModelCatalog, provider: string, mod
 }
 
 export function ModelsPage() {
-  const [state, setState] = useState<ModelsPageState>({ catalog: emptyCatalog, error: "", loading: true });
+  const [state, setState] = useState<ModelsPageState>(() => ({ catalog: getCachedModelCatalog() ?? emptyCatalog, error: "", loading: true }));
   const [query, setQuery] = useState("");
   const [isAddingProvider, setIsAddingProvider] = useState(false);
   const [isSavingModel, setIsSavingModel] = useState("");

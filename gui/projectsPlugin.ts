@@ -1,4 +1,5 @@
-import { readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -15,12 +16,15 @@ import {
 } from "./projectBranches";
 
 const projectsEndpoint = "/__solomon/projects";
+const chatAPIPath = projectsEndpoint;
+const chatProxyHeader = "x-solomon-chat-proxy";
 const homeDirectoryEntriesEndpoint = "/__solomon/home-directories";
 const homeDirectoryBranchesEndpoint = "/__solomon/home-git-branches";
 const homeDirectoryWorktreesEndpoint = "/__solomon/home-git-worktrees";
 const homeDirectoryCheckoutEndpoint = "/__solomon/home-git-checkout";
 const userNameEndpoint = "/__solomon/user-name";
 const reasoningEffortEndpoint = "/__solomon/reasoning-effort";
+const fastModeEndpoint = "/__solomon/fast-mode";
 const projectActionEndpoint = "/__solomon/projects/";
 const reasoningEfforts = new Set(["none", "low", "medium", "high", "xhigh", "max"]);
 
@@ -62,46 +66,6 @@ function projectDisplayName(projectPath: string): string {
   return path.basename(projectPath) || projectPath;
 }
 
-async function readUserName(home: string): Promise<string> {
-  let config: string;
-  try {
-    config = await readFile(path.join(home, "config.toml"), "utf8");
-  } catch {
-    return "";
-  }
-
-  const firstTable = config.search(/^\s*\[/m);
-  const rootConfig = config.slice(0, firstTable === -1 ? config.length : firstTable);
-  const match = rootConfig.match(/^\s*user_name\s*=\s*((?:"(?:[^"\\]|\\.)*")|(?:'(?:[^']|'')*'))\s*(?:#.*)?$/m);
-  if (!match) return "";
-  const rawValue = match[1];
-  if (rawValue.startsWith("'")) {
-    return rawValue.slice(1, -1).replaceAll("''", "'").trim();
-  }
-  try {
-    return String(JSON.parse(rawValue)).trim();
-  } catch {
-    return "";
-  }
-}
-
-async function writeUserName(home: string, userName: string): Promise<void> {
-  const configPath = path.join(home, "config.toml");
-  const config = await readFile(configPath, "utf8");
-  const firstTable = config.search(/^\s*\[/m);
-  const boundary = firstTable === -1 ? config.length : firstTable;
-  const rootConfig = config.slice(0, boundary);
-  const tableConfig = config.slice(boundary);
-  const serializedUserName = JSON.stringify(userName);
-  const userNameLine = /^(\s*user_name\s*=\s*)((?:"(?:[^"\\]|\\.)*")|(?:'(?:[^']|'')*'))(\s*(?:#.*)?)$/m;
-  const nextRootConfig = userNameLine.test(rootConfig)
-    ? rootConfig.replace(userNameLine, (_match, prefix: string, _value: string, suffix: string) => `${prefix}${serializedUserName}${suffix}`)
-    : `user_name = ${serializedUserName}\n${rootConfig.startsWith("\n") ? "" : "\n"}${rootConfig}`;
-  const temporaryPath = `${configPath}.gui.tmp`;
-  await writeFile(temporaryPath, `${nextRootConfig}${tableConfig}`, { encoding: "utf8", mode: 0o600 });
-  await rename(temporaryPath, configPath);
-}
-
 function normalizeReasoningEffort(value: string): string {
   const normalized = value.trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
   if (normalized === "med") return "medium";
@@ -109,45 +73,82 @@ function normalizeReasoningEffort(value: string): string {
   return reasoningEfforts.has(normalized) ? normalized : "";
 }
 
-async function readReasoningEffort(home: string): Promise<string> {
-  let config: string;
-  try {
-    config = await readFile(path.join(home, "config.toml"), "utf8");
-  } catch {
-    return "none";
-  }
-  const firstTable = config.search(/^\s*\[/m);
-  const rootConfig = config.slice(0, firstTable === -1 ? config.length : firstTable);
-  const match = rootConfig.match(/^\s*reasoning_effort\s*=\s*((?:"(?:[^"\\]|\\.)*")|(?:'(?:[^']|'')*')|[A-Za-z]+)\s*(?:#.*)?$/m);
-  if (!match) return "none";
-  const rawValue = match[1];
-  let parsed = rawValue;
-  if (rawValue.startsWith("'")) parsed = rawValue.slice(1, -1).replaceAll("''", "'");
-  else if (rawValue.startsWith('"')) {
+function rootConfigParts(source: string) {
+  const firstTable = source.search(/^\s*\[/m);
+  const boundary = firstTable === -1 ? source.length : firstTable;
+  return { root: source.slice(0, boundary), tables: source.slice(boundary) };
+}
+
+function rootValuePattern(key: string): RegExp {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^(\\s*${escapedKey}\\s*=\\s*)((?:"(?:[^"\\\\]|\\\\.)*")|(?:'(?:[^']|'')*')|[^\\s#]+)(\\s*(?:#.*)?)$`, "m");
+}
+
+function parseQuotedString(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
     try {
-      parsed = String(JSON.parse(rawValue));
+      return JSON.parse(trimmed) as string;
     } catch {
-      return "none";
+      return trimmed.slice(1, -1);
     }
   }
-  return normalizeReasoningEffort(parsed) || "none";
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1).replaceAll("''", "'");
+  }
+  return trimmed;
+}
+
+function parseRootValue(raw: string): string {
+  return parseQuotedString(raw).trim();
+}
+
+async function readRootValue(home: string, key: string): Promise<string | undefined> {
+  try {
+    const source = await readFile(path.join(home, "config.toml"), "utf8");
+    const match = rootConfigParts(source).root.match(rootValuePattern(key));
+    return match ? parseRootValue(match[1]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function writeRootValue(home: string, key: string, value: string | boolean): Promise<void> {
+  const configPath = path.join(home, "config.toml");
+  const source = await readFile(configPath, "utf8");
+  const { root, tables } = rootConfigParts(source);
+  const serialized = typeof value === "boolean" ? String(value) : JSON.stringify(value);
+  const pattern = rootValuePattern(key);
+  const nextRoot = pattern.test(root)
+    ? root.replace(pattern, (_match, prefix: string, _oldValue: string, suffix: string) => `${prefix}${serialized}${suffix}`)
+    : `${key} = ${serialized}\n${root.startsWith("\n") ? "" : "\n"}${root}`;
+  const temporaryPath = `${configPath}.gui.tmp`;
+  await writeFile(temporaryPath, `${nextRoot}${tables}`, { encoding: "utf8", mode: 0o600 });
+  await rename(temporaryPath, configPath);
+}
+
+async function readUserName(home: string): Promise<string> {
+  return (await readRootValue(home, "user_name")) ?? "";
+}
+
+async function writeUserName(home: string, userName: string): Promise<void> {
+  await writeRootValue(home, "user_name", userName);
+}
+
+async function readReasoningEffort(home: string): Promise<string> {
+  return normalizeReasoningEffort((await readRootValue(home, "reasoning_effort")) ?? "") || "none";
 }
 
 async function writeReasoningEffort(home: string, effort: string): Promise<void> {
-  const configPath = path.join(home, "config.toml");
-  const config = await readFile(configPath, "utf8");
-  const firstTable = config.search(/^\s*\[/m);
-  const boundary = firstTable === -1 ? config.length : firstTable;
-  const rootConfig = config.slice(0, boundary);
-  const tableConfig = config.slice(boundary);
-  const serialized = JSON.stringify(effort);
-  const effortLine = /^(\s*reasoning_effort\s*=\s*)((?:"(?:[^"\\]|\\.)*")|(?:'(?:[^']|'')*')|[A-Za-z]+)(\s*(?:#.*)?)$/m;
-  const nextRootConfig = effortLine.test(rootConfig)
-    ? rootConfig.replace(effortLine, (_match, prefix: string, _value: string, suffix: string) => `${prefix}${serialized}${suffix}`)
-    : `reasoning_effort = ${serialized}\n${rootConfig.startsWith("\n") ? "" : "\n"}${rootConfig}`;
-  const temporaryPath = `${configPath}.gui.tmp`;
-  await writeFile(temporaryPath, `${nextRootConfig}${tableConfig}`, { encoding: "utf8", mode: 0o600 });
-  await rename(temporaryPath, configPath);
+  await writeRootValue(home, "reasoning_effort", effort);
+}
+
+async function readFastMode(home: string): Promise<boolean> {
+  return (await readRootValue(home, "fast_mode")) !== "false";
+}
+
+async function writeFastMode(home: string, enabled: boolean): Promise<void> {
+  await writeRootValue(home, "fast_mode", enabled);
 }
 
 async function readProjects(): Promise<Project[]> {
@@ -201,6 +202,46 @@ async function readProjects(): Promise<Project[]> {
   return folders
     .sort((left, right) => right.lastActivity - left.lastActivity || left.name.localeCompare(right.name))
     .map(({ lastActivity: _, ...folder }) => folder);
+}
+
+async function registerProject(rawPath: string): Promise<Project> {
+  const homeDirectory = path.resolve(homedir());
+  const trimmedPath = rawPath.trim();
+  const projectPath = !trimmedPath || trimmedPath === "~" || trimmedPath === "~/"
+    ? homeDirectory
+    : path.resolve(trimmedPath.startsWith("~/")
+      ? path.join(homeDirectory, trimmedPath.slice(2))
+      : path.isAbsolute(trimmedPath) ? trimmedPath : path.join(homeDirectory, trimmedPath));
+  if (!(await stat(projectPath)).isDirectory()) throw new Error("Project path is not a directory");
+  const canonicalProjectPath = await realpath(projectPath);
+
+  const home = solomonHome();
+  const mapPath = path.join(home, "projectsId.json");
+  let projectMap: Record<string, unknown> = {};
+  try {
+    const payload: unknown = JSON.parse(await readFile(mapPath, "utf8"));
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) projectMap = payload as Record<string, unknown>;
+  } catch {
+    // The first project creates the map.
+  }
+  const mappedProjectID = projectMap[canonicalProjectPath];
+  const projectID = typeof mappedProjectID === "string" && mappedProjectID.length === 64
+    ? mappedProjectID
+    : createHash("sha256").update(canonicalProjectPath).digest("hex");
+  projectMap[canonicalProjectPath] = projectID;
+  await mkdir(path.join(home, "projects", projectID, "chats", "subchats"), { recursive: true, mode: 0o700 });
+  await mkdir(path.join(home, "projects", projectID, "chats", "images"), { recursive: true, mode: 0o700 });
+  await mkdir(path.join(home, "projects", projectID, "plans"), { recursive: true, mode: 0o700 });
+  await mkdir(path.join(home, "projects", projectID, "research"), { recursive: true, mode: 0o700 });
+  await mkdir(path.join(home, "projects", projectID, "skills"), { recursive: true, mode: 0o700 });
+  await mkdir(path.dirname(mapPath), { recursive: true, mode: 0o700 });
+  const temporaryMapPath = `${mapPath}.gui.tmp`;
+  await writeFile(temporaryMapPath, `${JSON.stringify(projectMap, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await rename(temporaryMapPath, mapPath);
+
+  const project = (await readProjects()).find((candidate) => candidate.id === projectID);
+  if (!project) throw new Error("Unable to read the registered project");
+  return project;
 }
 
 async function readChat(chatDirectory: string, fileName: string): Promise<Chat | null> {
@@ -324,25 +365,138 @@ function nonNegativeNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 }
 
-function attachProjectsEndpoint(server: { middlewares: { use: (route: string, handler: (request: { method?: string }, response: { end: (body: string) => void; setHeader: (name: string, value: string) => void; statusCode: number }, next: () => void) => void) => void } }) {
+function attachProjectsEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
   server.middlewares.use(projectsEndpoint, (request, response, next) => {
+    // Connect mounts middleware on a prefix and strips that prefix from the
+    // request URL. Nested chat endpoints share the same prefix, so only the
+    // exact project collection route belongs to this fallback.
+    const route = request.url?.split("?")[0] ?? "";
+    if (route !== "" && route !== "/") {
+      next();
+      return;
+    }
+    if (request.method === "POST") {
+      void readJsonBody(request)
+        .then(async (payload) => {
+          if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string") {
+            respondWithJson(response, 400, { error: "path must be a string" });
+            return;
+          }
+          respondWithJson(response, 201, { project: await registerProject(payload.path) });
+        })
+        .catch((error: unknown) => respondWithJson(response, 400, { error: error instanceof Error ? error.message : "Unable to create project" }));
+      return;
+    }
     if (request.method !== "GET") {
       next();
       return;
     }
     const home = solomonHome();
-    void Promise.all([readProjects(), readUserName(home), readReasoningEffort(home)])
-      .then(([projects, userName, reasoningEffort]) => {
+    void Promise.all([readProjects(), readUserName(home), readReasoningEffort(home), readFastMode(home)])
+      .then(([projects, userName, reasoningEffort, fastMode]) => {
         response.statusCode = 200;
         response.setHeader("Content-Type", "application/json; charset=utf-8");
-        response.end(JSON.stringify({ projects, userName, reasoningEffort }));
+        response.end(JSON.stringify({ fastMode, projects, userName, reasoningEffort }));
       })
       .catch(() => {
         response.statusCode = 500;
         response.setHeader("Content-Type", "application/json; charset=utf-8");
-        response.end(JSON.stringify({ projects: [], userName: "", reasoningEffort: "none" }));
+        response.end(JSON.stringify({ fastMode: true, projects: [], userName: "", reasoningEffort: "none" }));
       });
   });
+}
+
+function attachChatAPIProxy(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(projectActionEndpoint, (request, response, next) => {
+    const rawURL = request.url ?? "";
+    const queryIndex = rawURL.indexOf("?");
+    const rawPath = queryIndex < 0 ? rawURL : rawURL.slice(0, queryIndex);
+    const query = queryIndex < 0 ? "" : rawURL.slice(queryIndex + 1);
+    const normalizedPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+    const relativePath = normalizedPath.startsWith(`${chatAPIPath}/`)
+      ? normalizedPath.slice(chatAPIPath.length)
+      : normalizedPath;
+    if (!/^\/[a-f0-9]{64}\/(?:chats|subchats|at-mentions)(?:\/|$)/.test(relativePath)) {
+      next();
+      return;
+    }
+
+    void proxyChatAPIRequest(request, response, `${chatAPIPath}${relativePath}${query ? `?${query}` : ""}`)
+      .catch((error: unknown) => respondWithJson(response, 502, { error: error instanceof Error ? error.message : "Solomon daemon is unavailable" }));
+  });
+}
+
+async function proxyChatAPIRequest(request: UserNameRequest, response: UserNameResponse, targetPath: string): Promise<void> {
+  if (requestHeader(request, chatProxyHeader) === "1") {
+    respondWithJson(response, 502, { error: "Solomon daemon chat API is unavailable; restart the daemon" });
+    return;
+  }
+  const daemonURL = await readDaemonURL();
+  if (!daemonURL) {
+    respondWithJson(response, 502, { error: "Solomon daemon is unavailable" });
+    return;
+  }
+
+  const method = (request.method ?? "GET").toUpperCase();
+  const body = method === "GET" || method === "HEAD" ? undefined : await readRequestBody(request, 32 << 20);
+  const headers: Record<string, string> = {};
+  const contentType = requestHeader(request, "content-type");
+  const accept = requestHeader(request, "accept");
+  if (contentType) headers["content-type"] = contentType;
+  if (accept) headers.accept = accept;
+  headers[chatProxyHeader] = "1";
+
+  let upstream: Response;
+  const requestController = new AbortController();
+  let timedOut = false;
+  const timeoutID = setTimeout(() => {
+    timedOut = true;
+    requestController.abort();
+  }, 15_000);
+  try {
+    upstream = await fetch(`${daemonURL}${targetPath}`, {
+      body: body?.length ? Buffer.from(body) : undefined,
+      headers,
+      method,
+      signal: requestController.signal,
+    });
+  } catch {
+    respondWithJson(response, timedOut ? 504 : 502, { error: timedOut ? "Solomon daemon did not respond" : "Solomon daemon is unavailable" });
+    return;
+  } finally {
+    clearTimeout(timeoutID);
+  }
+
+  response.statusCode = upstream.status;
+  upstream.headers.forEach((value, name) => {
+    if (name !== "connection" && name !== "content-length" && name !== "transfer-encoding") response.setHeader(name, value);
+  });
+  if (!upstream.body || !response.write) {
+    response.end(await upstream.text());
+    return;
+  }
+
+  const reader = upstream.body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      response.write(value);
+    }
+  } finally {
+    response.end("");
+  }
+}
+
+async function readDaemonURL(): Promise<string> {
+  try {
+    const payload: unknown = JSON.parse(await readFile(path.join(solomonHome(), "run", "server", "state.json"), "utf8"));
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return "";
+    const url = (payload as Record<string, unknown>).url;
+    return typeof url === "string" ? url.trim().replace(/\/$/, "") : "";
+  } catch {
+    return "";
+  }
 }
 
 function attachHomeDirectoryEntriesEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
@@ -616,6 +770,7 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
 }
 
 type UserNameRequest = {
+  headers?: Record<string, string | string[] | undefined>;
   method?: string;
   url?: string;
   on: (event: "data", listener: (chunk: string | Uint8Array) => void) => void;
@@ -627,6 +782,7 @@ type UserNameResponse = {
   end: (body: string) => void;
   setHeader: (name: string, value: string) => void;
   statusCode: number;
+  write?: (chunk: Uint8Array) => boolean;
 };
 
 function respondWithJson(response: UserNameResponse, statusCode: number, body: object) {
@@ -651,6 +807,46 @@ function readJsonBody(request: UserNameRequest): Promise<unknown> {
       }
     });
   });
+}
+
+function readRequestBody(request: UserNameRequest, maxBytes: number): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    let settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    request.on("data", (chunk) => {
+      if (settled) return;
+      const bytes = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      size += bytes.byteLength;
+      if (size > maxBytes) {
+        fail(new Error("Request body is too large"));
+        return;
+      }
+      chunks.push(bytes);
+    });
+    request.once("error", () => fail(new Error("Request body read failed")));
+    request.once("end", () => {
+      if (settled) return;
+      settled = true;
+      const body = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        body.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      resolve(body);
+    });
+  });
+}
+
+function requestHeader(request: UserNameRequest, name: string): string | undefined {
+  const value = request.headers?.[name];
+  return Array.isArray(value) ? value.join(", ") : value;
 }
 
 function attachUserNameEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
@@ -701,23 +897,46 @@ function attachReasoningEffortEndpoint(server: { middlewares: { use: (route: str
   });
 }
 
+function attachFastModeEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(fastModeEndpoint, (request, response, next) => {
+    if (request.method !== "PUT") {
+      next();
+      return;
+    }
+    void readJsonBody(request)
+      .then(async (payload) => {
+        if (!payload || typeof payload !== "object" || !("fastMode" in payload) || typeof payload.fastMode !== "boolean") {
+          respondWithJson(response, 400, { error: "fastMode must be a boolean" });
+          return;
+        }
+        await writeFastMode(solomonHome(), payload.fastMode);
+        respondWithJson(response, 200, { fastMode: payload.fastMode });
+      })
+      .catch(() => respondWithJson(response, 500, { error: "Unable to save fast mode" }));
+  });
+}
+
 export function projectsPlugin(): Plugin {
   return {
     configurePreviewServer(server) {
       attachProjectActionEndpoint(server);
+      attachChatAPIProxy(server);
       attachProjectsEndpoint(server);
       attachHomeDirectoryEntriesEndpoint(server);
       attachHomeGitEndpoints(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
+      attachFastModeEndpoint(server);
     },
     configureServer(server) {
       attachProjectActionEndpoint(server);
+      attachChatAPIProxy(server);
       attachProjectsEndpoint(server);
       attachHomeDirectoryEntriesEndpoint(server);
       attachHomeGitEndpoints(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
+      attachFastModeEndpoint(server);
     },
     name: "solomon-projects",
   };

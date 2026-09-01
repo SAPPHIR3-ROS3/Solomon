@@ -45,11 +45,12 @@ type desktopModelChoice struct {
 }
 
 type desktopProviderCatalog struct {
-	Complete bool                            `json:"complete"`
-	Disabled []string                        `json:"disabled,omitempty"`
-	Metadata map[string]desktopModelMetadata `json:"metadata"`
-	Models   []string                        `json:"models"`
-	Provider string                          `json:"provider"`
+	Complete         bool                            `json:"complete"`
+	SupportsFastMode bool                            `json:"supportsFastMode"`
+	Disabled         []string                        `json:"disabled,omitempty"`
+	Metadata         map[string]desktopModelMetadata `json:"metadata"`
+	Models           []string                        `json:"models"`
+	Provider         string                          `json:"provider"`
 }
 
 type desktopModelMetadata struct {
@@ -177,11 +178,12 @@ func buildDesktopModelCatalog(cfg *config.Root) desktopModelCatalog {
 				ids = ensureDesktopModelFirst(ids, cfg.Current.Model)
 			}
 			result.Providers[index] = desktopProviderCatalog{
-				Complete: complete,
-				Disabled: config.HiddenModelIDs(cfg, provider.Name, ids),
-				Metadata: desktopModelsMetadata(modelsCatalog, provider, ids),
-				Models:   ids,
-				Provider: provider.Name,
+				Complete:         complete,
+				SupportsFastMode: config.FastModeSupportedByProvider(&provider),
+				Disabled:         config.HiddenModelIDs(cfg, provider.Name, ids),
+				Metadata:         desktopModelsMetadata(modelsCatalog, provider, ids),
+				Models:           ids,
+				Provider:         provider.Name,
 			}
 		}()
 	}
@@ -201,6 +203,7 @@ func mergeDesktopCachedProviders(configured []config.Provider, cached []desktopP
 	for _, provider := range configured {
 		if saved, ok := byName[provider.Name]; ok {
 			saved.Complete = false
+			saved.SupportsFastMode = config.FastModeSupportedByProvider(&provider)
 			saved.Disabled = config.HiddenModelIDs(cfg, provider.Name, saved.Models)
 			result = append(result, saved)
 			continue
@@ -210,9 +213,10 @@ func mergeDesktopCachedProviders(configured []config.Provider, cached []desktopP
 			ids = ensureDesktopModelFirst(ids, cfg.Current.Model)
 		}
 		result = append(result, desktopProviderCatalog{
-			Disabled: config.HiddenModelIDs(cfg, provider.Name, ids),
-			Models:   ids,
-			Provider: provider.Name,
+			Disabled:         config.HiddenModelIDs(cfg, provider.Name, ids),
+			SupportsFastMode: config.FastModeSupportedByProvider(&provider),
+			Models:           ids,
+			Provider:         provider.Name,
 		})
 	}
 	return result
