@@ -3,8 +3,8 @@ package anthropic
 import (
 	"crypto/rand"
 	"encoding/hex"
-	goruntime "runtime"
 	"net/http"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/claudecode"
@@ -17,9 +17,10 @@ const (
 	OAuthBetaOAuth            = "oauth-2025-04-20"
 	OAuthBetaInterleaved      = "interleaved-thinking-2025-05-14"
 	OAuthBetaFineGrainedTools = "fine-grained-tool-streaming-2025-05-14"
+	OAuthBetaFastMode         = "fast-mode-2026-02-01"
 )
 
-const OAuthBeta = OAuthBetaClaudeCode + "," + OAuthBetaOAuth + "," + OAuthBetaInterleaved + "," + OAuthBetaFineGrainedTools
+const OAuthBeta = OAuthBetaClaudeCode + "," + OAuthBetaOAuth + "," + OAuthBetaInterleaved + "," + OAuthBetaFineGrainedTools + "," + OAuthBetaFastMode
 
 const anthropicSDKVersion = "0.91.1"
 

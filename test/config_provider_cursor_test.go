@@ -105,6 +105,54 @@ func TestCursorModelsFallbackWhenProxyHasNoModelsEndpoint(t *testing.T) {
 	}
 }
 
+func TestFastModeSupportedByProvider(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider config.Provider
+		want     bool
+	}{
+		{
+			name: "ChatGPT subscription",
+			provider: config.Provider{
+				Name:     config.ProviderNameChatGPTSub,
+				AuthKind: config.AuthKindOAuthChatGPT,
+			},
+			want: true,
+		},
+		{
+			name: "Cursor API",
+			provider: config.Provider{
+				Name:     config.ProviderNameCursorAPI,
+				AuthKind: config.AuthKindCursorAPI,
+			},
+			want: true,
+		},
+		{
+			name: "OpenAI compatible API",
+			provider: config.Provider{
+				Name:     "OpenAI",
+				AuthKind: config.AuthKindAPIKey,
+			},
+			want: false,
+		},
+		{
+			name: "Claude subscription",
+			provider: config.Provider{
+				Name:     config.ProviderNameClaudeSub,
+				AuthKind: config.AuthKindOAuthClaude,
+			},
+			want: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := config.FastModeSupportedByProvider(&test.provider); got != test.want {
+				t.Fatalf("FastModeSupportedByProvider(%q) = %t, want %t", test.provider.Name, got, test.want)
+			}
+		})
+	}
+}
+
 func TestCursorFastModeDisplayDefaultAndDisabled(t *testing.T) {
 	cfg := &config.Root{ReasoningEffort: "high"}
 	p := &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI}
@@ -118,5 +166,10 @@ func TestCursorFastModeDisplayDefaultAndDisabled(t *testing.T) {
 	}
 	if got := cfg.ModelDisplayName(&config.Provider{Name: "OpenAI"}, "gpt-5"); got != "gpt-5 (high)" {
 		t.Fatalf("non-cursor display=%q", got)
+	}
+	cfg.FastMode = nil
+	chatGPT := &config.Provider{Name: config.ProviderNameChatGPTSub, AuthKind: config.AuthKindOAuthChatGPT}
+	if got := cfg.ModelDisplayName(chatGPT, "gpt-5.6"); got != "gpt-5.6 (high) (fast)" {
+		t.Fatalf("ChatGPT subscription display=%q", got)
 	}
 }

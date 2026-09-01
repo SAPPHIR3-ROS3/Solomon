@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
 const (
@@ -38,16 +39,7 @@ type toolParam struct {
 func buildTools(defs []apitype.ToolDef) []toolParam {
 	var out []toolParam
 	for _, d := range defs {
-		schema := d.Parameters
-		if schema == nil {
-			schema = map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
-			}
-		}
-		if _, ok := schema["type"]; !ok {
-			schema["type"] = "object"
-		}
+		schema := tooling.SchemaWithRequiredToolIntent(d.Parameters)
 		out = append(out, toolParam{
 			Name:        d.Name,
 			Description: d.Description,
@@ -175,6 +167,7 @@ func shapeOAuthBody(body map[string]any, req apitype.TurnRequest, auth Auth) {
 	if uid := oauthUserID(auth.Token); uid != "" {
 		body["metadata"] = map[string]any{"user_id": uid}
 	}
+	applyOAuthFastMode(body, req.Cfg)
 	applyOAuthThinking(body, req)
 }
 
@@ -187,11 +180,22 @@ func shapeOAuthSimpleBody(body map[string]any, req apitype.SimpleCompletionReque
 	if uid := oauthUserID(auth.Token); uid != "" {
 		body["metadata"] = map[string]any{"user_id": uid}
 	}
+	applyOAuthFastMode(body, req.Cfg)
 	applyOAuthThinking(body, apitype.TurnRequest{
 		Cfg:                   req.Cfg,
 		Model:                 req.Model,
 		ForceDisableReasoning: req.ForceDisableReasoning,
 	})
+}
+
+func applyOAuthFastMode(body map[string]any, cfg *config.Root) {
+	if body == nil || cfg == nil || !cfg.EffectiveFastMode() {
+		return
+	}
+	provider := config.ProviderByName(cfg, cfg.Current.Provider)
+	if provider != nil && provider.IsClaudeSub() {
+		body["speed"] = "fast"
+	}
 }
 
 func buildOAuthSystem(system string, messages []messageParam) []contentBlock {
