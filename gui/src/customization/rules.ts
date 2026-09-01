@@ -1,4 +1,4 @@
-import { desktopBridge, serverEndpoint } from "../platform";
+import { serverEndpoint } from "../platform";
 
 export type CustomizationRule = {
   id: number;
@@ -31,8 +31,6 @@ export type RolesTable = {
 };
 
 export async function fetchCustomizationRules(signal?: AbortSignal): Promise<CustomizationRule[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.CustomizationRules) return customizationRulesFromPayload(await bridge.CustomizationRules());
   const response = await fetch(await serverEndpoint("/__solomon/rules"), { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Unable to load rules: ${response.status}`);
 
@@ -41,8 +39,6 @@ export async function fetchCustomizationRules(signal?: AbortSignal): Promise<Cus
 }
 
 export async function reorderCustomizationRules(ruleIds: number[]): Promise<CustomizationRule[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.ReorderCustomizationRules) return customizationRulesFromPayload(await bridge.ReorderCustomizationRules(ruleIds));
   const response = await fetch(await serverEndpoint("/__solomon/rules/reorder"), {
     body: JSON.stringify({ ruleIds }),
     headers: { "Content-Type": "application/json" },
@@ -58,8 +54,6 @@ export async function reorderCustomizationRules(ruleIds: number[]): Promise<Cust
 }
 
 export async function updateCustomizationRule(ruleId: number, text: string): Promise<CustomizationRule[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.UpdateCustomizationRule) return customizationRulesFromPayload(await bridge.UpdateCustomizationRule(ruleId, text));
   const response = await fetch(await serverEndpoint("/__solomon/rules/update"), {
     body: JSON.stringify({ id: ruleId, text }),
     headers: { "Content-Type": "application/json" },
@@ -70,8 +64,6 @@ export async function updateCustomizationRule(ruleId: number, text: string): Pro
 }
 
 export async function deleteCustomizationRule(ruleId: number): Promise<CustomizationRule[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.DeleteCustomizationRule) return customizationRulesFromPayload(await bridge.DeleteCustomizationRule(ruleId));
   const response = await fetch(await serverEndpoint("/__solomon/rules/delete"), {
     body: JSON.stringify({ id: ruleId }),
     headers: { "Content-Type": "application/json" },
@@ -87,19 +79,19 @@ export function sameCustomizationRules(left: CustomizationRule[], right: Customi
 }
 
 export async function fetchCustomizationSkills(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
-  return fetchCatalogItems("skills", "CustomizationSkills", signal);
+  return fetchCatalogItems("skills", signal);
 }
 
 export async function fetchCustomizationMcps(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
-  return fetchCatalogItems("mcps", "CustomizationMcps", signal);
+  return fetchCatalogItems("mcps", signal);
 }
 
 export async function fetchCustomizationSubagents(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
-  return fetchCatalogItems("subagents", "CustomizationSubagents", signal);
+  return fetchCatalogItems("subagents", signal);
 }
 
 export async function fetchCustomizationPromptTemplates(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
-  return fetchCatalogItems("promptTemplates", "CustomizationPromptTemplates", signal);
+  return fetchCatalogItems("promptTemplates", signal);
 }
 
 export type PromptTemplate = {
@@ -110,16 +102,12 @@ export type PromptTemplate = {
 };
 
 export async function fetchCustomizationPromptTemplate(id: string, signal?: AbortSignal): Promise<PromptTemplate> {
-  const bridge = await desktopBridge();
-  if (bridge?.CustomizationPromptTemplate) return promptTemplateFromPayload(await bridge.CustomizationPromptTemplate(id));
   const response = await fetch(await serverEndpoint(`/__solomon/promptTemplate?id=${encodeURIComponent(id)}`), { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Unable to load prompt template: ${response.status}`);
   return promptTemplateFromPayload(await response.json());
 }
 
 export async function updateCustomizationPromptTemplate(id: string, content: string): Promise<PromptTemplate> {
-  const bridge = await desktopBridge();
-  if (bridge?.UpdateCustomizationPromptTemplate) return promptTemplateFromPayload(await bridge.UpdateCustomizationPromptTemplate(id, content));
   const response = await fetch(await serverEndpoint("/__solomon/promptTemplates/update"), {
     body: JSON.stringify({ id, content }),
     headers: { "Content-Type": "application/json" },
@@ -130,8 +118,6 @@ export async function updateCustomizationPromptTemplate(id: string, content: str
 }
 
 export async function resetCustomizationPromptTemplate(id: string): Promise<PromptTemplate> {
-  const bridge = await desktopBridge();
-  if (bridge?.ResetCustomizationPromptTemplate) return promptTemplateFromPayload(await bridge.ResetCustomizationPromptTemplate(id));
   const response = await fetch(await serverEndpoint("/__solomon/promptTemplates/reset"), {
     body: JSON.stringify({ id }),
     headers: { "Content-Type": "application/json" },
@@ -159,8 +145,6 @@ function promptTemplateFromPayload(payload: unknown): PromptTemplate {
 }
 
 export async function updateCustomizationSubagent(id: string, detail: string, scores: Array<{ id: string; value: number }> = []): Promise<CustomizationCatalogItem[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.UpdateCustomizationSubagent) return catalogItemsFromPayload(await bridge.UpdateCustomizationSubagent(id, detail, scores), "subagents");
   const response = await fetch(await serverEndpoint("/__solomon/subagents/update"), {
     body: JSON.stringify({ id, detail, scores }),
     headers: { "Content-Type": "application/json" },
@@ -171,8 +155,6 @@ export async function updateCustomizationSubagent(id: string, detail: string, sc
 }
 
 export async function deleteCustomizationSubagent(id: string): Promise<CustomizationCatalogItem[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.DeleteCustomizationSubagent) return catalogItemsFromPayload(await bridge.DeleteCustomizationSubagent(id), "subagents");
   const response = await fetch(await serverEndpoint("/__solomon/subagents/delete"), {
     body: JSON.stringify({ id }),
     headers: { "Content-Type": "application/json" },
@@ -195,16 +177,12 @@ export function sameCustomizationCatalog(left: CustomizationCatalogItem[], right
 }
 
 export async function fetchRolesTable(signal?: AbortSignal): Promise<RolesTable> {
-  const bridge = await desktopBridge();
-  if (bridge?.RolesTable) return rolesTableFromPayload(await bridge.RolesTable());
   const response = await fetch(await serverEndpoint("/__solomon/roles-table"), { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Unable to load roles table: ${response.status}`);
   return rolesTableFromPayload(await response.json());
 }
 
 export async function saveRolesTable(characteristics: string[]): Promise<RolesTable> {
-  const bridge = await desktopBridge();
-  if (bridge?.SaveRolesTable) return rolesTableFromPayload(await bridge.SaveRolesTable(characteristics));
   const response = await fetch(await serverEndpoint("/__solomon/roles-table"), {
     body: JSON.stringify({ characteristics }),
     headers: { "Content-Type": "application/json" },
@@ -216,12 +194,8 @@ export async function saveRolesTable(characteristics: string[]): Promise<RolesTa
 
 async function fetchCatalogItems(
   key: "skills" | "mcps" | "subagents" | "promptTemplates",
-  methodName: "CustomizationSkills" | "CustomizationMcps" | "CustomizationSubagents" | "CustomizationPromptTemplates",
   signal?: AbortSignal,
 ): Promise<CustomizationCatalogItem[]> {
-  const bridge = await desktopBridge();
-  const method = bridge?.[methodName];
-  if (typeof method === "function") return catalogItemsFromPayload(await method.call(bridge), key);
   const response = await fetch(await serverEndpoint(`/__solomon/${key}`), { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Unable to load ${key}: ${response.status}`);
   return catalogItemsFromPayload(await response.json(), key);

@@ -14,6 +14,13 @@ type TerminalTab = {
   title: string;
 };
 
+type StoredTerminalSession = {
+  id: string;
+  seq: number;
+};
+
+const TERMINAL_SESSION_STORAGE_PREFIX = "solomon.terminal-session.v1";
+
 type TerminalPane = {
   id: string;
   tabs: TerminalTab[];
@@ -41,6 +48,32 @@ function createProjectSession(): ProjectTerminalSession {
     nextTabId: 1,
     panes: [createTerminalPane("terminal-pane-0", "terminal-tab-0")],
   };
+}
+
+function terminalSessionStorageKey(tabId: string) {
+  return `${TERMINAL_SESSION_STORAGE_PREFIX}.${tabId}`;
+}
+
+function loadStoredTerminalSession(tabId: string): StoredTerminalSession {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(terminalSessionStorageKey(tabId)) ?? "null");
+    if (!value || typeof value !== "object") return { id: "", seq: 0 };
+    const record = value as Partial<StoredTerminalSession>;
+    return {
+      id: typeof record.id === "string" ? record.id : "",
+      seq: typeof record.seq === "number" && Number.isFinite(record.seq) && record.seq > 0 ? Math.floor(record.seq) : 0,
+    };
+  } catch {
+    return { id: "", seq: 0 };
+  }
+}
+
+function saveStoredTerminalSession(tabId: string, value: StoredTerminalSession) {
+  try {
+    window.localStorage.setItem(terminalSessionStorageKey(tabId), JSON.stringify(value));
+  } catch {
+    // Terminal continuity still works for the current client when storage is unavailable.
+  }
 }
 
 function sessionHasArmedTerminal(session: ProjectTerminalSession) {
@@ -354,7 +387,7 @@ function IntegratedShell({
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host || !visible) return;
 
     const term = new Terminal({
       cursorBlink: true,
@@ -369,11 +402,13 @@ function IntegratedShell({
     term.open(host);
     termRef.current = term;
 
-    let disposed = false;
-    let retryTimer: number | undefined;
     let socket: WebSocket | undefined;
+    let retryTimer: number | undefined;
     let attempts = 0;
-    let retryQueued = false;
+    let disposed = false;
+    const storedSession = loadStoredTerminalSession(tabId);
+    const sessionIDRef = { current: storedSession.id };
+    const outputSeqRef = { current: storedSession.seq };
 
     const sendResize = () => {
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
@@ -382,32 +417,53 @@ function IntegratedShell({
     };
     resizeRef.current = sendResize;
 
-    const connect = () => {
-      const nextSocket = new WebSocket(terminalSocketUrl(workingDirectory));
+    const scheduleRetry = () => {
+      if (disposed || retryTimer !== undefined) return;
+      const delay = Math.min(5000, 250 * (2 ** Math.min(attempts, 4)));
+      attempts += 1;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = undefined;
+        void connect();
+      }, delay);
+    };
+
+    const connect = async () => {
+      if (disposed) return;
+      let endpoint: string;
+      try {
+        endpoint = await terminalSocketUrl(workingDirectory, sessionIDRef.current, outputSeqRef.current, term.cols, term.rows);
+      } catch {
+        scheduleRetry();
+        return;
+      }
+      if (disposed) return;
+      const nextSocket = new WebSocket(endpoint);
       socket = nextSocket;
       nextSocket.binaryType = "arraybuffer";
-
-      const retry = () => {
-        if (disposed || socket !== nextSocket || retryQueued) return;
-        retryQueued = true;
-        if (attempts >= 2) {
-          term.write("\r\n[terminal connection failed]\r\n");
-          return;
-        }
-        attempts += 1;
-        retryTimer = window.setTimeout(() => {
-          retryQueued = false;
-          connect();
-        }, 250);
-      };
 
       nextSocket.onmessage = (event) => {
         if (typeof event.data === "string") {
           if (event.data.startsWith("{")) {
             try {
-              const message = JSON.parse(event.data) as { running?: boolean; type?: string };
+              const message = JSON.parse(event.data) as { data?: string; id?: string; running?: boolean; seq?: number; type?: string };
+              if (message.type === "solomon-terminal" && typeof message.id === "string") {
+                sessionIDRef.current = message.id;
+                saveStoredTerminalSession(tabId, { id: message.id, seq: outputSeqRef.current });
+                return;
+              }
+              if (message.type === "solomon-output" && typeof message.data === "string" && typeof message.seq === "number") {
+                if (message.seq <= outputSeqRef.current) return;
+                outputSeqRef.current = message.seq;
+                saveStoredTerminalSession(tabId, { id: sessionIDRef.current, seq: outputSeqRef.current });
+                term.write(decodeTerminalOutput(message.data));
+                return;
+              }
               if (message.type === "solomon-status" && typeof message.running === "boolean") {
                 runningChangeRef.current(message.running);
+                return;
+              }
+              if (message.type === "solomon-exit") {
+                runningChangeRef.current(false);
                 return;
               }
             } catch {
@@ -427,13 +483,13 @@ function IntegratedShell({
           term.focus();
         });
       };
-      nextSocket.onerror = retry;
+      nextSocket.onerror = () => nextSocket.close();
       nextSocket.onclose = () => {
         runningChangeRef.current(false);
-        retry();
+        if (!disposed && socket === nextSocket) scheduleRetry();
       };
     };
-    connect();
+    void connect();
 
     const inputSubscription = term.onData((data) => {
       if (data.includes("\r") || data.includes("\n")) commandSubmitRef.current();
@@ -454,9 +510,16 @@ function IntegratedShell({
       socket?.close();
       term.dispose();
     };
-  }, [tabId, workingDirectory]);
+  }, [tabId, visible, workingDirectory]);
 
   return <div aria-hidden={!visible} className={`terminal-panel-host${visible ? " is-visible" : ""}`} ref={hostRef} />;
+}
+
+function decodeTerminalOutput(value: string): Uint8Array {
+  const binary = window.atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
 }
 
 function terminalTheme() {
