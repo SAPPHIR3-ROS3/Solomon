@@ -16,6 +16,7 @@
 /scripts/cursor-bundler.exe
 /scripts/cursor_bundler.exe
 .env
+/CONTEXT.md
 
 # Orchestrate compile slots (under module root during dev)
 .solomon/
