@@ -62,7 +62,7 @@ Run `solomon exec <prompt>` or `solomon temp exec <prompt>` without entering the
 
 ### Local server (`solomon server`) **(implemented)**
 
-`solomon server` runs a detached localhost service for the web GUI and future local APIs (`start`/`status`/`stop`/`restart`/`logs`). See [Local server](architecture/server.md), [Usage — Local server](user-guide/usage-and-commands.md).
+`solomon server` runs a detached local service for the web GUI and future local APIs (`start`/`status`/`stop`/`restart`/`logs`). It advertises its loopback, local-network and Tailscale URLs. See [Local server](architecture/server.md), [Usage — Local server](user-guide/usage-and-commands.md).
 
 ### Interactive terminal REPL
 

@@ -22,10 +22,10 @@ Solomon espone alcune funzioni nella GUI e altre nel terminale. Questa pagina in
 | Cambiare reasoning | GUI | Condivisa | Controllo reasoning nella Home; `/reasoning` |
 | Attivare fast mode | Prevista | Terminale | `/fast` |
 | Cambiare lingua delle risposte | Prevista | Terminale | `/language` |
-| Mostrare reasoning e statistiche | GUI (test chat) | Terminale | Transcript della test chat; `/thinking`, `/stats` |
+| Mostrare reasoning e statistiche | GUI | Terminale | Transcript delle chat persistite; `/thinking`, `/stats` |
 | Esplorare file del progetto | GUI | Condivisa | File explorer; `find`, `readFile`, `shell` |
 | Cambiare branch o worktree | GUI | Condivisa | Controlli della Home; comandi `git` nel terminale |
-| Aprire un terminale del progetto | GUI | Terminale | Terminal panel; shell locale |
+| Aprire un terminale del progetto | GUI | Terminale | Terminal panel; PTY supervisionato dal daemon |
 | Visualizzare deep research | GUI | Prevista | Research panel; gli strumenti `webSearch` e `fetchWeb` sono disponibili nel terminale agente |
 | Modificare rules, prompt, skills e subagents | GUI | Condivisa | Customization; `/rules`, `/add`, `/remove`, `/instructions` |
 | Configurare MCP | Prevista | Terminale | `~/.solomon/mcp.json`, `/mcp` |
@@ -45,11 +45,13 @@ La GUI è pensata per le operazioni visuali e contestuali:
 - ricerca e lettura visuale della documentazione;
 - impostazioni che non richiedono di conoscere TOML, percorsi locali o comandi.
 
+Le chat persistite vengono lette e aggiornate dal daemon locale: la selezione nella sidebar apre la sessione Solomon esistente, il primo invio in un nuovo progetto crea la sessione e il turno viene trasmesso alla GUI con eventi incrementali. Se la GUI viene ricaricata durante un turno, il daemon continua l'esecuzione e la GUI si riaggancia alla sessione tramite replay degli eventi.
+
 La sezione Docs carica i file Markdown inclusi nella cartella `docs/` e li rende navigabili e leggibili senza uscire dall'applicazione.
 
-## Transcript osservabile nella GUI di test
+## Transcript osservabile nella GUI
 
-Le test chat della GUI includono una superficie di transcript pensata per verificare la resa visuale dei turni osservabili. Le fixture si trovano in [`gui/src/chat-test/fakeChats.ts`](../../gui/src/chat-test/fakeChats.ts), mentre il renderer è in [`gui/src/chat-test/TestChatView.tsx`](../../gui/src/chat-test/TestChatView.tsx).
+La GUI usa una superficie di transcript condivisa per le chat reali. Il renderer è in [`gui/src/chat/ChatView.tsx`](../../gui/src/chat/ChatView.tsx) e riceve i messaggi e gli eventi streaming dal client collegato al daemon.
 
 La superficie mostra:
 
@@ -59,7 +61,7 @@ La superficie mostra:
 - un checkpoint dedicato a ogni tool call, oltre ai checkpoint dei messaggi;
 - anteprima della prima riga del risultato, con `...` cliccabile per espandere l'output completo;
 - catena di tool call inizialmente contratta per singola card;
-- controllo `Collapse tool calls` che sostituisce la catena con una sola cella `Show N tool calls`, mantenendo il punto di riapertura visibile.
+- controllo `Collapse tool calls` che sostituisce la catena con una sola cella `Show N tool calls`; i checkpoint contratti mostrano `[#start]...[#end]`, oppure `[#start][#end]` quando le tool call sono esattamente due.
 
 ### Convenzioni delle tool card
 
@@ -74,13 +76,13 @@ La riga di intent resta sempre separata dalla resa del tool. Aprendo una card, i
 - `webSearch` mostra la query sulla riga `Tool:`, i parametri indentati e gli oggetti `extras` come JSON formattato;
 - durante un tool in esecuzione, il pallino animato resta sulla linea verticale della catena, insieme agli altri indicatori di stato.
 
-I risultati che contengono una lista o un output lungo usano una preview cliccabile; l’espansione avviene direttamente sulla card, senza pulsanti aggiuntivi visibili.
+I risultati che contengono una lista o un output lungo usano una preview cliccabile; l'espansione avviene direttamente sulla card, senza pulsanti aggiuntivi visibili.
 
-Le etichette e i controlli dell'interfaccia sono in inglese anche quando il contenuto della chat è in italiano. Queste test chat sono fixture frontend: documentano e verificano il transcript della GUI, ma non rappresentano una persistenza o un collegamento runtime aggiuntivo.
+Le etichette e i controlli dell'interfaccia sono in inglese anche quando il contenuto della chat è in italiano. Le chat dei progetti seguono il percorso persistito del daemon e condividono lo stesso transcript osservabile.
 
 ## Terminale
 
-Il terminale resta la superficie completa per configurazione, automazione e diagnostica. In particolare consente di:
+Il terminale resta la superficie completa per configurazione, automazione e diagnostica. La REPL interattiva (`solomon`, oppure `solomon tui`) è un client del PTY supervisionato dal daemon; `solomon exec` resta invece un comando headless diretto, adatto alle pipeline. In particolare il terminale consente di:
 
 - collegare provider e autenticazioni;
 - modificare configurazioni avanzate;
