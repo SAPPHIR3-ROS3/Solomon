@@ -14,7 +14,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureSubagent(sysPromptPath, task string) {}
+func signatureSubagent(sysPromptPath, task, intent string) {}
 
 type SubagentArgs struct {
 	SysPromptPath   string `json:"sysPromptPath"`

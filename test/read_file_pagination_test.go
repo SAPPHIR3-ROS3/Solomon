@@ -18,7 +18,7 @@ func TestReadFilePaginationRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := &agenttools.Env{ProjRoot: dir, ProjHex: testProjectHex}
-	args, err := json.Marshal(map[string]any{"path": "sample.txt", "startLine": 2, "endLine": 3})
+	args, err := json.Marshal(map[string]any{"path": "sample.txt", "startLine": 2, "endLine": 3, "intent": "read a line range"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestReadFilePaginationStartOnly(t *testing.T) {
 	}
 	env := &agenttools.Env{ProjRoot: dir, ProjHex: testProjectHex}
 	start := 2
-	args, _ := json.Marshal(map[string]any{"path": "f.txt", "startLine": start})
+	args, _ := json.Marshal(map[string]any{"path": "f.txt", "startLine": start, "intent": "read from a line"})
 	res, err := execDeferredToolForTest(env, tooling.Invocation{Name: "readFile", Args: args})
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestReadFilePaginationErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := &agenttools.Env{ProjRoot: dir, ProjHex: testProjectHex}
-	args, _ := json.Marshal(map[string]any{"path": "f.txt", "startLine": 5})
+	args, _ := json.Marshal(map[string]any{"path": "f.txt", "startLine": 5, "intent": "read file metadata"})
 	_, err := execDeferredToolForTest(env, tooling.Invocation{Name: "readFile", Args: args})
 	if err == nil {
 		t.Fatal("expected error for startLine beyond file")
@@ -78,7 +78,7 @@ func TestReadFileFullFileMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := &agenttools.Env{ProjRoot: dir, ProjHex: testProjectHex}
-	args, _ := json.Marshal(map[string]any{"path": "f.txt"})
+	args, _ := json.Marshal(map[string]any{"path": "f.txt", "intent": "read the file"})
 	res, err := execDeferredToolForTest(env, tooling.Invocation{Name: "readFile", Args: args})
 	if err != nil {
 		t.Fatal(err)

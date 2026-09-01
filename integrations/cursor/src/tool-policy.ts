@@ -55,19 +55,43 @@ export const SOLOMON_CANONICAL_TOOLS = new Set([
   "editFile",
   "editPlan",
   "find",
+  "listDir",
+  "tree",
   "subagent",
   "fetchWeb",
   "webSearch",
-  "loadSkill",
-  "searchSkill",
+  "deepResearch",
+  "researchStatus",
   "createPlan",
   "buildPlan",
+  "addTodo",
+  "todoList",
+  "checkTodo",
+  "removeTodo",
+  "checkPlan",
+  "deletePlan",
+  "docsRetrieval",
+  "searchTools",
+  "loadSkill",
+  "searchSkill",
+  "orchestrate",
+  "switchMode",
+  "listSubAgents",
 ]);
 
 export const DEFAULT_PROXY_ENABLED_TOOLS =
   "readFile, editFile, find, shell, subagent, fetchWeb, webSearch";
 
 export const BLOCKED_MCP_EXTERNAL_LABEL = "mcp:external";
+export const MISSING_INTENT_BLOCKED_SUFFIX = ":missing_intent";
+
+export function missingIntentBlockedLabel(toolName: string): string {
+  return `${toolName.trim()}${MISSING_INTENT_BLOCKED_SUFFIX}`;
+}
+
+export function isMissingIntentBlockedLabel(label: string): boolean {
+  return label.trim().endsWith(MISSING_INTENT_BLOCKED_SUFFIX);
+}
 
 export function blockedMcpToolLabel(toolName: string): string {
   return `mcp:${toolName}`;
@@ -173,6 +197,9 @@ export function shouldStopProxyOnBlockedTool(label: string): boolean {
   if (trimmed === BLOCKED_MCP_EXTERNAL_LABEL) {
     return true;
   }
+  if (isMissingIntentBlockedLabel(trimmed)) {
+    return true;
+  }
   if (shouldHardDenyCursorTool(trimmed)) {
     return true;
   }
@@ -219,6 +246,13 @@ export function hardDenyCorrectionHint(toolName: string): string | null {
   }
 }
 
+export function missingIntentCorrectionHint(toolName: string): string | null {
+  if (!isMissingIntentBlockedLabel(toolName)) {
+    return null;
+  }
+  return "Every Solomon tool call requires a non-empty intent string; include intent in the arguments.";
+}
+
 function redirectExtraCorrectionHint(toolName: string): string | null {
   const key = toolName.replace(/_/g, "").toLowerCase();
   switch (key) {
@@ -231,7 +265,7 @@ function redirectExtraCorrectionHint(toolName: string): string | null {
     case "callmcptool":
     case "fetchmcpresource":
     case "listmcpresources":
-      return "MCP work: call searchTools for schemas, then orchestrate with the MCP sandbox SDK.";
+      return "MCP actions are not exposed on this surface; searchTools may show connected schemas, but do not claim an MCP action without an actual host tool result.";
     default:
       return null;
   }
@@ -245,7 +279,7 @@ export function redirectCorrectionHint(toolName: string): string | null {
   if (trimmed.startsWith("mcp:")) {
     const deferred = trimmed.slice(4);
     if (shouldBlockDeferredSolomonTool(deferred)) {
-      return `${deferred}: call searchTools, then orchestrate with the matching sandbox SDK — not a direct native tool_call.`;
+      return `${deferred}: this MCP wrapper is not callable; use searchTools, then orchestrate with the matching Solomon sandbox SDK — not a direct native or MCP tool_call.`;
     }
     return null;
   }
@@ -277,7 +311,36 @@ export function redirectCorrectionHint(toolName: string): string | null {
   }
 }
 
-export function correctionHintForBlockedTool(toolName: string): string | null {
+function chatCorrectionHintForBlockedTool(toolName: string): string | null {
+  const hardDeny = hardDenyCorrectionHint(toolName);
+  if (hardDeny) {
+    return hardDeny;
+  }
+  const trimmed = toolName.trim();
+  if (trimmed.startsWith("mcp:")) {
+    return "MCP actions are not exposed in CHAT mode; use switchMode before any implementation work and do not claim an MCP result without a host tool result.";
+  }
+  const target = cursorToolRedirectTarget(trimmed);
+  if (target === "fetchWeb") {
+    return "Use the native fetchWeb tool in CHAT mode.";
+  }
+  if (target === "webSearch") {
+    return "Use the native webSearch tool in CHAT mode.";
+  }
+  if (shouldRedirectCursorTool(trimmed) || shouldBlockDeferredSolomonTool(trimmed)) {
+    return "This workspace or agent tool is unavailable in CHAT mode; call switchMode before implementation.";
+  }
+  return null;
+}
+
+export function correctionHintForBlockedTool(toolName: string, chatSurface = false): string | null {
+  const missingIntent = missingIntentCorrectionHint(toolName);
+  if (missingIntent) {
+    return missingIntent;
+  }
+  if (chatSurface) {
+    return chatCorrectionHintForBlockedTool(toolName);
+  }
   return hardDenyCorrectionHint(toolName) ?? redirectCorrectionHint(toolName);
 }
 

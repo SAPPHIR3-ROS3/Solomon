@@ -68,7 +68,7 @@ func TestParseToolCallsBlock_single(t *testing.T) {
 }
 
 func TestParseToolCallsBlock_qwenJSONToolCall(t *testing.T) {
-	block := `<tool_call>{"name":"readFile","arguments":{"path":"main.go"}}</tool_call>`
+	block := `<tool_call>{"name":"readFile","arguments":{"path":"main.go","intent":"read source"}}</tool_call>`
 	invs, err := tooling.ParseToolCallsBlock(block)
 	if err != nil {
 		t.Fatal(err)
@@ -99,10 +99,12 @@ func TestParseToolCallsBlock_glaiveFunctionCall(t *testing.T) {
 func TestParseToolCallsBlock_mixedToolCallCloseTags(t *testing.T) {
 	block := `<tool_calls>
 <tool name="shell">
+<intent>search onboarding code</intent>
 <args>{"command":"rg onboard"}</args>
 </tool>
 <tool_call>
 <tool name="readFile">
+<intent>read onboarding file</intent>
 <args>{"path":"onboard.go"}</args>
 </tool_call>
 </tool_calls>`
@@ -116,7 +118,7 @@ func TestParseToolCallsBlock_mixedToolCallCloseTags(t *testing.T) {
 }
 
 func TestExtractToolInvocations_qwenWithoutWrapper(t *testing.T) {
-	text := "I'll read the file.\n\n<tool_call>{\"name\":\"readFile\",\"arguments\":{\"path\":\"a.go\"}}</tool_call>"
+	text := "I'll read the file.\n\n<tool_call>{\"name\":\"readFile\",\"arguments\":{\"path\":\"a.go\",\"intent\":\"read source\"}}</tool_call>"
 	invs, err := tooling.ExtractToolInvocations(text)
 	if err != nil {
 		t.Fatal(err)
@@ -145,25 +147,16 @@ func TestParseToolCallsBlock_noIntent(t *testing.T) {
 <args>{"path":"main.go"}</args>
 </tool>
 </tool_calls>`
-	invs, err := tooling.ParseToolCallsBlock(block)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m map[string]string
-	if err := json.Unmarshal(invs[0].Args, &m); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := m["intent"]; ok {
-		t.Fatalf("unexpected intent: %v", m)
-	}
-	if m["path"] != "main.go" {
-		t.Fatalf("args=%v", m)
+	_, err := tooling.ParseToolCallsBlock(block)
+	if !errors.Is(err, tooling.ErrMissingToolIntent) {
+		t.Fatalf("want missing intent error, got %v", err)
 	}
 }
 
 func TestParseToolCallsBlock_emptyArgsObject(t *testing.T) {
 	block := `<tool_calls>
 <tool name="shell">
+<intent>run an empty command</intent>
 <args>{}</args>
 </tool>
 </tool_calls>`
@@ -171,7 +164,7 @@ func TestParseToolCallsBlock_emptyArgsObject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(invs[0].Args) != "{}" {
+	if string(invs[0].Args) != `{"intent":"run an empty command"}` {
 		t.Fatalf("args=%s", invs[0].Args)
 	}
 }
@@ -179,6 +172,7 @@ func TestParseToolCallsBlock_emptyArgsObject(t *testing.T) {
 func TestParseToolCallsBlock_extraUnknownArgsPassThrough(t *testing.T) {
 	block := `<tool_calls>
 <tool name="shell">
+<intent>run the command</intent>
 <args>{"command":"echo hi","unknownParam":123,"nested":{"a":1}}</args>
 </tool>
 </tool_calls>`
@@ -282,7 +276,7 @@ func TestParseToolCallsBlock_malformedCases(t *testing.T) {
 </tool_calls>`,
 		},
 		{
-			name: "empty tool_calls",
+			name:  "empty tool_calls",
 			block: `<tool_calls></tool_calls>`,
 		},
 		{
@@ -425,4 +419,3 @@ func TestExtractToolInvocations_missingRequiredParamStillParses(t *testing.T) {
 		t.Fatal("command should be absent")
 	}
 }
-

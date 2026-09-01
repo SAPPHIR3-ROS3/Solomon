@@ -1,39 +1,39 @@
 package sdk
 
-func WebSearch(query string) (string, error) {
-	return webSearchCall(query, "", 0, 0)
+func WebSearch(query, intent string) (string, error) {
+	return webSearchCall(query, "", 0, 0, intent)
 }
 
-func WebSearchN(query string, maxResults int) (string, error) {
-	return webSearchCall(query, "", maxResults, 0)
+func WebSearchN(query string, maxResults int, intent string) (string, error) {
+	return webSearchCall(query, "", maxResults, 0, intent)
 }
 
-func WebSearchWithTimeout(query string, secs int) (string, error) {
-	return webSearchCall(query, "", 0, secs)
+func WebSearchWithTimeout(query string, secs int, intent string) (string, error) {
+	return webSearchCall(query, "", 0, secs, intent)
 }
 
-func WebSearchEngine(query, engine string) (string, error) {
-	return webSearchCall(query, engine, 0, 0)
+func WebSearchEngine(query, engine, intent string) (string, error) {
+	return webSearchCall(query, engine, 0, 0, intent)
 }
 
-func WebSearchEngineN(query, engine string, maxResults int) (string, error) {
-	return webSearchCall(query, engine, maxResults, 0)
+func WebSearchEngineN(query, engine string, maxResults int, intent string) (string, error) {
+	return webSearchCall(query, engine, maxResults, 0, intent)
 }
 
-func WebSearchEngineTimeout(query, engine string, secs int) (string, error) {
-	return webSearchCall(query, engine, 0, secs)
+func WebSearchEngineTimeout(query, engine string, secs int, intent string) (string, error) {
+	return webSearchCall(query, engine, 0, secs, intent)
 }
 
-func WebSearchNTimeout(query string, maxResults, secs int) (string, error) {
-	return webSearchCall(query, "", maxResults, secs)
+func WebSearchNTimeout(query string, maxResults, secs int, intent string) (string, error) {
+	return webSearchCall(query, "", maxResults, secs, intent)
 }
 
-func WebSearchEngineNTimeout(query, engine string, maxResults, secs int) (string, error) {
-	return webSearchCall(query, engine, maxResults, secs)
+func WebSearchEngineNTimeout(query, engine string, maxResults, secs int, intent string) (string, error) {
+	return webSearchCall(query, engine, maxResults, secs, intent)
 }
 
-func webSearchCall(query, engine string, maxResults, secs int) (string, error) {
-	args := map[string]any{"query": query}
+func webSearchCall(query, engine string, maxResults, secs int, intent string) (string, error) {
+	args := map[string]any{"query": query, "intent": intent}
 	if engine != "" {
 		args["engine"] = engine
 	}
@@ -50,32 +50,32 @@ func webSearchCall(query, engine string, maxResults, secs int) (string, error) {
 	return string(raw), nil
 }
 
-func FetchWeb(url string) (string, error) {
-	r, err := FetchWebInfo(url)
+func FetchWeb(url, intent string) (string, error) {
+	r, err := FetchWebInfo(url, intent)
 	if err != nil {
 		return "", err
 	}
 	return r.Markdown, nil
 }
 
-func FetchWebWithTimeout(url string, secs int) (string, error) {
-	r, err := fetchWebCall(url, secs)
+func FetchWebWithTimeout(url string, secs int, intent string) (string, error) {
+	r, err := fetchWebCall(url, secs, intent)
 	if err != nil {
 		return "", err
 	}
 	return r.Markdown, nil
 }
 
-func FetchWebInfo(url string) (FetchWebResult, error) {
-	return fetchWebCall(url, 0)
+func FetchWebInfo(url, intent string) (FetchWebResult, error) {
+	return fetchWebCall(url, 0, intent)
 }
 
-func FetchWebInfoWithTimeout(url string, secs int) (FetchWebResult, error) {
-	return fetchWebCall(url, secs)
+func FetchWebInfoWithTimeout(url string, secs int, intent string) (FetchWebResult, error) {
+	return fetchWebCall(url, secs, intent)
 }
 
-func fetchWebCall(url string, secs int) (FetchWebResult, error) {
-	args := map[string]any{"url": url}
+func fetchWebCall(url string, secs int, intent string) (FetchWebResult, error) {
+	args := map[string]any{"url": url, "intent": intent}
 	if secs > 0 {
 		args["timeoutSeconds"] = secs
 	}

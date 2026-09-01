@@ -19,7 +19,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureShell(command, intent string) {}
+func signatureShell(command string) {}
 
 func shellOpenAI() openai.ChatCompletionToolUnionParam {
 	return nativeToolUnion("shell", "Run a shell command in the harness working directory.", map[string]any{

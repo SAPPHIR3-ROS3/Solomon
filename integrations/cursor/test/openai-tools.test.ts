@@ -36,10 +36,12 @@ test("parses native orchestrate XML for prompt-driven tool exposure (2.2)", () =
 
 test("parses proxy XML tool blocks from assistant text", () => {
   const parsed = parseToolInvocationsFromText(
-    'before\n<tool_calls><tool name="readFile"><args>{"path":"README.md"}</args></tool></tool_calls>',
+    'before\n<tool_calls><tool name="readFile"><intent>inspect README</intent><args>{"path":"README.md"}</args></tool></tool_calls>',
   );
   assert.equal(parsed.content, "before");
-  assert.deepEqual(parsed.invocations, [{ name: "readFile", args: { path: "README.md" } }]);
+  assert.deepEqual(parsed.invocations, [
+    { name: "readFile", args: { path: "README.md" }, intent: "inspect README" },
+  ]);
 });
 
 test("serializes proxy tool intent into native tool arguments", () => {
@@ -58,19 +60,21 @@ test("serializes proxy tool intent into native tool arguments", () => {
 
 test("removes empty markdown fences left after parsing tool blocks", () => {
   const parsed = parseToolInvocationsFromText(
-    'before\n```xml\n<tool_calls><tool name="readFile"><args>{"path":"README.md"}</args></tool></tool_calls>\n```',
+    'before\n```xml\n<tool_calls><tool name="readFile"><intent>inspect README</intent><args>{"path":"README.md"}</args></tool></tool_calls>\n```',
   );
   assert.equal(parsed.content, "before");
-  assert.deepEqual(parsed.invocations, [{ name: "readFile", args: { path: "README.md" } }]);
+  assert.deepEqual(parsed.invocations, [
+    { name: "readFile", args: { path: "README.md" }, intent: "inspect README" },
+  ]);
 });
 
 test("parses qwen-style JSON tool blocks", () => {
   const parsed = parseToolInvocationsFromText(
-    '<tool_call>{"name":"shell","arguments":{"command":"go test ./..."}}</tool_call>',
+    '<tool_call>{"name":"shell","arguments":{"command":"go test ./...","intent":"run tests"}}</tool_call>',
   );
   assert.equal(parsed.content, "");
   assert.deepEqual(parsed.invocations, [
-    { name: "shell", args: { command: "go test ./..." } },
+    { name: "shell", args: { command: "go test ./...", intent: "run tests" }, intent: "run tests" },
   ]);
 });
 
@@ -80,11 +84,11 @@ test("tool_choice restricts the allowed tool names", () => {
     function: { name: "shell" },
   });
   const invs = [
-    { name: "readFile", args: { path: "README.md" } },
-    { name: "shell", args: { command: "pwd" } },
+    { name: "readFile", args: { path: "README.md", intent: "inspect README" } },
+    { name: "shell", args: { command: "pwd", intent: "check directory" } },
   ];
   assert.deepEqual(filterInvocations(invs, allowed), [
-    { name: "shell", args: { command: "pwd" } },
+    { name: "shell", args: { command: "pwd", intent: "check directory" } },
   ]);
 });
 
@@ -96,10 +100,12 @@ test("tool_choice none disables native tools", () => {
 
 test("parallel_tool_calls false limits to one invocation", () => {
   const invs = [
-    { name: "readFile", args: { path: "a" } },
-    { name: "readFile", args: { path: "b" } },
+    { name: "readFile", args: { path: "a", intent: "inspect a" } },
+    { name: "readFile", args: { path: "b", intent: "inspect b" } },
   ];
-  assert.deepEqual(limitInvocations(invs, false), [{ name: "readFile", args: { path: "a" } }]);
+  assert.deepEqual(limitInvocations(invs, false), [
+    { name: "readFile", args: { path: "a", intent: "inspect a" } },
+  ]);
   assert.deepEqual(limitInvocations(invs, true), invs);
   assert.deepEqual(limitInvocations(invs, undefined), invs);
 });
@@ -112,6 +118,14 @@ test("rejects empty editFile invocations before native tool emission", () => {
   };
   assert.equal(isValidInvocation(inv), false);
   assert.deepEqual(filterInvocations([inv], null), []);
+});
+
+test("requires intent before native tool emission", () => {
+  const parsed = parseToolInvocationsFromText(
+    '<tool_calls><tool name="orchestrate"><args>{"source":"package main"}</args></tool></tool_calls>',
+  );
+  assert.equal(parsed.invocations[0]?.intent, "");
+  assert.deepEqual(filterInvocations(parsed.invocations, null), []);
 });
 
 test("deduplicates cumulative cursor text snapshots", () => {
@@ -352,4 +366,3 @@ test("blocks solomon MCP editFile delete tool calls (2.3)", () => {
   assert.deepEqual(pending, []);
   assert.deepEqual(blocked, ["mcp:editFile"]);
 });
-

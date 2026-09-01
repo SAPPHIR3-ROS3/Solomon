@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v2"
 )
@@ -26,11 +27,11 @@ type Manager struct {
 	tools       []RemoteTool
 	callTimeout time.Duration
 
-	cfg       *Config
-	stderr    io.Writer
-	connectMu sync.Mutex
-	connected bool
-	ready     chan struct{}
+	cfg        *Config
+	stderr     io.Writer
+	connectMu  sync.Mutex
+	connected  bool
+	ready      chan struct{}
 	connectErr error
 }
 
@@ -152,6 +153,8 @@ func NewManagerWithRemoteTools(tools []RemoteTool) *Manager {
 	m.connected = true
 	for i := range tools {
 		t := tools[i]
+		t.Schema = tooling.SchemaWithRequiredToolIntent(t.Schema)
+		m.tools[i] = t
 		m.registry[t.OpenAIName] = &remoteBinding{tool: t}
 	}
 	return m
@@ -248,7 +251,7 @@ func (m *Manager) ToolDump() string {
 		if i > 0 {
 			b.WriteString("\n---\n")
 		}
-		schema, err := json.Marshal(tool.Schema)
+		schema, err := json.Marshal(tooling.SchemaWithRequiredToolIntent(tool.Schema))
 		if err != nil {
 			schema = []byte(`{"type":"object","properties":{}}`)
 		}
@@ -269,6 +272,9 @@ func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage
 	if m == nil {
 		return nil, fmt.Errorf("MCP manager unavailable")
 	}
+	if err := tooling.ValidateToolIntent(raw); err != nil {
+		return nil, fmt.Errorf("MCP tool %q: %w", name, err)
+	}
 	if err := m.WaitReady(ctx); err != nil {
 		return nil, err
 	}
@@ -282,6 +288,7 @@ func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage
 			return nil, fmt.Errorf("MCP tool arguments must be an object: %w", err)
 		}
 	}
+	delete(args, "intent")
 	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(binding.server.cfg, m.callTimeout))
 	defer cancel()
 	start := time.Now()

@@ -15,10 +15,18 @@ import {
 import {
   BLOCKED_MCP_EXTERNAL_LABEL,
   blockedMcpToolLabel,
+  isSolomonCanonicalTool,
+  missingIntentBlockedLabel,
   shouldHardDenyCursorTool,
   shouldRedirectCursorTool,
   shouldStopProxyOnBlockedTool,
 } from "../../tool-policy.js";
+import { readToolIntent } from "../../tool-intent.js";
+
+function requiresSolomonIntent(name: string, bridgeCtx: BridgedToolContext): boolean {
+  const trimmed = name.trim();
+  return bridgeCtx.allowedNames?.has(trimmed) === true || isSolomonCanonicalTool(trimmed);
+}
 
 function wouldBridgeTool(name: string, rawArgs: unknown, bridgeCtx: BridgedToolContext): boolean {
   const solomonMcp = unwrapSolomonMcpCall(name, rawArgs);
@@ -43,7 +51,10 @@ function collectBridgedMcpCall(
     onToolDetected();
     return true;
   }
-  const label = blockedMcpToolLabel(mcp.toolName);
+  const baseLabel = blockedMcpToolLabel(mcp.toolName);
+  const label = readToolIntent(mcp.args)
+    ? baseLabel
+    : missingIntentBlockedLabel(baseLabel);
   if (onBlockedTool) {
     onBlockedTool(label);
   }
@@ -95,6 +106,10 @@ export function processStreamEvent(
       reportBlocked(BLOCKED_MCP_EXTERNAL_LABEL);
       return;
     }
+    if (requiresSolomonIntent(name, bridgeCtx) && !readToolIntent(rawArgs)) {
+      reportBlocked(missingIntentBlockedLabel(name));
+      return;
+    }
     if (tryCollectBridgedTool(pendingBridged, name, rawArgs, bridgeCtx)) {
       onToolDetected();
       return;
@@ -135,9 +150,19 @@ export function processStreamEvent(
       }
       return;
     }
+    const solomonMcp = unwrapSolomonMcpCall(event.name, event.args);
+    const customMcp = unwrapCustomUserToolsMcpCall(event.name, event.args);
     if (event.status === "completed" || event.status === "error") {
       if (shouldHardDenyCursorTool(event.name)) {
         reportBlocked(event.name);
+        return;
+      }
+      if (solomonMcp || customMcp) {
+        handleToolProposal(event.name, event.args, event.call_id);
+        return;
+      }
+      if (requiresSolomonIntent(event.name, bridgeCtx) && !readToolIntent(event.args)) {
+        reportBlocked(missingIntentBlockedLabel(event.name));
         return;
       }
       if (allowCursorInternalTools && onUnmappedToolEvent) {
@@ -145,12 +170,12 @@ export function processStreamEvent(
       }
       return;
     }
-    const mcp = unwrapSolomonMcpCall(event.name, event.args);
     const enforcePolicy =
       !allowCursorInternalTools ||
       shouldHardDenyCursorTool(event.name) ||
       shouldRedirectCursorTool(event.name) ||
-      mcp !== null ||
+      solomonMcp !== null ||
+      customMcp !== null ||
       event.name === "mcp";
     if (enforcePolicy) {
       if (event.args !== undefined) {

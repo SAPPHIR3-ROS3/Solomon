@@ -73,7 +73,7 @@ func TestRolesFindSubagent(t *testing.T) {
 
 func TestListSubAgentsTool(t *testing.T) {
 	env := &agenttools.Env{Cfg: testRolesConfig()}
-	out, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "listSubAgents", Args: json.RawMessage(`{}`)})
+	out, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "listSubAgents", Args: json.RawMessage(`{"intent":"list configured subagents"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestCompleteSubagentEntryCollectsManualScores(t *testing.T) {
 
 func TestListSubAgentsWithoutTable(t *testing.T) {
 	env := &agenttools.Env{Cfg: &config.Root{}}
-	out, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "listSubAgents", Args: json.RawMessage(`{}`)})
+	out, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "listSubAgents", Args: json.RawMessage(`{"intent":"list configured subagents"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}

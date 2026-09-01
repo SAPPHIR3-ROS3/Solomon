@@ -64,7 +64,7 @@ func TestLegacyStreamWriter_completeBlock(t *testing.T) {
 func TestLegacyStreamWriter_splitOpenTag(t *testing.T) {
 	var out strings.Builder
 	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
-	if err := writeStreamParts(t, w, "before ", "<tool", "_calls>", `<tool name="shell"><args>{"command":"x"}</args></tool></tool_calls>`); err != nil {
+	if err := writeStreamParts(t, w, "before ", "<tool", "_calls>", `<tool name="shell"><intent>run command</intent><args>{"command":"x"}</args></tool></tool_calls>`); err != nil {
 		t.Fatal(err)
 	}
 	if len(w.Invocations()) != 1 {
@@ -78,8 +78,8 @@ func TestLegacyStreamWriter_splitOpenTag(t *testing.T) {
 func TestLegacyStreamWriter_splitCloseTag(t *testing.T) {
 	var out strings.Builder
 	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
-	block := `<tool_calls><tool name="shell"><args>{"command":"x"}</args></tool></tool_calls>`
-	parts := []string{"pre ", "<tool_calls><tool name=\"shell\"><args>{\"command\":\"x\"}</args></tool></tool", "_calls>"}
+	block := `<tool_calls><tool name="shell"><intent>run command</intent><args>{"command":"x"}</args></tool></tool_calls>`
+	parts := []string{"pre ", "<tool_calls><tool name=\"shell\"><intent>run command</intent><args>{\"command\":\"x\"}</args></tool></tool", "_calls>"}
 	if err := writeStreamParts(t, w, parts...); err != nil {
 		t.Fatal(err)
 	}
@@ -110,10 +110,12 @@ func TestLegacyStreamWriter_splitMidSecondTool(t *testing.T) {
 	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
 	part1 := `<tool_calls>
 <tool name="shell">
+<intent>run first command</intent>
 <args>{"command":"a"}</args>
 </tool>
 <tool name="read`
 	part2 := `File">
+<intent>read second file</intent>
 <args>{"path":"b.go"}</args>
 </tool>
 </tool_calls>`
@@ -147,7 +149,7 @@ func TestLegacyStreamWriter_malformedBlockReturnsError(t *testing.T) {
 func TestLegacyStreamWriter_ignoresAfterComplete(t *testing.T) {
 	var out strings.Builder
 	w := tooling.NewLegacyStreamWriter(&out, nil, allowedDeferredLegacyTools())
-	block := `<tool_calls><tool name="shell"><args>{"command":"x"}</args></tool></tool_calls>`
+	block := `<tool_calls><tool name="shell"><intent>run command</intent><args>{"command":"x"}</args></tool></tool_calls>`
 	if err := writeStreamParts(t, w, block); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +208,7 @@ func TestValidateLegacyToolLines(t *testing.T) {
 }
 
 func TestValidateInvocationNames_unknownTool(t *testing.T) {
-	invs := []tooling.Invocation{{Name: "notARealTool", Args: json.RawMessage(`{}`)}}
+	invs := []tooling.Invocation{{Name: "notARealTool", Args: json.RawMessage(`{"intent":"validate name"}`)}}
 	err := tooling.ValidateInvocationNames(invs, allowedDeferredLegacyTools())
 	if !errors.Is(err, tooling.ErrUnknownLegacyTool) {
 		t.Fatalf("got %v", err)
@@ -214,7 +216,7 @@ func TestValidateInvocationNames_unknownTool(t *testing.T) {
 }
 
 func TestLegacyStreamWriter_unknownToolName(t *testing.T) {
-	block := `<tool_calls><tool name="notARealTool"><args>{}</args></tool></tool_calls>`
+	block := `<tool_calls><tool name="notARealTool"><intent>validate name</intent><args>{}</args></tool></tool_calls>`
 	w := tooling.NewLegacyStreamWriter(&strings.Builder{}, nil, allowedDeferredLegacyTools())
 	_, err := w.Write([]byte(block))
 	if !errors.Is(err, tooling.ErrUnknownLegacyTool) {

@@ -14,7 +14,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureWebSearch(query string) {}
+func signatureWebSearch(query, intent string) {}
 
 const (
 	webSearchDefaultTimeoutS = 30

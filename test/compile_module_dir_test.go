@@ -49,7 +49,7 @@ func TestBuildWASM_fromNonModuleCWD(t *testing.T) {
 import "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/sdk"
 
 func main() {
-	_, _ = sdk.Glob("**/*")
+	_, _ = sdk.Glob("**/*", "list project files")
 }
 `
 	if _, err := compile.BuildWASM(compile.Options{Source: src}); err != nil {

@@ -81,8 +81,8 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 }
 
 func ExtractToolIntent(rawArgs json.RawMessage) string {
-	m := parseToolDisplayArgs(rawArgs)
-	return strings.TrimSpace(jsonDisplayString(m["intent"]))
+	intent, _ := ToolIntent(rawArgs)
+	return intent
 }
 
 func formatFindToolDisplayLines(m map[string]json.RawMessage) []string {
@@ -174,16 +174,15 @@ func editDisplayLine(ln string) string {
 	return ln
 }
 
-func subagentRunModeLabel(m map[string]json.RawMessage) string {
-	if jsonDisplayBool(m["run_in_background"]) {
-		return "async"
-	}
-	return "sync"
-}
-
 func subagentHeaderSuffix(m map[string]json.RawMessage) string {
-	mode := subagentRunModeLabel(m)
+	mode := ""
+	if !jsonDisplayBool(m["run_in_background"]) {
+		mode = "sync"
+	}
 	if re := jsonDisplayString(m["reasoningEffort"]); re != "" && re != "none" {
+		if mode == "" {
+			return re
+		}
 		return mode + ", " + re
 	}
 	return mode
@@ -194,9 +193,9 @@ func formatSubagentToolDisplayLines(m map[string]json.RawMessage) []string {
 	task := jsonDisplayString(m["task"])
 	label := subagentSysPromptDisplay(sysPath)
 	suffix := subagentHeaderSuffix(m)
-	if label != "" {
+	if label != "" && suffix != "" {
 		label = label + " (" + suffix + ")"
-	} else {
+	} else if label == "" {
 		label = suffix
 	}
 	lines := []string{termcolor.ToolHeaderLine("subagent", label)}

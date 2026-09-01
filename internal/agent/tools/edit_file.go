@@ -12,11 +12,11 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureEditFile(path, oldString, newString, intent string) {}
+func signatureEditFile(path, oldString, newString string) {}
 
-func signatureEditFileDelete(path string, delete bool, intent string) {}
+func signatureEditFileDelete(path string, delete bool) {}
 
-func signatureEditFileRename(path, renameTo, intent string) {}
+func signatureEditFileRename(path, renameTo string) {}
 
 type editArgs struct {
 	Path      string `json:"path"`
@@ -65,6 +65,12 @@ func stageBeforeEdit(env *Env, abs string) {
 	}
 }
 
+func stageProjectPath(env *Env, path string) {
+	if env != nil && env.CheckpointStageProjAbs != nil {
+		env.CheckpointStageProjAbs(path)
+	}
+}
+
 func stageAfterEdit(env *Env, kind, abs, renameTo string) {
 	if env == nil || env.CheckpointRecordEdit == nil {
 		return
@@ -85,6 +91,11 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 	if err := json.Unmarshal(raw, &a); err != nil {
 		return nil, err
 	}
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &rawFields); err != nil {
+		return nil, err
+	}
+	_, newStringProvided := rawFields["newString"]
 	if strings.TrimSpace(a.Intent) == "" {
 		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
 	}
@@ -113,8 +124,8 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		stageAfterEdit(env, "rename", p, dst)
-		env.CheckpointStageProjAbs(p)
-		env.CheckpointStageProjAbs(dst)
+		stageProjectPath(env, p)
+		stageProjectPath(env, dst)
 		return map[string]any{"ok": true, "action": "renamed", "from": a.Path, "to": a.RenameTo, "intent": a.Intent}, nil
 	}
 	if a.Delete {
@@ -129,11 +140,11 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		stageAfterEdit(env, "delete", p, "")
-		env.CheckpointStageProjAbs(p)
+		stageProjectPath(env, p)
 		return map[string]any{"ok": true, "action": "deleted", "intent": a.Intent}, nil
 	}
-	if a.OldString == "" && a.NewString == "" {
-		return nil, fmt.Errorf("editFile refuses empty overwrite")
+	if a.OldString == "" && a.NewString == "" && !newStringProvided {
+		return nil, fmt.Errorf("editFile refuses empty overwrite without an explicit newString")
 	}
 	stageBeforeEdit(env, p)
 	if a.OldString == "" {
@@ -144,7 +155,7 @@ func execEditFile(env *Env, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		stageAfterEdit(env, "create", p, "")
-		env.CheckpointStageProjAbs(p)
+		stageProjectPath(env, p)
 		return map[string]any{"ok": true, "action": "created_or_overwrite", "intent": a.Intent}, nil
 	}
 	b, err := os.ReadFile(p)

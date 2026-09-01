@@ -61,12 +61,12 @@ func execBuildPlan(env *Env, raw json.RawMessage) (any, error) {
 	fn, _ := resolvePlanName(env, a.Name)
 	activatePlan(env, fn)
 	return map[string]any{
-		"ok":               true,
-		"goal":             sec.Goal,
-		"design_excerpt":   sec.Design,
-		"rules":            sec.Todo.Rules,
-		"mermaid":          strings.TrimSpace(sec.Todo.Mermaid),
-		"remaining_todos":  remaining,
-		"status":           meta.Status,
+		"ok":              true,
+		"goal":            sec.Goal,
+		"design_excerpt":  sec.Design,
+		"rules":           sec.Todo.Rules,
+		"mermaid":         strings.TrimSpace(sec.Todo.Mermaid),
+		"remaining_todos": remaining,
+		"status":          meta.Status,
 	}, nil
 }

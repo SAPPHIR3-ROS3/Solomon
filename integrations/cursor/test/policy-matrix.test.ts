@@ -58,16 +58,16 @@ const defaultArgs: Record<string, unknown> = {
   Await: { task_id: "bg-1" },
   ApplyPatch: { patch: "*** Begin Patch\n*** End Patch" },
   browser_navigate: { url: "https://example.com" },
-  orchestrate: { code: "package main" },
-  searchTools: { query: "shell" },
-  subagent: { task: "explore auth" },
-  switchMode: { target_mode_id: "chat" },
-  searchSkill: { query: "babysit" },
-  loadSkill: { name: "babysit" },
-  readFile: { path: "main.go" },
-  editFile: { path: "main.go", oldString: "a", newString: "b" },
-  shell: { command: "go test" },
-  find: { pattern: "main" },
+  orchestrate: { code: "package main", intent: "run orchestration" },
+  searchTools: { query: "shell", intent: "find shell SDK" },
+  subagent: { task: "explore auth", intent: "explore auth" },
+  switchMode: { target_mode_id: "chat", intent: "switch to chat" },
+  searchSkill: { query: "babysit", intent: "find babysit skill" },
+  loadSkill: { name: "babysit", intent: "load babysit skill" },
+  readFile: { path: "main.go", intent: "read main.go" },
+  editFile: { path: "main.go", oldString: "a", newString: "b", intent: "replace a" },
+  shell: { command: "go test", intent: "run tests" },
+  find: { pattern: "main", intent: "find main" },
 };
 
 const POLICY_MATRIX: PolicyMatrixRow[] = [
@@ -164,7 +164,11 @@ function assertStreamEnforcement(row: PolicyMatrixRow): void {
   const label = row.blockedLabel ?? row.tool;
   const streamName = row.tool.startsWith("mcp:") ? "mcp" : row.tool;
   const streamArgs = row.tool === "mcp:editFile"
-    ? { providerIdentifier: "solomon", toolName: "editFile", args: { path: "x.go" } }
+    ? {
+        providerIdentifier: "solomon",
+        toolName: "editFile",
+        args: { path: "x.go", intent: "edit x.go" },
+      }
     : row.tool === "mcp:external"
       ? { providerIdentifier: "other", toolName: "readFile", args: { path: "x" } }
       : argsFor(row.tool);
@@ -224,7 +228,7 @@ test("policy matrix: native MCP subagent passes, deferred MCP blocks (2.12)", ()
   const subagentMcp = unwrapSolomonMcpCall("mcp", {
     providerIdentifier: "solomon",
     toolName: "subagent",
-    args: { task: "explore" },
+    args: { task: "explore", intent: "explore task" },
   });
   assert.ok(subagentMcp);
   const pass = bridgeToolInvocation(subagentMcp!.toolName, subagentMcp!.args, ctx);
@@ -232,7 +236,7 @@ test("policy matrix: native MCP subagent passes, deferred MCP blocks (2.12)", ()
   const editMcp = unwrapSolomonMcpCall("mcp", {
     providerIdentifier: "solomon",
     toolName: "editFile",
-    args: { path: "x.go", oldString: "a", newString: "b" },
+    args: { path: "x.go", oldString: "a", newString: "b", intent: "edit x.go" },
   });
   assert.ok(editMcp);
   const block = bridgeToolInvocation(editMcp!.toolName, editMcp!.args, ctx);

@@ -15,12 +15,11 @@ func execEditFileForTest(t *testing.T, dir string, args json.RawMessage) (any, e
 	return execDeferredToolForTest(&tools.Env{ProjRoot: dir, CheckpointStageProjAbs: func(string) {}}, tooling.Invocation{Name: "editFile", Args: args})
 }
 
-func TestExecEditFileRejectsEmptyOverwrite(t *testing.T) {
+func TestExecEditFileRejectsMissingNewString(t *testing.T) {
 	dir := t.TempDir()
 	args, err := json.Marshal(map[string]string{
 		"path":      "PLAN.md",
 		"oldString": "",
-		"newString": "",
 		"intent":    "test empty overwrite",
 	})
 	if err != nil {

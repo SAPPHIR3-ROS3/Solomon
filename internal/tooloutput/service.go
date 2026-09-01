@@ -87,20 +87,41 @@ func (s *Service) Apply(v any, meta Meta) any {
 	return truncatedResult(spillPath, nil)
 }
 
+var (
+	startupMu   sync.Mutex
+	startupRefs int
+)
+
 func Startup(pid int) error {
-	return RegisterInstance(pid)
+	startupMu.Lock()
+	defer startupMu.Unlock()
+	if startupRefs == 0 {
+		if err := RegisterInstance(pid); err != nil {
+			return err
+		}
+	}
+	startupRefs++
+	return nil
 }
 
 func Shutdown(pid int, projectHex string, svc *Service) error {
-	others := ActiveOtherInstances(pid)
+	startupMu.Lock()
+	defer startupMu.Unlock()
+	if startupRefs > 0 {
+		startupRefs--
+	}
+	othersActive := ActiveOtherInstances(pid) > 0 || startupRefs > 0
 	if svc != nil {
-		if err := svc.Close(others > 0); err != nil {
+		if err := svc.Close(othersActive); err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "tool output service close failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "err": err.Error()}})
 		}
 	} else if projectHex != "" {
-		if err := CloseProjectTemp(projectHex, others > 0, false); err != nil {
+		if err := CloseProjectTemp(projectHex, othersActive, false); err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "tool output temp cleanup failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "err": err.Error()}})
 		}
+	}
+	if startupRefs > 0 {
+		return nil
 	}
 	return UnregisterInstance(pid)
 }

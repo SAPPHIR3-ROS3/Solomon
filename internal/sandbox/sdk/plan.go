@@ -2,8 +2,8 @@ package sdk
 
 import "encoding/json"
 
-func CreatePlan(name, goal string) (map[string]any, error) {
-	raw, err := callTool("createPlan", map[string]any{"name": name, "goal": goal})
+func CreatePlan(name, goal, intent string) (map[string]any, error) {
+	raw, err := callTool("createPlan", map[string]any{"name": name, "goal": goal, "intent": intent})
 	if err != nil {
 		return nil, err
 	}
@@ -18,24 +18,24 @@ func EditPlan(name, old, new, intent string) (map[string]any, error) {
 	return decodeMap(raw)
 }
 
-func BuildPlan(name string) (map[string]any, error) {
-	raw, err := callTool("buildPlan", map[string]any{"name": name})
+func BuildPlan(name, intent string) (map[string]any, error) {
+	raw, err := callTool("buildPlan", map[string]any{"name": name, "intent": intent})
 	if err != nil {
 		return nil, err
 	}
 	return decodeMap(raw)
 }
 
-func AddTodo(name, todo string) (map[string]any, error) {
-	raw, err := callTool("addTodo", map[string]any{"name": name, "todo": todo})
+func AddTodo(name, todo, intent string) (map[string]any, error) {
+	raw, err := callTool("addTodo", map[string]any{"name": name, "todo": todo, "intent": intent})
 	if err != nil {
 		return nil, err
 	}
 	return decodeMap(raw)
 }
 
-func TodoList(name string) (map[string]string, error) {
-	args := map[string]any{}
+func TodoList(name, intent string) (map[string]string, error) {
+	args := map[string]any{"intent": intent}
 	if name != "" {
 		args["name"] = name
 	}
@@ -56,32 +56,32 @@ func TodoList(name string) (map[string]string, error) {
 	return out, nil
 }
 
-func CheckTodo(sha1 string) (map[string]any, error) {
-	raw, err := callTool("checkTodo", map[string]any{"sha1": sha1})
+func CheckTodo(sha1, intent string) (map[string]any, error) {
+	raw, err := callTool("checkTodo", map[string]any{"sha1": sha1, "intent": intent})
 	if err != nil {
 		return nil, err
 	}
 	return decodeMap(raw)
 }
 
-func RemoveTodo(sha1 string) (map[string]any, error) {
-	raw, err := callTool("removeTodo", map[string]any{"sha1": sha1})
+func RemoveTodo(sha1, intent string) (map[string]any, error) {
+	raw, err := callTool("removeTodo", map[string]any{"sha1": sha1, "intent": intent})
 	if err != nil {
 		return nil, err
 	}
 	return decodeMap(raw)
 }
 
-func CheckPlan(name string, full bool) (map[string]any, error) {
-	raw, err := callTool("checkPlan", map[string]any{"name": name, "full": full})
+func CheckPlan(name string, full bool, intent string) (map[string]any, error) {
+	raw, err := callTool("checkPlan", map[string]any{"name": name, "full": full, "intent": intent})
 	if err != nil {
 		return nil, err
 	}
 	return decodeMap(raw)
 }
 
-func DeletePlan(name string) (map[string]any, error) {
-	raw, err := callTool("deletePlan", map[string]any{"name": name})
+func DeletePlan(name, intent string) (map[string]any, error) {
+	raw, err := callTool("deletePlan", map[string]any{"name": name, "intent": intent})
 	if err != nil {
 		return nil, err
 	}

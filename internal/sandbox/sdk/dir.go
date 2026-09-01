@@ -2,16 +2,16 @@ package sdk
 
 import "encoding/json"
 
-func ListDir(path string) ([]ListDirEntry, error) {
-	r, err := ListDirInfo(path)
+func ListDir(path, intent string) ([]ListDirEntry, error) {
+	r, err := ListDirInfo(path, intent)
 	if err != nil {
 		return nil, err
 	}
 	return r.Entries, nil
 }
 
-func ListDirInfo(path string) (ListDirResult, error) {
-	args := map[string]any{}
+func ListDirInfo(path, intent string) (ListDirResult, error) {
+	args := map[string]any{"intent": intent}
 	if path != "" {
 		args["path"] = path
 	}
@@ -22,16 +22,16 @@ func ListDirInfo(path string) (ListDirResult, error) {
 	return parseListDirResult(raw)
 }
 
-func Tree(path string) (string, error) {
-	r, err := TreeInfo(path)
+func Tree(path, intent string) (string, error) {
+	r, err := TreeInfo(path, intent)
 	if err != nil {
 		return "", err
 	}
 	return r.Tree, nil
 }
 
-func TreeDepth(path string, maxDepth int) (string, error) {
-	args := map[string]any{}
+func TreeDepth(path string, maxDepth int, intent string) (string, error) {
+	args := map[string]any{"intent": intent}
 	if path != "" {
 		args["path"] = path
 	}
@@ -49,8 +49,8 @@ func TreeDepth(path string, maxDepth int) (string, error) {
 	return r.Tree, nil
 }
 
-func TreeInfo(path string) (TreeResult, error) {
-	args := map[string]any{}
+func TreeInfo(path, intent string) (TreeResult, error) {
+	args := map[string]any{"intent": intent}
 	if path != "" {
 		args["path"] = path
 	}

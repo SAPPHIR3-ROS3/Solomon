@@ -44,7 +44,7 @@ func main() {}`
 func TestSearchToolsSDKImportsOmitCanonicalPath(t *testing.T) {
 	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",
-		Args: json.RawMessage(`{"query":"sdk"}`),
+		Args: json.RawMessage(`{"query":"sdk","intent":"inspect SDK references"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ import (
 )
 
 func main() {
-	_, err := sdk.ReadFile("README.md")
+	_, err := sdk.ReadFile("README.md", "read the README")
 	if err != nil {
 		fmt.Println("err")
 	}

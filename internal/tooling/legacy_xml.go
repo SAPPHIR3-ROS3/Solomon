@@ -14,10 +14,10 @@ const (
 )
 
 var (
-	reToolOpen  = regexp.MustCompile(`<tool\s+name="([^"]*)"\s*>`)
-	reIntent    = regexp.MustCompile(`(?s)<intent>(.*?)</intent>`)
-	reArgs      = regexp.MustCompile(`(?s)<args>(.*?)</args>`)
-	reToolClose      = regexp.MustCompile(`</tool>`)
+	reToolOpen        = regexp.MustCompile(`<tool\s+name="([^"]*)"\s*>`)
+	reIntent          = regexp.MustCompile(`(?s)<intent>(.*?)</intent>`)
+	reArgs            = regexp.MustCompile(`(?s)<args>(.*?)</args>`)
+	reToolClose       = regexp.MustCompile(`</tool>`)
 	reLegacyToolClose = regexp.MustCompile(`(?i)</tool_call>|</tool>`)
 )
 
@@ -87,6 +87,9 @@ func parseToolBody(name, body string) (Invocation, error) {
 	intent := ""
 	if m := reIntent.FindStringSubmatch(body); len(m) >= 2 {
 		intent = strings.TrimSpace(m[1])
+		if intent == "" {
+			return Invocation{}, missingLegacyToolIntentError(name)
+		}
 	}
 	argsM := reArgs.FindStringSubmatch(body)
 	if len(argsM) < 2 {
@@ -103,18 +106,31 @@ func parseToolBody(name, body string) (Invocation, error) {
 	if argsMap == nil {
 		argsMap = map[string]json.RawMessage{}
 	}
-	if intent != "" {
-		b, err := json.Marshal(intent)
-		if err != nil {
-			return Invocation{}, err
+	if intent == "" {
+		if rawIntent, ok := argsMap["intent"]; ok {
+			var argIntent string
+			if err := json.Unmarshal(rawIntent, &argIntent); err == nil {
+				intent = strings.TrimSpace(argIntent)
+			}
 		}
-		argsMap["intent"] = b
 	}
+	if intent == "" {
+		return Invocation{}, missingLegacyToolIntentError(name)
+	}
+	b, err := json.Marshal(intent)
+	if err != nil {
+		return Invocation{}, err
+	}
+	argsMap["intent"] = b
 	merged, err := json.Marshal(argsMap)
 	if err != nil {
 		return Invocation{}, err
 	}
 	return Invocation{Name: name, Args: merged}, nil
+}
+
+func missingLegacyToolIntentError(name string) error {
+	return fmt.Errorf("%w: tool %q requires a non-empty <intent> or arguments.intent: %w", ErrMalformedLegacyTool, name, ErrMissingToolIntent)
 }
 
 func StripLegacyToolBlocks(text string) string {

@@ -19,7 +19,7 @@ func TestListDir_immediateChildren(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	args, err := json.Marshal(map[string]string{"path": "."})
+	args, err := json.Marshal(map[string]string{"path": ".", "intent": "inspect directory"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestListDir_respectsGitignore(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "keep.go"), []byte("y"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	args, err := json.Marshal(map[string]string{"path": "."})
+	args, err := json.Marshal(map[string]string{"path": ".", "intent": "inspect directory"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestTree_asciiStructure(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hi"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	args, err := json.Marshal(map[string]any{"path": ".", "maxDepth": 3})
+	args, err := json.Marshal(map[string]any{"path": ".", "maxDepth": 3, "intent": "inspect tree"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestTree_asciiStructure(t *testing.T) {
 
 func TestListDir_rejectedInAgentWithoutDeferred(t *testing.T) {
 	dir := t.TempDir()
-	args, _ := json.Marshal(map[string]string{"path": "."})
+	args, _ := json.Marshal(map[string]string{"path": ".", "intent": "check mode guard"})
 	_, err := agenttools.Exec(t.Context(), &agenttools.Env{ProjRoot: dir}, "agent", tooling.Invocation{Name: "listDir", Args: args})
 	if err == nil || !strings.Contains(err.Error(), "not available") {
 		t.Fatalf("want mode rejection, got %v", err)

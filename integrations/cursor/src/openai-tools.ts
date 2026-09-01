@@ -5,6 +5,7 @@ import { normalizeArgsObject, parseJSONObject } from "./json-args.js";
 import { unescapeXML } from "./xml-utils.js";
 import { chunkDelta, writeSSE } from "./openai-sse.js";
 import type { ChatCompletionTool, ChatToolCall, ToolChoice } from "./openai-types.js";
+import { invocationIntent, readToolIntent, schemaWithRequiredToolIntent } from "./tool-intent.js";
 
 export function allowedToolNamesFromRequest(
   tools: ChatCompletionTool[] | undefined,
@@ -70,13 +71,14 @@ export function newToolCallId(): string {
 
 export function toolArgumentsJSON(inv: BridgedToolInvocation): string {
   const args = { ...(inv.args ?? {}) };
-  if (inv.intent && String(inv.intent).trim() !== "") {
-    args.intent = String(inv.intent).trim();
-  }
+  args.intent = invocationIntent(inv) ?? "";
   return JSON.stringify(args);
 }
 
 export function isValidInvocation(inv: BridgedToolInvocation): boolean {
+  if (!invocationIntent(inv)) {
+    return false;
+  }
   if (inv.name !== "editFile") {
     return true;
   }
@@ -156,13 +158,10 @@ export function openAIToolsToMcpTools(tools: ChatCompletionTool[] | undefined): 
       params && typeof params === "object" && !Array.isArray(params)
         ? { ...(params as Record<string, unknown>) }
         : { type: "object", properties: {} };
-    if (typeof inputSchema.type !== "string") {
-      inputSchema.type = "object";
-    }
     out.push({
       name,
       description: t.function?.description?.trim() ?? "",
-      inputSchema,
+      inputSchema: schemaWithRequiredToolIntent(inputSchema),
     });
   }
   return out;
@@ -216,11 +215,13 @@ function parseSolomonTools(inner: string): BridgedToolInvocation[] {
     if (!args) {
       continue;
     }
-    const intent = tagText(body, "intent");
+    const rawIntent = tagText(body, "intent");
+    const intent =
+      rawIntent === null ? readToolIntent(args) ?? "" : unescapeXML(rawIntent).trim();
     out.push({
       name,
       args,
-      ...(intent ? { intent: unescapeXML(intent).trim() } : {}),
+      intent,
     });
   }
   return out;
@@ -244,7 +245,11 @@ function parseJSONToolCall(raw: string): BridgedToolInvocation | null {
   if (!args) {
     return null;
   }
-  return { name, args };
+  const intent = readToolIntent(args) ?? readToolIntent(obj) ?? "";
+  if (!readToolIntent(args) && intent) {
+    args.intent = intent;
+  }
+  return { name, args, intent };
 }
 
 function tagText(body: string, tag: string): string | null {
