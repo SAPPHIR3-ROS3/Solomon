@@ -7,6 +7,7 @@ import {
   fetchHomeDirectoryWorktrees,
   fetchProjectBranches,
   fetchProjectWorktrees,
+  projectWorktreeLabel,
   type Project,
   type ProjectWorktree,
 } from "../projects/projects";
@@ -237,7 +238,7 @@ export function WorktreeControl({
   if (worktrees.length === 0) return null;
 
   const current = worktrees.find((worktree) => worktree.current) ?? worktrees[0];
-  const currentLabel = worktrees.length === 1 ? "local" : worktreeLabel(current.path);
+  const currentLabel = worktrees.length === 1 ? "local" : projectWorktreeLabel(current.path);
 
   function selectWorktree(worktree: ProjectWorktree) {
     setOpen(false);
@@ -272,7 +273,7 @@ export function WorktreeControl({
               type="button"
             >
               <WorktreeIcon />
-              <span>{(worktrees.length === 1 ? "local" : worktreeLabel(worktree.path))}{worktree.branch ? ` · ${worktree.branch}` : ""}</span>
+              <span>{(worktrees.length === 1 ? "local" : projectWorktreeLabel(worktree.path))}{worktree.branch ? ` · ${worktree.branch}` : ""}</span>
               {worktree.current ? <CheckIcon /> : null}
             </button>
           ))}
@@ -280,12 +281,6 @@ export function WorktreeControl({
       ) : null}
     </div>
   );
-}
-
-function worktreeLabel(worktreePath: string): string {
-  const normalized = worktreePath.replace(/\\/g, "/").replace(/\/+$/, "");
-  const parts = normalized.split("/");
-  return parts[parts.length - 1] || worktreePath;
 }
 
 function BranchIcon() {

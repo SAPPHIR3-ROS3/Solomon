@@ -1,4 +1,4 @@
-.PHONY: solomon build install test check-docs loc-chart server-stop desktop-dev cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install hot-install test check-docs loc-chart server-stop desktop-dev cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -136,6 +136,39 @@ install:
 	@echo ""
 	@echo "solomon -> $(INSTALL_BIN)"
 	@echo "=== Done ==="
+
+# Full install, then bring the local server back up. Preserves prior mode/dev
+# directory from state.json when present; otherwise starts `server start dev <repo>/gui`.
+# Needed because `make install` stops the server and clears state before `restart` can read it.
+hot-install:
+	@$(FIX_TTY)
+	@echo ""
+	@echo "=== Solomon hot-install ($(VERSION)) ==="
+ifeq ($(GOOS),windows)
+	@$(MAKE) install
+	@$(INSTALL_BIN) server start dev "$(CURDIR)/gui"
+else
+	@STATE_FILE="$${SOLOMON_HOME:-$$HOME/.solomon}/run/server/state.json"; \
+	MODE=dev; \
+	DEVDIR="$(CURDIR)/gui"; \
+	if [ -f "$$STATE_FILE" ]; then \
+		CAPTURED_MODE=$$(sed -n 's/.*"mode"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$$STATE_FILE" | head -n1); \
+		CAPTURED_DEVDIR=$$(sed -n 's/.*"dev_directory"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$$STATE_FILE" | head -n1); \
+		if [ -n "$$CAPTURED_MODE" ]; then MODE=$$CAPTURED_MODE; fi; \
+		if [ -n "$$CAPTURED_DEVDIR" ]; then DEVDIR=$$CAPTURED_DEVDIR; fi; \
+	fi; \
+	echo "Restart target: mode=$$MODE"; \
+	if [ "$$MODE" = "dev" ]; then echo "Restart target: devDir=$$DEVDIR"; fi; \
+	$(MAKE) install; \
+	if [ "$$MODE" = "dev" ]; then \
+		$(INSTALL_BIN) server start dev "$$DEVDIR"; \
+	else \
+		$(INSTALL_BIN) server start; \
+	fi
+endif
+	@$(FIX_TTY)
+	@echo ""
+	@echo "=== hot-install done ==="
 
 clean-cursor-bundle:
 ifeq ($(GOOS),windows)

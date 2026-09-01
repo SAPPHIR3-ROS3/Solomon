@@ -4,102 +4,8 @@ import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
 const EXPLORER_STATE_STORAGE_PREFIX = "solomon.explorer-state.v1";
-const TEST_CHATS_EXPLORER_ID = "__test-chats__";
-const TEST_CHATS_DIRECTORY_PATH = "__solomon_test_chats__";
-const TEST_CHATS_ATTACHMENTS_PATH = `${TEST_CHATS_DIRECTORY_PATH}/attachments`;
-const TEST_CHATS_FIXTURES_PATH = `${TEST_CHATS_DIRECTORY_PATH}/fixtures`;
-const TEST_CHATS_CONVERSATIONS_PATH = `${TEST_CHATS_FIXTURES_PATH}/conversations`;
-const TEST_CHATS_TOOL_RESULTS_PATH = `${TEST_CHATS_FIXTURES_PATH}/tool-results`;
-const TEST_CHATS_SNAPSHOTS_PATH = `${TEST_CHATS_DIRECTORY_PATH}/snapshots`;
 const EMPTY_GIT_HISTORY: ProjectGitHistory = { commits: [], current: "", isRepo: false };
 const EMPTY_GIT_STATUS: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
-const TEST_CHATS_RESEARCH: ProjectResearch[] = [
-  {
-    finishedAt: "",
-    id: "research-001",
-    maxRounds: 3,
-    phase: "reading",
-    round: 1,
-    sourceCount: 12,
-    startedAt: "2026-08-27T14:42:00.000Z",
-    status: "running",
-    title: "Tool call UI patterns",
-  },
-  {
-    finishedAt: "",
-    id: "research-002",
-    phase: "analyzing",
-    sourceCount: 7,
-    startedAt: "2026-08-25T09:20:00.000Z",
-    status: "paused",
-    title: "Async agent workflows",
-  },
-  {
-    finishedAt: "2026-08-26T18:15:00.000Z",
-    id: "research-003",
-    phase: "writing",
-    sourceCount: 24,
-    startedAt: "2026-08-26T17:48:00.000Z",
-    status: "done",
-    title: "Background research UX for Solomon",
-  },
-  {
-    finishedAt: "",
-    id: "research-004",
-    phase: "error",
-    sourceCount: 3,
-    startedAt: "2026-08-24T11:05:00.000Z",
-    status: "failed",
-    title: "Source extraction reliability",
-  },
-  {
-    finishedAt: "",
-    id: "research-005",
-    phase: "searching",
-    sourceCount: 5,
-    startedAt: "2026-08-23T16:30:00.000Z",
-    status: "cancelled",
-    title: "Web research scope",
-  },
-];
-const TEST_CHATS_ENTRIES: Record<string, ProjectDirectoryEntry[]> = {
-  [TEST_CHATS_DIRECTORY_PATH]: [
-    { isDirectory: true, name: "fixtures", path: TEST_CHATS_FIXTURES_PATH },
-    { isDirectory: true, name: "attachments", path: TEST_CHATS_ATTACHMENTS_PATH },
-    { isDirectory: true, name: "snapshots", path: TEST_CHATS_SNAPSHOTS_PATH },
-    { isDirectory: false, name: "README.md", path: `${TEST_CHATS_DIRECTORY_PATH}/README.md` },
-    { isDirectory: false, name: "test.config.json", path: `${TEST_CHATS_DIRECTORY_PATH}/test.config.json` },
-  ],
-  [TEST_CHATS_FIXTURES_PATH]: [
-    { isDirectory: true, name: "conversations", path: TEST_CHATS_CONVERSATIONS_PATH },
-    { isDirectory: true, name: "tool-results", path: TEST_CHATS_TOOL_RESULTS_PATH },
-    { isDirectory: false, name: "empty-state.json", path: `${TEST_CHATS_FIXTURES_PATH}/empty-state.json` },
-  ],
-  [TEST_CHATS_CONVERSATIONS_PATH]: [
-    { isDirectory: false, name: "assistant-stream.json", path: `${TEST_CHATS_CONVERSATIONS_PATH}/assistant-stream.json` },
-    { isDirectory: false, name: "multi-turn.json", path: `${TEST_CHATS_CONVERSATIONS_PATH}/multi-turn.json` },
-  ],
-  [TEST_CHATS_TOOL_RESULTS_PATH]: [
-    { isDirectory: false, name: "filesystem-response.json", path: `${TEST_CHATS_TOOL_RESULTS_PATH}/filesystem-response.json` },
-    { isDirectory: false, name: "search-response.json", path: `${TEST_CHATS_TOOL_RESULTS_PATH}/search-response.json` },
-  ],
-  [TEST_CHATS_ATTACHMENTS_PATH]: [
-    { isDirectory: false, name: "architecture-diagram.png", path: `${TEST_CHATS_ATTACHMENTS_PATH}/architecture-diagram.png` },
-    { isDirectory: false, name: "release-notes.md", path: `${TEST_CHATS_ATTACHMENTS_PATH}/release-notes.md` },
-  ],
-  [TEST_CHATS_SNAPSHOTS_PATH]: [
-    { isDirectory: false, name: "empty-composer.png", path: `${TEST_CHATS_SNAPSHOTS_PATH}/empty-composer.png` },
-    { isDirectory: false, name: "tool-result.png", path: `${TEST_CHATS_SNAPSHOTS_PATH}/tool-result.png` },
-  ],
-};
-
-export const testChatAtMentionEntries = Object.values(TEST_CHATS_ENTRIES)
-  .flat()
-  .map((entry) => ({
-    isDirectory: entry.isDirectory,
-    path: entry.path.replace(`${TEST_CHATS_DIRECTORY_PATH}/`, ""),
-  }));
-
 type ExplorerState = {
   expandedDirectories: string[];
   scrollTop: number;
@@ -139,12 +45,11 @@ type RightSidePanelProps = {
   onWidthChange: (width: number) => void;
   onOpenResearch: (research: ProjectResearch) => void;
   project: Project | null;
-  testChatsActive: boolean;
   temporaryWorkspace: TemporaryWorkspace | null;
   width: number;
 };
 
-export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, project, testChatsActive, temporaryWorkspace, width }: RightSidePanelProps) {
+export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, project, temporaryWorkspace, width }: RightSidePanelProps) {
   const [activeView, setActiveView] = useState<"files" | "history" | "research">("files");
   const [entries, setEntries] = useState<Record<string, ProjectDirectoryEntry[]>>({});
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
@@ -172,10 +77,6 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     setResearch([]);
     setResearchError("");
     setResearchLoading(false);
-    if (testChatsActive) {
-      setResearch(TEST_CHATS_RESEARCH);
-      return;
-    }
     setResearchLoading(Boolean(project));
     if (!project) return;
     let cancelled = false;
@@ -192,17 +93,17 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     return () => {
       cancelled = true;
     };
-  }, [project, testChatsActive]);
+  }, [project]);
 
   useEffect(() => {
     setGitHistory(EMPTY_GIT_HISTORY);
     setGitHistoryError("");
-    setGitHistoryLoading(Boolean(project) && !testChatsActive);
-    setGitHistoryProjectID(project && !testChatsActive ? project.id : "");
+    setGitHistoryLoading(Boolean(project));
+    setGitHistoryProjectID(project?.id ?? "");
     setGitStatus(EMPTY_GIT_STATUS);
     setGitStatusError("");
-    setGitStatusLoading(Boolean(project) && !testChatsActive);
-    if (!project || testChatsActive) return;
+    setGitStatusLoading(Boolean(project));
+    if (!project) return;
     let cancelled = false;
     void fetchProjectGitHistory(project.id)
       .then((history) => {
@@ -227,7 +128,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     return () => {
       cancelled = true;
     };
-  }, [project, testChatsActive]);
+  }, [project]);
 
   useEffect(() => {
     setEntries({});
@@ -235,23 +136,17 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     setQuery("");
     setScrollShadowOpacity(0);
     setBottomScrollShadowOpacity(0);
-    const explorerID = !project && temporaryWorkspace
-      ? temporaryWorkspace.id
-      : testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
+    const explorerID = project?.id ?? temporaryWorkspace?.id;
     if (!explorerID) {
       setExpandedDirectories(new Set());
       restoredScrollPositionRef.current = null;
       return;
     }
     const restoredState = loadExplorerState(explorerID);
-    const restoredDirectories = [...new Set(restoredState.expandedDirectories.filter((path) => path !== TEST_CHATS_DIRECTORY_PATH))]
+    const restoredDirectories = [...new Set(restoredState.expandedDirectories)]
       .sort((left, right) => left.split("/").length - right.split("/").length);
     setExpandedDirectories(new Set(restoredDirectories));
     restoredScrollPositionRef.current = { projectID: explorerID, scrollTop: restoredState.scrollTop };
-    if (testChatsActive && !temporaryWorkspace && !project) {
-      setEntries({ "": TEST_CHATS_ENTRIES[TEST_CHATS_DIRECTORY_PATH], ...TEST_CHATS_ENTRIES });
-      return;
-    }
     if (!project && !temporaryWorkspace) return;
     let cancelled = false;
     const fetchRootEntries = project
@@ -279,15 +174,13 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     return () => {
       cancelled = true;
     };
-  }, [project, temporaryWorkspace, testChatsActive]);
+  }, [project, temporaryWorkspace]);
 
   useEffect(() => {
     const files = filesRef.current;
     if (!files || !entries[""]) return;
     const restoredPosition = restoredScrollPositionRef.current;
-    const explorerID = !project && temporaryWorkspace
-      ? temporaryWorkspace.id
-      : testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
+    const explorerID = project?.id ?? temporaryWorkspace?.id;
     if (!explorerID) return;
     if (!restoredPosition || restoredPosition.projectID !== explorerID) return;
     const frame = window.requestAnimationFrame(() => {
@@ -295,14 +188,12 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
       restoredScrollPositionRef.current = null;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [entries, expandedDirectories, project, temporaryWorkspace, testChatsActive]);
+  }, [entries, expandedDirectories, project, temporaryWorkspace]);
 
   useEffect(() => {
     const files = filesRef.current;
     if (!files) return;
-    const explorerID = !project && temporaryWorkspace
-      ? temporaryWorkspace.id
-      : testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
+    const explorerID = project?.id ?? temporaryWorkspace?.id;
     if (!explorerID) return;
     const updateScrollChrome = () => {
       setScrollShadowOpacity(Math.min(1, files.scrollTop / 18));
@@ -318,13 +209,11 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
       resizeObserver.disconnect();
       files.removeEventListener("scroll", updateScrollChrome);
     };
-  }, [bottomInset, entries, expandedDirectories, nameFilter, project, temporaryWorkspace, testChatsActive]);
+  }, [bottomInset, entries, expandedDirectories, nameFilter, project, temporaryWorkspace]);
 
   function toggleDirectory(entry: ProjectDirectoryEntry) {
     const isExpanded = expandedDirectories.has(entry.path);
-    const explorerID = !project && temporaryWorkspace
-      ? temporaryWorkspace.id
-      : testChatsActive ? TEST_CHATS_EXPLORER_ID : project?.id;
+    const explorerID = project?.id ?? temporaryWorkspace?.id;
     if (!explorerID) return;
     setExpandedDirectories((current) => {
       const next = new Set(current);
@@ -371,7 +260,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
           <SearchIcon />
           <input
             aria-label="Filter files"
-            disabled={!testChatsActive && !project && !temporaryWorkspace}
+            disabled={!project && !temporaryWorkspace}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Filter files…"
             type="search"
@@ -385,20 +274,19 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
             "--right-side-panel-bottom-scroll-shadow-opacity": bottomScrollShadowOpacity,
           } as CSSProperties}
         >
-          <nav aria-label={!project && temporaryWorkspace ? `${temporaryWorkspace.name} files` : testChatsActive ? "Test chats files" : "Project files"} className="right-side-panel-files" id="right-side-panel-files" ref={filesRef} role="tabpanel">
+          <nav aria-label={!project && temporaryWorkspace ? `${temporaryWorkspace.name} files` : "Project files"} className="right-side-panel-files" id="right-side-panel-files" ref={filesRef} role="tabpanel">
             {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
-            {!error && (testChatsActive || project || temporaryWorkspace) && !entries[""] ? <p className="right-side-panel-message">Loading files…</p> : null}
-            {!error && !testChatsActive && !project && !temporaryWorkspace ? <p className="right-side-panel-message">No project open.</p> : null}
+            {!error && (project || temporaryWorkspace) && !entries[""] ? <p className="right-side-panel-message">Loading files…</p> : null}
+            {!error && !project && !temporaryWorkspace ? <p className="right-side-panel-message">No project open.</p> : null}
             {entries[""]?.length === 0 ? <p className="right-side-panel-message">This folder is empty.</p> : null}
             {nameFilter && entries[""] && !entries[""].some((entry) => entryMatchesFilter(entry, nameFilter, entries)) ? <p className="right-side-panel-message">No files match this search.</p> : null}
             <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
           </nav>
         </div>
       </> : visibleView === "history" ? <GitHistoryView error={gitHistoryError} gitStatus={gitStatus} gitStatusError={gitStatusError} gitStatusLoading={gitStatusLoading} history={gitHistory} loading={gitHistoryLoading} project={project} /> : <section aria-label="Deep research" className="right-side-panel-research" id="right-side-panel-research" role="tabpanel">
-        {!project && !testChatsActive ? <p className="right-side-panel-message">Open a project to view its deep research.</p> : null}
+        {!project ? <p className="right-side-panel-message">Open a project to view its deep research.</p> : null}
         {researchLoading ? <p className="right-side-panel-message">Loading deep research…</p> : null}
         {researchError ? <p className="right-side-panel-message" role="status">{researchError}</p> : null}
-        {!researchLoading && !researchError && !project && testChatsActive && research.length === 0 ? <p className="right-side-panel-message">No deep research in Test chats yet.</p> : null}
         {!researchLoading && !researchError && project && research.length === 0 ? <p className="right-side-panel-message">No deep research in this folder.</p> : null}
         {!researchLoading && !researchError ? research.map((job) => <button className={`right-side-panel-research-item is-${job.status || "unknown"}`} key={job.id} onClick={() => onOpenResearch(job)} type="button">
           <ResearchIcon />
@@ -477,6 +365,7 @@ type GitHistoryViewProps = {
   history: ProjectGitHistory;
   loading: boolean;
   project: Project | null;
+  readOnly?: boolean;
 };
 
 const gitHistoryLaneStep = 12;
@@ -484,7 +373,7 @@ const gitHistoryGraphInset = 7;
 const gitHistoryContentInset = 6;
 const emptyGitExpandedDirectories = new Set<string>();
 
-function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, history, loading, project }: GitHistoryViewProps) {
+function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, history, loading, project, readOnly = false }: GitHistoryViewProps) {
   const [branchError, setBranchError] = useState("");
   const [branches, setBranches] = useState<string[]>([]);
   const [branchesError, setBranchesError] = useState("");
@@ -519,7 +408,7 @@ function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, hi
     setBranches([]);
     setBranchesError("");
     setBranchMenuOpen(false);
-    if (!project) return;
+    if (!project || readOnly) return;
     let cancelled = false;
     setBranchesLoading(true);
     void fetchProjectBranches(project.id)
@@ -535,7 +424,7 @@ function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, hi
     return () => {
       cancelled = true;
     };
-  }, [project]);
+  }, [project, readOnly]);
 
   useEffect(() => {
     if (!branchMenuOpen) return;
@@ -584,7 +473,7 @@ function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, hi
   }
 
   async function selectBranch(branch: string) {
-    if (!project || branchLoading) return;
+    if (!project || readOnly || branchLoading) return;
     setBranchLoading(true);
     setBranchError("");
     try {
@@ -610,10 +499,10 @@ function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, hi
         {gitStatusError ? <p className="right-side-panel-message" role="status">{gitStatusError}</p> : null}
         {branchError ? <p className="right-side-panel-message" role="status">{branchError}</p> : null}
       </div>
-      <div aria-label="Create commit" className="right-side-panel-history-commit-form">
+      {!readOnly ? <div aria-label="Create commit" className="right-side-panel-history-commit-form">
         <input aria-label="Commit message" onChange={(event) => setCommitMessage(event.target.value)} placeholder="Commit message" type="text" value={commitMessage} />
         <button disabled={!commitMessage.trim()} title="Commit staged changes" type="button">Commit</button>
-      </div>
+      </div> : null}
       <div aria-label="Changed files" className="right-side-panel-history-list">
         <section aria-label="Staged changes" className={`right-side-panel-history-change-section${stagedCount === 0 ? " is-empty" : stagedChangesCollapsed ? " is-collapsed" : ""}`}>
           <header className="right-side-panel-history-section-header">
@@ -639,7 +528,7 @@ function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, hi
         <header aria-label="Git graph" className="right-side-panel-history-section-header graph">
           <button aria-expanded={!graphCollapsed} onClick={() => setGraphCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!graphCollapsed} /><span>Graph</span></button>
           <div className="right-side-panel-history-branch-picker" ref={branchPickerRef}>
-            <button aria-expanded={branchMenuOpen} aria-haspopup="listbox" className="right-side-panel-history-branch-trigger" disabled={branchLoading} onClick={() => setBranchMenuOpen((open) => !open)} type="button">
+            <button aria-expanded={branchMenuOpen} aria-haspopup="listbox" className="right-side-panel-history-branch-trigger" disabled={readOnly || branchLoading} onClick={() => setBranchMenuOpen((open) => !open)} type="button">
               <span>{graphHistory.current || "Detached HEAD"}</span>
             </button>
             {branchMenuOpen ? <div aria-label="Branches" className="right-side-panel-history-branch-menu" role="listbox">

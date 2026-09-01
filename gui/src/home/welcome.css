@@ -1054,7 +1054,7 @@
 }
 
 .welcome-token-part.is-reasoning {
-  color: #808080;
+  color: var(--color-thinking);
 }
 
 .welcome-token-part.is-response {
