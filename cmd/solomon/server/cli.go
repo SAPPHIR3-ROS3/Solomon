@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server/detach"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
@@ -118,6 +119,9 @@ func validateDevDirectory(raw string) (string, error) {
 }
 
 func start(mode, devDir string) error {
+	if err := loadDotEnv(devDir); err != nil {
+		return err
+	}
 	if state, err := serverruntime.LoadState(); err == nil {
 		if healthy(state) {
 			return fmt.Errorf("server already running at %s", state.URL)
@@ -156,7 +160,9 @@ func start(mode, devDir string) error {
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if state, err := serverruntime.LoadState(); err == nil && healthy(state) {
-			fmt.Printf("server started\nurl: %s\nlocalhost: %s\npid: %d\n", state.URL, state.LocalURL, state.PID)
+			fmt.Printf("server started\nurl: %s\nlocalhost: %s\n", state.URL, state.LocalURL)
+			printReachableAddresses(state)
+			fmt.Printf("pid: %d\n", state.PID)
 			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -165,6 +171,10 @@ func start(mode, devDir string) error {
 }
 
 func runProcess(mode, devDir string) {
+	// The server subcommand returns before main's normal logging setup. The
+	// runtime (notably the background MCP connector) logs from goroutines, so
+	// initialize logging before starting the HTTP service.
+	logging.LogInit(logging.INFO_LOG_LEVEL)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := serverruntime.Run(ctx, serverruntime.Options{Mode: mode, DevDir: devDir}); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -178,7 +188,24 @@ func status() {
 		fmt.Println("server: stopped")
 		return
 	}
-	fmt.Printf("server: running\nurl: %s\nlocalhost: %s\npid: %d\nversion: %s\nmode: %s\nvite: %s\nstarted: %s\n", state.URL, state.LocalURL, state.PID, state.Version, state.Mode, state.Vite, state.StartedAt.Local().Format(time.RFC3339))
+	fmt.Printf("server: running\nurl: %s\nlocalhost: %s\n", state.URL, state.LocalURL)
+	printReachableAddresses(state)
+	fmt.Printf("pid: %d\nversion: %s\nmode: %s\nvite: %s\nstarted: %s\n", state.PID, state.Version, state.Mode, state.Vite, state.StartedAt.Local().Format(time.RFC3339))
+}
+
+func printReachableAddresses(state serverruntime.State) {
+	fmt.Println("addresses:")
+	if len(state.Addresses) == 0 {
+		fmt.Println("  (none detected)")
+		return
+	}
+	for _, address := range state.Addresses {
+		label := address.Kind
+		if address.Interface != "" {
+			label += " (" + address.Interface + ")"
+		}
+		fmt.Printf("  %s: %s\n", label, address.URL)
+	}
 }
 
 func stop() error {

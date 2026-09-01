@@ -6,30 +6,19 @@ import {
   cacheHomeStats,
   cacheUserName,
   fetchProjectSidebarData,
+  getCachedProjectSidebarData,
   getCachedHomeStats,
   getCachedUserName,
-  normalizeReasoningEffort,
-  saveReasoningEffort,
+  PROJECTS_CHANGED_EVENT,
   type Project,
   type ProjectTokenStats,
-  type ReasoningEffort,
 } from "../projects/projects";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
-import { ModelControl } from "./ModelControl";
 import { BranchControl, WorktreeControl } from "./BranchControl";
-import { AtMentionInput, type ComposerImageAttachment } from "./AtMentionInput";
-import { testChatAtMentionEntries } from "../shell/RightSidePanel";
+import { ChatComposer, ComposerCrownIcon, ComposerSendIcon, type ChatComposerMenu } from "../chat/ChatComposer";
+import type { ComposerImageAttachment } from "../chat/composerTypes";
 import "./welcome.css";
 import "./welcome-reasoning.css";
-
-const reasoningOptions = [
-  { value: "none", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "Extra high" },
-  { value: "max", label: "Max" },
-] as const;
 
 const emptyProjectTokenStats: ProjectTokenStats = { user: 0, reasoning: 0, response: 0, total: 0 };
 
@@ -41,8 +30,9 @@ type WelcomeProps = {
   onOpenNewProject?: () => void;
   onOpenTemporaryWorkspace?: () => void;
   onTemporaryWorkspacePathChange?: (path: string) => void;
-  onSend?: (content: string) => void;
+  onSend?: (content: string, images?: ComposerImageAttachment[]) => void;
   onWorkspaceChange?: (project: Project | null) => void;
+  isSending?: boolean;
   isTemporaryWorkspaceActive?: boolean;
   resetToken?: number;
   temporaryWorkspace?: TemporaryWorkspace | null;
@@ -62,20 +52,14 @@ type Visibility = {
 
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
-export function Welcome({ bottomInset = 0, isTemporaryWorkspaceActive = false, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onOpenNewProject, onOpenTemporaryWorkspace, onTemporaryWorkspacePathChange, onSend, onWorkspaceChange, resetToken = 0, temporaryWorkspace = null, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
+export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspaceActive = false, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onOpenNewProject, onOpenTemporaryWorkspace, onTemporaryWorkspacePathChange, onSend, onWorkspaceChange, resetToken = 0, temporaryWorkspace = null, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
   const [userName, setUserName] = useState(() => getCachedUserName() ?? "");
-  const [reasoning, setReasoning] = useState<ReasoningEffort>("none");
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(() => getCachedProjectSidebarData()?.projects ?? []);
   const [homeStats, setHomeStats] = useState(() => getCachedHomeStats());
   const [workspaceName, setWorkspaceName] = useState("Home");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState("");
-  const [draft, setDraft] = useState("");
-  const [images, setImages] = useState<ComposerImageAttachment[]>([]);
-  const [fastOn, setFastOn] = useState(false);
-  const [agentOn, setAgentOn] = useState(true);
   const [version, setVersion] = useState("dev");
-  const [openMenu, setOpenMenu] = useState<"workspace" | "model" | "reasoning" | "branch" | "worktree" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"workspace" | "branch" | "worktree" | Exclude<ChatComposerMenu, null> | null>(null);
   const [visibility, setVisibility] = useState<Visibility>({ banner: true, title: true, folder: true, composer: true, version: true, chatCount: true, tokenCount: true });
   const screenRef = useRef<HTMLElement>(null);
   const measureBannerRef = useRef<HTMLDivElement>(null);
@@ -113,47 +97,59 @@ export function Welcome({ bottomInset = 0, isTemporaryWorkspaceActive = false, i
   }, [onComposerBoundsChange, visibility.composer]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetchProjectSidebarData(controller.signal)
-      .then((data) => {
-        const nextUserName = data.userName.trim();
-        cacheUserName(nextUserName);
-        setUserName(nextUserName);
-        setReasoning(data.reasoningEffort);
-        setProjects(data.projects);
-        const home = data.projects.find((project) => project.name === "Home") ?? null;
-        setHomeStats(home ? { chatCount: home.chatCount, tokenStats: home.tokenStats ?? emptyProjectTokenStats } : null);
-        if (home) cacheHomeStats(home);
-        const focus = workspaceFocusRef.current;
-        if (focus) {
-          const focused = data.projects.find((project) => project.id === focus.project.id) ?? focus.project;
-          setWorkspaceName(focused.name);
-          setSelectedProject(focused);
-          onWorkspaceChange?.(focused);
-          return;
-        }
-        if (workspaceNameOverrideRef.current) {
-          setWorkspaceName(workspaceNameOverrideRef.current);
+    let currentController: AbortController | null = null;
+    const loadProjects = () => {
+      currentController?.abort();
+      const requestController = new AbortController();
+      currentController = requestController;
+      void fetchProjectSidebarData(requestController.signal)
+        .then((data) => {
+          if (requestController.signal.aborted || currentController !== requestController) return;
+          const nextUserName = data.userName.trim();
+          cacheUserName(nextUserName);
+          setUserName(nextUserName);
+          setProjects(data.projects);
+          const home = data.projects.find((project) => project.name === "Home") ?? null;
+          setHomeStats(home ? { chatCount: home.chatCount, tokenStats: home.tokenStats ?? emptyProjectTokenStats } : null);
+          if (home) cacheHomeStats(home);
+          const focus = workspaceFocusRef.current;
+          if (focus) {
+            const focused = data.projects.find((project) => project.id === focus.project.id) ?? focus.project;
+            setWorkspaceName(focused.name);
+            setSelectedProject(focused);
+            onWorkspaceChange?.(focused);
+            return;
+          }
+          if (workspaceNameOverrideRef.current) {
+            setWorkspaceName(workspaceNameOverrideRef.current);
+            setSelectedProject(null);
+            onWorkspaceChange?.(null);
+            return;
+          }
+          if (temporaryWorkspaceActiveRef.current && temporaryWorkspaceRef.current) {
+            setWorkspaceName(temporaryWorkspaceRef.current.name);
+            setSelectedProject(null);
+            onWorkspaceChange?.(null);
+            return;
+          }
+          setWorkspaceName(home?.name ?? "Home");
+          setSelectedProject(home);
+          onWorkspaceChange?.(home);
+        })
+        .catch(() => {
+          if (requestController.signal.aborted || currentController !== requestController) return;
+          if (getCachedProjectSidebarData()) return;
+          setProjects([]);
           setSelectedProject(null);
-          onWorkspaceChange?.(null);
-          return;
-        }
-        if (temporaryWorkspaceActiveRef.current && temporaryWorkspaceRef.current) {
-          setWorkspaceName(temporaryWorkspaceRef.current.name);
-          setSelectedProject(null);
-          onWorkspaceChange?.(null);
-          return;
-        }
-        setSelectedProject(home);
-        onWorkspaceChange?.(home);
-      })
-      .catch(() => {
-        setReasoning("none");
-        setProjects([]);
-        setSelectedProject(null);
-        if (!workspaceFocusRef.current) onWorkspaceChange?.(null);
-      });
-    return () => controller.abort();
+          if (!workspaceFocusRef.current) onWorkspaceChange?.(null);
+        });
+    };
+    loadProjects();
+    window.addEventListener(PROJECTS_CHANGED_EVENT, loadProjects);
+    return () => {
+      currentController?.abort();
+      window.removeEventListener(PROJECTS_CHANGED_EVENT, loadProjects);
+    };
   }, [onWorkspaceChange]);
 
   useEffect(() => {
@@ -182,8 +178,6 @@ export function Welcome({ bottomInset = 0, isTemporaryWorkspaceActive = false, i
   }, [onWorkspaceChange, workspaceFocus]);
 
   useEffect(() => {
-    setDraft("");
-    setImages([]);
     setOpenMenu(null);
   }, [resetToken]);
 
@@ -242,22 +236,12 @@ export function Welcome({ bottomInset = 0, isTemporaryWorkspaceActive = false, i
     if (measureComposerRef.current) observer.observe(measureComposerRef.current);
     update();
     return () => observer.disconnect();
-  }, [bottomInset, homeStats?.chatCount, homeStats?.tokenStats?.total, selectedProject?.chatCount, selectedProject?.tokenStats?.total, selectedProvider, userName, version, workspaceNameOverride]);
+  }, [bottomInset, homeStats?.chatCount, homeStats?.tokenStats?.total, selectedProject?.chatCount, selectedProject?.tokenStats?.total, userName, version, workspaceNameOverride]);
 
   const displayName = userName || "User";
   const homeStatsFallback = !workspaceNameOverride && (!selectedProject || selectedProject.name === "Home") ? homeStats : null;
   const displayChatCount = selectedProject?.chatCount ?? homeStatsFallback?.chatCount ?? 0;
   const tokenStats = selectedProject?.tokenStats ?? homeStatsFallback?.tokenStats ?? emptyProjectTokenStats;
-  const fastAvailable = fastModeAvailableFor(selectedProvider);
-
-  function send() {
-    const content = draft.trim();
-    if (!content || !onSend) return;
-    onSend(content);
-    setDraft("");
-    setImages([]);
-  }
-
   return (
     <section
       aria-label="Home"
@@ -281,15 +265,15 @@ export function Welcome({ bottomInset = 0, isTemporaryWorkspaceActive = false, i
         </div>
         <div className="welcome-composer-dock" ref={measureComposerRef}>
           <div className="welcome-composer">
-            <textarea aria-hidden="true" className="welcome-input" readOnly rows={3} tabIndex={-1} value={draft} />
+            <textarea aria-hidden="true" className="welcome-input" readOnly rows={3} tabIndex={-1} value="" />
             <div className="welcome-toolbar">
               <div className="welcome-toolbar-left">
                 <button className="welcome-model-trigger" tabIndex={-1} type="button"><span>Select model</span><ChevronIcon /></button>
                 <span aria-hidden="true" className="welcome-toolbar-sep" />
                 <button className="welcome-reasoning-label" tabIndex={-1} type="button"><strong>None</strong><ChevronIcon /></button>
-                <button className="welcome-mode is-agent" tabIndex={-1} type="button"><span className="welcome-mode-icon"><BotIcon /></span><span>Agent</span></button>
+                <button className="welcome-mode is-agent" tabIndex={-1} type="button"><span className="welcome-mode-icon"><ComposerCrownIcon /></span><span>Agent</span></button>
               </div>
-              <button className="welcome-send" tabIndex={-1} type="button"><SendIcon /></button>
+              <button className="welcome-send" tabIndex={-1} type="button"><ComposerSendIcon /></button>
             </div>
           </div>
         </div>
@@ -321,8 +305,7 @@ export function Welcome({ bottomInset = 0, isTemporaryWorkspaceActive = false, i
 
         {visibility.folder ? (
           <div
-            aria-hidden={openMenu === "model"}
-            className={`welcome-folder-row${openMenu === "model" ? " is-concealed" : ""}${openMenu === "workspace" ? " is-workspace-open" : ""}`}
+            className={`welcome-folder-row${openMenu === "workspace" ? " is-workspace-open" : ""}${openMenu === "model" ? " is-concealed" : ""}`}
           >
             {workspaceNameOverride ? (
               <button aria-label={`Cartella ${workspaceNameOverride}`} className="welcome-workspace" type="button">
@@ -351,73 +334,16 @@ export function Welcome({ bottomInset = 0, isTemporaryWorkspaceActive = false, i
 
         {visibility.composer ? (
           <div className="welcome-composer-dock" ref={composerRef}>
-            <form
-              className="welcome-composer"
-              onSubmit={(event) => {
-                event.preventDefault();
-                send();
-              }}
-            >
-              <AtMentionInput
-                aria-label="Ask Solomon"
-                className="welcome-input"
-                entries={workspaceNameOverride === "Test chats" ? testChatAtMentionEntries : undefined}
-                images={images}
-                onChange={setDraft}
-                onImagesChange={setImages}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    send();
-                  }
-                }}
-                placeholder="Ask Solomon anything..."
-                projectID={selectedProject?.id}
-                value={draft}
-              />
-              <div className="welcome-toolbar">
-                <div className="welcome-toolbar-left">
-                  <ModelControl
-                    onModelChange={(choice) => {
-                      setSelectedProvider(choice.provider);
-                      if (!fastModeAvailableFor(choice.provider)) setFastOn(false);
-                    }}
-                    onOpenChange={(open) => setOpenMenu(open ? "model" : null)}
-                    open={openMenu === "model"}
-                  />
-                  <span aria-hidden="true" className="welcome-toolbar-sep" />
-                  <div className="welcome-toolbar-modes">
-                    <ReasoningControl
-                      fastAvailable={fastAvailable}
-                      fastOn={fastOn}
-                      onChange={(value) => {
-                        const previous = reasoning;
-                        setReasoning(value);
-                        void saveReasoningEffort(value).then(setReasoning).catch(() => setReasoning(previous));
-                      }}
-                      onFastChange={setFastOn}
-                      onOpenChange={(open) => setOpenMenu(open ? "reasoning" : null)}
-                      open={openMenu === "reasoning"}
-                      value={reasoning}
-                    />
-                    <button
-                      aria-pressed={agentOn}
-                      className={`welcome-mode ${agentOn ? "is-agent" : "is-chat"}`}
-                      onClick={() => setAgentOn((value) => !value)}
-                      type="button"
-                    >
-                      <span aria-hidden="true" className="welcome-mode-icon">
-                        {agentOn ? <CrownIcon /> : <ChatIcon />}
-                      </span>
-                      <span>{agentOn ? "Agent" : "Chat"}</span>
-                    </button>
-                  </div>
-                </div>
-                <button aria-label="Send" className="welcome-send" disabled={Boolean(onSend) && !draft.trim() && images.length === 0} type="submit">
-                  <SendIcon />
-                </button>
-              </div>
-            </form>
+            <ChatComposer
+              aria-label="Ask Solomon"
+              initialReasoning="none"
+              isSending={isSending}
+              onOpenMenuChange={(menu) => setOpenMenu(menu)}
+              onSend={onSend}
+              openMenu={openMenu === "model" || openMenu === "reasoning" ? openMenu : null}
+              projectID={selectedProject?.id}
+              resetKey={resetToken}
+            />
             <div className="welcome-git-controls">
               <BranchControl
                 directoryPath={isTemporaryWorkspaceActive ? temporaryWorkspace?.path : undefined}
@@ -506,14 +432,6 @@ function formatTokenValue(value: number): string {
 function projectPathsMatch(left: string, right: string): boolean {
   const normalize = (value: string) => value.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   return normalize(left) === normalize(right);
-}
-
-function fastModeAvailableFor(provider: string): boolean {
-  const normalized = provider.trim().toLowerCase();
-  return normalized === "chatgpt sub"
-    || normalized === "claude sub"
-    || normalized.includes("anthropic")
-    || normalized.includes("cursor");
 }
 
 function WorkspaceControl({
@@ -646,122 +564,6 @@ function latestProjectActivity(project: Project): number {
   return latest;
 }
 
-function ReasoningControl({
-  value,
-  onChange,
-  open,
-  onOpenChange,
-  fastAvailable = false,
-  fastOn = false,
-  onFastChange,
-}: {
-  value: ReasoningEffort;
-  onChange: (value: ReasoningEffort) => void;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  fastAvailable?: boolean;
-  fastOn?: boolean;
-  onFastChange?: (on: boolean) => void;
-}) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const isOpen = open ?? internalOpen;
-  const setOpen = (next: boolean) => {
-    onOpenChange?.(next);
-    if (open === undefined) setInternalOpen(next);
-  };
-  const controlRef = useRef<HTMLDivElement>(null);
-  const selectedIndex = Math.max(0, reasoningOptions.findIndex((option) => option.value === value));
-  const selectedLabel = reasoningOptions[selectedIndex]?.label ?? "None";
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const close = (event: PointerEvent) => {
-      if (!controlRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [isOpen]);
-
-  return (
-    <div className="welcome-reasoning" ref={controlRef}>
-      <button
-        aria-expanded={isOpen}
-        aria-label={fastOn ? `Change reasoning level, fast mode on, ${selectedLabel}` : "Change reasoning level"}
-        className="welcome-reasoning-label"
-        onClick={() => setOpen(!isOpen)}
-        type="button"
-      >
-        <strong className="welcome-reasoning-value">
-          <span aria-hidden="true" className="welcome-reasoning-value-sizer">
-            <span>Extra high</span>
-            {fastAvailable ? <span className="welcome-reasoning-fast-mark"><BoltIcon /></span> : null}
-          </span>
-          <span className="welcome-reasoning-value-text">
-            <span>{selectedLabel}</span>
-            {fastAvailable ? (
-              <span aria-hidden={!fastOn} className={`welcome-reasoning-fast-mark${fastOn ? " is-on" : ""}`}>
-                <BoltIcon />
-              </span>
-            ) : null}
-          </span>
-        </strong>
-        <ChevronIcon className={isOpen ? "is-open" : undefined} />
-      </button>
-      {isOpen ? (
-        <div className={`welcome-reasoning-popover${fastAvailable ? " has-fast" : ""}`}>
-          <header>
-            <span>Reasoning level</span>
-            <strong>{selectedLabel}</strong>
-          </header>
-          <div className={`welcome-reasoning-row${fastAvailable ? " has-fast" : ""}`}>
-            <div className="welcome-reasoning-scale">
-              <input
-                aria-label="Reasoning level"
-                aria-valuetext={selectedLabel}
-                max={reasoningOptions.length - 1}
-                min={0}
-                onChange={(event) => onChange(normalizeReasoningEffort(reasoningOptions[Number(event.target.value)]?.value ?? "none"))}
-                step={1}
-                style={{ "--reasoning-fill": `${(selectedIndex / (reasoningOptions.length - 1)) * 100}%` } as CSSProperties}
-                type="range"
-                value={selectedIndex}
-              />
-              <div aria-hidden="true" className="welcome-reasoning-ticks">
-                {reasoningOptions.map((option, index) => (
-                  <span className={index <= selectedIndex ? "is-reached" : undefined} key={option.value}>
-                    <i />
-                    <small>{option.label}</small>
-                  </span>
-                ))}
-              </div>
-            </div>
-            {fastAvailable ? (
-              <div className="welcome-reasoning-fast-slot">
-                <button
-                  aria-pressed={fastOn}
-                  className={`welcome-reasoning-fast${fastOn ? " is-active" : ""}`}
-                  onClick={() => onFastChange?.(!fastOn)}
-                  type="button"
-                >
-                  <BoltIcon />
-                  <span>Fast</span>
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function AsciiBanner() {
   const lines = asciiBanner.trimEnd().split(/\r?\n/);
   return (
@@ -854,49 +656,6 @@ function ChevronIcon({ className }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={`welcome-chevron${className ? ` ${className}` : ""}`} viewBox="0 0 24 24">
       <path d="m7 10 5 5 5-5" />
-    </svg>
-  );
-}
-
-function BoltIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="m13 2-8 12h6l-1 8 8-12h-6z" />
-    </svg>
-  );
-}
-
-function CrownIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M12 1.8v16.2M9.4 4.4h5.2M4.4 15.8V12c0-1.6 1.2-2.5 2.6-2.5 1.4 0 2.4 1.1 2.6 2.5.3-2 1-3.6 2.4-3.6 1.4 0 2.1 1.6 2.4 3.6.2-1.4 1.2-2.5 2.6-2.5 1.4 0 2.6.9 2.6 2.5v3.8" />
-      <path d="M4 16.2h16l-.6 3.8H4.6z" />
-    </svg>
-  );
-}
-
-function BotIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M12 8V4H8" />
-      <rect height="12" rx="2" width="16" x="4" y="8" />
-      <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
-    </svg>
-  );
-}
-
-function ChatIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h11A2.5 2.5 0 0 1 21 6.5v7A2.5 2.5 0 0 1 18.5 16H12l-4 3v-3H7.5A2.5 2.5 0 0 1 5 13.5V6.5Z" />
-    </svg>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M12 19V5M7 10l5-5 5 5" />
     </svg>
   );
 }

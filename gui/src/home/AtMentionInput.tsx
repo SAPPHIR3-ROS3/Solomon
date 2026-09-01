@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { fetchAtMentionSuggestions, fetchProjectAtMentionSuggestions, type ProjectAtMentionEntry, type ProjectAtMentionSuggestion } from "../projects/projects";
+import type { ComposerImageAttachment } from "../chat/composerTypes";
+import { fetchProjectAtMentionSuggestions, type ProjectAtMentionSuggestion } from "../projects/projects";
+
+export type { ComposerImageAttachment } from "../chat/composerTypes";
 
 type AtMentionInputProps = {
   "aria-label": string;
@@ -8,19 +11,10 @@ type AtMentionInputProps = {
   onChange: (value: string) => void;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder?: string;
-  entries?: ProjectAtMentionEntry[];
   images?: ComposerImageAttachment[];
   onImagesChange?: (images: ComposerImageAttachment[]) => void;
   projectID?: string;
   value: string;
-};
-
-export type ComposerImageAttachment = {
-  blob?: Blob;
-  id: number;
-  name: string;
-  tag: string;
-  url: string;
 };
 
 type MentionContext = { start: number; query: string };
@@ -64,7 +58,7 @@ type SelectionTool = typeof selectionTools[number]["value"];
 // The index, matching and shortest unambiguous tag are owned by the Go
 // atmention package. This component only supplies the GUI equivalent of the
 // terminal picker and its coloured rendering.
-export function AtMentionInput({ "aria-label": ariaLabel, className = "", entries, images = [], onChange, onImagesChange, onKeyDown, placeholder, projectID, value }: AtMentionInputProps) {
+export function AtMentionInput({ "aria-label": ariaLabel, className = "", images = [], onChange, onImagesChange, onKeyDown, placeholder, projectID, value }: AtMentionInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef(0);
@@ -92,7 +86,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", entrie
     setSuggestions([]);
     setSelected(0);
     contextRef.current = null;
-  }, [entries, projectID]);
+  }, [projectID]);
 
   useLayoutEffect(() => {
     const input = inputRef.current;
@@ -145,16 +139,14 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", entrie
     const context = atMentionContext(nextValue, cursor);
     contextRef.current = context;
     const request = ++requestRef.current;
-    if (!context || (!projectID && !entries)) {
+    if (!context || !projectID) {
       setSuggestions([]);
       setSelected(0);
       setPickerPosition(null);
       return;
     }
     setPickerPosition(pickerPositionFor(inputRef.current, shellRef.current, context.start));
-    const loadSuggestions = entries
-      ? fetchAtMentionSuggestions(entries, context.query)
-      : fetchProjectAtMentionSuggestions(projectID!, context.query);
+    const loadSuggestions = fetchProjectAtMentionSuggestions(projectID, context.query);
     void loadSuggestions
       .then((next) => {
         if (request !== requestRef.current) return;

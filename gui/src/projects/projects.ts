@@ -1,10 +1,14 @@
-import { desktopBridge, serverEndpoint } from "../platform";
+import { serverEndpoint } from "../platform";
 
 export const PROJECT_GIT_BRANCH_CHANGED_EVENT = "solomon:git-branch-changed";
+export const PROJECTS_CHANGED_EVENT = "solomon:projects-changed";
 const USER_NAME_CACHE_KEY = "solomon:user-name";
 const HOME_STATS_CACHE_KEY = "solomon:home-stats";
+const PROJECT_SIDEBAR_CACHE_KEY = "solomon:project-sidebar";
+const CURRENT_MODEL_CACHE_KEY = "solomon:current-model";
+const MODEL_CATALOG_CACHE_KEY = "solomon:model-catalog";
 
-export type Chat = {
+export type ProjectChatSummary = {
   id: string;
   lastMessageAt: string;
   title: string;
@@ -18,7 +22,7 @@ export type ProjectTokenStats = {
 };
 
 export type Project = {
-  chats: Chat[];
+  chats: ProjectChatSummary[];
   id: string;
   name: string;
   path: string;
@@ -34,10 +38,34 @@ export type CachedHomeStats = {
 export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export type ProjectSidebarData = {
+  fastMode: boolean;
   projects: Project[];
   reasoningEffort: ReasoningEffort;
   userName: string;
 };
+
+let projectSidebarCache: ProjectSidebarData | null = readProjectSidebarCache();
+let projectSidebarCacheNeedsRefresh = Boolean(projectSidebarCache);
+let projectSidebarRequest: Promise<ProjectSidebarData> | null = null;
+let projectSidebarPrefetchStarted = false;
+let modelCatalogCache: ModelCatalog | null = readModelCatalogCache();
+let modelCatalogCacheNeedsRefresh = Boolean(modelCatalogCache);
+let modelCatalogRequest: Promise<ModelCatalog> | null = null;
+let modelCatalogPrefetchStarted = false;
+
+export function invalidateProjectSidebarDataCache(): void {
+  projectSidebarCache = null;
+  projectSidebarCacheNeedsRefresh = false;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener(PROJECTS_CHANGED_EVENT, () => invalidateProjectSidebarDataCache());
+}
+
+export function invalidateModelCatalogCache(): void {
+  modelCatalogCache = null;
+  modelCatalogCacheNeedsRefresh = false;
+}
 
 export type ProjectRemovalInfo = {
   dataPath: string;
@@ -57,8 +85,6 @@ export type ProjectAtMentionSuggestion = {
   path: string;
   tag: string;
 };
-
-export type ProjectAtMentionEntry = Pick<ProjectAtMentionSuggestion, "isDirectory" | "path">;
 
 export type ProjectResearch = {
   finishedAt: string;
@@ -111,11 +137,13 @@ export type ProjectWorktrees = {
   worktrees: ProjectWorktree[];
 };
 
+export function projectWorktreeLabel(worktreePath: string): string {
+  const normalized = worktreePath.replace(/\\/g, "/").replace(/\/+$/, "");
+  const parts = normalized.split("/");
+  return parts.at(-1) || worktreePath;
+}
+
 export async function fetchProjectDirectoryEntries(projectID: string, directoryPath = ""): Promise<ProjectDirectoryEntry[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.ProjectDirectoryEntries) {
-    return projectDirectoryEntriesFromPayload(await bridge.ProjectDirectoryEntries(projectID, directoryPath));
-  }
   const response = await fetch(await serverEndpoint(
     `/__solomon/projects/${encodeURIComponent(projectID)}/files?path=${encodeURIComponent(directoryPath)}`,
   ));
@@ -124,10 +152,6 @@ export async function fetchProjectDirectoryEntries(projectID: string, directoryP
 }
 
 export async function fetchHomeDirectoryEntries(directoryPath = "", signal?: AbortSignal): Promise<ProjectDirectoryEntry[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.HomeDirectoryEntries) {
-    return projectDirectoryEntriesFromPayload(await bridge.HomeDirectoryEntries(directoryPath));
-  }
   const response = await fetch(await serverEndpoint(
     `/__solomon/home-directories?path=${encodeURIComponent(directoryPath)}`,
   ), { signal });
@@ -136,51 +160,32 @@ export async function fetchHomeDirectoryEntries(directoryPath = "", signal?: Abo
 }
 
 export async function fetchProjectAtMentionSuggestions(projectID: string, query: string): Promise<ProjectAtMentionSuggestion[]> {
-  const bridge = await desktopBridge();
-  if (!bridge?.ProjectAtMentionSuggestions) return [];
-  return atMentionSuggestionsFromPayload(await bridge.ProjectAtMentionSuggestions(projectID, query));
-}
-
-export async function fetchAtMentionSuggestions(entries: ProjectAtMentionEntry[], query: string): Promise<ProjectAtMentionSuggestion[]> {
-  const bridge = await desktopBridge();
-  // Test chats are also used by the browser-only preview, where no Wails Go
-  // bridge exists. Keep that fixture usable there; desktop always delegates to
-  // the canonical atmention implementation above.
-  if (!bridge?.AtMentionSuggestions) return virtualAtMentionSuggestions(entries, query);
-  return atMentionSuggestionsFromPayload(await bridge.AtMentionSuggestions(entries, query));
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/projects/${encodeURIComponent(projectID)}/at-mentions?query=${encodeURIComponent(query)}`,
+  ));
+  if (!response.ok) throw new Error(`Unable to read project mentions: ${response.status}`);
+  return atMentionSuggestionsFromPayload(await response.json());
 }
 
 export async function fetchProjectResearch(projectID: string): Promise<ProjectResearch[]> {
-  const bridge = await desktopBridge();
-  if (bridge?.ProjectResearch) return projectResearchFromPayload(await bridge.ProjectResearch(projectID));
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/research`));
   if (!response.ok) throw new Error(`Unable to read project research: ${response.status}`);
   return projectResearchFromPayload(await response.json());
 }
 
 export async function fetchProjectResearchReport(projectID: string, researchID: string): Promise<string> {
-  const bridge = await desktopBridge();
-  if (bridge?.ProjectResearchReport) return bridge.ProjectResearchReport(projectID, researchID);
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/research/${encodeURIComponent(researchID)}/report`));
   if (!response.ok) throw new Error(`Unable to read research report: ${response.status}`);
   return response.text();
 }
 
 export async function fetchProjectBranches(projectID: string, signal?: AbortSignal): Promise<ProjectBranches> {
-  const bridge = await desktopBridge();
-  if (bridge?.ProjectBranches) {
-    return projectBranchesFromPayload(await bridge.ProjectBranches(projectID));
-  }
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/branches`), { signal });
   if (!response.ok) throw new Error(`Unable to read project branches: ${response.status}`);
   return projectBranchesFromPayload(await response.json());
 }
 
 export async function fetchHomeDirectoryBranches(directoryPath: string, signal?: AbortSignal): Promise<ProjectBranches> {
-  const bridge = await desktopBridge();
-  if (bridge?.HomeDirectoryBranches) {
-    return projectBranchesFromPayload(await bridge.HomeDirectoryBranches(directoryPath));
-  }
   const response = await fetch(await serverEndpoint(
     `/__solomon/home-git-branches?path=${encodeURIComponent(directoryPath)}`,
   ), { signal });
@@ -189,40 +194,24 @@ export async function fetchHomeDirectoryBranches(directoryPath: string, signal?:
 }
 
 export async function fetchProjectGitHistory(projectID: string, signal?: AbortSignal): Promise<ProjectGitHistory> {
-  const bridge = await desktopBridge();
-  if (bridge?.ProjectGitHistory) {
-    return projectGitHistoryFromPayload(await bridge.ProjectGitHistory(projectID));
-  }
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/history`), { signal });
   if (!response.ok) throw new Error(`Unable to read project Git history: ${response.status}`);
   return projectGitHistoryFromPayload(await response.json());
 }
 
 export async function fetchProjectGitStatus(projectID: string, signal?: AbortSignal): Promise<ProjectGitStatus> {
-  const bridge = await desktopBridge();
-  if (bridge?.ProjectGitStatus) {
-    return projectGitStatusFromPayload(await bridge.ProjectGitStatus(projectID));
-  }
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/status`), { signal });
   if (!response.ok) throw new Error(`Unable to read project Git status: ${response.status}`);
   return projectGitStatusFromPayload(await response.json());
 }
 
 export async function fetchProjectWorktrees(projectID: string, signal?: AbortSignal): Promise<ProjectWorktrees> {
-  const bridge = await desktopBridge();
-  if (bridge?.ProjectWorktrees) {
-    return projectWorktreesFromPayload(await bridge.ProjectWorktrees(projectID));
-  }
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/worktrees`), { signal });
   if (!response.ok) throw new Error(`Unable to read project worktrees: ${response.status}`);
   return projectWorktreesFromPayload(await response.json());
 }
 
 export async function fetchHomeDirectoryWorktrees(directoryPath: string, signal?: AbortSignal): Promise<ProjectWorktrees> {
-  const bridge = await desktopBridge();
-  if (bridge?.HomeDirectoryWorktrees) {
-    return projectWorktreesFromPayload(await bridge.HomeDirectoryWorktrees(directoryPath));
-  }
   const response = await fetch(await serverEndpoint(
     `/__solomon/home-git-worktrees?path=${encodeURIComponent(directoryPath)}`,
   ), { signal });
@@ -231,10 +220,6 @@ export async function fetchHomeDirectoryWorktrees(directoryPath: string, signal?
 }
 
 export async function checkoutProjectBranch(projectID: string, branch: string): Promise<ProjectBranches> {
-  const bridge = await desktopBridge();
-  if (bridge?.CheckoutProjectBranch) {
-    return projectBranchesFromPayload(await bridge.CheckoutProjectBranch(projectID, branch));
-  }
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/checkout`), {
     body: JSON.stringify({ branch }),
     headers: { "Content-Type": "application/json" },
@@ -245,10 +230,6 @@ export async function checkoutProjectBranch(projectID: string, branch: string): 
 }
 
 export async function checkoutHomeDirectoryBranch(directoryPath: string, branch: string): Promise<ProjectBranches> {
-  const bridge = await desktopBridge();
-  if (bridge?.CheckoutHomeDirectoryBranch) {
-    return projectBranchesFromPayload(await bridge.CheckoutHomeDirectoryBranch(directoryPath, branch));
-  }
   const response = await fetch(await serverEndpoint(
     `/__solomon/home-git-checkout?path=${encodeURIComponent(directoryPath)}`,
   ), {
@@ -260,13 +241,75 @@ export async function checkoutHomeDirectoryBranch(directoryPath: string, branch:
   return projectBranchesFromPayload(await response.json());
 }
 
-export async function fetchProjectSidebarData(signal?: AbortSignal): Promise<ProjectSidebarData> {
-  const bridge = await desktopBridge();
-  if (bridge) return projectSidebarDataFromPayload(await bridge.ProjectSidebarData());
-  const response = await fetch(await serverEndpoint("/__solomon/projects"), { signal });
-  if (!response.ok) throw new Error(`Unable to load projects: ${response.status}`);
+export function getCachedProjectSidebarData(): ProjectSidebarData | null {
+  return projectSidebarCache ?? readProjectSidebarCache();
+}
+
+export function prefetchProjectSidebarData(): void {
+  if (projectSidebarPrefetchStarted) return;
+  projectSidebarPrefetchStarted = true;
+  void startProjectSidebarRequest().catch(() => {
+    // The first request is opportunistic; consumers retry when they need data.
+  });
+}
+
+export async function fetchProjectSidebarData(_signal?: AbortSignal): Promise<ProjectSidebarData> {
+  // The shared request deliberately outlives an individual component's
+  // AbortController. Consumers still ignore the result after unmounting, but
+  // closing and reopening a panel does not start another disk/network scan.
+  if (projectSidebarRequest) return projectSidebarRequest;
+  if (projectSidebarCache && !projectSidebarCacheNeedsRefresh) return projectSidebarCache;
+  return startProjectSidebarRequest();
+}
+
+function startProjectSidebarRequest(): Promise<ProjectSidebarData> {
+  if (projectSidebarRequest) return projectSidebarRequest;
+  const stale = projectSidebarCache;
+  projectSidebarRequest = (async () => {
+    const response = await fetch(await serverEndpoint("/__solomon/projects"));
+    if (!response.ok) throw new Error(`Unable to load projects: ${response.status}`);
+    const payload: unknown = await response.json();
+    return projectSidebarDataFromPayload(payload);
+  })()
+    .then((data) => {
+      projectSidebarCache = data;
+      projectSidebarCacheNeedsRefresh = false;
+      cacheProjectSidebarData(data);
+      return data;
+    })
+    .catch((reason: unknown) => {
+      if (stale) return stale;
+      throw reason;
+    })
+    .finally(() => {
+      projectSidebarRequest = null;
+    });
+  return projectSidebarRequest;
+}
+
+export async function createProjectFromFolder(path: string): Promise<Project> {
+  const response = await fetch(await serverEndpoint("/__solomon/projects"), {
+    body: JSON.stringify({ path }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) {
+    let message = `Unable to create project: ${response.status}`;
+    try {
+      const payload: unknown = await response.json();
+      if (payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string") message = payload.error;
+    } catch {
+      // Keep the status-based message when the server did not return JSON.
+    }
+    throw new Error(message);
+  }
   const payload: unknown = await response.json();
-  return projectSidebarDataFromPayload(payload);
+  if (!payload || typeof payload !== "object" || !("project" in payload) || !isProject(payload.project)) {
+    throw new Error("Unable to read the created project");
+  }
+  window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
+  invalidateProjectSidebarDataCache();
+  return payload.project;
 }
 
 export function getCachedUserName(): string | null {
@@ -328,9 +371,44 @@ export function cacheHomeStats(project: Project): void {
   }
 }
 
+export function getCachedCurrentModel(): ModelChoice | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(CURRENT_MODEL_CACHE_KEY);
+    if (!raw) return null;
+    const choice = modelChoiceFromPayload(JSON.parse(raw));
+    return choice.provider && choice.model ? choice : null;
+  } catch {
+    return null;
+  }
+}
+
+export function cacheCurrentModel(choice: ModelChoice): void {
+  try {
+    if (typeof window === "undefined" || !choice.provider || !choice.model) return;
+    window.localStorage.setItem(CURRENT_MODEL_CACHE_KEY, JSON.stringify({
+      model: choice.model,
+      provider: choice.provider,
+    }));
+  } catch {
+    // Local storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+export function getCachedModelCatalog(): ModelCatalog | null {
+  return modelCatalogCache ?? readModelCatalogCache();
+}
+
+export function prefetchModelCatalog(): void {
+  if (modelCatalogPrefetchStarted) return;
+  modelCatalogPrefetchStarted = true;
+  void startModelCatalogRequest().catch(() => {
+    // The first request is opportunistic; the model selector reports errors if
+    // it still has no cached catalog when the user opens it.
+  });
+}
+
 export async function saveUserName(userName: string): Promise<string> {
-  const bridge = await desktopBridge();
-  if (bridge) return bridge.SaveUserName(userName);
   const response = await fetch(await serverEndpoint("/__solomon/user-name"), {
     body: JSON.stringify({ userName }),
     headers: { "Content-Type": "application/json" },
@@ -346,26 +424,14 @@ export async function saveUserName(userName: string): Promise<string> {
 }
 
 export async function removeProjectFromSidebar(projectID: string): Promise<void> {
-  const bridge = await desktopBridge();
-  if (bridge?.RemoveProjectFromSidebar) {
-    await bridge.RemoveProjectFromSidebar(projectID);
-    return;
-  }
   await removeProject(projectID, false);
 }
 
 export async function removeProjectFromDisk(projectID: string): Promise<void> {
-  const bridge = await desktopBridge();
-  if (bridge?.RemoveProjectFromDisk) {
-    await bridge.RemoveProjectFromDisk(projectID);
-    return;
-  }
   await removeProject(projectID, true);
 }
 
 export async function fetchProjectRemovalInfo(projectID: string): Promise<ProjectRemovalInfo> {
-  const bridge = await desktopBridge();
-  if (bridge?.ProjectRemovalInfo) return projectRemovalInfoFromPayload(await bridge.ProjectRemovalInfo(projectID));
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/removal-info`));
   if (!response.ok) throw new Error(`Unable to read project details: ${response.status}`);
   return projectRemovalInfoFromPayload(await response.json());
@@ -376,11 +442,10 @@ async function removeProject(projectID: string, removeData: boolean): Promise<vo
     method: "DELETE",
   });
   if (!response.ok) throw new Error(`Unable to remove project: ${response.status}`);
+  invalidateProjectSidebarDataCache();
 }
 
 export async function saveReasoningEffort(effort: string): Promise<ReasoningEffort> {
-  const bridge = await desktopBridge();
-  if (bridge?.SaveReasoningEffort) return normalizeReasoningEffort(await bridge.SaveReasoningEffort(effort));
   const response = await fetch(await serverEndpoint("/__solomon/reasoning-effort"), {
     body: JSON.stringify({ reasoningEffort: effort }),
     headers: { "Content-Type": "application/json" },
@@ -391,7 +456,24 @@ export async function saveReasoningEffort(effort: string): Promise<ReasoningEffo
   if (!payload || typeof payload !== "object" || !("reasoningEffort" in payload) || typeof payload.reasoningEffort !== "string") {
     throw new Error("Unable to save reasoning effort: invalid response");
   }
-  return normalizeReasoningEffort(payload.reasoningEffort);
+  const saved = normalizeReasoningEffort(payload.reasoningEffort);
+  invalidateProjectSidebarDataCache();
+  return saved;
+}
+
+export async function saveFastMode(enabled: boolean): Promise<boolean> {
+  const response = await fetch(await serverEndpoint("/__solomon/fast-mode"), {
+    body: JSON.stringify({ fastMode: enabled }),
+    headers: { "Content-Type": "application/json" },
+    method: "PUT",
+  });
+  if (!response.ok) throw new Error(`Unable to save fast mode: ${response.status}`);
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object" || !("fastMode" in payload) || typeof payload.fastMode !== "boolean") {
+    throw new Error("Unable to save fast mode: invalid response");
+  }
+  invalidateProjectSidebarDataCache();
+  return payload.fastMode;
 }
 
 export function normalizeReasoningEffort(value: string): ReasoningEffort {
@@ -420,6 +502,7 @@ export type ProviderCatalog = {
   metadata: Record<string, ModelInfo>;
   models: string[];
   provider: string;
+  supportsFastMode: boolean;
 };
 
 export type ModelCatalog = {
@@ -441,75 +524,39 @@ export type ModelVisibility = {
   provider: string;
 };
 
-const modelVisibilityStorageKey = "solomon.model-visibility";
-
-function modelVisibilityKey(provider: string, model: string) {
-  return `${provider}\u0000${model}`;
+export async function fetchModelCatalog(): Promise<ModelCatalog> {
+  if (modelCatalogRequest) return modelCatalogRequest;
+  if (modelCatalogCache && !modelCatalogCacheNeedsRefresh) return modelCatalogCache;
+  return startModelCatalogRequest();
 }
 
-function readLocalModelVisibility(): Record<string, boolean> {
-  try {
-    const parsed: unknown = JSON.parse(window.localStorage.getItem(modelVisibilityStorageKey) ?? "{}");
-    if (!parsed || typeof parsed !== "object") return {};
-    return Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === "boolean")) as Record<string, boolean>;
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalModelVisibility(provider: string, model: string, enabled: boolean) {
-  try {
-    const values = readLocalModelVisibility();
-    values[modelVisibilityKey(provider, model)] = enabled;
-    window.localStorage.setItem(modelVisibilityStorageKey, JSON.stringify(values));
-  } catch {
-    // Local storage is only a compatibility fallback; the config remains the source of truth.
-  }
-}
-
-function clearLocalModelVisibility(provider: string, model: string) {
-  try {
-    const values = readLocalModelVisibility();
-    delete values[modelVisibilityKey(provider, model)];
-    window.localStorage.setItem(modelVisibilityStorageKey, JSON.stringify(values));
-  } catch {
-    // Ignore unavailable local storage after a successful server save.
-  }
-}
-
-function applyLocalModelVisibility(providers: ProviderCatalog[]): ProviderCatalog[] {
-  const overrides = readLocalModelVisibility();
-  if (!Object.keys(overrides).length) return providers;
-  return providers.map((provider) => {
-    const disabled = new Set(provider.disabled);
-    for (const model of provider.models) {
-      const override = overrides[modelVisibilityKey(provider.provider, model)];
-      if (override === undefined) continue;
-      if (override) disabled.delete(model);
-      else disabled.add(model);
-    }
-    return { ...provider, disabled: [...disabled] };
-  });
-}
-
-export async function fetchModelCatalog(signal?: AbortSignal): Promise<ModelCatalog> {
-  const bridge = await desktopBridge();
-  if (bridge) {
-    if (!bridge.ModelCatalog) throw new Error("Unable to load models: desktop bridge missing ModelCatalog");
-    return modelCatalogFromPayload(await bridge.ModelCatalog());
-  }
-  const response = await fetch("/__solomon/models", { signal });
-  if (!response.ok) throw new Error(`Unable to load models: ${response.status}`);
-  return modelCatalogFromPayload(await response.json());
+function startModelCatalogRequest(): Promise<ModelCatalog> {
+  if (modelCatalogRequest) return modelCatalogRequest;
+  const stale = modelCatalogCache;
+  modelCatalogRequest = (async () => {
+    const response = await fetch(await serverEndpoint("/__solomon/models"));
+    if (!response.ok) throw new Error(`Unable to load models: ${response.status}`);
+    return modelCatalogFromPayload(await response.json());
+  })()
+    .then((catalog) => {
+      modelCatalogCache = catalog;
+      modelCatalogCacheNeedsRefresh = false;
+      cacheModelCatalog(catalog);
+      if (catalog.current.provider && catalog.current.model) cacheCurrentModel(catalog.current);
+      return catalog;
+    })
+    .catch((reason: unknown) => {
+      if (stale) return stale;
+      throw reason;
+    })
+    .finally(() => {
+      modelCatalogRequest = null;
+    });
+  return modelCatalogRequest;
 }
 
 export async function saveCurrentModel(provider: string, model: string): Promise<ModelChoice> {
-  const bridge = await desktopBridge();
-  if (bridge) {
-    if (!bridge.SaveCurrentModel) throw new Error("Unable to save model: desktop bridge missing SaveCurrentModel");
-    return modelChoiceFromPayload(await bridge.SaveCurrentModel(provider, model));
-  }
-  const response = await fetch("/__solomon/current-model", {
+  const response = await fetch(await serverEndpoint("/__solomon/current-model"), {
     body: JSON.stringify({ provider, model }),
     headers: { "Content-Type": "application/json" },
     method: "PUT",
@@ -518,35 +565,19 @@ export async function saveCurrentModel(provider: string, model: string): Promise
     const detail = await response.text().catch(() => "");
     throw new Error(detail || `Unable to save model: ${response.status}`);
   }
-  return modelChoiceFromPayload(await response.json());
+  const saved = modelChoiceFromPayload(await response.json());
+  invalidateModelCatalogCache();
+  cacheCurrentModel(saved);
+  return saved;
 }
 
 export async function setModelEnabled(provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
-  const bridge = await desktopBridge();
-  if (bridge?.SetModelEnabled) {
-    const result = modelVisibilityFromPayload(await bridge.SetModelEnabled(provider, model, enabled));
-    if (result.provider !== provider || result.model !== model || result.enabled !== enabled) {
-      throw new Error("Unable to verify model visibility update");
-    }
-    clearLocalModelVisibility(provider, model);
-    return result;
-  }
-  let response: Response;
-  try {
-    response = await fetch(await serverEndpoint("/__solomon/model-visibility"), {
-      body: JSON.stringify({ enabled, model, provider }),
-      headers: { "Content-Type": "application/json" },
-      method: "PUT",
-    });
-  } catch {
-    writeLocalModelVisibility(provider, model, enabled);
-    return { enabled, model, provider };
-  }
+  const response = await fetch(await serverEndpoint("/__solomon/model-visibility"), {
+    body: JSON.stringify({ enabled, model, provider }),
+    headers: { "Content-Type": "application/json" },
+    method: "PUT",
+  });
   if (!response.ok) {
-    if (response.status === 404 || response.status === 405) {
-      writeLocalModelVisibility(provider, model, enabled);
-      return { enabled, model, provider };
-    }
     const payload = await response.json().catch(() => null);
     const detail = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Unable to save model visibility";
     throw new Error(detail);
@@ -555,20 +586,10 @@ export async function setModelEnabled(provider: string, model: string, enabled: 
   if (result.provider !== provider || result.model !== model || result.enabled !== enabled) {
     throw new Error("Unable to verify model visibility update");
   }
-  clearLocalModelVisibility(provider, model);
   return result;
 }
 
 export async function connectProvider(request: ConnectProviderRequest): Promise<ModelChoice> {
-  const bridge = await desktopBridge();
-  if (bridge?.ConnectProvider) {
-    return modelChoiceFromPayload(await bridge.ConnectProvider({
-      APIKey: request.apiKey,
-      BaseURL: request.baseURL,
-      Kind: request.kind,
-      Name: request.name,
-    }));
-  }
   const response = await fetch(await serverEndpoint("/__solomon/connect-provider"), {
     body: JSON.stringify(request),
     headers: { "Content-Type": "application/json" },
@@ -602,13 +623,20 @@ function modelCatalogFromPayload(payload: unknown): ModelCatalog {
         const disabled = "disabled" in entry && Array.isArray(entry.disabled)
           ? entry.disabled.filter((model: unknown): model is string => typeof model === "string" && Boolean(model.trim()))
           : [];
-        return [{ provider: entry.provider, models, metadata, complete: "complete" in entry ? Boolean(entry.complete) : false, disabled }];
+        return [{
+          provider: entry.provider,
+          models,
+          metadata,
+          complete: "complete" in entry ? Boolean(entry.complete) : false,
+          disabled,
+          supportsFastMode: "supportsFastMode" in entry && entry.supportsFastMode === true,
+        }];
       })
     : [];
   const recent = "recent" in payload && Array.isArray(payload.recent)
     ? payload.recent.map(modelChoiceFromPayload).filter((entry) => entry.provider && entry.model)
     : [];
-  return { current, providers: applyLocalModelVisibility(providers), recent };
+  return { current, providers, recent };
 }
 
 function modelInfoFromPayload(payload: unknown): ModelInfo | undefined {
@@ -640,11 +668,54 @@ function modelVisibilityFromPayload(payload: unknown): ModelVisibility {
   };
 }
 
+function cacheProjectSidebarData(data: ProjectSidebarData): void {
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(PROJECT_SIDEBAR_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // The cache is only an optimization; storage quotas and restrictions are safe to ignore.
+  }
+}
+
+function readProjectSidebarCache(): ProjectSidebarData | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(PROJECT_SIDEBAR_CACHE_KEY);
+    if (!raw) return null;
+    const payload: unknown = JSON.parse(raw);
+    if (!payload || typeof payload !== "object" || !("projects" in payload) || !Array.isArray(payload.projects)) return null;
+    return projectSidebarDataFromPayload(payload);
+  } catch {
+    return null;
+  }
+}
+
+function cacheModelCatalog(catalog: ModelCatalog): void {
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(MODEL_CATALOG_CACHE_KEY, JSON.stringify(catalog));
+  } catch {
+    // The cache is only an optimization; storage quotas and restrictions are safe to ignore.
+  }
+}
+
+function readModelCatalogCache(): ModelCatalog | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(MODEL_CATALOG_CACHE_KEY);
+    if (!raw) return null;
+    const payload: unknown = JSON.parse(raw);
+    if (!payload || typeof payload !== "object" || !("providers" in payload) || !Array.isArray(payload.providers)) return null;
+    return modelCatalogFromPayload(payload);
+  } catch {
+    return null;
+  }
+}
+
 function projectSidebarDataFromPayload(payload: unknown): ProjectSidebarData {
   if (!payload || typeof payload !== "object" || !("projects" in payload) || !Array.isArray(payload.projects)) {
-    return { projects: [], reasoningEffort: "none", userName: "" };
+    return { fastMode: true, projects: [], reasoningEffort: "none", userName: "" };
   }
   return {
+    fastMode: "fastMode" in payload && typeof payload.fastMode === "boolean" ? payload.fastMode : true,
     projects: payload.projects.filter(isProject),
     reasoningEffort: "reasoningEffort" in payload && typeof payload.reasoningEffort === "string"
       ? normalizeReasoningEffort(payload.reasoningEffort)
@@ -687,48 +758,6 @@ function atMentionSuggestionsFromPayload(payload: unknown): ProjectAtMentionSugg
     if (!path || !tag) return [];
     return [{ isDirectory: Boolean(record.isDirectory), path, tag }];
   });
-}
-
-function virtualAtMentionSuggestions(entries: ProjectAtMentionEntry[], query: string): ProjectAtMentionSuggestion[] {
-  const normalizedQuery = normalizeMentionPath(query);
-  const matches = normalizedQuery
-    ? entries.flatMap((entry) => {
-        const score = virtualMentionScore(normalizedQuery, entry.path);
-        return score === undefined ? [] : [{ entry, score }];
-      }).sort((left, right) => left.score - right.score || normalizeMentionPath(left.entry.path).localeCompare(normalizeMentionPath(right.entry.path)))
-    : entries.map((entry) => ({ entry, score: 0 })).sort((left, right) => normalizeMentionPath(left.entry.path).localeCompare(normalizeMentionPath(right.entry.path)));
-  return matches.slice(0, 10).map(({ entry }) => ({
-    ...entry,
-    tag: `@${virtualShortTag(entry.path, entries)}`,
-  }));
-}
-
-function virtualMentionScore(query: string, path: string): number | undefined {
-  const normalizedPath = normalizeMentionPath(path);
-  const base = normalizedPath.split("/").at(-1) ?? normalizedPath;
-  if (base.startsWith(query)) return 0;
-  if (normalizedPath.split("/").some((part) => part.startsWith(query))) return 1;
-  if (query.length >= 3 && base.includes(query)) return 2;
-  if (query.length >= 3 && normalizedPath.includes(query)) return 3;
-  return undefined;
-}
-
-function virtualShortTag(path: string, entries: ProjectAtMentionEntry[]): string {
-  const normalizedPath = normalizeMentionPath(path);
-  const parts = normalizedPath.split("/");
-  for (let index = 0; index < parts.length; index += 1) {
-    const suffix = parts.slice(index).join("/");
-    const count = entries.filter((entry) => {
-      const candidate = normalizeMentionPath(entry.path);
-      return candidate === suffix || candidate.endsWith(`/${suffix}`);
-    }).length;
-    if (count === 1) return suffix;
-  }
-  return normalizedPath;
-}
-
-function normalizeMentionPath(path: string): string {
-  return path.trim().replaceAll("\\", "/").replace(/^\.\//, "");
 }
 
 function projectResearchFromPayload(payload: unknown): ProjectResearch[] {
@@ -845,7 +874,7 @@ function isProject(value: unknown): value is Project {
   );
 }
 
-function isChat(value: unknown): value is Chat {
+function isChat(value: unknown): value is ProjectChatSummary {
   return Boolean(
     value
       && typeof value === "object"

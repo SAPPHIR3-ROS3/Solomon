@@ -164,6 +164,15 @@
   background: var(--color-surface-raised);
 }
 
+.new-project-dialog-source:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.new-project-dialog-source:disabled:hover {
+  background: transparent;
+}
+
 .new-project-dialog-source-icon {
   align-items: center;
   color: var(--color-crown-gold);

@@ -67,6 +67,13 @@ func resolveREPLWorkingDir(args []string) (string, error) {
 }
 
 func main() {
+	daemonTUIChild := len(os.Args) >= 2 && os.Args[1] == "--daemon-tui"
+	if daemonTUIChild {
+		// The daemon launches this hidden form inside the PTY. Strip the marker
+		// before the regular startup path so the child runs the existing REPL
+		// against the directory supplied by the daemon.
+		os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "version" {
 		commands.WriteVersion(os.Stdout)
 		return
@@ -92,6 +99,13 @@ func main() {
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "server" {
 		servercli.Run(os.Args[2:])
+		return
+	}
+	if !daemonTUIChild && daemonTUIRequested(os.Args) {
+		if err := runDaemonTUI(os.Args); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		return
 	}
 	ctx := context.Background()

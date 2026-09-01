@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -32,6 +34,79 @@ func TestServerRuntime_normalHealth(t *testing.T) {
 	if health.API != "not configured" || health.GUI != "not configured" || health.Workers != "not configured" {
 		t.Fatalf("unexpected initial service status: %#v", health)
 	}
+}
+
+func TestServerRuntime_defaultAdvertisesReachableIPv4Addresses(t *testing.T) {
+	if !hasNonLoopbackIPv4Interface(t) {
+		t.Skip("no non-loopback IPv4 interface available")
+	}
+
+	server, stop := startServerWithRuntimeDefaultAddressForTest(t, serverruntime.Options{})
+	defer stop()
+	if len(server.Addresses) == 0 {
+		t.Fatal("default server did not advertise any network addresses")
+	}
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("invalid server URL %q: %v", server.URL, err)
+	}
+	_, serverPort, err := net.SplitHostPort(serverURL.Host)
+	if err != nil {
+		t.Fatalf("server URL %q has no port: %v", server.URL, err)
+	}
+
+	for _, address := range server.Addresses {
+		parsed, err := url.Parse(address.URL)
+		if err != nil {
+			t.Fatalf("invalid advertised URL %q: %v", address.URL, err)
+		}
+		host, advertisedPort, err := net.SplitHostPort(parsed.Host)
+		if err != nil {
+			t.Fatalf("advertised URL %q has no IPv4 host: %v", address.URL, err)
+		}
+		if advertisedPort != serverPort {
+			t.Fatalf("advertised URL %q uses port %s, want %s", address.URL, advertisedPort, serverPort)
+		}
+		ip := net.ParseIP(host).To4()
+		if ip == nil || ip.IsLoopback() {
+			t.Fatalf("advertised URL %q is not a non-loopback IPv4 address", address.URL)
+		}
+		expectedKind := "local"
+		if ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127 {
+			expectedKind = "tailscale"
+		}
+		if address.Kind != expectedKind {
+			t.Fatalf("address %q kind = %q, want %q", address.URL, address.Kind, expectedKind)
+		}
+	}
+}
+
+func hasNonLoopbackIPv4Interface(t *testing.T) bool {
+	t.Helper()
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return false
+	}
+	for _, networkInterface := range interfaces {
+		addresses, err := networkInterface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, address := range addresses {
+			var ip net.IP
+			switch value := address.(type) {
+			case *net.IPNet:
+				ip = value.IP
+			case *net.IPAddr:
+				ip = value.IP
+			}
+			ip = ip.To4()
+			if ip != nil && !ip.IsLoopback() && !ip.IsUnspecified() && !ip.IsLinkLocalUnicast() && !ip.IsMulticast() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestServerRuntime_stopEndpointClearsState(t *testing.T) {

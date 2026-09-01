@@ -1,7 +1,6 @@
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
-import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCachedUserName, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
+import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCachedProjectSidebarData, getCachedUserName, PROJECTS_CHANGED_EVENT, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
-import type { FakeChat } from "../chat-test/fakeChats";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
 const INITIAL_CHAT_LIMIT = 5;
@@ -24,18 +23,17 @@ type ProjectRemovalDialog = {
 type SidePanelProps = {
   armedTerminalProjectIds: string[];
   bottomInset: number;
-  fakeChats: FakeChat[];
   isCustomizationOpen: boolean;
   onNewProjectChat: (project: Project) => void;
-  onNewFakeChat: () => void;
   onOpenNewProject: () => void;
   onOpenTemporaryWorkspace: () => void;
-  onOpenFakeChat: (chatID: string) => void;
+  onOpenProjectChat: (project: Project, chatID: string) => void;
   onOpenProjectTerminal: (project: Project) => void;
   onOpenSettings: () => void;
   onToggleCustomization: () => void;
   onWidthChange: (width: number) => void;
   runningTerminalProjectIds: string[];
+  streamingChatIDs?: ReadonlySet<string>;
   temporaryWorkspace: TemporaryWorkspace | null;
   width: number;
 };
@@ -43,30 +41,28 @@ type SidePanelProps = {
 export function SidePanel({
   armedTerminalProjectIds,
   bottomInset,
-  fakeChats,
   isCustomizationOpen,
   onNewProjectChat,
-  onNewFakeChat,
   onOpenNewProject,
   onOpenTemporaryWorkspace,
-  onOpenFakeChat,
+  onOpenProjectChat,
   onOpenProjectTerminal,
   onOpenSettings,
   onToggleCustomization,
   onWidthChange,
   runningTerminalProjectIds,
+  streamingChatIDs,
   temporaryWorkspace,
   width,
 }: SidePanelProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(() => getCachedProjectSidebarData()?.projects ?? []);
   const [projectContextMenu, setProjectContextMenu] = useState<ProjectContextMenu | null>(null);
   const [projectRemovalDialog, setProjectRemovalDialog] = useState<ProjectRemovalDialog | null>(null);
   const [projectRemovalError, setProjectRemovalError] = useState("");
   const [projectRemovalInfo, setProjectRemovalInfo] = useState<ProjectRemovalInfo | null>(null);
   const [isRemovingProject, setIsRemovingProject] = useState(false);
-  const [isTestChatsOpen, setIsTestChatsOpen] = useState(true);
   const [isTemporaryWorkspaceOpen, setIsTemporaryWorkspaceOpen] = useState(true);
-  const [openProjectIds, setOpenProjectIds] = useState<Set<string>>(() => new Set());
+  const [openProjectIds, setOpenProjectIds] = useState<Set<string>>(() => new Set(getCachedProjectSidebarData()?.projects.map((project) => project.id) ?? []));
   const [visibleChatCounts, setVisibleChatCounts] = useState<Map<string, number>>(() => new Map());
   const [projectScrollThumb, setProjectScrollThumb] = useState<ProjectScrollThumb>({ height: 0, isVisible: false, top: 0 });
   const [projectScrollShadowOpacity, setProjectScrollShadowOpacity] = useState(0);
@@ -80,19 +76,30 @@ export function SidePanel({
   const projectsListRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetchProjectSidebarData(controller.signal)
-      .then((data) => {
-        setProjects(data.projects);
-        setOpenProjectIds(new Set(data.projects.map((project) => project.id)));
-        const nextUserName = data.userName.trim();
-        cacheUserName(nextUserName);
-        setUserName(nextUserName);
-      })
-      .catch(() => {
-        setProjects([]);
-      });
-    return () => controller.abort();
+    let currentController: AbortController | null = null;
+    const loadProjects = () => {
+      currentController?.abort();
+      const requestController = new AbortController();
+      currentController = requestController;
+      void fetchProjectSidebarData(requestController.signal)
+        .then((data) => {
+          if (requestController.signal.aborted || currentController !== requestController) return;
+          setProjects(data.projects);
+          setOpenProjectIds(new Set(data.projects.map((project) => project.id)));
+          const nextUserName = data.userName.trim();
+          cacheUserName(nextUserName);
+          setUserName(nextUserName);
+        })
+        .catch(() => {
+          if (!requestController.signal.aborted && currentController === requestController && !getCachedProjectSidebarData()) setProjects([]);
+        });
+    };
+    loadProjects();
+    window.addEventListener(PROJECTS_CHANGED_EVENT, loadProjects);
+    return () => {
+      currentController?.abort();
+      window.removeEventListener(PROJECTS_CHANGED_EVENT, loadProjects);
+    };
   }, []);
 
   useEffect(() => {
@@ -138,7 +145,7 @@ export function SidePanel({
       resizeObserver.disconnect();
       list.removeEventListener("scroll", updateScrollThumb);
     };
-  }, [bottomInset, fakeChats, openProjectIds, projects, temporaryWorkspace?.id, visibleChatCounts]);
+  }, [bottomInset, openProjectIds, projects, temporaryWorkspace?.id, visibleChatCounts]);
 
   useEffect(() => {
     if (!projectContextMenu) return;
@@ -221,6 +228,7 @@ export function SidePanel({
       if (removeData) await removeProjectFromDisk(project.id);
       else await removeProjectFromSidebar(project.id);
       removeProjectFromList(project);
+      window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
       setProjectRemovalDialog(null);
     } catch {
       setProjectRemovalError(`Could not remove “${project.name}”. Try again.`);
@@ -343,58 +351,8 @@ export function SidePanel({
                 <span>{temporaryWorkspace.name}</span>
               </button>
             </div>
-            {isTemporaryWorkspaceOpen ? (
-              <div className="side-panel-project-children">
-                {fakeChats
-                  .filter((chat) => chat.workspaceID === temporaryWorkspace.id)
-                  .sort((left, right) => (right.createdAt ?? 0) - (left.createdAt ?? 0))
-                  .map((chat) => (
-                    <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
-                      <span>{chat.title}</span>
-                      <time dateTime={chat.createdAt ? new Date(chat.createdAt).toISOString() : undefined}>
-                        {chat.createdAt ? formatRelativeTime(new Date(chat.createdAt).toISOString()) : ""}
-                      </time>
-                    </button>
-                  ))}
-              </div>
-            ) : null}
           </section>
         ) : null}
-        <section className="side-panel-project side-panel-test-folder">
-          <div className="side-panel-project-head">
-            <button
-              aria-expanded={isTestChatsOpen}
-              className="side-panel-project-trigger"
-              onClick={() => setIsTestChatsOpen((isOpen) => !isOpen)}
-              type="button"
-            >
-              <FolderIcon isOpen={isTestChatsOpen} />
-              <span>Test chats</span>
-            </button>
-            <button
-              aria-label="New chat in Test chats"
-              className="side-panel-project-new"
-              onClick={() => {
-                setIsTestChatsOpen(true);
-                onNewFakeChat();
-              }}
-              title="New chat in Test chats"
-              type="button"
-            >
-              <PlusIcon />
-            </button>
-          </div>
-          {isTestChatsOpen ? (
-            <div className="side-panel-project-children">
-              {fakeChats.filter((chat) => !chat.workspaceID).map((chat) => (
-                <button className="side-panel-chat" key={chat.id} onClick={() => onOpenFakeChat(chat.id)} title={chat.title} type="button">
-                  <span>{chat.title}</span>
-                  <time>test</time>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </section>
         {projects.map((project) => {
           const isProjectOpen = openProjectIds.has(project.id);
           const visibleChatCount = visibleChatCounts.get(project.id) ?? INITIAL_CHAT_LIMIT;
@@ -444,12 +402,16 @@ export function SidePanel({
               {isProjectOpen ? (
                 <div className="side-panel-project-children">
                   {visibleChats.map((chat) => (
-                    <button className="side-panel-chat" key={chat.id} title={chat.title} type="button">
-                      <span>{chat.title}</span>
-                      <time dateTime={chat.lastMessageAt} title={`Last interaction: ${chat.lastMessageAt}`}>
-                        {formatRelativeTime(chat.lastMessageAt)}
-                      </time>
-                    </button>
+                    <ChatListButton
+                      chatID={chat.id}
+                      dateTime={chat.lastMessageAt}
+                      isWorking={streamingChatIDs?.has(chat.id)}
+                      key={chat.id}
+                      onClick={() => onOpenProjectChat(project, chat.id)}
+                      timeLabel={formatRelativeTime(chat.lastMessageAt)}
+                      timeTitle={`Last interaction: ${chat.lastMessageAt}`}
+                      title={chat.title}
+                    />
                   ))}
                   {remainingChatCount > 0 ? (
                     <button
@@ -598,6 +560,26 @@ function formatRelativeTime(dateTime: string) {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   return `${days}d`;
+}
+
+type ChatListButtonProps = {
+  chatID: string;
+  dateTime?: string;
+  isWorking?: boolean;
+  onClick: () => void;
+  timeLabel: string;
+  timeTitle?: string;
+  title: string;
+};
+
+function ChatListButton({ chatID, dateTime, isWorking = false, onClick, timeLabel, timeTitle, title }: ChatListButtonProps) {
+  return (
+    <button aria-busy={isWorking || undefined} className={`side-panel-chat${isWorking ? " is-working" : ""}`} key={chatID} onClick={onClick} title={title} type="button">
+      {isWorking ? <span aria-hidden="true" className="side-panel-chat-working-dot" /> : null}
+      <span>{title}</span>
+      <time dateTime={dateTime} title={timeTitle}>{timeLabel}</time>
+    </button>
+  );
 }
 
 function formatFileSize(bytes: number) {
