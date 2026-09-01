@@ -23,6 +23,9 @@ func ChatCompletionToCodexBody(chat map[string]any) ([]byte, error) {
 		"tools":        mapToolsToCodex(chat),
 		"include":      []any{"reasoning.encrypted_content"},
 	}
+	if serviceTier, ok := chat["service_tier"].(string); ok && strings.TrimSpace(serviceTier) != "" {
+		body["service_tier"] = strings.TrimSpace(serviceTier)
+	}
 	if tc, ok := chat["tool_choice"]; ok && tc != nil {
 		body["tool_choice"] = tc
 	} else {

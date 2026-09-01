@@ -370,7 +370,9 @@ func (r *Root) EffectiveFastMode() bool {
 }
 
 func FastModeSupportedByProvider(p *Provider) bool {
-	return p != nil && p.IsCursorAPI()
+	// ChatGPT Sub uses OpenAI's service tier, Claude Sub uses Anthropic's
+	// speed beta, and Cursor uses Solomon's provider-specific flag.
+	return p != nil && (p.IsChatGPTSub() || p.IsClaudeSub() || p.IsCursorAPI())
 }
 
 func (r *Root) FastModeEnabledForProvider(p *Provider) bool {

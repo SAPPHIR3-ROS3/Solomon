@@ -48,7 +48,7 @@ func ApplyChatReasoningWithEffort(cfg *config.Root, p *openai.ChatCompletionNewP
 		return
 	}
 	extras := map[string]any{}
-	applyCursorFastModeExtra(cfg, extras)
+	applyFastModeParams(cfg, p, extras)
 	if forceDisable {
 		p.ReasoningEffort = shared.ReasoningEffort("none")
 		addReasoningDisableExtras(extras)
@@ -81,7 +81,7 @@ func ApplySimpleReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, f
 		return
 	}
 	extras := map[string]any{}
-	applyCursorFastModeExtra(cfg, extras)
+	applyFastModeParams(cfg, p, extras)
 	if forceDisable {
 		p.ReasoningEffort = shared.ReasoningEffort("none")
 		addReasoningDisableExtras(extras)
@@ -102,13 +102,24 @@ func addReasoningDisableExtras(extras map[string]any) {
 	}
 }
 
-func applyCursorFastModeExtra(cfg *config.Root, extras map[string]any) {
-	if cfg == nil {
+func applyFastModeParams(cfg *config.Root, params *openai.ChatCompletionNewParams, extras map[string]any) {
+	if cfg == nil || params == nil {
 		return
 	}
-	if p := config.ProviderByName(cfg, cfg.Current.Provider); !config.FastModeSupportedByProvider(p) {
+	provider := config.ProviderByName(cfg, cfg.Current.Provider)
+	if !config.FastModeSupportedByProvider(provider) {
 		return
 	}
+	if provider.IsChatGPTSub() {
+		if cfg.EffectiveFastMode() {
+			// OpenAI's ChatGPT/Codex subscription calls this Fast mode in the
+			// UI and accepts the Priority tier on the wire.
+			extras["service_tier"] = "priority"
+		}
+		return
+	}
+	// Cursor's sidecar consumes this Solomon-specific flag and needs an
+	// explicit false value when the user disables Fast mode.
 	extras["solomon_fast_mode"] = cfg.EffectiveFastMode()
 }
 
