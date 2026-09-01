@@ -10,7 +10,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureSearchSkill(query string) {}
+func signatureSearchSkill(query, intent string) {}
 
 type searchSkillArgs struct {
 	Query string `json:"query"`

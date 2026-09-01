@@ -6,6 +6,7 @@ import {
   shouldHardDenyCursorTool,
   shouldRedirectCursorTool,
 } from "../tool-policy.js";
+import { readToolIntent } from "../tool-intent.js";
 import type { BridgedToolContext, BridgedToolInvocation } from "./context.js";
 
 function isAllowedSolomonTool(name: string, ctx: BridgedToolContext): boolean {
@@ -34,11 +35,15 @@ export function mapCursorToolInvocation(
   if (!isAllowedSolomonTool(solomonName, ctx)) {
     return null;
   }
+  const intent = readToolIntent(rawArgs);
+  if (!intent) {
+    return null;
+  }
   const args = normalizeSolomonToolArgs(solomonName, trimmed, rawArgs);
   if (!args) {
     return null;
   }
-  return invocationWithIntent(solomonName, args);
+  return invocationWithIntent(solomonName, args, intent);
 }
 
 export function bridgeToolInvocation(
@@ -92,16 +97,9 @@ export function tryCollectBridgedTool(
 function invocationWithIntent(
   solomonName: string,
   args: Record<string, unknown>,
+  intent: string,
 ): BridgedToolInvocation {
-  const intent =
-    typeof args.intent === "string"
-      ? args.intent
-      : typeof (args as { description?: string }).description === "string"
-        ? (args as { description: string }).description
-        : undefined;
-  if (intent !== undefined) {
-    delete args.intent;
-    delete (args as { description?: string }).description;
-  }
-  return { name: solomonName, args, ...(intent ? { intent } : {}) };
+  delete args.intent;
+  delete (args as { description?: string }).description;
+  return { name: solomonName, args, intent };
 }

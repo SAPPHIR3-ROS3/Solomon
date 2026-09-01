@@ -74,7 +74,7 @@ func TestDocsRetrieval_genericSnippets(t *testing.T) {
 }
 
 func TestDocsRetrieval_toolExec(t *testing.T) {
-	args, err := json.Marshal(map[string]any{"query": "architecture/runtime-repl.md"})
+	args, err := json.Marshal(map[string]any{"query": "architecture/runtime-repl.md", "intent": "read runtime documentation"})
 	if err != nil {
 		t.Fatal(err)
 	}

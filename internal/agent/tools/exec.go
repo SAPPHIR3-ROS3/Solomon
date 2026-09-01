@@ -9,6 +9,9 @@ import (
 )
 
 func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (any, error) {
+	if err := tooling.ValidateToolIntent(inv.Args); err != nil {
+		return nil, fmt.Errorf("%s: %w", inv.Name, err)
+	}
 	return resolveToolInvocation(ctx, env, mode, inv)
 }
 

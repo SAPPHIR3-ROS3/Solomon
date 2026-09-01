@@ -69,7 +69,7 @@ import (
 )
 
 func main() {
-	c, err := sdk.ReadFile("x.txt")
+	c, err := sdk.ReadFile("x.txt", "read x.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -144,7 +144,7 @@ import (
 	"sdk"
 )
 func main() {
-	c, err := sdk.ReadFile("README.md")
+	c, err := sdk.ReadFile("README.md", "read README.md")
 	if err != nil { panic(err) }
 	fmt.Print(c)
 }
@@ -170,7 +170,7 @@ import (
 	"sdk"
 )
 func main() {
-	c, err := sdk.ReadFile("README.md")
+	c, err := sdk.ReadFile("README.md", "count README.md characters")
 	if err != nil { panic(err) }
 	fmt.Printf("count:%d", len(c))
 }
@@ -204,7 +204,7 @@ func TestOrchestrateGlobalClientReadThenCount(t *testing.T) {
 
 	src1, _ := json.Marshal(map[string]string{
 		"intent": "read README.md",
-		"source": "package main\n\nimport (\n\t\"fmt\"\n\t\"sdk\"\n)\n\nfunc main() {\n\tcontent, err := sdk.ReadFile(\"README.md\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Println(content)\n}",
+		"source": "package main\n\nimport (\n\t\"fmt\"\n\t\"sdk\"\n)\n\nfunc main() {\n\tcontent, err := sdk.ReadFile(\"README.md\", \"read README.md\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Println(content)\n}",
 	})
 	out1, err := agenttools.Exec(ctx, env, "agent", tooling.Invocation{Name: "orchestrate", Args: src1})
 	if err != nil {
@@ -225,7 +225,7 @@ func TestOrchestrateGlobalClientReadThenCount(t *testing.T) {
 
 	src2, _ := json.Marshal(map[string]string{
 		"intent": "count characters in README.md",
-		"source": "package main\n\nimport (\n\t\"fmt\"\n\t\"sdk\"\n)\n\nfunc main() {\n\tcontent, err := sdk.ReadFile(\"README.md\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"Caratteri totali: %d\\n\", len(content))\n}",
+		"source": "package main\n\nimport (\n\t\"fmt\"\n\t\"sdk\"\n)\n\nfunc main() {\n\tcontent, err := sdk.ReadFile(\"README.md\", \"count README.md characters\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"Caratteri totali: %d\\n\", len(content))\n}",
 	})
 	out2, err := agenttools.Exec(ctx, env, "agent", tooling.Invocation{Name: "orchestrate", Args: src2})
 	if err != nil {
@@ -322,7 +322,7 @@ func TestNativeToolParamsAgentChat(t *testing.T) {
 func TestDocsRetrievalAllowedInChat(t *testing.T) {
 	_, err := agenttools.Exec(context.Background(), &agenttools.Env{Cfg: config.EmptyRoot()}, "chat", tooling.Invocation{
 		Name: "docsRetrieval",
-		Args: json.RawMessage(`{"query":"checkpoint"}`),
+		Args: json.RawMessage(`{"query":"checkpoint","intent":"read checkpoint documentation"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -335,7 +335,7 @@ func TestSwitchModeUnchanged(t *testing.T) {
 	}
 	out, err := agenttools.Exec(context.Background(), env, "agent", tooling.Invocation{
 		Name: "switchMode",
-		Args: json.RawMessage(`{"mode":"agent"}`),
+		Args: json.RawMessage(`{"mode":"agent","intent":"verify current mode"}`),
 	})
 	if err != nil {
 		t.Fatal(err)

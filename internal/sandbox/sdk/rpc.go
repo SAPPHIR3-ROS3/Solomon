@@ -3,9 +3,13 @@ package sdk
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 )
 
 var errRPC = errors.New("sandbox rpc failed")
+
+var errRPCResponseTooLarge = errors.New("sandbox rpc response too large; narrow the tool request or use pagination")
 
 type rpcRequest struct {
 	Tool string          `json:"tool"`
@@ -41,9 +45,24 @@ func callTool(name string, args any) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := validateToolIntent(raw); err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
+	}
 	out, err := callToolRaw(name, raw)
 	if err != nil {
 		return nil, err
 	}
 	return json.RawMessage(out), nil
+}
+
+func validateToolIntent(raw json.RawMessage) error {
+	var args map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &args); err != nil || args == nil {
+		return errors.New("tool call requires a non-empty intent string")
+	}
+	var intent string
+	if err := json.Unmarshal(args["intent"], &intent); err != nil || strings.TrimSpace(intent) == "" {
+		return errors.New("tool call requires a non-empty intent string")
+	}
+	return nil
 }

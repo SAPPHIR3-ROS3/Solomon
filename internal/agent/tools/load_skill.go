@@ -12,7 +12,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureLoadSkill(name string) {}
+func signatureLoadSkill(name, intent string) {}
 
 type loadSkillArgs struct {
 	Name string `json:"name"`

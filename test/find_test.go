@@ -19,7 +19,7 @@ func TestFind_filesGlob(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("y"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	args, err := json.Marshal(map[string]any{"pattern": "*.go", "files": true})
+	args, err := json.Marshal(map[string]any{"pattern": "*.go", "files": true, "intent": "list Go files"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestFind_textSearch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("func RegisterTool() {}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	args, err := json.Marshal(map[string]any{"pattern": "RegisterTool", "files": false})
+	args, err := json.Marshal(map[string]any{"pattern": "RegisterTool", "files": false, "intent": "find tool registrations"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestFind_respectsGitignore(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "keep.go"), []byte("needle\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	args, err := json.Marshal(map[string]any{"pattern": "needle", "files": false})
+	args, err := json.Marshal(map[string]any{"pattern": "needle", "files": false, "intent": "find matching text"})
 	if err != nil {
 		t.Fatal(err)
 	}

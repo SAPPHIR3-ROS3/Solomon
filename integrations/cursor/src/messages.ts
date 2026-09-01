@@ -2,6 +2,7 @@ import type { SDKImage, SDKUserMessage } from "@cursor/sdk";
 import type { ChatCompletionTool, ChatMessage, ChatToolCall, ContentPart } from "./openai-types.js";
 import { harnessPreamble } from "./harness-prompt.js";
 import { escapeXmlAttr, escapeXmlTextStrict } from "./xml-utils.js";
+import { readToolIntent } from "./tool-intent.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -149,6 +150,7 @@ function formatAssistantToolCalls(toolCalls: ChatToolCall[]): string {
     }
     const args = tc.function?.arguments?.trim() || "{}";
     parts.push(`<tool name="${escapeXmlAttr(name)}">`);
+    parts.push(`<intent>${escapeXmlTextStrict(readToolIntent(args) ?? "")}</intent>`);
     parts.push(`<args>${escapeXmlTextStrict(args)}</args>`);
     parts.push("</tool>");
   }

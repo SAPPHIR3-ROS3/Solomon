@@ -1,19 +1,19 @@
 package sdk
 
-func DocsRetrieval(query string) (string, error) {
-	return docsCall(query)
+func DocsRetrieval(query, intent string) (string, error) {
+	return docsCall(query, intent)
 }
 
-func DocsSearch(query string) (string, error) {
-	return docsCall(query)
+func DocsSearch(query, intent string) (string, error) {
+	return docsCall(query, intent)
 }
 
-func DocsArticle(path string) (string, error) {
-	return docsCall(path)
+func DocsArticle(path, intent string) (string, error) {
+	return docsCall(path, intent)
 }
 
-func docsCall(query string) (string, error) {
-	raw, err := callTool("docsRetrieval", map[string]any{"query": query})
+func docsCall(query, intent string) (string, error) {
+	raw, err := callTool("docsRetrieval", map[string]any{"query": query, "intent": intent})
 	if err != nil {
 		return "", err
 	}

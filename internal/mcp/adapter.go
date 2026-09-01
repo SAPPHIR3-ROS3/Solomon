@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
@@ -20,12 +21,13 @@ type RemoteTool struct {
 }
 
 func OpenAITool(t RemoteTool) openai.ChatCompletionToolUnionParam {
+	schema := tooling.SchemaWithRequiredToolIntent(t.Schema)
 	return openai.ChatCompletionToolUnionParam{
 		OfFunction: &openai.ChatCompletionFunctionToolParam{
 			Function: shared.FunctionDefinitionParam{
 				Name:        t.OpenAIName,
 				Description: openai.String(t.Description),
-				Parameters:  openai.FunctionParameters(t.Schema),
+				Parameters:  openai.FunctionParameters(schema),
 			},
 		},
 	}
@@ -70,14 +72,9 @@ func adaptInputSchema(input any) (map[string]any, error) {
 	if typ, _ := schema["type"].(string); typ != "object" {
 		return nil, fmt.Errorf("inputSchema type must be object")
 	}
-	if _, ok := schema["properties"]; !ok {
-		schema["properties"] = map[string]any{}
-	}
+	schema = tooling.SchemaWithRequiredToolIntent(schema)
 	if _, ok := schema["additionalProperties"]; !ok {
 		schema["additionalProperties"] = false
-	}
-	if req, ok := schema["required"]; !ok || req == nil {
-		schema["required"] = []any{}
 	}
 	return schema, nil
 }

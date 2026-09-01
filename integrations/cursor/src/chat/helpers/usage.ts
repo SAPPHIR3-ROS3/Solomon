@@ -9,7 +9,12 @@ import {
   limitInvocations,
   parseToolInvocationsFromText,
 } from "../../openai-tools.js";
-import { shouldBlockDeferredSolomonTool, shouldHardDenyCursorTool } from "../../tool-policy.js";
+import {
+  missingIntentBlockedLabel,
+  shouldBlockDeferredSolomonTool,
+  shouldHardDenyCursorTool,
+} from "../../tool-policy.js";
+import { invocationIntent } from "../../tool-intent.js";
 import type { ChatMessage } from "../../openai-types.js";
 import type { CursorTurnUsage, OpenAIFinishReason } from "../../run-control.js";
 import type { OpenAIUsagePayload } from "../../openai-sse.js";
@@ -48,7 +53,9 @@ export function nativeInvocationsFromText(text: string, turnOpts: TurnToolOpts):
     if (isValidInvocation(inv)) {
       return true;
     }
-    blockedTools.push(`${inv.name}:invalid`);
+    blockedTools.push(
+      invocationIntent(inv) ? `${inv.name}:invalid` : missingIntentBlockedLabel(inv.name),
+    );
     return false;
   });
   return {

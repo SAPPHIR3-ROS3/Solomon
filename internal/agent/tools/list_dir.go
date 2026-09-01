@@ -10,12 +10,12 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureListDir(path string) {}
+func signatureListDir(path, intent string) {}
 
 type listDirArgs struct {
-	Path              string `json:"path"`
-	IncludeHidden     bool   `json:"includeHidden"`
-	RespectGitignore  *bool  `json:"respectGitignore"`
+	Path             string `json:"path"`
+	IncludeHidden    bool   `json:"includeHidden"`
+	RespectGitignore *bool  `json:"respectGitignore"`
 }
 
 func listDirOpenAI() openai.ChatCompletionToolUnionParam {

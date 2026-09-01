@@ -1,7 +1,7 @@
 package sdk
 
-func readFileCall(path string, start, end *int) (ReadResult, error) {
-	args := map[string]any{"path": path}
+func readFileCall(path string, start, end *int, intent string) (ReadResult, error) {
+	args := map[string]any{"path": path, "intent": intent}
 	if start != nil {
 		args["startLine"] = *start
 	}
@@ -19,16 +19,16 @@ func readFileCall(path string, start, end *int) (ReadResult, error) {
 	return parseReadResult(m), nil
 }
 
-func readFileFromLine(path string, start int) (ReadResult, error) {
+func readFileFromLine(path string, start int, intent string) (ReadResult, error) {
 	if start < 1 {
 		start = 1
 	}
-	return readFileCall(path, &start, nil)
+	return readFileCall(path, &start, nil, intent)
 }
 
-func readFileUntilLine(path string, end int) (ReadResult, error) {
+func readFileUntilLine(path string, end int, intent string) (ReadResult, error) {
 	if end < 1 {
 		end = 1
 	}
-	return readFileCall(path, nil, &end)
+	return readFileCall(path, nil, &end, intent)
 }

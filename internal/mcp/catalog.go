@@ -1,5 +1,7 @@
 package mcp
 
+import "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
+
 type CatalogEntry struct {
 	Name        string         `json:"name"`
 	Server      string         `json:"server"`
@@ -19,7 +21,7 @@ func (m *Manager) Catalog() []CatalogEntry {
 			Server:      t.ServerName,
 			Tool:        t.ToolName,
 			Description: t.Description,
-			Schema:      t.Schema,
+			Schema:      tooling.SchemaWithRequiredToolIntent(t.Schema),
 		})
 	}
 	return out

@@ -14,11 +14,11 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureFetchWeb(targetURL string) {}
+func signatureFetchWeb(targetURL, intent string) {}
 
 const (
-	fetchWebDefaultTimeoutS = webfetch.DefaultTimeoutS
-	fetchWebMaxTimeoutSecs  = webfetch.MaxTimeoutSecs
+	fetchWebDefaultTimeoutS  = webfetch.DefaultTimeoutS
+	fetchWebMaxTimeoutSecs   = webfetch.MaxTimeoutSecs
 	fetchMarkdownDescription = `Download a URL via HTTP GET and return the body as Markdown. HTML pages are converted to CommonMark-style Markdown (headings, links, lists, code). Other common text types (plain, JSON, XML) are returned as fenced code blocks. Maximum response body is 5MB. Only http(s) URLs. Optional timeoutSeconds (default 30, max 120).`
 )
 

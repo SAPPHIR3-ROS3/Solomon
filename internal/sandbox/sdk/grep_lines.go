@@ -1,93 +1,93 @@
 package sdk
 
-func GrepLines(pattern string) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern})
+func GrepLines(pattern, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, intent: intent})
 }
 
-func GrepLinesIn(dir, pattern string) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern})
+func GrepLinesIn(dir, pattern, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, intent: intent})
 }
 
-func GrepLinesIgnoreCase(pattern string) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, caseInsensitive: true})
+func GrepLinesIgnoreCase(pattern, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, caseInsensitive: true, intent: intent})
 }
 
-func GrepLinesInIgnoreCase(dir, pattern string) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, caseInsensitive: true})
+func GrepLinesInIgnoreCase(dir, pattern, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, caseInsensitive: true, intent: intent})
 }
 
-func GrepLinesMultiline(pattern string) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, multiline: true})
+func GrepLinesMultiline(pattern, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, multiline: true, intent: intent})
 }
 
-func GrepLinesInMultiline(dir, pattern string) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, multiline: true})
+func GrepLinesInMultiline(dir, pattern, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, multiline: true, intent: intent})
 }
 
-func GrepLinesPathGlob(pattern, pathGlob string) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, pathGlob: pathGlob})
+func GrepLinesPathGlob(pattern, pathGlob, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, pathGlob: pathGlob, intent: intent})
 }
 
-func GrepLinesInPathGlob(dir, pattern, pathGlob string) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, pathGlob: pathGlob})
+func GrepLinesInPathGlob(dir, pattern, pathGlob, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, pathGlob: pathGlob, intent: intent})
 }
 
-func GrepLinesLimit(pattern string, headLimit int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, headLimit: headLimit})
+func GrepLinesLimit(pattern string, headLimit int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, headLimit: headLimit, intent: intent})
 }
 
-func GrepLinesInLimit(dir, pattern string, headLimit int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, headLimit: headLimit})
+func GrepLinesInLimit(dir, pattern string, headLimit int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, headLimit: headLimit, intent: intent})
 }
 
-func GrepLinesWithContext(pattern string, contextLines int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, context: contextLines})
+func GrepLinesWithContext(pattern string, contextLines int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, context: contextLines, intent: intent})
 }
 
-func GrepLinesInWithContext(dir, pattern string, contextLines int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, context: contextLines})
+func GrepLinesInWithContext(dir, pattern string, contextLines int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, context: contextLines, intent: intent})
 }
 
-func GrepLinesContextBefore(pattern string, before int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, contextBefore: before})
+func GrepLinesContextBefore(pattern string, before int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, contextBefore: before, intent: intent})
 }
 
-func GrepLinesContextAfter(pattern string, after int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, contextAfter: after})
+func GrepLinesContextAfter(pattern string, after int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, contextAfter: after, intent: intent})
 }
 
-func GrepLinesContextBeforeAfter(pattern string, before, after int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, contextBefore: before, contextAfter: after})
+func GrepLinesContextBeforeAfter(pattern string, before, after int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, contextBefore: before, contextAfter: after, intent: intent})
 }
 
-func GrepLinesTimeout(pattern string, secs int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{pattern: pattern, timeoutSecs: secs})
+func GrepLinesTimeout(pattern string, secs int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{pattern: pattern, timeoutSecs: secs, intent: intent})
 }
 
-func GrepLinesInTimeout(dir, pattern string, secs int) ([]GrepLine, error) {
-	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, timeoutSecs: secs})
+func GrepLinesInTimeout(dir, pattern string, secs int, intent string) ([]GrepLine, error) {
+	return grepLinesCall(grepTextQuery{dir: dir, pattern: pattern, timeoutSecs: secs, intent: intent})
 }
 
-func GrepCountEntries(pattern string) ([]GrepCountEntry, error) {
-	return grepCountEntriesCall(grepTextQuery{pattern: pattern})
+func GrepCountEntries(pattern, intent string) ([]GrepCountEntry, error) {
+	return grepCountEntriesCall(grepTextQuery{pattern: pattern, intent: intent})
 }
 
-func GrepCountEntriesIn(dir, pattern string) ([]GrepCountEntry, error) {
-	return grepCountEntriesCall(grepTextQuery{dir: dir, pattern: pattern})
+func GrepCountEntriesIn(dir, pattern, intent string) ([]GrepCountEntry, error) {
+	return grepCountEntriesCall(grepTextQuery{dir: dir, pattern: pattern, intent: intent})
 }
 
-func GrepCountEntriesIgnoreCase(pattern string) ([]GrepCountEntry, error) {
-	return grepCountEntriesCall(grepTextQuery{pattern: pattern, caseInsensitive: true})
+func GrepCountEntriesIgnoreCase(pattern, intent string) ([]GrepCountEntry, error) {
+	return grepCountEntriesCall(grepTextQuery{pattern: pattern, caseInsensitive: true, intent: intent})
 }
 
-func GrepCountEntriesInIgnoreCase(dir, pattern string) ([]GrepCountEntry, error) {
-	return grepCountEntriesCall(grepTextQuery{dir: dir, pattern: pattern, caseInsensitive: true})
+func GrepCountEntriesInIgnoreCase(dir, pattern, intent string) ([]GrepCountEntry, error) {
+	return grepCountEntriesCall(grepTextQuery{dir: dir, pattern: pattern, caseInsensitive: true, intent: intent})
 }
 
-func GrepCountEntriesTimeout(pattern string, secs int) ([]GrepCountEntry, error) {
-	return grepCountEntriesCall(grepTextQuery{pattern: pattern, timeoutSecs: secs})
+func GrepCountEntriesTimeout(pattern string, secs int, intent string) ([]GrepCountEntry, error) {
+	return grepCountEntriesCall(grepTextQuery{pattern: pattern, timeoutSecs: secs, intent: intent})
 }
 
-func GrepCountEntriesInTimeout(dir, pattern string, secs int) ([]GrepCountEntry, error) {
-	return grepCountEntriesCall(grepTextQuery{dir: dir, pattern: pattern, timeoutSecs: secs})
+func GrepCountEntriesInTimeout(dir, pattern string, secs int, intent string) ([]GrepCountEntry, error) {
+	return grepCountEntriesCall(grepTextQuery{dir: dir, pattern: pattern, timeoutSecs: secs, intent: intent})
 }

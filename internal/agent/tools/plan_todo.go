@@ -10,10 +10,10 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureAddTodo(name, todo string) {}
-func signatureTodoList()                 {}
-func signatureCheckTodo(sha1 string)     {}
-func signatureRemoveTodo(sha1 string)    {}
+func signatureAddTodo(name, todo, intent string) {}
+func signatureTodoList(intent string)            {}
+func signatureCheckTodo(sha1, intent string)     {}
+func signatureRemoveTodo(sha1, intent string)    {}
 
 type addTodoArgs struct {
 	Name string `json:"name"`

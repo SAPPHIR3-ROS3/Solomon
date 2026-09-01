@@ -5,23 +5,26 @@ type globQuery struct {
 	pattern     string
 	headLimit   int
 	timeoutSecs int
+	intent      string
 }
 
 type grepTextQuery struct {
-	dir, pattern, pathGlob, outputMode string
-	caseInsensitive, multiline          bool
+	dir, pattern, pathGlob, outputMode   string
+	caseInsensitive, multiline           bool
 	context, contextBefore, contextAfter int
-	headLimit, timeoutSecs              int
+	headLimit, timeoutSecs               int
+	intent                               string
 }
 
 type grepPathsQuery struct {
-	dir, pattern string
+	dir, pattern    string
 	caseInsensitive bool
 	timeoutSecs     int
+	intent          string
 }
 
 func globCall(q globQuery) ([]string, error) {
-	args := map[string]any{"pattern": q.pattern, "files": true}
+	args := map[string]any{"pattern": q.pattern, "files": true, "intent": q.intent}
 	if q.dir != "" {
 		args["path"] = q.dir
 	}
@@ -48,7 +51,7 @@ func grepTextCall(q grepTextQuery) (string, error) {
 		mode = "content"
 	}
 	args := map[string]any{
-		"pattern": q.pattern, "files": false, "outputMode": mode,
+		"pattern": q.pattern, "files": false, "outputMode": mode, "intent": q.intent,
 	}
 	if q.dir != "" {
 		args["path"] = q.dir
@@ -90,7 +93,7 @@ func grepTextCall(q grepTextQuery) (string, error) {
 
 func grepPathsCall(q grepPathsQuery) ([]string, error) {
 	args := map[string]any{
-		"pattern": q.pattern, "files": false, "outputMode": "files_with_matches",
+		"pattern": q.pattern, "files": false, "outputMode": "files_with_matches", "intent": q.intent,
 	}
 	if q.dir != "" {
 		args["path"] = q.dir
@@ -112,8 +115,8 @@ func grepPathsCall(q grepPathsQuery) ([]string, error) {
 	return stringSliceField(m, "matches"), nil
 }
 
-func findRawCall(dir, pattern string, files bool, timeoutSecs int) (string, error) {
-	args := map[string]any{"pattern": pattern, "files": files}
+func findRawCall(dir, pattern string, files bool, timeoutSecs int, intent string) (string, error) {
+	args := map[string]any{"pattern": pattern, "files": files, "intent": intent}
 	if dir != "" {
 		args["path"] = dir
 	}
@@ -127,8 +130,8 @@ func findRawCall(dir, pattern string, files bool, timeoutSecs int) (string, erro
 	return string(raw), nil
 }
 
-func findInfoCall(dir, pattern string, files bool, timeoutSecs int) (FindResult, error) {
-	args := map[string]any{"pattern": pattern, "files": files}
+func findInfoCall(dir, pattern string, files bool, timeoutSecs int, intent string) (FindResult, error) {
+	args := map[string]any{"pattern": pattern, "files": files, "intent": intent}
 	if dir != "" {
 		args["path"] = dir
 	}

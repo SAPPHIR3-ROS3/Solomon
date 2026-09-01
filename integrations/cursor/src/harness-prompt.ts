@@ -15,6 +15,10 @@ const SOLOMON_NATIVE_ENTRY_TOOLS = [
   "searchSkill",
   "loadSkill",
   "docsRetrieval",
+  "fetchWeb",
+  "webSearch",
+  "deepResearch",
+  "researchStatus",
 ];
 
 function resolvePromptsDir(): string {

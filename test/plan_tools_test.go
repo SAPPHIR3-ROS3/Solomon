@@ -77,7 +77,7 @@ func TestBuildPlanEmptyDesignExcerpt(t *testing.T) {
 	body := "# Goal\n\nG\n\n## Context\n\n## Design\n\n## Todo\n\n" + todoLine + "\n"
 	doc, _ := plan.WriteDocument(meta, []byte(body))
 	_ = plan.WriteFile(p, doc)
-	raw, _ := json.Marshal(map[string]string{"name": "brief.md"})
+	raw, _ := json.Marshal(map[string]string{"name": "brief.md", "intent": "build the plan brief"})
 	out, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "buildPlan", Args: raw})
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestCreatePlanSkeleton(t *testing.T) {
 	sess.PlanningActive = true
 	env := planTestEnv(t, sess)
 
-	raw, _ := json.Marshal(map[string]string{"name": "feature.md", "goal": "Add planning"})
+	raw, _ := json.Marshal(map[string]string{"name": "feature.md", "goal": "Add planning", "intent": "create the test plan"})
 	out, err := execDeferredToolForTest(env, tooling.Invocation{Name: "createPlan", Args: raw})
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func TestAddTodoCheckTodoAppendEnd(t *testing.T) {
 	env := planTestEnv(t, sess)
 	env.SetPlanningActive("feature.md")
 
-	createRaw, _ := json.Marshal(map[string]string{"name": "feature.md", "goal": "G"})
+	createRaw, _ := json.Marshal(map[string]string{"name": "feature.md", "goal": "G", "intent": "create the test plan"})
 	if _, err := execDeferredToolForTest(env, tooling.Invocation{Name: "createPlan", Args: createRaw}); err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestAddTodoCheckTodoAppendEnd(t *testing.T) {
 	doc, _ := plan.WriteDocument(meta, []byte("# Goal\n\nG\n\n## Context\n\n## Design\n\n"+bodyBefore))
 	_ = plan.WriteFile(p, doc)
 
-	addRaw, _ := json.Marshal(map[string]string{"name": "feature.md", "todo": "First task"})
+	addRaw, _ := json.Marshal(map[string]string{"name": "feature.md", "todo": "First task", "intent": "add the first task"})
 	out, err := execDeferredToolForTest(env, tooling.Invocation{Name: "addTodo", Args: addRaw})
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestAddTodoCheckTodoAppendEnd(t *testing.T) {
 		t.Fatalf("todo not at end: %s", b)
 	}
 
-	chkRaw, _ := json.Marshal(map[string]string{"sha1": sha})
+	chkRaw, _ := json.Marshal(map[string]string{"sha1": sha, "intent": "complete the first task"})
 	out2, err := execDeferredToolForTest(env, tooling.Invocation{Name: "checkTodo", Args: chkRaw})
 	if err != nil {
 		t.Fatal(err)
@@ -193,7 +193,7 @@ func TestBuildPlanBriefNoNested(t *testing.T) {
 	doc, _ := plan.WriteDocument(meta, []byte(body))
 	_ = plan.WriteFile(p, doc)
 
-	raw, _ := json.Marshal(map[string]string{"name": "impl.md"})
+	raw, _ := json.Marshal(map[string]string{"name": "impl.md", "intent": "build the implementation brief"})
 	out, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{Name: "buildPlan", Args: raw})
 	if err != nil {
 		t.Fatal(err)
@@ -242,7 +242,7 @@ func TestCheckPlanFullAndDelete(t *testing.T) {
 	_ = plan.WriteFile(p, doc)
 
 	full := true
-	chkRaw, _ := json.Marshal(map[string]any{"name": "x.md", "full": full})
+	chkRaw, _ := json.Marshal(map[string]any{"name": "x.md", "full": full, "intent": "inspect the full plan"})
 	out, err := execDeferredToolForTest(env, tooling.Invocation{Name: "checkPlan", Args: chkRaw})
 	if err != nil {
 		t.Fatal(err)
@@ -251,7 +251,7 @@ func TestCheckPlanFullAndDelete(t *testing.T) {
 		t.Fatal("expected body")
 	}
 
-	delRaw, _ := json.Marshal(map[string]string{"name": "x.md"})
+	delRaw, _ := json.Marshal(map[string]string{"name": "x.md", "intent": "remove the temporary plan"})
 	if _, err := execDeferredToolForTest(env, tooling.Invocation{Name: "deletePlan", Args: delRaw}); err != nil {
 		t.Fatal(err)
 	}

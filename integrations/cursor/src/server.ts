@@ -4,6 +4,7 @@ import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } fr
 import { sanitizeReflectedText, stripUnsafeControlChars, sanitizeModelId, isSafeToolName } from "./messages.js";
 import { clientAbortFromRequest } from "./run-control.js";
 import { sendJsonResponse } from "./openai-sse.js";
+import { schemaWithRequiredToolIntent, readToolIntent } from "./tool-intent.js";
 import type {
   ChatCompletionRequest,
   ChatCompletionTool,
@@ -212,6 +213,9 @@ function sanitizeToolCalls(v: unknown): ChatToolCall[] | undefined {
       continue;
     }
     const args = boundedString(f.arguments, MAX_CONTENT_CHARS) ?? "{}";
+    if (!readToolIntent(args)) {
+      throw new Error("tool call requires a non-empty intent string");
+    }
     const id = optionalBoundedString(t.id, 128);
     out.push({
       ...(id ? { id } : {}),
@@ -286,14 +290,14 @@ function sanitizeTools(v: unknown): ChatCompletionTool[] | undefined {
       continue;
     }
     const description = optionalBoundedString(f.description, MAX_CONTENT_CHARS);
-    const parameters = sanitizeJSONObject(f.parameters);
+    const parameters = schemaWithRequiredToolIntent(sanitizeJSONObject(f.parameters));
     const strict = t.strict === true || f.strict === true ? true : undefined;
     out.push({
       type: "function",
       function: {
         name,
         ...(description ? { description } : {}),
-        ...(parameters ? { parameters } : {}),
+        parameters,
         ...(strict ? { strict } : {}),
       },
     });

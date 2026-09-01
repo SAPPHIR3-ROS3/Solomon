@@ -12,7 +12,7 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
-func signatureReadFile(path string) {}
+func signatureReadFile(path, intent string) {}
 
 type readArgs struct {
 	Path      string `json:"path"`

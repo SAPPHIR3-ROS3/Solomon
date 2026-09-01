@@ -9,6 +9,31 @@ import (
 
 var ErrMalformedLegacyTool = errors.New("malformed legacy tool block")
 
+var ErrMalformedNativeTool = errors.New("malformed native tool call")
+
+func ValidateNativeInvocation(inv Invocation) error {
+	var args map[string]json.RawMessage
+	if err := json.Unmarshal(inv.Args, &args); err != nil || args == nil {
+		if err == nil {
+			err = errors.New("arguments must be a JSON object")
+		}
+		return fmt.Errorf("%w: tool %q arguments must be valid JSON object: %v", ErrMalformedNativeTool, strings.TrimSpace(inv.Name), err)
+	}
+	if err := ValidateToolIntent(inv.Args); err != nil {
+		return fmt.Errorf("%w: tool %q: %w", ErrMalformedNativeTool, strings.TrimSpace(inv.Name), err)
+	}
+	return nil
+}
+
+func ValidateNativeInvocations(invs []Invocation) error {
+	for _, inv := range invs {
+		if err := ValidateNativeInvocation(inv); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 var ErrUnknownLegacyTool = errors.New("unknown legacy tool name")
 
 var ErrLegacyToolBlockComplete = errors.New("legacy tool_calls block complete")
@@ -50,6 +75,9 @@ func ValidateLegacyToolLines(text string) error {
 func UserFacingLegacyToolError(err error) string {
 	if err == nil {
 		return ""
+	}
+	if errors.Is(err, ErrMissingToolIntent) {
+		return "Tool invocation error: every tool call requires a non-empty intent string."
 	}
 	for e := err; e != nil; e = errors.Unwrap(e) {
 		if errors.Is(e, ErrUnknownLegacyTool) {

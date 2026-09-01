@@ -3,6 +3,7 @@ package llm
 import (
 	"encoding/json"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"github.com/openai/openai-go/v2"
 )
 
@@ -14,20 +15,12 @@ func ToolDefsFromOpenAI(tools []openai.ChatCompletionToolUnionParam) []ToolDef {
 		}
 		fn := t.OfFunction.Function
 		params := map[string]any{}
-		var required []string
 		if fn.Parameters != nil {
 			raw, _ := json.Marshal(fn.Parameters)
 			_ = json.Unmarshal(raw, &params)
-			if r, ok := params["required"].([]any); ok {
-				for _, x := range r {
-					if s, ok := x.(string); ok {
-						required = append(required, s)
-					}
-				}
-			} else if rs, ok := params["required"].([]string); ok {
-				required = rs
-			}
 		}
+		params = tooling.SchemaWithRequiredToolIntent(params)
+		required := requiredToolDefNames(params)
 		desc := ""
 		if fn.Description.Valid() {
 			desc = fn.Description.Value
@@ -40,4 +33,16 @@ func ToolDefsFromOpenAI(tools []openai.ChatCompletionToolUnionParam) []ToolDef {
 		})
 	}
 	return out
+}
+
+func requiredToolDefNames(params map[string]any) []string {
+	var required []string
+	if values, ok := params["required"].([]any); ok {
+		for _, value := range values {
+			if name, ok := value.(string); ok {
+				required = append(required, name)
+			}
+		}
+	}
+	return required
 }

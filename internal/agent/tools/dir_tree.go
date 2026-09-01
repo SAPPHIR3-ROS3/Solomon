@@ -13,11 +13,11 @@ import (
 func signatureTree(path string) {}
 
 type treeArgs struct {
-	Path              string `json:"path"`
-	MaxDepth          *int   `json:"maxDepth"`
-	MaxEntries        *int   `json:"maxEntries"`
-	IncludeHidden     bool   `json:"includeHidden"`
-	RespectGitignore  *bool  `json:"respectGitignore"`
+	Path             string `json:"path"`
+	MaxDepth         *int   `json:"maxDepth"`
+	MaxEntries       *int   `json:"maxEntries"`
+	IncludeHidden    bool   `json:"includeHidden"`
+	RespectGitignore *bool  `json:"respectGitignore"`
 }
 
 func treeOpenAI() openai.ChatCompletionToolUnionParam {
