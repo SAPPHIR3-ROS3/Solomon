@@ -38,13 +38,14 @@ Install first: [Installation and PATH](installation.md). Provider and engine kno
 - **Project instructions**: `AGENTS.md` (and fallbacks) plus numbered custom rules injected into the system prompt — see [Project instructions](project-instructions.md)
 - **MCP clients**: optional `mcp.json`; discovered tools exposed to the model as remote tools
 - **Deferred tools**: `readFile`, `editFile`, `find`, `shell`, `fetchWeb`, `webSearch` via orchestrate; plan tools when planning is active — see [Native tools](../architecture/native-tools.md)
-- **Local server**: detached localhost service for the web GUI and future local APIs — see [Local server](../architecture/server.md)
+- **Local server**: detached service for the web GUI and future local APIs, reachable on local and Tailscale interfaces — see [Local server](../architecture/server.md)
 
 ## CLI usage modes
 
 | Mode | Command |
 | ---- | ------- |
 | Interactive REPL | `solomon` |
+| Interactive REPL in an explicit directory | `solomon [directory]`, `solomon tui [directory]`, or `solomon attach [directory]` |
 | One shot (persisted chat) | `solomon exec <prompt>` |
 | Ephemeral session (one shot) | `solomon temp exec <prompt>` |
 | CI / automation (JSONL stream) | `solomon exec --jsonl … <prompt>` |
@@ -58,7 +59,14 @@ Exact usage strings: [`cmd/solomon/main.go`](../../cmd/solomon/main.go).
 
 ## Local server
 
-The server is a manually managed background process for the web GUI and future local APIs. It is bound to the user, not the current project directory. Normal mode listens on `http://localhost:8765`; development mode selects a free loopback port, reported by `solomon server status`.
+The server is a manually managed background process for the web GUI and its
+project, chat, customization, model and terminal APIs. It is bound to the user,
+not the current project directory. Set/export `SOLOMON_SERVER_PORT` to keep a
+stable port; `solomon server start` also loads a `.env` from the current
+directory (or the development GUI's parents), while explicit environment
+variables keep precedence. When it is unset, the server selects a free port. It
+listens on all IPv4 interfaces. `solomon server start` and `solomon server
+status` show the loopback URL and the available local-network and Tailscale URLs.
 
 ```bash
 solomon server start
@@ -66,7 +74,9 @@ solomon server status
 solomon server stop
 ```
 
-For GUI development, pass the GUI project directory explicitly. The server launches Vite as its child and proxies it at its advertised local URL, so browser and Wails desktop development use the same frontend.
+For GUI development, pass the GUI project directory explicitly. The server
+launches Vite as its child and proxies it at its advertised local URL, so browser
+and Wails desktop development use the same frontend and daemon API.
 
 ```bash
 solomon server start dev /absolute/or/relative/path/to/gui
