@@ -26,6 +26,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
+	sandboxparent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
@@ -68,6 +69,8 @@ type Runtime struct {
 	Out io.Writer
 
 	MCP *solomonmcp.Manager
+
+	sandboxRetained bool
 
 	ReplShellFirst bool
 
@@ -127,6 +130,11 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 	}
 	if err := tooloutput.Startup(os.Getpid()); err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "tool output instance register failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+	}
+	if err := sandboxparent.RetainGlobal(context.Background()); err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker retain failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+	} else {
+		rt.sandboxRetained = true
 	}
 	globalSubagentRegistry.reconcileOnStartup()
 	rt.ensureCursorAPISidecar(context.Background())
@@ -304,7 +312,7 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	}
 	if r.MCP != nil && agenttools.NormalizeMode(r.Mode) == "agent" {
 		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
-			section := "MCP tools (native tool_call, names MCP.<server>.<tool>):\n" + mcpDump
+			section := "MCP catalog (schemas discoverable with searchTools; not direct native agent calls; names MCP.<server>.<tool>):\n" + mcpDump
 			dump = strings.TrimSpace(dump + "\n---\n" + section)
 		}
 	}
@@ -322,13 +330,25 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		syntax = prompt.AnonymizeNativeToolInvocationSyntax()
 		legacySyntax = ""
 	} else if legacyForced {
-		syntax = prompt.LegacyOnlyToolInvocationSyntax(planningActive)
+		if agenttools.NormalizeMode(r.Mode) == "chat" {
+			syntax = prompt.LegacyOnlyChatToolInvocationSyntax()
+		} else {
+			syntax = prompt.LegacyOnlyToolInvocationSyntax(planningActive)
+		}
 	} else if bridge {
-		syntax = prompt.ExternalToolBridgeInvocationSyntax()
+		if agenttools.NormalizeMode(r.Mode) == "chat" {
+			syntax = prompt.ExternalToolBridgeChatInvocationSyntax()
+		} else {
+			syntax = prompt.ExternalToolBridgeInvocationSyntax()
+		}
 	} else {
 		syntax = prompt.NativeToolInvocationSyntax(legacyEnabled)
 		if legacyEnabled {
-			legacySyntax = prompt.LegacyToolInvocationSyntaxAppend(planningActive)
+			if agenttools.NormalizeMode(r.Mode) == "chat" {
+				legacySyntax = prompt.LegacyChatToolInvocationSyntaxAppend()
+			} else {
+				legacySyntax = prompt.LegacyToolInvocationSyntaxAppend(planningActive)
+			}
 		}
 	}
 	d := prompt.Data{

@@ -53,3 +53,11 @@ func (r *Runtime) controlSubagent(id, action string) error {
 	}
 	return globalSubagentRegistry.removeActiveEntry(id)
 }
+
+// ControlSubagent exposes the same lifecycle operation used by the REPL to
+// integrations that host a Runtime outside the terminal UI. Keeping the
+// implementation here makes the daemon and the REPL share the exact same
+// pause, cancel and resume semantics.
+func (r *Runtime) ControlSubagent(id, action string) error {
+	return r.controlSubagent(id, action)
+}

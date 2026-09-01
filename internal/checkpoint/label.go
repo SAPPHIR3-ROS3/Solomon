@@ -123,3 +123,12 @@ func StampMsg(m *chatstore.Message, s *chatstore.Session, seq int) {
 	m.CpSeqSet = true
 	m.CheckpointBranchKey = s.CheckpointBranchSuffix
 }
+
+func StampToolCall(tc *chatstore.ToolCall, seq int, branchKey string) {
+	if tc == nil {
+		return
+	}
+	tc.CheckpointSeq = seq
+	tc.CpSeqSet = true
+	tc.CheckpointBranchKey = branchKey
+}

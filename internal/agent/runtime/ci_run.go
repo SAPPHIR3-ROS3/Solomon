@@ -91,17 +91,16 @@ func (r *Runtime) runPromptOnceCI(ctx context.Context, line string) (err error) 
 	}
 	r.ciEmit(cievents.RunStart(line, r.Model, prov, r.ProjHex, r.EphemeralSession))
 	defer func() {
+		if r.FailOnToolError && r.ciToolErr && err == nil {
+			exitErr := cievents.ToolPolicyError()
+			err = exitErr
+		}
 		if err != nil {
 			code, msg := cievents.ClassifyExit(err)
 			logging.Log(logging.ERROR_LOG_LEVEL, "CI run failed", logging.LogOptions{Params: map[string]any{"code": code, "reason": msg, "err": err.Error()}})
-			r.ciEmit(cievents.ErrorEvent(code, msg))
+			r.ciEmit(cievents.ErrorEvent(code, msg, err.Error()))
 		}
 		exitCode, exitReason := cievents.ClassifyExit(err)
-		if r.FailOnToolError && r.ciToolErr && err == nil {
-			exitCode = cievents.ExitTool
-			exitReason = "tool_error"
-			err = cievents.ToolPolicyError()
-		}
 		r.ciEmit(cievents.RunEnd(exitCode, exitReason, r.ciFinalContent, nil))
 		meta := r.ciReportMeta()
 		if flushErr := r.EventSink.FlushReport(meta, exitCode, exitReason, r.ciFinalContent, nil); flushErr != nil && err == nil {

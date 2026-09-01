@@ -100,8 +100,14 @@ func (h turnHost) StripCursorProxyInlineErrors(content string) (string, string) 
 func (h turnHost) ResolveTurnInvocations(turn llm.AssistantTurnResult, legacySW *tooling.LegacyStreamWriter) ([]tooling.Invocation, []string, bool, error) {
 	return h.Runtime.ResolveTurnInvocations(turn, legacySW)
 }
+func (h turnHost) RecordRejectedToolCalls(turn llm.AssistantTurnResult, turnIndex int, reason string) {
+	h.Runtime.recordRejectedToolCalls(turn, turnIndex, reason)
+}
 func (h turnHost) HandleRejectedNativeToolCall() error {
 	return h.Runtime.handleRejectedNativeToolCall()
+}
+func (h turnHost) HandleNativeToolError(err error) error {
+	return h.Runtime.handleNativeToolError(err)
 }
 func (h turnHost) HandleMalformedLegacyTool(err error) error {
 	return h.Runtime.handleMalformedLegacyTool(err)
@@ -115,6 +121,9 @@ func (h turnHost) HandleProxyToolCorrection(msg string) error {
 }
 func (h turnHost) PrintToolInvocation(toolIdx int, name string, rawArgs json.RawMessage) int {
 	return h.Runtime.printToolInvocation(toolIdx, name, rawArgs)
+}
+func (h turnHost) StampToolCallCheckpoint(toolIdx, cpSeq int, branchKey string) {
+	h.Runtime.stampAssistantToolCallCheckpoint(toolIdx, cpSeq, branchKey)
 }
 func (h turnHost) SetCurrentToolCpSeq(seq int) { h.Runtime.currentToolCpSeq = seq }
 func (h turnHost) ExecTool(ctx context.Context, inv tooling.Invocation) (any, error) {

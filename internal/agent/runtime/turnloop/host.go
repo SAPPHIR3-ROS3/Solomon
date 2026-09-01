@@ -49,12 +49,15 @@ type Host interface {
 	ExternalToolBridge() bool
 	StripCursorProxyInlineErrors(content string) (cleaned, fallback string)
 	ResolveTurnInvocations(turn llm.AssistantTurnResult, legacySW *tooling.LegacyStreamWriter) ([]tooling.Invocation, []string, bool, error)
+	RecordRejectedToolCalls(turn llm.AssistantTurnResult, turnIndex int, reason string)
 	HandleRejectedNativeToolCall() error
+	HandleNativeToolError(err error) error
 	HandleMalformedLegacyTool(err error) error
 	SyncLegacyToolCallsToLastAssistant(invs []tooling.Invocation)
 	SlashDeps(ctx context.Context) commands.Deps
 	HandleProxyToolCorrection(msg string) error
 	PrintToolInvocation(toolIdx int, name string, rawArgs json.RawMessage) int
+	StampToolCallCheckpoint(toolIdx, cpSeq int, branchKey string)
 	SetCurrentToolCpSeq(seq int)
 	ExecTool(ctx context.Context, inv tooling.Invocation) (any, error)
 	ApplyToolOutput(res any, toolName, toolCallID string) any

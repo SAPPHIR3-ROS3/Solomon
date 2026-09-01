@@ -117,3 +117,80 @@ func TestSubagentBackgroundStopAndResumeLifecycle(t *testing.T) {
 		t.Fatalf("reasoning efforts=%v", efforts)
 	}
 }
+
+func TestSubagentSynchronousCancellationCleansLifecycle(t *testing.T) {
+	logging.LogInit(logging.ERROR_LOG_LEVEL)
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	projHex := "sync-lifecycle-project"
+	prov := &config.Provider{Name: "test", BaseURL: "http://127.0.0.1:9", APIKey: "key", AuthKind: config.AuthKindAPIKey}
+	cfg := &config.Root{
+		Current:   config.Current{Provider: "test", Model: "test-model"},
+		Providers: map[string]*config.Provider{"test": prov},
+	}
+	r := agentruntime.NewTestRuntime(cfg, prov, projHex, t.TempDir(), &chatstore.Session{ID: "parent"}, io.Discard)
+	b := &lifecycleBackend{started: make(chan struct{})}
+	r.Backend = b
+
+	ctx, cancel := context.WithCancel(context.Background())
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := r.RunSubagentToolForTest(ctx, agentruntime.NestedRunConfig{
+			Task:       "foreground work",
+			Origin:     chatstore.SubOriginParent,
+			ProjectHex: projHex,
+			ToolCall:   chatstore.ToolCall{ID: "sync-call-1", Name: "subagent"},
+		})
+		resultCh <- err
+	}()
+	select {
+	case <-b.started:
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("synchronous subagent did not start")
+	}
+	sessions, err := chatstore.ListSubSessions(projHex)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		cancel()
+		t.Fatalf("subagent sessions before cancellation=%+v", sessions)
+	}
+	subchatID := sessions[0].ID
+	activeBeforeStop, err := chatstore.ReadActiveSubagents()
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	if len(activeBeforeStop.Agents) != 0 {
+		cancel()
+		t.Fatalf("synchronous subagent was registered as background work: %+v", activeBeforeStop.Agents)
+	}
+	cancel()
+	select {
+	case err := <-resultCh:
+		if err == nil {
+			t.Fatal("synchronous cancellation returned nil")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("synchronous subagent did not stop")
+	}
+
+	sess, err := chatstore.FindSubSessionByID(projHex, subchatID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.Status != chatstore.SubStatusPaused {
+		t.Fatalf("after cancellation status=%q", sess.Status)
+	}
+	active, err := chatstore.ReadActiveSubagents()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range active.Agents {
+		if entry.ProjectHex == projHex {
+			t.Fatalf("cancelled synchronous subagent remains active: %+v", entry)
+		}
+	}
+}

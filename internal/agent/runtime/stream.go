@@ -13,11 +13,7 @@ import (
 )
 
 func (r *Runtime) printToolLine(cpSeq int, branchKey, name string, rawArgs json.RawMessage) {
-	if cpSeq > 0 {
-		if intent := tooling.ExtractToolIntent(rawArgs); intent != "" {
-			tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, []string{termcolor.WrapThinking(intent)})
-		}
-	}
+	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, []string{termcolor.WrapThinking(tooling.ToolIntentDisplay(rawArgs))})
 	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, formatToolDisplayLines(name, rawArgs))
 }
 

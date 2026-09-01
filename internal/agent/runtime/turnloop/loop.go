@@ -3,6 +3,7 @@ package turnloop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -232,13 +233,21 @@ func Run(ctx context.Context, h Host) error {
 		h.PersistSessionOrLog("assistantTurn")
 		invs, toolIDs, rejectNative, malformed := h.ResolveTurnInvocations(turn, legacySW)
 		if rejectNative {
+			h.RecordRejectedToolCalls(turn, turnIdx, "native API tool_calls are disabled because legacy tools force is ON")
 			if err2 := h.HandleRejectedNativeToolCall(); err2 != nil {
 				return err2
 			}
 			continue
 		}
 		if malformed != nil {
-			if err2 := h.HandleMalformedLegacyTool(malformed); err2 != nil {
+			h.RecordRejectedToolCalls(turn, turnIdx, malformed.Error())
+			var err2 error
+			if errors.Is(malformed, tooling.ErrMalformedNativeTool) {
+				err2 = h.HandleNativeToolError(malformed)
+			} else {
+				err2 = h.HandleMalformedLegacyTool(malformed)
+			}
+			if err2 != nil {
 				return err2
 			}
 			continue
@@ -304,8 +313,13 @@ func Run(ctx context.Context, h Host) error {
 			}
 			var toolCpSeq int
 			if h.MachineMode() {
-				toolCpSeq = astSeq
-				h.CIEmit(cievents.ToolStart(turnIdx, toolID, inv.Name, inv.Args))
+				var toolBranch string
+				h.MutateSession(func(s *chatstore.Session) {
+					toolCpSeq = checkpoint.Bump(s)
+					toolBranch = s.CheckpointBranchSuffix
+				})
+				h.StampToolCallCheckpoint(i, toolCpSeq, toolBranch)
+				h.CIEmit(cievents.ToolStart(turnIdx, toolID, inv.Name, inv.Args, toolCpSeq, toolBranch))
 			} else {
 				toolCpSeq = h.PrintToolInvocation(i, inv.Name, inv.Args)
 			}

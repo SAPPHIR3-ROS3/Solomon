@@ -16,7 +16,11 @@ import (
 
 const legacyToolJSONCorrectionUserMsg = "Your previous reply contained a malformed tool-invocation block. Preferred shape:\n<tool_calls>\n<tool name=\"TOOL_NAME\">\n<intent>brief purpose</intent>\n<args>{\"key\":\"value\"}</args>\n</tool>\n</tool_calls>\nAlso accepted: <tool_call>{\"name\":\"TOOL_NAME\",\"arguments\":{...}}</tool_call> or <functioncall>{\"name\":\"TOOL_NAME\",\"arguments\":{...}}</functioncall> with valid JSON. Close <tool name=\"...\"> with </tool>, not </tool_call>. Send a corrected block only, or continue without tools if you meant plain text."
 
-const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via API tool_calls with JSON arguments that match each tool schema — not <tool_calls> XML or plain-text tool narration. For workspace read/edit/shell/find/MCP work, call searchTools if unsure, then orchestrate (package main, import \"sdk\") — never emit deferred tools (readFile, editFile, shell, find, …) as direct native tool_calls. Send a corrected invocation or continue without tools if you meant plain text."
+const toolIntentCorrectionUserMsg = "Your previous tool call was rejected because every Solomon tool call requires a non-empty string intent. For native API tool_calls, include an intent string in the JSON arguments. For legacy XML, include <intent>brief purpose</intent> or an intent string inside the JSON arguments. Retry the corrected tool call only, or continue without tools if you meant plain text."
+
+const nativeToolCorrectionUserMsg = "Your previous native API tool call was rejected. Every native tool call requires a non-empty string intent. Retry with a native Solomon tool_call whose JSON arguments match the declared schema and include a non-empty intent string. Do not emit XML, markdown pseudo-calls, or plain-text tool narration unless you mean to answer without tools."
+
+const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via API tool_calls with JSON arguments that match each tool schema, including a non-empty intent string — not <tool_calls> XML or plain-text tool narration. For workspace read/edit/shell/find/MCP work, call searchTools if unsure, then orchestrate (package main, import \"sdk\") — never emit deferred tools (readFile, editFile, shell, find, …) as direct native tool_calls. Send a corrected invocation or continue without tools if you meant plain text."
 
 const cursorProxyOrchestrateFooter = "Cursor built-ins are disabled. Use native tool_calls only: searchTools (discover deferred SDK signatures), orchestrate (run workspace scripts), searchSkill and loadSkill (skills)."
 
@@ -269,9 +273,7 @@ func (r *Runtime) stampAssistantToolCallCheckpoint(toolIdx, cpSeq int, branchKey
 				return
 			}
 			tc := &s.Messages[i].ToolCalls[toolIdx]
-			tc.CheckpointSeq = cpSeq
-			tc.CpSeqSet = true
-			tc.CheckpointBranchKey = branchKey
+			checkpoint.StampToolCall(tc, cpSeq, branchKey)
 			return
 		}
 	})
@@ -285,9 +287,7 @@ func (r *Runtime) printToolInvocation(toolIdx int, name string, rawArgs json.Raw
 		branchKey = s.CheckpointBranchSuffix
 	})
 	r.stampAssistantToolCallCheckpoint(toolIdx, cpSeq, branchKey)
-	if intent := tooling.ExtractToolIntent(rawArgs); intent != "" {
-		tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, []string{termcolor.WrapThinking(intent)})
-	}
+	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, []string{termcolor.WrapThinking(tooling.ToolIntentDisplay(rawArgs))})
 	tooling.WriteToolDisplayLines(r.Out, cpSeq, branchKey, formatToolDisplayLines(name, rawArgs))
 	return cpSeq
 }
@@ -317,17 +317,32 @@ func (r *Runtime) toolInvocationCorrectionUserMsg() string {
 	return legacyToolJSONCorrectionUserMsg
 }
 
+func (r *Runtime) toolInvocationCorrectionForError(err error) string {
+	if errors.Is(err, tooling.ErrMalformedNativeTool) {
+		return nativeToolCorrectionUserMsg
+	}
+	if errors.Is(err, tooling.ErrMissingToolIntent) {
+		return toolIntentCorrectionUserMsg
+	}
+	return r.toolInvocationCorrectionUserMsg()
+}
+
+func (r *Runtime) handleNativeToolError(err error) error {
+	if !r.machineMode() {
+		termcolor.WriteSystem(r.Out, "Native tool invocation error: "+err.Error())
+		fmt.Fprintln(r.Out)
+		flushWriter(r.Out)
+	}
+	return r.injectToolCorrectionUserMsg(r.toolInvocationCorrectionForError(err))
+}
+
 func (r *Runtime) handleMalformedLegacyTool(err error) error {
 	if !r.machineMode() {
 		termcolor.WriteSystem(r.Out, legacyToolScreenMessage(err))
 		fmt.Fprintln(r.Out)
 		flushWriter(r.Out)
 	}
-	correction := legacyToolJSONCorrectionUserMsg
-	if r != nil {
-		correction = r.toolInvocationCorrectionUserMsg()
-	}
-	return r.injectToolCorrectionUserMsg(correction)
+	return r.injectToolCorrectionUserMsg(r.toolInvocationCorrectionForError(err))
 }
 
 func (r *Runtime) handleProxyToolCorrection(msg string) error {
@@ -398,7 +413,7 @@ func legacyToolScreenMessage(err error) string {
 }
 
 func isMalformedLegacyToolErr(err error) bool {
-	return errors.Is(err, tooling.ErrMalformedLegacyTool) || errors.Is(err, tooling.ErrUnknownLegacyTool)
+	return errors.Is(err, tooling.ErrMalformedLegacyTool) || errors.Is(err, tooling.ErrMalformedNativeTool) || errors.Is(err, tooling.ErrUnknownLegacyTool) || errors.Is(err, tooling.ErrMissingToolIntent)
 }
 
 func formatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
