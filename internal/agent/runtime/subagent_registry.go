@@ -155,6 +155,13 @@ func (reg *subagentRegistry) registerRun(id string, cancel func()) *subagentRunH
 	return h
 }
 
+func (reg *subagentRegistry) hasLiveRun(id string) bool {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	_, ok := reg.runs[id]
+	return ok
+}
+
 func (reg *subagentRegistry) finishRun(id string) {
 	reg.mu.Lock()
 	if h, ok := reg.runs[id]; ok {
@@ -194,10 +201,15 @@ func (reg *subagentRegistry) reconcileOnStartup() {
 	}
 	changed := false
 	for i, e := range f.Agents {
-		if e.Status == chatstore.SubStatusRunning {
-			f.Agents[i].Status = chatstore.SubStatusPaused
-			changed = true
+		if e.Status != chatstore.SubStatusRunning || reg.hasLiveRun(e.ID) {
+			continue
 		}
+		f.Agents[i].Status = chatstore.SubStatusPaused
+		if sess, sessErr := chatstore.FindSubSessionByID(e.ProjectHex, e.ID); sessErr == nil && chatstore.SubSessionRunning(sess.Status) {
+			sess.Status = chatstore.SubStatusPaused
+			_ = chatstore.WriteSubSession(e.ProjectHex, sess)
+		}
+		changed = true
 	}
 	if changed {
 		_ = chatstore.WriteActiveSubagents(f)

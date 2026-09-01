@@ -36,13 +36,14 @@ func formatFloatMax3(f float64) string {
 }
 
 func FormatWorkedDuration(secs float64) string {
-	if secs <= 0 || math.IsNaN(secs) {
+	if secs <= 0 || math.IsNaN(secs) || math.IsInf(secs, 0) {
 		return "0s"
 	}
-	h := int(secs / 3600)
-	r1 := secs - float64(h*3600)
-	m := int(r1 / 60)
-	s := r1 - float64(m*60)
+	totalSeconds := int(math.Round(secs))
+	h := totalSeconds / 3600
+	remaining := totalSeconds % 3600
+	m := remaining / 60
+	s := remaining % 60
 	var b strings.Builder
 	if h > 0 {
 		fmt.Fprintf(&b, "%dh", h)
@@ -50,7 +51,7 @@ func FormatWorkedDuration(secs float64) string {
 	if m > 0 || h > 0 {
 		fmt.Fprintf(&b, "%dm", m)
 	}
-	fmt.Fprintf(&b, "%ss", formatFloatMax3(s))
+	fmt.Fprintf(&b, "%ds", s)
 	return b.String()
 }
 
@@ -76,5 +77,8 @@ func UsageTokensLine(contextPromptTok, lastUserPromptTok, reasoningTokens, respo
 }
 
 func ThoughtForSuffix(secs float64) string {
+	if secs >= 0 && secs < 1 {
+		return WrapThinking("thought briefly")
+	}
 	return WrapThinking("thought for " + FormatWorkedDuration(secs))
 }

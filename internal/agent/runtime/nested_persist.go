@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -72,7 +73,10 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		if err := r.persistSubSession(sess); err != nil {
 			return NestedRunResult{}, err
 		}
-		_ = globalSubagentRegistry.upsertActiveEntry(r.activeEntryFor(sess))
+		if cfg.RunInBackground {
+			_ = globalSubagentRegistry.upsertActiveEntry(r.activeEntryFor(sess))
+			defer func() { _ = globalSubagentRegistry.removeActiveEntry(id) }()
+		}
 	}
 	prevNested := r.getNestedState()
 	r.setNestedState(&activeNestedState{
@@ -90,6 +94,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	}
 
 	msgs := append([]chatstore.Message(nil), sess.Messages...)
+	nestedCheckpointSeq := nestedCheckpointLast(msgs)
 	var transcript strings.Builder
 	var usageTurns []llm.UsageStats
 	var usageSys string
@@ -150,7 +155,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 					termcolor.WriteSystem(r.Out, legacyToolScreenMessage(err))
 					fmt.Fprintln(r.Out)
 				}
-				msgs = append(msgs, chatstore.Message{Role: "user", Content: r.toolInvocationCorrectionUserMsg()})
+				msgs = append(msgs, chatstore.Message{Role: "user", Content: r.toolInvocationCorrectionForError(err)})
 				continue
 			}
 			logging.Log(logging.ERROR_LOG_LEVEL, "subagent assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -169,7 +174,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		}
 		transcript.WriteString(turn.Content)
 		transcript.WriteByte('\n')
+		nestedCheckpointSeq++
 		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
+		stampNestedMessageCheckpoint(&ast, nestedCheckpointSeq)
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
@@ -181,19 +188,37 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		}
 		invs, toolIDs, rejectNative, malformed := r.ResolveTurnInvocations(turn, legacySW)
 		if rejectNative {
+			appendNestedRejectedToolResults(&msgs, &nestedCheckpointSeq, turn.ToolCalls, "native API tool_calls are disabled because legacy tools force is ON")
 			if !r.machineMode() && !quiet {
 				termcolor.WriteSystem(r.Out, "Legacy tools force: native API tool_calls were ignored. Use <tool_calls> XML in assistant text.")
 				fmt.Fprintln(r.Out)
 			}
-			msgs = append(msgs, chatstore.Message{Role: "user", Content: legacyNativeToolRejectedUserMsg})
+			nestedCheckpointSeq++
+			correction := chatstore.Message{Role: "user", Content: legacyNativeToolRejectedUserMsg}
+			stampNestedMessageCheckpoint(&correction, nestedCheckpointSeq)
+			msgs = append(msgs, correction)
+			sess.Messages = msgs
+			sess.LastMessageAt = time.Now().UTC()
+			if !r.EphemeralSession {
+				_ = r.persistSubSession(sess)
+			}
 			continue
 		}
 		if malformed != nil {
+			appendNestedRejectedToolResults(&msgs, &nestedCheckpointSeq, turn.ToolCalls, malformed.Error())
 			if !r.machineMode() && !quiet {
 				termcolor.WriteSystem(r.Out, legacyToolScreenMessage(malformed))
 				fmt.Fprintln(r.Out)
 			}
-			msgs = append(msgs, chatstore.Message{Role: "user", Content: r.toolInvocationCorrectionUserMsg()})
+			nestedCheckpointSeq++
+			correction := chatstore.Message{Role: "user", Content: r.toolInvocationCorrectionForError(malformed)}
+			stampNestedMessageCheckpoint(&correction, nestedCheckpointSeq)
+			msgs = append(msgs, correction)
+			sess.Messages = msgs
+			sess.LastMessageAt = time.Now().UTC()
+			if !r.EphemeralSession {
+				_ = r.persistSubSession(sess)
+			}
 			continue
 		}
 		if len(invs) == 0 {
@@ -201,13 +226,18 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			sess.Status = chatstore.SubStatusDone
 			sess.Messages = msgs
 			_ = r.persistSubSession(sess)
-			_ = globalSubagentRegistry.removeActiveEntry(id)
+			if cfg.RunInBackground {
+				_ = globalSubagentRegistry.removeActiveEntry(id)
+			}
 			return NestedRunResult{Output: transcript.String(), SubchatID: id, Status: sess.Status}, nil
 		}
 		for i, inv := range invs {
+			nestedCheckpointSeq++
+			stampNestedToolCallCheckpoint(msgs, i, nestedCheckpointSeq)
+			r.currentToolCpSeq = nestedCheckpointSeq
 			inv.ToolCallID = toolIDs[i]
 			if !quiet {
-				r.printToolLine(0, "", inv.Name, inv.Args)
+				r.printToolLine(nestedCheckpointSeq, "", inv.Name, inv.Args)
 			}
 			for _, line := range formatToolPlainLines(inv.Name, inv.Args) {
 				transcript.WriteString(line + "\n")
@@ -223,10 +253,15 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 				b = []byte(`{"error":"marshal"}`)
 			}
 			payload := string(b)
+			toolResultSeq := nestedCheckpointSeq
 			if id := toolIDs[i]; id != "" {
-				msgs = append(msgs, chatstore.Message{Role: "tool", ToolCallID: id, Content: payload})
+				toolResult := chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
+				stampNestedMessageCheckpoint(&toolResult, toolResultSeq)
+				msgs = append(msgs, toolResult)
 			} else {
-				msgs = append(msgs, chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"})
+				toolResult := chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
+				stampNestedMessageCheckpoint(&toolResult, toolResultSeq)
+				msgs = append(msgs, toolResult)
 			}
 		}
 		sess.Messages = msgs
@@ -238,4 +273,41 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	sess.Status = chatstore.SubStatusDone
 	_ = r.persistSubSession(sess)
 	return NestedRunResult{Output: transcript.String(), SubchatID: id, Status: sess.Status}, nil
+}
+
+func nestedCheckpointLast(messages []chatstore.Message) int {
+	last := -1
+	for _, message := range messages {
+		if message.CpSeqSet || message.CheckpointSeq > 0 {
+			last = maxCheckpointSequence(last, message.CheckpointSeq)
+		}
+		for _, tool := range message.ToolCalls {
+			if tool.CpSeqSet || tool.CheckpointSeq > 0 {
+				last = maxCheckpointSequence(last, tool.CheckpointSeq)
+			}
+		}
+	}
+	return last
+}
+
+func stampNestedMessageCheckpoint(message *chatstore.Message, sequence int) {
+	message.CheckpointSeq = sequence
+	message.CpSeqSet = true
+}
+
+func stampNestedToolCallCheckpoint(messages []chatstore.Message, toolIndex, sequence int) {
+	for index := len(messages) - 1; index >= 0; index-- {
+		if messages[index].Role != "assistant" || toolIndex >= len(messages[index].ToolCalls) {
+			continue
+		}
+		checkpoint.StampToolCall(&messages[index].ToolCalls[toolIndex], sequence, "")
+		return
+	}
+}
+
+func maxCheckpointSequence(current, candidate int) int {
+	if candidate > current {
+		return candidate
+	}
+	return current
 }

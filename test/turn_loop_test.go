@@ -89,7 +89,7 @@ func newTurnLoopRuntime(t *testing.T, backend llm.CompletionBackend, sess *chats
 }
 
 func searchToolsArgs() string {
-	return `{"query":"shell"}`
+	return `{"query":"shell","intent":"discover shell tool"}`
 }
 
 func shellEchoArgs() string {
@@ -139,6 +139,64 @@ func TestRunAgentTurns_toolCallRoundTrip(t *testing.T) {
 	}
 	if backend.turnN != 2 {
 		t.Fatalf("StreamTurn calls=%d", backend.turnN)
+	}
+}
+
+func TestRunAgentTurns_rejectedNativeToolCallGetsTerminalResult(t *testing.T) {
+	backend := &turnScriptBackend{
+		protocol: llm.ProtocolOpenAI,
+		turns: []llm.AssistantTurnResult{
+			{ToolCalls: []llm.AssistantToolCall{{ID: "rejected-1", Name: "subagent", Arguments: `{"task":"inspect"}`}}},
+			{Content: "recovered"},
+		},
+	}
+	rt := newTurnLoopRuntime(t, backend, nil, nil)
+	if err := rt.RunAgentTurnsForTest(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.Session.Messages) != 5 {
+		t.Fatalf("messages=%d: %+v", len(rt.Session.Messages), rt.Session.Messages)
+	}
+	toolResult := rt.Session.Messages[2]
+	if toolResult.Role != "tool" || toolResult.ToolCallID != "rejected-1" || !strings.Contains(toolResult.Content, "missing tool intent") {
+		t.Fatalf("terminal rejected result=%+v", toolResult)
+	}
+	if rt.Session.Messages[3].Role != "user" || !strings.Contains(rt.Session.Messages[3].Content, "non-empty string intent") {
+		t.Fatalf("correction message=%+v", rt.Session.Messages[3])
+	}
+	if rt.Session.Messages[4].Content != "recovered" {
+		t.Fatalf("final assistant=%+v", rt.Session.Messages[4])
+	}
+}
+
+func TestRunAgentTurns_synchronousSubagentReturnsToParent(t *testing.T) {
+	backend := &turnScriptBackend{
+		protocol: llm.ProtocolOpenAI,
+		turns: []llm.AssistantTurnResult{
+			{ToolCalls: []llm.AssistantToolCall{{
+				ID:        "sync-subagent-1",
+				Name:      "subagent",
+				Arguments: `{"task":"nested work","intent":"delegate nested work"}`,
+			}}},
+			{Content: "nested done"},
+			{Content: "parent continued"},
+		},
+	}
+	rt := newTurnLoopRuntime(t, backend, nil, nil)
+	if err := rt.RunAgentTurnsForTest(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if backend.turnN != 3 {
+		t.Fatalf("StreamTurn calls=%d, want parent, nested, parent", backend.turnN)
+	}
+	if len(rt.Session.Messages) != 4 {
+		t.Fatalf("messages=%d: %+v", len(rt.Session.Messages), rt.Session.Messages)
+	}
+	if rt.Session.Messages[2].Role != "tool" || !strings.Contains(rt.Session.Messages[2].Content, "nested done") {
+		t.Fatalf("synchronous subagent result=%+v", rt.Session.Messages[2])
+	}
+	if rt.Session.Messages[3].Content != "parent continued" {
+		t.Fatalf("parent did not continue=%+v", rt.Session.Messages[3])
 	}
 }
 

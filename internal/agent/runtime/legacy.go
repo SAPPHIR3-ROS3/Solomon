@@ -93,6 +93,9 @@ func (r *Runtime) ResolveTurnInvocations(turn llm.AssistantTurnResult, legacySW 
 			invs = append(invs, tooling.Invocation{Name: tc.Name, Args: json.RawMessage(tc.Arguments)})
 			toolIDs = append(toolIDs, tc.ID)
 		}
+		if err := tooling.ValidateNativeInvocations(invs); err != nil {
+			return nil, nil, false, err
+		}
 		return invs, toolIDs, false, nil
 	}
 	if r.externalToolBridge() && !r.legacyToolsForced() {
@@ -121,6 +124,9 @@ func (r *Runtime) legacyInvocationsFromTurn(turn llm.AssistantTurnResult, legacy
 		invs = extracted
 	}
 	if err := tooling.ValidateInvocationNames(invs, allowed); err != nil {
+		return nil, nil, false, err
+	}
+	if err := tooling.ValidateInvocationIntents(invs); err != nil {
 		return nil, nil, false, err
 	}
 	for range invs {

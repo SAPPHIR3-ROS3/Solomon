@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -171,13 +172,14 @@ func formatExportFloatMax3(f float64) string {
 }
 
 func formatExportWorkedDuration(secs float64) string {
-	if secs <= 0 {
+	if secs <= 0 || math.IsNaN(secs) || math.IsInf(secs, 0) {
 		return "0s"
 	}
-	h := int(secs / 3600)
-	r1 := secs - float64(h*3600)
-	m := int(r1 / 60)
-	s := r1 - float64(m*60)
+	totalSeconds := int(math.Round(secs))
+	h := totalSeconds / 3600
+	remaining := totalSeconds % 3600
+	m := remaining / 60
+	s := remaining % 60
 	var b strings.Builder
 	if h > 0 {
 		fmt.Fprintf(&b, "%dh", h)
@@ -185,7 +187,7 @@ func formatExportWorkedDuration(secs float64) string {
 	if m > 0 || h > 0 {
 		fmt.Fprintf(&b, "%dm", m)
 	}
-	fmt.Fprintf(&b, "%ss", formatExportFloatMax3(s))
+	fmt.Fprintf(&b, "%ds", s)
 	return b.String()
 }
 
@@ -235,13 +237,12 @@ func writeMarkdownMessage(out io.Writer, msgs []chatstore.Message, idx int, mode
 			if tc.CpSeqSet {
 				cpSeq, branch = tc.CheckpointSeq, tc.CheckpointBranchKey
 			}
-			if intent := tooling.ExtractToolIntent(json.RawMessage(tc.Arguments)); intent != "" {
-				tag := checkpoint.FormatCheckpointTag(cpSeq, branch)
-				if tag != "" {
-					fmt.Fprintf(out, "_%s intent:_ %s\n\n", tag, intent)
-				} else {
-					fmt.Fprintf(out, "_intent:_ %s\n\n", intent)
-				}
+			intent := tooling.ToolIntentDisplay(json.RawMessage(tc.Arguments))
+			tag := checkpoint.FormatCheckpointTag(cpSeq, branch)
+			if tag != "" {
+				fmt.Fprintf(out, "_%s intent:_ %s\n\n", tag, intent)
+			} else {
+				fmt.Fprintf(out, "_intent:_ %s\n\n", intent)
 			}
 			for _, line := range exportPlainToolLines(tc.Name, json.RawMessage(tc.Arguments)) {
 				fmt.Fprintf(out, "%s\n\n", line)

@@ -84,9 +84,7 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 			if tc.CpSeqSet {
 				cpSeq, branch = tc.CheckpointSeq, tc.CheckpointBranchKey
 			}
-			if intent := tooling.ExtractToolIntent(json.RawMessage(tc.Arguments)); intent != "" {
-				tooling.WriteToolDisplayLines(out, cpSeq, branch, []string{termcolor.WrapThinking(intent)})
-			}
+			tooling.WriteToolDisplayLines(out, cpSeq, branch, []string{termcolor.WrapThinking(tooling.ToolIntentDisplay(json.RawMessage(tc.Arguments)))})
 			tooling.WriteToolDisplayLines(out, cpSeq, branch, tooling.FormatToolDisplayLines(tc.Name, json.RawMessage(tc.Arguments)))
 		}
 	case "tool":

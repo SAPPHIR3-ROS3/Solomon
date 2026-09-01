@@ -29,6 +29,36 @@ func (r *Runtime) scheduleDeferredChatTitleFinalize(ctx context.Context) {
 	go r.runDeferredChatTitleFinalize(ctx)
 }
 
+// FinalizeChatTitle generates a title for an API-created chat while keeping
+// its existing ID stable. The API needs a stable ID so the browser can keep
+// its stream attached while the title is refined.
+func (r *Runtime) FinalizeChatTitle(ctx context.Context, firstUserLine string) {
+	firstUserLine = strings.TrimSpace(firstUserLine)
+	if r == nil || r.Session == nil || firstUserLine == "" {
+		return
+	}
+
+	t := ""
+	var err error
+	if r.Backend != nil {
+		t, err = title.FromPrompt(ctx, r.Backend, r.Client, r.Cfg, r.Model, firstUserLine)
+	}
+	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "chat title FromPrompt failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+	}
+	if strings.TrimSpace(t) == "" {
+		t = title.FallbackFromWords(firstUserLine)
+	}
+	t = title.NormalizeSlug(t)
+
+	r.chatPersistMu.Lock()
+	defer r.chatPersistMu.Unlock()
+	r.Session.Title = t
+	if err := r.writeSessionLocked(); err != nil {
+		logging.Log(logging.ERROR_LOG_LEVEL, "persist chat title failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+	}
+}
+
 func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 	defer func() {
 		r.deferredTitleScheduleMu.Lock()
