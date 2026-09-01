@@ -85,7 +85,7 @@ Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds s
 
 ## Local server runtime
 
-The detached local server writes lifecycle state to `~/.solomon/run/server/state.json` and its stdout/stderr log to `~/.solomon/logs/server/server.log`. The state file contains no configuration or user content; it is removed after a graceful `solomon server stop`. See [Local server](../architecture/server.md).
+The detached local server writes lifecycle state to `~/.solomon/run/server/state.json` and its stdout/stderr log to `~/.solomon/logs/server/server.log`. The state file contains process metadata and the server URLs advertised for loopback, local-network and Tailscale interfaces; it contains no configuration or user content and is removed after a graceful `solomon server stop`. See [Local server](../architecture/server.md).
 
 ## Subagent files
 

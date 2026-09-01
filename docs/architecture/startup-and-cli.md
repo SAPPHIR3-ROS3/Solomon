@@ -8,7 +8,7 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 
 | Package / file | Responsibility |
 |----------------|----------------|
-| `cmd/solomon/main.go` | Entry: logging, CLI branches, REPL |
+| `cmd/solomon/main.go` | Entry: logging, CLI branches, daemon-backed TUI client |
 | `cmd/solomon/exec.go` | `exec` / `temp exec`, `--json` / `--jsonl`, headless config |
 | `cmd/solomon/server/` | Detached local server lifecycle (`start`/`status`/`stop`/`restart`/`logs`) |
 | `internal/server/` | Local HTTP host: health, Vite proxy, process lifecycle |
@@ -26,7 +26,7 @@ Documents how the `solomon` binary boots, branches on subcommands, and construct
 
 | Function | File | Behavior |
 |----------|------|----------|
-| `main` | `cmd/solomon/main.go` | Init logging; `add`/`remove`; early `exec` path; initial setup + REPL |
+| `main` | `cmd/solomon/main.go` | Init logging; maintenance commands; early `exec` path; daemon-backed interactive TUI |
 | `runExecCLI` | `cmd/solomon/exec.go` | One-shot exec with optional machine output |
 | `config.ResolveExecConfig` | `internal/config/exec_resolve.go` | Headless credentials for `--json`/`--jsonl` |
 | `prompt.InstallTemplates` | `internal/prompt/install.go` | SHA review + sync before writing `prompts/templates/` (`make install`) |
@@ -53,14 +53,15 @@ flowchart LR
   warn[Warn if still incomplete]
   proj[Resolve cwd]
   mode{CLI mode}
-  repl[REPL]
+  client[daemon TUI client]
+  repl[daemon PTY child / REPL]
   execOnce[exec]
   start --> load --> ok
   ok -->|no| setup --> ok
   ok -->|yes| warn
   setup --> tpl --> warn
   warn --> proj --> mode
-  mode -->|default| repl
+  mode -->|default| client --> repl
   mode -->|exec args| execOnce
 ```
 
@@ -73,11 +74,17 @@ Before initial setup, `main` handles:
 - `solomon remove skill <name>` → `commands.Remove`
 - `solomon exec` / `solomon temp exec` → `runExecCLI` (human or `--json` / `--jsonl`; readline skipped in machine mode; **no** `StartupTemplates` — use interactive REPL to accept template edits)
 
-After initial setup on the **interactive REPL path**, `prompt.StartupTemplates` runs before the session loop: copies missing `.tmpl` files, then prompts only when on-disk content diverges from a saved `[prompt_templates]` SHA (tampering after accept). Template upgrades from a new binary are synced during `make install` via `solomon templates install` (SHA check before writing files). See [Configuration](../user-guide/configuration.md#prompt_templates-system-prompt-templates).
+After initial setup on the **interactive REPL path** (the daemon-launched
+`--daemon-tui` child), `prompt.StartupTemplates` runs before the session loop:
+copies missing `.tmpl` files, then prompts only when on-disk content diverges
+from a saved `[prompt_templates]` SHA (tampering after accept). Template
+upgrades from a new binary are synced during `make install` via `solomon
+templates install` (SHA check before writing files). See [Configuration](../user-guide/configuration.md#prompt_templates-system-prompt-templates).
 
 After runtime construction (REPL path only):
 
-- default — `Runtime.Run`
+- default — `solomon` attaches to a daemon-owned PTY running `Runtime.Run`
+- `solomon tui [directory]` / `solomon attach [directory]` — explicit aliases for the same client
 - REPL `/temp` — ephemeral in-memory chat ([`commands.TempChat`](../../internal/agent/commands/resume.go))
 
 ## Session construction at boot
