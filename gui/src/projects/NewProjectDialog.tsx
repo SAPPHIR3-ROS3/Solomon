@@ -5,7 +5,7 @@ import "./new-project-dialog.css";
 
 type NewProjectDialogProps = {
   isOpen: boolean;
-  onConfirmLocalFolder: (selection: LocalFolderSelection) => void;
+  onConfirmLocalFolder: (selection: LocalFolderSelection) => void | Promise<void>;
   onClose: () => void;
 };
 
@@ -17,7 +17,7 @@ const projectSources = [
     icon: <FolderIcon />,
   },
   {
-    description: "Clone a project from a remote repository",
+    description: "Clone a project from a remote repository (coming soon)",
     id: "git",
     label: "Git URL",
     icon: <GitUrlIcon />,
@@ -31,6 +31,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
   const [folderError, setFolderError] = useState("");
   const [folderPath, setFolderPath] = useState("");
   const [isFolderLoading, setIsFolderLoading] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const onCloseRef = useRef(onClose);
@@ -50,6 +51,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
     setFolderError("");
     setFolderPath("");
     setIsFolderPickerOpen(false);
+    setIsConfirming(false);
     searchRef.current?.focus();
 
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -140,14 +142,22 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
     setQuery("");
   }
 
-  function confirmCurrentFolder() {
+  async function confirmCurrentFolder() {
+    if (isConfirming) return;
     const normalizedPath = normalizeFolderPath(folderPath);
     const pathParts = normalizedPath.split("/").filter(Boolean);
-    onConfirmLocalFolder({
-      displayPath: folderLocation,
-      name: pathParts.at(-1) ?? "Home",
-      path: normalizedPath,
-    });
+    setIsConfirming(true);
+    setFolderError("");
+    try {
+      await onConfirmLocalFolder({
+        displayPath: folderLocation,
+        name: pathParts.at(-1) ?? "Home",
+        path: normalizedPath,
+      });
+    } catch (error) {
+      setFolderError(error instanceof Error ? error.message : "Unable to create project.");
+      setIsConfirming(false);
+    }
   }
 
   if (!isOpen) return null;
@@ -177,7 +187,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
             value={isFolderPickerOpen ? `${folderLocation}${query}` : query}
           />
           {isFolderPickerOpen ? (
-            <button aria-label={`Use folder ${folderLocation}`} className="new-project-dialog-search-confirm" onClick={confirmCurrentFolder} title="Use this folder" type="button">
+            <button aria-label={`Use folder ${folderLocation}`} className="new-project-dialog-search-confirm" disabled={isConfirming} onClick={() => void confirmCurrentFolder()} title="Use this folder" type="button">
               <CheckIcon />
             </button>
           ) : null}
@@ -213,6 +223,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
               {visibleSources.length ? visibleSources.map((source) => (
                 <button
                   className={`new-project-dialog-source${activeSourceId === source.id ? " is-active" : ""}`}
+                  disabled={source.id === "git"}
                   key={source.id}
                   onClick={source.id === "local" ? openLocalFolderPicker : undefined}
                   onPointerEnter={() => setActiveSourceId(source.id)}

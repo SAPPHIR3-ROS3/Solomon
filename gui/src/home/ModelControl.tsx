@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchModelCatalog,
+  getCachedModelCatalog,
+  getCachedCurrentModel,
   saveCurrentModel,
   type ModelCatalog,
   type ModelChoice,
@@ -8,14 +10,16 @@ import {
 import "./welcome-model.css";
 
 const recentProvider = "__recent__";
+const emptyCatalog: ModelCatalog = { current: { provider: "", model: "" }, providers: [], recent: [] };
 
 type ModelControlProps = {
+  onFastModeAvailableChange?: (available: boolean) => void;
   onModelChange?: (choice: ModelChoice) => void;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
 };
 
-export function ModelControl({ onModelChange, open, onOpenChange }: ModelControlProps) {
+export function ModelControl({ onFastModeAvailableChange, onModelChange, open, onOpenChange }: ModelControlProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
   const setOpen = (next: boolean) => {
@@ -23,25 +27,45 @@ export function ModelControl({ onModelChange, open, onOpenChange }: ModelControl
     if (open === undefined) setInternalOpen(next);
   };
   const controlRef = useRef<HTMLDivElement>(null);
-  const [catalog, setCatalog] = useState<ModelCatalog>({ current: { provider: "", model: "" }, providers: [], recent: [] });
-  const [selected, setSelected] = useState<ModelChoice>({ provider: "", model: "" });
+  const [catalog, setCatalog] = useState<ModelCatalog>(() => getCachedModelCatalog() ?? emptyCatalog);
+  const [selected, setSelected] = useState<ModelChoice>(() => getCachedCurrentModel() ?? getCachedModelCatalog()?.current ?? { provider: "", model: "" });
   const [activeProvider, setActiveProvider] = useState(recentProvider);
   const [query, setQuery] = useState("");
   const [loadError, setLoadError] = useState(false);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+
+  function notifyModelChange(choice: ModelChoice, sourceCatalog = catalog) {
+    const normalizedProvider = choice.provider.trim().toLowerCase();
+    const provider = sourceCatalog.providers.find((group) => group.provider.trim().toLowerCase() === normalizedProvider);
+    onFastModeAvailableChange?.(provider?.supportsFastMode === true);
+    onModelChange?.(choice);
+  }
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetchModelCatalog(controller.signal)
+    if (catalogLoaded) return;
+    let cancelled = false;
+    setCatalogLoading(true);
+    void fetchModelCatalog()
       .then((data) => {
+        if (cancelled) return;
         setCatalog(data);
         const choice = data.current.model ? data.current : firstChoice(data);
         setSelected(choice);
-        onModelChange?.(choice);
+        notifyModelChange(choice, data);
         setLoadError(false);
+        setCatalogLoaded(true);
       })
-      .catch(() => setLoadError(true));
-    return () => controller.abort();
-  }, []);
+      .catch(() => {
+        if (!cancelled) setLoadError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogLoaded, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -96,17 +120,17 @@ export function ModelControl({ onModelChange, open, onOpenChange }: ModelControl
   async function selectModel(choice: ModelChoice) {
     const previous = selected;
     setSelected(choice);
-    onModelChange?.(choice);
+    notifyModelChange(choice);
     setOpen(false);
     try {
       const saved = await saveCurrentModel(choice.provider, choice.model);
       setSelected(saved);
-      onModelChange?.(saved);
+      notifyModelChange(saved);
       const next = await fetchModelCatalog();
       setCatalog(next);
     } catch {
       setSelected(previous);
-      onModelChange?.(previous);
+      notifyModelChange(previous);
     }
   }
 
@@ -132,7 +156,7 @@ export function ModelControl({ onModelChange, open, onOpenChange }: ModelControl
       {isOpen ? (
         <div aria-label="Models configured in Solomon Home" className="welcome-model-menu" role="dialog">
           <nav aria-label="Providers" className="welcome-provider-rail">
-            <header>{loadError ? "Cached" : "Providers"}</header>
+            <header>{loadError ? "Cached" : catalogLoading && !catalog.providers.length && !catalog.recent.length ? "Loading…" : "Providers"}</header>
             <button
               aria-pressed={showingRecents}
               className={`welcome-provider-recent${showingRecents ? " is-active" : ""}`}
@@ -183,7 +207,7 @@ export function ModelControl({ onModelChange, open, onOpenChange }: ModelControl
               </small>
             </header>
             <div aria-label={`${activeLabel} models`} className="welcome-model-list" role="listbox">
-              {visibleModels.length ? visibleModels.map((choice) => {
+              {catalogLoading && !catalog.providers.length && !catalog.recent.length ? <p>Loading models…</p> : visibleModels.length ? visibleModels.map((choice) => {
                 const isSelected = selected.provider === choice.provider && selected.model === choice.model;
                 return (
                   <button

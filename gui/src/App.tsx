@@ -12,11 +12,11 @@ import { CustomizationPage } from "./customization/CustomizationPage";
 import { Welcome } from "./home/Welcome";
 import { NewProjectDialog } from "./projects/NewProjectDialog";
 import { SettingsPage } from "./settings/SettingsPage";
-import { type Project, type ProjectResearch } from "./projects/projects";
+import { createProjectFromFolder, fetchProjectSidebarData, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
-import { estimateFakeStats, fakeAssistantReply, type FakeChatMessage } from "./chat-test/fakeChats";
-import { createTemporaryWorkspaceChat, createTestChat, getTestChat, updateTestChat, useTestChatStore } from "./chat-test/testChatStore";
-import { TestChatTopbar, TestChatView } from "./chat-test/TestChatView";
+import { useChatRuntime } from "./chat/useChatRuntime";
+import { forgetRememberedActiveChat, getRememberedActiveChat } from "./chat/chatStore";
+import { ChatTopbar, ChatView } from "./chat/ChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
@@ -29,8 +29,6 @@ const MAX_COMPOSER_WIDTH = 960;
 const TEXTBOX_SIDE_PANEL_GAP = 36;
 const LEFT_SIDE_PANEL_WIDTH_KEY = "solomon.left-side-panel-width";
 const RIGHT_SIDE_PANEL_WIDTH_KEY = "solomon.right-side-panel-width";
-const TEST_CHAT_STREAM_DELAY_MS = 65;
-const LOREM_WORDS = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure dolor in reprehenderit voluptate velit esse cillum dolore fugiat nulla pariatur".split(" ");
 const EMPTY_MESSAGE_IDS = new Set<string>();
 
 export function App() {
@@ -53,23 +51,25 @@ export function App() {
   const [activeTemporaryWorkspaceID, setActiveTemporaryWorkspaceID] = useState<string | null>(null);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
-  const fakeChats = useTestChatStore();
-  const [selectedFakeChatID, setSelectedFakeChatID] = useState<string | null>(null);
-  const [isNewTestChatOpen, setIsNewTestChatOpen] = useState(false);
   const [welcomeResetToken, setWelcomeResetToken] = useState(0);
-  const [streamingFakeChatIDs, setStreamingFakeChatIDs] = useState<Set<string>>(() => new Set());
-  const [pendingFakeChatMessageIDs, setPendingFakeChatMessageIDs] = useState<Map<string, Set<string>>>(() => new Map());
-  const streamControllers = useRef(new Map<string, AbortController>());
-  const queuedFakeChatMessages = useRef(new Map<string, FakeChatMessage[]>());
   const [selectedResearch, setSelectedResearch] = useState<{ project: Project; research: ProjectResearch } | null>(null);
   const [workspaceFocus, setWorkspaceFocus] = useState<{ project: Project; token: number } | null>(null);
   const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
   const [viewportWidth, setViewportWidth] = useState(getViewportContentWidth);
   const [viewportScrollbarWidth, setViewportScrollbarWidth] = useState(getViewportScrollbarWidth);
+  const restoreAttemptedRef = useRef(false);
   const maxTerminalPanelHeight = Math.max(
     MIN_TERMINAL_PANEL_HEIGHT,
     viewportHeight - (welcomeKeepAliveHeight > 0 ? welcomeKeepAliveHeight : FALLBACK_KEEP_ALIVE_HEIGHT),
   );
+  const chatRuntime = useChatRuntime();
+  const {
+    selectedChat,
+    isLoading: isChatLoading,
+    error: chatError,
+    streamingChatIDs,
+    pendingMessageIDs,
+  } = chatRuntime;
 
   useEffect(() => {
     void detectClient().then(setClient);
@@ -77,6 +77,11 @@ export function App() {
 
   useEffect(() => {
     applyTheme(savedTheme());
+  }, []);
+
+  useEffect(() => {
+    prefetchProjectSidebarData();
+    prefetchModelCatalog();
   }, []);
 
   useEffect(() => {
@@ -107,15 +112,16 @@ export function App() {
   }, [maxTerminalPanelHeight]);
 
   function goHome() {
+    chatRuntime.clearSelection();
     setIsNewProjectDialogOpen(false);
     setWelcomeResetToken((current) => current + 1);
     setIsSettingsOpen(false);
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setIsTerminalPanelOpen(false);
-    setSelectedFakeChatID(null);
-    setIsNewTestChatOpen(false);
     setSelectedResearch(null);
+    setSelectedWorkspace(null);
+    setWorkspaceFocus(null);
   }
 
   function openNewProjectDialog() {
@@ -126,29 +132,20 @@ export function App() {
     setIsNewProjectDialogOpen(false);
   }
 
-  function selectLocalFolder(selection: LocalFolderSelection) {
-    const nextWorkspace = {
-      ...selection,
-      id: `temporary-local:${selection.path || "home"}`,
-    };
-    setTemporaryWorkspace(nextWorkspace);
-    setActiveTemporaryWorkspaceID(nextWorkspace.id);
+  async function selectLocalFolder(selection: LocalFolderSelection) {
+    const project = await createProjectFromFolder(selection.path);
+    setTemporaryWorkspace(null);
+    setActiveTemporaryWorkspaceID(null);
     setIsNewProjectDialogOpen(false);
-    setWelcomeResetToken((current) => current + 1);
-    setSelectedFakeChatID(null);
-    setIsNewTestChatOpen(false);
-    setSelectedResearch(null);
-    setSelectedWorkspace(null);
-    setWorkspaceFocus(null);
+    openProjectNewChat(project);
   }
 
   function openTemporaryWorkspace() {
     if (!temporaryWorkspace) return;
+    chatRuntime.clearSelection();
     setActiveTemporaryWorkspaceID(temporaryWorkspace.id);
     setWelcomeResetToken((current) => current + 1);
     setActiveView("agent");
-    setSelectedFakeChatID(null);
-    setIsNewTestChatOpen(false);
     setSelectedResearch(null);
     setSelectedWorkspace(null);
     setWorkspaceFocus(null);
@@ -187,257 +184,69 @@ export function App() {
   }
 
   function openProjectNewChat(project: Project) {
+    chatRuntime.clearSelection();
     setWelcomeResetToken((current) => current + 1);
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setActiveTemporaryWorkspaceID(null);
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
-    setSelectedFakeChatID(null);
-    setIsNewTestChatOpen(false);
     setSelectedResearch(null);
   }
 
   function openProjectTerminal(project: Project) {
+    chatRuntime.clearSelection();
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setActiveTemporaryWorkspaceID(null);
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
-    setSelectedFakeChatID(null);
-    setIsNewTestChatOpen(false);
     setSelectedResearch(null);
     setHasOpenedTerminalPanel(true);
     setIsTerminalPanelOpen(true);
   }
 
-  function openNewFakeChat() {
+  const openProjectChat = useCallback(async (project: Project, chatID: string) => {
     setWelcomeResetToken((current) => current + 1);
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setActiveTemporaryWorkspaceID(null);
-    setSelectedFakeChatID(null);
-    setIsNewTestChatOpen(true);
+    setSelectedWorkspace(project);
+    setWorkspaceFocus({ project, token: Date.now() });
     setSelectedResearch(null);
-    setSelectedWorkspace(null);
-    setWorkspaceFocus(null);
-  }
+    await chatRuntime.openProjectChat(project, chatID);
+  }, [chatRuntime.openProjectChat]);
 
-  function sendNewFakeChatMessage(content: string) {
-    const chat = createTestChat();
-    setIsNewTestChatOpen(false);
-    setSelectedFakeChatID(chat.id);
-    sendFakeChatMessage(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, role: "user", content });
-  }
-
-  function sendTemporaryWorkspaceMessage(content: string) {
-    if (!temporaryWorkspace) return;
-    const chat = createTemporaryWorkspaceChat(temporaryWorkspace.id);
-    setIsNewTestChatOpen(false);
-    setSelectedFakeChatID(chat.id);
-    setSelectedResearch(null);
-    setSelectedWorkspace(null);
-    setWorkspaceFocus(null);
-    sendFakeChatMessage(chat.id, { createdAt: Date.now(), id: `user-${Date.now()}`, role: "user", content });
-  }
-
-  function sendFakeChatMessage(chatID: string, message: FakeChatMessage) {
-    const chat = getTestChat(chatID);
-    if (!chat) return;
-    const isStreamingTestChat = chat.isNewTestChat === true;
-    if (!isStreamingTestChat) {
-      updateTestChat(chatID, (current) => ({
-        ...current,
-        messages: [...current.messages, message, fakeAssistantReply(message.content)],
-      }));
-      return;
-    }
-
-    updateTestChat(chatID, (current) => ({
-      ...current,
-      messages: [...current.messages, message],
-    }));
-
-    if (streamControllers.current.has(chatID)) {
-      markFakeChatMessagePending(chatID, message.id);
-      const queue = queuedFakeChatMessages.current.get(chatID) ?? [];
-      queue.push(message);
-      queuedFakeChatMessages.current.set(chatID, queue);
-      return;
-    }
-
-    startFakeChatStream(chatID, message);
-  }
-
-  function deleteFakeChatMessage(chatID: string, messageID: string) {
-    const chat = getTestChat(chatID);
-    if (!chat) return;
-    const messageIndex = chat.messages.findIndex((message) => message.id === messageID && message.role === "user");
-    if (messageIndex === -1) return;
-
-    const assistantResponse = chat.messages[messageIndex + 1]?.role === "assistant" ? chat.messages[messageIndex + 1] : undefined;
-    const messageIDs = new Set([messageID, ...(assistantResponse ? [assistantResponse.id] : [])]);
-    updateTestChat(chatID, (current) => ({
-      ...current,
-      messages: current.messages.filter((message) => !messageIDs.has(message.id)),
-    }));
-
-    const queuedMessages = queuedFakeChatMessages.current.get(chatID);
-    if (queuedMessages?.some((message) => message.id === messageID)) {
-      const nextQueue = queuedMessages.filter((message) => message.id !== messageID);
-      if (nextQueue.length) queuedFakeChatMessages.current.set(chatID, nextQueue);
-      else queuedFakeChatMessages.current.delete(chatID);
-      setPendingFakeChatMessageIDs((current) => {
-        const previous = current.get(chatID);
-        if (!previous?.has(messageID)) return current;
-        const next = new Map(current);
-        const nextIDs = new Set(previous);
-        nextIDs.delete(messageID);
-        if (nextIDs.size) next.set(chatID, nextIDs);
-        else next.delete(chatID);
-        return next;
+  useEffect(() => {
+    if (restoreAttemptedRef.current) return;
+    restoreAttemptedRef.current = true;
+    const remembered = getRememberedActiveChat();
+    if (!remembered) return;
+    void fetchProjectSidebarData()
+      .then(async (sidebar) => {
+        const project = sidebar.projects.find((candidate) => candidate.id === remembered.projectID);
+        const chat = project?.chats.find((candidate) => candidate.id === remembered.chatID);
+        if (!project || !chat) {
+          forgetRememberedActiveChat();
+          return;
+        }
+        await openProjectChat(project, chat.id);
+      })
+      .catch(() => {
+        // A temporary daemon outage should not prevent the normal home view.
       });
-    }
+  }, [openProjectChat]);
 
-    const latestAssistantID = [...chat.messages].reverse().find((message) => message.role === "assistant")?.id;
-    if (assistantResponse?.id === latestAssistantID) streamControllers.current.get(chatID)?.abort();
-  }
-
-  function startFakeChatStream(chatID: string, message: FakeChatMessage) {
-    const assistantID = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const startedAt = Date.now();
-    updateTestChat(chatID, (current) => ({
-      ...current,
-      messages: [...current.messages, { createdAt: Date.now(), id: assistantID, role: "assistant", content: "" }],
-    }));
-
-    const words = loremWordsForUserMessage(message.content);
-    const controller = new AbortController();
-    streamControllers.current.set(chatID, controller);
-    setStreamingFakeChatIDs((current) => new Set(current).add(chatID));
-    void streamLoremResponse(chatID, assistantID, words, controller, startedAt);
-  }
-
-  function stopFakeChatStream(chatID: string) {
-    const controller = streamControllers.current.get(chatID);
-    if (!controller) return;
-
-    const chat = getTestChat(chatID);
-    const assistantID = [...(chat?.messages ?? [])].reverse().find((message) => message.role === "assistant")?.id;
-    if (assistantID) {
-      updateTestChat(chatID, (current) => ({
-        ...current,
-        messages: current.messages.map((message) => (
-          message.id === assistantID ? { ...message, status: "interrupted" } : message
-        )),
-      }));
-    }
-
-    controller.abort();
-  }
-
-  function stopFakeSubagent(chatID: string, messageID: string, toolID: string) {
-    updateTestChat(chatID, (current) => ({
-      ...current,
-      messages: current.messages.map((message) => (
-        message.id !== messageID
-          ? message
-          : {
-              ...message,
-              toolCalls: message.toolCalls?.map((tool) => (
-                tool.id === toolID ? { ...tool, status: "interrupted" } : tool
-              )),
-            }
-      )),
-    }));
-  }
-
-  async function streamLoremResponse(chatID: string, assistantID: string, words: string[], controller: AbortController, startedAt: number) {
-    try {
-      for (let index = 0; index < words.length; index += 1) {
-        await waitForStreamDelay(controller.signal);
-        if (controller.signal.aborted) return;
-        const content = words.slice(0, index + 1).join(" ");
-        updateTestChat(chatID, (current) => ({
-          ...current,
-          messages: current.messages.map((message) => (
-            message.id === assistantID ? { ...message, content } : message
-          )),
-        }));
-      }
-    } finally {
-      if (streamControllers.current.get(chatID) !== controller) return;
-      streamControllers.current.delete(chatID);
-      updateTestChat(chatID, (current) => ({
-        ...current,
-        messages: current.messages.map((message) => (
-          message.id === assistantID
-            ? { ...message, stats: estimateFakeStats(message.content), workedFor: (Date.now() - startedAt) / 1000 }
-            : message
-        )),
-      }));
-
-      const queue = queuedFakeChatMessages.current.get(chatID);
-      const nextMessage = queue?.shift();
-      if (queue?.length === 0) queuedFakeChatMessages.current.delete(chatID);
-      if (nextMessage) {
-        markFakeChatMessageComplete(chatID, nextMessage.id);
-        startFakeChatStream(chatID, nextMessage);
-        return;
-      }
-
-      setStreamingFakeChatIDs((current) => {
-        const next = new Set(current);
-        next.delete(chatID);
-        return next;
-      });
-    }
-  }
-
-  function markFakeChatMessagePending(chatID: string, messageID: string) {
-    setPendingFakeChatMessageIDs((current) => {
-      const next = new Map(current);
-      const messageIDs = new Set(next.get(chatID));
-      messageIDs.add(messageID);
-      next.set(chatID, messageIDs);
-      return next;
-    });
-  }
-
-  function markFakeChatMessageComplete(chatID: string, messageID: string) {
-    setPendingFakeChatMessageIDs((current) => {
-      const previous = current.get(chatID);
-      if (!previous?.has(messageID)) return current;
-      const next = new Map(current);
-      const messageIDs = new Set(previous);
-      messageIDs.delete(messageID);
-      if (messageIDs.size) next.set(chatID, messageIDs);
-      else next.delete(chatID);
-      return next;
-    });
-  }
-
-  function openFakeChat(chatID: string) {
-    setWelcomeResetToken((current) => current + 1);
-    setIsCustomizationOpen(false);
-    setActiveView("agent");
-    const chat = getTestChat(chatID);
-    setActiveTemporaryWorkspaceID(chat?.workspaceID ?? null);
-    setSelectedFakeChatID(chatID);
-    setIsNewTestChatOpen(false);
-    setSelectedResearch(null);
-    setSelectedWorkspace(null);
-    setWorkspaceFocus(null);
-  }
-
-  const selectedFakeChat = fakeChats.find((chat) => chat.id === selectedFakeChatID) ?? null;
-  const selectedTemporaryWorkspace = selectedFakeChat?.workspaceID === temporaryWorkspace?.id ? temporaryWorkspace : null;
-  const isTestChatsExplorerActive = Boolean(selectedFakeChat) || isNewTestChatOpen;
-  const workspaceNameOverride = selectedTemporaryWorkspace?.name ?? (isTestChatsExplorerActive ? "Test chats" : null);
+  const selectedTemporaryWorkspace = activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace : null;
+  const workspaceNameOverride = selectedTemporaryWorkspace?.name ?? null;
 
   const handleWorkspaceChange = useCallback((project: Project | null) => {
     setSelectedWorkspace(project);
     if (project) setActiveTemporaryWorkspaceID(null);
+    setWorkspaceFocus((current) => {
+      if (!project) return current ? null : current;
+      return current?.project.id === project.id ? current : { project, token: Date.now() };
+    });
   }, []);
 
   const handleComposerBoundsChange = useCallback((bounds: { left: number; right: number }) => {
@@ -531,12 +340,13 @@ export function App() {
           onWidthChange={resizeRightPanel}
           onOpenResearch={(research) => {
             if (!selectedWorkspace) return;
-            setSelectedFakeChatID(null);
-            setIsNewTestChatOpen(false);
-            setSelectedResearch({ project: selectedWorkspace, research });
+            chatRuntime.clearSelection();
+            setSelectedResearch({
+              project: selectedWorkspace,
+              research,
+            });
           }}
           project={selectedWorkspace}
-          testChatsActive={isTestChatsExplorerActive}
           temporaryWorkspace={activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace : null}
           width={renderedRightPanelWidth}
         />
@@ -545,18 +355,17 @@ export function App() {
         <SidePanel
           armedTerminalProjectIds={armedTerminalProjectIds}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
-          fakeChats={fakeChats}
           isCustomizationOpen={isCustomizationOpen}
           onNewProjectChat={openProjectNewChat}
-          onNewFakeChat={openNewFakeChat}
           onOpenNewProject={openNewProjectDialog}
           onOpenTemporaryWorkspace={openTemporaryWorkspace}
-          onOpenFakeChat={openFakeChat}
+          onOpenProjectChat={openProjectChat}
           onOpenProjectTerminal={openProjectTerminal}
           onOpenSettings={openSettings}
           onToggleCustomization={toggleCustomization}
           onWidthChange={resizeLeftPanel}
           runningTerminalProjectIds={runningTerminalProjectIds}
+          streamingChatIDs={streamingChatIDs}
           temporaryWorkspace={temporaryWorkspace}
           width={renderedLeftPanelWidth}
         />
@@ -588,15 +397,14 @@ export function App() {
       {!isSettingsOpen && isCustomizationOpen ? <CustomizationPage /> : null}
       <Welcome
         bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
-        isVisible={!isSettingsOpen && !isCustomizationOpen && !selectedFakeChat && !selectedResearch}
+        isVisible={!isSettingsOpen && !isCustomizationOpen && !selectedChat && !selectedResearch}
         onComposerBoundsChange={handleComposerBoundsChange}
         onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
         onOpenNewProject={openNewProjectDialog}
         onOpenTemporaryWorkspace={openTemporaryWorkspace}
         onTemporaryWorkspacePathChange={selectTemporaryWorkspacePath}
-        onSend={isNewTestChatOpen
-          ? sendNewFakeChatMessage
-          : activeTemporaryWorkspaceID === temporaryWorkspace?.id ? sendTemporaryWorkspaceMessage : undefined}
+        isSending={isChatLoading}
+        onSend={selectedWorkspace ? (content, images) => chatRuntime.sendNewProjectMessage(selectedWorkspace, content, images) : undefined}
         onWorkspaceChange={handleWorkspaceChange}
         isTemporaryWorkspaceActive={activeTemporaryWorkspaceID === temporaryWorkspace?.id}
         temporaryWorkspace={temporaryWorkspace}
@@ -605,60 +413,51 @@ export function App() {
         workspaceFocus={workspaceFocus}
       />
       <NewProjectDialog isOpen={isNewProjectDialogOpen} onConfirmLocalFolder={selectLocalFolder} onClose={closeNewProjectDialog} />
-      {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
-        <TestChatTopbar
-          breadcrumb={selectedTemporaryWorkspace?.name}
-          onOpenFolder={selectedTemporaryWorkspace ? openTemporaryWorkspace : openNewFakeChat}
-          title={selectedFakeChat.title}
+      {!isSettingsOpen && !isCustomizationOpen && selectedChat ? (
+        <ChatTopbar
+          breadcrumb={selectedWorkspace?.name}
+          onOpenFolder={() => {
+            if (selectedWorkspace) openProjectNewChat(selectedWorkspace);
+          }}
+          title={selectedChat.title}
         />
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && selectedResearch ? (
-        <TestChatTopbar breadcrumb={selectedResearch.project.name} onOpenFolder={() => openProjectNewChat(selectedResearch.project)} title={selectedResearch.research.title} />
-      ) : null}
-      {!isSettingsOpen && !isCustomizationOpen && selectedFakeChat ? (
-        <TestChatView
-          bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
-          chat={selectedFakeChat}
-          isStreaming={streamingFakeChatIDs.has(selectedFakeChat.id)}
-          onDeleteMessage={deleteFakeChatMessage}
-          onSend={sendFakeChatMessage}
-          onStopTool={stopFakeSubagent}
-          onStopStreaming={stopFakeChatStream}
-          pendingUserMessageIDs={pendingFakeChatMessageIDs.get(selectedFakeChat.id) ?? EMPTY_MESSAGE_IDS}
-          workspaceName={selectedTemporaryWorkspace?.name}
-          workspacePath={selectedTemporaryWorkspace?.displayPath}
+        <ChatTopbar
+          breadcrumb={selectedResearch.project.name}
+          onOpenFolder={() => openProjectNewChat(selectedResearch.project)}
+          title={selectedResearch.research.title}
         />
+      ) : null}
+      {!isSettingsOpen && !isCustomizationOpen && selectedChat ? (
+        <ChatView
+          bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
+          chat={selectedChat}
+          isStreaming={streamingChatIDs.has(selectedChat.id)}
+          loadSubchat={chatRuntime.loadSubchat}
+          onDeleteMessage={chatRuntime.deleteMessage}
+          onSend={chatRuntime.sendMessage}
+          onStopTool={chatRuntime.stopTool}
+          onStopStreaming={chatRuntime.stopChat}
+          pendingUserMessageIDs={pendingMessageIDs.get(selectedChat.id) ?? EMPTY_MESSAGE_IDS}
+          branch={selectedChat.branch}
+          worktree={selectedChat.worktree}
+          workspaceName={selectedWorkspace?.name}
+          workspacePath={selectedWorkspace?.path}
+        />
+      ) : null}
+      {isChatLoading ? <div aria-live="polite" className="app-chat-loading">Loading chat…</div> : null}
+      {chatError ? (
+        <div aria-live="assertive" className="app-chat-error" role="alert">
+          <strong className="app-chat-error-label">Error</strong>
+          <span>{chatError}</span>
+        </div>
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && selectedResearch ? (
         <ResearchReportView bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} project={selectedResearch.project} research={selectedResearch.research} />
       ) : null}
     </main>
   );
-}
-
-function loremWordsForUserMessage(content: string): string[] {
-  const userWordCount = content.trim().split(/\s+/).filter(Boolean).length;
-  const responseWordCount = userWordCount * 4;
-  return Array.from({ length: responseWordCount }, (_, index) => LOREM_WORDS[index % LOREM_WORDS.length]);
-}
-
-function waitForStreamDelay(signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal.aborted) {
-      resolve();
-      return;
-    }
-    let timeoutID = 0;
-    const stopWaiting = () => {
-      window.clearTimeout(timeoutID);
-      resolve();
-    };
-    timeoutID = window.setTimeout(() => {
-      signal.removeEventListener("abort", stopWaiting);
-      resolve();
-    }, TEST_CHAT_STREAM_DELAY_MS);
-    signal.addEventListener("abort", stopWaiting, { once: true });
-  });
 }
 
 function loadPanelWidth(storageKey: string) {

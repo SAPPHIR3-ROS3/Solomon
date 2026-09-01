@@ -1,5 +1,6 @@
 .welcome-reasoning {
   --welcome-reasoning-bolt-size: 15px;
+  --welcome-reasoning-fast-accent: #e6b256;
   position: relative;
 }
 
@@ -59,7 +60,6 @@
 }
 
 .welcome-reasoning-fast-mark {
-  display: inline-flex;
   flex: none;
   height: var(--welcome-reasoning-bolt-size);
   visibility: hidden;
@@ -68,6 +68,10 @@
 
 .welcome-reasoning-fast-mark.is-on {
   visibility: visible;
+}
+
+.welcome-screen.is-hidden .welcome-reasoning-fast-mark.is-on {
+  visibility: hidden;
 }
 
 .welcome-reasoning-fast-mark svg {
@@ -82,7 +86,7 @@
 }
 
 .welcome-reasoning-value-text .welcome-reasoning-fast-mark {
-  color: var(--color-crown-gold);
+  color: var(--welcome-reasoning-fast-accent);
 }
 
 .welcome-reasoning-label .welcome-chevron {
@@ -146,15 +150,8 @@
   display: flex;
   font-size: 8px;
   font-weight: 650;
-  justify-content: space-between;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.welcome-reasoning-popover header strong {
-  color: var(--color-crown-gold);
-  font-size: 9px;
-  letter-spacing: 0;
 }
 
 .welcome-reasoning-scale {
@@ -299,9 +296,9 @@
 }
 
 .welcome-reasoning-fast.is-active {
-  background: color-mix(in srgb, var(--color-crown-gold) 14%, var(--color-surface-raised));
-  box-shadow: inset 0 0 0 1px var(--color-crown-gold);
-  color: var(--color-crown-gold);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--welcome-reasoning-fast-accent);
+  color: var(--welcome-reasoning-fast-accent);
 }
 
 .welcome-reasoning-fast.is-active svg {
