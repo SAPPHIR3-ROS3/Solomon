@@ -125,25 +125,12 @@ func (a *modelAPI) handleVisibility(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, errors.New("provider, model and enabled are required"))
 		return
 	}
-	cfg, err := config.Load()
-	if err != nil {
-		writeAPIError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if config.ProviderByName(cfg, request.Provider) == nil {
-		writeAPIError(w, http.StatusBadRequest, fmt.Errorf("unknown provider %q", request.Provider))
-		return
-	}
-	if err := config.SetModelEnabled(cfg, request.Provider, request.Model, *request.Enabled); err != nil {
+	if err := config.QueueModelVisibility(request.Provider, request.Model, *request.Enabled); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := config.Save(cfg); err != nil {
-		writeAPIError(w, http.StatusInternalServerError, err)
-		return
-	}
 	a.invalidate()
-	writeJSON(w, http.StatusOK, apiModelVisibility{Enabled: *request.Enabled, Model: request.Model, Provider: request.Provider})
+	writeJSON(w, http.StatusAccepted, apiModelVisibility{Enabled: *request.Enabled, Model: request.Model, Provider: request.Provider})
 }
 
 func (a *modelAPI) handleConnectProvider(w http.ResponseWriter, r *http.Request) {
