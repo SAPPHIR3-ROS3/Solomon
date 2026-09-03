@@ -77,6 +77,18 @@ export function useChatRuntime(): ChatRuntime {
     });
   }, []);
 
+  const markMessagePending = useCallback((chatID: string, messageID: string, pending: boolean) => {
+    setPendingMessageIDs((current) => {
+      const next = new Map(current);
+      const messageIDs = new Set(next.get(chatID));
+      if (pending) messageIDs.add(messageID);
+      else messageIDs.delete(messageID);
+      if (messageIDs.size) next.set(chatID, messageIDs);
+      else next.delete(chatID);
+      return next;
+    });
+  }, []);
+
   const attachDaemonStream = useCallback((
     chat: Chat,
     open: (signal: AbortSignal, onEvent: ChatStreamEventHandler) => Promise<void>,
@@ -105,6 +117,14 @@ export function useChatRuntime(): ChatRuntime {
     streams.current.set(chat.id, controller);
     markStreaming(chat.id, true);
     const onEvent: ChatStreamEventHandler = (event, replay = false, imageOrigin = "") => {
+      if (event.type === "assistant_start" || event.type === "error" || event.type === "run_end") {
+        setPendingMessageIDs((current) => {
+          if (!current.has(chat.id)) return current;
+          const next = new Map(current);
+          next.delete(chat.id);
+          return next;
+        });
+      }
       if (event.type === "error") {
         receivedStreamError = true;
         setError(streamErrorMessage(event));
@@ -117,6 +137,7 @@ export function useChatRuntime(): ChatRuntime {
         saveChatStreamCursor(projectID, chat.id, event.seq);
       }
       updateChat(chat.id, (current) => applyLiveStreamEvent(current as LiveChat, event, imageOrigin, replay));
+      if (event.type === "chat_title") window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
     };
     void open(controller.signal, onEvent)
       .then(async () => {
@@ -148,6 +169,7 @@ export function useChatRuntime(): ChatRuntime {
     if (!chat.projectID || streams.current.has(chat.id)) return;
     forgetChatStreamCursor(chat.projectID, chat.id);
     updateChat(chat.id, (current) => ({ ...current, messages: [...current.messages, message], runStartedAt: Date.now(), status: "running" }));
+    markMessagePending(chat.id, message.id, true);
     setError("");
     attachDaemonStream(chat, (signal, onEvent) => streamLiveChatMessage(
       chat.projectID!,
@@ -157,7 +179,7 @@ export function useChatRuntime(): ChatRuntime {
       signal,
       onEvent,
     ), (signal, onEvent) => streamLiveChatEvents(chat.projectID!, chat.id, getChatStreamCursor(chat.projectID!, chat.id), signal, onEvent));
-  }, [attachDaemonStream]);
+  }, [attachDaemonStream, markMessagePending]);
 
   const reconnectDaemonStream = useCallback((chat: Chat) => {
     if (!chat.projectID || streams.current.has(chat.id)) return;

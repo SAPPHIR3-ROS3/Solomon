@@ -297,6 +297,9 @@ api_protocol = "anthropic"
 	if !bytes.Contains(responseBody, []byte(`"type":"chat_snapshot"`)) {
 		t.Fatalf("send message response has no final snapshot: %s", responseBody)
 	}
+	if !bytes.Contains(responseBody, []byte(`"title":"hello"`)) {
+		t.Fatalf("final snapshot has no generated fallback title: %s", responseBody)
+	}
 
 	getHealthForTest(t, server.URL)
 }
