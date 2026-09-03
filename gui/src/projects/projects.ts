@@ -1,12 +1,36 @@
 import { serverEndpoint } from "../platform";
+import {
+  atMentionSuggestionsFromPayload,
+  isProject,
+  projectBranchesFromPayload,
+  projectDirectoryEntriesFromPayload,
+  projectGitHistoryFromPayload,
+  projectGitStatusFromPayload,
+  projectRemovalInfoFromPayload,
+  projectResearchFromPayload,
+  projectSidebarDataFromPayload,
+  projectWorktreesFromPayload,
+} from "./projectPayloads";
+
+export {
+  cacheCurrentModel,
+  cacheModelVisibility,
+  fetchModelCatalog,
+  getCachedCurrentModel,
+  getCachedModelCatalog,
+  invalidateModelCatalogCache,
+  prefetchModelCatalog,
+  saveCurrentModel,
+  setModelEnabled,
+  connectProvider,
+} from "./models";
+export type { ConnectProviderRequest, ModelCatalog, ModelChoice, ModelInfo, ModelVisibility, ProviderCatalog } from "./models";
 
 export const PROJECT_GIT_BRANCH_CHANGED_EVENT = "solomon:git-branch-changed";
 export const PROJECTS_CHANGED_EVENT = "solomon:projects-changed";
 const USER_NAME_CACHE_KEY = "solomon:user-name";
 const HOME_STATS_CACHE_KEY = "solomon:home-stats";
 const PROJECT_SIDEBAR_CACHE_KEY = "solomon:project-sidebar";
-const CURRENT_MODEL_CACHE_KEY = "solomon:current-model";
-const MODEL_CATALOG_CACHE_KEY = "solomon:model-catalog";
 
 export type ProjectChatSummary = {
   id: string;
@@ -48,10 +72,6 @@ let projectSidebarCache: ProjectSidebarData | null = readProjectSidebarCache();
 let projectSidebarCacheNeedsRefresh = Boolean(projectSidebarCache);
 let projectSidebarRequest: Promise<ProjectSidebarData> | null = null;
 let projectSidebarPrefetchStarted = false;
-let modelCatalogCache: ModelCatalog | null = readModelCatalogCache();
-let modelCatalogCacheNeedsRefresh = Boolean(modelCatalogCache);
-let modelCatalogRequest: Promise<ModelCatalog> | null = null;
-let modelCatalogPrefetchStarted = false;
 
 export function invalidateProjectSidebarDataCache(): void {
   projectSidebarCache = null;
@@ -60,11 +80,6 @@ export function invalidateProjectSidebarDataCache(): void {
 
 if (typeof window !== "undefined") {
   window.addEventListener(PROJECTS_CHANGED_EVENT, () => invalidateProjectSidebarDataCache());
-}
-
-export function invalidateModelCatalogCache(): void {
-  modelCatalogCache = null;
-  modelCatalogCacheNeedsRefresh = false;
 }
 
 export type ProjectRemovalInfo = {
@@ -371,43 +386,6 @@ export function cacheHomeStats(project: Project): void {
   }
 }
 
-export function getCachedCurrentModel(): ModelChoice | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem(CURRENT_MODEL_CACHE_KEY);
-    if (!raw) return null;
-    const choice = modelChoiceFromPayload(JSON.parse(raw));
-    return choice.provider && choice.model ? choice : null;
-  } catch {
-    return null;
-  }
-}
-
-export function cacheCurrentModel(choice: ModelChoice): void {
-  try {
-    if (typeof window === "undefined" || !choice.provider || !choice.model) return;
-    window.localStorage.setItem(CURRENT_MODEL_CACHE_KEY, JSON.stringify({
-      model: choice.model,
-      provider: choice.provider,
-    }));
-  } catch {
-    // Local storage can be unavailable in private or restricted browser contexts.
-  }
-}
-
-export function getCachedModelCatalog(): ModelCatalog | null {
-  return modelCatalogCache ?? readModelCatalogCache();
-}
-
-export function prefetchModelCatalog(): void {
-  if (modelCatalogPrefetchStarted) return;
-  modelCatalogPrefetchStarted = true;
-  void startModelCatalogRequest().catch(() => {
-    // The first request is opportunistic; the model selector reports errors if
-    // it still has no cached catalog when the user opens it.
-  });
-}
-
 export async function saveUserName(userName: string): Promise<string> {
   const response = await fetch(await serverEndpoint("/__solomon/user-name"), {
     body: JSON.stringify({ userName }),
@@ -484,190 +462,6 @@ export function normalizeReasoningEffort(value: string): ReasoningEffort {
   return "none";
 }
 
-export type ModelChoice = {
-	info?: ModelInfo;
-  model: string;
-  provider: string;
-};
-
-export type ModelInfo = {
-  context: number;
-  input: string[];
-  output: number;
-};
-
-export type ProviderCatalog = {
-  complete: boolean;
-  disabled: string[];
-  metadata: Record<string, ModelInfo>;
-  models: string[];
-  provider: string;
-  supportsFastMode: boolean;
-};
-
-export type ModelCatalog = {
-  current: ModelChoice;
-  providers: ProviderCatalog[];
-  recent: ModelChoice[];
-};
-
-export type ConnectProviderRequest = {
-  apiKey: string;
-  baseURL: string;
-  kind: number;
-  name: string;
-};
-
-export type ModelVisibility = {
-  enabled: boolean;
-  model: string;
-  provider: string;
-};
-
-export async function fetchModelCatalog(): Promise<ModelCatalog> {
-  if (modelCatalogRequest) return modelCatalogRequest;
-  if (modelCatalogCache && !modelCatalogCacheNeedsRefresh) return modelCatalogCache;
-  return startModelCatalogRequest();
-}
-
-function startModelCatalogRequest(): Promise<ModelCatalog> {
-  if (modelCatalogRequest) return modelCatalogRequest;
-  const stale = modelCatalogCache;
-  modelCatalogRequest = (async () => {
-    const response = await fetch(await serverEndpoint("/__solomon/models"));
-    if (!response.ok) throw new Error(`Unable to load models: ${response.status}`);
-    return modelCatalogFromPayload(await response.json());
-  })()
-    .then((catalog) => {
-      modelCatalogCache = catalog;
-      modelCatalogCacheNeedsRefresh = false;
-      cacheModelCatalog(catalog);
-      if (catalog.current.provider && catalog.current.model) cacheCurrentModel(catalog.current);
-      return catalog;
-    })
-    .catch((reason: unknown) => {
-      if (stale) return stale;
-      throw reason;
-    })
-    .finally(() => {
-      modelCatalogRequest = null;
-    });
-  return modelCatalogRequest;
-}
-
-export async function saveCurrentModel(provider: string, model: string): Promise<ModelChoice> {
-  const response = await fetch(await serverEndpoint("/__solomon/current-model"), {
-    body: JSON.stringify({ provider, model }),
-    headers: { "Content-Type": "application/json" },
-    method: "PUT",
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(detail || `Unable to save model: ${response.status}`);
-  }
-  const saved = modelChoiceFromPayload(await response.json());
-  invalidateModelCatalogCache();
-  cacheCurrentModel(saved);
-  return saved;
-}
-
-export async function setModelEnabled(provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
-  const response = await fetch(await serverEndpoint("/__solomon/model-visibility"), {
-    body: JSON.stringify({ enabled, model, provider }),
-    headers: { "Content-Type": "application/json" },
-    method: "PUT",
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    const detail = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Unable to save model visibility";
-    throw new Error(detail);
-  }
-  const result = modelVisibilityFromPayload(await response.json());
-  if (result.provider !== provider || result.model !== model || result.enabled !== enabled) {
-    throw new Error("Unable to verify model visibility update");
-  }
-  return result;
-}
-
-export async function connectProvider(request: ConnectProviderRequest): Promise<ModelChoice> {
-  const response = await fetch(await serverEndpoint("/__solomon/connect-provider"), {
-    body: JSON.stringify(request),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    const detail = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Unable to connect provider";
-    throw new Error(detail);
-  }
-  return modelChoiceFromPayload(await response.json());
-}
-
-function modelCatalogFromPayload(payload: unknown): ModelCatalog {
-  if (!payload || typeof payload !== "object") {
-    return { current: { provider: "", model: "" }, providers: [], recent: [] };
-  }
-  const current = "current" in payload ? modelChoiceFromPayload(payload.current) : { provider: "", model: "" };
-  const providers = "providers" in payload && Array.isArray(payload.providers)
-    ? payload.providers.flatMap((entry) => {
-        if (!entry || typeof entry !== "object" || !("provider" in entry) || typeof entry.provider !== "string") return [];
-        const models = "models" in entry && Array.isArray(entry.models)
-          ? entry.models.filter((model: unknown): model is string => typeof model === "string" && Boolean(model.trim()))
-          : [];
-        const metadata = "metadata" in entry && entry.metadata && typeof entry.metadata === "object"
-          ? Object.fromEntries(Object.entries(entry.metadata).flatMap(([id, info]) => {
-              const parsed = modelInfoFromPayload(info);
-              return parsed ? [[id, parsed]] : [];
-            }))
-          : {};
-        const disabled = "disabled" in entry && Array.isArray(entry.disabled)
-          ? entry.disabled.filter((model: unknown): model is string => typeof model === "string" && Boolean(model.trim()))
-          : [];
-        return [{
-          provider: entry.provider,
-          models,
-          metadata,
-          complete: "complete" in entry ? Boolean(entry.complete) : false,
-          disabled,
-          supportsFastMode: "supportsFastMode" in entry && entry.supportsFastMode === true,
-        }];
-      })
-    : [];
-  const recent = "recent" in payload && Array.isArray(payload.recent)
-    ? payload.recent.map(modelChoiceFromPayload).filter((entry) => entry.provider && entry.model)
-    : [];
-  return { current, providers, recent };
-}
-
-function modelInfoFromPayload(payload: unknown): ModelInfo | undefined {
-  if (!payload || typeof payload !== "object") return undefined;
-  const context = "context" in payload && typeof payload.context === "number" ? payload.context : 0;
-  const output = "output" in payload && typeof payload.output === "number" ? payload.output : 0;
-  const input = "input" in payload && Array.isArray(payload.input)
-    ? payload.input.filter((mode): mode is string => typeof mode === "string" && Boolean(mode.trim()))
-    : [];
-  if (!context && !output && !input.length) return undefined;
-  return { context, input, output };
-}
-
-function modelChoiceFromPayload(payload: unknown): ModelChoice {
-  if (!payload || typeof payload !== "object") return { provider: "", model: "" };
-  return {
-    provider: "provider" in payload && typeof payload.provider === "string" ? payload.provider.trim() : "",
-    model: "model" in payload && typeof payload.model === "string" ? payload.model.trim() : "",
-  };
-}
-
-function modelVisibilityFromPayload(payload: unknown): ModelVisibility {
-  if (!payload || typeof payload !== "object") return { enabled: false, model: "", provider: "" };
-  const record = payload as Record<string, unknown>;
-  return {
-    enabled: typeof record.enabled === "boolean" ? record.enabled : typeof record.Enabled === "boolean" ? record.Enabled : false,
-    model: typeof record.model === "string" ? record.model.trim() : typeof record.Model === "string" ? record.Model.trim() : "",
-    provider: typeof record.provider === "string" ? record.provider.trim() : typeof record.Provider === "string" ? record.Provider.trim() : "",
-  };
-}
-
 function cacheProjectSidebarData(data: ProjectSidebarData): void {
   try {
     if (typeof window !== "undefined") window.localStorage.setItem(PROJECT_SIDEBAR_CACHE_KEY, JSON.stringify(data));
@@ -687,199 +481,4 @@ function readProjectSidebarCache(): ProjectSidebarData | null {
   } catch {
     return null;
   }
-}
-
-function cacheModelCatalog(catalog: ModelCatalog): void {
-  try {
-    if (typeof window !== "undefined") window.localStorage.setItem(MODEL_CATALOG_CACHE_KEY, JSON.stringify(catalog));
-  } catch {
-    // The cache is only an optimization; storage quotas and restrictions are safe to ignore.
-  }
-}
-
-function readModelCatalogCache(): ModelCatalog | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem(MODEL_CATALOG_CACHE_KEY);
-    if (!raw) return null;
-    const payload: unknown = JSON.parse(raw);
-    if (!payload || typeof payload !== "object" || !("providers" in payload) || !Array.isArray(payload.providers)) return null;
-    return modelCatalogFromPayload(payload);
-  } catch {
-    return null;
-  }
-}
-
-function projectSidebarDataFromPayload(payload: unknown): ProjectSidebarData {
-  if (!payload || typeof payload !== "object" || !("projects" in payload) || !Array.isArray(payload.projects)) {
-    return { fastMode: true, projects: [], reasoningEffort: "none", userName: "" };
-  }
-  return {
-    fastMode: "fastMode" in payload && typeof payload.fastMode === "boolean" ? payload.fastMode : true,
-    projects: payload.projects.filter(isProject),
-    reasoningEffort: "reasoningEffort" in payload && typeof payload.reasoningEffort === "string"
-      ? normalizeReasoningEffort(payload.reasoningEffort)
-      : "none",
-    userName: "userName" in payload && typeof payload.userName === "string" ? payload.userName : "",
-  };
-}
-
-function projectRemovalInfoFromPayload(payload: unknown): ProjectRemovalInfo {
-  if (!payload || typeof payload !== "object") throw new Error("Unable to read project details");
-  const record = payload as Record<string, unknown>;
-  const requiredString = (key: string) => typeof record[key] === "string" ? record[key] : "";
-  const requiredNumber = (key: string) => typeof record[key] === "number" ? record[key] : -1;
-  const projectPath = requiredString("projectPath");
-  const dataPath = requiredString("dataPath");
-  const projectSizeBytes = requiredNumber("projectSizeBytes");
-  const dataSizeBytes = requiredNumber("dataSizeBytes");
-  if (!projectPath || !dataPath || projectSizeBytes < 0 || dataSizeBytes < 0) throw new Error("Unable to read project details");
-  return { dataPath, dataSizeBytes, projectPath, projectSizeBytes };
-}
-
-function projectDirectoryEntriesFromPayload(payload: unknown): ProjectDirectoryEntry[] {
-  if (!Array.isArray(payload)) return [];
-  return payload.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const name = "name" in entry && typeof entry.name === "string" ? entry.name : "";
-    const path = "path" in entry && typeof entry.path === "string" ? entry.path : "";
-    if (!name || !path) return [];
-    return [{ isDirectory: "isDirectory" in entry && Boolean(entry.isDirectory), name, path }];
-  });
-}
-
-function atMentionSuggestionsFromPayload(payload: unknown): ProjectAtMentionSuggestion[] {
-  if (!Array.isArray(payload)) return [];
-  return payload.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const record = entry as Record<string, unknown>;
-    const path = typeof record.path === "string" ? record.path : "";
-    const tag = typeof record.tag === "string" ? record.tag : "";
-    if (!path || !tag) return [];
-    return [{ isDirectory: Boolean(record.isDirectory), path, tag }];
-  });
-}
-
-function projectResearchFromPayload(payload: unknown): ProjectResearch[] {
-  if (!Array.isArray(payload)) return [];
-  return payload.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const record = entry as Record<string, unknown>;
-    const title = typeof record.title === "string" ? record.title.trim() : "";
-    if (!title) return [];
-    const stats = record.stats && typeof record.stats === "object" ? record.stats as Record<string, unknown> : {};
-    return [{
-      finishedAt: typeof record.finished_at === "string" ? record.finished_at : "",
-      id: typeof record.id === "string" ? record.id : title,
-      maxRounds: typeof record.max_rounds === "number" ? record.max_rounds : undefined,
-      phase: typeof record.phase === "string" ? record.phase : "",
-      round: typeof record.round === "number" ? record.round : undefined,
-      sourceCount: typeof stats.urls === "number" ? stats.urls : 0,
-      startedAt: typeof record.started_at === "string" ? record.started_at : "",
-      status: typeof record.status === "string" ? record.status : "",
-      title,
-    }];
-  }).sort((left, right) => Date.parse(right.finishedAt || right.startedAt) - Date.parse(left.finishedAt || left.startedAt));
-}
-
-function projectBranchesFromPayload(payload: unknown): ProjectBranches {
-  if (!payload || typeof payload !== "object") {
-    return { branches: [], current: "", isRepo: false };
-  }
-  const current = "current" in payload && typeof payload.current === "string" ? payload.current.trim() : "";
-  const isRepo = "isRepo" in payload && Boolean(payload.isRepo);
-  const branches = "branches" in payload && Array.isArray(payload.branches)
-    ? payload.branches.filter((branch): branch is string => typeof branch === "string" && Boolean(branch.trim())).map((branch) => branch.trim())
-    : [];
-  return { branches, current, isRepo };
-}
-
-function projectGitHistoryFromPayload(payload: unknown): ProjectGitHistory {
-  if (!payload || typeof payload !== "object") {
-    return { commits: [], current: "", isRepo: false };
-  }
-  const current = "current" in payload && typeof payload.current === "string" ? payload.current.trim() : "";
-  const isRepo = "isRepo" in payload && Boolean(payload.isRepo);
-  const commits = "commits" in payload && Array.isArray(payload.commits)
-    ? payload.commits.flatMap((entry): ProjectGitCommit[] => {
-      if (!entry || typeof entry !== "object") return [];
-      const record = entry as Record<string, unknown>;
-      const hash = typeof record.hash === "string" ? record.hash.trim() : "";
-      const shortHash = typeof record.shortHash === "string" ? record.shortHash.trim() : "";
-      const subject = typeof record.subject === "string" ? record.subject.trim() : "";
-      if (!hash || !shortHash || !subject) return [];
-      const stringArray = (value: unknown) => Array.isArray(value)
-        ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
-        : [];
-      return [{
-        author: typeof record.author === "string" ? record.author.trim() : "Unknown author",
-        authoredAt: typeof record.authoredAt === "string" ? record.authoredAt : "",
-        hash,
-        parents: stringArray(record.parents),
-        refs: stringArray(record.refs),
-        shortHash,
-        subject,
-      }];
-    })
-    : [];
-  return { commits, current, isRepo };
-}
-
-function projectGitStatusFromPayload(payload: unknown): ProjectGitStatus {
-  if (!payload || typeof payload !== "object") {
-    return { changes: {}, isRepo: false, staged: {} };
-  }
-  const readStatusMap = (value: unknown) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-    return Object.entries(value).reduce<Record<string, string>>((result, [filePath, status]) => {
-      if (typeof filePath === "string" && filePath && typeof status === "string" && status) result[filePath] = status[0] ?? status;
-      return result;
-    }, {});
-  };
-  return {
-    changes: readStatusMap("changes" in payload ? payload.changes : null),
-    isRepo: "isRepo" in payload && Boolean(payload.isRepo),
-    staged: readStatusMap("staged" in payload ? payload.staged : null),
-  };
-}
-
-function projectWorktreesFromPayload(payload: unknown): ProjectWorktrees {
-  if (!payload || typeof payload !== "object" || !("worktrees" in payload) || !Array.isArray(payload.worktrees)) {
-    return { worktrees: [] };
-  }
-  return {
-    worktrees: payload.worktrees.flatMap((entry) => {
-      if (!entry || typeof entry !== "object") return [];
-      const path = "path" in entry && typeof entry.path === "string" ? entry.path.trim() : "";
-      if (!path) return [];
-      return [{
-        bare: "bare" in entry && Boolean(entry.bare),
-        branch: "branch" in entry && typeof entry.branch === "string" ? entry.branch.trim() : "",
-        current: "current" in entry && Boolean(entry.current),
-        path,
-      }];
-    }),
-  };
-}
-
-function isProject(value: unknown): value is Project {
-  return Boolean(
-    value
-      && typeof value === "object"
-      && "chats" in value && Array.isArray(value.chats) && value.chats.every(isChat)
-      && "id" in value && typeof value.id === "string"
-      && "name" in value && typeof value.name === "string"
-      && "path" in value && typeof value.path === "string"
-      && "chatCount" in value && typeof value.chatCount === "number",
-  );
-}
-
-function isChat(value: unknown): value is ProjectChatSummary {
-  return Boolean(
-    value
-      && typeof value === "object"
-      && "id" in value && typeof value.id === "string"
-      && "lastMessageAt" in value && typeof value.lastMessageAt === "string"
-      && "title" in value && typeof value.title === "string",
-  );
 }
