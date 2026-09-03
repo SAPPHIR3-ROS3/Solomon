@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -601,12 +602,31 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 		rt.EventSink = run
 		rt.InitMCP(run.ctx)
 
+		// Start title generation only after the assistant request is on the
+		// wire. This keeps the two requests concurrent without allowing the
+		// title request to consume the assistant's first provider response.
+		assistantRequestWritten := make(chan struct{})
+		var assistantRequestWrittenOnce sync.Once
+		assistantCtx := httptrace.WithClientTrace(run.ctx, &httptrace.ClientTrace{
+			WroteRequest: func(info httptrace.WroteRequestInfo) {
+				if info.Err != nil {
+					return
+				}
+				assistantRequestWrittenOnce.Do(func() { close(assistantRequestWritten) })
+			},
+		})
+		assistantDone := make(chan struct{})
 		titleDone := make(chan struct{})
 		if generateTitle {
 			go func() {
 				defer close(titleDone)
 				titleCtx, cancel := context.WithTimeout(a.daemonCtx, chatTitleTimeout)
 				defer cancel()
+				select {
+				case <-assistantRequestWritten:
+				case <-assistantDone:
+				case <-titleCtx.Done():
+				}
 				if title := rt.FinalizeChatTitle(titleCtx, titleInput); title != "" {
 					run.Emit(apiEvent("chat_title", map[string]any{
 						"chatID": chatID,
@@ -618,7 +638,8 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 			close(titleDone)
 		}
 
-		_ = rt.RunPromptOnce(run.ctx, content)
+		_ = rt.RunPromptOnce(assistantCtx, content)
+		close(assistantDone)
 		<-titleDone
 		_ = rt.Close()
 		if run.ctx.Err() != nil && a.daemonCtx.Err() == nil {

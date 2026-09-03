@@ -37,10 +37,11 @@ func (r *Runtime) FinalizeChatTitle(ctx context.Context, firstUserLine string) s
 	if r == nil || r.Session == nil || firstUserLine == "" {
 		return ""
 	}
+	providerReady := r.waitProviderReady(ctx) == nil
 
 	t := ""
 	var err error
-	if r.Backend != nil {
+	if providerReady && r.Backend != nil {
 		t, err = title.FromPrompt(ctx, r.Backend, r.Client, r.Cfg, r.Model, firstUserLine)
 	}
 	if err != nil {
@@ -91,6 +92,9 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 		return
 	}
 
+	if err := r.waitProviderReady(titleCtx); err != nil {
+		return
+	}
 	t, err := title.FromPrompt(titleCtx, r.Backend, r.Client, r.Cfg, r.Model, firstUser)
 	if err != nil || strings.TrimSpace(t) == "" {
 		if err != nil {
@@ -130,6 +134,9 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 
 func (r *Runtime) refineEphemeralTitle(ctx context.Context, firstUserLine string) {
 	firstUserLine = strings.TrimSpace(firstUserLine)
+	if err := r.waitProviderReady(ctx); err != nil {
+		return
+	}
 	t, err := title.FromPrompt(ctx, r.Backend, r.Client, r.Cfg, r.Model, firstUserLine)
 	if err != nil || strings.TrimSpace(t) == "" {
 		return
