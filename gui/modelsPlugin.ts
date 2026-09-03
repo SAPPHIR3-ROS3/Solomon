@@ -316,6 +316,14 @@ function upsertHiddenModels(source: string, provider: string, model: string, ena
   return `${source.slice(0, headerEnd)}${nextBody.startsWith("\n") ? nextBody : `\n${nextBody}`}${after}`;
 }
 
+let configWriteQueue: Promise<void> = Promise.resolve();
+
+function queueConfigWrite<T>(write: () => Promise<T>): Promise<T> {
+  const result = configWriteQueue.then(write);
+  configWriteQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
 async function writeModelVisibility(home: string, provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
   const filePath = configPath(home);
   const source = await readFile(filePath, "utf8");
@@ -381,7 +389,7 @@ function attachCurrentModelEndpoint(server: { middlewares: { use: (route: string
           respond(response, 400, { error: "provider and model are required" });
           return;
         }
-        respond(response, 200, await writeCurrentModel(solomonHome(), provider, model));
+        respond(response, 200, await queueConfigWrite(() => writeCurrentModel(solomonHome(), provider, model)));
       })
       .catch((error: unknown) => respond(response, 500, { error: error instanceof Error ? error.message : "Unable to save model" }));
   });
@@ -402,7 +410,7 @@ function attachModelVisibilityEndpoint(server: { middlewares: { use: (route: str
         const model = typeof payload.model === "string" ? payload.model.trim() : "";
         const provider = typeof payload.provider === "string" ? payload.provider.trim() : "";
         if (enabled === undefined || !model || !provider) throw new Error("provider, model and enabled are required");
-        return writeModelVisibility(solomonHome(), provider, model, enabled);
+        return queueConfigWrite(() => writeModelVisibility(solomonHome(), provider, model, enabled));
       })
       .then((result) => {
         modelCatalogCache = undefined;

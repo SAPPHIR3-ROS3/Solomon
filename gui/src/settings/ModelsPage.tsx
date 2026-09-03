@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import {
+  cacheModelVisibility,
   connectProvider,
   fetchModelCatalog,
   getCachedModelCatalog,
@@ -53,7 +54,6 @@ export function ModelsPage() {
   const [query, setQuery] = useState("");
   const [isAddingProvider, setIsAddingProvider] = useState(false);
   const [isSavingModel, setIsSavingModel] = useState("");
-  const [isUpdatingVisibility, setIsUpdatingVisibility] = useState("");
 
   async function loadCatalog() {
     setState((current) => ({ ...current, error: "", loading: true }));
@@ -108,29 +108,19 @@ export function ModelsPage() {
     }
   }
 
-  async function toggleModel(provider: string, model: string, enabled: boolean) {
-    const key = provider + ":" + model;
-    const previousCatalog = state.catalog;
-    setIsUpdatingVisibility(key);
+  function toggleModel(provider: string, model: string, enabled: boolean) {
     setState((previous) => ({
       ...previous,
+      error: "",
       catalog: catalogWithModelVisibility(previous.catalog, provider, model, enabled),
     }));
-    try {
-      const visibility = await setModelEnabled(provider, model, enabled);
+    cacheModelVisibility(provider, model, enabled);
+    void setModelEnabled(provider, model, enabled).catch((error: unknown) => {
       setState((previous) => ({
         ...previous,
-        catalog: catalogWithModelVisibility(previous.catalog, visibility.provider, visibility.model, visibility.enabled),
-      }));
-    } catch (error) {
-      setState((previous) => ({
-        ...previous,
-        catalog: previousCatalog,
         error: error instanceof Error ? error.message : "Unable to save model visibility.",
       }));
-    } finally {
-      setIsUpdatingVisibility("");
-    }
+    });
   }
 
   async function addProvider(request: { apiKey: string; baseURL: string; kind: ProviderKind; name: string }) {
@@ -203,7 +193,6 @@ export function ModelsPage() {
               <ProviderModelGroup
                 currentKey={currentKey}
                 isSavingModel={isSavingModel}
-                isUpdatingVisibility={isUpdatingVisibility}
                 key={provider.provider}
                 onSelectModel={selectModel}
                 onToggleModel={toggleModel}
@@ -239,7 +228,6 @@ export function ModelsPage() {
 function ProviderModelGroup({
   currentKey,
   isSavingModel,
-  isUpdatingVisibility,
   onSelectModel,
   onToggleModel,
   provider,
@@ -247,9 +235,8 @@ function ProviderModelGroup({
 }: {
   currentKey: string;
   isSavingModel: string;
-  isUpdatingVisibility: string;
   onSelectModel: (provider: string, model: string) => Promise<void>;
-  onToggleModel: (provider: string, model: string, enabled: boolean) => Promise<void>;
+  onToggleModel: (provider: string, model: string, enabled: boolean) => void;
   provider: ProviderCatalog;
   query: string;
 }) {
@@ -299,7 +286,6 @@ function ProviderModelGroup({
                 aria-checked={enabled}
                 aria-label={`${enabled ? "Hide" : "Show"} ${model} in the chat model selector`}
                 className={`settings-model-toggle${enabled ? " is-enabled" : ""}`}
-                disabled={isUpdatingVisibility === key}
                 onClick={() => void onToggleModel(provider.provider, model, !enabled)}
                 role="switch"
                 type="button"
