@@ -110,7 +110,7 @@ func (DesktopBridge) SetModelEnabled(providerName, modelID string, enabled bool)
 	if providerName == "" || modelID == "" {
 		return desktopModelVisibility{}, fmt.Errorf("provider and model are required")
 	}
-	if err := config.UpdateModelVisibility(providerName, modelID, enabled); err != nil {
+	if err := config.QueueModelVisibility(providerName, modelID, enabled); err != nil {
 		return desktopModelVisibility{}, fmt.Errorf("save model visibility: %w", err)
 	}
 	return desktopModelVisibility{Enabled: enabled, Model: modelID, Provider: providerName}, nil
