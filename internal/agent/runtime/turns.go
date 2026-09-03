@@ -119,7 +119,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 	defer func() {
 		var deferTitle bool
 		r.mutateSession(func(s *chatstore.Session) {
-			deferTitle = !r.EphemeralSession && chatstore.IsPlaceholderChatID(s.ID)
+			deferTitle = !r.EphemeralSession && r.EventSink == nil && chatstore.IsPlaceholderChatID(s.ID)
 		})
 		if deferTitle {
 			// Title generation must not be coupled to the assistant turn context.
