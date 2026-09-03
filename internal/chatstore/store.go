@@ -40,6 +40,7 @@ type ToolCall struct {
 }
 
 type Message struct {
+	CreatedAt     time.Time  `json:"created_at,omitempty"`
 	Role          string     `json:"role"`
 	Content       string     `json:"content"`
 	APIContent    string     `json:"api_content,omitempty"`
@@ -100,16 +101,16 @@ type Session struct {
 	LastUserMessageAt time.Time `json:"last_user_message_at,omitempty"`
 	Messages          []Message `json:"messages"`
 
-	CheckpointLast           int             `json:"checkpoint_last"`
-	CheckpointCP0            bool            `json:"cp0,omitempty"`
-	CheckpointBranchSuffix   string          `json:"cp_branch_suffix,omitempty"`
-	ForkChildCount           map[int]int     `json:"fork_child_count,omitempty"`
-	Branches                 []BranchSegment `json:"branches,omitempty"`
-	LastCommitOID            string          `json:"last_commit_oid,omitempty"`
-	ImageSeq                 int                 `json:"image_seq,omitempty"`
-	ImageFiles               map[int]string      `json:"image_files,omitempty"`
-	ActivatedInstructionDirs []string            `json:"activated_instruction_dirs,omitempty"`
-	UncompactedRaw           []UncompactedDump   `json:"uncompactedRaw,omitempty"`
+	CheckpointLast           int               `json:"checkpoint_last"`
+	CheckpointCP0            bool              `json:"cp0,omitempty"`
+	CheckpointBranchSuffix   string            `json:"cp_branch_suffix,omitempty"`
+	ForkChildCount           map[int]int       `json:"fork_child_count,omitempty"`
+	Branches                 []BranchSegment   `json:"branches,omitempty"`
+	LastCommitOID            string            `json:"last_commit_oid,omitempty"`
+	ImageSeq                 int               `json:"image_seq,omitempty"`
+	ImageFiles               map[int]string    `json:"image_files,omitempty"`
+	ActivatedInstructionDirs []string          `json:"activated_instruction_dirs,omitempty"`
+	UncompactedRaw           []UncompactedDump `json:"uncompactedRaw,omitempty"`
 
 	PlanningActive   bool   `json:"planning_active,omitempty"`
 	ActivePlanName   string `json:"active_plan_name,omitempty"`
@@ -494,4 +495,3 @@ func (l *SessionFileLock) Release() {
 	}
 	_ = l.fl.Unlock()
 }
-

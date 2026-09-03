@@ -11,8 +11,8 @@ import { ChatComposer, ComposerCrownIcon } from "./ChatComposer";
 import type { ComposerImageAttachment } from "./composerTypes";
 import { snapshotComposerImages } from "./chatClient";
 import "./chat.css";
+import "./chat-compaction.css";
 
-const MESSAGE_START_TIME = new Date("2026-01-01T09:00:00").getTime();
 const MODE_SWITCH_DURATION_MS = 5000;
 const PULSE_DURATION_MS = 1150;
 const MISSING_TOOL_INTENT_LABEL = "Intent missing";
@@ -463,7 +463,7 @@ function CompactionCard({ message }: { message: ChatMessage }) {
 
   return (
     <section aria-label="Context compaction" className="chat-compaction" data-message-kind="compaction">
-      <details>
+      <details className="chat-compaction-card">
         <summary className="chat-compaction-summary">
           <span className="chat-compaction-title">Context compacted</span>
           <svg aria-hidden="true" className="chat-compaction-chevron" viewBox="0 0 24 24">
@@ -593,7 +593,9 @@ function ChatMessageGroups({ liveWorkedFor, messages, onOpenSubagent, onRequestD
                 const actions = messageActions(entry, { onOpenSubagent, onStopTool });
                 return <AssistantMessageBlock checkpoint={entry.checkpoint} key={entry.message.id} message={entry.message} onOpenSubagent={actions.onOpenSubagent} onStopTool={actions.onStopTool} />;
               })}
-              <MessageFooter index={last.index} message={footerMessage} />
+              {shouldShowWorkedFor && activeWorkedFor !== undefined ? null : (
+                <MessageFooter index={last.index} message={footerMessage} />
+              )}
               {shouldShowWorkedFor && (activeWorkedFor !== undefined || footerMessage.workedFor !== undefined) ? (
                 <WorkedForCounter isLive={activeWorkedFor !== undefined} seconds={activeWorkedFor ?? footerMessage.workedFor!} />
               ) : null}
@@ -1474,8 +1476,9 @@ function formatCheckpointLabel(sequence: number, branch: string) {
 function MessageFooter({ index, message, onRequestDelete }: { index: number; message: ChatMessage; onRequestDelete?: () => void }) {
   const [copied, setCopied] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [legacyCreatedAt] = useState(() => Date.now());
   const statsRef = useRef<HTMLDivElement>(null);
-  const createdAt = message.createdAt ?? MESSAGE_START_TIME + index * 60_000;
+  const createdAt = message.createdAt ?? legacyCreatedAt;
   const stats = message.role === "assistant" ? message.stats : undefined;
 
   useEffect(() => {
