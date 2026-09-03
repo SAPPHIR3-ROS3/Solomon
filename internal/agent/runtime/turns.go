@@ -91,7 +91,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 			firstUserLine = strings.TrimSpace(line)
 		}
 		seq := checkpoint.Bump(s)
-		um = chatstore.Message{Role: "user", Content: line, APIContent: apiContent}
+		um = chatstore.Message{CreatedAt: time.Now(), Role: "user", Content: line, APIContent: apiContent}
 		checkpoint.StampMsg(&um, s, seq)
 		s.Messages = append(s.Messages, um)
 		chatstore.RepairSessionMalformedImages(s)
@@ -116,18 +116,21 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 		logging.Log(logging.ERROR_LOG_LEVEL, "persist session failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return err
 	}
+	defer func() {
+		var deferTitle bool
+		r.mutateSession(func(s *chatstore.Session) {
+			deferTitle = !r.EphemeralSession && chatstore.IsPlaceholderChatID(s.ID)
+		})
+		if deferTitle {
+			// Title generation must not be coupled to the assistant turn context.
+			r.scheduleDeferredChatTitleFinalize(context.Background())
+		}
+	}()
 	if err := r.runAgentTurns(ctx); err != nil {
 		return err
 	}
 	if !r.machineMode() {
 		fmt.Fprintln(r.Out)
-	}
-	var deferTitle bool
-	r.mutateSession(func(s *chatstore.Session) {
-		deferTitle = !r.EphemeralSession && chatstore.IsPlaceholderChatID(s.ID)
-	})
-	if deferTitle {
-		r.scheduleDeferredChatTitleFinalize(ctx)
 	}
 	return nil
 }

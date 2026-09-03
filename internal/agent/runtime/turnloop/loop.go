@@ -219,7 +219,7 @@ func Run(ctx context.Context, h Host) error {
 				proxyCorrection = fallback
 			}
 		}
-		ast := chatstore.Message{Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
+		ast := chatstore.Message{CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}

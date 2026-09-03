@@ -1,0 +1,29 @@
+.chat-compaction { --chat-compaction-gold: var(--chat-send-disabled-color); align-self: stretch; box-sizing: border-box; margin: 0; max-width: 100%; min-width: 0; overflow: hidden; width: 100%; }
+.chat-compaction-card { background: var(--chat-compaction-gold); border: 1px solid var(--chat-compaction-gold); border-radius: 15px; box-sizing: border-box; color: #fff; display: block; max-width: 100%; min-width: 0; overflow: hidden; width: 100%; }
+.chat-compaction-summary { align-items: center; background: var(--chat-compaction-gold); box-sizing: border-box; cursor: pointer; display: flex; gap: 10px; justify-content: center; list-style: none; max-width: 100%; min-height: 44px; min-width: 0; padding: 12px 14px; position: relative; user-select: none; width: 100%; }
+.chat-compaction-summary::-webkit-details-marker { display: none; }
+.chat-compaction-summary::marker { content: ""; }
+.chat-compaction-summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -3px; }
+.chat-compaction-title { color: var(--color-danger); flex: 0 0 auto; font: 650 16px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+.chat-compaction-chevron { fill: none; flex: 0 0 auto; height: 15px; position: absolute; right: 14px; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; top: 50%; transform: translateY(-50%); transition: transform 160ms ease; width: 15px; }
+.chat-compaction-card[open] .chat-compaction-chevron { transform: translateY(-50%) rotate(180deg); }
+.chat-compaction-body { background: var(--chat-compaction-gold); border-top: 1px solid color-mix(in srgb, #fff 34%, var(--chat-compaction-gold)); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.chat-compaction-section { min-width: 0; }
+.chat-compaction-section + .chat-compaction-section { border-top: 1px solid color-mix(in srgb, #fff 28%, var(--chat-compaction-gold)); }
+.chat-compaction-section-summary { align-items: center; box-sizing: border-box; cursor: pointer; display: flex; justify-content: center; list-style: none; max-width: 100%; min-height: 44px; min-width: 0; padding: 12px 42px 12px 14px; position: relative; user-select: none; width: 100%; }
+.chat-compaction-section-summary::-webkit-details-marker { display: none; }
+.chat-compaction-section-summary::marker { content: ""; }
+.chat-compaction-section-summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -3px; }
+.chat-compaction-eyebrow { color: var(--color-danger); font: 650 16px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .08em; margin: 0; text-align: center; text-transform: uppercase; }
+.chat-compaction-section-chevron { fill: none; height: 15px; position: absolute; right: 14px; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; top: 50%; transform: translateY(-50%); transition: transform 160ms ease; width: 15px; }
+.chat-compaction-section[open] > .chat-compaction-section-summary .chat-compaction-section-chevron { transform: translateY(-50%) rotate(180deg); }
+.chat-compaction-section-body { min-width: 0; overflow-wrap: anywhere; padding: 0 14px 18px; }
+.chat-compaction-markdown, .chat-retained-content { color: #fff; font: 17px/1.55 "Geist", sans-serif; min-width: 0; overflow-wrap: anywhere; }
+.chat-compaction-markdown p, .chat-retained-content p { margin: 0 0 10px; white-space: pre-wrap; }
+.chat-compaction-markdown > :last-child, .chat-retained-content > :last-child { margin-bottom: 0; }
+.chat-compaction-markdown ul, .chat-compaction-markdown ol { margin: 0 0 10px; padding-left: 18px; }
+.chat-compaction-markdown strong, .chat-retained-content strong { color: #fff; font-weight: 700; }
+.chat-retained-messages { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.chat-retained-message { border-left: 2px solid color-mix(in srgb, #fff 52%, var(--chat-compaction-gold)); min-width: 0; padding-left: 10px; }
+.chat-retained-message.is-user { background: var(--color-crown-gold); border: 1px solid var(--color-crown-gold); border-left: 0; border-radius: 15px; padding: 12px 14px; }
+.chat-retained-message.is-user .chat-retained-content { font: 17px/1.55 "Geist", sans-serif; }

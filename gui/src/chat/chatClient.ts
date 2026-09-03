@@ -156,6 +156,7 @@ export function liveChatFromPayload(payload: unknown, projectID: string, imageOr
     messages,
     modeSwitchTarget: record.mode === "agent" ? undefined : "agent",
     projectID,
+    runStartedAt: dateToMilliseconds(stringValue(record.runStartedAt)),
     source: "daemon",
     status: chatStatusFromPayload(record.status),
     subchatStatus: subchatStatusFromPayload(record.status),
@@ -169,6 +170,10 @@ export function liveChatFromPayload(payload: unknown, projectID: string, imageOr
 
 export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, imageOrigin = "", replay = false): LiveChat {
   const type = stringValue(event.type);
+  if (type === "chat_title") {
+    const title = stringValue(event.title).trim();
+    return title ? { ...chat, title } : chat;
+  }
   if (type === "chat_snapshot") {
     const snapshot = event.chat;
     if (snapshot) return preserveLiveWorkState(chat, liveChatFromPayload(snapshot, chat.projectID, imageOrigin));

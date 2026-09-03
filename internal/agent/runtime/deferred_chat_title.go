@@ -26,16 +26,16 @@ func (r *Runtime) scheduleDeferredChatTitleFinalize(ctx context.Context) {
 	if !start {
 		return
 	}
-	go r.runDeferredChatTitleFinalize(ctx)
+	go r.runDeferredChatTitleFinalize(context.WithoutCancel(ctx))
 }
 
 // FinalizeChatTitle generates a title for an API-created chat while keeping
 // its existing ID stable. The API needs a stable ID so the browser can keep
 // its stream attached while the title is refined.
-func (r *Runtime) FinalizeChatTitle(ctx context.Context, firstUserLine string) {
+func (r *Runtime) FinalizeChatTitle(ctx context.Context, firstUserLine string) string {
 	firstUserLine = strings.TrimSpace(firstUserLine)
 	if r == nil || r.Session == nil || firstUserLine == "" {
-		return
+		return ""
 	}
 
 	t := ""
@@ -57,9 +57,12 @@ func (r *Runtime) FinalizeChatTitle(ctx context.Context, firstUserLine string) {
 	if err := r.writeSessionLocked(); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "persist chat title failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 	}
+	return t
 }
 
 func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
+	titleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
 	defer func() {
 		r.deferredTitleScheduleMu.Lock()
 		r.deferredTitleWorkerRunning = false
@@ -67,9 +70,9 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 	}()
 
 	select {
-	case <-ctx.Done():
-		return
 	case <-time.After(5 * time.Second):
+	case <-titleCtx.Done():
+		return
 	}
 
 	var firstUser string
@@ -88,7 +91,7 @@ func (r *Runtime) runDeferredChatTitleFinalize(ctx context.Context) {
 		return
 	}
 
-	t, err := title.FromPrompt(ctx, r.Backend, r.Client, r.Cfg, r.Model, firstUser)
+	t, err := title.FromPrompt(titleCtx, r.Backend, r.Client, r.Cfg, r.Model, firstUser)
 	if err != nil || strings.TrimSpace(t) == "" {
 		if err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "deferred chat title FromPrompt failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
