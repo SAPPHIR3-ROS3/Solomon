@@ -415,7 +415,7 @@ export function App() {
       <NewProjectDialog isOpen={isNewProjectDialogOpen} onConfirmLocalFolder={selectLocalFolder} onClose={closeNewProjectDialog} />
       {!isSettingsOpen && !isCustomizationOpen && selectedChat ? (
         <ChatTopbar
-          breadcrumb={selectedWorkspace?.name}
+          breadcrumb={selectedChat.workspaceName ?? selectedWorkspace?.name}
           onOpenFolder={() => {
             if (selectedWorkspace) openProjectNewChat(selectedWorkspace);
           }}
@@ -442,8 +442,8 @@ export function App() {
           pendingUserMessageIDs={pendingMessageIDs.get(selectedChat.id) ?? EMPTY_MESSAGE_IDS}
           branch={selectedChat.branch}
           worktree={selectedChat.worktree}
-          workspaceName={selectedWorkspace?.name}
-          workspacePath={selectedWorkspace?.path}
+          workspaceName={selectedChat.workspaceName ?? selectedWorkspace?.name}
+          workspacePath={selectedChat.workspacePath ?? selectedWorkspace?.path}
         />
       ) : null}
       {isChatLoading ? <div aria-live="polite" className="app-chat-loading">Loading chat…</div> : null}
