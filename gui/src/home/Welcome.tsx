@@ -73,11 +73,13 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
   const workspaceNameOverrideRef = useRef(workspaceNameOverride);
   const temporaryWorkspaceRef = useRef(temporaryWorkspace);
   const temporaryWorkspaceActiveRef = useRef(isTemporaryWorkspaceActive);
+  const isVisibleRef = useRef(isVisible);
   keepAliveHandlerRef.current = onKeepAliveHeightChange;
   workspaceFocusRef.current = workspaceFocus;
   workspaceNameOverrideRef.current = workspaceNameOverride;
   temporaryWorkspaceRef.current = temporaryWorkspace;
   temporaryWorkspaceActiveRef.current = isTemporaryWorkspaceActive;
+  isVisibleRef.current = isVisible;
 
   useLayoutEffect(() => {
     const composer = composerRef.current;
@@ -117,31 +119,31 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
             const focused = data.projects.find((project) => project.id === focus.project.id) ?? focus.project;
             setWorkspaceName(focused.name);
             setSelectedProject(focused);
-            onWorkspaceChange?.(focused);
+            if (isVisibleRef.current) onWorkspaceChange?.(focused);
             return;
           }
           if (workspaceNameOverrideRef.current) {
             setWorkspaceName(workspaceNameOverrideRef.current);
             setSelectedProject(null);
-            onWorkspaceChange?.(null);
+            if (isVisibleRef.current) onWorkspaceChange?.(null);
             return;
           }
           if (temporaryWorkspaceActiveRef.current && temporaryWorkspaceRef.current) {
             setWorkspaceName(temporaryWorkspaceRef.current.name);
             setSelectedProject(null);
-            onWorkspaceChange?.(null);
+            if (isVisibleRef.current) onWorkspaceChange?.(null);
             return;
           }
           setWorkspaceName(home?.name ?? "Home");
           setSelectedProject(home);
-          onWorkspaceChange?.(home);
+          if (isVisibleRef.current) onWorkspaceChange?.(home);
         })
         .catch(() => {
           if (requestController.signal.aborted || currentController !== requestController) return;
           if (getCachedProjectSidebarData()) return;
           setProjects([]);
           setSelectedProject(null);
-          if (!workspaceFocusRef.current) onWorkspaceChange?.(null);
+          if (isVisibleRef.current && !workspaceFocusRef.current) onWorkspaceChange?.(null);
         });
     };
     loadProjects();
@@ -153,6 +155,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
   }, [onWorkspaceChange]);
 
   useEffect(() => {
+    if (!isVisible) return;
     if (workspaceNameOverride) {
       setWorkspaceName(workspaceNameOverride);
       setSelectedProject(null);
@@ -168,14 +171,14 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
     setWorkspaceName(home?.name ?? "Home");
     setSelectedProject(home);
     onWorkspaceChange?.(home);
-  }, [isTemporaryWorkspaceActive, onWorkspaceChange, projects, temporaryWorkspace, workspaceFocus, workspaceNameOverride]);
+  }, [isTemporaryWorkspaceActive, isVisible, onWorkspaceChange, projects, temporaryWorkspace, workspaceFocus, workspaceNameOverride]);
 
   useEffect(() => {
-    if (!workspaceFocus) return;
+    if (!isVisible || !workspaceFocus) return;
     setWorkspaceName(workspaceFocus.project.name);
     setSelectedProject(workspaceFocus.project);
     onWorkspaceChange?.(workspaceFocus.project);
-  }, [onWorkspaceChange, workspaceFocus]);
+  }, [isVisible, onWorkspaceChange, workspaceFocus]);
 
   useEffect(() => {
     setOpenMenu(null);
