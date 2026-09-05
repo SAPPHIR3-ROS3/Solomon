@@ -24,6 +24,16 @@ func ToolResult(turn int, id, name string, result json.RawMessage, errMsg string
 	return e
 }
 
+func SubagentStart(id, subchatID, status string) Event {
+	e := baseEvent(TypeSubagentStart)
+	e["id"] = id
+	e["subchatId"] = subchatID
+	if strings.TrimSpace(status) != "" {
+		e["status"] = status
+	}
+	return e
+}
+
 func ErrorEvent(code int, message string, detail ...string) Event {
 	e := baseEvent(TypeError)
 	e["code"] = code

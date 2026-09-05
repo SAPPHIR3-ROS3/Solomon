@@ -1,5 +1,6 @@
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { detectClient, initialClient } from "./platform";
+import { ActiveAgentsPage, type ActiveAgentNode } from "./shell/ActiveAgentsPage";
 import { SidePanel } from "./shell/SidePanel";
 import { SidePanelToggle } from "./shell/SidePanelToggle";
 import { RightSidePanel } from "./shell/RightSidePanel";
@@ -15,6 +16,7 @@ import { SettingsPage } from "./settings/SettingsPage";
 import { createProjectFromFolder, fetchProjectSidebarData, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
 import { useChatRuntime } from "./chat/useChatRuntime";
+import { parseChatBannerError } from "./chat/chatMessageUtils";
 import { forgetRememberedActiveChat, getRememberedActiveChat } from "./chat/chatStore";
 import { ChatTopbar, ChatView } from "./chat/ChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
@@ -44,7 +46,9 @@ export function App() {
   const [armedTerminalProjectIds, setArmedTerminalProjectIds] = useState<string[]>([]);
   const [runningTerminalProjectIds, setRunningTerminalProjectIds] = useState<string[]>([]);
   const [activeView, setActiveView] = useState<View>("agent");
+  const [isActiveAgentsOpen, setIsActiveAgentsOpen] = useState(false);
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+  const [openSubagentRequest, setOpenSubagentRequest] = useState<{ chatID: string; subchatID: string; task?: string; title?: string; toolID?: string; status?: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
   const [temporaryWorkspace, setTemporaryWorkspace] = useState<TemporaryWorkspace | null>(null);
@@ -116,7 +120,9 @@ export function App() {
     setIsNewProjectDialogOpen(false);
     setWelcomeResetToken((current) => current + 1);
     setIsSettingsOpen(false);
+    setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
+    setOpenSubagentRequest(null);
     setActiveView("agent");
     setIsTerminalPanelOpen(false);
     setSelectedResearch(null);
@@ -167,14 +173,28 @@ export function App() {
 
   function openSettings() {
     setIsSettingsOpen(true);
+    setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
     setIsRightSidePanelOpen(false);
     setIsTerminalPanelOpen(false);
   }
 
+  function toggleActiveAgents() {
+    setIsActiveAgentsOpen((open) => {
+      if (!open) {
+        setIsCustomizationOpen(false);
+        setIsRightSidePanelOpen(false);
+      }
+      return !open;
+    });
+  }
+
   function toggleCustomization() {
     setIsCustomizationOpen((open) => {
-      if (!open) setIsRightSidePanelOpen(false);
+      if (!open) {
+        setIsActiveAgentsOpen(false);
+        setIsRightSidePanelOpen(false);
+      }
       return !open;
     });
   }
@@ -186,7 +206,9 @@ export function App() {
   function openProjectNewChat(project: Project) {
     chatRuntime.clearSelection();
     setWelcomeResetToken((current) => current + 1);
+    setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
+    setOpenSubagentRequest(null);
     setActiveView("agent");
     setActiveTemporaryWorkspaceID(null);
     setSelectedWorkspace(project);
@@ -196,7 +218,9 @@ export function App() {
 
   function openProjectTerminal(project: Project) {
     chatRuntime.clearSelection();
+    setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
+    setOpenSubagentRequest(null);
     setActiveView("agent");
     setActiveTemporaryWorkspaceID(null);
     setSelectedWorkspace(project);
@@ -208,6 +232,7 @@ export function App() {
 
   const openProjectChat = useCallback(async (project: Project, chatID: string) => {
     setWelcomeResetToken((current) => current + 1);
+    setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
     setActiveView("agent");
     setActiveTemporaryWorkspaceID(null);
@@ -216,6 +241,17 @@ export function App() {
     setSelectedResearch(null);
     await chatRuntime.openProjectChat(project, chatID);
   }, [chatRuntime.openProjectChat]);
+
+  async function openActiveAgent(projectID: string, projectName: string, node: ActiveAgentNode) {
+    const sidebar = await fetchProjectSidebarData();
+    const project = sidebar.projects.find((candidate) => candidate.id === projectID);
+    const chatID = node.kind === "chat" ? node.id : (node.rootChatID || node.parentChatID || "");
+    if (!project || !chatID) return;
+    setOpenSubagentRequest(node.kind === "subagent"
+      ? { chatID, subchatID: node.id, status: node.status, task: node.task, title: node.title, toolID: node.parentToolCallID }
+      : null);
+    await openProjectChat({ ...project, name: projectName }, chatID);
+  }
 
   useEffect(() => {
     if (restoreAttemptedRef.current) return;
@@ -355,13 +391,17 @@ export function App() {
         <SidePanel
           armedTerminalProjectIds={armedTerminalProjectIds}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
+          isActiveAgentsOpen={isActiveAgentsOpen}
           isCustomizationOpen={isCustomizationOpen}
           onNewProjectChat={openProjectNewChat}
           onOpenNewProject={openNewProjectDialog}
           onOpenTemporaryWorkspace={openTemporaryWorkspace}
           onOpenProjectChat={openProjectChat}
           onOpenProjectTerminal={openProjectTerminal}
+          onRenameChat={chatRuntime.renameChat}
+          onDeleteChat={chatRuntime.deleteChat}
           onOpenSettings={openSettings}
+          onToggleActiveAgents={toggleActiveAgents}
           onToggleCustomization={toggleCustomization}
           onWidthChange={resizeLeftPanel}
           runningTerminalProjectIds={runningTerminalProjectIds}
@@ -370,7 +410,7 @@ export function App() {
           width={renderedLeftPanelWidth}
         />
       ) : null}
-      {!isSettingsOpen && !isCustomizationOpen ? <ViewSwitch activeView={activeView} onChange={setActiveView} /> : null}
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen ? <ViewSwitch activeView={activeView} onChange={setActiveView} /> : null}
       {!isSettingsOpen ? (
         <TerminalPanelToggle
           isOpen={isTerminalPanelOpen}
@@ -394,17 +434,20 @@ export function App() {
         />
       ) : null}
       {isSettingsOpen ? <SettingsPage onHome={goHome} /> : null}
+      {!isSettingsOpen && isActiveAgentsOpen ? (
+        <ActiveAgentsPage onOpenAgent={openActiveAgent} />
+      ) : null}
       {!isSettingsOpen && isCustomizationOpen ? <CustomizationPage /> : null}
       <Welcome
         bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
-        isVisible={!isSettingsOpen && !isCustomizationOpen && !selectedChat && !selectedResearch}
+        isVisible={!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && !selectedChat && !selectedResearch}
         onComposerBoundsChange={handleComposerBoundsChange}
         onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
         onOpenNewProject={openNewProjectDialog}
         onOpenTemporaryWorkspace={openTemporaryWorkspace}
         onTemporaryWorkspacePathChange={selectTemporaryWorkspacePath}
         isSending={isChatLoading}
-        onSend={selectedWorkspace ? (content, images) => chatRuntime.sendNewProjectMessage(selectedWorkspace, content, images) : undefined}
+        onSend={selectedWorkspace ? (content, images, clips) => chatRuntime.sendNewProjectMessage(selectedWorkspace, content, images, clips) : undefined}
         onWorkspaceChange={handleWorkspaceChange}
         isTemporaryWorkspaceActive={activeTemporaryWorkspaceID === temporaryWorkspace?.id}
         temporaryWorkspace={temporaryWorkspace}
@@ -413,7 +456,7 @@ export function App() {
         workspaceFocus={workspaceFocus}
       />
       <NewProjectDialog isOpen={isNewProjectDialogOpen} onConfirmLocalFolder={selectLocalFolder} onClose={closeNewProjectDialog} />
-      {!isSettingsOpen && !isCustomizationOpen && selectedChat ? (
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && selectedChat ? (
         <ChatTopbar
           breadcrumb={selectedChat.workspaceName ?? selectedWorkspace?.name}
           onOpenFolder={() => {
@@ -422,23 +465,25 @@ export function App() {
           title={selectedChat.title}
         />
       ) : null}
-      {!isSettingsOpen && !isCustomizationOpen && selectedResearch ? (
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && selectedResearch ? (
         <ChatTopbar
           breadcrumb={selectedResearch.project.name}
           onOpenFolder={() => openProjectNewChat(selectedResearch.project)}
           title={selectedResearch.research.title}
         />
       ) : null}
-      {!isSettingsOpen && !isCustomizationOpen && selectedChat ? (
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && selectedChat ? (
         <ChatView
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           chat={selectedChat}
           isStreaming={streamingChatIDs.has(selectedChat.id)}
           loadSubchat={chatRuntime.loadSubchat}
           onDeleteMessage={chatRuntime.deleteMessage}
+          onOpenedSubagentRequest={() => setOpenSubagentRequest(null)}
           onSend={chatRuntime.sendMessage}
           onStopTool={chatRuntime.stopTool}
           onStopStreaming={chatRuntime.stopChat}
+          openSubagentRequest={openSubagentRequest}
           pendingUserMessageIDs={pendingMessageIDs.get(selectedChat.id) ?? EMPTY_MESSAGE_IDS}
           branch={selectedChat.branch}
           worktree={selectedChat.worktree}
@@ -447,16 +492,30 @@ export function App() {
         />
       ) : null}
       {isChatLoading ? <div aria-live="polite" className="app-chat-loading">Loading chat…</div> : null}
-      {chatError ? (
-        <div aria-live="assertive" className="app-chat-error" role="alert">
-          <strong className="app-chat-error-label">Error</strong>
-          <span>{chatError}</span>
-        </div>
-      ) : null}
-      {!isSettingsOpen && !isCustomizationOpen && selectedResearch ? (
+      {chatError ? <ChatErrorBanner message={chatError} /> : null}
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && selectedResearch ? (
         <ResearchReportView bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} project={selectedResearch.project} research={selectedResearch.research} />
       ) : null}
     </main>
+  );
+}
+
+function ChatErrorBanner({ message }: { message: string }) {
+  const error = parseChatBannerError(message);
+  return (
+    <div aria-live="assertive" className="app-chat-error" role="alert">
+      <span aria-hidden="true" className="app-chat-error-mark" />
+      <div className="app-chat-error-body">
+        <div className="app-chat-error-title-row">
+          <strong className="app-chat-error-label">{error.title}</strong>
+          {error.source ? <span className="app-chat-error-chip">{error.source}</span> : null}
+          {error.plan ? <span className="app-chat-error-chip is-plan">{error.plan}</span> : null}
+        </div>
+        {error.message ? <p className="app-chat-error-message">{error.message}</p> : null}
+        {error.resetLabel ? <p className="app-chat-error-reset">{error.resetLabel}</p> : null}
+        {error.hint ? <p className="app-chat-error-hint">{error.hint}</p> : null}
+      </div>
+    </div>
   );
 }
 

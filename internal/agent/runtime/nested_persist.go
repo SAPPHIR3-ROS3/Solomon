@@ -73,6 +73,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		if err := r.persistSubSession(sess); err != nil {
 			return NestedRunResult{}, err
 		}
+		if !cfg.RunInBackground && r.machineMode() && id != "" && strings.TrimSpace(cfg.ParentToolCallID) != "" {
+			r.ciEmit(cievents.SubagentStart(cfg.ParentToolCallID, id, sess.Status))
+		}
 		if cfg.RunInBackground {
 			_ = globalSubagentRegistry.upsertActiveEntry(r.activeEntryFor(sess))
 			defer func() { _ = globalSubagentRegistry.removeActiveEntry(id) }()

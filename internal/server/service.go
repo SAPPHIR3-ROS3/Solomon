@@ -221,6 +221,7 @@ func Run(ctx context.Context, options Options) error {
 		}
 		writeAPIError(w, http.StatusNotFound, os.ErrNotExist)
 	})
+	mux.HandleFunc("/__solomon/format-go", handleFormatGo)
 	mux.HandleFunc("/__solomon/fast-mode", chatAPI.handleFastMode)
 	mux.HandleFunc("/__solomon/home-directories", projectAPI.handleHomeDirectoryEntries)
 	mux.HandleFunc("/__solomon/home-git-branches", projectAPI.handleHomeBranches)
@@ -234,6 +235,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/rules/delete", customizationAPI.handleDeleteRule)
 	mux.HandleFunc("/__solomon/skills", customizationAPI.handleSkills)
 	mux.HandleFunc("/__solomon/mcps", customizationAPI.handleMCPs)
+	mux.HandleFunc("/__solomon/active-agents", chatAPI.handleActiveAgents)
 	mux.HandleFunc("/__solomon/subagents", customizationAPI.handleSubagents)
 	mux.HandleFunc("/__solomon/subagents/update", customizationAPI.handleUpdateSubagent)
 	mux.HandleFunc("/__solomon/subagents/delete", customizationAPI.handleDeleteSubagent)
@@ -246,6 +248,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/current-model", modelAPI.handleCurrent)
 	mux.HandleFunc("/__solomon/model-visibility", modelAPI.handleVisibility)
 	mux.HandleFunc("/__solomon/connect-provider", modelAPI.handleConnectProvider)
+	mux.HandleFunc("/__solomon/provider-quotas", modelAPI.handleQuotas)
 	mux.HandleFunc("/__solomon/terminal", terminalAPI.handleWebSocket)
 	if proxy != nil {
 		mux.Handle("/", proxy)

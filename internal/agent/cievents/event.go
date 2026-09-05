@@ -13,6 +13,7 @@ const (
 	TypeAssistantDelta = "assistant_delta"
 	TypeAssistantEnd   = "assistant_end"
 	TypeToolStart      = "tool_start"
+	TypeSubagentStart  = "subagent_start"
 	TypeToolResult     = "tool_result"
 	TypeError          = "error"
 	TypeRunEnd         = "run_end"
