@@ -97,3 +97,21 @@ func TestStreamAssistantTurnNormalizesOversizedInlineReasoningSpaces(t *testing.
 		t.Fatalf("normalized reasoning mismatch:\n got: %q\nwant: %q", turn.ReasoningText, want)
 	}
 }
+
+func TestStreamAssistantTurnReportsFinishReasonStop(t *testing.T) {
+	content := `{"id":"chatcmpl-stop","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":{"content":"done"},"finish_reason":null}]}`
+	final := `{"id":"chatcmpl-stop","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`
+	client := mockStreamClient(t, "data: "+content+"\n\ndata: "+final+"\n\ndata: [DONE]\n\n")
+	turn, err := llm.StreamAssistantTurn(context.Background(), client, openai.ChatCompletionNewParams{
+		Model: "test",
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.UserMessage("hi"),
+		},
+	}, io.Discard, llm.StreamOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if turn.FinishReason != llm.FinishReasonStop {
+		t.Fatalf("finish reason: got %q want %q", turn.FinishReason, llm.FinishReasonStop)
+	}
+}

@@ -255,7 +255,11 @@ func Run(ctx context.Context, h Host) error {
 		h.SyncLegacyToolCallsToLastAssistant(invs)
 		h.PersistSessionOrLog("toolInvocations")
 		if len(invs) == 0 {
-			if proxyCorrection != "" {
+			// A provider-confirmed stop is the terminal signal for the whole
+			// run. In particular, do not start auto-compaction here: that can
+			// issue another completion after the assistant has already stopped.
+			explicitStop := strings.EqualFold(strings.TrimSpace(turn.FinishReason), llm.FinishReasonStop)
+			if !explicitStop && proxyCorrection != "" {
 				consecutiveProxyCorrections++
 				if consecutiveProxyCorrections > maxConsecutiveProxyCorrections {
 					flushUsageStats()
@@ -274,7 +278,7 @@ func Run(ctx context.Context, h Host) error {
 			if h.MachineMode() {
 				h.SetCIFinalContent(turn.Content)
 			}
-			if turn.Usage.PromptTokens > 0 && turn.Usage.PromptTokens >= h.CompactionThreshold() {
+			if !explicitStop && turn.Usage.PromptTokens > 0 && turn.Usage.PromptTokens >= h.CompactionThreshold() {
 				deps := h.SlashDeps(runCtx)
 				if h.EphemeralSession() {
 					body, err := commands.SummarizeBody(deps)

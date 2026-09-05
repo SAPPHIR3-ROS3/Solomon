@@ -165,6 +165,7 @@ legacyDone:
 	var out apitype.AssistantTurnResult
 	out.Content = streamio.TruncatedContent(contentOut, strings.TrimSpace(st.content.String()))
 	out.ReasoningText = strings.TrimSpace(streamio.NormalizeReasoningWhitespace(st.reasoning.String()))
+	out.FinishReason = normalizeFinishReason(st.stopReason)
 	out.Usage = NormalizeUsage(st.usage)
 	fillTiming(&out.Usage, tStart, tTTFT, tFirstVisible, time.Now())
 	if !legacyStopped {
@@ -180,7 +181,23 @@ legacyDone:
 			})
 		}
 	}
+	if out.FinishReason == "" && len(out.ToolCalls) > 0 {
+		out.FinishReason = apitype.FinishReasonToolCalls
+	}
 	return out, nil
+}
+
+func normalizeFinishReason(reason string) string {
+	switch strings.ToLower(strings.TrimSpace(reason)) {
+	case "end_turn", "stop_sequence":
+		return apitype.FinishReasonStop
+	case "tool_use":
+		return apitype.FinishReasonToolCalls
+	case "max_tokens":
+		return apitype.FinishReasonLength
+	default:
+		return strings.TrimSpace(reason)
+	}
 }
 
 func applyStreamEvent(st *streamState, ev map[string]json.RawMessage, contentOut, reasonSink io.Writer, opts apitype.StreamOpts, tTTFT, tFirstVisible *time.Time, tStart time.Time) error {

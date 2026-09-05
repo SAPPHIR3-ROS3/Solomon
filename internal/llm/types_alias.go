@@ -7,6 +7,11 @@ type Protocol = apitype.Protocol
 const (
 	ProtocolOpenAI    = apitype.ProtocolOpenAI
 	ProtocolAnthropic = apitype.ProtocolAnthropic
+
+	FinishReasonStop          = apitype.FinishReasonStop
+	FinishReasonToolCalls     = apitype.FinishReasonToolCalls
+	FinishReasonLength        = apitype.FinishReasonLength
+	FinishReasonContentFilter = apitype.FinishReasonContentFilter
 )
 
 type ToolDef = apitype.ToolDef

@@ -195,6 +195,9 @@ func TestAnthropicBackend_StreamTurn_MockHTTP_TextAndTool(t *testing.T) {
 	if len(turn.ToolCalls) != 1 {
 		t.Fatalf("tool calls: got %d want 1", len(turn.ToolCalls))
 	}
+	if turn.FinishReason != llm.FinishReasonToolCalls {
+		t.Fatalf("finish reason: got %q want %q", turn.FinishReason, llm.FinishReasonToolCalls)
+	}
 	tc := turn.ToolCalls[0]
 	if tc.ID != "toolu_abc" || tc.Name != "shell" || tc.Arguments != `{"cmd":"ls"}` {
 		t.Fatalf("tool call: %+v", tc)
@@ -321,6 +324,10 @@ func TestAnthropicBackend_StreamText_ProxyBaseURL_MockHTTP(t *testing.T) {
 
 func TestAnthropicBackend_StreamText_OAuthBearer_MockHTTP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/messages" {
+			http.NotFound(w, r)
+			return
+		}
 		if got := r.Header.Get("Authorization"); got != "Bearer oat-test" {
 			t.Fatalf("Authorization: got %q", got)
 		}
