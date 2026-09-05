@@ -78,6 +78,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 		if strings.TrimSpace(apiContent) != "" {
 			apiContent = images.CanonicalizeUserLineForStorage(apiContent, s.ImageFiles)
 		}
+		apiContent = atmention.ExpandTerminalClips(line, apiContent, s.TerminalClips)
 		if !r.EphemeralSession {
 			r.markSessionFileCreated()
 			if s.ID == "" && len(s.Messages) == 0 {
