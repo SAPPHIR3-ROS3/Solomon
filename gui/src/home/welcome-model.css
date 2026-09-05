@@ -65,7 +65,7 @@
   min-height: 205px;
   overflow: hidden;
   position: absolute;
-  width: 580px;
+  width: min(580px, calc(100vw - 48px));
   z-index: 14;
 }
 

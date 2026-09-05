@@ -19,6 +19,14 @@ type ModelControlProps = {
   open?: boolean;
 };
 
+function modelMatchesQuery(provider: string, model: string, needle: string): boolean {
+  const haystack = (provider + " " + model).toLowerCase();
+  if (haystack.includes(needle)) return true;
+  const compactNeedle = needle.replace(/[.-]/g, "");
+  const compactHaystack = haystack.replace(/[.-]/g, "");
+  return compactNeedle.length > 0 && compactHaystack.includes(compactNeedle);
+}
+
 export function ModelControl({ onFastModeAvailableChange, onModelChange, open, onOpenChange }: ModelControlProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
@@ -114,7 +122,7 @@ export function ModelControl({ onFastModeAvailableChange, onModelChange, open, o
       : (activeGroup?.models ?? []).filter((model) => !activeGroup?.disabled.includes(model)).map((model) => ({ provider: activeProvider, model, info: activeGroup?.metadata[model] }));
     const needle = query.trim().toLowerCase();
     if (!needle) return source;
-    return source.filter((choice) => choice.model.toLowerCase().includes(needle) || choice.provider.toLowerCase().includes(needle));
+    return source.filter((choice) => modelMatchesQuery(choice.provider, choice.model, needle));
   }, [activeGroup, activeProvider, catalog.providers, query, showingRecents, visibleRecentModels]);
 
   async function selectModel(choice: ModelChoice) {

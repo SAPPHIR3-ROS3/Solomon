@@ -12,6 +12,35 @@ import (
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 )
 
+func TestCursorOrderPicksGrok45OverOlderGrok(t *testing.T) {
+	ids := []string{
+		"grok-4",
+		"grok-4-3",
+		"grok-4-5",
+		"grok-4.5",
+		"grok-code",
+	}
+	flagship := cursorint.FilterModelIDs(ids)
+	var grok string
+	for _, id := range flagship {
+		if strings.Contains(strings.ToLower(id), "grok") {
+			grok = id
+			break
+		}
+	}
+	if grok != "grok-4.5" && grok != "grok-4-5" {
+		t.Fatalf("flagship grok=%q, want grok-4.5 or grok-4-5 in %v", grok, flagship)
+	}
+	ordered := cursorint.OrderModelIDs(ids)
+	if len(ordered) == 0 {
+		t.Fatal("empty ordered ids")
+	}
+	first := strings.ToLower(ordered[0])
+	if first != "grok-4.5" && first != "grok-4-5" {
+		t.Fatalf("ordered first=%q, want grok 4.5, got %v", ordered[0], ordered)
+	}
+}
+
 func TestCursorModelOrderOpusAboveSonnet(t *testing.T) {
 	ids := []string{
 		"claude-sonnet-4-20250514",

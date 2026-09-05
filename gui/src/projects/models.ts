@@ -7,6 +7,10 @@ let modelCatalogCache: ModelCatalog | null = readModelCatalogCache();
 let modelCatalogCacheNeedsRefresh = Boolean(modelCatalogCache);
 let modelCatalogRequest: Promise<ModelCatalog> | null = null;
 let modelCatalogPrefetchStarted = false;
+let modelCatalogController: AbortController | null = null;
+let visibilityWriteQueue: Promise<void> = Promise.resolve();
+let visibilityRevision = 0;
+const visibilityEdits = new Map<string, ModelVisibility & { revision: number }>();
 
 export function invalidateModelCatalogCache(): void {
   modelCatalogCache = null;
@@ -78,6 +82,35 @@ export type ModelCatalog = {
   recent: ModelChoice[];
 };
 
+export type QuotaBar = {
+  label: string;
+  percent: number;
+};
+
+export type ProviderQuota = {
+  bars: QuotaBar[];
+  error: string;
+  provider: string;
+};
+
+export async function fetchProviderQuotas(): Promise<ProviderQuota[]> {
+  const response = await fetch(await serverEndpoint("/__solomon/provider-quotas"), { cache: "no-store" });
+  if (!response.ok) throw new Error(`Unable to load quotas: ${response.status}`);
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object" || !("providers" in payload) || !Array.isArray(payload.providers)) return [];
+  return payload.providers.flatMap((entry: unknown) => {
+    if (!entry || typeof entry !== "object" || !("provider" in entry) || typeof entry.provider !== "string") return [];
+    const bars = "bars" in entry && Array.isArray(entry.bars)
+      ? entry.bars.flatMap((bar: unknown) => {
+          if (!bar || typeof bar !== "object" || !("label" in bar) || typeof bar.label !== "string") return [];
+          const percent = "percent" in bar && typeof bar.percent === "number" ? Math.max(0, Math.min(100, bar.percent)) : 0;
+          return [{ label: bar.label, percent }];
+        })
+      : [];
+    return [{ provider: entry.provider, error: "error" in entry && typeof entry.error === "string" ? entry.error : "", bars }];
+  });
+}
+
 export type ConnectProviderRequest = {
   apiKey: string;
   baseURL: string;
@@ -91,21 +124,37 @@ export type ModelVisibility = {
   provider: string;
 };
 
-export async function fetchModelCatalog(): Promise<ModelCatalog> {
+export async function fetchModelCatalog(forceRefresh = false): Promise<ModelCatalog> {
+  if (forceRefresh) {
+    return startModelCatalogRequest(true);
+  }
   if (modelCatalogRequest) return modelCatalogRequest;
   if (modelCatalogCache && !modelCatalogCacheNeedsRefresh) return modelCatalogCache;
   return startModelCatalogRequest();
 }
 
-function startModelCatalogRequest(): Promise<ModelCatalog> {
-  if (modelCatalogRequest) return modelCatalogRequest;
+function startModelCatalogRequest(forceRefresh = false): Promise<ModelCatalog> {
+  if (modelCatalogRequest && !forceRefresh) return modelCatalogRequest;
+  modelCatalogController?.abort();
+  const controller = new AbortController();
+  modelCatalogController = controller;
+  const timeout = setTimeout(() => controller.abort(new Error("Model refresh timed out. Please try again.")), 75_000);
   const stale = modelCatalogCache;
+  const startedAtRevision = visibilityRevision;
   modelCatalogRequest = (async () => {
-    const response = await fetch(await serverEndpoint("/__solomon/models"));
+    await visibilityWriteQueue;
+    const endpoint = forceRefresh ? "/__solomon/models?refresh=1" : "/__solomon/models";
+    const response = await fetch(await serverEndpoint(endpoint), { cache: "no-store", signal: controller.signal });
     if (!response.ok) throw new Error(`Unable to load models: ${response.status}`);
     return modelCatalogFromPayload(await response.json());
   })()
     .then((catalog) => {
+      if (modelCatalogController !== controller) return catalog;
+      for (const edit of visibilityEdits.values()) {
+        if (edit.revision > startedAtRevision) {
+          catalog = withModelVisibility(catalog, edit.provider, edit.model, edit.enabled);
+        }
+      }
       modelCatalogCache = catalog;
       modelCatalogCacheNeedsRefresh = false;
       cacheModelCatalog(catalog);
@@ -113,11 +162,15 @@ function startModelCatalogRequest(): Promise<ModelCatalog> {
       return catalog;
     })
     .catch((reason: unknown) => {
-      if (stale) return stale;
+      if (stale && !forceRefresh) return stale;
       throw reason;
     })
     .finally(() => {
-      modelCatalogRequest = null;
+      clearTimeout(timeout);
+      if (modelCatalogController === controller) {
+        modelCatalogRequest = null;
+        modelCatalogController = null;
+      }
     });
   return modelCatalogRequest;
 }
@@ -138,27 +191,36 @@ export async function saveCurrentModel(provider: string, model: string): Promise
   return saved;
 }
 
-export function cacheModelVisibility(provider: string, model: string, enabled: boolean): void {
-  if (!modelCatalogCache) return;
-  modelCatalogCache = {
-    ...modelCatalogCache,
-    providers: modelCatalogCache.providers.map((group) => {
+function withModelVisibility(catalog: ModelCatalog, provider: string, model: string, enabled: boolean): ModelCatalog {
+  return {
+    ...catalog,
+    providers: catalog.providers.map((group) => {
       if (group.provider !== provider) return group;
-      const disabled = group.disabled ?? [];
-      return {
-        ...group,
-        disabled: enabled
-          ? disabled.filter((id) => id !== model)
-          : disabled.includes(model) ? disabled : [...disabled, model],
-      };
+      return { ...group, disabled: enabled
+        ? group.disabled.filter((id) => id !== model)
+        : group.disabled.includes(model) ? group.disabled : [...group.disabled, model] };
     }),
   };
+}
+
+export function cacheModelVisibility(provider: string, model: string, enabled: boolean): void {
+  visibilityEdits.set(JSON.stringify([provider, model]), { provider, model, enabled, revision: ++visibilityRevision });
+  if (!modelCatalogCache) return;
+  modelCatalogCache = withModelVisibility(modelCatalogCache, provider, model, enabled);
   cacheModelCatalog(modelCatalogCache);
 }
 
-export async function setModelEnabled(provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
+export function setModelEnabled(provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
+  const result = visibilityWriteQueue.then(() => persistModelVisibility(provider, model, enabled));
+  visibilityWriteQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+async function persistModelVisibility(provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
   const response = await fetch(await serverEndpoint("/__solomon/model-visibility"), {
     body: JSON.stringify({ enabled, model, provider }),
+    keepalive: true,
+    signal: AbortSignal.timeout(15_000),
     headers: { "Content-Type": "application/json" },
     method: "PUT",
   });

@@ -85,20 +85,7 @@ func (DesktopBridge) SaveCurrentModel(providerName, modelID string) (desktopMode
 	if providerName == "" || modelID == "" {
 		return desktopModelChoice{}, fmt.Errorf("provider and model are required")
 	}
-	cfg, err := config.Load()
-	if err != nil {
-		return desktopModelChoice{}, fmt.Errorf("read config.toml: %w", err)
-	}
-	if _, ok := cfg.Providers[providerName]; !ok {
-		return desktopModelChoice{}, fmt.Errorf("unknown provider %q", providerName)
-	}
-	changed := cfg.Current.Provider != providerName || cfg.Current.Model != modelID
-	cfg.Current.Provider = providerName
-	cfg.Current.Model = modelID
-	if changed {
-		config.NoteRecentModelUse(cfg, providerName, modelID)
-	}
-	if err := config.Save(cfg); err != nil {
+	if _, err := config.UpdateCurrentModel(providerName, modelID); err != nil {
 		return desktopModelChoice{}, fmt.Errorf("save config.toml: %w", err)
 	}
 	return desktopModelChoice{Provider: providerName, Model: modelID}, nil
@@ -110,7 +97,7 @@ func (DesktopBridge) SetModelEnabled(providerName, modelID string, enabled bool)
 	if providerName == "" || modelID == "" {
 		return desktopModelVisibility{}, fmt.Errorf("provider and model are required")
 	}
-	if err := config.QueueModelVisibility(providerName, modelID, enabled); err != nil {
+	if err := config.UpdateModelVisibility(providerName, modelID, enabled); err != nil {
 		return desktopModelVisibility{}, fmt.Errorf("save model visibility: %w", err)
 	}
 	return desktopModelVisibility{Enabled: enabled, Model: modelID, Provider: providerName}, nil

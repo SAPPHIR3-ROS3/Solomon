@@ -1,12 +1,12 @@
 package test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
-	to "github.com/pelletier/go-toml/v2"
 )
 
 func TestModelVisibilityDefaultsEnabledAndCanToggle(t *testing.T) {
@@ -86,13 +86,62 @@ model = 'gpt-5'
 	if err != nil {
 		t.Fatalf("read updated config: %v", err)
 	}
-	var file struct {
-		HiddenModels map[string][]string `toml:"hidden_models,omitempty"`
+	if string(b) != configSource {
+		t.Fatal("visibility update rewrote the main config")
 	}
-	if err := to.Unmarshal(b, &file); err != nil {
-		t.Fatalf("parse updated config: %v", err)
+	saved, err := config.ReadModelVisibility()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := file.HiddenModels["OpenAI"]; len(got) != 1 || got[0] != "gpt-5" {
+	if got := saved.HiddenModels["OpenAI"]; len(got) != 1 || got[0] != "gpt-5" {
 		t.Fatalf("hidden models = %#v, want [gpt-5]", got)
+	}
+}
+
+func TestModelVisibilitySurvivesStaleConfigSave(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	root := &config.Root{Providers: map[string]*config.Provider{"OpenAI": {Name: "OpenAI"}}}
+	// Existing preferences must be migrated without requiring hundreds of toggles.
+	for i := 0; i < 400; i++ {
+		_ = config.SetModelEnabled(root, "OpenAI", fmt.Sprintf("model-%d", i), false)
+	}
+	if err := config.Save(root); err != nil {
+		t.Fatal(err)
+	}
+	stale, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.UpdateModelVisibility("OpenAI", "new-model", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.UpdateModelVisibility("OpenAI", "model-0", true); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a token refresh or model selection saving an older Root snapshot.
+	if err := config.Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.HiddenModels["OpenAI"]) != 400 {
+		t.Fatalf("lost saved preferences: %d", len(loaded.HiddenModels["OpenAI"]))
+	}
+	if config.ModelEnabled(loaded, "OpenAI", "new-model") {
+		t.Fatal("stale config save re-enabled model")
+	}
+	if !config.ModelEnabled(loaded, "OpenAI", "model-0") {
+		t.Fatal("stale config save disabled re-enabled model")
+	}
+	// A model disappearing from one catalog must not delete its preference.
+	_ = config.HiddenModelIDs(loaded, "OpenAI", []string{"model-1"})
+	again, err := config.ReadModelVisibility()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.ModelEnabled(again, "OpenAI", "model-399") {
+		t.Fatal("catalog filtering deleted preference")
 	}
 }
