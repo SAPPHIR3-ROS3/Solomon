@@ -297,3 +297,27 @@ func TestRunAgentTurns_ephemeralAutoCompaction(t *testing.T) {
 		t.Fatalf("final assistant=%+v", rt.Session.Messages[1])
 	}
 }
+
+func TestRunAgentTurns_stopFinishReasonSkipsAutoCompaction(t *testing.T) {
+	backend := &turnScriptBackend{
+		protocol: llm.ProtocolOpenAI,
+		turns: []llm.AssistantTurnResult{{
+			Content:      "done",
+			FinishReason: llm.FinishReasonStop,
+			Usage:        llm.UsageStats{PromptTokens: 5000},
+		}},
+	}
+	rt := newTurnLoopRuntime(t, backend, nil, func(r *agentruntime.Runtime) {
+		r.EphemeralSession = true
+		r.CompactionThresholdTokens = 100
+	})
+	if err := rt.RunAgentTurnsForTest(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if backend.turnN != 1 {
+		t.Fatalf("StreamTurn calls=%d want 1", backend.turnN)
+	}
+	if backend.textN != 0 {
+		t.Fatalf("auto-compaction StreamText calls=%d want 0", backend.textN)
+	}
+}

@@ -241,7 +241,9 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	if legacyStopped {
 		out.Content = streamTruncatedContent(contentOut, "")
 	} else if len(acc.Choices) > 0 {
-		msg := acc.Choices[0].Message
+		choice := acc.Choices[0]
+		out.FinishReason = strings.TrimSpace(choice.FinishReason)
+		msg := choice.Message
 		out.Content = msg.Content
 		for _, tc := range msg.ToolCalls {
 			if tc.Function.Name == "" {
@@ -253,6 +255,11 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 				Arguments: tc.Function.Arguments,
 			})
 		}
+	}
+	if out.FinishReason == "" && len(out.ToolCalls) > 0 {
+		// Some OpenAI-compatible gateways omit the final reason while still
+		// returning a complete tool-call message.
+		out.FinishReason = apitype.FinishReasonToolCalls
 	}
 	out.ProxyToolCorrection = proxyToolCorrection
 	out.Usage = buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)

@@ -16,6 +16,14 @@ const (
 	ProtocolAnthropic Protocol = "anthropic"
 )
 
+// Finish reasons normalized across completion providers.
+const (
+	FinishReasonStop          = "stop"
+	FinishReasonToolCalls     = "tool_calls"
+	FinishReasonLength        = "length"
+	FinishReasonContentFilter = "content_filter"
+)
+
 type ToolDef struct {
 	Name        string
 	Description string
@@ -64,9 +72,12 @@ type UsageStats struct {
 }
 
 type AssistantTurnResult struct {
-	Content             string
-	ReasoningText       string
-	ToolCalls           []AssistantToolCall
+	Content       string
+	ReasoningText string
+	ToolCalls     []AssistantToolCall
+	// FinishReason is the provider's normalized reason for ending this
+	// assistant generation. It is empty when the provider does not report one.
+	FinishReason        string
 	Usage               UsageStats
 	ProxyToolCorrection string
 }
