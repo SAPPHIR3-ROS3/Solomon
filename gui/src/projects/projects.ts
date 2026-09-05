@@ -24,7 +24,8 @@ export {
   setModelEnabled,
   connectProvider,
 } from "./models";
-export type { ConnectProviderRequest, ModelCatalog, ModelChoice, ModelInfo, ModelVisibility, ProviderCatalog } from "./models";
+export type { ConnectProviderRequest, ModelCatalog, ModelChoice, ModelInfo, ModelVisibility, ProviderCatalog, ProviderQuota, QuotaBar } from "./models";
+export { fetchProviderQuotas } from "./models";
 
 export const PROJECT_GIT_BRANCH_CHANGED_EVENT = "solomon:git-branch-changed";
 export const PROJECTS_CHANGED_EVENT = "solomon:projects-changed";

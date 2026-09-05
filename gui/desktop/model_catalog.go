@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelcatalogcache"
@@ -45,6 +47,11 @@ type catalogResponse struct {
 }
 
 func main() {
+	forceRefresh := flag.Bool("refresh", false, "fetch the model catalog from providers")
+	flag.Parse()
+	if *forceRefresh {
+		codex.ResolveClientVersion(context.Background(), true)
+	}
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	_ = logging.Configure(logging.Config{WriteConsole: false, WriteFile: false})
 	config.RolesModelLister = func(ctx context.Context, cfg *config.Root, provider *config.Provider) ([]string, error) {
@@ -75,13 +82,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := json.NewEncoder(os.Stdout).Encode(buildCatalog(cfg)); err != nil {
+	if err := json.NewEncoder(os.Stdout).Encode(buildCatalog(cfg, *forceRefresh)); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func buildCatalog(cfg *config.Root) catalogResponse {
+func buildCatalog(cfg *config.Root, forceRefresh bool) catalogResponse {
 	result := catalogResponse{
 		Current: modelChoice{
 			Provider: strings.TrimSpace(cfg.Current.Provider),
@@ -112,9 +119,11 @@ func buildCatalog(cfg *config.Root) catalogResponse {
 		return result
 	}
 	var cached []providerCatalog
-	if ok, _ := modelcatalogcache.LoadToday(&cached); ok {
-		result.Providers = mergeCachedProviders(providers, cached, cfg)
-		return result
+	if !forceRefresh {
+		if ok, _ := modelcatalogcache.LoadToday(&cached); ok {
+			result.Providers = mergeCachedProviders(providers, cached, cfg)
+			return result
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
 	defer cancel()

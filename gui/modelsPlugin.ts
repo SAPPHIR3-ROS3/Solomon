@@ -25,6 +25,7 @@ let modelCatalogCache: { createdAt: number; catalog: ModelCatalog } | undefined;
 let modelCatalogInFlight: Promise<ModelCatalog> | undefined;
 
 type JsonRequest = {
+  url?: string;
   method?: string;
   on: (event: "data", listener: (chunk: string | Uint8Array) => void) => void;
   once(event: "error", listener: () => void): void;
@@ -166,11 +167,21 @@ function uniqueModels(ids: string[], first = ""): string[] {
   return out;
 }
 
+async function readHiddenModels(home: string, source?: string): Promise<Map<string, string[]>> {
+  try {
+    const hidden = JSON.parse(await readFile(path.join(home, "model-visibility.json"), "utf8")) as Record<string, string[]>;
+    return new Map(Object.entries(hidden ?? {}));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return parseHiddenModels(source ?? await readFile(configPath(home), "utf8"));
+  }
+}
+
 async function readRecentModelCatalog(home: string): Promise<ModelCatalog> {
   const source = await readFile(configPath(home), "utf8");
   const current = parseCurrent(source);
   const recentMap = parseRecentModels(source);
-  const hiddenMap = parseHiddenModels(source);
+  const hiddenMap = await readHiddenModels(home, source);
   const providerNames = listProviderNames(source);
   for (const name of recentMap.keys()) {
     if (!providerNames.includes(name) && !skippedProviders.has(name)) providerNames.push(name);
@@ -193,11 +204,11 @@ async function readRecentModelCatalog(home: string): Promise<ModelCatalog> {
   return { current, recent, providers };
 }
 
-function runDesktopModelCatalog(): Promise<ModelCatalog> {
+function runDesktopModelCatalog(forceRefresh = false): Promise<ModelCatalog> {
   return new Promise((resolve, reject) => {
     execFile(
       "go",
-      ["run", catalogHelper],
+      ["run", catalogHelper, ...(forceRefresh ? ["--refresh"] : [])],
       { cwd: repositoryRoot, env: process.env, timeout: 70_000, maxBuffer: 4 * 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
@@ -214,15 +225,19 @@ function runDesktopModelCatalog(): Promise<ModelCatalog> {
   });
 }
 
-async function readModelCatalog(home: string): Promise<ModelCatalog> {
-  if (modelCatalogCache && Date.now() - modelCatalogCache.createdAt < 60_000) return modelCatalogCache.catalog;
+async function readModelCatalog(home: string, forceRefresh = false): Promise<ModelCatalog> {
+  if (forceRefresh && modelCatalogInFlight) await modelCatalogInFlight.catch(() => {});
+  if (!forceRefresh && modelCatalogCache && Date.now() - modelCatalogCache.createdAt < 60_000) return modelCatalogCache.catalog;
   if (modelCatalogInFlight) return modelCatalogInFlight;
-  modelCatalogInFlight = runDesktopModelCatalog()
+  modelCatalogInFlight = runDesktopModelCatalog(forceRefresh)
     .then((catalog) => {
       modelCatalogCache = { createdAt: Date.now(), catalog };
       return catalog;
     })
-    .catch(async () => readRecentModelCatalog(home))
+    .catch(async (error: unknown) => {
+      if (forceRefresh) throw error;
+      return readRecentModelCatalog(home);
+    })
     .finally(() => {
       modelCatalogInFlight = undefined;
     });
@@ -281,41 +296,6 @@ function upsertRecentModels(source: string, provider: string, model: string): st
   return `${source.slice(0, headerEnd)}${nextBody.startsWith("\n") ? nextBody : `\n${nextBody.replace(/^\n/, "")}`}${after}`;
 }
 
-function upsertHiddenModels(source: string, provider: string, model: string, enabled: boolean): string {
-  const hidden = parseHiddenModels(source);
-  const current = hidden.get(provider) ?? [];
-  const models = enabled
-    ? current.filter((id) => id !== model)
-    : uniqueModels(current, model);
-  const key = quoteTomlKey(provider);
-  const match = source.match(/^\s*\[hidden_models\]\s*$/m);
-
-  if (!match || match.index === undefined) {
-    if (models.length === 0) return source;
-    return `${source.trimEnd()}\n\n[hidden_models]\n${key} = ${formatRecentArray(models)}\n`;
-  }
-
-  const headerEnd = match.index + match[0].length;
-  const rest = source.slice(headerEnd);
-  const next = rest.search(/^\s*\[/m);
-  const body = next === -1 ? rest : rest.slice(0, next);
-  const after = next === -1 ? "" : rest.slice(next);
-  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const linePattern = new RegExp(`^(\\s*${escapedKey}\\s*=\\s*)\\[(.*)\\](\\s*(?:#.*)?)$`, "m");
-  let nextBody = body;
-
-  if (linePattern.test(body)) {
-    nextBody = models.length === 0
-      ? body.replace(linePattern, "")
-      : body.replace(linePattern, (_full, prefix: string, _items: string, suffix: string) => `${prefix}${formatRecentArray(models)}${suffix}`);
-  } else if (models.length > 0) {
-    const insertion = `${key} = ${formatRecentArray(models)}\n`;
-    nextBody = body.endsWith("\n") || body.length === 0 ? `${body}${insertion}` : `${body}\n${insertion}`;
-  }
-
-  return `${source.slice(0, headerEnd)}${nextBody.startsWith("\n") ? nextBody : `\n${nextBody}`}${after}`;
-}
-
 let configWriteQueue: Promise<void> = Promise.resolve();
 
 function queueConfigWrite<T>(write: () => Promise<T>): Promise<T> {
@@ -325,19 +305,16 @@ function queueConfigWrite<T>(write: () => Promise<T>): Promise<T> {
 }
 
 async function writeModelVisibility(home: string, provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
-  const filePath = configPath(home);
-  const source = await readFile(filePath, "utf8");
-  const providers = listProviderNames(source);
-  if (!providers.includes(provider) && !parseRecentModels(source).has(provider)) {
-    throw new Error(`unknown provider ${provider}`);
-  }
-  const next = upsertHiddenModels(source, provider, model, enabled);
-  if (next !== source) {
-    const temporaryPath = `${filePath}.gui.tmp`;
-    await writeFile(temporaryPath, next, { encoding: "utf8", mode: 0o600 });
-    await rename(temporaryPath, filePath);
-  }
-  return { enabled, model, provider };
+  return new Promise((resolve, reject) => {
+    const child = execFile("go", ["run", path.join(guiRoot, "desktop", "model_visibility.go")],
+      { cwd: repositoryRoot, env: { ...process.env, SOLOMON_HOME: home }, timeout: 15_000 },
+      (error, stdout, stderr) => {
+        if (error) { reject(new Error(stderr?.trim() || error.message)); return; }
+        try { resolve(JSON.parse(stdout) as ModelVisibility); } catch (error) { reject(error); }
+      });
+    child.stdin?.on("error", reject);
+    child.stdin?.end(JSON.stringify({ provider, model, enabled }));
+  });
 }
 
 async function writeCurrentModel(home: string, provider: string, model: string): Promise<ModelChoice> {
@@ -365,8 +342,14 @@ function attachModelsEndpoint(server: { middlewares: { use: (route: string, hand
       next();
       return;
     }
-    void readModelCatalog(solomonHome())
-      .then((catalog) => respond(response, 200, catalog))
+    const forceRefresh = new URL(request.url ?? "/", "http://localhost").searchParams.get("refresh") === "1";
+    void readModelCatalog(solomonHome(), forceRefresh)
+      .then(async (catalog) => {
+        const hidden = await readHiddenModels(solomonHome());
+        respond(response, 200, { ...catalog, providers: catalog.providers.map((provider) => ({
+          ...provider, disabled: hidden.get(provider.provider) ?? [],
+        })) });
+      })
       .catch(() => respond(response, 500, { current: { provider: "", model: "" }, recent: [], providers: [] }));
   });
 }

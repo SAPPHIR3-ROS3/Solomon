@@ -549,6 +549,9 @@ func Load() (*Root, error) {
 		r := rootFromLegacy(&leg)
 
 		normalizeRoot(r)
+		if err := LoadModelVisibility(r); err != nil {
+			return nil, err
+		}
 
 		if err := validateRoot(context.Background(), r); err != nil {
 			return nil, err
@@ -601,6 +604,9 @@ func Load() (*Root, error) {
 	}
 
 	normalizeRoot(r)
+	if err := LoadModelVisibility(r); err != nil {
+		return nil, err
+	}
 
 	if err := validateRoot(context.Background(), r); err != nil {
 		return nil, err

@@ -3,11 +3,13 @@ import {
   cacheModelVisibility,
   connectProvider,
   fetchModelCatalog,
+  fetchProviderQuotas,
   getCachedModelCatalog,
   saveCurrentModel,
   setModelEnabled,
   type ModelCatalog,
   type ProviderCatalog,
+  type ProviderQuota,
 } from "../projects/projects";
 import { InputModeIcons, ProviderIcon } from "../home/ModelControl";
 
@@ -17,6 +19,7 @@ type ModelsPageState = {
   catalog: ModelCatalog;
   error: string;
   loading: boolean;
+  quotas: ProviderQuota[];
 };
 
 const providerKinds: Array<{ kind: ProviderKind; label: string }> = [
@@ -32,6 +35,14 @@ const emptyCatalog: ModelCatalog = {
   providers: [],
   recent: [],
 };
+
+function modelMatchesQuery(provider: string, model: string, needle: string): boolean {
+  const haystack = (provider + " " + model).toLocaleLowerCase();
+  if (haystack.includes(needle)) return true;
+  const compactNeedle = needle.replace(/[.-]/g, "");
+  const compactHaystack = haystack.replace(/[.-]/g, "");
+  return compactNeedle.length > 0 && compactHaystack.includes(compactNeedle);
+}
 
 function catalogWithModelVisibility(catalog: ModelCatalog, provider: string, model: string, enabled: boolean): ModelCatalog {
   return {
@@ -50,16 +61,23 @@ function catalogWithModelVisibility(catalog: ModelCatalog, provider: string, mod
 }
 
 export function ModelsPage() {
-  const [state, setState] = useState<ModelsPageState>(() => ({ catalog: getCachedModelCatalog() ?? emptyCatalog, error: "", loading: true }));
+  const [state, setState] = useState<ModelsPageState>(() => ({ catalog: getCachedModelCatalog() ?? emptyCatalog, error: "", loading: true, quotas: [] }));
   const [query, setQuery] = useState("");
   const [isAddingProvider, setIsAddingProvider] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState("");
   const [isSavingModel, setIsSavingModel] = useState("");
 
-  async function loadCatalog() {
+  async function loadCatalog(forceRefresh = false) {
     setState((current) => ({ ...current, error: "", loading: true }));
     try {
-      const catalog = await fetchModelCatalog();
-      setState({ catalog, error: "", loading: false });
+      const catalog = await fetchModelCatalog(forceRefresh);
+      const unavailable = forceRefresh ? catalog.providers.filter((provider) => !provider.complete) : [];
+      const error = unavailable.length
+        ? `Unable to refresh models for: ${unavailable.map((provider) => provider.provider).join(", ")}. Showing saved models for these providers.`
+        : "";
+      const quotas = await fetchProviderQuotas().catch(() => []);
+      setState({ catalog, error, loading: false, quotas });
+      if (forceRefresh) setRefreshedAt(error ? "" : new Date().toLocaleTimeString());
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -87,7 +105,7 @@ export function ModelsPage() {
     return (needle
       ? state.catalog.providers.map((provider) => ({
         ...provider,
-        models: provider.models.filter((model) => (provider.provider + " " + model).toLocaleLowerCase().includes(needle)),
+        models: provider.models.filter((model) => modelMatchesQuery(provider.provider, model, needle)),
       }))
       : state.catalog.providers).filter((provider) => provider.models.length > 0);
   }, [query, state.catalog.providers]);
@@ -167,7 +185,7 @@ export function ModelsPage() {
           </div>
 
           <div className="settings-provider-list">
-            {state.catalog.providers.map((provider) => <ProviderRow key={provider.provider} provider={provider} />)}
+            {state.catalog.providers.map((provider) => <ProviderRow key={provider.provider} provider={provider} quota={state.quotas.find((entry) => entry.provider === provider.provider)} />)}
             {!state.catalog.providers.length && !state.loading ? <p className="settings-models-empty">No providers configured.</p> : null}
           </div>
         </section>
@@ -177,8 +195,11 @@ export function ModelsPage() {
             <div>
               <h2 id="settings-task-models-title">Task models</h2>
               <p>Choose the model Solomon uses for tasks.</p>
+              <p role="status" aria-live="polite">
+                {state.loading ? "Refreshing models…" : refreshedAt ? `Models updated at ${refreshedAt}` : ""}
+              </p>
             </div>
-            <button aria-label="Refresh models" className="settings-models-refresh" disabled={state.loading} onClick={() => void loadCatalog()} type="button">
+            <button aria-label="Refresh models" className="settings-models-refresh" disabled={state.loading} onClick={() => void loadCatalog(true)} type="button">
               <RefreshIcon />
             </button>
           </div>
@@ -345,18 +366,45 @@ function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: 
   );
 }
 
-function ProviderRow({ provider }: { provider: ProviderCatalog }) {
+function ProviderRow({ provider, quota }: { provider: ProviderCatalog; quota?: ProviderQuota }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const panelId = useId();
+  const bars = quota?.bars ?? [];
+  const hasQuota = bars.length > 0 || Boolean(quota?.error);
   return (
-    <div className="settings-provider-row">
-      <div className="settings-provider-row-main">
-        <span className="settings-provider-icon"><ProviderIcon provider={provider.provider} /></span>
-        <span className="settings-provider-row-copy">
-          <strong>{provider.provider}</strong>
-          <small>{provider.models.length} {provider.models.length === 1 ? "model" : "models"}{provider.complete ? "" : " · cached"}</small>
-        </span>
+    <section className="settings-provider-section">
+      <div className="settings-provider-row">
+        <button aria-controls={hasQuota ? panelId : undefined} aria-expanded={hasQuota ? isOpen : undefined} className="settings-provider-toggle" disabled={!hasQuota} onClick={() => setIsOpen((open) => !open)} type="button">
+          <span className="settings-provider-row-main">
+            <span className="settings-provider-icon"><ProviderIcon provider={provider.provider} /></span>
+            <span className="settings-provider-row-copy">
+              <strong>{provider.provider}</strong>
+              <small>{provider.models.length} {provider.models.length === 1 ? "model" : "models"}{provider.complete ? "" : " · cached"}</small>
+            </span>
+          </span>
+          <span className="settings-provider-row-meta">
+            <span className="settings-provider-connected">Configured</span>
+            {hasQuota ? <DisclosureIcon open={isOpen} /> : null}
+          </span>
+        </button>
       </div>
-      <span className="settings-provider-connected">Configured</span>
-    </div>
+      {hasQuota && isOpen ? (
+        <div className="settings-provider-quota" id={panelId}>
+          {quota?.error ? <p className="settings-provider-quota-error">{quota.error}</p> : null}
+          {bars.map((bar) => (
+            <div className="settings-provider-quota-bar" key={bar.label}>
+              <div className="settings-provider-quota-label">
+                <span>{bar.label}</span>
+                <span>{Math.round(bar.percent)}%</span>
+              </div>
+              <div aria-hidden="true" className="settings-provider-quota-track">
+                <span style={{ width: `${Math.round(bar.percent)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
