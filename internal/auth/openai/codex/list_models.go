@@ -28,12 +28,13 @@ func ListModels(ctx context.Context, bearer, accountID string) ([]string, error)
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	url := ChatGPTSubAPIBase + "/models?client_version=" + ClientVersion
+	version := ResolveClientVersion(ctx, false)
+	url := ChatGPTSubAPIBase + "/models?client_version=" + version
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	applyCodexUpstreamHeaders(req, bearer, accountID)
+	applyCodexUpstreamHeaders(req, bearer, accountID, version)
 	req.Header.Set("accept", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
