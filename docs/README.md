@@ -17,7 +17,7 @@ Welcome to the in-repo wiki for Solomon. Articles are grouped by topic into **po
 | What Solomon is and design tenets | [Overview](architecture/overview.md) |
 | Contribute or debug internals | [Package index](architecture/package-index.md) · [Agent turn pipeline](architecture/agent-turn-pipeline.md) · [Tests](development/building-and-releases.md#tests-quick-reference) |
 
-Development: [Testing](development/testing.md), [Cookbook](development/cookbook.md) · Startup flow: [Startup and CLI](architecture/startup-and-cli.md#startup-flow)
+Development: [Testing](development/testing.md), [Cookbook](development/cookbook.md), [Recent improvements](development/recent-improvements.md) · Startup flow: [Startup and CLI](architecture/startup-and-cli.md#startup-flow)
 
 ## Portals
 

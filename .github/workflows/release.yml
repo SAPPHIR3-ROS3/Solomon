@@ -60,7 +60,7 @@ jobs:
           check-latest: true
       - name: Verify UI prototypes
         run: |
-          npm --prefix ui-prototypes ci
+          npm --prefix ui-prototypes ci --no-fund
           npm --prefix ui-prototypes test
       - name: Build cursor integration bundle
         run: |
@@ -453,4 +453,3 @@ jobs:
             throw "Downloaded asset not found at $exe"
           }
           & $exe version
-

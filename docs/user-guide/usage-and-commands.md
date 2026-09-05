@@ -66,7 +66,7 @@ stable port; `solomon server start` also loads a `.env` from the current
 directory (or the development GUI's parents), while explicit environment
 variables keep precedence. When it is unset, the server selects a free port. It
 listens on all IPv4 interfaces. `solomon server start` and `solomon server
-status` show the loopback URL and the available local-network and Tailscale URLs.
+status` show the loopback URL and the available local-network and Tailscale URLs. In `dev` mode, `solomon server status` also prints the GUI source directory used for Vite/HMR.
 
 ```bash
 solomon server start
