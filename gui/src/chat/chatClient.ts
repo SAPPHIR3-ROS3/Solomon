@@ -7,6 +7,13 @@ export type ChatImageInput = {
   name: string;
 };
 
+export type ChatClipInput = {
+  end: number;
+  start: number;
+  tag: string;
+  text: string;
+};
+
 export type LiveChat = Chat & {
   source: "daemon";
   projectID: string;
@@ -34,6 +41,22 @@ export async function createLiveChat(projectID: string, title = "", signal?: Abo
   });
   const payload = await readResponsePayload(response, "Unable to create chat");
   return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
+}
+
+export async function renameLiveChat(projectID: string, chatID: string, title: string): Promise<LiveChat> {
+  const endpoint = await serverEndpoint(chatPath(projectID, chatID));
+  const response = await fetch(endpoint, {
+    body: JSON.stringify({ title }),
+    headers: { "Content-Type": "application/json" },
+    method: "PATCH",
+  });
+  const payload = await readResponsePayload(response, "Unable to rename chat");
+  return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
+}
+
+export async function deleteLiveChat(projectID: string, chatID: string): Promise<void> {
+  const endpoint = await serverEndpoint(chatPath(projectID, chatID));
+  await readResponsePayload(await fetch(endpoint, { method: "DELETE" }), "Unable to delete chat");
 }
 
 export async function deleteLiveChatMessage(projectID: string, chatID: string, messageID: string): Promise<LiveChat> {
@@ -71,12 +94,13 @@ export async function streamLiveChatMessage(
   chatID: string,
   content: string,
   images: ChatImageInput[],
+  clips: ChatClipInput[],
   signal: AbortSignal,
   onEvent: ChatStreamEventHandler,
 ): Promise<void> {
   const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/messages`);
   const response = await fetch(endpoint, {
-    body: JSON.stringify({ content, images }),
+    body: JSON.stringify({ content, images, clips }),
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
     method: "POST",
     signal,
@@ -257,6 +281,28 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
     });
   }
 
+  if (type === "subagent_start") {
+    const id = stringValue(event.id);
+    const subchatID = stringValue(event.subchatId ?? event.subchat_id);
+    if (!id || !subchatID) return chat;
+    const status = subchatStatusFromPayload(event.status) ?? "running";
+    return updateLastAssistant(chat, (message) => ({
+      ...message,
+      toolCalls: (message.toolCalls ?? []).map((tool) => tool.id !== id
+        ? tool
+        : {
+          ...tool,
+          result: {
+            ...tool.result,
+            status: tool.result?.status ?? "success",
+            subchatId: subchatID,
+            subchatStatus: status,
+          },
+          status: status === "running" || status === "queued" ? "running" : "success",
+        }),
+    }));
+  }
+
   if (type === "tool_result") {
     const id = stringValue(event.id);
     const result = normalizeToolResult(event.result, stringValue(event.error));
@@ -280,6 +326,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
 }
 
 export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat {
+  const messages = preserveOptimisticMessages(previous, next.messages);
   const startedAtByCheckpoint = new Map<number, number>();
   for (const message of previous.messages) {
     if (message.role !== "assistant" || message.checkpointSeq === undefined || message.workStartedAt === undefined) continue;
@@ -289,13 +336,20 @@ export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat 
   return {
     ...next,
     status: next.status ?? (previous.status && previous.status !== "running" ? previous.status : undefined),
-    messages: next.messages.map((message) => {
+    messages: messages.map((message) => {
       if (message.role !== "assistant" || message.workStartedAt !== undefined || message.checkpointSeq === undefined) return message;
       const workStartedAt = startedAtByCheckpoint.get(message.checkpointSeq);
       return workStartedAt === undefined ? message : { ...message, workStartedAt };
     }),
     runStartedAt: next.runStartedAt ?? previous.runStartedAt,
   };
+}
+
+function preserveOptimisticMessages(previous: Chat, nextMessages: ChatMessage[]): ChatMessage[] {
+  if (nextMessages.length > 0) return nextMessages;
+
+  const optimisticMessages = previous.messages.filter((message) => message.role === "user" && message.id.startsWith("user-"));
+  return optimisticMessages.length ? [...optimisticMessages] : nextMessages;
 }
 
 function updateLastAssistant(chat: LiveChat, update: (message: ChatMessage) => ChatMessage): LiveChat {

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { applyLiveStreamEvent, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChatMessage, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type ChatStreamEventHandler, type LiveChat } from "./chatClient";
-import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, rememberActiveChat, saveChat, saveChatStreamCursor, updateChat, useChatStore } from "./chatStore";
+import { applyLiveStreamEvent, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, deleteLiveChatMessage, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type ChatStreamEventHandler, type LiveChat } from "./chatClient";
+import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, rememberActiveChat, removeChat, saveChat, saveChatStreamCursor, updateChat, useChatStore } from "./chatStore";
 import type { Chat, ChatMessage } from "./chatTypes";
-import type { ComposerImageAttachment } from "./composerTypes";
+import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
 import { fetchProjectBranches, fetchProjectWorktrees, projectWorktreeLabel, PROJECTS_CHANGED_EVENT, type Project } from "../projects/projects";
 
 export type ChatRuntime = {
@@ -15,8 +15,10 @@ export type ChatRuntime = {
   pendingMessageIDs: ReadonlyMap<string, ReadonlySet<string>>;
   clearSelection: () => void;
   openProjectChat: (project: Project, chatID: string) => Promise<void>;
-  sendNewProjectMessage: (project: Project, content: string, images?: ComposerImageAttachment[]) => Promise<void>;
+  sendNewProjectMessage: (project: Project, content: string, images?: ComposerImageAttachment[], clips?: ComposerTerminalClip[]) => Promise<void>;
   sendMessage: (chatID: string, message: ChatMessage) => void;
+  renameChat: (projectID: string, chatID: string, title: string) => Promise<void>;
+  deleteChat: (projectID: string, chatID: string) => Promise<void>;
   deleteMessage: (chatID: string, messageID: string) => Promise<void>;
   stopChat: (chatID: string) => void;
   stopTool: (chatID: string, messageID: string, toolID: string) => void;
@@ -33,10 +35,15 @@ export function useChatRuntime(): ChatRuntime {
   const streams = useRef(new Map<string, AbortController>());
   const streamRetryTimers = useRef(new Map<string, number>());
   const streamRetryAttempts = useRef(new Map<string, number>());
+  const selectedChatIDRef = useRef<string | null>(null);
   const loadController = useRef<AbortController | null>(null);
   const loadRequest = useRef(0);
   const createController = useRef<AbortController | null>(null);
   const createRequest = useRef(0);
+
+  useEffect(() => {
+    selectedChatIDRef.current = selectedChatID;
+  }, [selectedChatID]);
 
   const selectedChat = useMemo(
     () => chats.find((chat) => chat.id === selectedChatID) ?? null,
@@ -176,6 +183,7 @@ export function useChatRuntime(): ChatRuntime {
       chat.id,
       message.content,
       chatImageInputs(message.images),
+      message.clips ?? [],
       signal,
       onEvent,
     ), (signal, onEvent) => streamLiveChatEvents(chat.projectID!, chat.id, getChatStreamCursor(chat.projectID!, chat.id), signal, onEvent));
@@ -200,7 +208,7 @@ export function useChatRuntime(): ChatRuntime {
     sendDaemonMessage(chat, message);
   }, [sendDaemonMessage]);
 
-  const sendNewProjectMessage = useCallback(async (project: Project, content: string, composerImages: ComposerImageAttachment[] = []) => {
+  const sendNewProjectMessage = useCallback(async (project: Project, content: string, composerImages: ComposerImageAttachment[] = [], composerClips: ComposerTerminalClip[] = []) => {
     if (createController.current) return;
     const controller = new AbortController();
     const requestID = createRequest.current + 1;
@@ -230,6 +238,7 @@ export function useChatRuntime(): ChatRuntime {
       sendMessage(contextualChat.id, {
         createdAt: Date.now(),
         id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        clips: composerClips,
         images,
         role: "user",
         content,
@@ -294,6 +303,53 @@ export function useChatRuntime(): ChatRuntime {
     }
   }, []);
 
+  const renameChat = useCallback(async (projectID: string, chatID: string, title: string) => {
+    const current = getChat(chatID);
+    try {
+      const renamed = await renameLiveChat(projectID, chatID, title);
+      if (current) {
+        saveChat({
+          ...renamed,
+          workspaceName: current.workspaceName,
+          workspacePath: current.workspacePath,
+          branch: current.branch,
+          worktree: current.worktree,
+        });
+      }
+      setError("");
+      window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
+    } catch (reason: unknown) {
+      const message = reason instanceof Error ? reason.message : "Unable to rename chat";
+      setError(message);
+      throw reason instanceof Error ? reason : new Error(message);
+    }
+  }, []);
+
+  const deleteChat = useCallback(async (projectID: string, chatID: string) => {
+    try {
+      await deleteLiveChat(projectID, chatID);
+      streams.current.get(chatID)?.abort();
+      const retryTimer = streamRetryTimers.current.get(chatID);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      streamRetryTimers.current.delete(chatID);
+      streamRetryAttempts.current.delete(chatID);
+      forgetChatStreamCursor(projectID, chatID);
+      removeChat(chatID);
+      if (selectedChatIDRef.current === chatID) {
+        cancelPendingRequests();
+        forgetRememberedActiveChat();
+        selectedChatIDRef.current = null;
+        setSelectedChatID(null);
+      }
+      setError("");
+      window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
+    } catch (reason: unknown) {
+      const message = reason instanceof Error ? reason.message : "Unable to delete chat";
+      setError(message);
+      throw reason instanceof Error ? reason : new Error(message);
+    }
+  }, [cancelPendingRequests]);
+
   const stopChat = useCallback((chatID: string) => {
     const chat = getChat(chatID);
     if (!chat?.projectID) return;
@@ -347,6 +403,8 @@ export function useChatRuntime(): ChatRuntime {
     openProjectChat,
     sendNewProjectMessage,
     sendMessage,
+    renameChat,
+    deleteChat,
     deleteMessage,
     stopChat,
     stopTool,

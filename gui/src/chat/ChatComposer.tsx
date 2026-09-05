@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import { fetchProjectSidebarData, normalizeReasoningEffort, saveFastMode, saveReasoningEffort, type ReasoningEffort } from "../projects/projects";
 import { AtMentionInput } from "../home/AtMentionInput";
-import type { ComposerImageAttachment } from "./composerTypes";
+import { onTerminalClip } from "../terminal-panel/clips";
+import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
 import { ModelControl } from "../home/ModelControl";
 
 const reasoningOptions = [
@@ -27,7 +28,7 @@ export type ChatComposerProps = {
   openMenu?: ChatComposerMenu;
   onModeChange?: (mode: "agent" | "chat") => void;
   onOpenMenuChange?: (menu: ChatComposerMenu) => void;
-  onSend?: (content: string, images: ComposerImageAttachment[]) => void | Promise<void>;
+  onSend?: (content: string, images: ComposerImageAttachment[], clips?: ComposerTerminalClip[]) => void | Promise<void>;
   onStopStreaming?: () => void;
   onFastModeChange?: (enabled: boolean) => void;
   onReasoningChange?: (effort: ReasoningEffort) => void;
@@ -60,6 +61,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
+  const [clips, setClips] = useState<ComposerTerminalClip[]>([]);
   const [reasoning, setReasoning] = useState<ReasoningEffort>(initialReasoning);
   const [fastOn, setFastOn] = useState(initialFastMode);
   const [fastModeAvailable, setFastModeAvailable] = useState(false);
@@ -106,8 +108,20 @@ export function ChatComposer({
   useEffect(() => {
     setDraft("");
     setImages([]);
+    setClips([]);
     setOpenMenu(null);
   }, [resetKey]);
+
+  useEffect(() => {
+    return onTerminalClip((clip) => {
+      setClips((current) => current.some((item) => item.tag === clip.tag) ? current.map((item) => item.tag === clip.tag ? clip : item) : [...current, clip]);
+      setDraft((current) => {
+        if (current.includes(clip.tag)) return current;
+        const prefix = current && !/\s$/.test(current) ? " " : "";
+        return `${current}${prefix}${clip.tag} `;
+      });
+    });
+  }, []);
 
   function setMode(nextMode: "agent" | "chat") {
     setInternalMode(nextMode);
@@ -151,9 +165,10 @@ export function ChatComposer({
   async function submit() {
     const content = draft.trim();
     if (isSending || modeSwitchPending || (!content && images.length === 0) || !onSend) return;
-    await onSend(content, images);
+    await onSend(content, images, clips);
     setDraft("");
     setImages([]);
+    setClips([]);
   }
 
   return (
@@ -169,8 +184,10 @@ export function ChatComposer({
       <AtMentionInput
         aria-label={ariaLabel}
         className="welcome-input"
+        clips={clips}
         images={images}
         onChange={setDraft}
+        onClipsChange={setClips}
         onImagesChange={setImages}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
