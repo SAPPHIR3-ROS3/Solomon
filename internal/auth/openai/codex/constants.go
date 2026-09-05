@@ -12,8 +12,8 @@ const (
 	RedirectURI  = "http://localhost:1455/auth/callback"
 	Scopes       = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 	Originator   = "codex_cli_rs"
-	ClientVersion = "0.144.1"
-	UserAgent    = "codex_cli_rs/" + ClientVersion + " (Ubuntu 22.04.0; x86_64) WindowsTerminal"
-	CallbackAddr = "127.0.0.1:1455"
-	CallbackPath = "/auth/callback"
+	// ClientVersion is the offline fallback; requests resolve npm latest dynamically.
+	ClientVersion = "0.153.3"
+	CallbackAddr  = "127.0.0.1:1455"
+	CallbackPath  = "/auth/callback"
 )

@@ -45,7 +45,7 @@ func chatGPTSubMiddleware(accountID string) option.Middleware {
 		if err != nil {
 			return nil, err
 		}
-		applyCodexUpstreamHeaders(upReq, req.Header.Get("Authorization"), strings.TrimSpace(accountID))
+		applyCodexUpstreamHeaders(upReq, req.Header.Get("Authorization"), strings.TrimSpace(accountID), ResolveClientVersion(req.Context(), false))
 		upResp, err := http.DefaultClient.Do(upReq)
 		if err != nil {
 			return nil, err
@@ -72,7 +72,7 @@ func chatGPTSubMiddleware(accountID string) option.Middleware {
 	}
 }
 
-func applyCodexUpstreamHeaders(req *http.Request, authorization, accountID string) {
+func applyCodexUpstreamHeaders(req *http.Request, authorization, accountID, version string) {
 	bearer := strings.TrimSpace(authorization)
 	if len(bearer) >= 7 && strings.EqualFold(bearer[:7], "Bearer ") {
 		bearer = strings.TrimSpace(bearer[7:])
@@ -82,8 +82,8 @@ func applyCodexUpstreamHeaders(req *http.Request, authorization, accountID strin
 	req.Header.Set("accept", "text/event-stream")
 	req.Header.Set("openai-beta", "responses=experimental")
 	req.Header.Set("originator", Originator)
-	req.Header.Set("user-agent", UserAgent)
-	req.Header.Set("version", ClientVersion)
+	req.Header.Set("user-agent", clientUserAgent(version))
+	req.Header.Set("version", version)
 	req.Header.Set("session_id", randomHexID())
 	if accountID != "" {
 		req.Header.Set("chatgpt-account-id", accountID)

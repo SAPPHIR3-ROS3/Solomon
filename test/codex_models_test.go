@@ -11,7 +11,12 @@ import (
 )
 
 func TestCodexListModels_MockHTTP(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/latest" {
+			_ = json.NewEncoder(w).Encode(map[string]string{"version": "0.999.0"})
+			return
+		}
 		if r.Method != http.MethodGet {
 			t.Fatalf("method: %s", r.Method)
 		}
@@ -24,8 +29,11 @@ func TestCodexListModels_MockHTTP(t *testing.T) {
 		if got := r.Header.Get("chatgpt-account-id"); got != "acct-1" {
 			t.Fatalf("chatgpt-account-id: %q", got)
 		}
-		if got := r.URL.Query().Get("client_version"); got != codex.ClientVersion {
-			t.Fatalf("client_version: %q want %q", got, codex.ClientVersion)
+		if got := r.URL.Query().Get("client_version"); got != "0.999.0" {
+			t.Fatalf("client_version: %q want %q", got, "0.999.0")
+		}
+		if r.Header.Get("version") != "0.999.0" {
+			t.Errorf("version header does not match catalog query")
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"models": []map[string]any{
@@ -40,6 +48,9 @@ func TestCodexListModels_MockHTTP(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	previousRegistry := codex.CodexVersionRegistryURL
+	codex.CodexVersionRegistryURL = srv.URL + "/latest"
+	defer func() { codex.CodexVersionRegistryURL = previousRegistry }()
 	prev := codex.ChatGPTSubAPIBase
 	codex.ChatGPTSubAPIBase = srv.URL + "/backend-api/codex"
 	defer func() { codex.ChatGPTSubAPIBase = prev }()

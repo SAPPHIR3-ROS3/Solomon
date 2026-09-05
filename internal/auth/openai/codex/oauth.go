@@ -72,7 +72,7 @@ func postToken(ctx context.Context, form url.Values) (TokenSet, error) {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("User-Agent", clientUserAgent(ResolveClientVersion(ctx, false)))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token request failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

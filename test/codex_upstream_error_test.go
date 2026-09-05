@@ -9,6 +9,20 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
 
+func TestUserFacingAPIError_chatGPTSubUsageJSON(t *testing.T) {
+	t.Parallel()
+	err := errors.New(`ChatGPT Sub: {"error":{"type":"usage_limit_reached","message":"The usage limit has been reached","plan_type":"plus","resets_at":1788645341,"resets_in_seconds":13521}}`)
+	got := llm.UserFacingAPIError(err)
+	for _, want := range []string{"rate limit reached", "type: usage_limit_reached", "plan: plus", "reset:"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "eligible_promo") {
+		t.Fatalf("still raw JSON:\n%s", got)
+	}
+}
+
 func TestUserFacingAPIError_chatGPTSubPrefixed(t *testing.T) {
 	t.Parallel()
 	err := errors.New(`ChatGPT Sub: model "gpt-5.4" is not available on your ChatGPT plan; use /models to pick another (free plan: gpt-5.4-mini)`)
@@ -44,6 +58,20 @@ func TestHumanizeCodexUpstreamError_unsupportedModel(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in %q", want, got)
 		}
+	}
+}
+
+func TestChatGPTSubUpstreamError_nestedUsageLimit(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"error":{"type":"usage_limit_reached","message":"The usage limit has been reached","plan_type":"plus","resets_at":1788645341,"eligible_promo":null,"resets_in_seconds":13521}}`)
+	got := strings.TrimPrefix(codexchat.ChatGPTSubUpstreamError(429, body, "gpt-5.4").Error(), "ChatGPT Sub: ")
+	for _, want := range []string{"usage limit has been reached", "plus plan", "resets"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %q", want, got)
+		}
+	}
+	if strings.Contains(got, `"type"`) || strings.Contains(got, "eligible_promo") {
+		t.Fatalf("still raw JSON: %q", got)
 	}
 }
 

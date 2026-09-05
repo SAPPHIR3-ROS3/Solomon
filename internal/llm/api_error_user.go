@@ -113,15 +113,26 @@ func chatGPTSubPrefixedError(err error) string {
 	const prefix = "ChatGPT Sub: "
 	msg := strings.TrimSpace(err.Error())
 	if strings.HasPrefix(msg, prefix) {
-		return strings.TrimSpace(msg[len(prefix):])
+		return formatChatGPTSubInner(strings.TrimSpace(msg[len(prefix):]), 0)
 	}
 	if rest, n, ok := parseAfterAttemptsPrefix(msg); ok && strings.HasPrefix(rest, prefix) {
+		attempts := 0
 		if n > 1 {
-			return fmt.Sprintf("attempts: %d\n%s", n, strings.TrimSpace(rest[len(prefix):]))
+			attempts = n
 		}
-		return strings.TrimSpace(rest[len(prefix):])
+		return formatChatGPTSubInner(strings.TrimSpace(rest[len(prefix):]), attempts)
 	}
 	return ""
+}
+
+func formatChatGPTSubInner(inner string, attempts int) string {
+	if body, requestID, ok := extractAPIErrorPayload(inner); ok {
+		return formatAPIErrorLines(attempts, 0, body, requestID)
+	}
+	if attempts > 0 {
+		return fmt.Sprintf("attempts: %d\n%s", attempts, inner)
+	}
+	return inner
 }
 
 func formatAPIErrorLines(attempts, statusCode int, payload any, requestID ...string) string {
