@@ -73,8 +73,8 @@ func (g gitIgnore) Match(path string, isDir bool) bool {
 		return false
 	}
 	relativePath = filepath.ToSlash(relativePath)
-	if relativePath == "." {
-		relativePath = ""
+	if relativePath == "." || relativePath == "" {
+		return false
 	}
 	if g.acceptPatterns.match(relativePath, isDir) {
 		return false

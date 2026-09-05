@@ -287,3 +287,23 @@ func indexStr(s, sub string) int {
 	}
 	return -1
 }
+
+func TestExpandTerminalClips(t *testing.T) {
+	tag := "[terminal-L3-L7]"
+	got := atmention.ExpandTerminalClips("see "+tag, "", map[string]string{tag: "ls\nmain.go"})
+	if !strings.Contains(got, "--- terminal "+tag+" ---") {
+		t.Fatalf("missing heading: %q", got)
+	}
+	if !strings.Contains(got, "ls\nmain.go") {
+		t.Fatalf("missing body: %q", got)
+	}
+}
+
+func TestMergeTerminalClips(t *testing.T) {
+	got := atmention.MergeTerminalClips(nil, []atmention.TerminalClip{{
+		Start: 1, End: 2, Text: "echo hi",
+	}})
+	if got["[terminal-L1-L2]"] != "echo hi" {
+		t.Fatalf("merge: %#v", got)
+	}
+}

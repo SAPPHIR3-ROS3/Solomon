@@ -109,6 +109,7 @@ type Session struct {
 	LastCommitOID            string            `json:"last_commit_oid,omitempty"`
 	ImageSeq                 int               `json:"image_seq,omitempty"`
 	ImageFiles               map[int]string    `json:"image_files,omitempty"`
+	TerminalClips            map[string]string `json:"terminal_clips,omitempty"`
 	ActivatedInstructionDirs []string          `json:"activated_instruction_dirs,omitempty"`
 	UncompactedRaw           []UncompactedDump `json:"uncompactedRaw,omitempty"`
 
@@ -331,7 +332,26 @@ func lastUserMessageSortTime(s *Session) time.Time {
 	if !s.LastUserMessageAt.IsZero() {
 		return s.LastUserMessageAt
 	}
-	return s.LastMessageAt
+	return SessionActivityTime(s)
+}
+
+func SessionActivityTime(s *Session) time.Time {
+	if s == nil {
+		return time.Time{}
+	}
+	latest := s.LastMessageAt
+	if s.LastUserMessageAt.After(latest) {
+		latest = s.LastUserMessageAt
+	}
+	if s.CreatedAt.After(latest) {
+		latest = s.CreatedAt
+	}
+	for _, message := range s.Messages {
+		if message.CreatedAt.After(latest) {
+			latest = message.CreatedAt
+		}
+	}
+	return latest
 }
 
 func ListRecent(projectHex string, n int) ([]*Session, error) {
@@ -340,7 +360,7 @@ func ListRecent(projectHex string, n int) ([]*Session, error) {
 		return nil, err
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i].LastMessageAt.After(out[j].LastMessageAt)
+		return SessionActivityTime(out[i]).After(SessionActivityTime(out[j]))
 	})
 	if len(out) > n {
 		out = out[:n]

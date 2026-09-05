@@ -6,6 +6,9 @@ import (
 )
 
 func cutN(path string, n int) (string, bool) {
+	if path == "" {
+		return "", true
+	}
 	isLast := true
 	var i, count int
 	for i < len(path)-1 {
@@ -22,6 +25,9 @@ func cutN(path string, n int) (string, bool) {
 }
 
 func cutLastN(path string, n int) (string, bool) {
+	if path == "" {
+		return "", true
+	}
 	isLast := true
 	i := len(path) - 1
 	var count int

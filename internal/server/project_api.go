@@ -419,13 +419,7 @@ func (a *projectAPI) handleReasoningEffort(w http.ResponseWriter, r *http.Reques
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
-	cfg, err := config.Load()
-	if err != nil {
-		writeAPIError(w, http.StatusInternalServerError, err)
-		return
-	}
-	cfg.ReasoningEffort = effort
-	if err := config.Save(cfg); err != nil {
+	if _, err := config.UpdateReasoningEffort(effort); err != nil {
 		writeAPIError(w, http.StatusInternalServerError, err)
 		return
 	}
