@@ -13,10 +13,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	servercli "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
@@ -174,6 +176,21 @@ func TestServerRuntime_clearsStaleStateWhenUnhealthy(t *testing.T) {
 	serverruntime.ForceStopPID(0)
 }
 
+func TestFormatStatusFields_devIncludesSourceDirectory(t *testing.T) {
+	started := time.Date(2026, 9, 6, 10, 0, 0, 0, time.Local)
+	dev := serverruntime.State{PID: 42, Version: "vtest", Mode: "dev", Vite: "running", DevDir: "/tmp/gui", StartedAt: started}
+	out := servercli.FormatStatusFields(dev)
+	want := fmt.Sprintf("pid: 42\nversion: vtest\nmode: dev\nvite: running\nsource: /tmp/gui\nstarted: %s\n", started.Format(time.RFC3339))
+	if out != want {
+		t.Fatalf("dev status fields = %q, want %q", out, want)
+	}
+	normal := serverruntime.State{PID: 7, Version: "vtest", Mode: "normal", Vite: "stopped", DevDir: "/tmp/gui", StartedAt: started}
+	out = servercli.FormatStatusFields(normal)
+	if strings.Contains(out, "source:") {
+		t.Fatalf("normal status unexpectedly included source: %q", out)
+	}
+}
+
 func TestServerRuntime_devProxiesFrontendAndStopsChild(t *testing.T) {
 	frontend := prepareDevServerTest(t)
 
@@ -240,6 +257,7 @@ func startServerForTest(t *testing.T, options serverruntime.Options) (serverrunt
 }
 
 func startServerWithRuntimeDefaultAddressForTest(t *testing.T, options serverruntime.Options) (serverruntime.State, func()) {
+	t.Setenv("SOLOMON_SERVER_PORT", "")
 	return startServerAtAddressForTest(t, options, "")
 }
 

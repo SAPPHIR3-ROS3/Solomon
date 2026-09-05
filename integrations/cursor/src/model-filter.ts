@@ -231,13 +231,16 @@ function scoreGrok(id: string): FlagshipScore {
   if (!m.includes("grok") || m.includes("build")) {
     return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
-  const rest = m.replace(/^grok-/, "");
-  const parts = rest.split("-");
-  const ver = parseVersionSegment(parts[0] ?? "");
+  let rest = m.replace(/^grok-/, "");
+  rest = rest.replace(/^grok/, "");
+  let ver = digitsVersionKey(rest);
+  if (ver.length === 0) {
+    ver = parseVersionSegment(rest.split("-")[0] ?? "");
+  }
   if (ver.length === 0) {
     return { ver: [], lineTier: 0, tier: 0, ok: false };
   }
-  return { ver, lineTier: 0, tier: grokVariantTier(parts.slice(1)), ok: true };
+  return { ver, lineTier: 0, tier: grokVariantTier(rest), ok: true };
 }
 
 function scoreKimi(id: string): FlagshipScore {
@@ -315,8 +318,37 @@ function anthropicVariantTier(parts: string[]): number {
   return 70;
 }
 
-function grokVariantTier(_suffix: string[]): number {
-  return 70;
+function grokVariantTier(rest: string): number {
+  if (rest.includes("low")) {
+    return 40;
+  }
+  if (rest.includes("medium")) {
+    return 60;
+  }
+  if (rest.includes("high")) {
+    return 80;
+  }
+  if (!rest.includes("-")) {
+    return 100;
+  }
+  return 90;
+}
+
+function digitsVersionKey(m: string): number[] {
+  const key: number[] = [];
+  for (let i = 0; i < m.length; ) {
+    if (m[i]! < "0" || m[i]! > "9") {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < m.length && m[j]! >= "0" && m[j]! <= "9") {
+      j++;
+    }
+    key.push(Number.parseInt(m.slice(i, j), 10));
+    i = j;
+  }
+  return key;
 }
 
 function versionKeyFromParts(parts: string[]): number[] {

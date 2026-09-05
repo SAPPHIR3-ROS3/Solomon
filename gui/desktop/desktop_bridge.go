@@ -126,12 +126,7 @@ func (DesktopBridge) SaveReasoningEffort(effort string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cfg, err := config.Load()
-	if err != nil {
-		return "", fmt.Errorf("read config.toml: %w", err)
-	}
-	cfg.ReasoningEffort = canonical
-	if err := config.Save(cfg); err != nil {
+	if _, err := config.UpdateReasoningEffort(canonical); err != nil {
 		return "", fmt.Errorf("save config.toml: %w", err)
 	}
 	return canonical, nil
@@ -613,9 +608,10 @@ func loadDesktopProjects() ([]desktopProject, error) {
 			project.Name = projectPath
 		}
 		for _, chat := range chats {
-			project.Chats = append(project.Chats, desktopChat{ID: chat.ID, LastMessageAt: chat.LastMessageAt.UTC().Format(time.RFC3339), Title: chat.Title})
-			if chat.LastMessageAt.After(project.activity) {
-				project.activity = chat.LastMessageAt
+			activity := chatstore.SessionActivityTime(chat)
+			project.Chats = append(project.Chats, desktopChat{ID: chat.ID, LastMessageAt: activity.UTC().Format(time.RFC3339), Title: chat.Title})
+			if activity.After(project.activity) {
+				project.activity = activity
 			}
 		}
 		if project.activity.IsZero() {

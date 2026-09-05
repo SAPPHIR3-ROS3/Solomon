@@ -182,6 +182,15 @@ func runProcess(mode, devDir string) {
 	}
 }
 
+func FormatStatusFields(state serverruntime.State) string {
+	body := fmt.Sprintf("pid: %d\nversion: %s\nmode: %s\nvite: %s\n", state.PID, state.Version, state.Mode, state.Vite)
+	if state.Mode == "dev" && state.DevDir != "" {
+		body += fmt.Sprintf("source: %s\n", state.DevDir)
+	}
+	body += fmt.Sprintf("started: %s\n", state.StartedAt.Local().Format(time.RFC3339))
+	return body
+}
+
 func status() {
 	state, err := serverruntime.LoadState()
 	if err != nil || !healthy(state) {
@@ -190,7 +199,7 @@ func status() {
 	}
 	fmt.Printf("server: running\nurl: %s\nlocalhost: %s\n", state.URL, state.LocalURL)
 	printReachableAddresses(state)
-	fmt.Printf("pid: %d\nversion: %s\nmode: %s\nvite: %s\nstarted: %s\n", state.PID, state.Version, state.Mode, state.Vite, state.StartedAt.Local().Format(time.RFC3339))
+	fmt.Print(FormatStatusFields(state))
 }
 
 func printReachableAddresses(state serverruntime.State) {
