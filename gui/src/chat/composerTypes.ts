@@ -5,3 +5,10 @@ export type ComposerImageAttachment = {
   tag: string;
   url: string;
 };
+
+export type ComposerTerminalClip = {
+  end: number;
+  start: number;
+  tag: string;
+  text: string;
+};

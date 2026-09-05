@@ -75,9 +75,17 @@ export type ChatRetainedMessage = {
   role: "assistant" | "user";
 };
 
+export type ChatClip = {
+  end: number;
+  start: number;
+  tag: string;
+  text: string;
+};
+
 export type ChatMessage = {
   checkpointBranch?: string;
   checkpointSeq?: number;
+  clips?: ChatClip[];
   createdAt?: number;
   id: string;
   images?: ChatImage[];

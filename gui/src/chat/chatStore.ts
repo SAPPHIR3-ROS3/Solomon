@@ -81,6 +81,14 @@ export function updateChat(chatID: string, update: (chat: Chat) => Chat): Chat |
   return saveChat(next);
 }
 
+export function removeChat(chatID: string): boolean {
+  const next = chats.filter((chat) => chat.id !== chatID);
+  if (next.length === chats.length) return false;
+  chats = next;
+  notify();
+  return true;
+}
+
 export function clearChatStore(): void {
   chats = [];
   notify();

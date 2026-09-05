@@ -16,7 +16,7 @@ import {
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { BranchControl, WorktreeControl } from "./BranchControl";
 import { ChatComposer, ComposerCrownIcon, ComposerSendIcon, type ChatComposerMenu } from "../chat/ChatComposer";
-import type { ComposerImageAttachment } from "../chat/composerTypes";
+import type { ComposerImageAttachment, ComposerTerminalClip } from "../chat/composerTypes";
 import "./welcome.css";
 import "./welcome-reasoning.css";
 
@@ -30,7 +30,7 @@ type WelcomeProps = {
   onOpenNewProject?: () => void;
   onOpenTemporaryWorkspace?: () => void;
   onTemporaryWorkspacePathChange?: (path: string) => void;
-  onSend?: (content: string, images?: ComposerImageAttachment[]) => void;
+  onSend?: (content: string, images?: ComposerImageAttachment[], clips?: ComposerTerminalClip[]) => void;
   onWorkspaceChange?: (project: Project | null) => void;
   isSending?: boolean;
   isTemporaryWorkspaceActive?: boolean;

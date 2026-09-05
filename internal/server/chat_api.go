@@ -33,6 +33,7 @@ import (
 const (
 	chatAPIPath         = "/__solomon/projects"
 	maxChatRequestBytes = 32 << 20
+	maxChatTitleLength  = 200
 	chatTitleTimeout    = 30 * time.Second
 )
 
@@ -284,9 +285,21 @@ type createChatRequest struct {
 	Title string `json:"title,omitempty"`
 }
 
+type renameChatRequest struct {
+	Title string `json:"title"`
+}
+
 type sendChatRequest struct {
 	Content string          `json:"content"`
 	Images  []incomingImage `json:"images,omitempty"`
+	Clips   []incomingClip  `json:"clips,omitempty"`
+}
+
+type incomingClip struct {
+	End   int    `json:"end,omitempty"`
+	Start int    `json:"start,omitempty"`
+	Tag   string `json:"tag,omitempty"`
+	Text  string `json:"text,omitempty"`
 }
 
 type incomingImage struct {
@@ -522,6 +535,14 @@ func (a *chatAPI) handleChatCollection(w http.ResponseWriter, r *http.Request, p
 }
 
 func (a *chatAPI) handleChat(w http.ResponseWriter, r *http.Request, projectID, chatID string) {
+	if r.Method == http.MethodPatch {
+		a.handleRenameChat(w, r, projectID, chatID)
+		return
+	}
+	if r.Method == http.MethodDelete {
+		a.handleDeleteChat(w, r, projectID, chatID)
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
 		return
@@ -536,6 +557,69 @@ func (a *chatAPI) handleChat(w http.ResponseWriter, r *http.Request, projectID, 
 		return
 	}
 	writeJSON(w, http.StatusOK, apiChatFromSession(projectID, sess, a.getRun(projectID+"\x00"+chatID)))
+}
+
+func (a *chatAPI) handleRenameChat(w http.ResponseWriter, r *http.Request, projectID, chatID string) {
+	if a.runActive(projectID + "\x00" + chatID) {
+		writeAPIError(w, http.StatusConflict, errors.New("chat is running"))
+		return
+	}
+	var req renameChatRequest
+	if err := decodeJSONBody(w, r, &req, 4096); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		writeAPIError(w, http.StatusBadRequest, errors.New("chat title is required"))
+		return
+	}
+	if len([]rune(title)) > maxChatTitleLength {
+		writeAPIError(w, http.StatusBadRequest, fmt.Errorf("chat title must be at most %d characters", maxChatTitleLength))
+		return
+	}
+	sess, err := chatstore.ReadSession(projectID, chatID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, os.ErrNotExist) {
+			status = http.StatusNotFound
+		}
+		writeAPIError(w, status, err)
+		return
+	}
+	sess.ID = chatID
+	sess.Title = title
+	if err := chatstore.WriteSession(projectID, sess); err != nil {
+		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, apiChatFromSession(projectID, sess, nil))
+}
+
+func (a *chatAPI) handleDeleteChat(w http.ResponseWriter, _ *http.Request, projectID, chatID string) {
+	if a.runActive(projectID + "\x00" + chatID) {
+		writeAPIError(w, http.StatusConflict, errors.New("chat is running"))
+		return
+	}
+	sess, err := chatstore.ReadSession(projectID, chatID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, os.ErrNotExist) {
+			status = http.StatusNotFound
+		}
+		writeAPIError(w, status, err)
+		return
+	}
+	if err := chatstore.RemoveSessionPath(projectID, chatID); err != nil {
+		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	for _, filePath := range sess.ImageFiles {
+		if isSafeProjectImagePath(projectID, filePath) {
+			_ = os.Remove(filePath)
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, projectID, projectRoot, chatID string) {
@@ -583,6 +667,7 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
+	sess.TerminalClips = atmention.MergeTerminalClips(sess.TerminalClips, incomingClips(req.Clips))
 
 	startContent, startImages := displayContentAndImages(projectID, sess.ID, content, sess.ImageFiles)
 	startUser := apiMessage{
@@ -957,10 +1042,7 @@ func (a *chatAPI) projectInfo(root, id string) (apiProject, error) {
 		if sess == nil {
 			continue
 		}
-		last := sess.LastMessageAt
-		if last.IsZero() {
-			last = sess.CreatedAt
-		}
+		last := chatstore.SessionActivityTime(sess)
 		title := strings.TrimSpace(sess.Title)
 		if title == "" {
 			title = "Untitled chat"
@@ -1158,7 +1240,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 	}
 	if role == "assistant" {
 		value.Reasoning = reasoning
-		value.ToolCalls = apiToolCallsFromMessage(projectID, source, index, runActive)
+		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive)
 		value.Stats = apiStatsFromMessage(message)
 		value.ThoughtFor = message.TurnTTFTSecs
 		if value.ThoughtFor == 0 {
@@ -1263,11 +1345,11 @@ func displayContentAndImages(projectID, ownerID, content string, imageFiles map[
 		}
 		seq, err := strconv.Atoi(match[1])
 		if err != nil || imageFiles == nil {
-			return ""
+			return tag
 		}
 		filePath := strings.TrimSpace(imageFiles[seq])
 		if filePath == "" || !isSafeProjectImagePath(projectID, filePath) {
-			return ""
+			return tag
 		}
 		if !seen[seq] {
 			seen[seq] = true
@@ -1280,7 +1362,7 @@ func displayContentAndImages(projectID, ownerID, content string, imageFiles map[
 				URL:  fmt.Sprintf("%s/%s/chats/%s/images/%d", chatAPIPath, url.PathEscape(projectID), url.PathEscape(ownerID), seq),
 			})
 		}
-		return ""
+		return tag
 	})
 	return strings.TrimSpace(display), imageValues
 }
@@ -1337,7 +1419,7 @@ func apiStatsFromMessage(message chatstore.Message) *apiStats {
 	}
 }
 
-func apiToolCallsFromMessage(projectID string, messages []chatstore.Message, messageIndex int, runActive bool) []apiToolCall {
+func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstore.Message, messageIndex int, runActive bool) []apiToolCall {
 	message := messages[messageIndex]
 	if len(message.ToolCalls) == 0 {
 		return nil
@@ -1350,6 +1432,27 @@ func apiToolCallsFromMessage(projectID string, messages []chatstore.Message, mes
 		if candidate.Role == "tool" && candidate.ToolCallID != "" {
 			results[candidate.ToolCallID] = candidate
 		}
+	}
+	var subchatSessions []*chatstore.SubSession
+	subchatSessionsLoaded := false
+	findSubchat := func(parentToolCallID string) *chatstore.SubSession {
+		if strings.TrimSpace(parentChatID) == "" || strings.TrimSpace(parentToolCallID) == "" {
+			return nil
+		}
+		if !subchatSessionsLoaded {
+			subchatSessionsLoaded = true
+			subchatSessions, _ = chatstore.ListSubSessions(projectID)
+		}
+		for _, subchat := range subchatSessions {
+			if subchat == nil || subchat.ParentChatID != parentChatID || subchat.ParentToolCallID != parentToolCallID {
+				continue
+			}
+			if subchat.ProjectHex != "" && subchat.ProjectHex != projectID {
+				continue
+			}
+			return subchat
+		}
+		return nil
 	}
 	out := make([]apiToolCall, 0, len(message.ToolCalls))
 	for _, call := range message.ToolCalls {
@@ -1375,12 +1478,34 @@ func apiToolCallsFromMessage(projectID string, messages []chatstore.Message, mes
 		if call.Name == "subagent" && subagentIsSynchronous(args) {
 			tool.Sync = true
 		}
+		var subchat *chatstore.SubSession
+		if call.Name == "subagent" {
+			subchat = findSubchat(call.ID)
+		}
 		if resultMessage, ok := results[call.ID]; ok {
 			tool.Result = apiToolResult(resultMessage.Content)
 			if resultStatus, ok := tool.Result["status"].(string); ok && resultStatus == "error" {
 				tool.Status = "error"
 			} else {
 				tool.Status = "success"
+			}
+		} else if subchat != nil {
+			tool.Result = map[string]any{
+				"status":    "success",
+				"subchatId": subchat.ID,
+			}
+			status := strings.TrimSpace(subchat.Status)
+			if status == "" {
+				status = chatstore.SubStatusRunning
+			}
+			tool.Result["subagentStatus"] = status
+			switch status {
+			case chatstore.SubStatusDone:
+				tool.Status = "success"
+			case chatstore.SubStatusRunning, chatstore.SubStatusQueued:
+				tool.Status = "running"
+			default:
+				tool.Status = "error"
 			}
 		} else if err := tooling.ValidateToolIntent(json.RawMessage(call.Arguments)); err != nil {
 			// Older interrupted/rejected turns may have persisted the assistant
@@ -1405,6 +1530,9 @@ func apiToolCallsFromMessage(projectID string, messages []chatstore.Message, mes
 			tool.Status = "running"
 		}
 		if tool.Name == "subagent" && tool.Result != nil {
+			if stringField(tool.Result, "subchatId") == "" && subchat != nil {
+				tool.Result["subchatId"] = subchat.ID
+			}
 			if subchatID := stringField(tool.Result, "subchatId"); subchatID != "" {
 				if subSession, subErr := chatstore.FindSubSessionByID(projectID, subchatID); subErr == nil && subSession != nil && strings.TrimSpace(subSession.Status) != "" {
 					tool.Result["subagentStatus"] = strings.TrimSpace(subSession.Status)
@@ -1893,4 +2021,12 @@ func writeAPIError(w http.ResponseWriter, status int, err error) {
 		message = err.Error()
 	}
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func incomingClips(values []incomingClip) []atmention.TerminalClip {
+	out := make([]atmention.TerminalClip, 0, len(values))
+	for _, value := range values {
+		out = append(out, atmention.TerminalClip{End: value.End, Start: value.Start, Tag: value.Tag, Text: value.Text})
+	}
+	return out
 }

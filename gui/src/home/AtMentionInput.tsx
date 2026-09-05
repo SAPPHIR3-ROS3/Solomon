@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import type { ComposerImageAttachment } from "../chat/composerTypes";
+import type { ComposerImageAttachment, ComposerTerminalClip } from "../chat/composerTypes";
 import { fetchProjectAtMentionSuggestions, type ProjectAtMentionSuggestion } from "../projects/projects";
 
 export type { ComposerImageAttachment } from "../chat/composerTypes";
@@ -11,7 +11,9 @@ type AtMentionInputProps = {
   onChange: (value: string) => void;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder?: string;
+  clips?: ComposerTerminalClip[];
   images?: ComposerImageAttachment[];
+  onClipsChange?: (clips: ComposerTerminalClip[]) => void;
   onImagesChange?: (images: ComposerImageAttachment[]) => void;
   projectID?: string;
   value: string;
@@ -58,7 +60,7 @@ type SelectionTool = typeof selectionTools[number]["value"];
 // The index, matching and shortest unambiguous tag are owned by the Go
 // atmention package. This component only supplies the GUI equivalent of the
 // terminal picker and its coloured rendering.
-export function AtMentionInput({ "aria-label": ariaLabel, className = "", images = [], onChange, onImagesChange, onKeyDown, placeholder, projectID, value }: AtMentionInputProps) {
+export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips = [], images = [], onChange, onClipsChange, onImagesChange, onKeyDown, placeholder, projectID, value }: AtMentionInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef(0);
@@ -92,18 +94,18 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", images
     const input = inputRef.current;
     if (images.length && input && document.activeElement !== input) input.focus();
     resizeInput(inputRef.current);
-    setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, images));
+    setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
     if (document.activeElement === inputRef.current) syncVisualCaret(inputRef.current);
-  }, [images, value]);
+  }, [clips, images, value]);
 
   useEffect(() => {
     const reposition = () => {
-      setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, images));
+      setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
       if (document.activeElement === inputRef.current) syncVisualCaret(inputRef.current);
     };
     window.addEventListener("resize", reposition);
     return () => window.removeEventListener("resize", reposition);
-  }, [images, value]);
+  }, [clips, images, value]);
 
   useEffect(() => {
     for (const previous of previousImagesRef.current) {
@@ -120,18 +122,27 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", images
     if (selectedImageID === null) return;
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedImageID(null);
-      if (images.length < 2) return;
-      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      if (event.key === "Escape") {
         event.preventDefault();
-        moveSelectedImage(event.key === "ArrowLeft" ? -1 : 1);
+        event.stopPropagation();
+        setSelectedImageID(null);
+        return;
       }
+      if (images.length > 1 && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        event.preventDefault();
+        event.stopPropagation();
+        moveSelectedImage(event.key === "ArrowLeft" ? -1 : 1);
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
     };
     document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", closeOnEscape);
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    document.addEventListener("keydown", closeOnEscape, true);
     return () => {
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("keydown", closeOnEscape, true);
     };
   }, [images, selectedImageID]);
 
@@ -287,6 +298,8 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", images
           onChange(nextValue);
           const remainingImages = images.filter((image) => nextValue.includes(image.tag));
           if (remainingImages.length !== images.length) onImagesChange?.(remainingImages);
+          const remainingClips = clips.filter((clip) => nextValue.includes(clip.tag));
+          if (remainingClips.length !== clips.length) onClipsChange?.(remainingClips);
           updateSuggestions(nextValue, event.target.selectionStart ?? nextValue.length);
           scheduleVisualCaret(inputRef.current);
         }}
@@ -318,19 +331,19 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", images
           if (input.selectionStart === input.selectionEnd) {
             const cursor = input.selectionStart;
             if (event.key === "ArrowLeft") {
-              const nextCursor = jumpAcrossImageTag(value, images, cursor, "left");
+              const nextCursor = jumpAcrossImageTag(value, overlayTags(images, clips), cursor, "left");
               if (nextCursor !== null) { event.preventDefault(); input.setSelectionRange(nextCursor, nextCursor); syncVisualCaret(input); return; }
             }
             if (event.key === "ArrowRight") {
-              const nextCursor = jumpAcrossImageTag(value, images, cursor, "right");
+              const nextCursor = jumpAcrossImageTag(value, overlayTags(images, clips), cursor, "right");
               if (nextCursor !== null) { event.preventDefault(); input.setSelectionRange(nextCursor, nextCursor); syncVisualCaret(input); return; }
             }
             if (event.key === "Backspace") {
-              const image = imageAtCursor(value, images, cursor, "left");
+              const image = imageAtCursor(value, overlayTags(images, clips), cursor, "left");
               if (image) { removeImageFromKeyboard(image, event); return; }
             }
             if (event.key === "Delete") {
-              const image = imageAtCursor(value, images, cursor, "right");
+              const image = imageAtCursor(value, overlayTags(images, clips), cursor, "right");
               if (image) { removeImageFromKeyboard(image, event); return; }
             }
           }
@@ -338,11 +351,11 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", images
         }}
         onPaste={pasteImages}
         onScroll={() => {
-          setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, images));
+          setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
           syncVisualCaret(inputRef.current);
         }}
         onSelect={(event) => {
-          snapSelectionOutsideImageTag(event.currentTarget, value, images);
+          snapSelectionOutsideImageTag(event.currentTarget, value, overlayTags(images, clips));
           scheduleVisualCaret(event.currentTarget);
         }}
         onBlur={() => setCaretPosition(null)}
@@ -355,7 +368,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", images
         {imageTagPositions.map((position) => {
           const image = images.find((candidate) => candidate.id === position.id);
           return image ? (
-            <span className="composer-image-tag" key={image.id} style={{ left: position.left, top: position.top, width: position.width }}>
+            <span className={image.tag.startsWith("[terminal-") ? "composer-image-tag composer-terminal-tag" : "composer-image-tag"} key={image.id} style={{ left: position.left, top: position.top, width: position.width }}>
               {position.text}
             </span>
           ) : null;
@@ -386,6 +399,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", images
           aria-modal="true"
           className={`composer-image-lightbox${isColorPaletteOpen ? " is-color-open" : ""}`}
           onClick={() => setSelectedImageID(null)}
+          onMouseDown={(event) => event.stopPropagation()}
           role="dialog"
         >
           <div aria-label="Image editing history" className="composer-image-lightbox-actions" onClick={(event) => event.stopPropagation()}>
@@ -585,6 +599,14 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", images
       ) : null}
     </div>
   );
+}
+
+
+function overlayTags(images: ComposerImageAttachment[], clips: ComposerTerminalClip[]): ComposerImageAttachment[] {
+  return [
+    ...images,
+    ...clips.map((clip, index) => ({ id: -1 - index, name: clip.tag, tag: clip.tag, url: "" })),
+  ];
 }
 
 function insertImageTags(value: string, start: number, end: number, tags: string[]) {

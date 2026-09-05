@@ -1,0 +1,9 @@
+.composer-image-tag.chat-image-tag,
+.composer-image-tag.chat-terminal-tag {
+  display: inline;
+  font-size: inherit;
+  height: auto;
+  line-height: inherit;
+  padding: 0 2px;
+  position: static;
+}
