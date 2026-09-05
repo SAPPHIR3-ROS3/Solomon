@@ -194,6 +194,21 @@ You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic
 
 Provider block fields: `base_url`, `api_key`, optional `api_protocol` (`openai` | `anthropic`). Anthropic official base: `https://api.anthropic.com` (normalized on save).
 
+For ChatGPT Sub, Solomon automatically reads the stable `latest` version of
+`@openai/codex` from the npm registry and uses it in its Codex requests. This does
+not require npm or install any package. The version is cached for six hours in
+`codex-client-version.json` under `SOLOMON_HOME` (normally `~/.solomon`). Refreshing
+models in Settings also refreshes this version. If the registry is unavailable
+or takes longer than three seconds, Solomon keeps the cached version, or uses
+its built-in fallback if no version has been saved yet.
+
+Model switches in Settings are saved in the background to
+`model-visibility.json` under `SOLOMON_HOME`. Existing `hidden_models` preferences
+from `config.toml` are carried over on the first switch change. Once created,
+this file is the source of model visibility preferences, so refreshing the
+catalog, selecting a model, or refreshing authentication cannot overwrite them.
+The switches remain usable while saving; a failed save is shown as an error.
+
 ### REPL slash commands and config fields
 
 Many slash commands write back to `config.toml` on save:

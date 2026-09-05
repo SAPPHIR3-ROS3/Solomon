@@ -61,7 +61,7 @@ to discover the daemon URL during desktop development.
 |---|---|
 | `solomon server start` | Start the detached server in normal mode. |
 | `solomon server start dev <gui-directory>` | Start development mode with the specified GUI project. The directory must contain `package.json` and `src/`. |
-| `solomon server status` | Print the PID, local and network URLs, mode, version, Vite status, and start time. |
+| `solomon server status` | Print the PID, local and network URLs, mode, version, Vite status, development GUI source directory when in dev/HMR mode, and start time. |
 | `solomon server stop` | POST `/_solomon/stop`, wait for shutdown, then remove runtime state. If health fails or the process does not exit in time, the CLI force-stops the recorded PID and clears stale `state.json`. |
 | `solomon server restart` | Preserve the prior mode and development directory, then restart. |
 | `solomon server logs` | Print the recent server log. |
