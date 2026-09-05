@@ -19,6 +19,7 @@ import (
 	"time"
 
 	servercli "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server"
+	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
@@ -305,6 +306,7 @@ func startServerAtAddressForTest(t *testing.T, options serverruntime.Options, li
 		cancel()
 		select {
 		case err := <-errs:
+			cursorint.DefaultManager().Stop()
 			if !errors.Is(err, http.ErrServerClosed) {
 				t.Fatalf("server shutdown: %v", err)
 			}
