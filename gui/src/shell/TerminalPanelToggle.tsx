@@ -3,6 +3,15 @@ type TerminalPanelToggleProps = {
   onToggle: () => void;
 };
 
+export function TerminalPanelIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <rect height="18" rx="2" width="18" x="3" y="3" />
+      <path d="M3 15h18" />
+    </svg>
+  );
+}
+
 export function TerminalPanelToggle({ isOpen, onToggle }: TerminalPanelToggleProps) {
   const label = isOpen ? "Hide terminal panel" : "Show terminal panel";
 
@@ -15,10 +24,7 @@ export function TerminalPanelToggle({ isOpen, onToggle }: TerminalPanelTogglePro
       title={label}
       type="button"
     >
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <rect height="18" rx="2" width="18" x="3" y="3" />
-        <path d="M3 15h18" />
-      </svg>
+      <TerminalPanelIcon />
     </button>
   );
 }
