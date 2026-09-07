@@ -567,7 +567,7 @@ function latestProjectActivity(project: Project): number {
   return latest;
 }
 
-function AsciiBanner() {
+export function AsciiBanner() {
   const lines = asciiBanner.trimEnd().split(/\r?\n/);
   return (
     <pre className="welcome-ascii-banner" aria-hidden="true">

@@ -20,6 +20,7 @@ import { parseChatBannerError } from "./chat/chatMessageUtils";
 import { forgetRememberedActiveChat, getRememberedActiveChat } from "./chat/chatStore";
 import { ChatTopbar, ChatView } from "./chat/ChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
+import { EditorPage } from "./editor/EditorPage";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
 const MIN_TERMINAL_PANEL_HEIGHT = 120;
@@ -336,6 +337,7 @@ export function App() {
   return (
     <main
       className="app-shell"
+      data-active-view={activeView}
       data-client-os={client.os}
       data-client-surface={client.surface}
       style={{
@@ -349,18 +351,18 @@ export function App() {
         aria-hidden="true"
         className={`window-drag-area${isSidePanelOpen || isSettingsOpen ? " is-left-inset" : ""}${isRightSidePanelOpen && !isCustomizationOpen && !isSettingsOpen ? " is-right-inset" : ""}`}
       />
-      {!isSettingsOpen ? (
+      {!isSettingsOpen && activeView !== "editor" ? (
         <SidePanelToggle
           isOpen={isSidePanelOpen}
           onToggle={() => setIsSidePanelOpen((open) => !open)}
         />
       ) : null}
-      {!isSettingsOpen && isSidePanelOpen ? (
+      {!isSettingsOpen && activeView !== "editor" && isSidePanelOpen ? (
         <button aria-label="Go to home" className="side-panel-wordmark" onClick={goHome} type="button">
           SOLOMON
         </button>
       ) : null}
-      {!isSettingsOpen ? (
+      {!isSettingsOpen && activeView !== "editor" ? (
         <RightSidePanelToggle
           disabled={isCustomizationOpen}
           isOpen={isRightSidePanelOpen && !isCustomizationOpen}
@@ -370,7 +372,7 @@ export function App() {
           }}
         />
       ) : null}
-      {!isSettingsOpen && isRightSidePanelOpen && !isCustomizationOpen ? (
+      {!isSettingsOpen && activeView !== "editor" && isRightSidePanelOpen && !isCustomizationOpen ? (
         <RightSidePanel
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           onWidthChange={resizeRightPanel}
@@ -387,7 +389,7 @@ export function App() {
           width={renderedRightPanelWidth}
         />
       ) : null}
-      {!isSettingsOpen && isSidePanelOpen ? (
+      {!isSettingsOpen && activeView !== "editor" && isSidePanelOpen ? (
         <SidePanel
           armedTerminalProjectIds={armedTerminalProjectIds}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
@@ -433,6 +435,9 @@ export function App() {
           workingDirectory={selectedWorkspace?.path ?? (activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace.path : "")}
         />
       ) : null}
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "editor" ? (
+        <EditorPage bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} onHome={goHome} project={selectedWorkspace} />
+      ) : null}
       {isSettingsOpen ? <SettingsPage onHome={goHome} /> : null}
       {!isSettingsOpen && isActiveAgentsOpen ? (
         <ActiveAgentsPage onOpenAgent={openActiveAgent} />
@@ -440,7 +445,7 @@ export function App() {
       {!isSettingsOpen && isCustomizationOpen ? <CustomizationPage /> : null}
       <Welcome
         bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
-        isVisible={!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && !selectedChat && !selectedResearch}
+        isVisible={!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && !selectedChat && !selectedResearch}
         onComposerBoundsChange={handleComposerBoundsChange}
         onKeepAliveHeightChange={setWelcomeKeepAliveHeight}
         onOpenNewProject={openNewProjectDialog}
@@ -456,7 +461,7 @@ export function App() {
         workspaceFocus={workspaceFocus}
       />
       <NewProjectDialog isOpen={isNewProjectDialogOpen} onConfirmLocalFolder={selectLocalFolder} onClose={closeNewProjectDialog} />
-      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && selectedChat ? (
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedChat ? (
         <ChatTopbar
           breadcrumb={selectedChat.workspaceName ?? selectedWorkspace?.name}
           onOpenFolder={() => {
@@ -465,14 +470,14 @@ export function App() {
           title={selectedChat.title}
         />
       ) : null}
-      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && selectedResearch ? (
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedResearch ? (
         <ChatTopbar
           breadcrumb={selectedResearch.project.name}
           onOpenFolder={() => openProjectNewChat(selectedResearch.project)}
           title={selectedResearch.research.title}
         />
       ) : null}
-      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && selectedChat ? (
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedChat ? (
         <ChatView
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           chat={selectedChat}
@@ -493,7 +498,7 @@ export function App() {
       ) : null}
       {isChatLoading ? <div aria-live="polite" className="app-chat-loading">Loading chat…</div> : null}
       {chatError ? <ChatErrorBanner message={chatError} /> : null}
-      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && selectedResearch ? (
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedResearch ? (
         <ResearchReportView bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} project={selectedResearch.project} research={selectedResearch.research} />
       ) : null}
     </main>

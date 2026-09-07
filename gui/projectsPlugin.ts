@@ -640,6 +640,22 @@ async function projectDirectoryEntries(projectID: string, directoryPath: string)
     .sort((left, right) => Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name));
 }
 
+async function projectFilePath(projectID: string, filePath: string) {
+  if (!/^[a-f0-9]{64}$/.test(projectID)) throw new Error("Invalid project ID");
+  const rawMap: unknown = JSON.parse(await readFile(path.join(solomonHome(), "projectsId.json"), "utf8"));
+  if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) throw new Error("Invalid projects map");
+  const projectPath = Object.entries(rawMap).find(([, registeredID]) => registeredID === projectID)?.[0];
+  if (!projectPath) throw new Error("Project is not registered");
+  const root = await realpath(path.resolve(projectPath));
+  const target = path.resolve(root, filePath);
+  const relativeTarget = path.relative(root, target);
+  if (!filePath || path.isAbsolute(relativeTarget) || relativeTarget === ".." || relativeTarget.startsWith(`..${path.sep}`)) throw new Error("Invalid project file");
+  const resolved = await realpath(target);
+  const resolvedRelative = path.relative(root, resolved);
+  if (path.isAbsolute(resolvedRelative) || resolvedRelative === ".." || resolvedRelative.startsWith(`..${path.sep}`)) throw new Error("Invalid project file");
+  return resolved;
+}
+
 async function homeDirectoryEntries(directoryPath: string) {
   const root = path.resolve(homedir());
   const target = path.resolve(root, directoryPath);
@@ -699,7 +715,21 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
         .catch(() => { response.statusCode = 404; response.end("Research report not found"); });
       return;
     }
-    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|files|research|history|status|branches|checkout|worktrees))?\/?$/);
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|file|files|research|history|status|branches|checkout|worktrees))?\/?$/);
+    if ((request.method === "GET" || request.method === "PUT") && match?.[2] === "file") {
+      const filePath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
+      if (request.method === "GET") {
+        void projectFilePath(match[1], filePath).then((target) => readFile(target, "utf8"))
+          .then((content) => { response.statusCode = 200; response.setHeader("Content-Type", "text/plain; charset=utf-8"); response.end(content); })
+          .catch(() => respondWithJson(response, 404, { error: "Unable to read project file" }));
+      } else {
+        void Promise.all([projectFilePath(match[1], filePath), readTextBody(request)])
+          .then(([target, content]) => writeFile(target, content, "utf8"))
+          .then(() => respondWithJson(response, 200, {}))
+          .catch(() => respondWithJson(response, 500, { error: "Unable to save project file" }));
+      }
+      return;
+    }
     if (request.method === "GET" && match?.[2] === "files") {
       const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
       void projectDirectoryEntries(match[1], directoryPath)
@@ -789,6 +819,15 @@ function respondWithJson(response: UserNameResponse, statusCode: number, body: o
   response.statusCode = statusCode;
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   response.end(JSON.stringify(body));
+}
+
+function readTextBody(request: UserNameRequest): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.on("data", (chunk) => { body += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk); });
+    request.once("error", reject);
+    request.once("end", () => resolve(body));
+  });
 }
 
 function readJsonBody(request: UserNameRequest): Promise<unknown> {

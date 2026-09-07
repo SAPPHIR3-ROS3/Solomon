@@ -310,6 +310,7 @@ type FileEntriesProps = {
   folderStatus?: Record<string, string>;
   nameFilter: string;
   onOpenFile?: (entry: ProjectDirectoryEntry) => void;
+  onOpenFileInNewTab?: (entry: ProjectDirectoryEntry) => void;
   onToggleDirectory: (entry: ProjectDirectoryEntry) => void;
   parentPath: string;
   selectedPath?: string;
@@ -323,7 +324,7 @@ function entryMatchesFilter(entry: ProjectDirectoryEntry, nameFilter: string, en
   return (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
 }
 
-export function FileEntries({ collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
+export function FileEntries({ collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onOpenFileInNewTab, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
   return entries[parentPath]?.filter((entry) => entryMatchesFilter(entry, nameFilter, entries)).map((entry) => {
     const hasMatchingChild = Boolean(nameFilter) && entry.isDirectory && (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
     const isExpanded = entry.isDirectory && (hasMatchingChild || (collapsedDirectories ? !collapsedDirectories.has(entry.path) : expandedDirectories.has(entry.path)));
@@ -336,6 +337,7 @@ export function FileEntries({ collapsedDirectories, depth, entries, expandedDire
           className={`right-side-panel-file-row${!entry.isDirectory && entry.path === selectedPath ? " is-active" : ""}${status ? ` status-${status}` : ""}`}
           data-depth={depth}
           onClick={() => entry.isDirectory ? onToggleDirectory(entry) : onOpenFile?.(entry)}
+          onDoubleClick={() => entry.isDirectory ? undefined : onOpenFileInNewTab?.(entry)}
           title={entry.name}
           type="button"
         >
@@ -348,7 +350,7 @@ export function FileEntries({ collapsedDirectories, depth, entries, expandedDire
         {isExpanded ? (
           <div className="right-side-panel-file-children">
             {entries[entry.path] ? (
-              <FileEntries collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={folderStatus} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
+              <FileEntries collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={folderStatus} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
             ) : <span className="right-side-panel-loading">Loading…</span>}
           </div>
         ) : null}
@@ -366,6 +368,8 @@ type GitHistoryViewProps = {
   loading: boolean;
   project: Project | null;
   readOnly?: boolean;
+  onOpenFile?: (entry: ProjectDirectoryEntry) => void;
+  onOpenFileInNewTab?: (entry: ProjectDirectoryEntry) => void;
 };
 
 const gitHistoryLaneStep = 12;
@@ -373,7 +377,7 @@ const gitHistoryGraphInset = 7;
 const gitHistoryContentInset = 6;
 const emptyGitExpandedDirectories = new Set<string>();
 
-function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, history, loading, project, readOnly = false }: GitHistoryViewProps) {
+export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, history, loading, onOpenFile, onOpenFileInNewTab, project, readOnly = false }: GitHistoryViewProps) {
   const [branchError, setBranchError] = useState("");
   const [branches, setBranches] = useState<string[]>([]);
   const [branchesError, setBranchesError] = useState("");
@@ -510,7 +514,7 @@ function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, hi
             <small>{stagedCount}</small>
           </header>
           {stagedCount > 0 && !stagedChangesCollapsed ? <div aria-label="Staged files" className="right-side-panel-history-tree">
-            <FileEntries collapsedDirectories={collapsedGitFolders} depth={0} entries={stagedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.staged} folderStatus={stagedFolderStatus} nameFilter="" onToggleDirectory={toggleGitFolder} parentPath="" />
+            <FileEntries collapsedDirectories={collapsedGitFolders} depth={0} entries={stagedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.staged} folderStatus={stagedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={toggleGitFolder} parentPath="" />
           </div> : null}
         </section>
         <section aria-label="Changes" className={`right-side-panel-history-change-section${changedCount === 0 ? " is-empty" : changesCollapsed ? " is-collapsed" : ""}`}>
@@ -519,7 +523,7 @@ function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, hi
             <small>{changedCount}</small>
           </header>
           {changedCount > 0 && !changesCollapsed ? <div aria-label="Changed files" className="right-side-panel-history-tree">
-            <FileEntries collapsedDirectories={collapsedGitFolders} depth={0} entries={changedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.changes} folderStatus={changedFolderStatus} nameFilter="" onToggleDirectory={toggleGitFolder} parentPath="" />
+            <FileEntries collapsedDirectories={collapsedGitFolders} depth={0} entries={changedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.changes} folderStatus={changedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={toggleGitFolder} parentPath="" />
           </div> : null}
         </section>
       </div>
@@ -781,7 +785,7 @@ function gitHistoryReference(reference: string): GitHistoryReference {
   return { checkoutBranch: normalized, isCurrent: false, kind: "branch", label: normalized };
 }
 
-function SearchIcon() {
+export function SearchIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 16 16">
       <circle cx="7" cy="7" r="4.5" />
@@ -790,7 +794,7 @@ function SearchIcon() {
   );
 }
 
-function NewDocumentIcon() {
+export function NewDocumentIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="M6.25 3.5h8.25l5 5v10.25a2 2 0 0 1-2 2H6.25a2.5 2.5 0 0 1-2.5-2.5V6a2.5 2.5 0 0 1 2.5-2.5Z" />
@@ -799,7 +803,7 @@ function NewDocumentIcon() {
   );
 }
 
-function GitHistoryIcon() {
+export function GitHistoryIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="M8 5v14" />
@@ -995,6 +999,7 @@ const fileIconsByExtension: Record<string, string> = {
   aiff: "file_type_audio",
   avif: "file_type_image",
   avi: "file_type_video",
+  bash: "shell",
   bmp: "file_type_image",
   bz2: "file_type_zip",
   c: "c",
@@ -1055,6 +1060,7 @@ const fileIconsByExtension: Record<string, string> = {
   pyi: "python",
   pyw: "python",
   pyx: "python",
+  ps1: "shell",
   rar: "file_type_zip",
   rake: "ruby",
   rb: "ruby",
@@ -1066,6 +1072,9 @@ const fileIconsByExtension: Record<string, string> = {
   sqlite3: "file_type_sqlite",
   svg: "file_type_image",
   sh: "shell",
+  zsh: "shell",
+  ksh: "shell",
+  fish: "shell",
   swift: "swift",
   svelte: "svelte",
   ts: "typescript",
