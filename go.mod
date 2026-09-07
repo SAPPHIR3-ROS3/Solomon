@@ -9,7 +9,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/gofrs/flock v0.13.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/modelcontextprotocol/go-sdk v1.6.1
+	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/muesli/termenv v0.16.0
 	github.com/openai/openai-go/v2 v2.7.1
 	github.com/pelletier/go-toml/v2 v2.4.2
@@ -68,5 +68,7 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 )

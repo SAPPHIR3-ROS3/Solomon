@@ -4,6 +4,8 @@
 
 Load optional MCP servers from JSON, connect via stdio or streamable HTTP, register remote tools for the model, and execute calls through the OpenAI tool path.
 
+The official Go SDK is pinned at `v1.7.0`, which supports MCP `2026-07-28` through the stateless `server/discover` flow and falls back to the legacy `2025-11-25` initialization flow for older servers.
+
 ## Packages and files
 
 | File | Role |
