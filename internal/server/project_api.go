@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -79,7 +80,7 @@ func (*projectAPI) handlesProjectRoute(path string) bool {
 		return false
 	}
 	switch parts[1] {
-	case "disk", "removal-info", "files", "research", "history", "status", "branches", "checkout", "worktrees":
+	case "disk", "removal-info", "file", "files", "research", "history", "status", "branches", "checkout", "worktrees":
 		return true
 	default:
 		return false
@@ -104,6 +105,10 @@ func (a *projectAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) 
 
 	if len(parts) == 2 && parts[1] == "files" && r.Method == http.MethodGet {
 		a.handleProjectFiles(w, r, projectID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "file" && (r.Method == http.MethodGet || r.Method == http.MethodPut) {
+		a.handleProjectFile(w, r, projectID)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "research" && r.Method == http.MethodGet {
@@ -162,6 +167,60 @@ func (a *projectAPI) handleProjectFiles(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	writeJSON(w, http.StatusOK, entries)
+}
+
+func (a *projectAPI) handleProjectFile(w http.ResponseWriter, r *http.Request, projectID string) {
+	root, err := registeredProjectRoot(projectID)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, err)
+		return
+	}
+	target, err := safeWorkspacePath(root, r.URL.Query().Get("path"))
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	if r.Method == http.MethodGet {
+		content, readErr := os.ReadFile(target)
+		if readErr != nil {
+			writeAPIError(w, http.StatusNotFound, readErr)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write(content)
+		return
+	}
+	defer r.Body.Close()
+	content, readErr := io.ReadAll(io.LimitReader(r.Body, 16<<20))
+	if readErr != nil {
+		writeAPIError(w, http.StatusBadRequest, readErr)
+		return
+	}
+	if writeErr := os.WriteFile(target, content, 0o644); writeErr != nil {
+		writeAPIError(w, http.StatusInternalServerError, writeErr)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+}
+
+func safeWorkspacePath(root, relativePath string) (string, error) {
+	if strings.TrimSpace(relativePath) == "" {
+		return "", errors.New("file path is required")
+	}
+	target := filepath.Clean(filepath.Join(root, relativePath))
+	relative, err := filepath.Rel(root, target)
+	if err != nil || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("invalid project file")
+	}
+	resolved, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return "", err
+	}
+	resolvedRelative, err := filepath.Rel(root, resolved)
+	if err != nil || filepath.IsAbs(resolvedRelative) || resolvedRelative == ".." || strings.HasPrefix(resolvedRelative, ".."+string(filepath.Separator)) {
+		return "", errors.New("invalid project file")
+	}
+	return target, nil
 }
 
 func (a *projectAPI) handleProjectResearch(w http.ResponseWriter, projectID string) {

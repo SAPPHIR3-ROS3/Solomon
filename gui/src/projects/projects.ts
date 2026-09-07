@@ -167,6 +167,21 @@ export async function fetchProjectDirectoryEntries(projectID: string, directoryP
   return projectDirectoryEntriesFromPayload(await response.json());
 }
 
+export async function fetchProjectFile(projectID: string, filePath: string): Promise<string> {
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/projects/${encodeURIComponent(projectID)}/file?path=${encodeURIComponent(filePath)}`,
+  ));
+  if (!response.ok) throw new Error(`Unable to read project file: ${response.status}`);
+  return response.text();
+}
+
+export async function saveProjectFile(projectID: string, filePath: string, content: string): Promise<void> {
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/projects/${encodeURIComponent(projectID)}/file?path=${encodeURIComponent(filePath)}`,
+  ), { body: content, headers: { "Content-Type": "text/plain; charset=utf-8" }, method: "PUT" });
+  if (!response.ok) throw new Error(`Unable to save project file: ${response.status}`);
+}
+
 export async function fetchHomeDirectoryEntries(directoryPath = "", signal?: AbortSignal): Promise<ProjectDirectoryEntry[]> {
   const response = await fetch(await serverEndpoint(
     `/__solomon/home-directories?path=${encodeURIComponent(directoryPath)}`,
