@@ -12,6 +12,7 @@ The official Go SDK is pinned at `v1.7.0`, which supports MCP `2026-07-28` throu
 |------|------|
 | `internal/mcp/config.go` | Load `mcp.json`, env expansion |
 | `internal/mcp/manager.go` | Connect servers, registry, tool calls, lifecycle |
+| `internal/mcp/session.go` | Ephemeral session replacement, recovery state and subscription bookkeeping |
 | `internal/mcp/transport.go` | stdio, legacy SSE, and streamable-http |
 | `internal/mcp/adapter.go` | MCP tool → OpenAI function schema |
 | `internal/mcp/features.go` | Resources, prompts, completions, subscriptions, roots and negotiated server state |
@@ -62,6 +63,8 @@ Rules:
 - `allow` / `deny` filter tools by their original MCP name; resources and prompts are catalogued independently.
 - OAuth client registration is configured in `mcp.json`, while interactive authorization and token persistence are supplied by `ManagerOptions` or a custom `OAuthHandler`. No credential is embedded in Solomon's build.
 - With an HTTP server that supports MCP `2026-07-28`, the SDK uses `server/discover` and `subscriptions/listen`; older servers fall back to legacy initialization and resource subscription calls.
+- A connected session is treated as ephemeral. Its server configuration, roots, catalog policy and desired subscriptions are retained by Solomon, so a lost session can be negotiated again without changing the deferred tool names exposed to Code Mode.
+- Non-tool MCP operations retry once after a detected session failure. Tool calls are conservative: a call rejected because the session is missing may be replayed, while a lost response is reported as an unknown outcome unless `ManagerOptions.RetryToolCall` explicitly authorizes replay.
 
 User-oriented summary: [Configuration](../user-guide/configuration.md).
 
@@ -99,6 +102,8 @@ sequenceDiagram
 ## Host callbacks and lifecycle
 
 `ManagerOptions.ClientOptions` is passed to each SDK client. It supports elicitation, sampling, progress, logging, list-change notifications, resource updates, explicit capabilities, and multi-round-trip configuration. The manager wraps list-change handlers to keep its catalogs synchronized before forwarding notifications to the host.
+
+When a session disappears, the manager reconnects under the same server binding, rehydrates the catalog and restores desired subscriptions. OAuth handlers are cached per configured server for the manager lifetime, allowing their token source and refresh state to survive session replacement; cross-process token persistence remains the host's responsibility. `DisableCatalogSubscriptions` can be used by request/response adapters that do not need the modern catalog notification stream. `Close` cancels recovery and subscription goroutines and is idempotent.
 
 Roots are configured per manager and Solomon's runtime supplies the current project root. Sampling, roots, and logging are deprecated by the July protocol but remain wired for compatibility; new integrations should prefer tool parameters, resource URIs, or direct provider calls where applicable.
 

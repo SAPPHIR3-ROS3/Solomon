@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -21,7 +22,7 @@ type ServerInfo struct {
 	Instructions    string
 }
 
-func (m *Manager) clientOptions(ss **serverSession) sdkmcp.ClientOptions {
+func (m *Manager) clientOptions(ss *serverSession) sdkmcp.ClientOptions {
 	opts := m.options.ClientOptions
 	userToolChanged := opts.ToolListChangedHandler
 	userPromptChanged := opts.PromptListChangedHandler
@@ -35,23 +36,23 @@ func (m *Manager) clientOptions(ss **serverSession) sdkmcp.ClientOptions {
 		if userToolChanged != nil {
 			userToolChanged(ctx, req)
 		}
-		if ss != nil && *ss != nil {
-			m.refreshCatalogAsync(ctx, *ss, "tools", m.refreshTools)
+		if ss != nil {
+			m.refreshCatalogAsync(ctx, ss, "tools", m.refreshTools)
 		}
 	}
 	opts.PromptListChangedHandler = func(ctx context.Context, req *sdkmcp.PromptListChangedRequest) {
 		if userPromptChanged != nil {
 			userPromptChanged(ctx, req)
 		}
-		if ss != nil && *ss != nil {
-			m.refreshCatalogAsync(ctx, *ss, "prompts", m.refreshPrompts)
+		if ss != nil {
+			m.refreshCatalogAsync(ctx, ss, "prompts", m.refreshPrompts)
 		}
 	}
 	opts.ResourceListChangedHandler = func(ctx context.Context, req *sdkmcp.ResourceListChangedRequest) {
 		if userResourceChanged != nil {
 			userResourceChanged(ctx, req)
 		}
-		if ss != nil && *ss != nil {
+		if ss != nil {
 			refreshCtx := context.WithoutCancel(ctx)
 			go func(server *serverSession) {
 				if err := m.refreshResources(refreshCtx, server); err != nil {
@@ -60,13 +61,18 @@ func (m *Manager) clientOptions(ss **serverSession) sdkmcp.ClientOptions {
 				if err := m.refreshResourceTemplates(refreshCtx, server); err != nil {
 					logging.Log(logging.WARNING_LOG_LEVEL, "MCP resource templates refresh failed", logging.LogOptions{Params: map[string]any{"server": server.cfg.Name, "err": err.Error()}})
 				}
-			}(*ss)
+			}(ss)
 		}
 	}
 	opts.ResourceUpdatedHandler = func(ctx context.Context, req *sdkmcp.ResourceUpdatedNotificationRequest) {
 		if userResourceUpdated != nil {
 			userResourceUpdated(ctx, req)
 		}
+	}
+	if m.options.DisableCatalogSubscriptions {
+		opts.ToolListChangedHandler = nil
+		opts.PromptListChangedHandler = nil
+		opts.ResourceListChangedHandler = nil
 	}
 	return opts
 }
@@ -75,7 +81,7 @@ func (m *Manager) clientOptions(ss **serverSession) sdkmcp.ClientOptions {
 // subscription session. The main session owns the July subscriptions/listen
 // stream for catalog changes; resource subscriptions must not share that
 // session because the SDK cancels each resource listener independently.
-func (m *Manager) subscriptionClientOptions(ss **serverSession) sdkmcp.ClientOptions {
+func (m *Manager) subscriptionClientOptions(ss *serverSession) sdkmcp.ClientOptions {
 	opts := m.clientOptions(ss)
 	opts.ToolListChangedHandler = nil
 	opts.PromptListChangedHandler = nil
@@ -117,10 +123,17 @@ func (m *Manager) registerServerCatalog(ctx context.Context, ss *serverSession) 
 }
 
 func supportsFeature(ss *serverSession, feature string) bool {
-	if ss == nil || ss.session == nil {
+	if ss == nil {
 		return false
 	}
-	result := ss.session.InitializeResult()
+	return supportsFeatureSession(ss.currentSession(), feature)
+}
+
+func supportsFeatureSession(session *sdkmcp.ClientSession, feature string) bool {
+	if session == nil {
+		return false
+	}
+	result := session.InitializeResult()
 	if result == nil || result.Capabilities == nil {
 		return true
 	}
@@ -139,132 +152,168 @@ func supportsFeature(ss *serverSession, feature string) bool {
 }
 
 func (m *Manager) refreshTools(ctx context.Context, ss *serverSession) error {
-	if !supportsFeature(ss, "tools") {
-		m.replaceServerTools(ss, nil)
-		return nil
-	}
-	var all []*sdkmcp.Tool
-	cursor := ""
-	for {
-		listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
-		res, err := ss.session.ListTools(listCtx, &sdkmcp.ListToolsParams{Cursor: cursor})
-		cancel()
-		if err != nil {
-			return err
+	_, err := withSessionCall(m, ctx, ss, "tools/list", func(session *sdkmcp.ClientSession) (struct{}, error) {
+		if !ss.ownsSession(session) {
+			return struct{}{}, sdkmcp.ErrConnectionClosed
 		}
-		all = append(all, res.Tools...)
-		if strings.TrimSpace(res.NextCursor) == "" {
-			break
+		if !supportsFeatureSession(session, "tools") {
+			m.replaceServerTools(ss, nil)
+			return struct{}{}, nil
 		}
-		cursor = res.NextCursor
-	}
-	tools := make([]RemoteTool, 0, len(all))
-	for _, tool := range all {
-		if tool == nil || !ss.cfg.ToolAllowed(tool.Name) {
-			if tool != nil {
-				logging.Log(logging.INFO_LOG_LEVEL, "MCP tool filtered", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "tool": tool.Name}})
+		var all []*sdkmcp.Tool
+		cursor := ""
+		for {
+			listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
+			res, err := session.ListTools(listCtx, &sdkmcp.ListToolsParams{Cursor: cursor})
+			cancel()
+			if err != nil {
+				return struct{}{}, err
 			}
-			continue
+			all = append(all, res.Tools...)
+			if strings.TrimSpace(res.NextCursor) == "" {
+				break
+			}
+			cursor = res.NextCursor
 		}
-		rt, err := AdaptTool(ss.cfg.Name, tool)
-		if err != nil {
-			logging.Log(logging.WARNING_LOG_LEVEL, "MCP tool schema skipped", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "tool": tool.Name, "err": err.Error()}})
-			continue
+		if !ss.ownsSession(session) {
+			return struct{}{}, sdkmcp.ErrConnectionClosed
 		}
-		tools = append(tools, rt)
-	}
-	m.replaceServerTools(ss, tools)
-	return nil
+		tools := make([]RemoteTool, 0, len(all))
+		for _, tool := range all {
+			if tool == nil || !ss.cfg.ToolAllowed(tool.Name) {
+				if tool != nil {
+					logging.Log(logging.INFO_LOG_LEVEL, "MCP tool filtered", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "tool": tool.Name}})
+				}
+				continue
+			}
+			rt, err := AdaptTool(ss.cfg.Name, tool)
+			if err != nil {
+				logging.Log(logging.WARNING_LOG_LEVEL, "MCP tool schema skipped", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "tool": tool.Name, "err": err.Error()}})
+				continue
+			}
+			tools = append(tools, rt)
+		}
+		m.replaceServerTools(ss, tools)
+		return struct{}{}, nil
+	})
+	return err
 }
 
 func (m *Manager) refreshResources(ctx context.Context, ss *serverSession) error {
-	if !supportsFeature(ss, "resources") {
-		m.replaceServerResources(ss, nil)
-		return nil
-	}
-	var resources []*sdkmcp.Resource
-	cursor := ""
-	for {
-		listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
-		res, err := ss.session.ListResources(listCtx, &sdkmcp.ListResourcesParams{Cursor: cursor})
-		cancel()
-		if err != nil {
-			return err
+	_, err := withSessionCall(m, ctx, ss, "resources/list", func(session *sdkmcp.ClientSession) (struct{}, error) {
+		if !ss.ownsSession(session) {
+			return struct{}{}, sdkmcp.ErrConnectionClosed
 		}
-		resources = append(resources, res.Resources...)
-		if strings.TrimSpace(res.NextCursor) == "" {
-			break
+		if !supportsFeatureSession(session, "resources") {
+			m.replaceServerResources(ss, nil)
+			return struct{}{}, nil
 		}
-		cursor = res.NextCursor
-	}
-	out := make([]RemoteResource, 0, len(resources))
-	for _, resource := range resources {
-		if resource != nil {
-			out = append(out, RemoteResource{ServerName: ss.cfg.Name, Definition: resource})
+		var resources []*sdkmcp.Resource
+		cursor := ""
+		for {
+			listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
+			res, err := session.ListResources(listCtx, &sdkmcp.ListResourcesParams{Cursor: cursor})
+			cancel()
+			if err != nil {
+				return struct{}{}, err
+			}
+			resources = append(resources, res.Resources...)
+			if strings.TrimSpace(res.NextCursor) == "" {
+				break
+			}
+			cursor = res.NextCursor
 		}
-	}
-	m.replaceServerResources(ss, out)
-	return nil
+		if !ss.ownsSession(session) {
+			return struct{}{}, sdkmcp.ErrConnectionClosed
+		}
+		out := make([]RemoteResource, 0, len(resources))
+		for _, resource := range resources {
+			if resource != nil {
+				out = append(out, RemoteResource{ServerName: ss.cfg.Name, Definition: resource})
+			}
+		}
+		m.replaceServerResources(ss, out)
+		return struct{}{}, nil
+	})
+	return err
 }
 
 func (m *Manager) refreshResourceTemplates(ctx context.Context, ss *serverSession) error {
-	if !supportsFeature(ss, "resources") {
-		m.replaceServerResourceTemplates(ss, nil)
-		return nil
-	}
-	var templates []*sdkmcp.ResourceTemplate
-	cursor := ""
-	for {
-		listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
-		res, err := ss.session.ListResourceTemplates(listCtx, &sdkmcp.ListResourceTemplatesParams{Cursor: cursor})
-		cancel()
-		if err != nil {
-			return err
+	_, err := withSessionCall(m, ctx, ss, "resources/templates/list", func(session *sdkmcp.ClientSession) (struct{}, error) {
+		if !ss.ownsSession(session) {
+			return struct{}{}, sdkmcp.ErrConnectionClosed
 		}
-		templates = append(templates, res.ResourceTemplates...)
-		if strings.TrimSpace(res.NextCursor) == "" {
-			break
+		if !supportsFeatureSession(session, "resources") {
+			m.replaceServerResourceTemplates(ss, nil)
+			return struct{}{}, nil
 		}
-		cursor = res.NextCursor
-	}
-	out := make([]RemoteResourceTemplate, 0, len(templates))
-	for _, template := range templates {
-		if template != nil {
-			out = append(out, RemoteResourceTemplate{ServerName: ss.cfg.Name, Definition: template})
+		var templates []*sdkmcp.ResourceTemplate
+		cursor := ""
+		for {
+			listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
+			res, err := session.ListResourceTemplates(listCtx, &sdkmcp.ListResourceTemplatesParams{Cursor: cursor})
+			cancel()
+			if err != nil {
+				return struct{}{}, err
+			}
+			templates = append(templates, res.ResourceTemplates...)
+			if strings.TrimSpace(res.NextCursor) == "" {
+				break
+			}
+			cursor = res.NextCursor
 		}
-	}
-	m.replaceServerResourceTemplates(ss, out)
-	return nil
+		if !ss.ownsSession(session) {
+			return struct{}{}, sdkmcp.ErrConnectionClosed
+		}
+		out := make([]RemoteResourceTemplate, 0, len(templates))
+		for _, template := range templates {
+			if template != nil {
+				out = append(out, RemoteResourceTemplate{ServerName: ss.cfg.Name, Definition: template})
+			}
+		}
+		m.replaceServerResourceTemplates(ss, out)
+		return struct{}{}, nil
+	})
+	return err
 }
 
 func (m *Manager) refreshPrompts(ctx context.Context, ss *serverSession) error {
-	if !supportsFeature(ss, "prompts") {
-		m.replaceServerPrompts(ss, nil)
-		return nil
-	}
-	var prompts []*sdkmcp.Prompt
-	cursor := ""
-	for {
-		listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
-		res, err := ss.session.ListPrompts(listCtx, &sdkmcp.ListPromptsParams{Cursor: cursor})
-		cancel()
-		if err != nil {
-			return err
+	_, err := withSessionCall(m, ctx, ss, "prompts/list", func(session *sdkmcp.ClientSession) (struct{}, error) {
+		if !ss.ownsSession(session) {
+			return struct{}{}, sdkmcp.ErrConnectionClosed
 		}
-		prompts = append(prompts, res.Prompts...)
-		if strings.TrimSpace(res.NextCursor) == "" {
-			break
+		if !supportsFeatureSession(session, "prompts") {
+			m.replaceServerPrompts(ss, nil)
+			return struct{}{}, nil
 		}
-		cursor = res.NextCursor
-	}
-	out := make([]RemotePrompt, 0, len(prompts))
-	for _, prompt := range prompts {
-		if prompt != nil {
-			out = append(out, RemotePrompt{ServerName: ss.cfg.Name, Definition: prompt})
+		var prompts []*sdkmcp.Prompt
+		cursor := ""
+		for {
+			listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
+			res, err := session.ListPrompts(listCtx, &sdkmcp.ListPromptsParams{Cursor: cursor})
+			cancel()
+			if err != nil {
+				return struct{}{}, err
+			}
+			prompts = append(prompts, res.Prompts...)
+			if strings.TrimSpace(res.NextCursor) == "" {
+				break
+			}
+			cursor = res.NextCursor
 		}
-	}
-	m.replaceServerPrompts(ss, out)
-	return nil
+		if !ss.ownsSession(session) {
+			return struct{}{}, sdkmcp.ErrConnectionClosed
+		}
+		out := make([]RemotePrompt, 0, len(prompts))
+		for _, prompt := range prompts {
+			if prompt != nil {
+				out = append(out, RemotePrompt{ServerName: ss.cfg.Name, Definition: prompt})
+			}
+		}
+		m.replaceServerPrompts(ss, out)
+		return struct{}{}, nil
+	})
+	return err
 }
 
 func (m *Manager) replaceServerTools(ss *serverSession, tools []RemoteTool) {
@@ -354,24 +403,55 @@ func (m *Manager) sessionFor(ctx context.Context, serverName string) (*serverSes
 	}
 	serverName = strings.TrimSpace(serverName)
 	m.mu.RLock()
-	defer m.mu.RUnlock()
+	var found *serverSession
 	for _, ss := range m.servers {
 		if ss.cfg.Name == serverName {
-			return ss, nil
+			found = ss
+			break
 		}
 	}
-	return nil, fmt.Errorf("unknown MCP server %q", serverName)
+	m.mu.RUnlock()
+	if found == nil {
+		return nil, fmt.Errorf("unknown MCP server %q", serverName)
+	}
+	if _, err := m.ensureSession(ctx, found); err != nil {
+		return nil, unavailableError(serverName, "session", err)
+	}
+	return found, nil
 }
 
 func (m *Manager) AddRoots(roots ...*sdkmcp.Root) {
 	if m == nil || len(roots) == 0 {
 		return
 	}
-	m.mu.RLock()
+	m.mu.Lock()
+	updated := make([]*sdkmcp.Root, 0, len(m.options.Roots)+len(roots))
+	positions := make(map[string]int, len(m.options.Roots)+len(roots))
+	for _, root := range m.options.Roots {
+		if root != nil {
+			if _, ok := positions[root.URI]; !ok {
+				positions[root.URI] = len(updated)
+				updated = append(updated, root)
+			}
+		}
+	}
+	for _, root := range roots {
+		if root != nil {
+			if index, ok := positions[root.URI]; ok {
+				updated[index] = root
+			} else {
+				positions[root.URI] = len(updated)
+				updated = append(updated, root)
+			}
+		}
+	}
+	m.options.Roots = updated
 	servers := append([]*serverSession(nil), m.servers...)
-	m.mu.RUnlock()
+	m.mu.Unlock()
 	for _, ss := range servers {
-		ss.client.AddRoots(roots...)
+		if client := ss.currentClient(); client != nil {
+			client.AddRoots(roots...)
+		}
 		for _, client := range ss.subscriptionClients() {
 			client.AddRoots(roots...)
 		}
@@ -382,11 +462,26 @@ func (m *Manager) RemoveRoots(uris ...string) {
 	if m == nil || len(uris) == 0 {
 		return
 	}
-	m.mu.RLock()
+	m.mu.Lock()
+	remaining := make([]*sdkmcp.Root, 0, len(m.options.Roots))
+	remove := make(map[string]struct{}, len(uris))
+	for _, uri := range uris {
+		remove[uri] = struct{}{}
+	}
+	for _, root := range m.options.Roots {
+		if root != nil {
+			if _, ok := remove[root.URI]; !ok {
+				remaining = append(remaining, root)
+			}
+		}
+	}
+	m.options.Roots = remaining
 	servers := append([]*serverSession(nil), m.servers...)
-	m.mu.RUnlock()
+	m.mu.Unlock()
 	for _, ss := range servers {
-		ss.client.RemoveRoots(uris...)
+		if client := ss.currentClient(); client != nil {
+			client.RemoveRoots(uris...)
+		}
 		for _, client := range ss.subscriptionClients() {
 			client.RemoveRoots(uris...)
 		}
@@ -401,7 +496,7 @@ func (m *Manager) Servers() []ServerInfo {
 	defer m.mu.RUnlock()
 	out := make([]ServerInfo, 0, len(m.servers))
 	for _, ss := range m.servers {
-		result := ss.session.InitializeResult()
+		result := ss.sessionInfo()
 		info := ServerInfo{Name: ss.cfg.Name, Type: ss.cfg.Type, URL: ss.cfg.URL}
 		if result != nil {
 			info.ProtocolVersion = result.ProtocolVersion
@@ -457,9 +552,12 @@ func (m *Manager) ReadResource(ctx context.Context, serverName, uri string) (*sd
 	if err != nil {
 		return nil, err
 	}
-	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-	defer cancel()
-	return ss.session.ReadResource(callCtx, &sdkmcp.ReadResourceParams{URI: uri})
+	result, err := withSessionCall(m, ctx, ss, "resources/read", func(session *sdkmcp.ClientSession) (*sdkmcp.ReadResourceResult, error) {
+		callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
+		defer cancel()
+		return session.ReadResource(callCtx, &sdkmcp.ReadResourceParams{URI: uri})
+	})
+	return result, err
 }
 
 // ListPrompts refreshes and returns prompts for one connected server.
@@ -486,9 +584,12 @@ func (m *Manager) GetPrompt(ctx context.Context, serverName, name string, argume
 	if err != nil {
 		return nil, err
 	}
-	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-	defer cancel()
-	return ss.session.GetPrompt(callCtx, &sdkmcp.GetPromptParams{Name: name, Arguments: arguments})
+	result, err := withSessionCall(m, ctx, ss, "prompts/get", func(session *sdkmcp.ClientSession) (*sdkmcp.GetPromptResult, error) {
+		callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
+		defer cancel()
+		return session.GetPrompt(callCtx, &sdkmcp.GetPromptParams{Name: name, Arguments: arguments})
+	})
+	return result, err
 }
 
 // Complete asks one MCP server for argument completions.
@@ -500,45 +601,73 @@ func (m *Manager) Complete(ctx context.Context, serverName string, params *sdkmc
 	if !supportsFeature(ss, "completions") {
 		return nil, fmt.Errorf("MCP server %q does not advertise completions", serverName)
 	}
-	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-	defer cancel()
-	return ss.session.Complete(callCtx, params)
+	result, err := withSessionCall(m, ctx, ss, "completion/complete", func(session *sdkmcp.ClientSession) (*sdkmcp.CompleteResult, error) {
+		callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
+		defer cancel()
+		return session.Complete(callCtx, params)
+	})
+	return result, err
 }
 
 // Subscribe subscribes to updates for a resource. For MCP July servers the
 // SDK maps this to subscriptions/listen; for legacy servers it uses the
 // resources/subscribe request.
 func (m *Manager) Subscribe(ctx context.Context, serverName, uri string) error {
+	uri = strings.TrimSpace(uri)
+	if uri == "" {
+		return fmt.Errorf("MCP resource subscription requires a URI")
+	}
 	ss, err := m.sessionFor(ctx, serverName)
 	if err != nil {
 		return err
 	}
+	ss.markSubscriptionDesired(uri)
 	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
 	defer cancel()
 	if usesModernProtocol(ss) {
-		return m.subscribeModern(callCtx, ss, uri)
+		if err := m.subscribeModern(callCtx, ss, uri); err != nil {
+			if !isSessionFailure(err) {
+				ss.unmarkSubscriptionDesired(uri)
+			}
+			return err
+		}
+		return nil
 	}
-	return ss.session.Subscribe(callCtx, &sdkmcp.SubscribeParams{URI: uri})
+	_, err = withSessionCall(m, callCtx, ss, "resources/subscribe", func(session *sdkmcp.ClientSession) (struct{}, error) {
+		return struct{}{}, session.Subscribe(callCtx, &sdkmcp.SubscribeParams{URI: uri})
+	})
+	if err != nil && !errors.Is(err, ErrServerUnavailable) {
+		ss.unmarkSubscriptionDesired(uri)
+	}
+	return err
 }
 
 // Unsubscribe stops a resource subscription.
 func (m *Manager) Unsubscribe(ctx context.Context, serverName, uri string) error {
+	uri = strings.TrimSpace(uri)
 	ss, err := m.sessionFor(ctx, serverName)
 	if err != nil {
 		return err
 	}
+	ss.unmarkSubscriptionDesired(uri)
 	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
 	defer cancel()
 	if usesModernProtocol(ss) {
 		return m.unsubscribeModern(callCtx, ss, uri)
 	}
-	return ss.session.Unsubscribe(callCtx, &sdkmcp.UnsubscribeParams{URI: uri})
+	_, err = withSessionCall(m, callCtx, ss, "resources/unsubscribe", func(session *sdkmcp.ClientSession) (struct{}, error) {
+		return struct{}{}, session.Unsubscribe(callCtx, &sdkmcp.UnsubscribeParams{URI: uri})
+	})
+	return err
 }
 
 func (m *Manager) subscribeModern(ctx context.Context, ss *serverSession, uri string) error {
 	uri = strings.TrimSpace(uri)
 	if uri == "" {
 		return fmt.Errorf("MCP resource subscription requires a URI")
+	}
+	if !ss.subscriptionDesired(uri) {
+		return nil
 	}
 	ss.subscriptionsMu.Lock()
 	if ss.subscriptions == nil {
@@ -550,10 +679,9 @@ func (m *Manager) subscribeModern(ctx context.Context, ss *serverSession, uri st
 	}
 	ss.subscriptionsMu.Unlock()
 
-	var subscriptionServer *serverSession = ss
-	clientOptions := m.subscriptionClientOptions(&subscriptionServer)
+	clientOptions := m.subscriptionClientOptions(ss)
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "solomon", Version: "dev", Title: "Solomon"}, &clientOptions)
-	for _, root := range m.options.Roots {
+	for _, root := range m.rootsSnapshot() {
 		if root != nil {
 			client.AddRoots(root)
 		}
@@ -570,6 +698,10 @@ func (m *Manager) subscribeModern(ctx context.Context, ss *serverSession, uri st
 		_ = session.Close()
 		return err
 	}
+	if !ss.subscriptionDesired(uri) {
+		_ = session.Close()
+		return nil
+	}
 
 	subscription := &resourceSubscription{client: client, session: session}
 	ss.subscriptionsMu.Lock()
@@ -580,6 +712,7 @@ func (m *Manager) subscribeModern(ctx context.Context, ss *serverSession, uri st
 	}
 	ss.subscriptions[uri] = subscription
 	ss.subscriptionsMu.Unlock()
+	go m.watchSubscription(ss, uri, session)
 	return nil
 }
 
@@ -608,41 +741,119 @@ func (m *Manager) unsubscribeModern(ctx context.Context, ss *serverSession, uri 
 	return errors.Join(errs...)
 }
 
-func (ss *serverSession) closeSubscriptions() error {
-	if ss == nil {
+func (m *Manager) restoreSubscriptions(ctx context.Context, ss *serverSession) error {
+	if m == nil || ss == nil || ss.currentSession() == nil {
 		return nil
 	}
-	ss.subscriptionsMu.Lock()
-	subscriptions := make([]*resourceSubscription, 0, len(ss.subscriptions))
-	for uri, subscription := range ss.subscriptions {
-		delete(ss.subscriptions, uri)
-		subscriptions = append(subscriptions, subscription)
+	uris := ss.desiredSubscriptionURIs()
+	if len(uris) == 0 {
+		return nil
 	}
-	ss.subscriptionsMu.Unlock()
-	var errs []error
-	for _, subscription := range subscriptions {
-		if subscription != nil && subscription.session != nil {
-			if err := subscription.session.Close(); err != nil {
+	if usesModernProtocol(ss) {
+		stale := ss.takeSubscriptions()
+		var errs []error
+		for _, subscription := range stale {
+			if subscription != nil && subscription.session != nil {
+				if err := subscription.session.Close(); err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+		for _, uri := range uris {
+			if !ss.subscriptionDesired(uri) {
+				continue
+			}
+			subscribeCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
+			err := m.subscribeModern(subscribeCtx, ss, uri)
+			cancel()
+			if err != nil {
 				errs = append(errs, err)
 			}
+		}
+		return errors.Join(errs...)
+	}
+
+	session := ss.currentSession()
+	var errs []error
+	for _, uri := range uris {
+		if !ss.subscriptionDesired(uri) || session == nil {
+			continue
+		}
+		subscribeCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
+		err := session.Subscribe(subscribeCtx, &sdkmcp.SubscribeParams{URI: uri})
+		cancel()
+		if err != nil {
+			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
 }
 
-func (ss *serverSession) subscriptionClients() []*sdkmcp.Client {
-	if ss == nil {
-		return nil
+func (m *Manager) watchSubscription(ss *serverSession, uri string, session *sdkmcp.ClientSession) {
+	if ss == nil || session == nil {
+		return
 	}
-	ss.subscriptionsMu.Lock()
-	defer ss.subscriptionsMu.Unlock()
-	clients := make([]*sdkmcp.Client, 0, len(ss.subscriptions))
-	for _, subscription := range ss.subscriptions {
-		if subscription != nil && subscription.client != nil {
-			clients = append(clients, subscription.client)
+	err := session.Wait()
+	if m == nil || m.closed.Load() {
+		return
+	}
+	if !ss.removeSubscriptionIf(uri, session) {
+		return
+	}
+	params := map[string]any{"server": ss.cfg.Name, "uri": uri}
+	if err != nil {
+		params["err"] = err.Error()
+	}
+	logging.Log(logging.WARNING_LOG_LEVEL, "MCP resource subscription lost", logging.LogOptions{Params: params})
+	if ss.subscriptionDesired(uri) {
+		go m.recoverSubscription(ss, uri)
+	}
+}
+
+func (m *Manager) recoverSubscription(ss *serverSession, uri string) {
+	delay := time.Second
+	for attempt := 0; ; attempt++ {
+		if m == nil || m.closed.Load() || !ss.subscriptionDesired(uri) {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeoutFor(ss.cfg, m.callTimeout))
+		err := func() error {
+			if _, err := m.ensureSession(ctx, ss); err != nil {
+				return err
+			}
+			return m.subscribeModern(ctx, ss, uri)
+		}()
+		cancel()
+		if err == nil {
+			return
+		}
+		if attempt == 0 || attempt%5 == 0 {
+			logging.Log(logging.WARNING_LOG_LEVEL, "MCP resource subscription recovery failed", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "uri": uri, "err": err.Error()}})
+		}
+		if !waitForSessionRecovery(m, delay) {
+			return
+		}
+		if delay < 30*time.Second {
+			delay *= 2
+			if delay > 30*time.Second {
+				delay = 30 * time.Second
+			}
 		}
 	}
-	return clients
+}
+
+func waitForSessionRecovery(m *Manager, delay time.Duration) bool {
+	if m == nil {
+		return false
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return !m.closed.Load()
+	case <-m.done:
+		return false
+	}
 }
 
 // Ping checks the connection to one MCP server.
@@ -652,11 +863,19 @@ func (m *Manager) Ping(ctx context.Context, serverName string) error {
 		return err
 	}
 	if usesModernProtocol(ss) {
-		return fmt.Errorf("MCP server %q does not support ping in protocol %s", serverName, ss.session.InitializeResult().ProtocolVersion)
+		result := ss.sessionInfo()
+		version := "unknown"
+		if result != nil {
+			version = result.ProtocolVersion
+		}
+		return fmt.Errorf("MCP server %q does not support ping in protocol %s", serverName, version)
 	}
-	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-	defer cancel()
-	return ss.session.Ping(callCtx, nil)
+	_, err = withSessionCall(m, ctx, ss, "ping", func(session *sdkmcp.ClientSession) (struct{}, error) {
+		callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
+		defer cancel()
+		return struct{}{}, session.Ping(callCtx, nil)
+	})
+	return err
 }
 
 // SetLoggingLevel requests a minimum log level from one MCP server. Logging
@@ -667,17 +886,25 @@ func (m *Manager) SetLoggingLevel(ctx context.Context, serverName string, level 
 		return err
 	}
 	if usesModernProtocol(ss) {
-		return fmt.Errorf("MCP server %q does not support logging level in protocol %s", serverName, ss.session.InitializeResult().ProtocolVersion)
+		result := ss.sessionInfo()
+		version := "unknown"
+		if result != nil {
+			version = result.ProtocolVersion
+		}
+		return fmt.Errorf("MCP server %q does not support logging level in protocol %s", serverName, version)
 	}
-	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-	defer cancel()
-	return ss.session.SetLoggingLevel(callCtx, &sdkmcp.SetLoggingLevelParams{Level: level})
+	_, err = withSessionCall(m, ctx, ss, "logging/setLevel", func(session *sdkmcp.ClientSession) (struct{}, error) {
+		callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
+		defer cancel()
+		return struct{}{}, session.SetLoggingLevel(callCtx, &sdkmcp.SetLoggingLevelParams{Level: level})
+	})
+	return err
 }
 
 func usesModernProtocol(ss *serverSession) bool {
-	if ss == nil || ss.session == nil {
+	if ss == nil {
 		return false
 	}
-	result := ss.session.InitializeResult()
+	result := ss.sessionInfo()
 	return result != nil && result.ProtocolVersion >= "2026-07-28"
 }

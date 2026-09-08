@@ -31,4 +31,16 @@ type ManagerOptions struct {
 	// factory is supplied.
 	AuthorizationCodeFetcher auth.AuthorizationCodeFetcher
 	OAuthHTTPClient          *http.Client
+
+	// DisableCatalogSubscriptions disables the modern subscriptions/listen
+	// stream used only for catalog-change notifications. Catalogs are still
+	// refreshed after reconnect and explicit list operations; this is useful
+	// for stateless/internal adapters that only need request-response calls.
+	DisableCatalogSubscriptions bool
+
+	// RetryToolCall may explicitly authorize replaying a tool call after a
+	// connection failure. By default the manager only retries calls rejected
+	// with ErrSessionMissing, because MCP tool annotations are advisory and a
+	// lost response can otherwise duplicate side effects.
+	RetryToolCall func(serverName, toolName string, definition *sdkmcp.Tool, cause error) bool
 }
