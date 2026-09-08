@@ -48,6 +48,9 @@ func modeAllowed(env *Env, mode, tool string) bool {
 	if IsUniversalTool(tool) {
 		return true
 	}
+	if mcpToolAllowed(env, tool) {
+		return true
+	}
 	if env != nil && env.AllowDeferredTools {
 		switch tool {
 		case "searchTools", "orchestrate", "switchMode", "subagent":

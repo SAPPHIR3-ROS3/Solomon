@@ -312,7 +312,7 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	}
 	if r.MCP != nil && agenttools.NormalizeMode(r.Mode) == "agent" {
 		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
-			section := "MCP catalog (schemas discoverable with searchTools; not direct native agent calls; names MCP.<server>.<tool>):\n" + mcpDump
+			section := "Connected MCP tools (direct native calls when present in ## Available tools; names MCP.<server>.<tool>):\n" + mcpDump
 			dump = strings.TrimSpace(dump + "\n---\n" + section)
 		}
 	}
@@ -360,9 +360,9 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		ExternalToolBridge:    bridge,
 		Language:              r.Cfg.EffectiveResponseLanguage(),
 		UserName:              strings.TrimSpace(r.Cfg.UserName),
-		DisableThinking:        disableThinking,
-		WorkspaceAbsolutePath:  absWorkspace,
-		Anonymize:              anonymize,
+		DisableThinking:       disableThinking,
+		WorkspaceAbsolutePath: absWorkspace,
+		Anonymize:             anonymize,
 	}
 	if r.Session != nil {
 		d.PlanningActive = r.Session.PlanningActive

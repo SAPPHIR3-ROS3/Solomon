@@ -312,6 +312,38 @@ test("bridges SDK custom-user-tools MCP calls to Solomon (customTools)", () => {
   assert.deepEqual(blocked, []);
 });
 
+test("bridges an exact connected MCP tool with a dotted name", () => {
+  const pending = [];
+  let detected = false;
+  const blocked: string[] = [];
+  processStreamEvent(
+    {
+      type: "tool_call",
+      name: "mcp",
+      status: "running",
+      args: {
+        providerIdentifier: "custom-user-tools",
+        toolName: "MCP.exa.search",
+        args: { query: "mcp", intent: "search through Exa" },
+      },
+    } as any,
+    false,
+    () => {},
+    () => {},
+    pending,
+    () => { detected = true; },
+    (name) => { blocked.push(name); },
+    { allowedNames: new Set(["MCP.exa.search"]) },
+  );
+  assert.equal(detected, true);
+  assert.deepEqual(blocked, []);
+  assert.deepEqual(pending[0], {
+    name: "MCP.exa.search",
+    args: { query: "mcp" },
+    intent: "search through Exa",
+  });
+});
+
 test("blocks unknown custom-user-tools when not in allowlist", () => {
   const pending = [];
   let detected = false;

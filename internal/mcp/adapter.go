@@ -18,6 +18,10 @@ type RemoteTool struct {
 	ToolName    string
 	Description string
 	Schema      map[string]any
+	// Definition retains the complete MCP tool descriptor, including title,
+	// icons, annotations, and outputSchema that are not representable in an
+	// OpenAI function definition.
+	Definition *sdkmcp.Tool
 }
 
 func OpenAITool(t RemoteTool) openai.ChatCompletionToolUnionParam {
@@ -54,6 +58,7 @@ func AdaptTool(serverName string, tool *sdkmcp.Tool) (RemoteTool, error) {
 		ToolName:    tool.Name,
 		Description: desc,
 		Schema:      schema,
+		Definition:  tool,
 	}, nil
 }
 

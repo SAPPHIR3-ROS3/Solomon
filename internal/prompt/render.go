@@ -134,7 +134,7 @@ Rules:
 - Workspace read/edit/shell/find work: call searchTools when unsure which deferred SDK to use, then orchestrate (package main, import "sdk" only).
 - subagent is a native tool_call only — never invoke it inside orchestrate scripts.
 - Deferred tools (readFile, editFile, shell, find, plan tools, …) are for orchestrate SDK use only — never direct native tool_calls.
-- Connected MCP schemas may appear in the catalog returned by searchTools, but MCP tools are not direct native calls in the current agent surface; do not emit MCP.* calls unless that exact tool is explicitly present in the API tools for this turn.
+- Connected MCP tools may appear as direct native calls in the API surface. Emit an MCP.* call only when that exact tool is explicitly present in the API tools for this turn.
 
 ` + NativeToolInvocationSyntax(false))
 }

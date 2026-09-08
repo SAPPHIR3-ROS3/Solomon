@@ -2,19 +2,31 @@ package agentruntime
 
 import (
 	"context"
+	"net/url"
 	"os"
+	"path/filepath"
 
-	sandboxparent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
+	sandboxparent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v2"
 )
 
 func (r *Runtime) InitMCP(ctx context.Context) {
-	mgr, err := solomonmcp.StartLazy(os.Stderr)
+	options := &solomonmcp.ManagerOptions{}
+	if r != nil && r.ProjRoot != "" {
+		if rootPath, err := filepath.Abs(r.ProjRoot); err == nil {
+			options.Roots = []*sdkmcp.Root{{
+				URI:  (&url.URL{Scheme: "file", Path: rootPath}).String(),
+				Name: "project",
+			}}
+		}
+	}
+	mgr, err := solomonmcp.StartLazyWithOptions(os.Stderr, options)
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP disabled", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return
@@ -72,6 +84,9 @@ func (r *Runtime) toolParams() ([]openai.ChatCompletionToolUnionParam, error) {
 	}
 	if agenttools.NormalizeMode(r.Mode) == "agent" && r.Session != nil && r.Session.PlanningActive {
 		tools = append(tools, agenttools.PlanningNativeToolParams()...)
+	}
+	if agenttools.NormalizeMode(r.Mode) == "agent" && r.MCP != nil {
+		tools = append(tools, r.MCP.OpenAITools()...)
 	}
 	return tools, nil
 }

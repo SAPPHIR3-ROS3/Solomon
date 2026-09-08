@@ -11,7 +11,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
-func TestAgentModeBlocksDirectMCP(t *testing.T) {
+func TestAgentModeAllowsDirectMCP(t *testing.T) {
 	mgr := solomonmcp.NewManagerWithRemoteTools([]solomonmcp.RemoteTool{{
 		OpenAIName:  "MCP.github.create_issue",
 		ServerName:  "github",
@@ -22,12 +22,12 @@ func TestAgentModeBlocksDirectMCP(t *testing.T) {
 	env := &tools.Env{MCP: mgr}
 	_, err := tools.Exec(context.Background(), env, "agent", tooling.Invocation{
 		Name: "MCP.github.create_issue",
-		Args: json.RawMessage(`{"intent":"test direct MCP guard"}`),
+		Args: json.RawMessage(`{"intent":"test direct MCP dispatch"}`),
 	})
 	if err == nil {
-		t.Fatal("expected direct MCP tool to be blocked in agent mode")
+		t.Fatal("expected the synthetic tool to report its disconnected session")
 	}
-	if !strings.Contains(err.Error(), "not available") {
+	if strings.Contains(err.Error(), "not available") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

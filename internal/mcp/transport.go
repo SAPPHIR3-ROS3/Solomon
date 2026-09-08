@@ -81,6 +81,34 @@ type headerTransport struct {
 	headers map[string]string
 }
 
+// persistentSSETransport keeps the initial connection timeout from cancelling
+// the long-lived SSE stream once the MCP session has been established. The
+// SDK's SSE transport binds the stream to the context passed to Connect, while
+// Manager.connectServer quite deliberately cancels its setup context after
+// catalog discovery.
+type persistentSSETransport struct {
+	transport sdkmcp.SSEClientTransport
+}
+
+func (t *persistentSSETransport) Connect(ctx context.Context) (sdkmcp.Connection, error) {
+	transportCtx, cancel := context.WithCancel(context.Background())
+	relayDone := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-relayDone:
+		}
+	}()
+	conn, err := t.transport.Connect(transportCtx)
+	close(relayDone)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	return conn, nil
+}
+
 func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
 	for k, v := range t.headers {

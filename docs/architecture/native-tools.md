@@ -59,7 +59,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 
 The tool returns `{ok, output, subchatId, status}` on success. Synchronous runs normally finish with `status=done` and include `output`; background runs return immediately with `status=running`. Timeout, cancellation, and recoverable nested errors persist the partial transcript with `status=paused` where possible. `subagent` is not exposed through `searchTools` and cannot be invoked from an `orchestrate` script.
 
-Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP<server>-<tool>`).
+Skill tools: `loadSkill`, `searchSkill`. MCP tools use registered OpenAI names (`MCP.<server>.<tool>`).
 
 ## Subagent roles
 
