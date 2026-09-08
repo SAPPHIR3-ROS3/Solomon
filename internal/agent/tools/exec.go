@@ -3,16 +3,65 @@ package tools
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
-func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (any, error) {
+func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (result any, err error) {
+	started := time.Now()
+	startParams := toolCallLogParams(env, mode, inv)
+	logging.Log(logging.INFO_LOG_LEVEL, "tool call started", logging.LogOptions{Params: startParams})
+	defer func() {
+		params := toolCallLogParams(env, mode, inv)
+		params["duration_ms"] = time.Since(started).Milliseconds()
+		if resultMap, ok := result.(map[string]any); ok {
+			if calls, exists := resultMap["tool_calls"]; exists {
+				params["child_tool_calls"] = calls
+			}
+			if okValue, exists := resultMap["ok"]; exists {
+				params["ok"] = okValue
+			}
+		}
+		if err != nil {
+			params["error"] = err.Error()
+			logging.Log(logging.WARNING_LOG_LEVEL, "tool call failed", logging.LogOptions{Params: params})
+			return
+		}
+		logging.Log(logging.INFO_LOG_LEVEL, "tool call completed", logging.LogOptions{Params: params})
+	}()
 	if err := tooling.ValidateToolIntent(inv.Args); err != nil {
 		return nil, fmt.Errorf("%s: %w", inv.Name, err)
 	}
 	return resolveToolInvocation(ctx, env, mode, inv)
+}
+
+// toolCallLogParams deliberately records call metadata instead of raw
+// arguments. Tool arguments can contain file contents, shell commands, or
+// credentials; the intent and parent correlation are sufficient to trace the
+// call while keeping the internal log safe to persist.
+func toolCallLogParams(env *Env, mode string, inv tooling.Invocation) map[string]any {
+	params := map[string]any{
+		"tool":     inv.Name,
+		"mode":     normalizeMode(mode),
+		"deferred": env != nil && env.AllowDeferredTools,
+	}
+	if intent, ok := tooling.ToolIntent(inv.Args); ok {
+		params["intent"] = intent
+	}
+	if inv.ToolCallID != "" {
+		params["tool_call_id"] = inv.ToolCallID
+	}
+	if env != nil {
+		if env.ParentToolName != "" {
+			params["parent_tool"] = env.ParentToolName
+		}
+		if env.ParentToolCallID != "" && env.ParentToolCallID != inv.ToolCallID {
+			params["parent_tool_call_id"] = env.ParentToolCallID
+		}
+	}
+	return params
 }
 
 func resolveToolInvocation(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (any, error) {
@@ -48,10 +97,10 @@ func modeAllowed(env *Env, mode, tool string) bool {
 	if IsUniversalTool(tool) {
 		return true
 	}
-	if mcpToolAllowed(env, tool) {
-		return true
-	}
 	if env != nil && env.AllowDeferredTools {
+		if mcpToolAllowed(env, tool) {
+			return true
+		}
 		switch tool {
 		case "searchTools", "orchestrate", "switchMode", "subagent":
 			return false
@@ -156,7 +205,7 @@ func dispatchExternal(ctx context.Context, env *Env, mode string, inv tooling.In
 		return dispatchSkill(env, mode, inv)
 	}
 	if env.MCP != nil && env.MCP.HasTool(inv.Name) {
-		if !modeAllowed(env, mode, inv.Name) && !(env != nil && env.AllowDeferredTools) {
+		if !modeAllowed(env, mode, inv.Name) {
 			return nil, rejectMode(inv.Name, mode)
 		}
 		return env.MCP.CallTool(ctx, inv.Name, inv.Args)

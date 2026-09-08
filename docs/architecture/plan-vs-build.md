@@ -11,7 +11,7 @@
 | **`agent`** | `/agent`, default (`NewRuntime`) | `searchTools`, `orchestrate`, `subagent`, `listSubAgents`, skills, research, `switchMode`, `docsRetrieval` |
 | **`chat`** | `/chat` | `fetchWeb`, `webSearch`, research, `switchMode`, `docsRetrieval` |
 
-Connected MCP tools are exposed as direct native tool_calls in agent mode when their schemas are available. Resources and prompts remain host-managed through the MCP manager API. See [`toolParams`](../../internal/agent/runtime/mcp.go), [`modeAllowed`](../../internal/agent/tools/exec.go).
+Connected MCP tools are deferred in agent mode. Use `searchTools` for their schemas, then invoke them from `orchestrate` as `sdk.mcp.<tool>(intent, args)`. Resources and prompts remain host-managed through the MCP manager API. See [`toolParams`](../../internal/agent/runtime/mcp.go), [`modeAllowed`](../../internal/agent/tools/exec.go).
 
 **Planning** is not a separate mode: `Session.PlanningActive` (set when a plan is created via plan tools) appends native plan tools until cleared.
 
@@ -20,6 +20,8 @@ Connected MCP tools are exposed as direct native tool_calls in agent mode when t
 Filesystem, shell, and most plan tools are **deferred** in agent mode. The model uses **`searchTools`** to discover them and **`orchestrate`** to run Go scripts that call the sandbox SDK (`internal/sandbox/sdk`). **`subagent` is excluded** from the deferred catalog and cannot run inside orchestrate scripts; invoke it as a **native** tool_call.
 
 `AllowDeferredTools` on the tool env (set by orchestrate host) allows deferred handlers without exposing them in the API tool list.
+
+Every invocation entering `tools.Exec` emits lifecycle records through Solomon's internal logging system. Calls made by a native tool, including each SDK call inside `orchestrate`, carry the parent tool and parent call ID, intent, deferred/native scope, duration, and outcome; raw argument payloads are intentionally not logged.
 
 ## Legacy XML tools
 

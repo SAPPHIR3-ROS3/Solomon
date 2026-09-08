@@ -1,5 +1,4 @@
 export const SOLOMON_TOOL_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
-export const SOLOMON_MCP_TOOL_NAME_RE = /^MCP\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
 
 export const CURSOR_NATIVE_ALIASES: Record<string, string> = {
   read: "readFile",
@@ -266,7 +265,7 @@ function redirectExtraCorrectionHint(toolName: string): string | null {
     case "callmcptool":
     case "fetchmcpresource":
     case "listmcpresources":
-      return "Cursor MCP wrappers are unavailable; call an exact registered MCP.* tool when present, or use searchTools for schemas and supported orchestrate work. Do not claim an MCP action without an actual host tool result.";
+      return "Cursor MCP wrappers are unavailable; use searchTools for schemas, then orchestrate with sdk.mcp.<tool>(intent, args). Do not claim an MCP action without an actual host tool result.";
     default:
       return null;
   }
@@ -280,7 +279,7 @@ export function redirectCorrectionHint(toolName: string): string | null {
   if (trimmed.startsWith("mcp:")) {
     const deferred = trimmed.slice(4);
     if (shouldBlockDeferredSolomonTool(deferred)) {
-      return `${deferred}: this MCP wrapper is not callable; use searchTools, then orchestrate with the matching Solomon sandbox SDK — not a direct native or MCP tool_call.`;
+      return `${deferred}: this MCP wrapper is not callable; use searchTools, then orchestrate with sdk.mcp.<tool>(intent, args) — not a direct native or MCP tool_call.`;
     }
     return null;
   }
@@ -354,11 +353,7 @@ export function isSolomonCanonicalTool(name: string): boolean {
 }
 
 export function isValidSolomonToolName(name: string): boolean {
-  return SOLOMON_TOOL_NAME_RE.test(name) || SOLOMON_MCP_TOOL_NAME_RE.test(name);
-}
-
-export function isSolomonMcpToolName(name: string): boolean {
-  return SOLOMON_MCP_TOOL_NAME_RE.test(name.trim());
+  return SOLOMON_TOOL_NAME_RE.test(name);
 }
 
 export function resolveBridgedSolomonName(

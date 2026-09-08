@@ -340,11 +340,11 @@ func (m *Manager) ToolDump() string {
 		if i > 0 {
 			b.WriteString("\n---\n")
 		}
-		schema, err := json.Marshal(tooling.SchemaWithRequiredToolIntent(tool.Schema))
+		schema, err := json.Marshal(mcpArgumentsSchema(tool.Schema))
 		if err != nil {
 			schema = []byte(`{"type":"object","properties":{}}`)
 		}
-		b.WriteString(fmt.Sprintf("name: %s\ndescription: %s\nsignature: %s\n", tool.OpenAIName, tool.Description, string(schema)))
+		b.WriteString(fmt.Sprintf("name: %s\ndescription: %s\nsdk_call: sdk.mcp.<tool>(intent, args)\nparameters: %s\n", tool.OpenAIName, tool.Description, string(schema)))
 	}
 	return b.String()
 }

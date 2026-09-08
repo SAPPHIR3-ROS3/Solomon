@@ -21,7 +21,7 @@ type orchestrateArgs struct {
 }
 
 func orchestrateOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and the deferred tool catalog. SDK helpers include file reads/edits, Find/Glob/Grep, ListDir/Tree, Shell, web/docs/research, and plan helpers. Connected MCP tools are exposed as direct native API tools when available; this sandbox SDK does not provide a generic MCP client. Scripts run in WASM: use sdk.Shell for host commands (not os/exec). sdk.Shell returns (string, error) — assign output to a variable and fmt.Println it; bare sdk.Shell calls do not appear in the tool result. Read/transform/write files via SDK — do not paste large bodies with backticks into Go raw strings. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", map[string]any{
+	return nativeToolUnion("orchestrate", "Run a Go orchestration script (package main) that calls deferred Solomon tools via the sandbox SDK. Use searchTools for SDK signatures and the deferred tool catalog. SDK helpers include file reads/edits, Find/Glob/Grep, ListDir/Tree, Shell, web/docs/research, plan helpers, and connected MCP tools through sdk.mcp.<tool>(intent, args). Scripts run in WASM: use sdk.Shell for host commands (not os/exec). sdk.Shell returns (string, error) — assign output to a variable and fmt.Println it; bare sdk.Shell calls do not appear in the tool result. Read/transform/write files via SDK — do not paste large bodies with backticks into Go raw strings. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", map[string]any{
 		"source": map[string]any{"type": "string", "description": "Complete Go source: package main, import sandbox SDK via import \"sdk\", func main()"},
 		"intent": map[string]any{"type": "string", "description": "Brief phrase describing what this script does"},
 	}, []string{"source", "intent"})
@@ -32,7 +32,7 @@ func appendOrchestrateDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via import \"sdk\" only. Helpers include ReadFile, ReadFileLines, ReplaceInFile, WriteFile, DeleteFile, RenameFile, Find/Glob/Grep, ListDir/Tree, Shell (not os/exec), WebSearch, FetchWeb, DocsRetrieval, plan, and research helpers. Connected MCP tools are direct native API tools when available; this SDK has no generic MCP client entry point. Do not embed markdown backticks in Go raw strings — ReadFile/transform/WriteFile instead. sdk.Shell returns (string, error): assign to a variable and fmt.Println it — bare calls are invisible in the tool result. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", sig)
+	b.addBlock("orchestrate", "Run multi-tool Go scripts compiled to WASM. Import sandbox SDK via import \"sdk\" only. Helpers include ReadFile, ReadFileLines, ReplaceInFile, WriteFile, DeleteFile, RenameFile, Find/Glob/Grep, ListDir/Tree, Shell (not os/exec), WebSearch, FetchWeb, DocsRetrieval, plan and research helpers, plus connected MCP tools through sdk.mcp.<tool>(intent, args). Do not embed markdown backticks in Go raw strings — ReadFile/transform/WriteFile instead. sdk.Shell returns (string, error): assign to a variable and fmt.Println it — bare calls are invisible in the tool result. Only fmt.Print/Println/Printf in main() is captured in the tool result output field.", sig)
 	return nil
 }
 
@@ -45,7 +45,17 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 		return nil, fmt.Errorf("orchestrate: runtime environment unavailable")
 	}
 	cacheDir, _ := compile.CacheDir()
-	wasm, err := compile.BuildWASM(compile.Options{Source: a.Source, CacheDir: cacheDir})
+	var mcpTools []compile.MCPToolBinding
+	if env.MCP != nil {
+		for _, tool := range env.MCP.Catalog() {
+			mcpTools = append(mcpTools, compile.MCPToolBinding{
+				ExposedName: tool.Name,
+				ServerName:  tool.Server,
+				ToolName:    tool.Tool,
+			})
+		}
+	}
+	wasm, err := compile.BuildWASM(compile.Options{Source: a.Source, CacheDir: cacheDir, MCPTools: mcpTools})
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return map[string]any{"ok": false, "compile_error": err.Error()}, nil
@@ -75,6 +85,7 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 func orchestrateHostCall(ctx context.Context, env *Env, name string, args json.RawMessage) (json.RawMessage, error) {
 	hostEnv := *env
 	hostEnv.AllowDeferredTools = true
+	hostEnv.ParentToolName = "orchestrate"
 	result, err := Exec(ctx, &hostEnv, "agent", tooling.Invocation{Name: name, Args: args})
 	if err != nil {
 		return nil, err

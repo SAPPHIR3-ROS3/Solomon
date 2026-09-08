@@ -65,9 +65,8 @@ Related backlog items: [`TODO.md`](TODO.md) (LOW / EXTREMELY LOW priority sectio
 
 | Tool | Role |
 |------|------|
-| `orchestrate` | Primary path for read/edit/shell/find/deferred work |
+| `orchestrate` | Primary path for read/edit/shell/find/MCP/deferred work |
 | `searchTools` | Discover deferred tools and MCP schemas |
-| `MCP.<server>.<tool>` | Direct host-managed MCP call when the exact connected tool is present in the request |
 | `subagent` | Nested agent runs (replaces Cursor `Task`) |
 | `switchMode` | Agent ↔ chat (replaces Cursor `SwitchMode`) |
 | `searchSkill` / `loadSkill` | Agent skills |
@@ -86,7 +85,7 @@ Cursor built-ins that already have Solomon equivalents or planned equivalents. P
 | `EditNotebook` | blocked → orchestrate / future tool | Dedicated notebook tool planned |
 | `TodoWrite` | plan todos via orchestrate | `addTodo`, `todoList`, `checkTodo`, … |
 | `Task` | `subagent` native | Block Cursor `Task`; let the model emit the native `subagent` invocation instead |
-| `CallMcpTool`, `FetchMcpResource`, `ListMcpResources`, generic `mcp` | Use exact Solomon `MCP.<server>.<tool>` calls when registered; resources/prompts remain host-managed | Cursor wrapper passthrough is blocked |
+| `CallMcpTool`, `FetchMcpResource`, `ListMcpResources`, generic `mcp` | MCP via `searchTools` + `orchestrate` SDK (`sdk.mcp.<tool>(intent, args)`); resources/prompts remain host-managed | Cursor wrapper passthrough is blocked |
 | `WebFetch`, `WebSearch` | `sdk.FetchWeb` / `sdk.WebSearch` in orchestrate | |
 | `ApplyPatch` | blocked → orchestrate | Unified diff unsupported; see EXTREMELY LOW backlog |
 

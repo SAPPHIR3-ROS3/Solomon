@@ -64,9 +64,6 @@ func (r *Runtime) allowedToolNamesForMode(mode string) (map[string]struct{}, err
 	if err != nil {
 		return nil, err
 	}
-	if r != nil && r.MCP != nil && agenttools.NormalizeMode(mode) == "agent" {
-		tools = append(tools, r.MCP.OpenAITools()...)
-	}
 	names := make(map[string]struct{}, len(tools))
 	for _, t := range tools {
 		if t.OfFunction == nil {

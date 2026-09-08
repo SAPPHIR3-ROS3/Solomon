@@ -71,7 +71,7 @@ Optional **`roleProvider`** / **`roleModel`** select a row from `[[roles.subagen
 
 | File | Key symbols |
 |------|-------------|
-| [`mcp.go`](../../internal/agent/runtime/mcp.go) | `InitMCP`, project-root roots, append MCP tool schemas to `toolParams` |
+| [`mcp.go`](../../internal/agent/runtime/mcp.go) | `InitMCP`, project-root roots, expose the MCP catalog to `searchTools` and `orchestrate` |
 
 Started asynchronously from `Run`. Detail: [MCP integration](mcp-integration.md).
 

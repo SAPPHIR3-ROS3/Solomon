@@ -312,7 +312,7 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 	}
 	if r.MCP != nil && agenttools.NormalizeMode(r.Mode) == "agent" {
 		if mcpDump := strings.TrimSpace(r.MCP.ToolDump()); mcpDump != "" {
-			section := "Connected MCP tools (direct native calls when present in ## Available tools; names MCP.<server>.<tool>):\n" + mcpDump
+			section := "Connected MCP tools (discover schemas with searchTools; invoke from orchestrate as sdk.mcp.<tool>(intent, args); names MCP.<server>.<tool>):\n" + mcpDump
 			dump = strings.TrimSpace(dump + "\n---\n" + section)
 		}
 	}

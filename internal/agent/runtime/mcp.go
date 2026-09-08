@@ -85,8 +85,5 @@ func (r *Runtime) toolParams() ([]openai.ChatCompletionToolUnionParam, error) {
 	if agenttools.NormalizeMode(r.Mode) == "agent" && r.Session != nil && r.Session.PlanningActive {
 		tools = append(tools, agenttools.PlanningNativeToolParams()...)
 	}
-	if agenttools.NormalizeMode(r.Mode) == "agent" && r.MCP != nil {
-		tools = append(tools, r.MCP.OpenAITools()...)
-	}
 	return tools, nil
 }

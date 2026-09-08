@@ -2,9 +2,11 @@ package tools
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
 )
 
 func mcpToolAllowed(env *Env, name string) bool {
@@ -33,7 +35,8 @@ func appendMCPSearchHits(env *Env, q string, result map[string]any) {
 		entry := map[string]string{
 			"name":        t.Name,
 			"description": t.Description,
-			"origin_mode": "native",
+			"origin_mode": "deferred",
+			"sdk_call":    fmt.Sprintf("sdk.mcp.%s(intent, args)", mcpSDKFunctionName(env.MCP, t)),
 		}
 		if len(t.Schema) > 0 {
 			if b, err := json.Marshal(t.Schema); err == nil {
@@ -45,6 +48,22 @@ func appendMCPSearchHits(env *Env, q string, result map[string]any) {
 	}
 	result["tools"] = list
 	result["count"] = len(list)
+}
+
+func mcpSDKFunctionName(mgr *solomonmcp.Manager, target solomonmcp.CatalogEntry) string {
+	short := compile.MCPFunctionName(target.Tool)
+	count := 0
+	if mgr != nil {
+		for _, tool := range mgr.Catalog() {
+			if compile.MCPFunctionName(tool.Tool) == short {
+				count++
+			}
+		}
+	}
+	if count > 1 {
+		return compile.MCPQualifiedFunctionName(target.Server, target.Tool)
+	}
+	return short
 }
 
 func mcpCatalogEntryMatches(q string, t solomonmcp.CatalogEntry) bool {

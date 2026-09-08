@@ -56,7 +56,10 @@ func TestManagerToolDumpIncludesRemoteTools(t *testing.T) {
 		Schema:      map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}},
 	}})
 	dump := mgr.ToolDump()
-	if !strings.Contains(dump, "name: MCP.server.search") || !strings.Contains(dump, "Search remote data") || !strings.Contains(dump, `"q"`) {
+	if !strings.Contains(dump, "name: MCP.server.search") || !strings.Contains(dump, "Search remote data") || !strings.Contains(dump, "sdk_call: sdk.mcp.<tool>(intent, args)") || !strings.Contains(dump, `"q"`) {
 		t.Fatalf("unexpected dump: %s", dump)
+	}
+	if strings.Contains(dump, `"intent"`) {
+		t.Fatalf("Solomon intent leaked into MCP argument schema: %s", dump)
 	}
 }
