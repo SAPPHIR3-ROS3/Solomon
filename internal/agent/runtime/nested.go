@@ -77,6 +77,9 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, syst
 		if err != nil {
 			return llm.AssistantTurnResult{}, nil, err
 		}
+		if r.MCP != nil {
+			toolParams = append(toolParams, r.MCP.OpenAITools()...)
+		}
 		toolDefs = llm.ToolDefsFromOpenAI(toolParams)
 	}
 	model, backend, label, err := r.nestedLLMTarget(ctx, cfg)

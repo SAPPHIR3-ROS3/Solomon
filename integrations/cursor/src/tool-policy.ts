@@ -1,4 +1,5 @@
 export const SOLOMON_TOOL_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
+export const SOLOMON_MCP_TOOL_NAME_RE = /^MCP\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
 
 export const CURSOR_NATIVE_ALIASES: Record<string, string> = {
   read: "readFile",
@@ -265,7 +266,7 @@ function redirectExtraCorrectionHint(toolName: string): string | null {
     case "callmcptool":
     case "fetchmcpresource":
     case "listmcpresources":
-      return "MCP actions are not exposed on this surface; searchTools may show connected schemas, but do not claim an MCP action without an actual host tool result.";
+      return "Cursor MCP wrappers are unavailable; call an exact registered MCP.* tool when present, or use searchTools for schemas and supported orchestrate work. Do not claim an MCP action without an actual host tool result.";
     default:
       return null;
   }
@@ -353,7 +354,11 @@ export function isSolomonCanonicalTool(name: string): boolean {
 }
 
 export function isValidSolomonToolName(name: string): boolean {
-  return SOLOMON_TOOL_NAME_RE.test(name);
+  return SOLOMON_TOOL_NAME_RE.test(name) || SOLOMON_MCP_TOOL_NAME_RE.test(name);
+}
+
+export function isSolomonMcpToolName(name: string): boolean {
+  return SOLOMON_MCP_TOOL_NAME_RE.test(name.trim());
 }
 
 export function resolveBridgedSolomonName(

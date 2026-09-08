@@ -51,7 +51,7 @@ The actual API schemas and the `## Available tools` section below are authoritat
 
 File, shell, search, web, research, and most plan operations are deferred in agent mode. Use `searchTools` when you need a signature, then call `orchestrate`; do not emit `readFile`, `editFile`, `shell`, `find`, `listDir`, `tree`, web, research, or plan tools as direct native calls in the normal agent surface. `searchTools` and `subagent` cannot be called from inside an orchestrate script.
 
-Connected MCP schemas may be shown in the catalog and returned by `searchTools` for discovery. They are not direct native agent calls in the current runtime; do not emit `MCP.*` calls or claim that an MCP operation ran without an actual tool result.
+Connected MCP tools are direct native calls when their exact `MCP.<server>.<tool>` name appears in the API tools for this turn. Use their advertised JSON schema and wait for the actual tool result; never claim an MCP operation ran without one. MCP resources and prompts are host-managed and are not tools unless exposed separately.
 
 When `legacy_force` is active, native API tool calls are disabled: use only the legacy XML grammar and the tool names exposed in the available-tool dump. When legacy tools are enabled but not forced, native API tool calls remain preferred and XML is only the fallback syntax.
 
@@ -118,7 +118,7 @@ Behaviors:
 - Host shell from orchestrate: sdk.Shell(command, intent) only — os/exec and heredocs do not reach the project shell (WASM sandbox).
 - SDK helpers: ReadFile, ReadFileLines, WriteFile, ReplaceInFile, DeleteFile, RenameFile, Find/Glob/Grep, ListDir, Tree, Shell, WebSearch, FetchWeb, DocsRetrieval, plan helpers, and research helpers.
 {{if .ExternalToolBridge}}
-- Cursor proxy — use only the native tools present in ## Available tools below. Workspace work still goes through orchestrate; searchTools discovers deferred SDK signatures; subagent is a native call only; switchMode changes the agent/chat surface; searchSkill and loadSkill handle skills; docsRetrieval searches the embedded docs. Cursor IDE built-ins (Read, StrReplace, Shell, Task, browser_*, ApplyPatch, …) are blocked by the sidecar. Deferred tools (readFile, editFile, shell, find, plan tools, …) are for orchestrate SDK use only — never direct native tool_calls. Connected MCP schemas are discovery-only on this surface. Emit native API tool_calls only (see syntax below); do not write <tool_calls> XML or markdown tool blocks in assistant text.
+- Cursor proxy — use only the native tools present in ## Available tools below. Workspace work still goes through orchestrate; searchTools discovers deferred SDK signatures; subagent is a native call only; switchMode changes the agent/chat surface; searchSkill and loadSkill handle skills; docsRetrieval searches the embedded docs. Cursor IDE built-ins (Read, StrReplace, Shell, Task, browser_*, ApplyPatch, …) are blocked by the sidecar. Deferred tools (readFile, editFile, shell, find, plan tools, …) are for orchestrate SDK use only — never direct native tool_calls. Connected MCP tools may be direct native tool_calls when explicitly present in the API schema. Emit native API tool_calls only (see syntax below); do not write <tool_calls> XML or markdown tool blocks in assistant text.
 {{.Syntax}}
 {{else}}{{if or .LegacyToolsForced .LegacyToolsEnabled}}
 - Tool invocations are parsed and executed only from your main assistant response, not from reasoning or thinking.

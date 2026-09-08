@@ -12,6 +12,7 @@ import (
 func TestParseConfigExpandsEnvAndFiltersTools(t *testing.T) {
 	t.Setenv("WORKSPACE", "/tmp/workspace")
 	t.Setenv("MCP_TOKEN", "secret")
+	t.Setenv("MCP_CLIENT_ID", "client-id")
 	raw := []byte(`{
 		"mcpServers": {
 			"filesystem": {
@@ -24,6 +25,7 @@ func TestParseConfigExpandsEnvAndFiltersTools(t *testing.T) {
 			"remote": {
 				"url": "https://example.com/$MCP_TOKEN/mcp",
 				"headers": {"Authorization": "Bearer $MCP_TOKEN"},
+				"oauth": {"clientId": "$MCP_CLIENT_ID", "clientSecret": "$MCP_TOKEN", "redirectUrl": "http://127.0.0.1/callback", "requestRefreshToken": true},
 				"timeout": 300000,
 				"allow": [],
 				"deny": []
@@ -48,6 +50,9 @@ func TestParseConfigExpandsEnvAndFiltersTools(t *testing.T) {
 	if remote.Type != mcp.TransportStreamableHTTP || !strings.Contains(remote.URL, "secret") || remote.Headers["Authorization"] != "Bearer secret" || remote.Timeout != 300000 {
 		t.Fatalf("remote config: %+v", remote)
 	}
+	if remote.OAuth == nil || remote.OAuth.ClientID != "client-id" || remote.OAuth.ClientSecret != "secret" || !remote.OAuth.RequestRefresh {
+		t.Fatalf("remote OAuth config: %+v", remote.OAuth)
+	}
 	if !remote.ToolAllowed("anything") {
 		t.Fatalf("empty allow/deny should allow every tool")
 	}
@@ -59,6 +64,7 @@ func TestParseConfigValidationErrors(t *testing.T) {
 		`{"servers": {}}`,
 		`{"mcpServers": []}`,
 		`{"mcpServers": {"bad": {"type": "streamable-http"}}}`,
+		`{"mcpServers": {"bad": {"type": "sse"}}}`,
 		`{"mcpServers": {"bad": {"type": "stdio"}}}`,
 		`{"mcpServers": {"bad": {"type": "unknown"}}}`,
 		`{"mcpServers": {"bad": {"command": "x", "allow": "read"}}}`,
@@ -67,6 +73,16 @@ func TestParseConfigValidationErrors(t *testing.T) {
 		if _, err := mcp.ParseConfig([]byte(raw)); err == nil {
 			t.Fatalf("want error for %s", raw)
 		}
+	}
+}
+
+func TestParseConfigSupportsLegacySSETransport(t *testing.T) {
+	cfg, err := mcp.ParseConfig([]byte(`{"mcpServers":{"legacy":{"type":"sse","url":"https://example.com/sse"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Servers) != 1 || cfg.Servers[0].Type != mcp.TransportSSE {
+		t.Fatalf("legacy SSE config = %#v", cfg.Servers)
 	}
 }
 

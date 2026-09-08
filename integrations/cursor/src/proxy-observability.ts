@@ -1,5 +1,6 @@
 import {
   BLOCKED_MCP_EXTERNAL_LABEL,
+  isSolomonMcpToolName,
   shouldBlockDeferredSolomonTool,
   shouldHardDenyCursorTool,
   shouldRedirectCursorTool,
@@ -27,6 +28,9 @@ export function classifyProxyTool(toolName: string): ProxyToolPolicyClass {
     return "unknown";
   }
   if (NATIVE_ENTRY_TOOLS.has(trimmed)) {
+    return "native";
+  }
+  if (isSolomonMcpToolName(trimmed)) {
     return "native";
   }
   if (trimmed === BLOCKED_MCP_EXTERNAL_LABEL || shouldHardDenyCursorTool(trimmed)) {

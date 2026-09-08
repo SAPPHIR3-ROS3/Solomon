@@ -43,7 +43,7 @@ export function proxyToolCorrectionMessage(
     unique.some(
       (n) =>
         !isHardDenyBlockedLabel(n) &&
-        (shouldRedirectCursorTool(n) || shouldBlockDeferredSolomonTool(n) || n.startsWith("mcp:")),
+        (shouldRedirectCursorTool(n) || n.startsWith("mcp:")),
     )
   ) {
     parts.push(chatSurface ? CHAT_FOOTER : ORCHESTRATE_FOOTER);

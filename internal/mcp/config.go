@@ -17,6 +17,7 @@ import (
 
 const (
 	TransportStdio          = "stdio"
+	TransportSSE            = "sse"
 	TransportStreamableHTTP = "streamable-http"
 )
 
@@ -34,11 +35,28 @@ type ServerConfig struct {
 	CWD       string            `json:"cwd"`
 	URL       string            `json:"url"`
 	Headers   map[string]string `json:"headers"`
+	OAuth     *OAuthConfig      `json:"oauth,omitempty"`
 	Timeout   int               `json:"timeout"`
 	Allow     []string          `json:"allow"`
 	Deny      []string          `json:"deny"`
 	Fallback  bool              `json:"-"`
 	SortIndex int               `json:"-"`
+}
+
+// OAuthConfig configures the MCP OAuth client registration. Interactive
+// authorization and token persistence are deliberately supplied by the host
+// through ManagerOptions; secrets should normally be expanded from the
+// environment in mcp.json rather than committed to a build.
+type OAuthConfig struct {
+	ClientID            string   `json:"clientId,omitempty"`
+	ClientSecret        string   `json:"clientSecret,omitempty"`
+	ClientIDMetadataURL string   `json:"clientIdMetadataUrl,omitempty"`
+	RedirectURL         string   `json:"redirectUrl,omitempty"`
+	RedirectURIs        []string `json:"redirectUris,omitempty"`
+	ClientName          string   `json:"clientName,omitempty"`
+	ClientURI           string   `json:"clientUri,omitempty"`
+	Scope               string   `json:"scope,omitempty"`
+	RequestRefresh      bool     `json:"requestRefreshToken,omitempty"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -177,6 +195,14 @@ func validateServer(sc ServerConfig) (ServerConfig, error) {
 	case TransportStreamableHTTP:
 		if strings.TrimSpace(sc.URL) == "" {
 			return ServerConfig{}, fmt.Errorf("url is required for streamable-http transport")
+		}
+		u, err := url.Parse(sc.URL)
+		if err != nil || u.Scheme == "" || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return ServerConfig{}, fmt.Errorf("url must be a valid http or https URL")
+		}
+	case TransportSSE:
+		if strings.TrimSpace(sc.URL) == "" {
+			return ServerConfig{}, fmt.Errorf("url is required for sse transport")
 		}
 		u, err := url.Parse(sc.URL)
 		if err != nil || u.Scheme == "" || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {

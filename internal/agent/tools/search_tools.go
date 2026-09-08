@@ -83,7 +83,7 @@ type searchToolsArgs struct {
 }
 
 func searchToolsOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("searchTools", "Search deferred tools for orchestrate scripts and connected MCP schemas (MCP.<server>.<tool>). Returns descriptions, SDK signatures for deferred tools, and parameter schemas for MCP tools; MCP entries are catalogued for discovery and are not direct native agent calls.", map[string]any{
+	return nativeToolUnion("searchTools", "Search deferred tools for orchestrate scripts and connected MCP schemas (MCP.<server>.<tool>). Returns descriptions, SDK signatures for deferred tools, and parameter schemas for MCP tools; MCP tools may also be available as direct native calls.", map[string]any{
 		"query": map[string]any{"type": "string", "description": "Search query (matches name, description, and SDK signature text)"},
 	}, []string{"query"})
 }
@@ -93,7 +93,7 @@ func appendSearchToolsDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("searchTools", "Discover deferred tools, SDK signatures for orchestrate scripts, and connected MCP schemas (MCP.<server>.<tool>). MCP entries are catalogued for discovery and are not direct native agent calls.", sig)
+	b.addBlock("searchTools", "Discover deferred tools, SDK signatures for orchestrate scripts, and connected MCP schemas (MCP.<server>.<tool>). MCP tools may also be available as direct native calls.", sig)
 	return nil
 }
 

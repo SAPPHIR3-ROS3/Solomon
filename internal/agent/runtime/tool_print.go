@@ -20,7 +20,7 @@ const toolIntentCorrectionUserMsg = "Your previous tool call was rejected becaus
 
 const nativeToolCorrectionUserMsg = "Your previous native API tool call was rejected. Every native tool call requires a non-empty string intent. Retry with a native Solomon tool_call whose JSON arguments match the declared schema and include a non-empty intent string. Do not emit XML, markdown pseudo-calls, or plain-text tool narration unless you mean to answer without tools."
 
-const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill) via API tool_calls with JSON arguments that match each tool schema, including a non-empty intent string — not <tool_calls> XML or plain-text tool narration. For workspace read/edit/shell/find/MCP work, call searchTools if unsure, then orchestrate (package main, import \"sdk\") — never emit deferred tools (readFile, editFile, shell, find, …) as direct native tool_calls. Send a corrected invocation or continue without tools if you meant plain text."
+const nativeBridgeToolCorrectionUserMsg = "Your previous reply did not include valid native API tool_calls. Emit native Solomon tools only (orchestrate, searchTools, subagent, switchMode, searchSkill, loadSkill, or an explicitly registered MCP.* tool) via API tool_calls with JSON arguments that match each tool schema, including a non-empty intent string — not <tool_calls> XML or plain-text tool narration. For workspace read/edit/shell/find work, call searchTools if unsure, then orchestrate (package main, import \"sdk\") — never emit deferred tools (readFile, editFile, shell, find, …) as direct native tool_calls. Send a corrected invocation or continue without tools if you meant plain text."
 
 const cursorProxyOrchestrateFooter = "Cursor built-ins are disabled. Use native tool_calls only: searchTools (discover deferred SDK signatures), orchestrate (run workspace scripts), searchSkill and loadSkill (skills)."
 
@@ -158,7 +158,7 @@ func redirectExtraCorrectionHint(toolName string) string {
 	case "todowrite":
 		return "Plan todos: use orchestrate with addTodo, todoList, checkTodo, or related plan SDK helpers."
 	case "callmcptool", "fetchmcpresource", "listmcpresources":
-		return "MCP work: call searchTools for schemas, then orchestrate with the MCP sandbox SDK."
+		return "MCP wrappers are unavailable: call an exact registered MCP.* tool when present, or use searchTools for schemas and orchestrate for supported deferred work."
 	default:
 		return ""
 	}

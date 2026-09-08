@@ -17,6 +17,7 @@ test.afterEach(() => {
 
 test("classifyProxyTool maps policy classes (2.13)", () => {
   assert.equal(classifyProxyTool("orchestrate"), "native");
+  assert.equal(classifyProxyTool("MCP.exa.search"), "native");
   assert.equal(classifyProxyTool("Read"), "redirect");
   assert.equal(classifyProxyTool("AskQuestion"), "hardDeny");
   assert.equal(classifyProxyTool("browser_navigate"), "hardDeny");

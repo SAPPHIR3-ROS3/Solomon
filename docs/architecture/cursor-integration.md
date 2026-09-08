@@ -20,7 +20,7 @@ Solomon Runtime  --OpenAI HTTP-->  sidecar (:8766/v1/)  --Cursor SDK-->  remote 
 - **Go integration** = install bundle, start process, health, `/integrations` (`internal/integrations/cursor/`).
 - **Executor** = always Solomon `tools.Exec` on `ProjRoot`. `cursor_internal_tools` is **deprecated and forced off** — Cursor built-ins never run on the repo.
 
-Composer is steered toward **Solomon native entry tools** (`orchestrate`, `searchTools`, `subagent`, …). Cursor IDE built-ins (`Read`, `StrReplace`, `Shell`, `Task`, …) are **blocked** and corrected — not bridged to deferred `readFile` / `editFile` / `shell` `tool_calls`. Workspace read/edit/shell/find/MCP work goes through **`orchestrate`** (sandbox SDK inside Go code mode).
+Composer is steered toward **Solomon native entry tools** (`orchestrate`, `searchTools`, `subagent`, …). Cursor IDE built-ins (`Read`, `StrReplace`, `Shell`, `Task`, …) are **blocked** and corrected — not bridged to deferred `readFile` / `editFile` / `shell` `tool_calls`. Workspace read/edit/shell/find work goes through **`orchestrate`** (sandbox SDK inside Go code mode); connected MCP tools may be bridged as exact `MCP.<server>.<tool>` native calls when Solomon registered them.
 
 ## End-to-end flow
 
