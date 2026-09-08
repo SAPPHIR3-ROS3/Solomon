@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -40,23 +41,15 @@ type Manager struct {
 	connected  bool
 	ready      chan struct{}
 	connectErr error
-}
 
-type serverSession struct {
-	cfg             ServerConfig
-	client          *sdkmcp.Client
-	session         *sdkmcp.ClientSession
-	tools           []RemoteTool
-	resources       []RemoteResource
-	templates       []RemoteResourceTemplate
-	prompts         []RemotePrompt
-	subscriptionsMu sync.Mutex
-	subscriptions   map[string]*resourceSubscription
-}
+	closed    atomic.Bool
+	closeOnce sync.Once
+	closeErr  error
+	done      chan struct{}
 
-type resourceSubscription struct {
-	client  *sdkmcp.Client
-	session *sdkmcp.ClientSession
+	oauthMu       sync.Mutex
+	oauthHandlers map[string]auth.OAuthHandler
+	oauthReady    map[string]bool
 }
 
 type remoteBinding struct {
@@ -116,12 +109,15 @@ func newManager(cfg *Config, stderr io.Writer, options *ManagerOptions) *Manager
 		opts = *options
 	}
 	m := &Manager{
-		registry:    map[string]*remoteBinding{},
-		callTimeout: defaultCallTimeout,
-		cfg:         cfg,
-		stderr:      stderr,
-		options:     opts,
-		ready:       make(chan struct{}),
+		registry:      map[string]*remoteBinding{},
+		callTimeout:   defaultCallTimeout,
+		cfg:           cfg,
+		stderr:        stderr,
+		options:       opts,
+		ready:         make(chan struct{}),
+		done:          make(chan struct{}),
+		oauthHandlers: map[string]auth.OAuthHandler{},
+		oauthReady:    map[string]bool{},
 	}
 	return m
 }
@@ -129,6 +125,9 @@ func newManager(cfg *Config, stderr io.Writer, options *ManagerOptions) *Manager
 func (m *Manager) Connect(ctx context.Context) (servers int, tools int, err error) {
 	if m == nil {
 		return 0, 0, nil
+	}
+	if m.closed.Load() {
+		return 0, 0, ErrManagerClosed
 	}
 	m.connectMu.Lock()
 	defer m.connectMu.Unlock()
@@ -183,9 +182,12 @@ func (m *Manager) IsReady() bool {
 
 func NewManagerWithRemoteTools(tools []RemoteTool) *Manager {
 	m := &Manager{
-		tools:    tools,
-		registry: map[string]*remoteBinding{},
-		ready:    make(chan struct{}),
+		tools:         tools,
+		registry:      map[string]*remoteBinding{},
+		ready:         make(chan struct{}),
+		done:          make(chan struct{}),
+		oauthHandlers: map[string]auth.OAuthHandler{},
+		oauthReady:    map[string]bool{},
 	}
 	close(m.ready)
 	m.connected = true
@@ -199,58 +201,63 @@ func NewManagerWithRemoteTools(tools []RemoteTool) *Manager {
 }
 
 func (m *Manager) connectServer(ctx context.Context, sc ServerConfig, stderr io.Writer) {
-	connectCtx, cancel := context.WithTimeout(ctx, timeoutFor(sc, defaultConnectTimeout))
-	defer cancel()
-	var ss *serverSession
-	clientOptions := m.clientOptions(&ss)
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "solomon", Version: "dev", Title: "Solomon"}, &clientOptions)
-	for _, root := range m.options.Roots {
-		if root != nil {
-			client.AddRoots(root)
-		}
-	}
-	transport, err := m.transportFor(connectCtx, sc, stderr)
-	if err != nil {
-		logging.Log(logging.WARNING_LOG_LEVEL, "MCP server transport setup failed", logging.LogOptions{Params: map[string]any{"server": sc.Name, "transport": sc.Type, "err": err.Error()}})
-		return
-	}
-	session, err := client.Connect(connectCtx, transport, nil)
+	ss := newServerSession(sc)
+	session, err := m.openAndInstallSession(ctx, ss, stderr)
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP server connect failed", logging.LogOptions{Params: map[string]any{"server": sc.Name, "transport": sc.Type, "err": err.Error()}})
 		return
 	}
-	ss = &serverSession{cfg: sc, client: client, session: session, subscriptions: map[string]*resourceSubscription{}}
-	if err := m.registerServerCatalog(ctx, ss); err != nil {
-		_ = session.Close()
-		logging.Log(logging.WARNING_LOG_LEVEL, "MCP server catalog failed", logging.LogOptions{Params: map[string]any{"server": sc.Name, "err": err.Error()}})
-		return
-	}
+	m.hydrateServer(ctx, ss, session)
 	m.mu.Lock()
 	m.servers = append(m.servers, ss)
 	m.mu.Unlock()
 	logging.Log(logging.INFO_LOG_LEVEL, "MCP server connected", logging.LogOptions{Params: map[string]any{"server": sc.Name, "transport": sc.Type}})
 }
 
+func (m *Manager) openAndInstallSession(ctx context.Context, ss *serverSession, stderr io.Writer) (*sdkmcp.ClientSession, error) {
+	if m == nil || ss == nil {
+		return nil, ErrServerUnavailable
+	}
+	if m.closed.Load() {
+		return nil, ErrManagerClosed
+	}
+	connectCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
+	defer cancel()
+	clientOptions := m.clientOptions(ss)
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "solomon", Version: "dev", Title: "Solomon"}, &clientOptions)
+	for _, root := range m.rootsSnapshot() {
+		if root != nil {
+			client.AddRoots(root)
+		}
+	}
+	transport, err := m.transportFor(connectCtx, ss.cfg, stderr)
+	if err != nil {
+		logging.Log(logging.WARNING_LOG_LEVEL, "MCP server transport setup failed", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "transport": ss.cfg.Type, "err": err.Error()}})
+		return nil, err
+	}
+	session, err := client.Connect(connectCtx, transport, nil)
+	if err != nil {
+		return nil, err
+	}
+	if m.closed.Load() {
+		_ = session.Close()
+		return nil, ErrManagerClosed
+	}
+	ss.installSession(client, session)
+	go m.watchSession(ss, session)
+	return session, nil
+}
+
 func (m *Manager) transportFor(ctx context.Context, sc ServerConfig, stderr io.Writer) (sdkmcp.Transport, error) {
 	if sc.Type == TransportStreamableHTTP {
-		var oauthHandler auth.OAuthHandler
-		if m.options.OAuthHandler != nil {
-			h, err := m.options.OAuthHandler(ctx, sc)
-			if err != nil {
-				return nil, err
-			}
-			oauthHandler = h
-		} else if sc.OAuth != nil {
-			h, err := m.oauthHandler(ctx, sc)
-			if err != nil {
-				return nil, err
-			}
-			oauthHandler = h
+		oauthHandler, err := m.oauthHandlerFor(ctx, sc)
+		if err != nil {
+			return nil, err
 		}
 		transport := &sdkmcp.StreamableClientTransport{
 			Endpoint:   sc.URL,
 			HTTPClient: httpClientWithHeaders(sc.Headers),
-			MaxRetries: -1,
+			MaxRetries: 5,
 		}
 		if oauthHandler != nil {
 			transport.OAuthHandler = oauthHandler
@@ -272,6 +279,36 @@ func (m *Manager) transportFor(ctx context.Context, sc ServerConfig, stderr io.W
 		env:     sc.Env,
 		stderr:  stderr,
 	}, nil
+}
+
+// oauthHandlerFor returns one handler per configured server. The handler owns
+// the token source, including refresh state, so reconnecting an MCP session
+// does not restart the OAuth flow. Persistence across Solomon processes stays
+// with the host-provided handler/factory and is never written to mcp.json.
+func (m *Manager) oauthHandlerFor(ctx context.Context, sc ServerConfig) (auth.OAuthHandler, error) {
+	if m == nil || (m.options.OAuthHandler == nil && sc.OAuth == nil) {
+		return nil, nil
+	}
+	m.oauthMu.Lock()
+	defer m.oauthMu.Unlock()
+	if m.oauthReady[sc.Name] {
+		return m.oauthHandlers[sc.Name], nil
+	}
+	var (
+		h   auth.OAuthHandler
+		err error
+	)
+	if m.options.OAuthHandler != nil {
+		h, err = m.options.OAuthHandler(ctx, sc)
+	} else {
+		h, err = m.oauthHandler(ctx, sc)
+	}
+	if err != nil {
+		return nil, err
+	}
+	m.oauthHandlers[sc.Name] = h
+	m.oauthReady[sc.Name] = true
+	return h, nil
 }
 
 func (m *Manager) oauthHandler(_ context.Context, sc ServerConfig) (auth.OAuthHandler, error) {
@@ -375,8 +412,8 @@ func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage
 	if !ok {
 		return nil, fmt.Errorf("unknown MCP tool %q", name)
 	}
-	if binding.server == nil || binding.server.session == nil {
-		return nil, fmt.Errorf("MCP tool %q is not connected", name)
+	if binding.server == nil {
+		return nil, unavailableError("", "tool", ErrServerUnavailable)
 	}
 	args := map[string]any{}
 	if len(raw) > 0 {
@@ -385,10 +422,43 @@ func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage
 		}
 	}
 	delete(args, "intent")
-	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(binding.server.cfg, m.callTimeout))
-	defer cancel()
 	start := time.Now()
-	res, err := binding.server.session.CallTool(callCtx, &sdkmcp.CallToolParams{Name: binding.tool.ToolName, Arguments: args})
+	logFailure := func(err error) (any, error) {
+		params := map[string]any{"server": binding.server.cfg.Name, "tool": binding.tool.ToolName, "openai_tool": name, "elapsed_ms": time.Since(start).Milliseconds(), "err": err.Error()}
+		logging.Log(logging.WARNING_LOG_LEVEL, "MCP tools/call failed", logging.LogOptions{Params: params})
+		return nil, err
+	}
+	call := func(session *sdkmcp.ClientSession) (*sdkmcp.CallToolResult, error) {
+		callCtx, cancel := context.WithTimeout(ctx, timeoutFor(binding.server.cfg, m.callTimeout))
+		defer cancel()
+		return session.CallTool(callCtx, &sdkmcp.CallToolParams{Name: binding.tool.ToolName, Arguments: args})
+	}
+	session, err := m.ensureSession(ctx, binding.server)
+	if err != nil {
+		return logFailure(unavailableError(binding.server.cfg.Name, "tools/call", err))
+	}
+	res, err := call(session)
+	if err != nil && isSessionFailure(err) {
+		m.invalidateAndCloseSession(binding.server, session, err)
+		if m.toolCallMayRetry(binding.server.cfg.Name, binding.tool.ToolName, binding.tool.Definition, err) {
+			session, reconnectErr := m.ensureSession(ctx, binding.server)
+			if reconnectErr != nil {
+				return logFailure(unknownOutcomeError(name, errors.Join(err, reconnectErr)))
+			}
+			res, err = call(session)
+			if err != nil && isSessionFailure(err) {
+				m.invalidateAndCloseSession(binding.server, session, err)
+				return logFailure(unknownOutcomeError(name, err))
+			}
+		} else {
+			// Reconnect for the next operation, but never replay a call whose
+			// delivery status is uncertain (including multi-round-trip calls).
+			if _, reconnectErr := m.ensureSession(ctx, binding.server); reconnectErr != nil {
+				err = errors.Join(err, reconnectErr)
+			}
+			return logFailure(unknownOutcomeError(name, err))
+		}
+	}
 	elapsed := time.Since(start)
 	params := map[string]any{"server": binding.server.cfg.Name, "tool": binding.tool.ToolName, "openai_tool": name, "elapsed_ms": elapsed.Milliseconds()}
 	if err != nil {
@@ -404,22 +474,29 @@ func (m *Manager) Close() error {
 	if m == nil {
 		return nil
 	}
-	m.mu.RLock()
-	servers := append([]*serverSession(nil), m.servers...)
-	m.mu.RUnlock()
-	var errs []error
-	for _, server := range servers {
-		if err := server.closeSubscriptions(); err != nil {
-			errs = append(errs, err)
+	m.closeOnce.Do(func() {
+		m.closed.Store(true)
+		if m.done != nil {
+			close(m.done)
 		}
-		if server.session != nil {
-			if err := server.session.Close(); err != nil {
+		m.mu.RLock()
+		servers := append([]*serverSession(nil), m.servers...)
+		m.mu.RUnlock()
+		var errs []error
+		for _, server := range servers {
+			if err := server.closeSubscriptions(); err != nil {
 				errs = append(errs, err)
 			}
-			logging.Log(logging.INFO_LOG_LEVEL, "MCP server disconnected", logging.LogOptions{Params: map[string]any{"server": server.cfg.Name}})
+			if session := server.currentSession(); session != nil {
+				if err := session.Close(); err != nil {
+					errs = append(errs, err)
+				}
+				logging.Log(logging.INFO_LOG_LEVEL, "MCP server disconnected", logging.LogOptions{Params: map[string]any{"server": server.cfg.Name}})
+			}
 		}
-	}
-	return errors.Join(errs...)
+		m.closeErr = errors.Join(errs...)
+	})
+	return m.closeErr
 }
 
 func convertResult(res *sdkmcp.CallToolResult) (any, error) {
