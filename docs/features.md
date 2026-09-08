@@ -16,7 +16,7 @@ Solomon exposes an `editFile` native tool in build mode that applies search-and-
 
 ### MCP server integration
 
-Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtime so remote tools appear next to native ones. Claude Code, Codex, OpenCode, and OpenClaw treat MCP as the standard extension plane for databases, GitHub, browsers, and custom servers. Use `/mcp` in the REPL to inspect configured servers (URLs redacted). Background connect status is written to the log file, not the REPL transcript. Architecture: [MCP integration](architecture/mcp-integration.md).
+Optional MCP clients are configured in `~/.solomon/mcp.json` and wired at runtime so remote tools appear in Solomon's deferred tool catalog. Claude Code, Codex, OpenCode, and OpenClaw treat MCP as the standard extension plane for databases, GitHub, browsers, and custom servers. Use `/mcp` in the REPL to inspect configured servers (URLs redacted). Background connect status is written to the log file, not the REPL transcript. Architecture: [MCP integration](architecture/mcp-integration.md).
 
 ### Model and provider selection
 

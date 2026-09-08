@@ -104,7 +104,7 @@ flowchart TB
 |------|------|
 | Slash commands | Register in [`commands/builtin_slash.go`](../../internal/agent/commands/builtin_slash.go) |
 | Native tools | Add in `internal/agent/tools/` and wire in `params.go` / `exec.go` |
-| MCP tools | Configure `mcp.json`; adapter exposes `MCP.<server>.<tool>` names |
+| MCP tools | Configure `mcp.json`; catalog exposes `MCP.<server>.<tool>` names for `searchTools`/`orchestrate` |
 | Skills | `solomon add`, registry in `internal/skills/` |
 | System prompts | Embedded defaults in `internal/prompt/templates/`; runtime copies under `~/.solomon/prompts/templates/`; SHA checks at REPL startup (`[prompt_templates]` in config) |
 | Legacy tool calling | `[tools].legacy` / `legacy_force` in config or `/legacytools`; see [Agent turn pipeline](agent-turn-pipeline.md#legacy-xml-tool-calling) |

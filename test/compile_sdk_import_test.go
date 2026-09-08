@@ -41,6 +41,28 @@ func main() {}`
 	}
 }
 
+func TestRewriteMCPCallsKeepsCodeModeSyntaxAndQualifiesCollisions(t *testing.T) {
+	src := `package main
+import "sdk"
+func main() {
+	_, _ = sdk.mcp.search("search GitHub", map[string]any{"query": "MCP"})
+	_, _ = sdk.mcp.github_search("search GitHub", map[string]any{"query": "MCP"})
+}`
+	got, err := compile.RewriteMCPCalls(src, []compile.MCPToolBinding{
+		{ExposedName: "MCP.github.search", ServerName: "github", ToolName: "search"},
+		{ExposedName: "MCP.slack.search", ServerName: "slack", ToolName: "search"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, `sdk.MCPCall("MCP.github.search", "search GitHub"`) {
+		t.Fatalf("unexpected rewritten source:\n%s", got)
+	}
+	if !strings.Contains(got, `sdk.mcp.search("search GitHub"`) {
+		t.Fatalf("ambiguous short name should remain unresolved:\n%s", got)
+	}
+}
+
 func TestSearchToolsSDKImportsOmitCanonicalPath(t *testing.T) {
 	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",

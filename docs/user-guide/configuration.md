@@ -293,7 +293,7 @@ web_search_api_key = "YOUR_SUBSCRIPTION_KEY"
 
 Path: `~/.solomon/mcp.json`, or the file in `SOLOMON_MCP_CONFIG`. If missing, Solomon starts without MCP servers.
 
-In **agent** mode, connected MCP tools are exposed as direct native tool calls when their schemas are available. `searchTools` still indexes them for discovery, while MCP resources and prompts remain host-managed through the MCP manager.
+In **agent** mode, connected MCP tools are deferred through `orchestrate`. Use `searchTools` to discover their descriptions and argument schemas, then call them as `sdk.mcp.<tool>(intent, args)`; MCP resources and prompts remain host-managed through the MCP manager.
 
 Full schema, JSON example, and runtime behavior: [MCP integration](../architecture/mcp-integration.md).
 

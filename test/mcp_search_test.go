@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
@@ -10,7 +11,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
-func TestSearchToolsListsNativeMCPTools(t *testing.T) {
+func TestSearchToolsListsDeferredMCPTools(t *testing.T) {
 	mgr := solomonmcp.NewManagerWithRemoteTools([]solomonmcp.RemoteTool{{
 		OpenAIName:  "MCP.github.create_issue",
 		ServerName:  "github",
@@ -37,7 +38,10 @@ func TestSearchToolsListsNativeMCPTools(t *testing.T) {
 	}
 	found := false
 	for _, e := range list {
-		if e["name"] == "MCP.github.create_issue" && e["origin_mode"] == "native" {
+		if e["name"] == "MCP.github.create_issue" && e["origin_mode"] == "deferred" && e["sdk_call"] == "sdk.mcp.create_issue(intent, args)" {
+			if strings.Contains(e["parameters"], `"intent"`) || !strings.Contains(e["parameters"], `"title"`) {
+				t.Fatalf("unexpected MCP argument schema: %s", e["parameters"])
+			}
 			found = true
 			break
 		}

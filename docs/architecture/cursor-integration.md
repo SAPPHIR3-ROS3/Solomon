@@ -20,7 +20,7 @@ Solomon Runtime  --OpenAI HTTP-->  sidecar (:8766/v1/)  --Cursor SDK-->  remote 
 - **Go integration** = install bundle, start process, health, `/integrations` (`internal/integrations/cursor/`).
 - **Executor** = always Solomon `tools.Exec` on `ProjRoot`. `cursor_internal_tools` is **deprecated and forced off** — Cursor built-ins never run on the repo.
 
-Composer is steered toward **Solomon native entry tools** (`orchestrate`, `searchTools`, `subagent`, …). Cursor IDE built-ins (`Read`, `StrReplace`, `Shell`, `Task`, …) are **blocked** and corrected — not bridged to deferred `readFile` / `editFile` / `shell` `tool_calls`. Workspace read/edit/shell/find work goes through **`orchestrate`** (sandbox SDK inside Go code mode); connected MCP tools may be bridged as exact `MCP.<server>.<tool>` native calls when Solomon registered them.
+Composer is steered toward **Solomon native entry tools** (`orchestrate`, `searchTools`, `subagent`, …). Cursor IDE built-ins (`Read`, `StrReplace`, `Shell`, `Task`, …) are **blocked** and corrected — not bridged to deferred `readFile` / `editFile` / `shell` `tool_calls`. Workspace read/edit/shell/find and MCP work goes through **`orchestrate`** (sandbox SDK inside Go code mode); MCP schemas are discovered with `searchTools` and invoked as `sdk.mcp.<tool>(intent, args)`.
 
 ## End-to-end flow
 
@@ -193,7 +193,7 @@ Runtime display when native tools enabled: [`cursor_native_display.go`](../../in
 
 [`tool-policy.ts`](../../integrations/cursor/src/tool-policy.ts) `CURSOR_NATIVE_ALIASES` (also in [`legacy.ts`](../../integrations/cursor/src/legacy.ts)) documents how Cursor names *would* map to Solomon deferred tools. Under orchestrate-first policy, **redirect-class Cursor tools are not bridged** — the map drives correction hints and tests, not transparent `Read` → `readFile` handoff.
 
-Native MCP unwrap (`mcp` provider `solomon`): deferred tool names in MCP calls are blocked; native entry tools (e.g. `subagent`) still pass through when allowed.
+Native MCP unwrap (`mcp` provider `solomon`): MCP tool calls are redirected to `searchTools` plus `orchestrate`; only Solomon native entry tools (e.g. `subagent`) pass through when allowed.
 
 ### Tool name bridge
 

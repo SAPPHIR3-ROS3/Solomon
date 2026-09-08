@@ -1,9 +1,6 @@
 package mcp
 
-import (
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
-	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
-)
+import sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 type CatalogEntry struct {
 	Name        string         `json:"name"`
@@ -60,8 +57,58 @@ func (m *Manager) Catalog() []CatalogEntry {
 			Server:      t.ServerName,
 			Tool:        t.ToolName,
 			Description: t.Description,
-			Schema:      tooling.SchemaWithRequiredToolIntent(t.Schema),
+			Schema:      mcpArgumentsSchema(t.Schema),
 		})
+	}
+	return out
+}
+
+// mcpArgumentsSchema returns the schema that the remote server expects. The
+// manager stores Solomon's required intent field alongside tool schemas for
+// native dispatch, but Code Mode passes intent as its first SDK argument and
+// must not present it as an MCP argument again.
+func mcpArgumentsSchema(schema map[string]any) map[string]any {
+	if schema == nil {
+		return nil
+	}
+	out := make(map[string]any, len(schema))
+	for key, value := range schema {
+		out[key] = value
+	}
+	if existing, ok := schema["properties"].(map[string]any); ok {
+		properties := make(map[string]any, len(existing))
+		for key, value := range existing {
+			if key != "intent" {
+				properties[key] = value
+			}
+		}
+		out["properties"] = properties
+	}
+	switch required := schema["required"].(type) {
+	case []any:
+		filtered := make([]any, 0, len(required))
+		for _, value := range required {
+			if name, ok := value.(string); !ok || name != "intent" {
+				filtered = append(filtered, value)
+			}
+		}
+		if len(filtered) == 0 {
+			delete(out, "required")
+		} else {
+			out["required"] = filtered
+		}
+	case []string:
+		filtered := make([]string, 0, len(required))
+		for _, name := range required {
+			if name != "intent" {
+				filtered = append(filtered, name)
+			}
+		}
+		if len(filtered) == 0 {
+			delete(out, "required")
+		} else {
+			out["required"] = filtered
+		}
 	}
 	return out
 }

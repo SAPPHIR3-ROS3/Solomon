@@ -15,6 +15,7 @@ type Options struct {
 	Source     string
 	ModuleRoot string
 	CacheDir   string
+	MCPTools   []MCPToolBinding
 }
 
 func BuildWASM(opts Options) ([]byte, error) {
@@ -40,6 +41,10 @@ func BuildWASM(opts Options) ([]byte, error) {
 	defer os.RemoveAll(slotDir)
 
 	src, parseErr := RewriteSDKImports(opts.Source)
+	if parseErr != nil {
+		return nil, fmt.Errorf("compile: %s", orchestrateParseError(parseErr, opts.Source))
+	}
+	src, parseErr = RewriteMCPCalls(src, opts.MCPTools)
 	if parseErr != nil {
 		return nil, fmt.Errorf("compile: %s", orchestrateParseError(parseErr, opts.Source))
 	}

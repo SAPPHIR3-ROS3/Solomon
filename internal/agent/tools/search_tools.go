@@ -71,6 +71,7 @@ func sdkQuickReference() map[string]any {
 			`fmt.Println(out)`,
 			`res, err := sdk.ShellResult("go test ./...", "run tests")`,
 			`fmt.Println(res.Output)`,
+			`result, err := sdk.mcp.search("search remote data", map[string]any{"query": "MCP"})`,
 			`fmt.Println(len(content))`,
 		},
 	}
@@ -83,7 +84,7 @@ type searchToolsArgs struct {
 }
 
 func searchToolsOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("searchTools", "Search deferred tools for orchestrate scripts and connected MCP schemas (MCP.<server>.<tool>). Returns descriptions, SDK signatures for deferred tools, and parameter schemas for MCP tools; MCP tools may also be available as direct native calls.", map[string]any{
+	return nativeToolUnion("searchTools", "Search deferred tools for orchestrate scripts and connected MCP schemas (MCP.<server>.<tool>). Returns descriptions, SDK signatures for deferred tools, and remote parameter schemas for MCP tools; invoke MCP tools from orchestrate with sdk.mcp.<tool>(intent, args), where intent is separate from the remote argument dictionary.", map[string]any{
 		"query": map[string]any{"type": "string", "description": "Search query (matches name, description, and SDK signature text)"},
 	}, []string{"query"})
 }
@@ -93,7 +94,7 @@ func appendSearchToolsDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("searchTools", "Discover deferred tools, SDK signatures for orchestrate scripts, and connected MCP schemas (MCP.<server>.<tool>). MCP tools may also be available as direct native calls.", sig)
+	b.addBlock("searchTools", "Discover deferred tools, SDK signatures for orchestrate scripts, and connected MCP schemas (MCP.<server>.<tool>). Invoke MCP tools from orchestrate with sdk.mcp.<tool>(intent, args); intent is separate from the remote argument dictionary.", sig)
 	return nil
 }
 

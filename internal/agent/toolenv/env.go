@@ -37,6 +37,7 @@ type Env struct {
 	RunNestedWithSystem                  func(ctx context.Context, sys, task string) (string, error)
 	RunSubagent                          func(ctx context.Context, req SubagentRequest) (SubagentResponse, error)
 	ParentToolCallID                     string
+	ParentToolName                       string
 	SetMode                              func(string)
 	CurrentMode                          func() string
 	CheckpointStageProjAbs               func(path string)

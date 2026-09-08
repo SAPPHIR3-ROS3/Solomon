@@ -103,6 +103,72 @@ func main() {
 	}
 }
 
+func TestWorkerIPCCallsMCPThroughCodeModeNamespace(t *testing.T) {
+	parent.CloseGlobal()
+	t.Cleanup(parent.CloseGlobal)
+	ctx := context.Background()
+	client, err := parent.Start(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	src := `package main
+
+import (
+	"fmt"
+	"sdk"
+)
+
+func main() {
+	result, err := sdk.mcp.search("search remote data", map[string]any{"query": "MCP"})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(string(result))
+}
+`
+	wasm, err := compile.BuildWASM(compile.Options{
+		Source: src,
+		MCPTools: []compile.MCPToolBinding{{
+			ExposedName: "MCP.github.search",
+			ServerName:  "github",
+			ToolName:    "search",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls int
+	exec := func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
+		calls++
+		if name != "MCP.github.search" {
+			t.Fatalf("unexpected MCP tool %q", name)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(args, &got); err != nil {
+			t.Fatal(err)
+		}
+		if got["intent"] != "search remote data" || got["query"] != "MCP" {
+			t.Fatalf("MCP arguments = %#v", got)
+		}
+		return json.Marshal(map[string]any{"ok": true})
+	}
+	done, err := client.Run(ctx, wasm, "agent", exec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done.Error != "" {
+		t.Fatalf("run error: %s", done.Error)
+	}
+	if calls != 1 || done.ToolCalls != 1 {
+		t.Fatalf("calls=%d tool_calls=%d", calls, done.ToolCalls)
+	}
+	if done.Output != `{"ok":true}` {
+		t.Fatalf("output=%q", done.Output)
+	}
+}
+
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
