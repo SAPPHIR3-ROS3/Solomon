@@ -26,6 +26,11 @@ func TestServerRuntime_firstChatGeneratesTitleConcurrentlyWithAssistant(t *testi
 	started.Add(2)
 	release := make(chan struct{})
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Local preview/Vite probes may scan ephemeral localhost ports while
+		// the test is running. They are not provider calls.
+		if r.Method != http.MethodPost {
+			return
+		}
 		var request map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Errorf("decode provider request: %v", err)

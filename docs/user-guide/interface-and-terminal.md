@@ -26,7 +26,7 @@ Solomon espone alcune funzioni nella GUI e altre nel terminale. Questa pagina in
 | Esplorare file del progetto | GUI | Condivisa | File explorer; `find`, `readFile`, `shell` |
 | Cambiare branch o worktree | GUI | Condivisa | Controlli della Home; comandi `git` nel terminale |
 | Aprire un terminale del progetto | GUI | Terminale | Terminal panel; PTY supervisionato dal daemon |
-| Visualizzare deep research | GUI | Prevista | Research panel; gli strumenti `webSearch` e `fetchWeb` sono disponibili nel terminale agente |
+| Visualizzare deep research | GUI | Condivisa | Tab Deep research nella Home; `/research` e gli strumenti `deepResearch` / `researchStatus` nel terminale |
 | Modificare rules, prompt, skills e subagents | GUI | Condivisa | Customization; `/rules`, `/add`, `/remove`, `/instructions` |
 | Configurare MCP | Prevista | Terminale | `~/.solomon/mcp.json`, `/mcp` |
 | Cercare nella documentazione Solomon | GUI | Condivisa | Sezione Docs; `/docs <query>` e `docsRetrieval` |
@@ -43,6 +43,7 @@ La GUI è pensata per le operazioni visuali e contestuali:
 - terminale integrato;
 - cataloghi di customization;
 - ricerca e lettura visuale della documentazione;
+- elenco dei job di Deep research e apertura dei report HTML;
 - impostazioni che non richiedono di conoscere TOML, percorsi locali o comandi.
 
 Le chat persistite vengono lette e aggiornate dal daemon locale: la selezione nella sidebar apre la sessione Solomon esistente, il primo invio in un nuovo progetto crea la sessione e il turno viene trasmesso alla GUI con eventi incrementali. Se la GUI viene ricaricata durante un turno, il daemon continua l'esecuzione e la GUI si riaggancia alla sessione tramite replay degli eventi.
@@ -89,7 +90,11 @@ Il terminale resta la superficie completa per configurazione, automazione e diag
 - usare slash command e modalità `exec`/`temp exec`;
 - installare e gestire skills, rules, MCP e subagents;
 - esportare conversazioni e controllare aggiornamenti;
-- usare gli strumenti agent per shell, file, ricerca web e documentazione.
+- usare gli strumenti agent per shell, file, ricerca web, documentazione e deep research.
+
+Deep research mantiene un solo job store per progetto. La GUI legge i job dal
+daemon locale e apre il report HTML; l'avvio, la cancellazione e la ripresa
+restano disponibili tramite gli strumenti chat o `/research`.
 
 Per la configurazione persistente vedere [Configuration](configuration.md). Per i comandi disponibili vedere [Usage and commands](usage-and-commands.md).
 

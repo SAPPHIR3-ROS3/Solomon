@@ -10,7 +10,11 @@ How to install Solomon and ensure `solomon` is on your shell `PATH`.
 
 The standard installer also installs the official CloakBrowser npm wrapper and
 its public browser build under `~/.solomon/cloakbrowser` (roughly a few hundred
-megabytes). No API key is required. A manual `go install` only installs
+megabytes), adds the no-key Exa and Parallel internal entries to
+`~/.solomon/mcp.json`, and defaults `web_search_engine` to `internal`. It also
+persists the stable server port in `config.toml`, taking
+`SOLOMON_SERVER_PORT` (or a project `.env` value) when provided. No API key is
+required. A manual `go install` only installs
 Solomon; run the following separately if you want the `internal` web backend:
 
 ```bash

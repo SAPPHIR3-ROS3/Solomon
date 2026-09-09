@@ -50,7 +50,11 @@ The `webSearch` tool queries configured engines (DuckDuckGo remains the compatib
 
 ### Fetch URL content
 
-`fetchWeb` retrieves a URL and returns markdown-friendly content for the model (HTML conversion, fenced snippets). With `web_search_engine = "internal"`, it uses Exa/Parallel MCP extraction and falls back to an isolated native CloakBrowser tab; otherwise it uses the legacy HTTP fetcher. Web fetch complements search and appears in multiple agent stacks under similar names. Build-mode only alongside other build tools. See [Native tools](architecture/native-tools.md).
+`fetchWeb` retrieves a URL and returns markdown-friendly content for the model (HTML conversion, fenced snippets). With `web_search_engine = "internal"`, it uses Exa/Parallel MCP extraction and falls back to an isolated native CloakBrowser tab; otherwise it uses the legacy HTTP fetcher. Web fetch complements search and appears in multiple agent stacks under similar names. Chat exposes it natively; agent mode runs it through the deferred `orchestrate` path. See [Native tools](architecture/native-tools.md).
+
+### Deep research
+
+`deepResearch` starts an asynchronous, project-scoped investigation that combines iterative search, page extraction, evidence quality checks, LLM synthesis, and a persisted HTML report with a TL;DR. `researchStatus` reports progress by job id. Chat exposes both as native tools; agent mode discovers the deferred versions through `searchTools` and runs them through `orchestrate`; the terminal also provides `/research` for listing, status, cancellation, deletion, and resume. The GUI's Deep research panel lists project jobs and opens their reports. See [Deep research](architecture/research.md).
 
 ### Embedded documentation search
 
@@ -82,7 +86,7 @@ During an assistant stream, press `/` to open `/btw ` and ask a temporary side q
 
 ### Agent vs chat mode
 
-**Agent** (default) uses `searchTools`, `orchestrate`, and deferred filesystem/shell tools. **Chat** exposes web/docs tools only. Planning tools appear natively when `PlanningActive`. See [Plan vs build](architecture/plan-vs-build.md).
+**Agent** (default) uses `searchTools`, `orchestrate`, and deferred filesystem/shell tools. **Chat** exposes web, deep-research, and docs tools natively. Planning tools appear natively when `PlanningActive`. See [Plan vs build](architecture/plan-vs-build.md).
 
 ### Project-scoped sessions and data
 
@@ -103,8 +107,6 @@ The `subagent` tool spawns a nested agent turn with its own system prompt file a
 Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and the scores assigned by the user, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
 
 Subagent transcripts are persisted under the project’s `SubchatsDir` with stable IDs, messages, parent linkage, status, role selection, and reasoning effort. Background runs stay registered while active; `/subagent stop` and `/subagent cancel` interrupt the live context and write `paused` or `cancelled`. `/subagent resume`, or the native tool with `resume`, continues the stored transcript. See [Subagent persistence and lifecycle](architecture/sessions-and-storage.md#subagent-persistence-and-lifecycle) and [Usage and commands — `/subagent`](user-guide/usage-and-commands.md#subagent--list-and-control-nested-runs).
-
-Optional **`[[roles.subagent]]`** entries in `config.toml` define an economical model pool: the primary agent calls **`listSubAgents`** to inspect `description` and `points`, then passes **`roleProvider`** and **`roleModel`** to **`subagent`**. Omit both role fields to keep the session model. Rows are validated against live provider model lists on config load/save (network required when roles are configured). Config: [Configuration — subagent roles](user-guide/configuration.md#subagent-roles).
 
 ### Agent skills
 

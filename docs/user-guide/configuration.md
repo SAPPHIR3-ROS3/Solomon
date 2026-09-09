@@ -24,6 +24,8 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `compaction_threshold_tokens` | Auto compaction threshold |
 | `tool_output.max_bytes`, `tool_output.max_lines` | Tool result truncation before LLM (defaults 65536 / 2048) |
 | `web_search_engine` | Default engine for the **`webSearch`** tool and native `fetchWeb` backend selection (omit for `duckduckgo`) |
+| `research_max_rounds`, `research_max_urls_per_round`, `research_max_content_chars` | Deep-research limits; defaults `8`, `3`, and `15000` |
+| `[web_fetch]` | HTTP fetch headers, blocked domains, and redirect cap (optional) |
 | `server_port` | Stable TCP port for the local Solomon server (default `64000`; `SOLOMON_SERVER_PORT` overrides and is persisted) |
 | `fast_mode` | Cursor fast mode when the active provider supports it (default on; toggle with `/fast`) |
 | `autoupdate` | At REPL startup, auto-install a newer release when the GitHub check finds one, then restart in the same terminal (toggle with `/autoupdate`) |
@@ -291,6 +293,59 @@ web_search_api_key = "YOUR_BRAVE_SUBSCRIPTION_TOKEN"
 
 web_search_engine = "bing"
 web_search_api_key = "YOUR_SUBSCRIPTION_KEY"
+```
+
+## Deep research
+
+The `deepResearch` tool starts a background project-scoped investigation. The
+job combines iterative searches, URL extraction, LLM synthesis, and a final
+HTML report. `researchStatus` reads progress by job id. In the REPL, the same
+jobs are managed with `/research`; see [Usage — `/research`](usage-and-commands.md#research).
+
+| Key | Default | Role |
+|-----|---------|------|
+| `research_max_rounds` | `8` | Maximum search/synthesis rounds |
+| `research_max_urls_per_round` | `3` | Maximum new URLs read per round |
+| `research_max_content_chars` | `15000` | Maximum extracted Markdown sent to the LLM per URL |
+| `subagent_timeout_minutes` | `20` | Overall research time budget; the same limit used for nested subagent work |
+
+Example:
+
+```toml
+web_search_engine = "internal"
+research_max_rounds = 8
+research_max_urls_per_round = 3
+research_max_content_chars = 15000
+```
+
+Research requires a persisted project session and cannot be started from
+`solomon temp exec` or `/temp`. The internal web backend is configured through
+the host-managed Exa/Parallel entries in `mcp.json`; no API key is placed in a
+Solomon build. The standard installer also provisions the native CloakBrowser
+fallback. Architecture and persistence details: [Deep research](../architecture/research.md).
+
+## Web fetch (`fetchWeb`)
+
+The optional `[web_fetch]` table controls the legacy HTTP fetcher. When
+`web_search_engine = "internal"`, Exa/Parallel MCP fetch adapters and the
+native CloakBrowser fallback are selected instead, while these settings still
+describe the HTTP compatibility path.
+
+| Key | Default | Role |
+|-----|---------|------|
+| `user_agent` | HTTP client default | Request `User-Agent` header |
+| `accept_language` | `en-US,en;q=0.9` | Request `Accept-Language` header |
+| `blocked_domains` | `[]` | Lowercase domains that are refused before the request |
+| `max_redirects` | `10` (cap `30`) | Maximum redirects followed by the legacy fetcher |
+
+Example:
+
+```toml
+[web_fetch]
+user_agent = "Solomon/2026"
+accept_language = "en-US,en;q=0.9"
+blocked_domains = ["example.invalid"]
+max_redirects = 10
 ```
 
 ## MCP configuration file

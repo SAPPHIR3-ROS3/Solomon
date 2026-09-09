@@ -65,7 +65,17 @@ Returns consolidated text to the parent tool result. Background runs persist the
 
 Optional **`roleProvider`** / **`roleModel`** select a row from `[[roles.subagent]]` (discovered via `listSubAgents`); the nested stream uses that provider’s backend and model instead of the session defaults. Background subagents validate the role **before** persisting the subsession. See [Native tools — subagent roles](native-tools.md#subagent-roles).
 
-Optional **`roleProvider`** / **`roleModel`** select a row from `[[roles.subagent]]` (discovered via `listSubAgents`); the nested stream uses that provider’s backend and model instead of the session defaults. Background subagents validate the role **before** persisting the subsession. See [Native tools — subagent roles](native-tools.md#subagent-roles).
+## Deep research
+
+[`researchmanager.go`](../../internal/agent/runtime/researchmanager.go) binds
+the native and deferred research tools to the shared asynchronous
+`research.Manager`. It passes the runtime model, configuration, internal web
+routers, and terminal output callbacks into each job. `deepResearch` returns a
+job id immediately; progress and completion are emitted as deferred system
+messages in interactive terminal mode, while machine-output mode keeps them
+out of stdout. Status reads are snapshots and can safely run while the
+background engine is updating a job. Full lifecycle and persistence: [Deep
+research](research.md).
 
 ## MCP
 
@@ -135,6 +145,7 @@ Both paths bump checkpoint, append user message, persist, then `runAgentTurns`.
 | Turn loop / legacy | [`test/legacy_runtime_test.go`](../../test/legacy_runtime_test.go), [`test/legacy_tools_test.go`](../../test/legacy_tools_test.go) |
 | Checkpoints | [`test/checkpoint_truncate_test.go`](../../test/checkpoint_truncate_test.go), [`test/checkpoint_staging_test.go`](../../test/checkpoint_staging_test.go) |
 | CI events | [`test/cievents_test.go`](../../test/cievents_test.go) |
+| Deep research surfaces | [`test/web_surfaces_test.go`](../../test/web_surfaces_test.go) |
 | Tool display | [`test/tool_display_checkpoint_test.go`](../../test/tool_display_checkpoint_test.go) |
 | Instructions | [`test/instructions_test.go`](../../test/instructions_test.go), [`test/instructions_prompt_test.go`](../../test/instructions_prompt_test.go) |
 

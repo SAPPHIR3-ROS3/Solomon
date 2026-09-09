@@ -7,10 +7,17 @@ From the repository root:
 ```bash
 go vet ./...
 go test ./... -count=1
+CGO_ENABLED=1 go test ./... -count=1 -race  # Linux CI parity
 go build ./cmd/solomon
 ```
 
-Same checks as [.github/workflows/release.yml](../../.github/workflows/release.yml), including `make check-docs`:
+Same checks as [.github/workflows/release.yml](../../.github/workflows/release.yml), including `make check-docs`. The Linux matrix job enables CGO and the race detector; macOS and Windows run the non-race suite:
+
+```bash
+CGO_ENABLED=1 go test ./... -count=1 -race
+```
+
+The workflow also runs:
 
 - `check_doc_paths.go` — markdown links between docs, `#` anchors, and cited code paths
 - `check_package_index.go` — every Go package under `internal/` and `cmd/` listed in [Package index](../architecture/package-index.md)
@@ -23,6 +30,7 @@ All tests live in [`test/`](../../test/), package `test`. Full guide: [Testing](
 
 ```bash
 go test ./... -count=1
+CGO_ENABLED=1 go test ./... -count=1 -race  # Linux CI parity
 go test ./test -run TestSlashDispatch -count=1
 ```
 
@@ -38,6 +46,7 @@ go test ./test -run TestSlashDispatch -count=1
 | Tools | `edit_file_test.go`, `find_test.go`, `tooloutput_test.go` |
 | Skills | `skills_test.go`, `skills_search_test.go` |
 | MCP | `mcp_config_test.go`, `mcp_adapter_test.go` |
+| Deep research / web surfaces | `web_surfaces_test.go`, `research_store_test.go` |
 | Auth / Codex | `provider_auth_test.go`, `codex_chat_request_test.go` |
 | CI events | `cievents_test.go` |
 | Cursor integration | `cursor_paths_test.go`, `stream_cursor_tool_test.go` — [Cursor integration](../architecture/cursor-integration.md#debug-playbook) |

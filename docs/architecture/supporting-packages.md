@@ -12,6 +12,7 @@ Map of `internal/` packages that support the REPL, tools, auth, and UX but are n
 | `tooloutput` | `internal/tooloutput/` | Truncate oversized tool JSON before the next LLM call; spill full payload to `projects/<id>/temp/` |
 | `search` | `internal/search/` | Legacy direct search engines plus the MCP Exa/Parallel router, monthly balance store, and native CloakBrowser fallback for `webSearch` |
 | `webfetch` | `internal/webfetch/` | Legacy HTTP fetcher plus MCP Exa/Parallel fetchers, native CloakBrowser fallback, and shared routing metadata for `fetchWeb` |
+| `research` | `internal/research/` | Asynchronous multi-round web research, evidence extraction, checkpointing, and HTML reports — see [Deep research](research.md) |
 | `cloak` | `internal/cloak/` | Go-owned lifecycle, JSON-lines process boundary, and DOM snapshot link extraction for the official CloakBrowser wrapper |
 | `logging` | `internal/logging/` | Level parsing, file rotation under `~/.solomon/logs` |
 | `termcolor` | `internal/termcolor/` | Terminal styling via lipgloss/termenv: dark palette, usage line, image tag colorization, `NO_COLOR` / pipe policy |

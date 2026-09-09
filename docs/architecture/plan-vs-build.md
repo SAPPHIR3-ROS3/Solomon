@@ -13,6 +13,11 @@
 
 Connected MCP tools are deferred in agent mode. Use `searchTools` for their schemas, then invoke them from `orchestrate` as `sdk.mcp.<tool>(intent, args)`. Resources and prompts remain host-managed through the MCP manager API. See [`toolParams`](../../internal/agent/runtime/mcp.go), [`modeAllowed`](../../internal/agent/tools/exec.go).
 
+Deep research follows the same distinction: chat receives `deepResearch` and
+`researchStatus` as native tools, while agent mode discovers their deferred
+forms and runs them through `orchestrate`. The job itself is shared and
+asynchronous across both modes; see [Deep research](research.md).
+
 **Planning** is not a separate mode: `Session.PlanningActive` (set when a plan is created via plan tools) appends native plan tools until cleared.
 
 ## Deferred tools (orchestrate)

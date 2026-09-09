@@ -59,8 +59,8 @@ func applyCheckpoint(rec *JobRecord, cp EngineResumeState) {
 		rec.Category = cp.Category
 	}
 	rec.EvolvingReport = cp.Report
-	rec.Findings = cp.Findings
+	rec.Findings = append([]Finding(nil), cp.Findings...)
 	rec.Round = cp.Round
-	rec.QueriesUsed = cp.QueriesUsed
-	rec.URLsFetched = cp.URLsFetched
+	rec.QueriesUsed = append([]string(nil), cp.QueriesUsed...)
+	rec.URLsFetched = append([]string(nil), cp.URLsFetched...)
 }

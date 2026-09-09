@@ -19,6 +19,7 @@ How Solomon is structured in Go: entry points, runtime loop, LLM layer, tools, p
 | [llm-layer.md](llm-layer.md) | Streaming, params, images, stream integrity, legacy early stop |
 | [native-tools.md](native-tools.md) | Tool router, plan/build tools, legacy XML parse and validation |
 | [mcp-integration.md](mcp-integration.md) | MCP config, manager, adapter, runtime wiring |
+| [research.md](research.md) | Asynchronous deep research jobs, web routing, persistence, and GUI/terminal surfaces |
 | [sessions-and-storage.md](sessions-and-storage.md) | `chatstore`, `project`, `paths` |
 | [checkpoints.md](checkpoints.md) | Branching, goto, git OID sync |
 | [skills-and-slash.md](skills-and-slash.md) | Skills registry, slash dispatch, commands |

@@ -15,6 +15,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `list_sub_agents.go` | Subagent role pool listing |
 | `load_skill.go`, `search_skill.go` | Skill tools |
 | `fetch_web.go`, `web_search.go` | Web fetch and search |
+| `deep_research.go`, `research_status.go` | Background deep research and job status |
 | `docs_retrieval.go` | Embedded docs BM25 search (`docsRetrieval`) |
 | `exec.go` | `Exec`, `resolveToolInvocation`, dispatch |
 | `env.go` | Type alias to [`internal/agent/toolenv/Env`](../../internal/agent/toolenv/env.go) |
@@ -40,6 +41,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `subagent` | agent (native tool_call only; not deferred / orchestrate); optional `roleProvider` + `roleModel` from `[[roles.subagent]]` |
 | `listSubAgents` | agent (lists configured subagent role pool) |
 | `shell`, `readFile`, `editFile`, `find`, `fetchWeb`, `webSearch`, skills | deferred (orchestrate / legacy XML) |
+| `deepResearch`, `researchStatus` | chat native; deferred in agent mode (orchestrate / legacy XML) |
 | `searchTools`, `orchestrate`, `switchMode` | agent |
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
 
@@ -60,6 +62,12 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 The tool returns `{ok, output, subchatId, status}` on success. Synchronous runs normally finish with `status=done` and include `output`; background runs return immediately with `status=running`. Timeout, cancellation, and recoverable nested errors persist the partial transcript with `status=paused` where possible. `subagent` is not exposed through `searchTools` and cannot be invoked from an `orchestrate` script.
 
 Skill tools: `loadSkill`, `searchSkill`. MCP catalog entries use stable names (`MCP.<server>.<tool>`) and are invoked from `orchestrate` through `sdk.mcp.<tool>(intent, args)`.
+
+Deep research follows the same surface split: chat receives native
+`deepResearch` and `researchStatus` schemas, while agent mode discovers the
+deferred entries through `searchTools` and executes them through `orchestrate`.
+The asynchronous lifecycle, persistence, and GUI report surface are described
+in [Deep research](research.md).
 
 ## Subagent roles
 
