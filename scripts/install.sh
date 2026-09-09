@@ -2,11 +2,13 @@
 set -euo pipefail
 
 GO_REQUIRED="1.25.0"
+NODE_REQUIRED="20.0.0"
 GO_INSTALL_ROOT="${HOME}/.local/go"
 INSTALLED_LOCAL_GO=0
 INSTALL_VERSION="${SOLOMON_VERSION:-${1:-latest}}"
 GITHUB_RELEASES_API="https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest"
 MARKER="# solomon-installer"
+DEFAULT_SERVER_PORT="64000"
 
 go_install_bin_dir() {
   local gobin
@@ -458,11 +460,22 @@ install_node_linux() {
 }
 
 ensure_node() {
+  local node_present=0
   if command -v node >/dev/null 2>&1; then
-    echo "Node $(node --version 2>/dev/null | tr -d '\r') OK"
-    return 0
+    node_present=1
+    local ver
+    ver="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//')"
+    if version_ge "$ver" "$NODE_REQUIRED"; then
+      echo "Node ${ver} OK (>= ${NODE_REQUIRED})"
+      return 0
+    fi
+    echo "Node ${ver} is older than ${NODE_REQUIRED}; upgrading..."
   fi
-  echo "Node not found; installing LTS..."
+  if [[ "$node_present" == 1 ]]; then
+    echo "Installing Node.js LTS..."
+  else
+    echo "Node not found; installing LTS..."
+  fi
   local os
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   case "$os" in
@@ -477,7 +490,220 @@ ensure_node() {
     echo "Node install failed; node not in PATH" >&2
     exit 1
   fi
-  echo "Node $(node --version 2>/dev/null | tr -d '\r') ready"
+  local ver
+  ver="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//')"
+  if ! version_ge "$ver" "$NODE_REQUIRED"; then
+    echo "Node install failed (got ${ver}; need >= ${NODE_REQUIRED})" >&2
+    exit 1
+  fi
+  echo "Node ${ver} ready"
+}
+
+install_cloakbrowser() {
+  ensure_node
+  if ! command -v npm >/dev/null 2>&1 || ! command -v npx >/dev/null 2>&1; then
+    echo "npm and npx are required to install the official CloakBrowser wrapper" >&2
+    exit 1
+  fi
+  local solomon_home cloak_dir cloak_cache
+  solomon_home="${SOLOMON_HOME:-${HOME}/.solomon}"
+  cloak_dir="${solomon_home}/cloakbrowser"
+  cloak_cache="${cloak_dir}/cache"
+  mkdir -p "$cloak_dir" "$cloak_cache"
+  echo "Installing the official CloakBrowser wrapper..."
+  (
+    cd "$cloak_dir"
+    npm install --ignore-scripts --no-audit --no-fund cloakbrowser playwright-core
+    CLOAKBROWSER_CACHE_DIR="$cloak_cache" npx --no-install cloakbrowser install
+  )
+  echo "CloakBrowser ready: ${cloak_dir}"
+}
+
+load_installer_server_port_from_dotenv() {
+  if [[ -n "${SOLOMON_SERVER_PORT:-}" || ! -f ".env" ]]; then
+    return 0
+  fi
+  local value
+  value="$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?SOLOMON_SERVER_PORT[[:space:]]*=[[:space:]]*([^#[:space:]]+).*$/\2/p' .env | head -n1)"
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+  if [[ -n "$value" ]]; then
+    export SOLOMON_SERVER_PORT="$value"
+  fi
+}
+
+server_port_from_config() {
+  local config_path="$1"
+  [[ -f "$config_path" ]] || return 0
+  awk '
+    /^[[:space:]]*\[/ { exit }
+    /^[[:space:]]*server_port[[:space:]]*=/ {
+      value = $0
+      sub(/^[^=]*=/, "", value)
+      sub(/[[:space:]]*#.*/, "", value)
+      gsub(/[[:space:]]/, "", value)
+      print value
+      exit
+    }
+  ' "$config_path"
+}
+
+has_top_level_toml_scalar() {
+  local file="$1" key="$2"
+  [[ -f "$file" ]] || return 1
+  awk -v key="$key" '
+    /^[[:space:]]*\[/ { exit }
+    $0 ~ "^[[:space:]]*" key "[[:space:]]*=" { found = 1; exit }
+    END { exit(found ? 0 : 1) }
+  ' "$file"
+}
+
+resolve_installer_server_port() {
+  local solomon_home="$1" config_path raw
+  load_installer_server_port_from_dotenv
+  config_path="${solomon_home}/config.toml"
+  raw="${SOLOMON_SERVER_PORT:-}"
+  if [[ -z "$raw" ]]; then
+    raw="$(server_port_from_config "$config_path")"
+  fi
+  if [[ -z "$raw" ]]; then
+    raw="$DEFAULT_SERVER_PORT"
+  fi
+  if ! [[ "$raw" =~ ^[0-9]+$ ]] || (( raw < 1 || raw > 65535 )); then
+    echo "SOLOMON_SERVER_PORT must be a TCP port between 1 and 65535" >&2
+    exit 1
+  fi
+  printf '%s\n' "$raw"
+}
+
+upsert_toml_scalar() {
+  local file="$1" key="$2" value="$3" line tmp
+  line="${key} = ${value}"
+  mkdir -p "$(dirname "$file")"
+  tmp="$(mktemp)"
+  if [[ -f "$file" ]]; then
+    awk -v key="$key" -v line="$line" '
+      BEGIN { in_table = 0; updated = 0 }
+      /^[[:space:]]*\[/ {
+        if (!updated) { print line; updated = 1 }
+        in_table = 1
+        print
+        next
+      }
+      $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+        if (!in_table && !updated) { print line; updated = 1 }
+        next
+      }
+      { print }
+      END { if (!updated) print line }
+    ' "$file" >"$tmp"
+  else
+    printf '%s\n' "$line" >"$tmp"
+  fi
+  chmod 600 "$tmp"
+  mv "$tmp" "$file"
+}
+
+ensure_mcp_web_config() {
+  local solomon_home="$1" mcp_path="${1}/mcp.json"
+  mkdir -p "$solomon_home"
+  if [[ ! -f "$mcp_path" ]]; then
+    (
+      umask 077
+      cat >"$mcp_path" <<'EOF'
+{
+  "mcpServers": {
+    "exa-web": {
+      "type": "streamable-http",
+      "url": "https://mcp.exa.ai/mcp",
+      "internal": true,
+      "adapter": "exa",
+      "allow": ["web_search_exa", "web_fetch_exa"]
+    },
+    "parallel-web": {
+      "type": "streamable-http",
+      "url": "https://search.parallel.ai/mcp",
+      "internal": true,
+      "adapter": "parallel",
+      "allow": ["web_search", "web_fetch"]
+    }
+  }
+}
+EOF
+    )
+    chmod 600 "$mcp_path"
+    return 0
+  fi
+
+  command -v python3 >/dev/null 2>&1 || {
+    echo "python3 is required to update the existing MCP configuration" >&2
+    exit 1
+  }
+  python3 - "$mcp_path" <<'PY'
+import json
+import os
+import sys
+import tempfile
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    document = json.load(handle)
+servers = document.get("mcpServers")
+if servers is None:
+    servers = {}
+if not isinstance(servers, dict):
+    raise SystemExit("mcp.json: mcpServers must be an object")
+servers.update({
+    "exa-web": {
+        "type": "streamable-http",
+        "url": "https://mcp.exa.ai/mcp",
+        "internal": True,
+        "adapter": "exa",
+        "allow": ["web_search_exa", "web_fetch_exa"],
+    },
+    "parallel-web": {
+        "type": "streamable-http",
+        "url": "https://search.parallel.ai/mcp",
+        "internal": True,
+        "adapter": "parallel",
+        "allow": ["web_search", "web_fetch"],
+    },
+})
+document["mcpServers"] = servers
+directory = os.path.dirname(path) or "."
+fd, temporary = tempfile.mkstemp(prefix=".mcp-", dir=directory, text=True)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(document, handle, indent=2)
+        handle.write("\n")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+PY
+  chmod 600 "$mcp_path"
+}
+
+configure_runtime_defaults() {
+  local solomon_home config_path port
+  solomon_home="${SOLOMON_HOME:-${HOME}/.solomon}"
+  config_path="${solomon_home}/config.toml"
+  mkdir -p "$solomon_home"
+  if [[ ! -f "$config_path" ]]; then
+    : >"$config_path"
+    chmod 600 "$config_path"
+  fi
+  port="$(resolve_installer_server_port "$solomon_home")"
+  upsert_toml_scalar "$config_path" "server_port" "$port"
+  if ! has_top_level_toml_scalar "$config_path" "web_search_engine"; then
+    upsert_toml_scalar "$config_path" "web_search_engine" '"internal"'
+  fi
+  ensure_mcp_web_config "$solomon_home"
+  echo "Solomon web backend: internal (Exa/Parallel + CloakBrowser fallback)"
+  echo "Solomon server port: ${port}"
 }
 
 rc_file() {
@@ -600,6 +826,8 @@ main() {
   ensure_make
   setup_shell
   install_solomon
+  install_cloakbrowser
+  configure_runtime_defaults
   echo "Done."
 }
 

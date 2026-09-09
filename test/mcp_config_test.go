@@ -86,6 +86,23 @@ func TestParseConfigSupportsLegacySSETransport(t *testing.T) {
 	}
 }
 
+func TestParseConfigSupportsInternalAdapters(t *testing.T) {
+	cfg, err := mcp.ParseConfig([]byte(`{"mcpServers":{"exa-web":{"url":"https://mcp.exa.ai/mcp","internal":true,"adapter":"EXA","allow":["web_search_exa","web_fetch_exa"]},"parallel-web":{"url":"https://search.parallel.ai/mcp","internal":true,"adapter":"parallel","allow":["web_search","web_fetch"]}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Servers) != 2 || !cfg.Servers[0].Internal || cfg.Servers[0].Adapter != "exa" || !cfg.Servers[0].ToolAllowed("web_search_exa") || !cfg.Servers[0].ToolAllowed("web_fetch_exa") || !cfg.Servers[1].ToolAllowed("web_search") || !cfg.Servers[1].ToolAllowed("web_fetch") {
+		t.Fatalf("internal adapter config = %#v", cfg.Servers)
+	}
+}
+
+func TestParseConfigRejectsPublicAdapter(t *testing.T) {
+	_, err := mcp.ParseConfig([]byte(`{"mcpServers":{"exa-web":{"url":"https://mcp.exa.ai/mcp","adapter":"exa"}}}`))
+	if err == nil || !strings.Contains(err.Error(), "internal") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestParseConfigMissingEnvVar(t *testing.T) {
 	t.Setenv("PRESENT", "ok")
 	_, err := mcp.ParseConfig([]byte(`{"mcpServers": {"x": {"command": "$PRESENT", "args": ["$MISSING"]}}}`))

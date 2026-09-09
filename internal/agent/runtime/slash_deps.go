@@ -76,8 +76,9 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 			}
 		},
 
-		Client:  r.Client,
-		Backend: r.Backend,
+		Client:    r.Client,
+		Backend:   r.Backend,
+		WebSearch: r.WebSearch,
 
 		ResetReadlineHistory: func() {
 			if r.RL != nil {

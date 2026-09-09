@@ -23,7 +23,8 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `response_language` | Default reply language |
 | `compaction_threshold_tokens` | Auto compaction threshold |
 | `tool_output.max_bytes`, `tool_output.max_lines` | Tool result truncation before LLM (defaults 65536 / 2048) |
-| `web_search_engine` | Default engine for the **`webSearch`** tool (omit for `duckduckgo`) |
+| `web_search_engine` | Default engine for the **`webSearch`** tool and native `fetchWeb` backend selection (omit for `duckduckgo`) |
+| `server_port` | Stable TCP port for the local Solomon server (default `64000`; `SOLOMON_SERVER_PORT` overrides and is persisted) |
 | `fast_mode` | Cursor fast mode when the active provider supports it (default on; toggle with `/fast`) |
 | `autoupdate` | At REPL startup, auto-install a newer release when the GitHub check finds one, then restart in the same terminal (toggle with `/autoupdate`) |
 | `doc_search_min_normalized_score` | BM25 minimum for `/docs` and `docsRetrieval` (default `0.05`) |
@@ -260,11 +261,12 @@ Directory: `~/.solomon/logs`. Seven-day retention; file-only logging by default 
 
 ## Web search (`webSearch`)
 
-The **`webSearch`** tool uses **`web_search_engine`** from `config.toml`. If empty or omitted, **`duckduckgo`** is used. Per-call **`engine`** and **`extras`** override merged config ([`MergeWebSearchExtras`](../../internal/agent/tools/web_search.go)).
+The **`webSearch`** tool uses **`web_search_engine`** from `config.toml`. If empty or omitted, **`duckduckgo`** remains the compatibility default during the migration. Set it to **`internal`** to use the Exa/Parallel router with the native CloakBrowser fallback; `fetchWeb` uses the corresponding MCP fetch adapters and native fallback. Per-call **`engine`** and **`extras`** override merged config ([`MergeWebSearchExtras`](../../internal/agent/tools/web_search.go)).
 
 | `web_search_engine` | Required `config.toml` | Notes |
 |--------------------|-------------------------|--------|
 | **`duckduckgo`** (default) | None | HTML results; no API key. |
+| **`internal`** | Internal Exa/Parallel MCP entries; official CloakBrowser installed by the standard installer | Alternates Exa and Parallel, retries the other backend on failure, and uses native CloakBrowser as the final fallback. No provider key is embedded in Solomon. |
 | **`searxng`** | **`web_search_base_url`** | Your SearxNG instance only; no public pool. Per-call **`extras.baseURL`** overrides. |
 | **`googlepse`** | **`web_search_api_key`** + **`web_search_cx`** | [Programmable Search Engine](https://developers.google.com/custom-search/v1/overview). **`maxResults`** capped at **10**. |
 | **`brave`** | **`web_search_api_key`** | Brave subscription token. Optional **`extras.apiKey`** per call. |
@@ -274,6 +276,8 @@ Example snippets:
 
 ```toml
 web_search_engine = "duckduckgo"
+
+web_search_engine = "internal"
 
 web_search_engine = "searxng"
 web_search_base_url = "https://search.example.net"

@@ -62,18 +62,18 @@ to discover the daemon URL during desktop development.
 | `solomon server start` | Start the detached server in normal mode. |
 | `solomon server start dev <gui-directory>` | Start development mode with the specified GUI project. The directory must contain `package.json` and `src/`. |
 | `solomon server status` | Print the PID, local and network URLs, mode, version, Vite status, development GUI source directory when in dev/HMR mode, and start time. |
-| `solomon server stop` | POST `/_solomon/stop`, wait for shutdown, then remove runtime state. If health fails or the process does not exit in time, the CLI force-stops the recorded PID and clears stale `state.json`. |
+| `solomon server stop` | POST `/_solomon/stop`, wait for shutdown, then remove runtime state. If health fails or the process does not exit in time, the CLI force-stops the recorded server and Vite process groups and clears stale `state.json`. |
 | `solomon server restart` | Preserve the prior mode and development directory, then restart. |
 | `solomon server logs` | Print the recent server log. |
 | `solomon server logs interactive` | Continue streaming the server log until interrupted. |
 
 `make install` stops any running local server (via `go run ./cmd/solomon server stop`) before replacing the binary.
 
-`solomon server status` reports `stopped` when `state.json` is missing or `/health` fails. After a crash or interrupted shutdown, leftover state is cleared on the next successful `stop` (unreachable host or unhealthy process).
+`solomon server status` reports `stopped` when `state.json` is missing or `/health` fails. After a crash or interrupted shutdown, the next `start`/`stop` reclaims the recorded server and Vite process groups before clearing stale state.
 
 ## Networking and health
 
-The server listens on the TCP port configured by `SOLOMON_SERVER_PORT` when it is set, and selects a free port otherwise. It listens on all IPv4 interfaces by default. `solomon server start` and `solomon server status` print the loopback URLs plus every discovered non-loopback IPv4 address. Addresses in the local network, or on another active IPv4 interface, are labelled `local`; Tailscale addresses in `100.64.0.0/10` are labelled `tailscale`. The same list is stored in `state.json` and returned by `GET /health`.
+The server listens on the TCP port in `server_port` in `~/.solomon/config.toml`. An explicit `SOLOMON_SERVER_PORT` environment value takes precedence and is persisted back to that field; `.env` is loaded by both `server start` and `server run`. A missing value uses the deterministic default `64000`; the server never selects an ephemeral port. It listens on all IPv4 interfaces by default. `solomon server start` and `solomon server status` print the loopback URLs plus every discovered non-loopback IPv4 address. Addresses in the local network, or on another active IPv4 interface, are labelled `local`; Tailscale addresses in `100.64.0.0/10` are labelled `tailscale`. The same list is stored in `state.json` and returned by `GET /health`.
 
 The server currently has no authentication layer. Binding to network interfaces
 therefore makes the GUI, API and PTY reachable by other devices that can access
@@ -81,11 +81,11 @@ the host; use the host firewall and Tailscale ACLs to limit access to trusted
 clients. Browser API requests and terminal upgrades reject unrelated origins,
 but this is not a substitute for authentication on an untrusted network.
 
-`GET /health` returns JSON with `ok`, server PID/version/mode/URLs, the discovered `addresses` list, start time, Go runtime details, Vite status and development directory when present, plus the existing API, GUI and worker readiness fields. It is the readiness check used by the CLI.
+`GET /health` returns JSON with `ok`, server PID/version/mode/URLs, the discovered `addresses` list, start time, Go runtime details, Vite status, Vite process-group leader PID and development directory when present, plus the existing API, GUI and worker readiness fields. It is the readiness check used by the CLI.
 
 ## Development frontend
 
-In `dev` mode the server selects a free loopback port, then starts `npm run dev -- --host 127.0.0.1 --port <free-port>` in the supplied GUI directory. The Vite process stays private on its own random loopback port; the Solomon server reverse-proxies it at the URL advertised in runtime state, including WebSocket traffic required by hot reload.
+In `dev` mode the server uses the configured Solomon port, then starts `npm run dev -- --host 127.0.0.1 --port <free-port>` in the supplied GUI directory. The Vite process stays private on its own random loopback port; the Solomon server reverse-proxies it at the stable URL advertised in runtime state, including WebSocket traffic required by hot reload. The Vite process-group leader PID is persisted so a later lifecycle command can reclaim the complete frontend tree after an interrupted or forced shutdown.
 
 The desktop development launcher reads the running server state, verifies its health endpoint, and passes its current local URL to Wails. Both a browser and the desktop WebView therefore consume the same GUI project, the same Vite process and the same daemon APIs even if the server port changes. When the server exits it terminates the complete Vite process group, avoiding an orphaned frontend process.
 
@@ -99,7 +99,7 @@ sessions; the client then starts a fresh session instead of retrying a dead id.
 
 | Path | Content |
 |---|---|
-| `~/.solomon/run/server/state.json` | Runtime state used by lifecycle commands and readiness checks. |
+| `~/.solomon/run/server/state.json` | Runtime state used by lifecycle commands and readiness checks, including the dev-mode Vite process-group leader PID. |
 | `~/.solomon/logs/server/server.log` | Detached server stdout and stderr. |
 
 ## Code map and tests
@@ -109,7 +109,7 @@ sessions; the client then starts a fresh session instead of retrying a dead id.
 - [`internal/server/chat_api.go`](../../internal/server/chat_api.go) owns daemon chat runs, SSE replay and persisted snapshots.
 - [`internal/server/project_api.go`](../../internal/server/project_api.go), [`customization_api.go`](../../internal/server/customization_api.go) and [`model_api.go`](../../internal/server/model_api.go) own the non-chat GUI surfaces.
 - [`internal/server/terminal.go`](../../internal/server/terminal.go) and [`terminal_api.go`](../../internal/server/terminal_api.go) own PTY sessions, output replay, resize and WebSocket attachment.
-- [`internal/server/process_windows.go`](../../internal/server/process_windows.go) / [`process_unix.go`](../../internal/server/process_unix.go) own child-process teardown and `ForceStopPID`.
+- [`internal/server/process_windows.go`](../../internal/server/process_windows.go) / [`process_unix.go`](../../internal/server/process_unix.go) own child-process teardown and server/Vite force-stop cleanup.
 - [`scripts/desktop_dev.go`](../../scripts/desktop_dev.go) reads the server state and starts Wails with its current local server URL.
 - [`test/server_runtime_test.go`](../../test/server_runtime_test.go) starts real local server processes with a fake Vite command to verify health, proxying, stop, and child cleanup.
 

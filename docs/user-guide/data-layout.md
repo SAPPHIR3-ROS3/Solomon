@@ -8,6 +8,7 @@ flowchart LR
 
   config["config.toml<br/><small>providers, model, user name,<br/>reasoning, language, logging,<br/>token caps, compaction,<br/>[tools] legacy XML</small>"]
   mcpConfig["mcp.json<br/><small>optional MCP servers</small>"]
+  cloakDir["cloakbrowser/<br/><small>official npm wrapper + browser cache</small>"]
   projectMap["projectsId.json<br/><small>canonical root -> 64-char id</small>"]
   logs["logs/<br/><small>file logs, 7-day retention</small>"]
   exported["exported/<br/><small>/export markdown by date</small>"]
@@ -44,6 +45,7 @@ flowchart LR
 
   home --> config
   home --> mcpConfig
+  home --> cloakDir
   home --> projectMap
   home --> logs
   home --> exported
@@ -75,7 +77,7 @@ flowchart LR
 
   classDef folder fill:#eef6ff,stroke:#5b8def,color:#102a43
   classDef file fill:#fff7e6,stroke:#d9822b,color:#3d2b1f
-  class home,logs,exported,globalSkillsDir,globalRules,promptTemplates,subagents,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
+  class home,logs,exported,cloakDir,globalSkillsDir,globalRules,promptTemplates,subagents,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
   class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,scheduledSubagent,activeSubagents,planFile,exportFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
 ```
 
@@ -85,7 +87,7 @@ Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds s
 
 ## Local server runtime
 
-The detached local server writes lifecycle state to `~/.solomon/run/server/state.json` and its stdout/stderr log to `~/.solomon/logs/server/server.log`. The state file contains process metadata and the server URLs advertised for loopback, local-network and Tailscale interfaces; it contains no configuration or user content and is removed after a graceful `solomon server stop`. See [Local server](../architecture/server.md).
+The detached local server writes lifecycle state to `~/.solomon/run/server/state.json` and its stdout/stderr log to `~/.solomon/logs/server/server.log`. The state file contains process metadata (including the dev-mode Vite process-group leader PID) and the server URLs advertised for loopback, local-network and Tailscale interfaces; it contains no configuration or user content and is removed after a graceful `solomon server stop`. See [Local server](../architecture/server.md).
 
 ## Subagent files
 

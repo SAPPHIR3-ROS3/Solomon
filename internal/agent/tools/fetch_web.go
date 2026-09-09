@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/webfetch"
 
@@ -19,7 +21,7 @@ func signatureFetchWeb(targetURL, intent string) {}
 const (
 	fetchWebDefaultTimeoutS  = webfetch.DefaultTimeoutS
 	fetchWebMaxTimeoutSecs   = webfetch.MaxTimeoutSecs
-	fetchMarkdownDescription = `Download a URL via HTTP GET and return the body as Markdown. HTML pages are converted to CommonMark-style Markdown (headings, links, lists, code). Other common text types (plain, JSON, XML) are returned as fenced code blocks. Maximum response body is 5MB. Only http(s) URLs. Optional timeoutSeconds (default 30, max 120).`
+	fetchMarkdownDescription = `Fetch a URL and return its content as Markdown. With web_search_engine = internal, use the host-managed Exa/Parallel MCP fetchers with the native CloakBrowser fallback; otherwise use the legacy HTTP fetcher. HTML pages are converted to CommonMark-style Markdown (headings, links, lists, code). Other common text types (plain, JSON, XML) are returned as fenced code blocks. Maximum legacy response body is 5MB. Only http(s) URLs. Optional timeoutSeconds (default 30, max 120).`
 )
 
 type fetchWebArgs struct {
@@ -75,14 +77,37 @@ func execFetchWeb(ctx context.Context, env *Env, raw json.RawMessage) (any, erro
 	if env != nil {
 		cfg = env.Cfg
 	}
-	res, err := webfetch.FetchURL(ctx, a.URL, sec, cfg)
+	intent, _ := tooling.ToolIntent(raw)
+	reqCtx, cancel := context.WithTimeout(ctx, time.Duration(sec)*time.Second)
+	defer cancel()
+	var res webfetch.Result
+	internalEngine := cfg == nil || strings.EqualFold(cfg.EffectiveWebSearchEngine(), search.InternalEngineName)
+	if env != nil && env.WebFetch != nil && internalEngine {
+		res, err = env.WebFetch.Fetch(reqCtx, webfetch.Request{
+			URL:            a.URL,
+			TimeoutSeconds: sec,
+			Intent:         intent,
+		})
+	} else {
+		if cfg != nil && strings.EqualFold(cfg.EffectiveWebSearchEngine(), search.InternalEngineName) {
+			return nil, fmt.Errorf("fetchWeb: internal web-fetch router unavailable")
+		}
+		res, err = webfetch.FetchURL(reqCtx, a.URL, sec, cfg)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("fetchWeb: %w", err)
 	}
-	return map[string]any{
+	out := map[string]any{
 		"url":         res.URL,
 		"status":      res.Status,
 		"contentType": res.ContentType,
 		"markdown":    res.Markdown,
-	}, nil
+	}
+	if res.Title != "" {
+		out["title"] = res.Title
+	}
+	if res.Metadata != nil {
+		out["metadata"] = res.Metadata
+	}
+	return out, nil
 }

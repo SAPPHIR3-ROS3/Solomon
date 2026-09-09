@@ -29,6 +29,8 @@ func (r *Runtime) startResearchJob(ctx context.Context, query, category string) 
 		Model:        r.Model,
 		Cfg:          r.Cfg,
 		Backend:      r.Backend,
+		Search:       r.WebSearch,
+		Fetch:        r.WebFetch,
 		OnProgress: func(rec research.JobRecord, ev research.ProgressEvent) {
 			if r.machineMode() {
 				return
@@ -79,6 +81,8 @@ func (r *Runtime) ResumeResearch(target string) (research.JobRecord, error) {
 		Model:      r.Model,
 		Cfg:        r.Cfg,
 		Backend:    r.Backend,
+		Search:     r.WebSearch,
+		Fetch:      r.WebFetch,
 		OnProgress: func(rec research.JobRecord, ev research.ProgressEvent) {
 			if r.machineMode() {
 				return

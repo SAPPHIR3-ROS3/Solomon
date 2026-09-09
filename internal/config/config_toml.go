@@ -57,6 +57,8 @@ type rootLegacyFile struct {
 
 	CompactionThresholdTokens int64 `toml:"compaction_threshold_tokens"`
 
+	ServerPort int `toml:"server_port,omitempty"`
+
 	SkillSearchMinNorm *float64 `toml:"skill_search_min_normalized_score,omitempty"`
 
 	DocSearchMinNorm *float64 `toml:"doc_search_min_normalized_score,omitempty"`
@@ -122,6 +124,8 @@ type rootFile struct {
 	ResponseLanguage string `toml:"response_language"`
 
 	CompactionThresholdTokens int64 `toml:"compaction_threshold_tokens"`
+
+	ServerPort int `toml:"server_port,omitempty"`
 
 	SkillSearchMinNorm *float64 `toml:"skill_search_min_normalized_score,omitempty"`
 
@@ -214,6 +218,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		CompactionThresholdTokens: f.CompactionThresholdTokens,
 
+		ServerPort: f.ServerPort,
+
 		SkillSearchMinNorm: f.SkillSearchMinNorm,
 
 		DocSearchMinNorm: f.DocSearchMinNorm,
@@ -296,6 +302,13 @@ func rootToFile(r *Root) *rootFile {
 		ResponseLanguage: r.ResponseLanguage,
 
 		CompactionThresholdTokens: r.CompactionThresholdTokens,
+
+		ServerPort: func() int {
+			if r.ServerPort == 0 {
+				return DefaultServerPort
+			}
+			return r.ServerPort
+		}(),
 
 		SkillSearchMinNorm: r.SkillSearchMinNorm,
 
@@ -418,6 +431,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 
 		CompactionThresholdTokens: f.CompactionThresholdTokens,
 
+		ServerPort: f.ServerPort,
+
 		SkillSearchMinNorm: f.SkillSearchMinNorm,
 
 		DocSearchMinNorm: f.DocSearchMinNorm,
@@ -504,6 +519,9 @@ func normalizeRoot(r *Root) {
 func validateRoot(ctx context.Context, r *Root) error {
 	if r == nil {
 		return nil
+	}
+	if err := ValidateServerPort(r.ServerPort); err != nil {
+		return err
 	}
 	return ValidateRoles(ctx, r)
 }

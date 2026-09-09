@@ -74,6 +74,10 @@ func main() {
 		// against the directory supplied by the daemon.
 		os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
 	}
+	if cliHelpRequested(os.Args) {
+		writeCLIHelp(os.Stdout)
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "version" {
 		commands.WriteVersion(os.Stdout)
 		return

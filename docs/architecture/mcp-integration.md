@@ -47,6 +47,20 @@ Example:
         "redirectUrl": "http://127.0.0.1:8787/oauth/callback",
         "requestRefreshToken": true
       }
+    },
+    "exa-web": {
+      "type": "streamable-http",
+      "url": "https://mcp.exa.ai/mcp",
+      "internal": true,
+      "adapter": "exa",
+      "allow": ["web_search_exa", "web_fetch_exa"]
+    },
+    "parallel-web": {
+      "type": "streamable-http",
+      "url": "https://search.parallel.ai/mcp",
+      "internal": true,
+      "adapter": "parallel",
+      "allow": ["web_search", "web_fetch"]
     }
   }
 }
@@ -61,6 +75,9 @@ Rules:
 - `timeout` in milliseconds.
 - Catalogued for Code Mode as `MCP.<server>.<tool>` (sanitized and made unique when necessary); the model invokes the entry through `sdk.mcp.<tool>(intent, args)`.
 - `allow` / `deny` filter tools by their original MCP name; resources and prompts are catalogued independently.
+- `internal: true` marks a server as host-managed. Its tools are hidden from the model-facing catalog and can only be invoked by a native adapter through the MCP manager. `adapter` selects Solomon's host adapter; the configured MCP adapters are `exa` and `parallel`.
+- The `exa` and `parallel` entries above use public no-key MCP endpoints. CloakBrowser is not an MCP server: the standard installer places the official `cloakbrowser` npm package and `playwright-core` under `~/.solomon/cloakbrowser`, downloads the public browser with `npx --no-install cloakbrowser install`, and Solomon uses a small local Node/Playwright shim controlled by its Go adapter. No provider key is embedded or persisted by Solomon.
+- A legacy `internal` server with `adapter: "cloak"` is ignored, so an old community bridge cannot be started accidentally after upgrading. The native Cloak fallback creates and closes an isolated browser tab per request.
 - OAuth client registration is configured in `mcp.json`, while interactive authorization and token persistence are supplied by `ManagerOptions` or a custom `OAuthHandler`. No credential is embedded in Solomon's build.
 - With an HTTP server that supports MCP `2026-07-28`, the SDK uses `server/discover` and `subscriptions/listen`; older servers fall back to legacy initialization and resource subscription calls.
 - A connected session is treated as ephemeral. Its server configuration, roots, catalog policy and desired subscriptions are retained by Solomon, so a lost session can be negotiated again without changing the deferred tool names exposed to Code Mode.
@@ -77,12 +94,26 @@ User-oriented summary: [Configuration](../user-guide/configuration.md).
 | `Manager.Tools` / `Catalog` | Expose complete descriptors and searchable deferred-tool projections |
 | `Manager.OpenAITools` | Compatibility projection for callers that still need an OpenAI schema; not exposed by the agent runtime |
 | `Manager.CallTool` | Invoke a connected tool from the deferred `orchestrate` dispatcher; SDK automatically fulfills July multi-round-trip requests when host handlers are configured |
+| `Manager.CallInternalTool` | Invoke an internal adapter tool by server/tool name while retaining the manager's session recovery, retry policy and logging; never exposes the call to the model catalog |
 | `Manager.ListResources` / `ReadResource` | Enumerate and read host-managed resources and templates |
 | `Manager.ListPrompts` / `GetPrompt` / `Complete` | Enumerate, render and complete prompt arguments |
 | `Manager.Subscribe` / `Unsubscribe` | Use July `subscriptions/listen` or legacy resource subscriptions |
 | `Manager.Ping` / `SetLoggingLevel` | Use legacy compatibility RPCs; July removes both in favor of the modern session model |
 | `Manager.AddRoots` / `RemoveRoots` | Update the roots available to connected servers |
 | `Manager.Close` | Shutdown sessions on REPL exit |
+
+## Native CloakBrowser fallback
+
+CloakBrowser is a special local backend, not a generic MCP server. Go owns the
+adapter, tab lifecycle, DOM parsing, link normalization, result shaping and
+Markdown conversion. The only Node code is the unavoidable Playwright binding
+that loads the official `cloakbrowser` package and exposes a private
+JSON-lines process boundary.
+
+The public install path requires Node.js 20+, `cloakbrowser`, and
+`playwright-core`; the installer downloads the official browser into the
+Solomon-managed cache. Runtime auto-update is disabled so the installed binary
+does not change behind Solomon's back.
 
 ## Startup flow
 

@@ -61,12 +61,15 @@ Exact usage strings: [`cmd/solomon/main.go`](../../cmd/solomon/main.go).
 
 The server is a manually managed background process for the web GUI and its
 project, chat, customization, model and terminal APIs. It is bound to the user,
-not the current project directory. Set/export `SOLOMON_SERVER_PORT` to keep a
-stable port; `solomon server start` also loads a `.env` from the current
-directory (or the development GUI's parents), while explicit environment
-variables keep precedence. When it is unset, the server selects a free port. It
-listens on all IPv4 interfaces. `solomon server start` and `solomon server
-status` show the loopback URL and the available local-network and Tailscale URLs. In `dev` mode, `solomon server status` also prints the GUI source directory used for Vite/HMR.
+not the current project directory. `server_port` in `~/.solomon/config.toml`
+keeps a stable port; `SOLOMON_SERVER_PORT` overrides it and is persisted back to
+the config. `solomon server start` and `solomon server run` load a `.env` from
+the current directory (or the development GUI's parents), while explicit
+environment variables keep precedence. If neither is configured, Solomon uses
+port `64000`; it never selects a free server port. It listens on all IPv4
+interfaces. `solomon server start` and `solomon server status` show the loopback
+URL and the available local-network and Tailscale URLs. In `dev` mode,
+`solomon server status` also prints the GUI source directory used for Vite/HMR.
 
 ```bash
 solomon server start
@@ -91,7 +94,7 @@ make desktop-dev
 
 The launcher reads the current server state and passes its advertised local URL to Wails, so it does not assume a fixed port.
 
-The development directory must contain `package.json` and `src/`. `solomon server restart` retains the current mode and development directory. Logs live at `~/.solomon/logs/server/server.log`; runtime state is `~/.solomon/run/server/state.json`. If `stop` finds a dead or unreachable process with leftover state, it force-stops the recorded PID when needed and clears `state.json`. Full behavior: [Local server architecture](../architecture/server.md).
+The development directory must contain `package.json` and `src/`. `solomon server restart` retains the current mode and development directory. Logs live at `~/.solomon/logs/server/server.log`; runtime state is `~/.solomon/run/server/state.json`. If `stop` finds a dead or unreachable process with leftover state, it force-stops the recorded server and Vite process trees when needed and clears `state.json`. Full behavior: [Local server architecture](../architecture/server.md).
 
 Skill installation commands are intentionally restricted: Solomon accepts only install commands that resolve to the `skills` package and its `add` subcommand (`npx ... skills add ...` or `npm exec ... skills add ...`). Shell chaining, redirects, unrelated packages, and unsupported flags are rejected.
 

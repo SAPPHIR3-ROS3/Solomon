@@ -29,6 +29,8 @@ type Config struct {
 type ServerConfig struct {
 	Name      string            `json:"-"`
 	Type      string            `json:"type"`
+	Internal  bool              `json:"internal"`
+	Adapter   string            `json:"adapter"`
 	Command   string            `json:"command"`
 	Args      []string          `json:"args"`
 	Env       map[string]string `json:"env"`
@@ -180,6 +182,10 @@ func parseServer(name string, index int, raw json.RawMessage) (ServerConfig, err
 
 func validateServer(sc ServerConfig) (ServerConfig, error) {
 	sc.Type = strings.TrimSpace(sc.Type)
+	sc.Adapter = strings.ToLower(strings.TrimSpace(sc.Adapter))
+	if sc.Adapter != "" && !sc.Internal {
+		return ServerConfig{}, fmt.Errorf("adapter-backed MCP servers must set internal to true")
+	}
 	if sc.Type == "" {
 		if strings.TrimSpace(sc.URL) != "" {
 			sc.Type = TransportStreamableHTTP

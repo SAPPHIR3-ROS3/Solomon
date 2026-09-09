@@ -13,12 +13,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	servercli "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
@@ -203,6 +205,9 @@ func TestServerRuntime_devProxiesFrontendAndStopsChild(t *testing.T) {
 	if health.Server.DevDir != frontend {
 		t.Fatalf("development directory = %q, want %q", health.Server.DevDir, frontend)
 	}
+	if health.Server.VitePID <= 0 || health.Server.VitePID != server.VitePID {
+		t.Fatalf("dev server did not persist the Vite process-group leader PID: state=%d health=%d", server.VitePID, health.Server.VitePID)
+	}
 
 	response, err := http.Get(server.URL + "/")
 	if err != nil {
@@ -224,13 +229,34 @@ func TestServerRuntime_devProxiesFrontendAndStopsChild(t *testing.T) {
 	}
 }
 
-func TestServerRuntime_devUsesRandomServerPort(t *testing.T) {
+func TestServerRuntime_devUsesConfiguredServerPort(t *testing.T) {
 	frontend := prepareDevServerTest(t)
-	server, stop := startServerWithRuntimeDefaultAddressForTest(t, serverruntime.Options{Mode: "dev", DevDir: frontend})
+	port := freeServerPortForTest(t)
+	t.Setenv("SOLOMON_SERVER_PORT", strconv.Itoa(port))
+	server, stop := startServerAtAddressForTest(t, serverruntime.Options{Mode: "dev", DevDir: frontend}, "")
 	defer stop()
 
-	if server.URL == "http://127.0.0.1:8765" {
-		t.Fatalf("dev server URL = %q, want a random loopback port", server.URL)
+	want := "http://127.0.0.1:" + strconv.Itoa(port)
+	if server.URL != want {
+		t.Fatalf("dev server URL = %q, want configured port %d", server.URL, port)
+	}
+}
+
+func TestServerRuntime_persistsEnvironmentServerPort(t *testing.T) {
+	port := freeServerPortForTest(t)
+	t.Setenv("SOLOMON_SERVER_PORT", strconv.Itoa(port))
+	server, stop := startServerAtAddressForTest(t, serverruntime.Options{}, "")
+	defer stop()
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ServerPort != port {
+		t.Fatalf("persisted server port = %d, want %d", cfg.ServerPort, port)
+	}
+	if server.URL != "http://127.0.0.1:"+strconv.Itoa(port) {
+		t.Fatalf("server URL = %q, want configured port %d", server.URL, port)
 	}
 }
 
@@ -258,8 +284,21 @@ func startServerForTest(t *testing.T, options serverruntime.Options) (serverrunt
 }
 
 func startServerWithRuntimeDefaultAddressForTest(t *testing.T, options serverruntime.Options) (serverruntime.State, func()) {
-	t.Setenv("SOLOMON_SERVER_PORT", "")
+	t.Setenv("SOLOMON_SERVER_PORT", strconv.Itoa(freeServerPortForTest(t)))
 	return startServerAtAddressForTest(t, options, "")
+}
+
+func freeServerPortForTest(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return port
 }
 
 func startServerAtAddressForTest(t *testing.T, options serverruntime.Options, listenAddr string) (serverruntime.State, func()) {

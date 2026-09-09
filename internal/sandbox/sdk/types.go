@@ -19,6 +19,24 @@ type FetchWebResult struct {
 	Status      int
 	ContentType string
 	Markdown    string
+	Title       string
+	Metadata    *FetchWebMetadata
+}
+
+type FetchWebMetadata struct {
+	Provider     string            `json:"provider,omitempty"`
+	Adapter      string            `json:"adapter,omitempty"`
+	Fallback     bool              `json:"fallback,omitempty"`
+	Partial      bool              `json:"partial,omitempty"`
+	Attempts     []FetchWebAttempt `json:"attempts,omitempty"`
+	ProviderData map[string]any    `json:"providerData,omitempty"`
+}
+
+type FetchWebAttempt struct {
+	Backend    string `json:"backend"`
+	Success    bool   `json:"success"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"durationMs,omitempty"`
 }
 
 type GrepLine struct {
@@ -44,16 +62,41 @@ type FindResult struct {
 }
 
 type WebHit struct {
-	Title   string `json:"title"`
-	URL     string `json:"url"`
-	Snippet string `json:"snippet,omitempty"`
+	Title       string         `json:"title"`
+	URL         string         `json:"url"`
+	Snippet     string         `json:"snippet,omitempty"`
+	Content     string         `json:"content,omitempty"`
+	Author      string         `json:"author,omitempty"`
+	PublishedAt string         `json:"publishedAt,omitempty"`
+	Score       *float64       `json:"score,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 type WebSearchResult struct {
-	Engine       string   `json:"engine"`
-	Hits         []WebHit `json:"hits"`
-	HasMore      bool     `json:"hasMore,omitempty"`
-	SearxBaseURL string   `json:"searxBaseURL,omitempty"`
+	Engine       string             `json:"engine"`
+	Hits         []WebHit           `json:"hits"`
+	HasMore      bool               `json:"hasMore,omitempty"`
+	SearxBaseURL string             `json:"searxBaseURL,omitempty"`
+	Metadata     *WebSearchMetadata `json:"metadata,omitempty"`
+}
+
+type WebSearchMetadata struct {
+	Provider          string             `json:"provider,omitempty"`
+	Adapter           string             `json:"adapter,omitempty"`
+	SessionID         string             `json:"sessionId,omitempty"`
+	ProviderRequestID string             `json:"providerRequestId,omitempty"`
+	Warnings          []string           `json:"warnings,omitempty"`
+	Fallback          bool               `json:"fallback,omitempty"`
+	Partial           bool               `json:"partial,omitempty"`
+	Attempts          []WebSearchAttempt `json:"attempts,omitempty"`
+	ProviderData      map[string]any     `json:"providerData,omitempty"`
+}
+
+type WebSearchAttempt struct {
+	Backend    string `json:"backend"`
+	Success    bool   `json:"success"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"durationMs,omitempty"`
 }
 
 type DocsSnippet struct {

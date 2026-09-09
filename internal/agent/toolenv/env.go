@@ -7,6 +7,8 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/webfetch"
 )
 
 type SubagentRequest struct {
@@ -33,6 +35,8 @@ type Env struct {
 	ProjRoot                             string
 	Cfg                                  *config.Root
 	MCP                                  *solomonmcp.Manager
+	WebSearch                            search.Engine
+	WebFetch                             webfetch.Fetcher
 	RunNested                            func(ctx context.Context, body string) (string, error)
 	RunNestedWithSystem                  func(ctx context.Context, sys, task string) (string, error)
 	RunSubagent                          func(ctx context.Context, req SubagentRequest) (SubagentResponse, error)

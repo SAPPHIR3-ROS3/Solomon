@@ -126,6 +126,7 @@ func start(mode, devDir string) error {
 		if healthy(state) {
 			return fmt.Errorf("server already running at %s", state.URL)
 		}
+		serverruntime.ForceStop(state)
 		_ = serverruntime.ClearState()
 	}
 	logPath, err := serverruntime.LogPath()
@@ -171,6 +172,10 @@ func start(mode, devDir string) error {
 }
 
 func runProcess(mode, devDir string) {
+	if err := loadDotEnv(devDir); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
 	// The server subcommand returns before main's normal logging setup. The
 	// runtime (notably the background MCP connector) logs from goroutines, so
 	// initialize logging before starting the HTTP service.
@@ -228,6 +233,7 @@ func stop() error {
 	}
 	response, err := (&http.Client{Timeout: 2 * time.Second}).Do(request)
 	if err != nil {
+		serverruntime.ForceStop(state)
 		_ = serverruntime.ClearState()
 		return fmt.Errorf("server was not reachable; cleared stale state")
 	}
@@ -241,17 +247,19 @@ func stop() error {
 			return nil
 		}
 		if !healthy(state) {
+			serverruntime.ForceStop(state)
 			_ = serverruntime.ClearState()
 			fmt.Println("server stopped")
 			return nil
 		}
 	}
 	if !healthy(state) {
+		serverruntime.ForceStop(state)
 		_ = serverruntime.ClearState()
 		fmt.Println("server stopped")
 		return nil
 	}
-	serverruntime.ForceStopPID(state.PID)
+	serverruntime.ForceStop(state)
 	_ = serverruntime.ClearState()
 	fmt.Println("server stopped")
 	return nil

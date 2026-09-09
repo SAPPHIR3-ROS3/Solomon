@@ -209,10 +209,42 @@ func editErr(r EditResult) error {
 }
 
 func parseFetchWebResult(m map[string]any) FetchWebResult {
-	return FetchWebResult{
+	result := FetchWebResult{
 		URL:         strField(m, "url"),
 		Status:      intField(m, "status"),
 		ContentType: strField(m, "contentType"),
 		Markdown:    strField(m, "markdown"),
+		Title:       strField(m, "title"),
 	}
+	if raw, ok := m["metadata"].(map[string]any); ok {
+		metadata := &FetchWebMetadata{
+			Provider:     strField(raw, "provider"),
+			Adapter:      strField(raw, "adapter"),
+			Fallback:     boolField(raw, "fallback"),
+			Partial:      boolField(raw, "partial"),
+			ProviderData: mapField(raw, "providerData"),
+		}
+		if attempts, ok := raw["attempts"].([]any); ok {
+			for _, item := range attempts {
+				if attempt, ok := item.(map[string]any); ok {
+					metadata.Attempts = append(metadata.Attempts, FetchWebAttempt{
+						Backend:    strField(attempt, "backend"),
+						Success:    boolField(attempt, "success"),
+						Error:      strField(attempt, "error"),
+						DurationMs: int64(intField(attempt, "durationMs")),
+					})
+				}
+			}
+		}
+		result.Metadata = metadata
+	}
+	return result
+}
+
+func mapField(m map[string]any, key string) map[string]any {
+	if m == nil {
+		return nil
+	}
+	value, _ := m[key].(map[string]any)
+	return value
 }
