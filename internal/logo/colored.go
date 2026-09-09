@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	logoSaturateMul      = 1.38
-	logoContrastMul      = 1.14
-	logoYellowHueLo      = 0.065
-	logoYellowHueHi      = 0.23
-	logoYellowMinSat     = 0.05
-	logoYellowSatExtra   = 1.48
-	logoYellowBrighten   = 0.11
+	logoSaturateMul    = 1.38
+	logoContrastMul    = 1.14
+	logoYellowHueLo    = 0.065
+	logoYellowHueHi    = 0.23
+	logoYellowMinSat   = 0.05
+	logoYellowSatExtra = 1.48
+	logoYellowBrighten = 0.11
 )
 
 //go:embed colors.txt
@@ -35,7 +35,10 @@ func WelcomeLogoLines() []LogoLine {
 
 	out := make([]LogoLine, len(txtParts))
 	for i, txtLine := range txtParts {
-		runes := []rune(txtLine)
+		plainTrimmed := strings.TrimRightFunc(txtLine, func(r rune) bool {
+			return r == '\u2800' || r == ' '
+		})
+		runes := []rune(plainTrimmed)
 		hexes := parseColorRow(colorParts[i])
 
 		var ab strings.Builder
@@ -47,43 +50,9 @@ func WelcomeLogoLines() []LogoLine {
 			ab.WriteRune(r)
 		}
 
-		ansiRaw := ab.String() + termcolor.ResetSeq()
-		plainTrimmed := strings.TrimRightFunc(txtLine, func(r rune) bool {
-			return r == '\u2800' || r == ' '
-		})
-
-		ansiBody := strings.TrimSuffix(ansiRaw, termcolor.ResetSeq())
-		ansiTrimmed := trimANSIRight(ansiBody) + termcolor.ResetSeq()
-
-		out[i] = LogoLine{Plain: plainTrimmed, ANSI: ansiTrimmed}
+		out[i] = LogoLine{Plain: plainTrimmed, ANSI: ab.String() + termcolor.ResetSeq()}
 	}
 	return out
-}
-
-func trimANSIRight(s string) string {
-	runes := []rune(s)
-	end := len(runes)
-
-	for end > 0 {
-		pos := end - 1
-
-	
-		r := runes[pos]
-		if r == '\u2800' || r == ' ' {
-			end--
-			for end > 0 && runes[end-1] != '\x1b' {
-				end--
-			}
-			if end > 0 && runes[end-1] == '\x1b' {
-				end--
-			}
-			continue
-		}
-
-		break
-	}
-
-	return string(runes[:end])
 }
 
 func parseColorRow(line string) []string {
