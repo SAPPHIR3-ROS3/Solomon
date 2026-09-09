@@ -5,13 +5,24 @@ How to install Solomon and ensure `solomon` is on your shell `PATH`.
 ## Requirements
 
 - [Go](https://go.dev/) **1.25.0+** ([`go.mod`](../../go.mod))
+- Node.js **20+** and npm for the native CloakBrowser fallback (the standard installer ensures them)
 - Network access for `go install` or the install script
 
-The standard installer does **not** require Node.js. Node/npm are only needed for the optional Cursor integration.
+The standard installer also installs the official CloakBrowser npm wrapper and
+its public browser build under `~/.solomon/cloakbrowser` (roughly a few hundred
+megabytes). No API key is required. A manual `go install` only installs
+Solomon; run the following separately if you want the `internal` web backend:
+
+```bash
+mkdir -p "$HOME/.solomon/cloakbrowser"
+cd "$HOME/.solomon/cloakbrowser"
+npm install --ignore-scripts --no-audit --no-fund cloakbrowser playwright-core
+CLOAKBROWSER_CACHE_DIR="$PWD/cache" npx --no-install cloakbrowser install
+```
 
 ## Install script (recommended)
 
-Installs Go **1.25.0+** if needed, ensures `make` is available, configures your shell `PATH`, and runs `go install`.
+Installs Go **1.25.0+** and Node.js **20+** if needed, ensures `make` is available, configures your shell `PATH`, installs Solomon, and provisions the official CloakBrowser fallback.
 
 **macOS / Linux:**
 

@@ -9,6 +9,8 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	researchhtml "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research/html"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/webfetch"
 )
 
 type pageCandidate struct {
@@ -22,6 +24,8 @@ type EngineConfig struct {
 	Question    string
 	Category    string
 	LLM         LLMCaller
+	Search      search.Engine
+	Fetch       webfetch.Fetcher
 	Resume      *EngineResumeState
 	OnProgress  ProgressFn
 	IsCancelled CancelFn
@@ -29,34 +33,34 @@ type EngineConfig struct {
 }
 
 type Engine struct {
-	cfg            EngineConfig
-	maxRounds      int
-	minRounds      int
+	cfg             EngineConfig
+	maxRounds       int
+	minRounds       int
 	maxURLsPerRound int
 	maxContentChars int
-	maxTime        time.Duration
-	maxEmptyRounds int
+	maxTime         time.Duration
+	maxEmptyRounds  int
 	synthesisWindow int
 
-	queriesUsed map[string]struct{}
-	urlsFetched map[string]struct{}
-	findings    []Finding
-	plan        string
-	report      string
-	category    string
-	roundCount  int
-	startTime   time.Time
-	searchEngine  string
-	lastSearchErr string
-	lastLLMErr    string
-	urlAttempts   []URLAttempt
-	urlReadOK     int
-	urlFetchFailed int
+	queriesUsed     map[string]struct{}
+	urlsFetched     map[string]struct{}
+	findings        []Finding
+	plan            string
+	report          string
+	category        string
+	roundCount      int
+	startTime       time.Time
+	searchEngine    string
+	lastSearchErr   string
+	lastLLMErr      string
+	urlAttempts     []URLAttempt
+	urlReadOK       int
+	urlFetchFailed  int
 	urlEmptyContent int
-	urlLLMFailed  int
-	urlLowQuality int
-	urlParseFailed int
-	searchFailures int
+	urlLLMFailed    int
+	urlLowQuality   int
+	urlParseFailed  int
+	searchFailures  int
 }
 
 func (e *Engine) restoreURLStats(st JobStats) {
@@ -304,7 +308,7 @@ func (e *Engine) searchAndExtract(ctx context.Context, question string, queries 
 		if e.cancelled() || e.timeExceeded() {
 			break
 		}
-		resp, err := runSearch(ctx, e.cfg.Cfg, engine, query, 10)
+		resp, err := runSearch(ctx, e.cfg.Cfg, engine, query, 10, e.cfg.Search)
 		if err != nil {
 			e.lastSearchErr = err.Error()
 			e.recordSearchFailure(query, err)
@@ -355,7 +359,7 @@ func (e *Engine) searchAndExtract(ctx context.Context, question string, queries 
 }
 
 func (e *Engine) fetchAndExtract(ctx context.Context, question, pageURL, title string) (Finding, bool) {
-	page, err := fetchPage(ctx, e.cfg.Cfg, pageURL)
+	page, err := fetchPage(ctx, e.cfg.Cfg, pageURL, e.cfg.Fetch)
 	if err != nil {
 		e.recordURLAttempt(pageURL, URLAttemptFetchFailed, err.Error())
 		return Finding{}, false

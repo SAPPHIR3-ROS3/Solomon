@@ -20,11 +20,12 @@ const (
 	webSearchDefaultTimeoutS = 30
 	webSearchMaxTimeoutSecs  = 120
 	webSearchMaxResultsCap   = 50
-	webSearchDescription     = `Runs a web search. Default engine is duckduckgo (HTML metasearch, no API key). searxng requires web_search_base_url or extras.baseURL to your instance. Other engines: googlepse, brave, bing. maxResults default 10 (cap 50); googlepse max 10. searxng responses may include searxBaseURL.`
+	webSearchDescription     = `Runs a web search. Set engine to internal to use the host-managed Exa/Parallel MCP router with the native CloakBrowser fallback; internal MCP servers are configured in mcp.json and require no embedded API key. Legacy direct engines remain available during migration: duckduckgo, searxng, googlepse, brave, bing. maxResults default 10 (cap 50).`
 )
 
 type webSearchArgs struct {
 	Query          string         `json:"query"`
+	Intent         string         `json:"intent"`
 	Engine         string         `json:"engine,omitempty"`
 	MaxResults     *int           `json:"maxResults,omitempty"`
 	Extras         map[string]any `json:"extras,omitempty"`
@@ -67,7 +68,7 @@ func webSearchOpenAI() openai.ChatCompletionToolUnionParam {
 		},
 		"engine": map[string]any{
 			"type":        "string",
-			"description": `Overrides effective engine if set (default from config or duckduckgo).`,
+			"description": `Overrides effective engine if set (default from config or duckduckgo during migration; use internal for the MCP router).`,
 		},
 		"maxResults": map[string]any{
 			"type":        "integer",
@@ -77,7 +78,7 @@ func webSearchOpenAI() openai.ChatCompletionToolUnionParam {
 		},
 		"extras": map[string]any{
 			"type":                 "object",
-			"description":          `Optional per-call overrides: baseURL for searxng; apiKey/cx for googlepse; apiKey for brave/bing; endpoint for bing.`,
+			"description":          `Optional per-call overrides: provider-specific fields for legacy engines; searchQueries/sessionID/modelName for Parallel; searchURL for the Cloak fallback.`,
 			"additionalProperties": true,
 		},
 		"timeoutSeconds": map[string]any{
@@ -140,11 +141,19 @@ func execWebSearch(ctx context.Context, env *Env, raw json.RawMessage) (any, err
 	}
 	extras := MergeWebSearchExtras(cfg, engine, a.Extras)
 
-	out, err := search.Run(reqCtx, engine, search.Request{
+	request := search.Request{
 		Query:      a.Query,
 		MaxResults: max,
+		Intent:     a.Intent,
 		Extras:     extras,
-	})
+	}
+	var out search.Response
+	var err error
+	if strings.EqualFold(engine, search.InternalEngineName) && env != nil && env.WebSearch != nil {
+		out, err = search.RunEngine(reqCtx, engine, env.WebSearch, request)
+	} else {
+		out, err = search.Run(reqCtx, engine, request)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("webSearch: %w", err)
 	}
@@ -152,6 +161,9 @@ func execWebSearch(ctx context.Context, env *Env, raw json.RawMessage) (any, err
 		"engine":  out.Engine,
 		"hits":    out.Hits,
 		"hasMore": out.HasMore,
+	}
+	if out.Metadata != nil {
+		m["metadata"] = out.Metadata
 	}
 	if out.SearxBaseURL != "" {
 		m["searxBaseURL"] = out.SearxBaseURL

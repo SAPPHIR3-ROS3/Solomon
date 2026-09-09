@@ -37,7 +37,7 @@ func mergeSearchExtras(cfg *config.Root, engineKey string) map[string]any {
 	return out
 }
 
-func runSearch(ctx context.Context, cfg *config.Root, engine, query string, maxResults int) (search.Response, error) {
+func runSearch(ctx context.Context, cfg *config.Root, engine, query string, maxResults int, internalEngine search.Engine) (search.Response, error) {
 	if strings.TrimSpace(query) == "" {
 		return search.Response{}, fmt.Errorf("empty query")
 	}
@@ -46,19 +46,41 @@ func runSearch(ctx context.Context, cfg *config.Root, engine, query string, maxR
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	resp, err := search.Run(reqCtx, engine, search.Request{
+	request := search.Request{
 		Query:      query,
 		MaxResults: maxResults,
+		Intent:     "deep research search: " + query,
 		Extras:     mergeSearchExtras(cfg, engine),
-	})
+	}
+	var resp search.Response
+	var err error
+	if internalEngine != nil && strings.EqualFold(engine, search.InternalEngineName) {
+		resp, err = search.RunEngine(reqCtx, engine, internalEngine, request)
+	} else {
+		resp, err = search.Run(reqCtx, engine, request)
+	}
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "research web search failed", logging.LogOptions{Params: map[string]any{"engine": engine, "query": query, "err": err.Error()}})
 	}
 	return resp, err
 }
 
-func fetchPage(ctx context.Context, cfg *config.Root, pageURL string) (webfetch.Result, error) {
-	res, err := webfetch.FetchURL(ctx, pageURL, webfetch.DefaultTimeoutS, cfg)
+func fetchPage(ctx context.Context, cfg *config.Root, pageURL string, internalFetcher webfetch.Fetcher) (webfetch.Result, error) {
+	var res webfetch.Result
+	var err error
+	if cfg != nil && strings.EqualFold(cfg.EffectiveWebSearchEngine(), search.InternalEngineName) {
+		if internalFetcher == nil {
+			err = fmt.Errorf("internal web-fetch router unavailable")
+		} else {
+			res, err = internalFetcher.Fetch(ctx, webfetch.Request{
+				URL:            pageURL,
+				TimeoutSeconds: webfetch.DefaultTimeoutS,
+				Intent:         "deep research page extraction: " + pageURL,
+			})
+		}
+	} else {
+		res, err = webfetch.FetchURL(ctx, pageURL, webfetch.DefaultTimeoutS, cfg)
+	}
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "research page fetch failed", logging.LogOptions{Params: map[string]any{"url": pageURL, "err": err.Error()}})
 	}

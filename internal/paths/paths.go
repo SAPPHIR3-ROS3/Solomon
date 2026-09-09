@@ -40,6 +40,30 @@ func MCPConfigPath() (string, error) {
 	return filepath.Join(root, "mcp.json"), nil
 }
 
+func WebSearchBalancePath() (string, error) {
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "websearch-usage.json"), nil
+}
+
+func CloakBrowserDir() (string, error) {
+	root, err := SolomonHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "cloakbrowser"), nil
+}
+
+func CloakBrowserCacheDir() (string, error) {
+	root, err := CloakBrowserDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "cache"), nil
+}
+
 func ProjectsMapPath() (string, error) {
 	root, err := SolomonHome()
 	if err != nil {

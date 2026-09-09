@@ -16,7 +16,9 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/webfetch"
 )
 
 type StartRequest struct {
@@ -27,6 +29,8 @@ type StartRequest struct {
 	Model        string
 	Cfg          *config.Root
 	Backend      llm.CompletionBackend
+	Search       search.Engine
+	Fetch        webfetch.Fetcher
 	OnProgress   func(JobRecord, ProgressEvent)
 	OnDone       func(JobRecord)
 }
@@ -147,6 +151,8 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 		Category: rec.Category,
 		Resume:   resume,
 		LLM:      NewBackendLLM(ctx, req.Backend, req.Cfg, req.Model, &usage),
+		Search:   req.Search,
+		Fetch:    req.Fetch,
 		IsCancelled: func() bool {
 			select {
 			case <-ctx.Done():

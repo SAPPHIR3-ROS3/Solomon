@@ -246,11 +246,17 @@ func TestWeb(d Deps) error {
 
 	engine := strings.TrimSpace(d.Cfg.EffectiveWebSearchEngine())
 	extras := tools.MergeWebSearchExtras(d.Cfg, engine, nil)
-	_, err := search.Run(pctx, engine, search.Request{
+	request := search.Request{
 		Query:      "test",
 		MaxResults: 1,
 		Extras:     extras,
-	})
+	}
+	var err error
+	if strings.EqualFold(engine, search.InternalEngineName) && d.WebSearch != nil {
+		_, err = search.RunEngine(pctx, engine, d.WebSearch, request)
+	} else {
+		_, err = search.Run(pctx, engine, request)
+	}
 	if err == nil {
 		PrintSystem(d.Out, "OK")
 		return nil

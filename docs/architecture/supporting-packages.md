@@ -10,7 +10,9 @@ Map of `internal/` packages that support the REPL, tools, auth, and UX but are n
 |---------|------|------|
 | `tooling` | `internal/tooling/` | `Invocation` type; legacy `<tool_calls>` XML parse (`legacy_xml.go`) and stream writer (`legacy_stream.go`); tool name validation |
 | `tooloutput` | `internal/tooloutput/` | Truncate oversized tool JSON before the next LLM call; spill full payload to `projects/<id>/temp/` |
-| `search` | `internal/search/` | DuckDuckGo, SearxNG, Google PSE, Brave, Bing backends for `webSearch` |
+| `search` | `internal/search/` | Legacy direct search engines plus the MCP Exa/Parallel router, monthly balance store, and native CloakBrowser fallback for `webSearch` |
+| `webfetch` | `internal/webfetch/` | Legacy HTTP fetcher plus MCP Exa/Parallel fetchers, native CloakBrowser fallback, and shared routing metadata for `fetchWeb` |
+| `cloak` | `internal/cloak/` | Go-owned lifecycle, JSON-lines process boundary, and DOM snapshot link extraction for the official CloakBrowser wrapper |
 | `logging` | `internal/logging/` | Level parsing, file rotation under `~/.solomon/logs` |
 | `termcolor` | `internal/termcolor/` | Terminal styling via lipgloss/termenv: dark palette, usage line, image tag colorization, `NO_COLOR` / pipe policy |
 | `clipboard` | `internal/clipboard/` | Cross-platform image paste for REPL |
@@ -32,7 +34,8 @@ Map of `internal/` packages that support the REPL, tools, auth, and UX but are n
 |--------|---------|-----|
 | `tooling.ExtractToolInvocations`, `LegacyStreamWriter` | `tooling` | Legacy XML tool blocks; early stop at `</tool_calls>` |
 | `tooloutput.Service`, `applyToolOutput` | `tooloutput` | Truncation and spill from agent turn pipeline |
-| `search.Engine` implementations | `search` | Called from `web_search.go` |
+| `search.Engine` implementations | `search` | Called from `web_search.go`; `internal` resolves to the runtime MCP router |
+| `webfetch.Fetcher` implementations | `webfetch` | Called from `fetch_web.go`; `internal` resolves to the runtime MCP fetch router |
 | `logging.Log`, `Configure` | `logging` | Startup in `main`, tool errors |
 | `termcolor.Init`, `WrapUser`, `UsageTokensLine` | `termcolor` | Startup in `main` / `exec`; REPL prompt and footers |
 | `clipboard.PasteImage`, `HasImage` | `clipboard` | Ctrl+V image paste in REPL |
@@ -59,7 +62,7 @@ Full architecture: [Cursor integration](cursor-integration.md). Install paths an
 
 ## Extension points
 
-- New web search engine: add file in `internal/search/`, register in `web_search.go` and config docs.
+- New legacy web search engine: add file in `internal/search/`, register it and update config docs. Exa/Parallel MCP adapters are host-managed factories built from `mcp.json`; CloakBrowser is a native local fallback.
 - Logging: `log_level` in config TOML.
 - Terminal colors: env vars and TTY detection in `termcolor.Init` — see [Terminal setup](../user-guide/terminal-setup.md).
 - Instruction files: extend `instructions/discover.go` and prompt render — see [Project instructions](../user-guide/project-instructions.md).

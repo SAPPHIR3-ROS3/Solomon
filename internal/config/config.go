@@ -36,6 +36,10 @@ const DefaultDocSearchFullArticleScore = 0.9
 
 const DefaultWebSearchEngine = "duckduckgo"
 
+const DefaultServerPort = 64000
+
+const ServerPortEnv = "SOLOMON_SERVER_PORT"
+
 const DefaultToolOutputMaxBytes = 65536
 
 const DefaultToolOutputMaxLines = 2048
@@ -99,6 +103,7 @@ type Root struct {
 	DocSearchMinNorm          *float64             `toml:"doc_search_min_normalized_score,omitempty"`
 	DocSearchFullArticleScore *float64             `toml:"doc_search_full_article_score,omitempty"`
 	WebSearchEngine           string               `toml:"web_search_engine,omitempty"`
+	ServerPort                int                  `toml:"server_port,omitempty"`
 	WebSearchAPIKey           string               `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string               `toml:"web_search_base_url,omitempty"`
 	WebSearchCX               string               `toml:"web_search_cx,omitempty"`

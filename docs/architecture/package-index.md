@@ -73,11 +73,13 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/tooloutput/` | Tool result truncation and spill to `temp/` | [Supporting packages](supporting-packages.md) |
 | `internal/tooloutput/process/` | Cross-process temp cleanup coordination | [Supporting packages](supporting-packages.md) |
 | `internal/mcp/` | MCP client manager and OpenAI adapter | [MCP integration](mcp-integration.md) |
+| `internal/cloak/` | Go-owned native CloakBrowser client and minimal official Playwright shim | [MCP integration](mcp-integration.md#native-cloakbrowser-fallback) |
 | `internal/skills/` | Skill registry, install, search | [Skills and slash](skills-and-slash.md) |
 | `internal/checkpoint/` | Checkpoint sequences, labels, goto | [Checkpoints](checkpoints.md) |
 | `internal/checkpoint/staging/` | Byte snapshots for file restore | [Checkpoints](checkpoints.md) |
 | `internal/instructions/` | `AGENTS.md` / fallbacks loader | [Supporting packages](supporting-packages.md) |
-| `internal/search/` | Web search backends for `webSearch` | [Supporting packages](supporting-packages.md) |
+| `internal/search/` | Legacy web search backends plus the internal Exa/Parallel router and monthly balance state | [Supporting packages](supporting-packages.md) |
+| `internal/webfetch/` | Legacy HTTP fetch plus internal Exa/Parallel/native CloakBrowser fetch adapters and router | [Supporting packages](supporting-packages.md) |
 | `internal/research/` | Research engine: web jobs, parsing, quality checks, LLM integration | [Supporting packages](supporting-packages.md) |
 | `internal/research/html/` | HTML rendering templates for research results | [Supporting packages](supporting-packages.md) |
 | `internal/roles/` | Manual subagent score catalog, table formatting, and role lookup | [Native tools](native-tools.md#subagent-roles) |

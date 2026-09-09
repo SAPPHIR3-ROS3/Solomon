@@ -46,11 +46,11 @@ One binary talks to any HTTPS **OpenAI Chat Completions-compatible** `base_url` 
 
 ### Web search
 
-The `webSearch` tool queries configured engines (DuckDuckGo default; SearxNG, Google PSE, Brave, Bing optional) so the model can fetch fresh web context. Codex, Claude Code, and OpenCode ship first-party or MCP-backed search. Engine keys in [Configuration](user-guide/configuration.md#web-search-websearch); smoke-test in the REPL with `/testweb`.
+The `webSearch` tool queries configured engines (DuckDuckGo remains the compatibility default; SearxNG, Google PSE, Brave, Bing, or the internal Exa/Parallel MCP router with native CloakBrowser fallback are available) so the model can fetch fresh web context. Codex, Claude Code, and OpenCode ship first-party or MCP-backed search. Engine keys in [Configuration](user-guide/configuration.md#web-search-websearch); smoke-test in the REPL with `/testweb`.
 
 ### Fetch URL content
 
-`fetchWeb` retrieves a URL and returns markdown-friendly content for the model (HTML conversion, fenced snippets). Web fetch complements search and appears in multiple agent stacks under similar names. Build-mode only alongside other build tools. See [Native tools](architecture/native-tools.md).
+`fetchWeb` retrieves a URL and returns markdown-friendly content for the model (HTML conversion, fenced snippets). With `web_search_engine = "internal"`, it uses Exa/Parallel MCP extraction and falls back to an isolated native CloakBrowser tab; otherwise it uses the legacy HTTP fetcher. Web fetch complements search and appears in multiple agent stacks under similar names. Build-mode only alongside other build tools. See [Native tools](architecture/native-tools.md).
 
 ### Embedded documentation search
 

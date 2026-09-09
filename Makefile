@@ -1,4 +1,4 @@
-.PHONY: solomon build install hot-install test check-docs loc-chart server-stop desktop-dev cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install hot-install test check-docs loc-chart server-stop desktop-dev cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -102,6 +102,17 @@ cursor-build: cursor-stop
 cursor-bundle: cursor-build
 	$(CURSOR_BUNDLER) bundle
 
+# Install the official CloakBrowser wrapper/browser and persist internal web
+# runtime defaults. The standalone installers and the Makefile use the same
+# implementation so hot-install cannot leave the native fallback missing.
+ifeq ($(GOOS),windows)
+cloak-install:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1 -CloakBrowserOnly
+else
+cloak-install:
+	bash -c 'source scripts/install.sh; install_cloakbrowser; configure_runtime_defaults'
+endif
+
 solomon build: cursor-bundle
 	go build $(BUILD_FLAGS) -o $(OUT) ./cmd/solomon
 
@@ -120,18 +131,19 @@ include .env
 export
 endif
 
-# Full reinstall: stop the Solomon server and Cursor sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration.
+# Full reinstall: stop the Solomon server and Cursor sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration, and provision CloakBrowser.
 install:
 	@$(FIX_TTY)
 	@echo ""
 	@echo "=== Solomon install ($(VERSION)) ==="
-	$(call INSTALL_STEP,1/7 Stop Solomon server,$(MAKE) server-stop)
-	$(call INSTALL_STEP,2/7 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
-	$(call INSTALL_STEP,3/7 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
-	$(call INSTALL_STEP,4/7 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,5/7 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
-	$(call INSTALL_STEP,6/7 Install prompt templates,$(INSTALL_BIN) templates install)
-	$(call INSTALL_STEP,7/7 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+	$(call INSTALL_STEP,1/8 Stop Solomon server,$(MAKE) server-stop)
+	$(call INSTALL_STEP,2/8 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
+	$(call INSTALL_STEP,3/8 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
+	$(call INSTALL_STEP,4/8 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
+	$(call INSTALL_STEP,5/8 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
+	$(call INSTALL_STEP,6/8 Install prompt templates,$(INSTALL_BIN) templates install)
+	$(call INSTALL_STEP,7/8 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+	$(call INSTALL_STEP,8/8 Install CloakBrowser,$(MAKE) cloak-install)
 	@$(FIX_TTY)
 	@echo ""
 	@echo "solomon -> $(INSTALL_BIN)"

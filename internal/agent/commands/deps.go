@@ -12,6 +12,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 
@@ -50,8 +51,9 @@ type Deps struct {
 	CompactionThresholdTokens    func() int64
 	SetCompactionThresholdTokens func(int64)
 
-	Client  openai.Client
-	Backend llm.CompletionBackend
+	Client    openai.Client
+	Backend   llm.CompletionBackend
+	WebSearch search.Engine
 
 	ResetReadlineHistory  func()
 	AppendReadlineHistory func(line string) error

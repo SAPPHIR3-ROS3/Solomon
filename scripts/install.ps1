@@ -2,12 +2,15 @@
 param(
     [string]$Version = $(if ($env:SOLOMON_VERSION) { $env:SOLOMON_VERSION } else { 'latest' }),
     [switch]$SetupPathOnly,
-    [switch]$ProfileOnly
+    [switch]$ProfileOnly,
+    [switch]$CloakBrowserOnly
 )
 
 $ErrorActionPreference = 'Stop'
 
 $GoRequired = '1.25.0'
+$NodeRequired = '20.0.0'
+$DefaultServerPort = 64000
 $GoRoot = Join-Path $env:USERPROFILE '.local\go'
 $script:InstalledLocalGo = $false
 $GithubReleasesLatest = 'https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest'
@@ -158,11 +161,20 @@ function Ensure-Node {
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if ($nodeCmd) {
         $ver = (node --version 2>$null).Trim()
-        Write-Host "Node $ver OK"
-        return
+        $normalized = $ver.TrimStart('v') -replace '-.*$', ''
+        if ((Test-VersionGe -Have $normalized -Want $NodeRequired)) {
+            Write-Host "Node $ver OK (>= $NodeRequired)"
+            return
+        }
+        Write-Host "Node $ver is older than $NodeRequired; upgrading..."
     }
 
-    Write-Host 'Node not found; installing LTS via winget...'
+    if ($nodeCmd) {
+        Write-Host 'Installing Node.js LTS via winget...'
+    }
+    else {
+        Write-Host 'Node not found; installing LTS via winget...'
+    }
     $winget = Get-Command winget -ErrorAction SilentlyContinue
     if (-not $winget) {
         throw 'winget not found; install Node.js LTS from https://nodejs.org/en/download/'
@@ -195,7 +207,195 @@ function Ensure-Node {
         throw 'Node install failed; restart the terminal or install manually from https://nodejs.org/'
     }
 
-    Write-Host "Node $((node --version).Trim()) ready"
+    $ver = ((node --version).Trim()).TrimStart('v') -replace '-.*$', ''
+    if (-not (Test-VersionGe -Have $ver -Want $NodeRequired)) {
+        throw "Node install failed (got $ver; need >= $NodeRequired)"
+    }
+    Write-Host "Node $ver ready"
+}
+
+function Install-CloakBrowser {
+    Ensure-Node
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue) -or -not (Get-Command npx -ErrorAction SilentlyContinue)) {
+        throw 'npm and npx are required to install the official CloakBrowser wrapper'
+    }
+    $solomonHome = if ($env:SOLOMON_HOME) { $env:SOLOMON_HOME } else { Join-Path $env:USERPROFILE '.solomon' }
+    $cloakDir = Join-Path $solomonHome 'cloakbrowser'
+    $cloakCache = Join-Path $cloakDir 'cache'
+    New-Item -ItemType Directory -Force -Path $cloakDir, $cloakCache | Out-Null
+    Write-Host 'Installing the official CloakBrowser wrapper...'
+    Push-Location $cloakDir
+    try {
+        & npm install --ignore-scripts --no-audit --no-fund cloakbrowser playwright-core
+        if ($LASTEXITCODE -ne 0) { throw 'npm install cloakbrowser failed' }
+        $hadPreviousCache = Test-Path Env:CLOAKBROWSER_CACHE_DIR
+        $previousCache = $env:CLOAKBROWSER_CACHE_DIR
+        $env:CLOAKBROWSER_CACHE_DIR = $cloakCache
+        try {
+            & npx --no-install cloakbrowser install
+            if ($LASTEXITCODE -ne 0) { throw 'npx cloakbrowser install failed' }
+        }
+        finally {
+            if ($hadPreviousCache) {
+                $env:CLOAKBROWSER_CACHE_DIR = $previousCache
+            }
+            else {
+                Remove-Item Env:CLOAKBROWSER_CACHE_DIR -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    Write-Host "CloakBrowser ready: $cloakDir"
+}
+
+function Get-InstallerServerPort {
+    param([string]$ConfigPath)
+
+    $raw = [string]$env:SOLOMON_SERVER_PORT
+    if ([string]::IsNullOrWhiteSpace($raw) -and (Test-Path $ConfigPath)) {
+        $inTable = $false
+        foreach ($line in Get-Content -Path $ConfigPath) {
+            if ($line -match '^\s*\[') {
+                $inTable = $true
+                break
+            }
+            if (-not $inTable -and $line -match '^\s*server_port\s*=\s*(\d+)') {
+                $raw = $Matches[1]
+                break
+            }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        $raw = [string]$DefaultServerPort
+    }
+    $port = 0
+    if (-not [int]::TryParse($raw.Trim(), [ref]$port) -or $port -lt 1 -or $port -gt 65535) {
+        throw 'SOLOMON_SERVER_PORT must be a TCP port between 1 and 65535'
+    }
+    return $port
+}
+
+function Test-TopLevelTomlScalar {
+    param(
+        [string]$Path,
+        [string]$Key
+    )
+
+    if (-not (Test-Path $Path)) {
+        return $false
+    }
+    $keyPattern = '^\s*' + [regex]::Escape($Key) + '\s*='
+    foreach ($line in Get-Content -Path $Path) {
+        if ($line -match '^\s*\[') {
+            return $false
+        }
+        if ($line -match $keyPattern) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Set-TomlScalar {
+    param(
+        [string]$Path,
+        [string]$Key,
+        [string]$Value
+    )
+
+    $parent = Split-Path -Parent $Path
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    $lines = if (Test-Path $Path) { @(Get-Content -Path $Path) } else { @() }
+    $replacement = "$Key = $Value"
+    $result = New-Object 'System.Collections.Generic.List[string]'
+    $updated = $false
+    $inTable = $false
+    $keyPattern = '^\s*' + [regex]::Escape($Key) + '\s*='
+    foreach ($line in $lines) {
+        if ($line -match '^\s*\[') {
+            if (-not $updated) {
+                $result.Add($replacement)
+                $updated = $true
+            }
+            $inTable = $true
+            $result.Add($line)
+            continue
+        }
+        if ($line -match $keyPattern) {
+            if (-not $inTable -and -not $updated) {
+                $result.Add($replacement)
+                $updated = $true
+            }
+            continue
+        }
+        $result.Add($line)
+    }
+    if (-not $updated) {
+        $result.Add($replacement)
+    }
+    $encoding = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [System.IO.File]::WriteAllText($Path, (($result -join [Environment]::NewLine) + [Environment]::NewLine), $encoding)
+}
+
+function Ensure-McpWebConfig {
+    param([string]$SolomonHome)
+
+    $path = Join-Path $SolomonHome 'mcp.json'
+    New-Item -ItemType Directory -Force -Path $SolomonHome | Out-Null
+    if (Test-Path $path) {
+        $document = Get-Content -Path $path -Raw | ConvertFrom-Json
+    } else {
+        $document = [pscustomobject]@{}
+    }
+    $serversProperty = $document.PSObject.Properties['mcpServers']
+    if (-not $serversProperty) {
+        $document | Add-Member -NotePropertyName 'mcpServers' -NotePropertyValue ([pscustomobject]@{})
+    }
+    $servers = $document.mcpServers
+    if (-not $servers -or -not $servers.PSObject) {
+        throw 'mcp.json: mcpServers must be an object'
+    }
+    $defaults = [ordered]@{
+        'exa-web' = [pscustomobject]@{
+            type = 'streamable-http'
+            url = 'https://mcp.exa.ai/mcp'
+            internal = $true
+            adapter = 'exa'
+            allow = @('web_search_exa', 'web_fetch_exa')
+        }
+        'parallel-web' = [pscustomobject]@{
+            type = 'streamable-http'
+            url = 'https://search.parallel.ai/mcp'
+            internal = $true
+            adapter = 'parallel'
+            allow = @('web_search', 'web_fetch')
+        }
+    }
+    foreach ($entry in $defaults.GetEnumerator()) {
+        $servers | Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value -Force
+    }
+    $json = $document | ConvertTo-Json -Depth 10
+    $encoding = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [System.IO.File]::WriteAllText($path, ($json + [Environment]::NewLine), $encoding)
+}
+
+function Configure-RuntimeDefaults {
+    $solomonHome = if ($env:SOLOMON_HOME) { $env:SOLOMON_HOME } else { Join-Path $env:USERPROFILE '.solomon' }
+    $configPath = Join-Path $solomonHome 'config.toml'
+    New-Item -ItemType Directory -Force -Path $solomonHome | Out-Null
+    if (-not (Test-Path $configPath)) {
+        [System.IO.File]::WriteAllText($configPath, '', (New-Object System.Text.UTF8Encoding -ArgumentList $false))
+    }
+    $port = Get-InstallerServerPort -ConfigPath $configPath
+    Set-TomlScalar -Path $configPath -Key 'server_port' -Value ([string]$port)
+    if (-not (Test-TopLevelTomlScalar -Path $configPath -Key 'web_search_engine')) {
+        Set-TomlScalar -Path $configPath -Key 'web_search_engine' -Value '"internal"'
+    }
+    Ensure-McpWebConfig -SolomonHome $solomonHome
+    Write-Host 'Solomon web backend: internal (Exa/Parallel + CloakBrowser fallback)'
+    Write-Host "Solomon server port: $port"
 }
 
 function Get-GoInstallBinDir {
@@ -402,8 +602,16 @@ if ($SetupPathOnly) {
     return
 }
 
+if ($CloakBrowserOnly) {
+    Install-CloakBrowser
+    Configure-RuntimeDefaults
+    return
+}
+
 Ensure-Go
 Ensure-Make
 Setup-Shell
 Install-Solomon
+Install-CloakBrowser
+Configure-RuntimeDefaults
 Write-Host 'Done.'

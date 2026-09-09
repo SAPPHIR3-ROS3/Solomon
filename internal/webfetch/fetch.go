@@ -30,6 +30,7 @@ type Result struct {
 	ContentType string
 	Markdown    string
 	Title       string
+	Metadata    *Metadata
 }
 
 func FetchURL(ctx context.Context, rawURL string, timeoutSec int, cfg *config.Root) (Result, error) {

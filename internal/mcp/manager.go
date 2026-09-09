@@ -201,6 +201,10 @@ func NewManagerWithRemoteTools(tools []RemoteTool) *Manager {
 }
 
 func (m *Manager) connectServer(ctx context.Context, sc ServerConfig, stderr io.Writer) {
+	if sc.Internal && strings.EqualFold(strings.TrimSpace(sc.Adapter), "cloak") {
+		logging.Log(logging.INFO_LOG_LEVEL, "legacy Cloak MCP server ignored; Solomon uses the native adapter", logging.LogOptions{Params: map[string]any{"server": sc.Name}})
+		return
+	}
 	ss := newServerSession(sc)
 	session, err := m.openAndInstallSession(ctx, ss, stderr)
 	if err != nil {
@@ -358,6 +362,9 @@ func (m *Manager) OpenAITools() []openai.ChatCompletionToolUnionParam {
 	}
 	out := make([]openai.ChatCompletionToolUnionParam, 0, len(m.tools))
 	for _, tool := range m.tools {
+		if m.serverInternalLocked(tool.ServerName) {
+			continue
+		}
 		out = append(out, OpenAITool(tool))
 	}
 	return out
@@ -373,10 +380,15 @@ func (m *Manager) ToolDump() string {
 		return ""
 	}
 	var b strings.Builder
-	for i, tool := range m.tools {
-		if i > 0 {
+	publicIndex := 0
+	for _, tool := range m.tools {
+		if m.serverInternalLocked(tool.ServerName) {
+			continue
+		}
+		if publicIndex > 0 {
 			b.WriteString("\n---\n")
 		}
+		publicIndex++
 		schema, err := json.Marshal(mcpArgumentsSchema(tool.Schema))
 		if err != nil {
 			schema = []byte(`{"type":"object","properties":{}}`)
@@ -391,8 +403,11 @@ func (m *Manager) HasTool(name string) bool {
 		return false
 	}
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-	_, ok := m.registry[name]
+	binding, ok := m.registry[name]
+	if ok && binding != nil && binding.server != nil && binding.server.cfg.Internal {
+		ok = false
+	}
+	m.mu.RUnlock()
 	return ok
 }
 
@@ -412,6 +427,99 @@ func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage
 	if !ok {
 		return nil, fmt.Errorf("unknown MCP tool %q", name)
 	}
+	if binding.server != nil && binding.server.cfg.Internal {
+		return nil, fmt.Errorf("MCP tool %q is internal and cannot be called through the generic MCP surface", name)
+	}
+	return m.callToolBinding(ctx, name, binding, raw)
+}
+
+// CallInternalTool invokes a host-managed MCP tool by its stable server and
+// remote tool names. Internal adapter calls deliberately bypass the
+// model-facing MCP catalog, but still use the Manager's session lifecycle,
+// retry policy, and logging.
+func (m *Manager) CallInternalTool(ctx context.Context, serverName, toolName, intent string, args map[string]any) (any, error) {
+	if m == nil {
+		return nil, fmt.Errorf("MCP manager unavailable")
+	}
+	serverName = strings.TrimSpace(serverName)
+	if serverName == "" {
+		return nil, fmt.Errorf("MCP internal tool: server name is required")
+	}
+	if strings.TrimSpace(toolName) == "" {
+		return nil, fmt.Errorf("MCP internal tool: tool name is required")
+	}
+	if strings.TrimSpace(intent) == "" {
+		return nil, fmt.Errorf("MCP internal tool %q: intent is required", toolName)
+	}
+	if err := m.WaitReady(ctx); err != nil {
+		return nil, err
+	}
+	binding, err := m.internalToolBinding(ctx, serverName, toolName)
+	if err != nil {
+		return nil, err
+	}
+
+	callArgs := make(map[string]any, len(args)+1)
+	for key, value := range args {
+		if key != "intent" {
+			callArgs[key] = value
+		}
+	}
+	callArgs["intent"] = intent
+	raw, err := json.Marshal(callArgs)
+	if err != nil {
+		return nil, fmt.Errorf("MCP internal tool %q arguments: %w", toolName, err)
+	}
+	return m.callToolBinding(ctx, binding.tool.OpenAIName, binding, raw)
+}
+
+func (m *Manager) internalToolBinding(ctx context.Context, serverName, toolName string) (*remoteBinding, error) {
+	m.mu.RLock()
+	var server *serverSession
+	for _, candidate := range m.servers {
+		if candidate != nil && candidate.cfg.Name == serverName {
+			server = candidate
+			break
+		}
+	}
+	m.mu.RUnlock()
+	if server == nil {
+		return nil, fmt.Errorf("unknown internal MCP server %q", serverName)
+	}
+	if !server.cfg.Internal {
+		return nil, fmt.Errorf("MCP server %q is not internal", serverName)
+	}
+	if _, err := m.ensureSession(ctx, server); err != nil {
+		return nil, unavailableError(serverName, "internal tools/call", err)
+	}
+
+	lookup := func() *remoteBinding {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		for _, tool := range server.tools {
+			if tool.ToolName == toolName {
+				toolCopy := tool
+				return &remoteBinding{server: server, tool: toolCopy}
+			}
+		}
+		return nil
+	}
+	if binding := lookup(); binding != nil {
+		return binding, nil
+	}
+	if err := m.refreshTools(ctx, server); err != nil {
+		return nil, unavailableError(serverName, "internal tools/list", err)
+	}
+	if binding := lookup(); binding != nil {
+		return binding, nil
+	}
+	return nil, fmt.Errorf("unknown internal MCP tool %q on server %q", toolName, serverName)
+}
+
+func (m *Manager) callToolBinding(ctx context.Context, name string, binding *remoteBinding, raw json.RawMessage) (any, error) {
+	if binding == nil {
+		return nil, fmt.Errorf("MCP tool %q unavailable", name)
+	}
 	if binding.server == nil {
 		return nil, unavailableError("", "tool", ErrServerUnavailable)
 	}
@@ -421,10 +529,14 @@ func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage
 			return nil, fmt.Errorf("MCP tool arguments must be an object: %w", err)
 		}
 	}
+	intent, _ := tooling.ToolIntent(raw)
 	delete(args, "intent")
 	start := time.Now()
 	logFailure := func(err error) (any, error) {
 		params := map[string]any{"server": binding.server.cfg.Name, "tool": binding.tool.ToolName, "openai_tool": name, "elapsed_ms": time.Since(start).Milliseconds(), "err": err.Error()}
+		if intent != "" {
+			params["intent"] = intent
+		}
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP tools/call failed", logging.LogOptions{Params: params})
 		return nil, err
 	}
@@ -461,6 +573,9 @@ func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage
 	}
 	elapsed := time.Since(start)
 	params := map[string]any{"server": binding.server.cfg.Name, "tool": binding.tool.ToolName, "openai_tool": name, "elapsed_ms": elapsed.Milliseconds()}
+	if intent != "" {
+		params["intent"] = intent
+	}
 	if err != nil {
 		params["err"] = err.Error()
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP tools/call failed", logging.LogOptions{Params: params})

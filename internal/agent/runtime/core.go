@@ -18,6 +18,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint/staging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/cloak"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
@@ -27,9 +28,11 @@ import (
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	sandboxparent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/webfetch"
 
 	readline "github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
@@ -68,7 +71,10 @@ type Runtime struct {
 
 	Out io.Writer
 
-	MCP *solomonmcp.Manager
+	MCP       *solomonmcp.Manager
+	Cloak     *cloak.Client
+	WebSearch search.Engine
+	WebFetch  webfetch.Fetcher
 
 	sandboxRetained bool
 

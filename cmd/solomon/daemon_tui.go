@@ -46,7 +46,7 @@ func daemonTUIRequested(args []string) bool {
 	// starting Solomon in that workspace, so it must use the same daemon-backed
 	// TUI as the no-argument form.
 	switch args[1] {
-	case "add", "remove", "exec", "temp", "server", "version", "upgrade", "init", "sandbox-worker", "templates":
+	case "help", "-h", "--help", "add", "remove", "exec", "temp", "server", "version", "upgrade", "init", "sandbox-worker", "templates":
 		return false
 	default:
 		return true

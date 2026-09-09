@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
@@ -32,6 +33,7 @@ type State struct {
 	Mode      string             `json:"mode"`
 	Vite      string             `json:"vite"`
 	ViteURL   string             `json:"vite_url,omitempty"`
+	VitePID   int                `json:"vite_pid,omitempty"`
 	DevDir    string             `json:"dev_directory,omitempty"`
 	GOOS      string             `json:"goos"`
 	GoVersion string             `json:"go_version"`
@@ -48,8 +50,6 @@ type Options struct {
 	DevDir     string
 	ListenAddr string
 }
-
-const serverPortEnv = "SOLOMON_SERVER_PORT"
 
 type Health struct {
 	OK      bool      `json:"ok"`
@@ -167,6 +167,7 @@ func Run(ctx context.Context, options Options) error {
 		vite = command
 		state.Vite = "running"
 		state.ViteURL = viteURL.String()
+		state.VitePID = command.Process.Pid
 		state.DevDir = options.DevDir
 		proxy = httputil.NewSingleHostReverseProxy(viteURL)
 	}
@@ -293,15 +294,11 @@ func resolveListenAddr(options Options) (string, error) {
 		return options.ListenAddr, nil
 	}
 
-	port := strings.TrimSpace(os.Getenv(serverPortEnv))
-	if port == "" {
-		return "0.0.0.0:0", nil
+	port, err := config.ResolveServerPort()
+	if err != nil {
+		return "", err
 	}
-	parsedPort, err := strconv.Atoi(port)
-	if err != nil || parsedPort < 1 || parsedPort > 65535 {
-		return "", fmt.Errorf("%s must be a TCP port between 1 and 65535", serverPortEnv)
-	}
-	return net.JoinHostPort("0.0.0.0", strconv.Itoa(parsedPort)), nil
+	return net.JoinHostPort("0.0.0.0", strconv.Itoa(port)), nil
 }
 
 func reachableAddresses(listenerAddr *net.TCPAddr, port int) []ReachableAddress {
@@ -427,8 +424,11 @@ func startVite(directory string) (*url.URL, *exec.Cmd, error) {
 	for time.Now().Before(deadline) {
 		response, err := client.Get(viteURL.String())
 		if err == nil {
+			ready := response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
 			_ = response.Body.Close()
-			return viteURL, cmd, nil
+			if ready {
+				return viteURL, cmd, nil
+			}
 		}
 		if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
 			break

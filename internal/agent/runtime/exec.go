@@ -17,6 +17,8 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 		ProjRoot:                r.ProjRoot,
 		Cfg:                     r.Cfg,
 		MCP:                     r.MCP,
+		WebSearch:               r.WebSearch,
+		WebFetch:                r.WebFetch,
 		RunNested:               r.runNested,
 		RunNestedWithSystem:     r.runNestedWithSystem,
 		RunSubagent:             r.runSubagentFromTool,
