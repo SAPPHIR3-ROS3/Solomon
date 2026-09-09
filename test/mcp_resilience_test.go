@@ -76,7 +76,16 @@ func newResilienceMCPServer(t *testing.T) (*droppingMCPHandler, *httptest.Server
 	}, &sdkmcp.StreamableHTTPOptions{Stateless: true})
 	dropping := &droppingMCPHandler{delegate: mcpHandler, dropMethod: "tools/call"}
 	httpServer := httptest.NewServer(dropping)
-	t.Cleanup(httpServer.Close)
+	t.Cleanup(func() {
+		// The SDK's stateless subscriptions/listen stream is tied to a long-lived
+		// HTTP POST. Closing the client session does not always cancel the server
+		// handler before httptest.Server.Close waits for active connections. Follow
+		// the SDK's teardown sequence: drop the client sockets, then trigger one
+		// final notification so the server's write path observes the disconnect.
+		httpServer.CloseClientConnections()
+		_ = server.ResourceUpdated(context.Background(), &sdkmcp.ResourceUpdatedNotificationParams{URI: "memo:///one"})
+		httpServer.Close()
+	})
 	return dropping, httpServer
 }
 
