@@ -169,6 +169,9 @@ func writeUnixInstallRestartScript(pid int, tag, cwd, exe string, args []string)
 	b.WriteString("mv \"$tmp\" \"$TARGET\"\n")
 	b.WriteString("chmod +x \"$TARGET\"\n")
 	b.WriteString("echo \"Installed $TAG -> $TARGET\"\n")
+	// The executable captured before the download may be a development or
+	// temporary binary. Always restart the freshly installed target instead.
+	b.WriteString("RESTART_EXE=\"$TARGET\"\n")
 	b.WriteString("echo \"=== Restarting Solomon ===\"\n")
 	b.WriteString("echo \"\"\n")
 	b.WriteString("stty sane opost onlcr icanon echo 2>/dev/null || true\n")
@@ -319,6 +322,7 @@ for ($i = 0; $i -lt 60; $i++) {
   }
 }
 if (-not $installed) { throw "failed to replace $Target after install" }
+$RestartExe = $Target
 Write-Host "Installed $Tag -> $Target"
 Write-Host '=== Restarting Solomon ==='
 Write-Host ''
