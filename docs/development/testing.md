@@ -10,12 +10,13 @@ How Solomon tests are organized, which style to use, and shared helpers. Command
 | Colocation | Do **not** add `*_test.go` next to `internal/` sources |
 | Enforcement | [`test/test_layout_test.go`](../../test/test_layout_test.go) checks Go's `go list -test ./...` metadata and fails when Go detects tests outside `test/` |
 | Init | [`test/init_test.go`](../../test/init_test.go) — `TestMain` sets logging for the suite |
-| CI | UI prototype build, `go vet ./...`, `go test ./... -count=1`, `make check-docs` (doc links, anchors, code paths, package index) ([`release.yml`](../../.github/workflows/release.yml)) |
+| CI | UI prototype build, `go vet ./...`, documentation/package checks, and tests; Linux runs `CGO_ENABLED=1 go test ./... -count=1 -race`, while macOS/Windows run `go test ./... -count=1` ([`release.yml`](../../.github/workflows/release.yml)) |
 
 Run everything:
 
 ```bash
 go test ./... -count=1
+CGO_ENABLED=1 go test ./... -count=1 -race  # Linux CI parity
 npm --prefix ui-prototypes test
 ```
 
@@ -95,6 +96,7 @@ When REPL behavior needs new assertions, add **`ForTest` exports** in `editor/ed
 | Tool output | `tooloutput_test.go`, `tool_output_integration_test.go` | [Supporting packages](../architecture/supporting-packages.md) |
 | Skills | `skills_test.go`, `skills_search_test.go` | [Skills and slash](../architecture/skills-and-slash.md) |
 | MCP | `mcp_config_test.go`, `mcp_adapter_test.go` | [MCP integration](../architecture/mcp-integration.md) |
+| Deep research / web surfaces | `web_surfaces_test.go`, `research_store_test.go` | [Deep research](../architecture/research.md) |
 | Auth / Codex | `provider_auth_test.go`, `codex_*_test.go` | [LLM layer — ChatGPT Sub](../architecture/llm-layer.md) |
 | CI events | `cievents_test.go` | [Runtime orchestration](../architecture/runtime-orchestration.md) |
 | Cursor | `cursor_paths_test.go`, `stream_cursor_tool_test.go`, `cursor_native_display_test.go` | [Cursor integration](../architecture/cursor-integration.md) |
@@ -108,6 +110,7 @@ When testing turn/cancel behavior:
 - User stop uses `context.WithCancelCause` and `errUserStopGeneration` ([`turns.go`](../../internal/agent/runtime/turns.go)) — assert on `errors.Is(context.Cause(ctx), ...)` if you add cancel tests
 - Stream integrity rejection must **not** persist partial assistant content ([`stream_integrity_test.go`](../../test/stream_integrity_test.go))
 - Session mutation should go through runtime helpers / `mutateSession`, not raw races on `Session` in production code
+- Research status may be polled while its background engine is running; `JobRecord` values must be updated and returned as independent snapshots. Keep the regression covered by `TestDeepResearchRuntimeUsesInternalWebAdapters` and run it under `-race`.
 
 ## Node sidecar tests
 

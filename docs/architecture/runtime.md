@@ -34,6 +34,7 @@ flowchart TB
 |---------|--------|
 | [Runtime — REPL input](runtime-repl.md) | Raw-mode editor, completion, `@` mentions, highlight, shell history |
 | [Runtime — orchestration](runtime-orchestration.md) | Turns, tools, MCP, legacy XML, nested subagent, CI mode, checkpoints |
+| [Deep research](research.md) | Background research jobs, internal web adapters, persistence, and cross-surface status |
 | [Agent turn pipeline](agent-turn-pipeline.md) | Stream loop sequence, compaction, legacy XML rules |
 | [Checkpoints](checkpoints.md) | `/goto`, staging, file restore |
 

@@ -144,6 +144,7 @@ Highlights:
 | `/instructions` | Show global `~/.solomon/AGENTS.md` loaded into the system prompt |
 | `/goto`, `/checkpoint` | Rewind transcript to a checkpoint id; print current checkpoint tag |
 | `/exec` | Send one user message and run a turn (`/exec "prompt with spaces"`) |
+| `/research` | Start or manage asynchronous deep research jobs and their HTML reports |
 | `/models`, `/onboard` | Switch model; rerun setup wizard |
 | `/docs` | Search embedded Solomon docs (`/docs <query>`); keeps `/docs …` visible in chat |
 | `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
@@ -184,6 +185,28 @@ Slash commands persist many settings to `config.toml` (for example `/name` → `
 The `/subagent` command controls sessions created by the native `subagent` tool. It does not expose a separate foreground viewer: to continue a session with a new task, use the native tool with `resume: "<subchatId>"` and `task`, optionally adding `interrupt: true` when the resumed session is still active.
 
 Subagent status values are `running`, `queued`, `paused`, `done`, and `cancelled`. A timed-out or failed run is saved as `paused` so it can be resumed. Subagents cannot be persisted from an ephemeral parent session (`solomon temp exec` or `/temp`).
+
+### `/research`
+
+Deep research runs in the background for the current persisted project. It
+performs iterative web search and page extraction, then writes an HTML report.
+The initial command returns a job id; progress is printed asynchronously and
+can be inspected at any time. The command accepts a job id, slug, or
+case-insensitive title.
+
+| Invocation | Behavior |
+|------------|----------|
+| `/research` or `/research list` | List project jobs, status, progress, statistics, and report paths |
+| `/research <query>` | Start a new research job |
+| `/research status <id\|title>` | Show phase, rounds, source statistics, URL issues, and report path |
+| `/research stop <id\|title>` | Request cancellation of a running job (`cancel` is an alias) |
+| `/research delete <id\|title>` | Delete the job JSON and its HTML report (`remove` / `rm` are aliases) |
+| `/research resume <id\|title>` | Continue a paused job (`continue` is an alias) |
+
+Research is unavailable for ephemeral `/temp` sessions. A paused job keeps its
+plan, findings, queries, fetched URLs, and URL-attempt metadata so it can be
+resumed. The GUI exposes the same project jobs in its Deep research panel and
+opens completed reports. Configuration: [Deep research](configuration.md#deep-research).
 
 ### `/export` chat transcript
 

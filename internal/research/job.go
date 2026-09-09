@@ -84,18 +84,19 @@ func (m *Manager) Start(parentCtx context.Context, req StartRequest) (JobRecord,
 		logging.Log(logging.ERROR_LOG_LEVEL, "research ensure dir failed", logging.LogOptions{Params: map[string]any{"project": req.ProjectHex, "err": err.Error()}})
 		return JobRecord{}, err
 	}
-	if err := m.persist(rec); err != nil {
+	if err := m.persist(*rec); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "research persist job failed", logging.LogOptions{Params: map[string]any{"job_id": id, "err": err.Error()}})
 		return JobRecord{}, err
 	}
 	ctx, cancel := context.WithCancel(parentCtx)
+	stored := cloneJobRecord(*rec)
 	m.mu.Lock()
 	m.runs[id] = cancel
-	m.records[id] = rec
+	m.records[id] = &stored
 	m.mu.Unlock()
 
-	go m.run(ctx, req, rec, nil)
-	return *rec, nil
+	go m.run(ctx, req, id, nil)
+	return cloneJobRecord(stored), nil
 }
 
 func (m *Manager) Resume(parentCtx context.Context, projectHex, target string, req StartRequest) (JobRecord, error) {
@@ -111,19 +112,22 @@ func (m *Manager) Resume(parentCtx context.Context, projectHex, target string, r
 		m.mu.Unlock()
 		return JobRecord{}, fmt.Errorf("research job %s is already running", rec.ID)
 	}
-	snapshot := rec
-	ptr := &snapshot
+	if current, ok := m.records[rec.ID]; ok {
+		rec = cloneJobRecord(*current)
+	}
+	snapshot := cloneJobRecord(rec)
+	snapshot.Status = StatusRunning
+	snapshot.Error = ""
 	ctx, cancel := context.WithCancel(parentCtx)
 	m.runs[rec.ID] = cancel
-	m.records[rec.ID] = ptr
+	m.records[rec.ID] = &snapshot
+	returned := cloneJobRecord(snapshot)
 	m.mu.Unlock()
 
-	ptr.Status = StatusRunning
-	ptr.Error = ""
-	_ = m.persist(ptr)
-	resume := resumeStateFromRecord(ptr)
-	go m.run(ctx, req, ptr, resume)
-	return *ptr, nil
+	_ = m.persist(snapshot)
+	resume := resumeStateFromRecord(&snapshot)
+	go m.run(ctx, req, snapshot.ID, resume)
+	return returned, nil
 }
 
 func resumeStateFromRecord(rec *JobRecord) *EngineResumeState {
@@ -141,8 +145,12 @@ func resumeStateFromRecord(rec *JobRecord) *EngineResumeState {
 	}
 }
 
-func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, resume *EngineResumeState) {
-	defer m.finishRun(rec.ID)
+func (m *Manager) run(ctx context.Context, req StartRequest, jobID string, resume *EngineResumeState) {
+	defer m.finishRun(jobID)
+	rec, ok := m.snapshotRecord(jobID)
+	if !ok {
+		return
+	}
 	var usage apitype.UsageStats
 	engine := NewEngine(EngineConfig{
 		Cfg:      req.Cfg,
@@ -162,9 +170,13 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 			}
 		},
 		OnProgress: func(ev ProgressEvent) {
-			m.updateProgress(rec, ev, req.OnProgress)
+			m.updateProgress(jobID, ev, req.OnProgress)
 		},
-		OnPersist: func(j *JobRecord) { _ = m.persist(j) },
+		OnPersist: func(_ *JobRecord) {
+			if snapshot, ok := m.snapshotRecord(jobID); ok {
+				_ = m.persist(snapshot)
+			}
+		},
 	})
 	if resume != nil {
 		engine.restoreURLStats(rec.Stats)
@@ -174,84 +186,115 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 	}
 
 	markdown, findings, stats, meta, err := engine.Run(ctx)
-	rec.Findings = findings
-	rec.ResearchPlan = meta.Plan
-	rec.EvolvingReport = meta.Report
 	stats.Model = req.Model
-	if rec.Category == "" {
-		rec.Category = meta.Category
-	}
 
 	if ctx.Err() != nil {
-		rec.Status = StatusCancelled
-		rec.Error = ctx.Err().Error()
-		rec.Stats = stats
-		rec.FinishedAt = time.Now().UTC()
-		logging.Log(logging.INFO_LOG_LEVEL, "research job cancelled", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug}})
-		_ = m.persist(rec)
+		snapshot, ok := m.mutateRecord(jobID, func(current *JobRecord) {
+			applyEngineResults(current, findings, meta, stats)
+			current.Status = StatusCancelled
+			current.Error = ctx.Err().Error()
+			current.FinishedAt = time.Now().UTC()
+		})
+		if !ok {
+			return
+		}
+		logging.Log(logging.INFO_LOG_LEVEL, "research job cancelled", logging.LogOptions{Params: map[string]any{"job_id": snapshot.ID, "slug": snapshot.Slug}})
+		_ = m.persist(snapshot)
 		if req.OnDone != nil {
-			req.OnDone(*rec)
+			req.OnDone(snapshot)
 		}
 		return
 	}
 	if err != nil {
 		cp := engine.CheckpointState()
-		applyCheckpoint(rec, cp)
-		rec.Findings = findings
-		rec.ResearchPlan = meta.Plan
-		rec.EvolvingReport = meta.Report
-		rec.Stats = stats
 		if errors.Is(err, ErrPausedLLM) {
-			rec.Status = StatusPaused
-			rec.Error = pauseDetail(err)
-			logging.Log(logging.WARNING_LOG_LEVEL, "research job paused", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug, "err": rec.Error}})
-			_ = m.persist(rec)
+			detail := pauseDetail(err)
+			snapshot, ok := m.mutateRecord(jobID, func(current *JobRecord) {
+				applyCheckpoint(current, cp)
+				applyEngineResults(current, findings, meta, stats)
+				current.Status = StatusPaused
+				current.Error = detail
+			})
+			if !ok {
+				return
+			}
+			logging.Log(logging.WARNING_LOG_LEVEL, "research job paused", logging.LogOptions{Params: map[string]any{"job_id": snapshot.ID, "slug": snapshot.Slug, "err": snapshot.Error}})
+			_ = m.persist(snapshot)
 			if req.OnDone != nil {
-				req.OnDone(*rec)
+				req.OnDone(snapshot)
 			}
 			return
 		}
-		rec.Status = StatusFailed
-		rec.Error = err.Error()
-		rec.FinishedAt = time.Now().UTC()
-		logging.Log(logging.ERROR_LOG_LEVEL, "research job failed", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug, "err": rec.Error}})
-		_ = m.persist(rec)
+		detail := err.Error()
+		snapshot, ok := m.mutateRecord(jobID, func(current *JobRecord) {
+			applyCheckpoint(current, cp)
+			applyEngineResults(current, findings, meta, stats)
+			current.Status = StatusFailed
+			current.Error = detail
+			current.FinishedAt = time.Now().UTC()
+		})
+		if !ok {
+			return
+		}
+		logging.Log(logging.ERROR_LOG_LEVEL, "research job failed", logging.LogOptions{Params: map[string]any{"job_id": snapshot.ID, "slug": snapshot.Slug, "err": snapshot.Error}})
+		_ = m.persist(snapshot)
 		if req.OnDone != nil {
-			req.OnDone(*rec)
+			req.OnDone(snapshot)
 		}
 		return
 	}
 
 	htmlBody, htmlErr := engine.RenderHTML(rec.Title, markdown, stats)
 	if htmlErr != nil {
-		rec.Status = StatusFailed
-		rec.Error = htmlErr.Error()
-		rec.FinishedAt = time.Now().UTC()
-		logging.Log(logging.ERROR_LOG_LEVEL, "research HTML render failed", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug, "err": rec.Error}})
-		_ = m.persist(rec)
+		detail := htmlErr.Error()
+		snapshot, ok := m.mutateRecord(jobID, func(current *JobRecord) {
+			applyEngineResults(current, findings, meta, stats)
+			current.Status = StatusFailed
+			current.Error = detail
+			current.FinishedAt = time.Now().UTC()
+		})
+		if !ok {
+			return
+		}
+		logging.Log(logging.ERROR_LOG_LEVEL, "research HTML render failed", logging.LogOptions{Params: map[string]any{"job_id": snapshot.ID, "slug": snapshot.Slug, "err": snapshot.Error}})
+		_ = m.persist(snapshot)
 		if req.OnDone != nil {
-			req.OnDone(*rec)
+			req.OnDone(snapshot)
 		}
 		return
 	}
 	htmlPath, err := chatstore.ResearchHTMLPath(rec.ProjectHex, rec.Slug)
 	if err != nil {
-		rec.Status = StatusFailed
-		rec.Error = err.Error()
-		rec.FinishedAt = time.Now().UTC()
-		_ = m.persist(rec)
+		detail := err.Error()
+		snapshot, ok := m.mutateRecord(jobID, func(current *JobRecord) {
+			applyEngineResults(current, findings, meta, stats)
+			current.Status = StatusFailed
+			current.Error = detail
+			current.FinishedAt = time.Now().UTC()
+		})
+		if !ok {
+			return
+		}
+		_ = m.persist(snapshot)
 		if req.OnDone != nil {
-			req.OnDone(*rec)
+			req.OnDone(snapshot)
 		}
 		return
 	}
 	if err := os.WriteFile(htmlPath, []byte(htmlBody), 0o600); err != nil {
-		rec.Status = StatusFailed
-		rec.Error = err.Error()
-		rec.FinishedAt = time.Now().UTC()
-		_ = m.persist(rec)
+		detail := err.Error()
+		snapshot, ok := m.mutateRecord(jobID, func(current *JobRecord) {
+			applyEngineResults(current, findings, meta, stats)
+			current.Status = StatusFailed
+			current.Error = detail
+			current.FinishedAt = time.Now().UTC()
+		})
+		if !ok {
+			return
+		}
+		_ = m.persist(snapshot)
 		if req.OnDone != nil {
-			req.OnDone(*rec)
+			req.OnDone(snapshot)
 		}
 		return
 	}
@@ -264,60 +307,104 @@ func (m *Manager) run(ctx context.Context, req StartRequest, rec *JobRecord, res
 	if stats.TotalTokens == 0 {
 		stats.TotalTokens = est
 	}
-	rec.HTMLPath = htmlPath
-	rec.Stats = stats
-	rec.Status = StatusDone
-	rec.Phase = PhaseWriting
-	rec.FinishedAt = time.Now().UTC()
-	logging.Log(logging.INFO_LOG_LEVEL, "research job complete", logging.LogOptions{Params: map[string]any{"job_id": rec.ID, "slug": rec.Slug, "html_path": rec.HTMLPath}})
-	_ = m.persist(rec)
+	snapshot, ok := m.mutateRecord(jobID, func(current *JobRecord) {
+		applyEngineResults(current, findings, meta, stats)
+		current.HTMLPath = htmlPath
+		current.Status = StatusDone
+		current.Phase = PhaseWriting
+		current.FinishedAt = time.Now().UTC()
+	})
+	if !ok {
+		return
+	}
+	logging.Log(logging.INFO_LOG_LEVEL, "research job complete", logging.LogOptions{Params: map[string]any{"job_id": snapshot.ID, "slug": snapshot.Slug, "html_path": snapshot.HTMLPath}})
+	_ = m.persist(snapshot)
 	if req.OnDone != nil {
-		req.OnDone(*rec)
+		req.OnDone(snapshot)
 	}
 }
 
-func (m *Manager) updateProgress(rec *JobRecord, ev ProgressEvent, fn func(JobRecord, ProgressEvent)) {
-	if ev.URL != "" || ev.Message == URLAttemptSearchFailed {
-		applyURLAttempt(rec, ev)
-		_ = m.persist(rec)
-		if fn != nil && isURLFailureEvent(ev) {
-			fn(*rec, ev)
-		}
-		return
+func applyEngineResults(rec *JobRecord, findings []Finding, meta RunMeta, stats JobStats) {
+	rec.Findings = append([]Finding(nil), findings...)
+	rec.ResearchPlan = meta.Plan
+	rec.EvolvingReport = meta.Report
+	rec.Stats = stats
+	if rec.Category == "" {
+		rec.Category = meta.Category
 	}
-	key := fmt.Sprintf("%s:%d:%d:%d", ev.Phase, ev.Round, ev.TotalSources, ev.TotalFindings)
+}
+
+func (m *Manager) snapshotRecord(id string) (JobRecord, bool) {
 	m.mu.Lock()
-	if m.progressKey[rec.ID] == key {
+	defer m.mu.Unlock()
+	rec, ok := m.records[id]
+	if !ok || rec == nil {
+		return JobRecord{}, false
+	}
+	return cloneJobRecord(*rec), true
+}
+
+func (m *Manager) mutateRecord(id string, fn func(*JobRecord)) (JobRecord, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rec, ok := m.records[id]
+	if !ok || rec == nil {
+		return JobRecord{}, false
+	}
+	next := cloneJobRecord(*rec)
+	fn(&next)
+	m.records[id] = &next
+	return cloneJobRecord(next), true
+}
+
+func (m *Manager) updateProgress(jobID string, ev ProgressEvent, fn func(JobRecord, ProgressEvent)) {
+	var snapshot JobRecord
+	m.mu.Lock()
+	rec, ok := m.records[jobID]
+	if !ok || rec == nil {
 		m.mu.Unlock()
 		return
 	}
-	m.progressKey[rec.ID] = key
+	next := cloneJobRecord(*rec)
+	if ev.URL != "" || ev.Message == URLAttemptSearchFailed {
+		applyURLAttempt(&next, ev)
+	} else {
+		key := fmt.Sprintf("%s:%d:%d:%d", ev.Phase, ev.Round, ev.TotalSources, ev.TotalFindings)
+		if m.progressKey[jobID] == key {
+			m.mu.Unlock()
+			return
+		}
+		m.progressKey[jobID] = key
+
+		next.Phase = ev.Phase
+		if ev.Round > 0 {
+			next.Round = ev.Round
+		}
+		if ev.MaxRounds > 0 {
+			next.MaxRounds = ev.MaxRounds
+		}
+		if ev.TotalQueries > 0 {
+			next.Stats.Queries = ev.TotalQueries
+		}
+		next.Stats.URLs = ev.TotalSources
+		if ev.Phase == PhaseAnalyzing || ev.Phase == PhaseWriting {
+			next.Stats.Findings = ev.TotalFindings
+		}
+		if ev.Round > 0 {
+			next.Stats.Rounds = ev.Round
+		}
+	}
+	m.records[jobID] = &next
+	snapshot = cloneJobRecord(next)
 	m.mu.Unlock()
 
-	rec.Phase = ev.Phase
-	if ev.Round > 0 {
-		rec.Round = ev.Round
-	}
-	if ev.MaxRounds > 0 {
-		rec.MaxRounds = ev.MaxRounds
-	}
-	if ev.TotalQueries > 0 {
-		rec.Stats.Queries = ev.TotalQueries
-	}
-	rec.Stats.URLs = ev.TotalSources
-	if ev.Phase == PhaseAnalyzing || ev.Phase == PhaseWriting {
-		rec.Stats.Findings = ev.TotalFindings
-	}
-	if ev.Round > 0 {
-		rec.Stats.Rounds = ev.Round
-	}
-	_ = m.persist(rec)
-	if fn != nil {
-		fn(*rec, ev)
+	_ = m.persist(snapshot)
+	if fn != nil && (ev.URL == "" || isURLFailureEvent(ev)) {
+		fn(snapshot, ev)
 	}
 }
 
-func (m *Manager) persist(rec *JobRecord) error {
+func (m *Manager) persist(rec JobRecord) error {
 	return chatstore.WriteResearchJobFile(rec.ProjectHex, rec.Slug, rec)
 }
 
@@ -402,8 +489,9 @@ func (m *Manager) lookup(projectHex, target string) (JobRecord, error) {
 	m.mu.Lock()
 	for _, rec := range m.records {
 		if rec.ProjectHex == projectHex && (rec.ID == target || strings.EqualFold(rec.Title, target) || rec.Slug == target) {
+			snapshot := cloneJobRecord(*rec)
 			m.mu.Unlock()
-			return *rec, nil
+			return snapshot, nil
 		}
 	}
 	m.mu.Unlock()

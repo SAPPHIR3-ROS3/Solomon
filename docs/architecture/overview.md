@@ -10,6 +10,7 @@ Interactive terminal harness for LLMs over OpenAI-compatible APIs — project-aw
 
 - **Interactive REPL** — multiline input, slash commands, checkpoints, streaming output
 - **Agent and chat modes** — agent uses orchestrate for filesystem/shell; chat for web/docs
+- **Deep research** — asynchronous project jobs with source evidence and HTML reports
 - **Skills and MCP** — install skills with `solomon add`; optional MCP tools from `mcp.json`
 - **Headless runs** — `solomon exec` and `--json` / `--jsonl` for scripts and CI
 - **BYO API** — OpenAI-compatible HTTPS endpoints, Anthropic Messages API, or ChatGPT Sub via `/connect`
@@ -58,6 +59,7 @@ Compared to IDE-hosted or vendor-locked CLIs, Solomon keeps backend and workspac
 | `internal/tooloutput/` | Tool result truncation and spill to `temp/` |
 | `internal/atmention/` | `@` file/folder tags, short tags, picker scoring |
 | `internal/search/` | Web search backends for `webSearch` |
+| `internal/research/` | Asynchronous deep research engine and HTML report generation — [Deep research](research.md) |
 | `internal/integrations/cursor/` | Cursor sidecar install paths and health |
 | `integrations/cursor/` | Node sidecar — [Cursor integration](cursor-integration.md) |
 | `internal/updater/` | GitHub release check, install, restart |

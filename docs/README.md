@@ -9,6 +9,7 @@ Welcome to the in-repo wiki for Solomon. Articles are grouped by topic into **po
 | Install Solomon | [Installation and PATH](user-guide/installation.md) |
 | First run and REPL basics | [Usage and commands — Quickstart](user-guide/usage-and-commands.md#quickstart) |
 | Configure providers, MCP, web search | [Configuration](user-guide/configuration.md) |
+| Run or inspect deep research | [Usage — `/research`](user-guide/usage-and-commands.md#research) · [Deep research architecture](architecture/research.md) |
 | REPL, slash commands, CLI modes | [Usage and commands](user-guide/usage-and-commands.md) |
 | Capire cosa si fa dalla GUI o dal terminale | [Interfaccia e terminale](user-guide/interface-and-terminal.md) |
 | Find chats, plans, skills, exports on disk | [Data layout](user-guide/data-layout.md) |
@@ -24,7 +25,7 @@ Development: [Testing](development/testing.md), [Cookbook](development/cookbook.
 | Portal | Index | Topics |
 |--------|-------|--------|
 | **Using Solomon** | [user-guide/README.md](user-guide/README.md) | Configuration, CLI modes, terminal fonts/colors, on-disk layout |
-| **Internals & design** | [architecture/README.md](architecture/README.md) | Packages, functions, runtime flows, tools, MCP |
+| **Internals & design** | [architecture/README.md](architecture/README.md) | Packages, functions, runtime flows, tools, MCP, deep research |
 | **Building & releasing** | [development/README.md](development/README.md) | `go vet` / test / build, release workflow |
 
 ## Suggested reading paths
@@ -86,6 +87,7 @@ Development: [Testing](development/testing.md), [Cookbook](development/cookbook.
 
 - [Feature catalog](features.md) — capabilities ranked by cross-agent fame, plus Solomon-only and distinctive features
 - [Configuration](user-guide/configuration.md) — `config.toml`, web search, logs, legacy XML tools
+- [Deep research](architecture/research.md) — asynchronous jobs, web routing, persistence, and surfaces
 - [Terminal setup](user-guide/terminal-setup.md) — monospace font, ligatures, ANSI colors
 - [Package index](architecture/package-index.md) — canonical package map with tiers
 - [Overview](architecture/overview.md) — design tenets and dependency graph

@@ -54,6 +54,14 @@ Preserve: fail-closed stream integrity ([`llm/stream/completion.go`](../../inter
 3. Test: focused test with HTTP stub if the engine calls the network.
 4. Docs: [Configuration — web search](../user-guide/configuration.md), [Supporting packages](../architecture/supporting-packages.md).
 
+## Change deep research
+
+1. Job lifecycle and record snapshots: [`internal/research/job.go`](../../internal/research/job.go) and [`types.go`](../../internal/research/types.go).
+2. Engine rounds, extraction, and report rendering: [`internal/research/engine.go`](../../internal/research/engine.go) and [`html/`](../../internal/research/html/).
+3. Runtime/native/slash surfaces: [`researchmanager.go`](../../internal/agent/runtime/researchmanager.go), [`deep_research.go`](../../internal/agent/tools/deep_research.go), and [`research.go`](../../internal/agent/commands/research.go).
+4. Keep status reads independent from background mutations; test the runtime and web adapters through [`test/web_surfaces_test.go`](../../test/web_surfaces_test.go) and run the Linux `-race` command before committing.
+5. Docs: [Deep research](../architecture/research.md), [Usage — `/research`](../user-guide/usage-and-commands.md#research), [Configuration](../user-guide/configuration.md#deep-research), and [Data layout](../user-guide/data-layout.md#deep-research-files).
+
 ## Add or change an LLM provider path
 
 1. Provider config: [`internal/config/`](../../internal/config/), wizard [`commands/connect/`](../../internal/agent/commands/connect/).

@@ -38,6 +38,7 @@ across projects.
 | `GET /__solomon/projects/<project>/{branches,history,status,worktrees}` | Read project Git state. |
 | `POST /__solomon/projects/<project>/checkout` | Checkout an existing project branch. |
 | `GET /__solomon/projects/<project>/research` | List persisted research jobs. |
+| `GET /__solomon/projects/<project>/research/<id>/report` | Return the persisted HTML report for a research job. |
 | `GET /__solomon/home-directories?path=...` | List one directory level under the user home. |
 
 Customization, model and terminal routes are also daemon-owned:

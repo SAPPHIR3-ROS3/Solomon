@@ -80,8 +80,8 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/instructions/` | `AGENTS.md` / fallbacks loader | [Supporting packages](supporting-packages.md) |
 | `internal/search/` | Legacy web search backends plus the internal Exa/Parallel router and monthly balance state | [Supporting packages](supporting-packages.md) |
 | `internal/webfetch/` | Legacy HTTP fetch plus internal Exa/Parallel/native CloakBrowser fetch adapters and router | [Supporting packages](supporting-packages.md) |
-| `internal/research/` | Research engine: web jobs, parsing, quality checks, LLM integration | [Supporting packages](supporting-packages.md) |
-| `internal/research/html/` | HTML rendering templates for research results | [Supporting packages](supporting-packages.md) |
+| `internal/research/` | Research engine: asynchronous jobs, parsing, quality checks, LLM integration | [Deep research](research.md) |
+| `internal/research/html/` | HTML rendering templates for research results | [Deep research](research.md) |
 | `internal/roles/` | Manual subagent score catalog, table formatting, and role lookup | [Native tools](native-tools.md#subagent-roles) |
 | `internal/roles/benchmarks/` | Disabled automatic benchmark score storage, refresh, and publishing | [Native tools](native-tools.md#subagent-roles) |
 | `internal/roles/scoring/` | Disabled automatic benchmark normalization and aggregation helpers | [Native tools](native-tools.md#subagent-roles) |

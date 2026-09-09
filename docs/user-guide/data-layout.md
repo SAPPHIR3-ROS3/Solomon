@@ -9,6 +9,7 @@ flowchart LR
   config["config.toml<br/><small>providers, model, user name,<br/>reasoning, language, logging,<br/>token caps, compaction,<br/>[tools] legacy XML</small>"]
   mcpConfig["mcp.json<br/><small>optional MCP servers</small>"]
   cloakDir["cloakbrowser/<br/><small>official npm wrapper + browser cache</small>"]
+  webUsage["websearch-usage.json<br/><small>monthly Exa/Parallel balance</small>"]
   projectMap["projectsId.json<br/><small>canonical root -> 64-char id</small>"]
   logs["logs/<br/><small>file logs, 7-day retention</small>"]
   exported["exported/<br/><small>/export markdown by date</small>"]
@@ -26,6 +27,9 @@ flowchart LR
   projectNode["&lt;project-id&gt;/"]
   chats["chats/<br/><small>session JSON</small>"]
   chatFile["*.json"]
+  research["research/<br/><small>deep research records and reports</small>"]
+  researchJob["&lt;slug&gt;.json"]
+  researchReport["&lt;slug&gt;.html"]
   subchats["subchats/"]
   subchatFile["*.json"]
   plans["plans/<br/><small>plan markdown</small>"]
@@ -46,6 +50,7 @@ flowchart LR
   home --> config
   home --> mcpConfig
   home --> cloakDir
+  home --> webUsage
   home --> projectMap
   home --> logs
   home --> exported
@@ -65,6 +70,9 @@ flowchart LR
   chats --> chatFile
   chats --> subchats
   subchats --> subchatFile
+  projectNode --> research
+  research --> researchJob
+  research --> researchReport
   projectNode --> plans
   plans --> planFile
   projectNode --> temp
@@ -77,13 +85,27 @@ flowchart LR
 
   classDef folder fill:#eef6ff,stroke:#5b8def,color:#102a43
   classDef file fill:#fff7e6,stroke:#d9822b,color:#3d2b1f
-  class home,logs,exported,cloakDir,globalSkillsDir,globalRules,promptTemplates,subagents,projects,projectNode,chats,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
-  class config,mcpConfig,projectMap,skillsRegistry,tempQueue,chatFile,subchatFile,scheduledSubagent,activeSubagents,planFile,exportFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
+  class home,logs,exported,cloakDir,globalSkillsDir,globalRules,promptTemplates,subagents,projects,projectNode,chats,research,subchats,plans,temp,projectSkills,projectRules,workspaceRoot,workspaceSkills folder
+  class config,mcpConfig,webUsage,projectMap,skillsRegistry,tempQueue,chatFile,researchJob,researchReport,subchatFile,scheduledSubagent,activeSubagents,planFile,exportFile,localMirror,localFiles,globalAgents,repoAgents,repoSubAgents file
 ```
 
 ## Session files
 
 Chat sessions live under `projects/<project-id>/chats/*.json`. Each file holds session id, title, timestamps, messages, tool calls, checkpoint fields, token usage, image references, and `activated_instruction_dirs` (subdirectory instruction paths active for that chat). Legacy tool settings are **not** stored per session — they live in global `config.toml` under `[tools]`. Old session JSON may still contain a deprecated `legacy_tools` field; it is ignored on load. See [Sessions and storage](../architecture/sessions-and-storage.md).
+
+## Deep research files
+
+Deep research jobs live under `projects/<project-id>/research/`. Each job has a
+`<slug>.json` record containing status, phase, checkpoints, findings,
+URL-attempt metadata, provider statistics, and (when available) the HTML
+path. Completed jobs also have a matching `<slug>.html` report. The
+terminal and GUI read this same project-scoped store; there is no separate GUI
+copy. See [Deep research](../architecture/research.md).
+
+The internal Exa/Parallel router stores its cross-process monthly scheduler
+state in `~/.solomon/websearch-usage.json` with mode `0600`; a sibling lock
+file coordinates concurrent Solomon processes. Counts reset automatically at
+the next UTC month.
 
 ## Local server runtime
 
