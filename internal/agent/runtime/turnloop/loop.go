@@ -90,7 +90,7 @@ func Run(ctx context.Context, h Host) error {
 	}
 	turnSeparatorPending := !h.MachineMode()
 	consecutiveProxyCorrections := 0
-	compileRetryState := orchestrateCompileRetryState{}
+	compileRetryState := CompileRetryState{}
 	for {
 		sys, err := h.SystemPrompt(h.Config().ReasoningEffortIsNone())
 		if err != nil {
@@ -346,11 +346,11 @@ func Run(ctx context.Context, h Host) error {
 				res = map[string]any{"error": err.Error()}
 			}
 			if inv.Name == "orchestrate" && !stopAfterToolBatch {
-				if terminal, reason := compileRetryState.observe(res); terminal {
+				if terminal, reason := compileRetryState.Observe(res); terminal {
 					stopAfterToolBatch = true
 					stopReason = reason
 				} else if !hasOrchestrateCompileError(res) {
-					compileRetryState.reset()
+					compileRetryState.Reset()
 				}
 			}
 			res = h.ApplyToolOutput(res, inv.Name, toolIDs[i])

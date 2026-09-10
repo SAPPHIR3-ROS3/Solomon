@@ -2,23 +2,25 @@ package turnloop
 
 import "fmt"
 
-const maxOrchestrateCompileAttempts = 3
+// MaxOrchestrateCompileAttempts is the maximum number of compile failures tolerated for one orchestrate request.
+const MaxOrchestrateCompileAttempts = 3
 
-type orchestrateCompileRetryState struct {
+// CompileRetryState tracks compile failures for one orchestrate request.
+type CompileRetryState struct {
 	attempts        int
 	lastFingerprint string
 	exhausted       bool
 	terminalMessage string
 }
 
-func (s *orchestrateCompileRetryState) reset() {
+func (s *CompileRetryState) Reset() {
 	s.attempts = 0
 	s.lastFingerprint = ""
 	s.exhausted = false
 	s.terminalMessage = ""
 }
 
-func (s *orchestrateCompileRetryState) observe(result any) (bool, string) {
+func (s *CompileRetryState) Observe(result any) (bool, string) {
 	m, ok := result.(map[string]any)
 	if !ok {
 		return false, ""
@@ -40,13 +42,13 @@ func (s *orchestrateCompileRetryState) observe(result any) (bool, string) {
 	s.lastFingerprint = fingerprint
 	s.attempts++
 	m["attempt"] = s.attempts
-	m["max_attempts"] = maxOrchestrateCompileAttempts
+	m["max_attempts"] = MaxOrchestrateCompileAttempts
 	m["retryable"] = true
 
 	if duplicate {
 		s.terminalMessage = "the same orchestrate source produced the same compile error twice"
-	} else if s.attempts >= maxOrchestrateCompileAttempts {
-		s.terminalMessage = fmt.Sprintf("orchestrate compile retry limit reached (%d attempts)", maxOrchestrateCompileAttempts)
+	} else if s.attempts >= MaxOrchestrateCompileAttempts {
+		s.terminalMessage = fmt.Sprintf("orchestrate compile retry limit reached (%d attempts)", MaxOrchestrateCompileAttempts)
 	} else {
 		return false, ""
 	}

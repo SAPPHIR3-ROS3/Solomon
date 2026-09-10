@@ -1,6 +1,10 @@
-package turnloop
+package test
 
-import "testing"
+import (
+	"testing"
+
+	turnloop "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/turnloop"
+)
 
 func compileFailureForTest(hash, message string) map[string]any {
 	return map[string]any{
@@ -11,13 +15,13 @@ func compileFailureForTest(hash, message string) map[string]any {
 }
 
 func TestOrchestrateCompileRetryStopsDuplicate(t *testing.T) {
-	state := orchestrateCompileRetryState{}
+	state := turnloop.CompileRetryState{}
 	first := compileFailureForTest("same", "invalid Go source")
-	if terminal, _ := state.observe(first); terminal {
+	if terminal, _ := state.Observe(first); terminal {
 		t.Fatal("first compile failure should be retryable")
 	}
 	second := compileFailureForTest("same", "invalid Go source")
-	terminal, reason := state.observe(second)
+	terminal, reason := state.Observe(second)
 	if !terminal {
 		t.Fatal("duplicate compile failure should stop retries")
 	}
@@ -27,14 +31,14 @@ func TestOrchestrateCompileRetryStopsDuplicate(t *testing.T) {
 }
 
 func TestOrchestrateCompileRetryStopsAtAttemptLimit(t *testing.T) {
-	state := orchestrateCompileRetryState{}
-	for i := 1; i <= maxOrchestrateCompileAttempts; i++ {
+	state := turnloop.CompileRetryState{}
+	for i := 1; i <= turnloop.MaxOrchestrateCompileAttempts; i++ {
 		result := compileFailureForTest(string(rune('a'+i)), "compile error")
-		terminal, _ := state.observe(result)
-		if i < maxOrchestrateCompileAttempts && terminal {
+		terminal, _ := state.Observe(result)
+		if i < turnloop.MaxOrchestrateCompileAttempts && terminal {
 			t.Fatalf("attempt %d should be retryable", i)
 		}
-		if i == maxOrchestrateCompileAttempts && !terminal {
+		if i == turnloop.MaxOrchestrateCompileAttempts && !terminal {
 			t.Fatal("attempt limit should stop retries")
 		}
 	}
