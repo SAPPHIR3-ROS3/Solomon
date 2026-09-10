@@ -90,7 +90,17 @@ jobs:
           fi
       - name: Build solomon with embedded version metadata
         shell: bash
-        run: go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(git rev-parse --short HEAD)" ./cmd/solomon
+        run: |
+          set -e
+          if VERSION=$(git describe --tags --exact-match --match 'v*' 2>/dev/null); then
+            :
+          else
+            BASE_VERSION=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo dev)
+            VERSION="${BASE_VERSION}-dev"
+          fi
+          COMMIT=$(git rev-parse HEAD)
+          COMMIT_TIME=$(git show -s --format=%cI HEAD)
+          go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=${VERSION} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=${COMMIT} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=${COMMIT_TIME}" ./cmd/solomon
 
   release:
     if: |

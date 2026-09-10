@@ -19,10 +19,14 @@ func runUpgradeCLI() {
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	logging.Log(logging.INFO_LOG_LEVEL, "upgrade cli", logging.LogOptions{Params: map[string]any{"marker": upgradeSmokeMarker}})
 	current := commands.VersionString()
-	res := updater.Check(ctx, current)
+	res := updater.CheckWithCommitTime(ctx, current, commands.BuildCommit(), commands.BuildCommitTime())
 	if res.Err != nil {
 		fmt.Fprintln(os.Stderr, res.Err)
 		os.Exit(1)
+	}
+	if res.LocalCommitRelation == "ahead" || res.LocalCommitRelation == "identical" {
+		commands.SetEffectiveReleaseVersion(res.LatestTag)
+		current = commands.VersionString()
 	}
 	if !res.Newer {
 		fmt.Fprintf(os.Stdout, "Solomon is up to date (%s)\n", current)

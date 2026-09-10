@@ -499,7 +499,31 @@ ensure_node() {
   echo "Node ${ver} ready"
 }
 
+cloakbrowser_ready() {
+  local solomon_home cloak_dir cloak_cache browser
+  solomon_home="${SOLOMON_HOME:-${HOME}/.solomon}"
+  cloak_dir="${solomon_home}/cloakbrowser"
+  cloak_cache="${cloak_dir}/cache"
+  [[ -f "${cloak_dir}/node_modules/cloakbrowser/package.json" ]] || return 1
+  [[ -f "${cloak_dir}/node_modules/playwright-core/package.json" ]] || return 1
+  case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
+    darwin)
+      browser="$(find "$cloak_cache" -type f -path '*/Chromium.app/Contents/MacOS/Chromium' -perm -111 -print -quit 2>/dev/null || true)"
+      ;;
+    linux)
+      browser="$(find "$cloak_cache" -type f \( -name chrome -o -name chromium -o -name chrome-headless-shell \) -perm -111 -print -quit 2>/dev/null || true)"
+      ;;
+    *)
+      browser="$(find "$cloak_cache" -type f -name '*.exe' -perm -111 -print -quit 2>/dev/null || true)"
+      ;;
+  esac
+  [[ -n "$browser" ]]
+}
+
 install_cloakbrowser() {
+  if cloakbrowser_ready; then
+    return 0
+  fi
   ensure_node
   if ! command -v npm >/dev/null 2>&1 || ! command -v npx >/dev/null 2>&1; then
     echo "npm and npx are required to install the official CloakBrowser wrapper" >&2
