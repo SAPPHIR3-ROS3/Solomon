@@ -45,7 +45,12 @@ func releaseDownloadURL(tag, asset string) string {
 	return fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/%s", githubOwner, githubRepo, tag, asset)
 }
 
-func gopathBinDir() (string, error) {
+func goInstallBinDir() (string, error) {
+	if out, err := exec.Command("go", "env", "GOBIN").Output(); err == nil {
+		if p := strings.TrimSpace(string(out)); p != "" {
+			return p, nil
+		}
+	}
 	if out, err := exec.Command("go", "env", "GOPATH").Output(); err == nil {
 		if p := strings.TrimSpace(string(out)); p != "" {
 			return filepath.Join(p, "bin"), nil
@@ -54,11 +59,11 @@ func gopathBinDir() (string, error) {
 	if home, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(home, "go", "bin"), nil
 	}
-	return "", fmt.Errorf("could not resolve GOPATH/bin")
+	return "", fmt.Errorf("could not resolve Go install bin directory")
 }
 
 func installTargetPath() (string, error) {
-	dir, err := gopathBinDir()
+	dir, err := goInstallBinDir()
 	if err != nil {
 		return "", err
 	}

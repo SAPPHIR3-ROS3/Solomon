@@ -297,11 +297,13 @@ func printWelcomeBanner(out io.Writer, termW int, cfg *config.Root, model, projH
 			l1pad = 0
 		}
 		fmt.Fprintf(out, "%s%s%s%s\n", borderPaint("│"), line1, strings.Repeat(" ", l1pad), borderPaint("│"))
+		cur := strings.TrimSpace(updateNotice.Current)
 		hint := "Run /upgrade to install · /autoupdate on|off"
-		if cfg != nil && cfg.AutoUpdateEnabled() {
+		if updater.IsDevelopmentVersion(cur) {
+			hint = "development build — automatic install skipped · run /upgrade to install"
+		} else if cfg != nil && cfg.AutoUpdateEnabled() {
 			hint = "autoupdate=true — installing in background · /autoupdate off to disable"
 		}
-		cur := strings.TrimSpace(updateNotice.Current)
 		if cur != "" {
 			hint = fmt.Sprintf("%s (current %s)", hint, cur)
 		}

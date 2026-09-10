@@ -61,6 +61,9 @@ make build
 ```
 
 Produces `solomon` (Unix/macOS) or `solomon.exe` (Windows). `CGO_ENABLED=0` per [Makefile](../../Makefile).
+Builds from a non-tagged or dirty checkout carry a `dev-<commit>` version and
+are not replaced by startup auto-update. A release version can be supplied
+explicitly with `VERSION=vYYYY.MDD.N make build` when needed.
 
 ## Install from module path
 

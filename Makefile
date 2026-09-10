@@ -9,20 +9,29 @@ OUT ?= solomon
 INSTALL_NAME := solomon
 endif
 
-BIN_DIR ?= $(shell go env GOPATH)/bin
+GO_BIN_DIR := $(strip $(shell go env GOBIN))
+ifeq ($(GO_BIN_DIR),)
+GO_BIN_DIR := $(shell go env GOPATH)/bin
+endif
+BIN_DIR ?= $(GO_BIN_DIR)
 INSTALL_BIN := $(BIN_DIR)/$(INSTALL_NAME)
+ifeq ($(GOOS),windows)
+GO_INSTALL = set "GOBIN=$(BIN_DIR)" && go install
+else
+GO_INSTALL = GOBIN="$(BIN_DIR)" go install
+endif
 
 export CGO_ENABLED := 0
 
 ifeq ($(GOOS),windows)
 EXACT_TAG := $(shell git describe --tags --exact-match --match "v*" 2>NUL)
-LATEST_TAG := $(shell git tag -l "v*" --sort=-v:refname 2>NUL)
-VERSION ?= $(if $(EXACT_TAG),$(EXACT_TAG),$(if $(LATEST_TAG),$(firstword $(LATEST_TAG)),dev))
+WORKTREE_DIRTY := $(shell git status --porcelain 2>NUL)
+VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),dev,$(EXACT_TAG)),dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>NUL || echo unknown)
 else
 EXACT_TAG := $(shell git describe --tags --exact-match --match 'v*' 2>/dev/null)
-LATEST_TAG := $(shell git tag -l 'v*' --sort=-v:refname 2>/dev/null | head -n1)
-VERSION ?= $(or $(EXACT_TAG),$(LATEST_TAG),dev)
+WORKTREE_DIRTY := $(shell git status --porcelain 2>/dev/null)
+VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),dev,$(EXACT_TAG)),dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 endif
 LDFLAGS := -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT)
@@ -140,7 +149,7 @@ install:
 	$(call INSTALL_STEP,2/8 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
 	$(call INSTALL_STEP,3/8 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
 	$(call INSTALL_STEP,4/8 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,5/8 Install solomon binary,go install $(BUILD_FLAGS) ./cmd/solomon)
+	$(call INSTALL_STEP,5/8 Install solomon binary,$(GO_INSTALL) $(BUILD_FLAGS) ./cmd/solomon)
 	$(call INSTALL_STEP,6/8 Install prompt templates,$(INSTALL_BIN) templates install)
 	$(call INSTALL_STEP,7/8 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
 	$(call INSTALL_STEP,8/8 Install CloakBrowser,$(MAKE) cloak-install)

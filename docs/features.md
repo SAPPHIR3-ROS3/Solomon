@@ -190,7 +190,7 @@ Persisted REPL settings map to `config.toml` and slash commands: `/name` and `/l
 
 ### Release updates and config backup
 
-`/version` prints the installed build; `/update` checks GitHub releases and refreshes the welcome banner; `/autoupdate` toggles startup auto-install (when enabled and a newer release exists, Solomon installs before the prompt and restarts in the same terminal); `/upgrade` runs the OS install command for the available release; `/configbackup` copies `config.toml` to a dated file under `~/.solomon/backup/`. `/onboard` reruns the setup wizard (overwrites first-setup fields).
+`/version` prints the installed build; `/update` checks GitHub releases and refreshes the welcome banner; `/autoupdate` toggles startup auto-install for published builds (when enabled and a newer release exists, Solomon installs before the prompt and restarts in the same terminal; development builds are left untouched); `/upgrade` runs the OS install command for the available release; `/configbackup` copies `config.toml` to a dated file under `~/.solomon/backup/`. `/onboard` reruns the setup wizard (overwrites first-setup fields).
 
 ---
 

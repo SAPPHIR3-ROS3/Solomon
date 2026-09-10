@@ -24,7 +24,7 @@ func VersionString() string {
 	if !ok {
 		return "dev"
 	}
-	if v := strings.TrimSpace(info.Main.Version); v != "" && v != "(devel)" && !strings.HasPrefix(v, "v0.0.0-") {
+	if v := strings.TrimSpace(info.Main.Version); v != "" && v != "(devel)" && !isGoPseudoVersion(v) {
 		return v
 	}
 	var revision string
@@ -46,10 +46,27 @@ func VersionString() string {
 	if len(revision) > 7 {
 		revision = revision[:7]
 	}
+	if base == "dev" {
+		if modified {
+			return fmt.Sprintf("dev-%s-dirty", revision)
+		}
+		return fmt.Sprintf("dev-%s", revision)
+	}
 	if modified {
 		return fmt.Sprintf("%s-dev-%s-dirty", base, revision)
 	}
 	return fmt.Sprintf("%s-dev-%s", base, revision)
+}
+
+func isGoPseudoVersion(v string) bool {
+	if strings.HasPrefix(v, "v0.0.0-") {
+		return true
+	}
+	dash := strings.IndexByte(v, '-')
+	if dash <= 0 || !strings.HasPrefix(v[dash+1:], "0.") {
+		return false
+	}
+	return strings.Contains(v[dash+1:], "-")
 }
 
 func WriteVersion(w io.Writer) {
