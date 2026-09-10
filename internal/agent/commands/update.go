@@ -102,10 +102,6 @@ func printUpToDateIfCurrent(d Deps, notice *updater.Notice, err error) bool {
 func printUpdateHints(d Deps, notice *updater.Notice) {
 	PrintSystem(d.Out, "Use /autoupdate on|off to enable or disable automatic installs (config.toml).")
 	if d.Cfg != nil && d.Cfg.AutoUpdateEnabled() {
-		if notice != nil && updater.IsDevelopmentVersion(notice.Current) {
-			PrintSystem(d.Out, "development build — automatic install is skipped; run /upgrade to install the available release.")
-			return
-		}
 		PrintSystem(d.Out, "autoupdate is on — install runs in the background when a release is newer.")
 		return
 	}

@@ -126,7 +126,7 @@ Clipboard images: **Ctrl+V** in the raw-mode editor → [`repl_run.go`](../../in
 
 | Step | Behavior |
 | ---- | -------- |
-| Update check | GitHub release compare before the banner; with `autoupdate=true` and a newer tag, a published build installs immediately and Solomon exits to restart in the same terminal; development builds are not replaced automatically |
+| Update check | GitHub release compare before the banner; with `autoupdate=true` and a newer tag, a published build installs immediately and Solomon exits to restart in the same terminal; a development build ahead of the latest release is not reported or replaced |
 | Welcome banner | Clamped to terminal width; omits inline update hint when autoupdate will install |
 | MCP | `InitMCP` in a background goroutine; connection summary goes to the log file, not the REPL transcript |
 | Model catalog | `PrefetchSlashModelCatalog` when onboarding is complete |

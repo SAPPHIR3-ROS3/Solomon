@@ -214,7 +214,22 @@ function Ensure-Node {
     Write-Host "Node $ver ready"
 }
 
+function Test-CloakBrowserReady {
+    $solomonHome = if ($env:SOLOMON_HOME) { $env:SOLOMON_HOME } else { Join-Path $env:USERPROFILE '.solomon' }
+    $cloakDir = Join-Path $solomonHome 'cloakbrowser'
+    $cloakCache = Join-Path $cloakDir 'cache'
+    if (-not (Test-Path (Join-Path $cloakDir 'node_modules/cloakbrowser/package.json'))) { return $false }
+    if (-not (Test-Path (Join-Path $cloakDir 'node_modules/playwright-core/package.json'))) { return $false }
+    $browser = Get-ChildItem -Path $cloakCache -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -in @('chrome.exe', 'chrome-headless-shell.exe', 'Chromium.exe', 'chromium.exe') } |
+        Select-Object -First 1
+    return $null -ne $browser
+}
+
 function Install-CloakBrowser {
+    if (Test-CloakBrowserReady) {
+        return
+    }
     Ensure-Node
     if (-not (Get-Command npm -ErrorAction SilentlyContinue) -or -not (Get-Command npx -ErrorAction SilentlyContinue)) {
         throw 'npm and npx are required to install the official CloakBrowser wrapper'

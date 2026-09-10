@@ -58,12 +58,11 @@ func compareReleaseKeys(a, b []int) int {
 }
 
 // IsDevelopmentVersion reports whether current identifies a local/development
-// build rather than a published release. Development builds must not be
-// replaced automatically by the latest release: they may contain source
-// changes that are newer than the published binary.
+// build rather than a published release. The updater compares a development
+// build's commit with the latest release before deciding whether it is stale.
 func IsDevelopmentVersion(current string) bool {
 	current = strings.TrimSpace(current)
-	if current == "" || current == "dev" || strings.HasPrefix(current, "dev-") || strings.Contains(current, "-dev-") {
+	if current == "" || current == "dev" || strings.HasPrefix(current, "dev-") || strings.HasSuffix(current, "-dev") || strings.Contains(current, "-dev-") {
 		return true
 	}
 	return isGoPseudoVersion(current)

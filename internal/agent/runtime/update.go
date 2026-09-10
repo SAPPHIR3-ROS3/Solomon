@@ -22,7 +22,11 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 	}
 	r.updateMu.Unlock()
 
-	res := updater.Check(ctx, commands.VersionString())
+	res := updater.CheckWithCommitTime(ctx, commands.VersionString(), commands.BuildCommit(), commands.BuildCommitTime())
+	if res.Err == nil && (res.LocalCommitRelation == "ahead" || res.LocalCommitRelation == "identical") {
+		commands.SetEffectiveReleaseVersion(res.LatestTag)
+		res.Current = commands.VersionString()
+	}
 	var notice *updater.Notice
 	if res.Err == nil && res.Newer {
 		notice = res.Notice()
@@ -38,7 +42,7 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 
 func (r *Runtime) tryAutoUpdateInstall(ctx context.Context) (tag string, ok bool) {
 	notice := r.cachedUpdateNotice()
-	if notice == nil || r.Cfg == nil || !r.Cfg.AutoUpdateEnabled() || updater.IsDevelopmentVersion(commands.VersionString()) {
+	if notice == nil || r.Cfg == nil || !r.Cfg.AutoUpdateEnabled() {
 		return "", false
 	}
 	err := updater.RunSystemInstall(ctx, notice.Latest, io.Discard)

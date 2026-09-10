@@ -25,18 +25,24 @@ export CGO_ENABLED := 0
 
 ifeq ($(GOOS),windows)
 EXACT_TAG := $(shell git describe --tags --exact-match --match "v*" 2>NUL)
+BASE_TAG := $(shell git describe --tags --abbrev=0 --match "v*" 2>NUL)
 WORKTREE_DIRTY := $(shell git status --porcelain 2>NUL)
-VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),dev,$(EXACT_TAG)),dev)
-COMMIT ?= $(shell git rev-parse --short HEAD 2>NUL || echo unknown)
+LATEST_RELEASE_TAG = $(strip $(shell powershell -NoProfile -Command "(Invoke-RestMethod -UseBasicParsing -Uri 'https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest').tag_name" 2>NUL))
+VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG)),$(if $(LATEST_RELEASE_TAG),$(LATEST_RELEASE_TAG)-dev,$(if $(BASE_TAG),$(BASE_TAG)-dev,dev)))
+COMMIT ?= $(shell git rev-parse HEAD 2>NUL || echo unknown)
+COMMIT_TIME ?= $(shell git show -s --format=%cI HEAD 2>NUL || echo unknown)
 else
 EXACT_TAG := $(shell git describe --tags --exact-match --match 'v*' 2>/dev/null)
+BASE_TAG := $(shell git describe --tags --abbrev=0 --match 'v*' 2>/dev/null)
 WORKTREE_DIRTY := $(shell git status --porcelain 2>/dev/null)
-VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),dev,$(EXACT_TAG)),dev)
-COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+LATEST_RELEASE_TAG = $(strip $(shell curl -fsSL --max-time 5 -H 'Accept: application/vnd.github+json' -H 'User-Agent: solomon-build' 'https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest' 2>/dev/null | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'))
+VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG)),$(if $(LATEST_RELEASE_TAG),$(LATEST_RELEASE_TAG)-dev,$(if $(BASE_TAG),$(BASE_TAG)-dev,dev)))
+COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
+COMMIT_TIME ?= $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 endif
-LDFLAGS := -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT)
+LDFLAGS = -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=$(COMMIT_TIME)
 
-BUILD_FLAGS := -trimpath -ldflags="$(LDFLAGS)"
+BUILD_FLAGS = -trimpath -ldflags="$(LDFLAGS)"
 
 CURSOR_BUNDLER := go run scripts/cursor_bundler.go
 CURSOR_PROXY_DIR := integrations/cursor
@@ -50,6 +56,11 @@ define INSTALL_STEP
 	@echo     $(2)
 	@$(2)
 endef
+define INSTALL_STEP_SKIPPED
+	@echo.
+	@echo -- $(1) --
+	@echo     CloakBrowser already installed - skipped
+endef
 else
 FIX_TTY = stty sane opost onlcr icanon echo 2>/dev/null || true;
 define INSTALL_STEP
@@ -58,6 +69,13 @@ define INSTALL_STEP
 	@echo "── $(1) ──"
 	@echo "    $$ $(2)"
 	@$(2)
+	@$(FIX_TTY)
+endef
+define INSTALL_STEP_SKIPPED
+	@$(FIX_TTY)
+	@echo ""
+	@echo "── $(1) ──"
+	@echo "    → CloakBrowser already installed — skipped"
 	@$(FIX_TTY)
 endef
 endif
@@ -111,6 +129,12 @@ cursor-build: cursor-stop
 cursor-bundle: cursor-build
 	$(CURSOR_BUNDLER) bundle
 
+ifeq ($(GOOS),windows)
+CLOAK_BROWSER_READY := 0
+else
+CLOAK_BROWSER_READY := $(shell bash -c 'source scripts/install.sh; cloakbrowser_ready' >/dev/null 2>&1 && echo 1)
+endif
+
 # Install the official CloakBrowser wrapper/browser and persist internal web
 # runtime defaults. The standalone installers and the Makefile use the same
 # implementation so hot-install cannot leave the native fallback missing.
@@ -152,7 +176,12 @@ install:
 	$(call INSTALL_STEP,5/8 Install solomon binary,$(GO_INSTALL) $(BUILD_FLAGS) ./cmd/solomon)
 	$(call INSTALL_STEP,6/8 Install prompt templates,$(INSTALL_BIN) templates install)
 	$(call INSTALL_STEP,7/8 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+ifneq ($(CLOAK_BROWSER_READY),1)
 	$(call INSTALL_STEP,8/8 Install CloakBrowser,$(MAKE) cloak-install)
+else
+	$(call INSTALL_STEP_SKIPPED,8/8 Install CloakBrowser)
+	@bash -c 'source scripts/install.sh; configure_runtime_defaults' >/dev/null
+endif
 	@$(FIX_TTY)
 	@echo ""
 	@echo "solomon -> $(INSTALL_BIN)"
