@@ -90,6 +90,7 @@ func Run(ctx context.Context, h Host) error {
 	}
 	turnSeparatorPending := !h.MachineMode()
 	consecutiveProxyCorrections := 0
+	compileRetryState := orchestrateCompileRetryState{}
 	for {
 		sys, err := h.SystemPrompt(h.Config().ReasoningEffortIsNone())
 		if err != nil {
@@ -301,6 +302,8 @@ func Run(ctx context.Context, h Host) error {
 			}
 			return nil
 		}
+		stopAfterToolBatch := false
+		stopReason := ""
 		for i := range invs {
 			if interruptedDuringGeneration(ctx, runCtx, nil, stopErr) {
 				if err := appendSyntheticToolResults(h, astSeq, invs, toolIDs, i); err != nil {
@@ -342,6 +345,14 @@ func Run(ctx context.Context, h Host) error {
 				logging.Log(logging.WARNING_LOG_LEVEL, "tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
 				res = map[string]any{"error": err.Error()}
 			}
+			if inv.Name == "orchestrate" && !stopAfterToolBatch {
+				if terminal, reason := compileRetryState.observe(res); terminal {
+					stopAfterToolBatch = true
+					stopReason = reason
+				} else if !hasOrchestrateCompileError(res) {
+					compileRetryState.reset()
+				}
+			}
 			res = h.ApplyToolOutput(res, inv.Name, toolIDs[i])
 			payload := toolingResultJSON(res)
 			if h.MachineMode() {
@@ -366,6 +377,13 @@ func Run(ctx context.Context, h Host) error {
 				s.LastMessageAt = time.Now()
 			})
 			h.PersistSessionOrLog("toolResult")
+		}
+		if stopAfterToolBatch {
+			flushUsageStats()
+			if !h.MachineMode() {
+				commands.PrintSystemf(out, "orchestrate stopped: %s; correct the Go source and retry the request", stopReason)
+			}
+			return nil
 		}
 	}
 }

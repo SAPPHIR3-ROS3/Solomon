@@ -2,6 +2,7 @@ import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent
 import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCachedProjectSidebarData, getCachedUserName, PROJECTS_CHANGED_EVENT, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
+import { fetchActiveAgentChatIDs } from "./ActiveAgentsPage";
 
 const INITIAL_CHAT_LIMIT = 5;
 const MIN_SCROLL_THUMB_HEIGHT = 28;
@@ -10,6 +11,7 @@ const PROJECT_CONTEXT_MENU_WIDTH = 200;
 const CHAT_CONTEXT_MENU_HEIGHT = 120;
 const CHAT_CONTEXT_MENU_WIDTH = 200;
 const PROJECT_CONTEXT_MENU_EDGE_GAP = 8;
+const ACTIVE_AGENT_POLL_MS = 1000;
 
 type ProjectContextMenu = {
   project: Project;
@@ -80,6 +82,7 @@ export function SidePanel({
   width,
 }: SidePanelProps) {
   const [projects, setProjects] = useState<Project[]>(() => getCachedProjectSidebarData()?.projects ?? []);
+  const [activeAgentChatIDs, setActiveAgentChatIDs] = useState<ReadonlySet<string>>(() => new Set());
   const [projectContextMenu, setProjectContextMenu] = useState<ProjectContextMenu | null>(null);
   const [chatContextMenu, setChatContextMenu] = useState<ChatContextMenu | null>(null);
   const [chatDeletionDialog, setChatDeletionDialog] = useState<ChatDeletionDialog | null>(null);
@@ -103,6 +106,31 @@ export function SidePanel({
   const userNameInputRef = useRef<HTMLInputElement>(null);
   const chatDeleteCancelRef = useRef<HTMLButtonElement>(null);
   const projectsListRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let requestInFlight = false;
+    const controller = new AbortController();
+    const loadActiveAgentChatIDs = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
+      try {
+        const next = await fetchActiveAgentChatIDs(controller.signal);
+        if (!cancelled) setActiveAgentChatIDs(next);
+      } catch {
+        // Preserve the last confirmed active state during a transient daemon outage.
+      } finally {
+        requestInFlight = false;
+      }
+    };
+    void loadActiveAgentChatIDs();
+    const timer = window.setInterval(() => void loadActiveAgentChatIDs(), ACTIVE_AGENT_POLL_MS);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let currentController: AbortController | null = null;
@@ -539,7 +567,7 @@ export function SidePanel({
                     <ChatListButton
                       chatID={chat.id}
                       dateTime={chat.lastMessageAt}
-                      isWorking={streamingChatIDs?.has(chat.id)}
+                      isWorking={streamingChatIDs?.has(chat.id) || activeAgentChatIDs.has(chat.id)}
                       key={chat.id}
                       onClick={() => onOpenProjectChat(project, chat.id)}
                       onContextMenu={(event) => handleChatContextMenu(event, project.id, chat.id, chat.title)}

@@ -1,0 +1,47 @@
+@property --chat-pulse-opacity {
+  inherits: true;
+  initial-value: .45;
+  syntax: "<number>";
+}
+
+@property --chat-pulse-ring-opacity {
+  inherits: true;
+  initial-value: 0%;
+  syntax: "<percentage>";
+}
+
+@property --chat-pulse-ring-size {
+  inherits: true;
+  initial-value: 0px;
+  syntax: "<length>";
+}
+
+@keyframes chat-pulse-clock {
+  0%, 100% {
+    --chat-pulse-opacity: .45;
+    --chat-pulse-ring-opacity: 0%;
+    --chat-pulse-ring-size: 0px;
+  }
+
+  50% {
+    --chat-pulse-opacity: 1;
+    --chat-pulse-ring-opacity: 20%;
+    --chat-pulse-ring-size: 5px;
+  }
+}
+
+.app-shell {
+  --chat-pulse-opacity: .45;
+  --chat-pulse-ring-opacity: 0%;
+  --chat-pulse-ring-size: 0px;
+  animation: chat-pulse-clock 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell {
+    animation: none;
+    --chat-pulse-opacity: .8;
+    --chat-pulse-ring-opacity: 0%;
+    --chat-pulse-ring-size: 0px;
+  }
+}

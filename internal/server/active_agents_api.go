@@ -209,7 +209,7 @@ func rootChatID(parentID string, chatTitles map[string]string, subByID map[strin
 }
 
 func liveSubagentStatus(status string) bool {
-	return chatstore.SubSessionRunning(status) || status == chatstore.SubStatusPaused
+	return chatstore.SubSessionRunning(status)
 }
 
 func subSessionTitle(sub *chatstore.SubSession) string {

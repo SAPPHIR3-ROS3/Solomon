@@ -423,7 +423,6 @@ html {
 }
 
 .right-side-panel-research-item.is-running > svg {
-  animation: chat-pulse-clock 1.15s ease-in-out infinite;
   filter: drop-shadow(0 0 var(--chat-pulse-ring-size) color-mix(in srgb, var(--color-crown-gold) var(--chat-pulse-ring-opacity), transparent));
   opacity: var(--chat-pulse-opacity);
   stroke: var(--color-crown-gold);
@@ -2723,7 +2722,9 @@ button.right-side-panel-history-ref:hover {
 
 .active-agents-node.is-running > button .active-agents-status,
 .active-agents-node.is-queued > button .active-agents-status {
-  background: #3ecf8e;
+  background: var(--color-accent);
+  box-shadow: 0 0 var(--chat-pulse-ring-size) color-mix(in srgb, var(--color-accent) var(--chat-pulse-ring-opacity), transparent);
+  opacity: var(--chat-pulse-opacity);
 }
 
 .active-agents-node.is-paused > button .active-agents-status {
@@ -3949,34 +3950,14 @@ button.right-side-panel-history-ref:hover {
 }
 
 .side-panel-chat-working-dot {
-  animation: side-panel-chat-working-pulse 1.15s ease-in-out infinite;
   background: var(--color-accent);
   border-radius: 50%;
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 45%, transparent);
+  box-shadow: 0 0 var(--chat-pulse-ring-size) color-mix(in srgb, var(--color-accent) var(--chat-pulse-ring-opacity), transparent);
+  opacity: var(--chat-pulse-opacity);
   display: block;
   flex: 0 0 auto;
   height: 7px;
   width: 7px;
-}
-
-@keyframes side-panel-chat-working-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 40%, transparent);
-    opacity: 1;
-  }
-
-  50% {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 0%, transparent);
-    opacity: 0.35;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .side-panel-chat-working-dot {
-    animation: none;
-    opacity: 0.85;
-  }
 }
 
 .side-panel-chat span {

@@ -24,7 +24,23 @@ type ActiveAgentsPageProps = {
   onOpenAgent: (projectID: string, projectName: string, node: ActiveAgentNode) => void;
 };
 
+const ACTIVE_AGENT_STATUSES = new Set(["running", "queued"]);
 const POLL_MS = 1000;
+
+export function activeAgentChatIDsFromProjects(projects: ActiveAgentProject[]): Set<string> {
+  const chatIDs = new Set<string>();
+  const visit = (node: ActiveAgentNode) => {
+    if (node.kind === "chat" && (ACTIVE_AGENT_STATUSES.has(node.status) || Boolean(node.children?.length))) chatIDs.add(node.id);
+    if (node.kind === "subagent" && node.rootChatID) chatIDs.add(node.rootChatID);
+    node.children?.forEach(visit);
+  };
+  projects.forEach((project) => project.agents.forEach(visit));
+  return chatIDs;
+}
+
+export async function fetchActiveAgentChatIDs(signal?: AbortSignal): Promise<Set<string>> {
+  return activeAgentChatIDsFromProjects(await fetchActiveAgents(signal));
+}
 
 export function ActiveAgentsPage({ onOpenAgent }: ActiveAgentsPageProps) {
   const [projects, setProjects] = useState<ActiveAgentProject[]>([]);
@@ -104,8 +120,8 @@ function AgentTreeItem({ node, onOpen }: { node: ActiveAgentNode; onOpen: (node:
   );
 }
 
-async function fetchActiveAgents(): Promise<ActiveAgentProject[]> {
-  const response = await fetch(await serverEndpoint("/__solomon/active-agents"), { cache: "no-store" });
+async function fetchActiveAgents(signal?: AbortSignal): Promise<ActiveAgentProject[]> {
+  const response = await fetch(await serverEndpoint("/__solomon/active-agents"), { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Unable to load active agents: ${response.status}`);
   const payload: unknown = await response.json();
   const record = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as { projects?: unknown } : {};
@@ -120,36 +136,35 @@ function agentProjectFromPayload(value: unknown): ActiveAgentProject | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
   if (typeof record.id !== "string" || typeof record.name !== "string" || !Array.isArray(record.agents)) return null;
+  const agents = record.agents.flatMap((entry) => activeAgentNodesFromPayload(entry));
+  if (!agents.length) return null;
   return {
-    agents: record.agents.flatMap((entry) => {
-      const node = agentNodeFromPayload(entry);
-      return node ? [node] : [];
-    }),
+    agents,
     id: record.id,
     name: record.name,
   };
 }
 
-function agentNodeFromPayload(value: unknown): ActiveAgentNode | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+function activeAgentNodesFromPayload(value: unknown): ActiveAgentNode[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const record = value as Record<string, unknown>;
-  if ((record.kind !== "chat" && record.kind !== "subagent") || typeof record.id !== "string" || typeof record.title !== "string" || typeof record.projectID !== "string") return null;
+  if ((record.kind !== "chat" && record.kind !== "subagent") || typeof record.id !== "string" || typeof record.title !== "string" || typeof record.projectID !== "string") return [];
+  const status = typeof record.status === "string" ? record.status.trim().toLowerCase() : "";
   const children = Array.isArray(record.children)
-    ? record.children.flatMap((entry) => {
-      const node = agentNodeFromPayload(entry);
-      return node ? [node] : [];
-    })
-    : undefined;
-  return {
-    children,
+    ? record.children.flatMap((entry) => activeAgentNodesFromPayload(entry))
+    : [];
+  const node: ActiveAgentNode = {
+    children: children.length ? children : undefined,
     id: record.id,
     kind: record.kind,
     parentChatID: typeof record.parentChatID === "string" ? record.parentChatID : undefined,
     parentToolCallID: typeof record.parentToolCallID === "string" ? record.parentToolCallID : undefined,
     projectID: record.projectID,
     rootChatID: typeof record.rootChatID === "string" ? record.rootChatID : undefined,
-    status: typeof record.status === "string" ? record.status : "",
+    status: ACTIVE_AGENT_STATUSES.has(status) ? status : "",
     task: typeof record.task === "string" ? record.task : undefined,
     title: record.title,
   };
+  if (ACTIVE_AGENT_STATUSES.has(status) || (record.kind === "chat" && children.length)) return [node];
+  return children;
 }

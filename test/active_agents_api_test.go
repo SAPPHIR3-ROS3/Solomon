@@ -72,6 +72,16 @@ func TestServerRuntime_activeAgentsTreeIncludesNestedSubagents(t *testing.T) {
 		ParentChatID:  createdChat.ID,
 		Status:        chatstore.SubStatusDone,
 	}
+	paused := &chatstore.SubSession{
+		ID:            "sub-paused",
+		Title:         "Paused",
+		CreatedAt:     now,
+		LastMessageAt: now,
+		Origin:        chatstore.SubOriginParent,
+		ProjectHex:    created.Project.ID,
+		ParentChatID:  createdChat.ID,
+		Status:        chatstore.SubStatusPaused,
+	}
 	if err := chatstore.WriteSubSession(created.Project.ID, parent); err != nil {
 		t.Fatal(err)
 	}
@@ -79,6 +89,9 @@ func TestServerRuntime_activeAgentsTreeIncludesNestedSubagents(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := chatstore.WriteSubSession(created.Project.ID, done); err != nil {
+		t.Fatal(err)
+	}
+	if err := chatstore.WriteSubSession(created.Project.ID, paused); err != nil {
 		t.Fatal(err)
 	}
 

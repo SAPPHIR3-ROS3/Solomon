@@ -1,0 +1,82 @@
+.chat-assistant-timeline {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+}
+
+.chat-assistant-timeline.has-tool-activity {
+  --chat-timeline-content-offset: 22px;
+  --chat-timeline-line-color: color-mix(in srgb, var(--color-border) 72%, var(--color-accent));
+}
+
+.chat-assistant-timeline.has-tool-activity .chat-message.is-assistant {
+  padding-left: calc(17px + var(--chat-timeline-content-offset));
+}
+
+.chat-assistant-timeline.has-tool-activity .chat-message.is-assistant .chat-tool-activity {
+  margin-left: calc(-1 * var(--chat-timeline-content-offset));
+}
+
+.chat-assistant-timeline.has-tool-activity .chat-tool-card,
+.chat-assistant-timeline.has-tool-activity .chat-subagent-card {
+  border-left-color: var(--chat-timeline-line-color);
+}
+
+.chat-assistant-timeline.has-tool-activity::before {
+  background: var(--chat-timeline-line-color);
+  bottom: 16px;
+  content: "";
+  left: 26px;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 1px;
+  z-index: 0;
+}
+
+.chat-assistant-timeline.has-tool-activity.is-tool-activity-collapsed::before {
+  display: none;
+}
+
+.chat-assistant-timeline.has-tool-activity > .chat-assistant-segment,
+.chat-assistant-timeline.has-tool-activity > .chat-tool-activity-controls {
+  position: relative;
+  z-index: 1;
+}
+
+.chat-assistant-timeline.has-tool-activity .chat-tool-activity::before {
+  display: none;
+}
+
+.chat-assistant-timeline.has-tool-activity > .chat-tool-activity-controls {
+  margin: 0 0 14px;
+  margin-left: 0;
+}
+
+.chat-assistant-timeline.has-tool-activity .chat-tool-activity-controls.is-collapsed .chat-tool-collapsed-summary {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 11px 0 13px;
+}
+
+.chat-assistant-timeline.has-tool-activity .chat-tool-activity-controls .chat-reasoning-summary {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0;
+}
+
+.chat-assistant-timeline.has-tool-activity .chat-tool-activity-controls .chat-thought-for {
+  margin-top: 0;
+}
+
+
+.chat-assistant-timeline.has-tool-activity > .chat-assistant-segment.has-tool-activity .chat-tool-activity {
+  margin-bottom: 4px;
+}
+
+.chat-assistant-timeline.has-tool-activity > .chat-assistant-segment.has-tool-activity + .chat-assistant-segment {
+  margin-top: 0;
+}

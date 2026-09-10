@@ -152,6 +152,16 @@ export function ReasoningBlock({ isCollapsed, message, onToggle }: { isCollapsed
   );
 }
 
+export function ReasoningSummaryBlock({ seconds }: { seconds: number }) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+
+  return (
+    <div aria-label="Model reasoning" className="chat-reasoning chat-reasoning-summary">
+      <div className="chat-thought-for">{formatThoughtDuration(seconds)}</div>
+    </div>
+  );
+}
+
 function formatMessageTime(timestamp: number) {
   return new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(timestamp);
 }

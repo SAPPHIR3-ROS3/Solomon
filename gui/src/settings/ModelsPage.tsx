@@ -367,7 +367,7 @@ function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: 
 }
 
 function ProviderRow({ provider, quota }: { provider: ProviderCatalog; quota?: ProviderQuota }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const panelId = useId();
   const bars = quota?.bars ?? [];
   const hasQuota = bars.length > 0 || Boolean(quota?.error);
@@ -394,7 +394,7 @@ function ProviderRow({ provider, quota }: { provider: ProviderCatalog; quota?: P
           {bars.map((bar) => (
             <div className="settings-provider-quota-bar" key={bar.label}>
               <div className="settings-provider-quota-label">
-                <span>{bar.label}</span>
+                <span>{bar.label}{bar.detail ? ` · ${bar.detail}` : ""}</span>
                 <span>{Math.round(bar.percent)}%</span>
               </div>
               <div aria-hidden="true" className="settings-provider-quota-track">
