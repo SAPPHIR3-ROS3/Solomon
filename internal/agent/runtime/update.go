@@ -38,7 +38,7 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 
 func (r *Runtime) tryAutoUpdateInstall(ctx context.Context) (tag string, ok bool) {
 	notice := r.cachedUpdateNotice()
-	if notice == nil || r.Cfg == nil || !r.Cfg.AutoUpdateEnabled() {
+	if notice == nil || r.Cfg == nil || !r.Cfg.AutoUpdateEnabled() || updater.IsDevelopmentVersion(commands.VersionString()) {
 		return "", false
 	}
 	err := updater.RunSystemInstall(ctx, notice.Latest, io.Discard)

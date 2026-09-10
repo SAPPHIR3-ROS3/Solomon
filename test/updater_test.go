@@ -31,6 +31,26 @@ func TestIsNewerRelease_calendarSemver(t *testing.T) {
 	}
 }
 
+func TestIsDevelopmentVersion(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{
+		"",
+		"dev",
+		"dev-b50aa3c-dirty",
+		"v2026.613.1-0.20260908173929-6c06527f7272",
+		"v0.0.0-20260908173929-6c06527f7272",
+	} {
+		if !updater.IsDevelopmentVersion(version) {
+			t.Errorf("IsDevelopmentVersion(%q) = false", version)
+		}
+	}
+	for _, version := range []string{"v2026.909.1", "v2026.909.1+build"} {
+		if updater.IsDevelopmentVersion(version) {
+			t.Errorf("IsDevelopmentVersion(%q) = true", version)
+		}
+	}
+}
+
 func TestCheck_githubLatest(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": "v2099.101.0"})

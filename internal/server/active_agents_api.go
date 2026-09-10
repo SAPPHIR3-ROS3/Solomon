@@ -3,9 +3,14 @@ package server
 import (
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 )
 
 type apiActiveAgentProject struct {
@@ -32,14 +37,14 @@ func (a *chatAPI) handleActiveAgents(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
 		return
 	}
-	sidebar, err := a.loadProjectSidebarData()
+	running := a.runningChatsByProject()
+	projectSummaries, err := activeAgentProjectSummaries()
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, err)
 		return
 	}
-	running := a.runningChatsByProject()
-	projects := make([]apiActiveAgentProject, 0, len(sidebar.Projects))
-	for _, project := range sidebar.Projects {
+	projects := make([]apiActiveAgentProject, 0, len(projectSummaries))
+	for _, project := range projectSummaries {
 		agents := activeAgentsForProject(project, running[project.ID])
 		if len(agents) == 0 {
 			continue
@@ -47,6 +52,33 @@ func (a *chatAPI) handleActiveAgents(w http.ResponseWriter, r *http.Request) {
 		projects = append(projects, apiActiveAgentProject{ID: project.ID, Name: project.Name, Agents: agents})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"projects": projects})
+}
+
+func activeAgentProjectSummaries() ([]apiProject, error) {
+	mapPath, err := paths.ProjectsMapPath()
+	if err != nil {
+		return nil, err
+	}
+	projectMap, err := project.LoadMap(mapPath)
+	if err != nil {
+		return nil, err
+	}
+	projects := make([]apiProject, 0, len(projectMap))
+	for root, id := range projectMap {
+		if !safeProjectID(id) {
+			continue
+		}
+		projects = append(projects, apiProject{ID: id, Name: activeAgentProjectName(root)})
+	}
+	return projects, nil
+}
+
+func activeAgentProjectName(root string) string {
+	name := filepath.Base(filepath.Clean(root))
+	if home, err := os.UserHomeDir(); err == nil && filepath.Clean(root) == filepath.Clean(home) {
+		return "Home"
+	}
+	return name
 }
 
 func (a *chatAPI) runningChatsByProject() map[string]map[string]struct{} {
@@ -98,6 +130,11 @@ func activeAgentsForProject(project apiProject, running map[string]struct{}) []a
 		if rootID != "" {
 			shownChats[rootID] = struct{}{}
 		}
+	}
+	project.Chats = activeAgentChatSummaries(project.ID, shownChats, project.Chats)
+	chatTitles = make(map[string]string, len(project.Chats))
+	for _, chat := range project.Chats {
+		chatTitles[chat.ID] = chat.Title
 	}
 	children := make(map[string][]apiActiveAgentNode)
 	orphans := make([]apiActiveAgentNode, 0)
@@ -159,6 +196,33 @@ func activeAgentsForProject(project apiProject, running map[string]struct{}) []a
 		agents = append(agents, withChildren(orphan, children))
 	}
 	return agents
+}
+
+func activeAgentChatSummaries(projectID string, chatIDs map[string]struct{}, existing []apiChatSummary) []apiChatSummary {
+	titles := make(map[string]apiChatSummary, len(existing))
+	for _, chat := range existing {
+		titles[chat.ID] = chat
+	}
+	chats := make([]apiChatSummary, 0, len(chatIDs))
+	for chatID := range chatIDs {
+		if chat, ok := titles[chatID]; ok {
+			chats = append(chats, chat)
+			continue
+		}
+		chat := apiChatSummary{ID: chatID, Title: "Untitled chat"}
+		if sess, err := chatstore.ReadSession(projectID, chatID); err == nil && sess != nil {
+			chat.Title = strings.TrimSpace(sess.Title)
+			if chat.Title == "" {
+				chat.Title = "Untitled chat"
+			}
+			chat.LastMessageAt = chatstore.SessionActivityTime(sess)
+		}
+		chats = append(chats, chat)
+	}
+	sort.SliceStable(chats, func(i, j int) bool {
+		return chats[i].LastMessageAt.After(chats[j].LastMessageAt)
+	})
+	return chats
 }
 
 func withChildren(node apiActiveAgentNode, children map[string][]apiActiveAgentNode) apiActiveAgentNode {

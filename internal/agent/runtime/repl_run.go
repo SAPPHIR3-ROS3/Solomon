@@ -51,7 +51,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 	notice, _ := r.refreshUpdateCheck(ctx, false)
 	bannerNotice := notice
-	if notice != nil && r.Cfg != nil && r.Cfg.AutoUpdateEnabled() {
+	if notice != nil && r.Cfg != nil && r.Cfg.AutoUpdateEnabled() && !updater.IsDevelopmentVersion(commands.VersionString()) {
 		bannerNotice = nil
 	}
 	repl.PrintWelcomeBanner(r.Out, r.Cfg, r.Model, r.ProjHex, r.ProjRoot, r.ReplShellFirst, bannerNotice)

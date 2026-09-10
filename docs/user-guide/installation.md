@@ -54,7 +54,7 @@ go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
 
 Pin a [release tag](https://github.com/SAPPHIR3-ROS3/Solomon/tags): `@v2026.527.2`
 
-If `solomon` is not found after install, the binary is in `$(go env GOPATH)/bin` — see [Binary location](#binary-location) below.
+If `solomon` is not found after install, the binary is in `$(go env GOBIN)` when `GOBIN` is set, otherwise `$(go env GOPATH)/bin` — see [Binary location](#binary-location) below.
 
 ## Build from a clone
 
@@ -74,7 +74,7 @@ solomon version
 
 ## Binary location
 
-`go install` places the binary in `$(go env GOPATH)/bin` — by default `~/go/bin` on macOS and Linux, and `%USERPROFILE%\go\bin` on Windows. Go does **not** add this directory to your PATH automatically.
+`go install` places the binary in `$(go env GOBIN)` when `GOBIN` is set; otherwise it uses `$(go env GOPATH)/bin` — by default `~/go/bin` on macOS and Linux, and `%USERPROFILE%\go\bin` on Windows. Go does **not** add this directory to your PATH automatically.
 
 **Check that the binary exists:**
 

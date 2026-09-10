@@ -28,7 +28,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `[web_fetch]` | HTTP fetch headers, blocked domains, and redirect cap (optional) |
 | `server_port` | Stable TCP port for the local Solomon server (default `64000`; `SOLOMON_SERVER_PORT` overrides and is persisted) |
 | `fast_mode` | Cursor fast mode when the active provider supports it (default on; toggle with `/fast`) |
-| `autoupdate` | At REPL startup, auto-install a newer release when the GitHub check finds one, then restart in the same terminal (toggle with `/autoupdate`) |
+| `autoupdate` | At REPL startup, auto-install a newer release when the GitHub check finds one, then restart in the same terminal (toggle with `/autoupdate`). Development builds skip this automatic replacement; use `/upgrade` explicitly. |
 | `doc_search_min_normalized_score` | BM25 minimum for `/docs` and `docsRetrieval` (default `0.05`) |
 | `doc_search_full_article_score` | Normalized score threshold for returning a full article on short queries (default `0.9`) |
 | `[export].path` | Optional absolute directory for `/export` markdown files (default root `~/.solomon/exported/`) |

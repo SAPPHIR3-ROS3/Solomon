@@ -1,6 +1,6 @@
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { detectClient, initialClient } from "./platform";
-import { ActiveAgentsPage, type ActiveAgentNode } from "./shell/ActiveAgentsPage";
+import { ActiveAgentsPage, prefetchActiveAgents, type ActiveAgentNode } from "./shell/ActiveAgentsPage";
 import { SidePanel } from "./shell/SidePanel";
 import { SidePanelToggle } from "./shell/SidePanelToggle";
 import { RightSidePanel } from "./shell/RightSidePanel";
@@ -87,6 +87,7 @@ export function App() {
   useEffect(() => {
     prefetchProjectSidebarData();
     prefetchModelCatalog();
+    prefetchActiveAgents();
   }, []);
 
   useEffect(() => {

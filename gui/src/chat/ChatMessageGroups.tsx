@@ -84,12 +84,16 @@ function AssistantTurn({
   onStopTool?: ChatMessageGroupHandlers["onStopTool"];
   shouldShowWorkedFor: boolean;
 }) {
-  const lastEntry = entries[entries.length - 1];
   const hasAnyToolCalls = entries.some(({ message }) => Boolean(message.toolCalls?.length));
-  const responseEntry = hasAnyToolCalls && entries.length > 1 && !lastEntry.message.toolCalls?.length ? lastEntry : undefined;
-  const activityEntries = responseEntry ? entries.slice(0, -1) : entries;
-  const toolCalls = activityEntries.flatMap(({ message }) => message.toolCalls ?? []);
+  const lastToolEntryIndex = entries.reduce((lastIndex, entry, index) => (
+    entry.message.toolCalls?.length ? index : lastIndex
+  ), -1);
+  const responseIndex = hasAnyToolCalls ? findFinalResponseIndex(entries, lastToolEntryIndex) : -1;
+  const responseEntry = responseIndex >= 0 ? entries[responseIndex] : undefined;
+  const rawActivityEntries = responseEntry ? entries.filter((_, index) => index !== responseIndex) : entries;
+  const toolCalls = rawActivityEntries.flatMap(({ message }) => message.toolCalls ?? []);
   const hasToolCalls = toolCalls.length > 0;
+  const activityEntries = withActivityCheckpoints(rawActivityEntries, toolCalls);
   const [collapsedOverride, setCollapsedOverride] = useState<boolean | undefined>(undefined);
   const isToolActivityCollapsed = collapsedOverride ?? !toolCalls.some((tool) => tool.name === "orchestrate");
   const timelineClassName = [
@@ -106,7 +110,7 @@ function AssistantTurn({
   return (
     <div className="chat-turn is-assistant">
       <div className={timelineClassName}>
-        {activityEntries.map((entry) => {
+        {(!hasToolCalls || !isToolActivityCollapsed) ? activityEntries.map((entry) => {
           const actions = messageActions(entry, { onOpenSubagent, onStopTool });
           const toolActivity = hasToolCalls ? {
             isCollapsed: isToolActivityCollapsed,
@@ -122,11 +126,12 @@ function AssistantTurn({
               toolActivity={toolActivity}
             />
           );
-        })}
+        }) : null}
         {hasToolCalls ? (
           <ToolActivityCollapseControl
             isCollapsed={isToolActivityCollapsed}
             onToggleCollapsed={toggleToolActivity}
+            entries={activityEntries}
             thoughtFor={isToolActivityCollapsed ? aggregateThoughtFor(activityEntries) : undefined}
             toolCalls={toolCalls}
           />
@@ -148,6 +153,60 @@ function AssistantTurn({
       ) : null}
     </div>
   );
+}
+
+function findFinalResponseIndex(entries: IndexedChatMessage[], lastToolEntryIndex: number) {
+  for (let index = entries.length - 1; index > lastToolEntryIndex; index -= 1) {
+    const message = entries[index].message;
+    if (!message.toolCalls?.length && (message.content.trim() || message.images?.length)) return index;
+  }
+  return -1;
+}
+
+function withActivityCheckpoints(entries: IndexedChatMessage[], toolCalls: ChatToolCall[]): IndexedChatMessage[] {
+  const toolCheckpointKeys = new Set(
+    toolCalls
+      .map(toolCheckpoint)
+      .filter((checkpoint): checkpoint is CheckpointMetadata => checkpoint !== undefined)
+      .map(checkpointKey),
+  );
+  const usedCheckpointKeys = new Set<string>();
+  const allSequences = [
+    ...entries.flatMap(({ checkpoint }) => checkpoint ? [checkpoint.sequence] : []),
+    ...toolCalls.map(toolCheckpoint).filter((checkpoint): checkpoint is CheckpointMetadata => checkpoint !== undefined).map((checkpoint) => checkpoint.sequence),
+  ];
+  let nextSequence = allSequences.length ? Math.max(...allSequences) : -1;
+  let fallbackBranch = entries.find(({ checkpoint }) => checkpoint)?.checkpoint?.branch ?? "";
+
+  return entries.map((entry) => {
+    const checkpoint = entry.checkpoint;
+    if (checkpoint?.branch !== undefined) fallbackBranch = checkpoint.branch;
+    const key = checkpoint ? checkpointKey(checkpoint) : "";
+    const needsGeneratedCheckpoint = !checkpoint || (
+      !entry.message.toolCalls?.length && (toolCheckpointKeys.has(key) || usedCheckpointKeys.has(key))
+    );
+    if (!needsGeneratedCheckpoint) {
+      usedCheckpointKeys.add(key);
+      return entry;
+    }
+
+    nextSequence += 1;
+    const generated = {
+      branch: checkpoint?.branch ?? fallbackBranch,
+      label: activityCheckpointLabel(nextSequence, checkpoint?.branch ?? fallbackBranch),
+      sequence: nextSequence,
+    };
+    usedCheckpointKeys.add(checkpointKey(generated));
+    return { ...entry, checkpoint: generated };
+  });
+}
+
+function checkpointKey(checkpoint: CheckpointMetadata) {
+  return checkpoint.sequence + ":" + checkpoint.branch;
+}
+
+function activityCheckpointLabel(sequence: number, branch: string) {
+  return "[#" + String(sequence).padStart(3, "0") + branch + "]";
 }
 
 function AssistantMessageBlock({ checkpoint, message, onOpenSubagent, onStopTool, toolActivity }: { checkpoint?: CheckpointMetadata; message: ChatMessage; onOpenSubagent?: (tool: ChatToolCall) => void; onStopTool?: (toolID: string) => void; toolActivity?: ToolActivityControl }) {
@@ -240,12 +299,12 @@ function aggregateThoughtFor(entries: IndexedChatMessage[]): number | undefined 
   return durations.reduce((total, value) => total + value, 0);
 }
 
-function ToolActivityCollapseControl({ isCollapsed, onToggleCollapsed, thoughtFor, toolCalls }: { isCollapsed: boolean; onToggleCollapsed: () => void; thoughtFor?: number; toolCalls: ChatToolCall[] }) {
+function ToolActivityCollapseControl({ entries, isCollapsed, onToggleCollapsed, thoughtFor, toolCalls }: { entries: IndexedChatMessage[]; isCollapsed: boolean; onToggleCollapsed: () => void; thoughtFor?: number; toolCalls: ChatToolCall[] }) {
   const collapseLabel = toolActivityCollapseLabel(isCollapsed, toolCalls.length);
 
   return (
     <section aria-label="Tool activity" className={"chat-tool-activity chat-tool-activity-controls" + (isCollapsed ? " is-collapsed" : "")}>
-      {isCollapsed ? <CollapsedToolCheckpoints toolCalls={toolCalls} /> : null}
+      {isCollapsed ? <CollapsedActivityCheckpoints entries={entries} toolCalls={toolCalls} /> : null}
       {isCollapsed && thoughtFor !== undefined ? (
         <div className="chat-tool-collapsed-summary">
           <ReasoningSummaryBlock seconds={thoughtFor} />
@@ -262,21 +321,33 @@ function toolActivityCollapseLabel(isCollapsed: boolean, count: number) {
   return isCollapsed ? "Show " + count + " tool calls" : "Collapse tool calls";
 }
 
-function CollapsedToolCheckpoints({ toolCalls }: { toolCalls: ChatToolCall[] }) {
-  const checkpoints = toolCalls
-    .map(toolCheckpoint)
-    .filter((checkpoint): checkpoint is CheckpointMetadata => checkpoint !== undefined);
-  if (checkpoints.length === 0) return null;
+function CollapsedActivityCheckpoints({ entries, toolCalls }: { entries: IndexedChatMessage[]; toolCalls: ChatToolCall[] }) {
+  const checkpoints = [
+    ...entries.flatMap(({ checkpoint }) => checkpoint ? [checkpoint] : []),
+    ...toolCalls.map(toolCheckpoint).filter((checkpoint): checkpoint is CheckpointMetadata => checkpoint !== undefined),
+  ];
+  return <CollapsedCheckpointRail checkpoints={checkpoints} />;
+}
 
-  const first = checkpoints[0];
-  const last = checkpoints[checkpoints.length - 1];
-  const hasHiddenCheckpoints = checkpoints.length > 2;
+function CollapsedToolCheckpoints({ toolCalls }: { toolCalls: ChatToolCall[] }) {
+  return <CollapsedCheckpointRail checkpoints={toolCalls.map(toolCheckpoint).filter((checkpoint): checkpoint is CheckpointMetadata => checkpoint !== undefined)} />;
+}
+
+function CollapsedCheckpointRail({ checkpoints }: { checkpoints: CheckpointMetadata[] }) {
+  const uniqueCheckpoints = checkpoints
+    .filter((checkpoint, index, all) => all.findIndex((candidate) => candidate.sequence === checkpoint.sequence && candidate.branch === checkpoint.branch) === index)
+    .sort((left, right) => left.sequence - right.sequence);
+  if (uniqueCheckpoints.length === 0) return null;
+
+  const first = uniqueCheckpoints[0];
+  const last = uniqueCheckpoints[uniqueCheckpoints.length - 1];
+  const hasHiddenCheckpoints = uniqueCheckpoints.length > 2;
 
   return (
-    <div aria-label="Tool call checkpoints" className={`chat-tool-checkpoints-collapsed${checkpoints.length === 1 ? " is-single" : ""}`}>
+    <div aria-label="Activity checkpoints" className={"chat-tool-checkpoints-collapsed" + (uniqueCheckpoints.length === 1 ? " is-single" : "")}>
       <CheckpointLabel label={first.label} />
       {hasHiddenCheckpoints ? <span aria-hidden="true" className="chat-tool-checkpoints-ellipsis">...</span> : null}
-      {checkpoints.length > 1 ? <CheckpointLabel label={last.label} /> : null}
+      {uniqueCheckpoints.length > 1 ? <CheckpointLabel label={last.label} /> : null}
     </div>
   );
 }

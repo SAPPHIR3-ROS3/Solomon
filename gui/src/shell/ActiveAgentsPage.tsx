@@ -27,6 +27,9 @@ type ActiveAgentsPageProps = {
 const ACTIVE_AGENT_STATUSES = new Set(["running", "queued"]);
 const POLL_MS = 1000;
 
+let activeAgentsCache: ActiveAgentProject[] | null = null;
+let activeAgentsRequest: Promise<ActiveAgentProject[]> | null = null;
+
 export function activeAgentChatIDsFromProjects(projects: ActiveAgentProject[]): Set<string> {
   const chatIDs = new Set<string>();
   const visit = (node: ActiveAgentNode) => {
@@ -38,20 +41,46 @@ export function activeAgentChatIDsFromProjects(projects: ActiveAgentProject[]): 
   return chatIDs;
 }
 
-export async function fetchActiveAgentChatIDs(signal?: AbortSignal): Promise<Set<string>> {
-  return activeAgentChatIDsFromProjects(await fetchActiveAgents(signal));
+export async function fetchActiveAgentChatIDs(_signal?: AbortSignal): Promise<Set<string>> {
+  return activeAgentChatIDsFromProjects(await refreshActiveAgents());
+}
+
+export function getCachedActiveAgents(): ActiveAgentProject[] | null {
+  return activeAgentsCache;
+}
+
+export function prefetchActiveAgents(): void {
+  void refreshActiveAgents().catch(() => {
+    // The page retries when the initial prefetch cannot reach the daemon.
+  });
+}
+
+async function refreshActiveAgents(): Promise<ActiveAgentProject[]> {
+  if (activeAgentsRequest) return activeAgentsRequest;
+  activeAgentsRequest = requestActiveAgents()
+    .then((next) => {
+      activeAgentsCache = next;
+      return next;
+    })
+    .finally(() => {
+      activeAgentsRequest = null;
+    });
+  return activeAgentsRequest;
 }
 
 export function ActiveAgentsPage({ onOpenAgent }: ActiveAgentsPageProps) {
-  const [projects, setProjects] = useState<ActiveAgentProject[]>([]);
+  const [projects, setProjects] = useState<ActiveAgentProject[]>(() => getCachedActiveAgents() ?? []);
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => getCachedActiveAgents() === null);
 
   useEffect(() => {
     let cancelled = false;
+    let requestInFlight = false;
     const load = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
       try {
-        const next = await fetchActiveAgents();
+        const next = await refreshActiveAgents();
         if (!cancelled) {
           setProjects(next);
           setError("");
@@ -59,9 +88,11 @@ export function ActiveAgentsPage({ onOpenAgent }: ActiveAgentsPageProps) {
         }
       } catch {
         if (!cancelled) {
-          setError("Unable to load active agents.");
+          if (getCachedActiveAgents() === null) setError("Unable to load active agents.");
           setIsLoading(false);
         }
+      } finally {
+        requestInFlight = false;
       }
     };
     void load();
@@ -120,7 +151,7 @@ function AgentTreeItem({ node, onOpen }: { node: ActiveAgentNode; onOpen: (node:
   );
 }
 
-async function fetchActiveAgents(signal?: AbortSignal): Promise<ActiveAgentProject[]> {
+async function requestActiveAgents(signal?: AbortSignal): Promise<ActiveAgentProject[]> {
   const response = await fetch(await serverEndpoint("/__solomon/active-agents"), { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Unable to load active agents: ${response.status}`);
   const payload: unknown = await response.json();
