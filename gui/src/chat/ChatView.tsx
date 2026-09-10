@@ -12,16 +12,11 @@ import { BranchIcon, CloseIcon, FolderIcon, WorktreeIcon } from "./ChatIcons";
 import { MarkdownContent } from "./MarkdownContent";
 import type { ActiveSubagent } from "./chatViewTypes";
 import "./chat.css";
+import "./chat-timeline.css";
 import "./chat-compaction.css";
 
 const MODE_SWITCH_DURATION_MS = 5000;
 const WORKED_FOR_TICK_MS = 250;
-const PULSE_DURATION_MS = 1150;
-
-function synchronizedPulseDelay() {
-  return `${-(performance.now() % PULSE_DURATION_MS)}ms`;
-}
-
 export { ChatTopbar } from "./ChatTopbar";
 
 type OpenSubagentRequest = {
@@ -82,7 +77,6 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
     lastMessageWorkedFor,
     pendingMessageKey,
   ].join("\u0000");
-  const [pulseDelay] = useState(() => synchronizedPulseDelay());
   const indexedMessages = indexChatMessages(chat.messages);
   const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
   const visibleMessages = indexedMessages.filter(({ message }) => !pendingUserMessageIDs.has(message.id));
@@ -231,7 +225,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   }
 
   return (
-    <section aria-label={`Chat: ${chat.title}`} className="chat-view" ref={viewRef} style={{ "--chat-pulse-delay": pulseDelay, bottom: Math.max(0, bottomInset) } as CSSProperties}>
+    <section aria-label={`Chat: ${chat.title}`} className="chat-view" ref={viewRef} style={{ bottom: Math.max(0, bottomInset) } as CSSProperties}>
       <div aria-live="polite" className="chat-messages-shell" onKeyDown={onMessagesKeyDown} onPointerDown={onMessagesPointerDown} onScroll={onMessagesScroll} onWheel={onMessagesWheel} ref={messagesShellRef} tabIndex={0}>
         <div className="chat-messages" ref={messagesRef}>
           {chat.messages.length ? (

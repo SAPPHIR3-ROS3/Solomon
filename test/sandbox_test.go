@@ -55,6 +55,57 @@ func TestSearchToolsGlobReadFilesQuery(t *testing.T) {
 	}
 }
 
+func TestSearchToolsFindsSDKSignatureQuery(t *testing.T) {
+	out, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
+		Name: "searchTools",
+		Args: json.RawMessage(`{"query":"SDK signatures for ReadFile","intent":"discover the ReadFile SDK signature"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("got %T", out)
+	}
+	list, ok := m["tools"].([]map[string]string)
+	if !ok {
+		t.Fatalf("tools: %#v", m["tools"])
+	}
+	for _, item := range list {
+		if item["name"] == "readFile" {
+			if !strings.Contains(item["sdk_call"], "ReadFile(path, intent string) (string, error)") {
+				t.Fatalf("unexpected ReadFile signature: %s", item["sdk_call"])
+			}
+			return
+		}
+	}
+	t.Fatalf("readFile missing from SDK signature query: %#v", list)
+}
+
+func TestOrchestrateCompileErrorIsStructured(t *testing.T) {
+	source := "package main\n\nimport \"sdk\"\n\nfunc main() { _ = \"\\q\" }\n"
+	out, err := agenttools.Exec(context.Background(), &agenttools.Env{ProjRoot: t.TempDir()}, "agent", tooling.Invocation{
+		Name: "orchestrate",
+		Args: func() json.RawMessage {
+			b, _ := json.Marshal(map[string]string{"source": source, "intent": "validate compile diagnostics"})
+			return b
+		}(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("got %T", out)
+	}
+	if m["ok"] != false || m["error_type"] != "compile_error" || m["phase"] != "compile" {
+		t.Fatalf("unexpected structured compile result: %#v", m)
+	}
+	if m["retryable"] != true || m["source_hash"] == "" || m["compile_error"] == "" {
+		t.Fatalf("missing compile retry metadata: %#v", m)
+	}
+}
+
 func TestSearchToolsEmptyQueryRejected(t *testing.T) {
 	_, err := agenttools.Exec(context.Background(), &agenttools.Env{}, "agent", tooling.Invocation{
 		Name: "searchTools",

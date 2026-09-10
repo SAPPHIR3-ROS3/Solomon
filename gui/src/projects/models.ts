@@ -83,6 +83,7 @@ export type ModelCatalog = {
 };
 
 export type QuotaBar = {
+  detail?: string;
   label: string;
   percent: number;
 };
@@ -104,7 +105,8 @@ export async function fetchProviderQuotas(): Promise<ProviderQuota[]> {
       ? entry.bars.flatMap((bar: unknown) => {
           if (!bar || typeof bar !== "object" || !("label" in bar) || typeof bar.label !== "string") return [];
           const percent = "percent" in bar && typeof bar.percent === "number" ? Math.max(0, Math.min(100, bar.percent)) : 0;
-          return [{ label: bar.label, percent }];
+          const detail = "detail" in bar && typeof bar.detail === "string" ? bar.detail : undefined;
+          return [{ detail, label: bar.label, percent }];
         })
       : [];
     return [{ provider: entry.provider, error: "error" in entry && typeof entry.error === "string" ? entry.error : "", bars }];
