@@ -22,7 +22,7 @@
     "node-pty": "^1.1.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "smol-toml": "^1.7.0",
+    "smol-toml": "^1.7.1",
     "ws": "^8.21.1"
   },
   "devDependencies": {
