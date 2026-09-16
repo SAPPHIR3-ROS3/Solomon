@@ -168,6 +168,7 @@ func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port in
 		env = append(env, "CURSOR_API_PROXY_OBS=1")
 	}
 	cmd.Env = append(os.Environ(), env...)
+	configureSidecarProcess(cmd)
 	var logFile *os.File
 	if f, err := sidecarLogFile(); err == nil {
 		logFile = f
