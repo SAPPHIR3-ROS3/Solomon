@@ -11,7 +11,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: go run scripts/npm_deps.go <directory>")
+		fmt.Fprintln(os.Stderr, "usage: go run ./scripts/npm_deps <directory>")
 		os.Exit(2)
 	}
 
