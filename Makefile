@@ -94,11 +94,11 @@ desktop-dev:
 	go run scripts/desktop_dev.go
 
 gui-deps:
-	go run scripts/npm_deps.go gui
+	go run ./scripts/npm_deps gui
 
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
 cursor-proxy-deps: cursor-stop
-	go run scripts/npm_deps.go $(CURSOR_PROXY_DIR)
+	go run ./scripts/npm_deps $(CURSOR_PROXY_DIR)
 
 cursor-proxy-build: cursor-proxy-deps
 	npm --prefix $(CURSOR_PROXY_DIR) run build
@@ -113,7 +113,7 @@ cursor-proxy-test-clean:
 	@$(MAKE) cursor-proxy-test; status=$$?; $(MAKE) clean-cursor-proxy; exit $$status
 
 ui-prototypes-deps:
-	go run scripts/npm_deps.go $(UI_PROTOTYPES_DIR)
+	go run ./scripts/npm_deps $(UI_PROTOTYPES_DIR)
 
 ui-prototypes-dev: ui-prototypes-deps
 	npm --prefix $(UI_PROTOTYPES_DIR) run dev
