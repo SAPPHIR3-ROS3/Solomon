@@ -411,7 +411,7 @@ func startVite(directory string) (*url.URL, *exec.Cmd, error) {
 	port := portListener.Addr().(*net.TCPAddr).Port
 	_ = portListener.Close()
 	viteURL, _ := url.Parse("http://127.0.0.1:" + strconv.Itoa(port))
-	cmd := exec.Command("npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", strconv.Itoa(port))
+	cmd := viteCommand(directory, port)
 	cmd.Dir = directory
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
@@ -437,6 +437,21 @@ func startVite(directory string) (*url.URL, *exec.Cmd, error) {
 	}
 	stopManagedProcess(cmd)
 	return nil, nil, fmt.Errorf("Vite did not become ready; inspect with: solomon server logs")
+}
+
+// viteCommand invokes Vite through Node directly when the local dependency is
+// installed. This avoids npm.cmd/cmd.exe wrapper processes on Windows, which
+// can otherwise leave transient console hosts visible in Alt+Tab. The npm
+// fallback keeps the test harness and older installations working while their
+// dependencies are being prepared.
+func viteCommand(directory string, port int) *exec.Cmd {
+	viteEntry := filepath.Join(directory, "node_modules", "vite", "bin", "vite.js")
+	if _, err := os.Stat(viteEntry); err == nil {
+		if node, lookErr := exec.LookPath("node"); lookErr == nil {
+			return exec.Command(node, viteEntry, "--host", "127.0.0.1", "--port", strconv.Itoa(port))
+		}
+	}
+	return exec.Command("npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", strconv.Itoa(port))
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
