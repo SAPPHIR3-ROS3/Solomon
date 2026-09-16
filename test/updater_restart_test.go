@@ -44,7 +44,10 @@ fi
 	if err := os.WriteFile(scriptPath, []byte(body), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	out, err := exec.Command(scriptPath).CombinedOutput()
+	// Run the script through bash, as the production restart path does. On
+	// Linux, executing a just-created script directly can race with the
+	// filesystem and fail with ETXTBSY ("text file busy").
+	out, err := exec.Command("bash", scriptPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("script failed: %v\n%s", err, out)
 	}
