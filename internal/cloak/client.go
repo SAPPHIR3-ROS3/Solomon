@@ -320,6 +320,7 @@ func (c *Client) startLocked() error {
 	cmd := exec.Command(c.nodePath, c.bridgePath)
 	cmd.Dir = c.installDir
 	cmd.Env = c.childEnvironment()
+	configureCloakProcess(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("create Cloak bridge stdin: %w", err)

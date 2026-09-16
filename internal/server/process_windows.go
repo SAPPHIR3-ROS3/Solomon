@@ -8,6 +8,7 @@ import (
 	"syscall"
 )
 
+const detachedProcess = 0x00000008
 const createNoWindow = 0x08000000
 
 func configureManagedProcess(cmd *exec.Cmd) {
@@ -16,7 +17,7 @@ func configureManagedProcess(cmd *exec.Cmd) {
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | createNoWindow,
+		CreationFlags: detachedProcess | createNoWindow,
 	}
 }
 
@@ -24,7 +25,7 @@ func runTaskkill(args ...string) {
 	cmd := exec.Command("taskkill", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
-		CreationFlags: createNoWindow,
+		CreationFlags: detachedProcess | createNoWindow,
 	}
 	_ = cmd.Run()
 }
