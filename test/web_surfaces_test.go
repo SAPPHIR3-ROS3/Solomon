@@ -488,7 +488,10 @@ func sendSurfaceGUIMessage(t *testing.T, serverURL, projectID, chatID string, co
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "text/event-stream")
-	response, err := (&http.Client{Timeout: 15 * time.Second}).Do(request)
+	// The first GUI request may initialize the MCP adapters and compile the
+	// orchestrated turn. Keep the test bounded, but leave enough time for a
+	// loaded Linux CI runner to complete that setup.
+	response, err := (&http.Client{Timeout: 60 * time.Second}).Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}
