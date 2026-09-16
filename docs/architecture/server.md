@@ -86,7 +86,7 @@ but this is not a substitute for authentication on an untrusted network.
 
 ## Development frontend
 
-In `dev` mode the server uses the configured Solomon port, then starts `npm run dev -- --host 127.0.0.1 --port <free-port>` in the supplied GUI directory. The Vite process stays private on its own random loopback port; the Solomon server reverse-proxies it at the stable URL advertised in runtime state, including WebSocket traffic required by hot reload. The Vite process-group leader PID is persisted so a later lifecycle command can reclaim the complete frontend tree after an interrupted or forced shutdown.
+In `dev` mode the server uses the configured Solomon port, then starts the local Vite entrypoint through Node in the supplied GUI directory. If the local dependency is unavailable, it falls back to `npm run dev -- --host 127.0.0.1 --port <free-port>` while dependencies are being prepared. The Vite process stays private on its own random loopback port; the Solomon server reverse-proxies it at the stable URL advertised in runtime state, including WebSocket traffic required by hot reload. The Vite process-group leader PID is persisted so a later lifecycle command can reclaim the complete frontend tree after an interrupted or forced shutdown.
 
 The desktop development launcher reads the running server state, verifies its health endpoint, and passes its current local URL to Wails. Both a browser and the desktop WebView therefore consume the same GUI project, the same Vite process and the same daemon APIs even if the server port changes. When the server exits it terminates the complete Vite process group, avoiding an orphaned frontend process.
 
