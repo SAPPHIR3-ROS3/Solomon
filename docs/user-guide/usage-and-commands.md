@@ -81,6 +81,11 @@ For GUI development, pass the GUI project directory explicitly. The server
 launches Vite as its child and proxies it at its advertised local URL, so browser
 and Wails desktop development use the same frontend and daemon API.
 
+The repository Make targets verify the GUI's locked npm dependencies before using
+them and run `npm ci` when `gui/node_modules` is missing or incomplete. You can
+run that check by itself with `make gui-deps`; `make hot-install` includes it
+before starting or restarting the server.
+
 ```bash
 solomon server start dev /absolute/or/relative/path/to/gui
 solomon server logs interactive
