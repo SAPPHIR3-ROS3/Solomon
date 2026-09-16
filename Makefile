@@ -1,4 +1,4 @@
-.PHONY: solomon build install hot-install test check-docs loc-chart server-stop desktop-dev cursor-stop cursor-build cursor-bundle cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install hot-install test check-docs loc-chart server-stop desktop-dev gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install ui-prototypes-deps ui-prototypes-dev ui-prototypes-build ui-prototypes-test clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -90,14 +90,21 @@ server-stop:
 
 # Run Wails against the URL advertised by the running Solomon dev server.
 desktop-dev:
+	$(MAKE) gui-deps
 	go run scripts/desktop_dev.go
 
+gui-deps:
+	go run scripts/npm_deps.go gui
+
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
-cursor-proxy-build:
+cursor-proxy-deps: cursor-stop
+	go run scripts/npm_deps.go $(CURSOR_PROXY_DIR)
+
+cursor-proxy-build: cursor-proxy-deps
 	npm --prefix $(CURSOR_PROXY_DIR) run build
 
 # Run the Cursor proxy TypeScript unit tests.
-cursor-proxy-test:
+cursor-proxy-test: cursor-proxy-deps
 	npm --prefix $(CURSOR_PROXY_DIR) test
 
 # Run the Cursor proxy tests and clean up generated artifacts afterwards.
@@ -105,13 +112,16 @@ cursor-proxy-test:
 cursor-proxy-test-clean:
 	@$(MAKE) cursor-proxy-test; status=$$?; $(MAKE) clean-cursor-proxy; exit $$status
 
-ui-prototypes-dev:
+ui-prototypes-deps:
+	go run scripts/npm_deps.go $(UI_PROTOTYPES_DIR)
+
+ui-prototypes-dev: ui-prototypes-deps
 	npm --prefix $(UI_PROTOTYPES_DIR) run dev
 
-ui-prototypes-build:
+ui-prototypes-build: ui-prototypes-deps
 	npm --prefix $(UI_PROTOTYPES_DIR) run build
 
-ui-prototypes-test:
+ui-prototypes-test: ui-prototypes-deps
 	npm --prefix $(UI_PROTOTYPES_DIR) test
 
 # Remove generated Cursor proxy artifacts (test bundle dir + runtime guard dir).
@@ -164,22 +174,23 @@ include .env
 export
 endif
 
-# Full reinstall: stop the Solomon server and Cursor sidecar, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration, and provision CloakBrowser.
+# Full reinstall: stop the Solomon server and Cursor sidecar, verify GUI npm dependencies, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration, and provision CloakBrowser.
 install:
 	@$(FIX_TTY)
 	@echo ""
 	@echo "=== Solomon install ($(VERSION)) ==="
-	$(call INSTALL_STEP,1/8 Stop Solomon server,$(MAKE) server-stop)
-	$(call INSTALL_STEP,2/8 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
-	$(call INSTALL_STEP,3/8 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
-	$(call INSTALL_STEP,4/8 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,5/8 Install solomon binary,$(GO_INSTALL) $(BUILD_FLAGS) ./cmd/solomon)
-	$(call INSTALL_STEP,6/8 Install prompt templates,$(INSTALL_BIN) templates install)
-	$(call INSTALL_STEP,7/8 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+	$(call INSTALL_STEP,1/9 Stop Solomon server,$(MAKE) server-stop)
+	$(call INSTALL_STEP,2/9 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
+	$(call INSTALL_STEP,3/9 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
+	$(call INSTALL_STEP,4/9 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
+	$(call INSTALL_STEP,5/9 Verify GUI npm dependencies,$(MAKE) gui-deps)
+	$(call INSTALL_STEP,6/9 Install solomon binary,$(GO_INSTALL) $(BUILD_FLAGS) ./cmd/solomon)
+	$(call INSTALL_STEP,7/9 Install prompt templates,$(INSTALL_BIN) templates install)
+	$(call INSTALL_STEP,8/9 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
 ifneq ($(CLOAK_BROWSER_READY),1)
-	$(call INSTALL_STEP,8/8 Install CloakBrowser,$(MAKE) cloak-install)
+	$(call INSTALL_STEP,9/9 Install CloakBrowser,$(MAKE) cloak-install)
 else
-	$(call INSTALL_STEP_SKIPPED,8/8 Install CloakBrowser)
+	$(call INSTALL_STEP_SKIPPED,9/9 Install CloakBrowser)
 	@bash -c 'source scripts/install.sh; configure_runtime_defaults' >/dev/null
 endif
 	@$(FIX_TTY)
@@ -187,8 +198,9 @@ endif
 	@echo "solomon -> $(INSTALL_BIN)"
 	@echo "=== Done ==="
 
-# Full install, then bring the local server back up. Preserves prior mode/dev
-# directory from state.json when present; otherwise starts `server start dev <repo>/gui`.
+# Full install, then bring the local server back up. Windows starts the GUI in
+# dev mode; Unix preserves the prior mode/dev directory from state.json when
+# present, otherwise starts `server start dev <repo>/gui`.
 # Needed because `make install` stops the server and clears state before `restart` can read it.
 hot-install:
 	@$(FIX_TTY)

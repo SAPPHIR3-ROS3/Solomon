@@ -5,15 +5,35 @@ package server
 import (
 	"os/exec"
 	"strconv"
+	"syscall"
 )
 
-func configureManagedProcess(_ *exec.Cmd) {}
+const createNoWindow = 0x08000000
+
+func configureManagedProcess(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | createNoWindow,
+	}
+}
+
+func runTaskkill(args ...string) {
+	cmd := exec.Command("taskkill", args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: createNoWindow,
+	}
+	_ = cmd.Run()
+}
 
 func stopManagedProcess(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	_ = exec.Command("taskkill", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F").Run()
+	runTaskkill("/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F")
 	_, _ = cmd.Process.Wait()
 }
 
@@ -21,7 +41,7 @@ func ForceStopPID(pid int) {
 	if pid <= 0 {
 		return
 	}
-	_ = exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/T", "/F").Run()
+	runTaskkill("/PID", strconv.Itoa(pid), "/T", "/F")
 }
 
 // ForceStop terminates the detached server and, when present, its separately
@@ -29,9 +49,9 @@ func ForceStopPID(pid int) {
 // taskkill /T provides the equivalent tree cleanup.
 func ForceStop(state State) {
 	if state.VitePID > 0 && state.VitePID != state.PID {
-		_ = exec.Command("taskkill", "/PID", strconv.Itoa(state.VitePID), "/T", "/F").Run()
+		runTaskkill("/PID", strconv.Itoa(state.VitePID), "/T", "/F")
 	}
 	if state.PID > 0 {
-		_ = exec.Command("taskkill", "/PID", strconv.Itoa(state.PID), "/T", "/F").Run()
+		runTaskkill("/PID", strconv.Itoa(state.PID), "/T", "/F")
 	}
 }

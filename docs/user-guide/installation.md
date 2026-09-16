@@ -66,6 +66,12 @@ make build
 
 Produces `./solomon` (Unix/macOS) or `./solomon.exe` (Windows). Release workflow and CI checks: [Building and releases](../development/building-and-releases.md).
 
+For GUI development from a clone, `make hot-install` verifies the locked npm
+dependencies for `gui` and installs them when they are missing or incomplete
+before restarting the server. On Windows it starts the server in development
+mode; on Unix it preserves the previous server mode. To run only that
+dependency check, use `make gui-deps`.
+
 ## Verify install
 
 ```bash
