@@ -589,6 +589,7 @@ func runGit(root string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...)
+	configureManagedProcess(command)
 	output, err := command.Output()
 	if err != nil {
 		if ctx.Err() != nil {

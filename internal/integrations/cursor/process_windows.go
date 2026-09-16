@@ -7,6 +7,7 @@ import (
 	"syscall"
 )
 
+const detachedProcess = 0x00000008
 const createNoWindow = 0x08000000
 
 func configureSidecarProcess(cmd *exec.Cmd) {
@@ -15,6 +16,6 @@ func configureSidecarProcess(cmd *exec.Cmd) {
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
-		CreationFlags: createNoWindow,
+		CreationFlags: detachedProcess | createNoWindow,
 	}
 }
