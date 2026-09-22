@@ -27,6 +27,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/agent/runtime/btw/input/` | Terminal acquisition for `/btw` listener input | [Agent turn pipeline](agent-turn-pipeline.md#btw-side-stream) |
 | `internal/agent/runtime/btw/listener/` | Streaming-time `/btw` trigger listener | [Agent turn pipeline](agent-turn-pipeline.md#btw-side-stream) |
 | `internal/agent/runtime/turnloop/` | Agent turn loop: stream, tool exec, compaction, interrupt | [Agent turn pipeline](agent-turn-pipeline.md) |
+| `internal/agent/runtime/toolbatch/` | Concurrent execution of requested native tool batches | [Agent turn pipeline](agent-turn-pipeline.md#tool-call-batches) |
 | `internal/agent/runtime/repl/` | REPL loop, readline wiring | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/repl/editor/` | Multiline raw-mode editor (keys, render, history, `@` picker) | [Runtime — REPL](runtime-repl.md) |
 | `internal/agent/runtime/repl/replhl/` | Input syntax highlighting (`@`, shell lines) | [Runtime — REPL](runtime-repl.md) |
