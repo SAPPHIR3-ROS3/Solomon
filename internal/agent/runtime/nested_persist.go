@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/toolbatch"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
@@ -234,30 +235,63 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			}
 			return NestedRunResult{Output: transcript.String(), SubchatID: id, Status: sess.Status}, nil
 		}
-		for i, inv := range invs {
+		type preparedToolCall struct {
+			inv           tooling.Invocation
+			toolID        string
+			checkpointSeq int
+		}
+		prepared := make([]preparedToolCall, len(invs))
+		for i := range invs {
+			inv := invs[i]
 			nestedCheckpointSeq++
 			stampNestedToolCallCheckpoint(msgs, i, nestedCheckpointSeq)
 			r.currentToolCpSeq = nestedCheckpointSeq
-			inv.ToolCallID = toolIDs[i]
+			toolID := ""
+			if i < len(toolIDs) {
+				toolID = toolIDs[i]
+			}
+			inv.ToolCallID = toolID
+			inv.CheckpointSeq = nestedCheckpointSeq
 			if !quiet {
 				r.printToolLine(nestedCheckpointSeq, "", inv.Name, inv.Args)
 			}
 			for _, line := range formatToolPlainLines(inv.Name, inv.Args) {
 				transcript.WriteString(line + "\n")
 			}
-			res, err := r.execToolNestedAware(ctx, inv)
+			prepared[i] = preparedToolCall{inv: inv, toolID: toolID, checkpointSeq: nestedCheckpointSeq}
+		}
+
+		execInvs := make([]tooling.Invocation, len(prepared))
+		for i := range prepared {
+			execInvs[i] = prepared[i].inv
+		}
+		results := make([]toolbatch.Result, len(execInvs))
+		if len(execInvs) > 1 && len(turn.ToolCalls) > 1 && toolbatch.CanRunConcurrently(execInvs) {
+			// Execute the batch concurrently, but append nested tool results in
+			// model order so the subchat transcript remains deterministic.
+			results = toolbatch.Execute(ctx, execInvs, r.execToolNestedAware)
+		} else {
+			for i := range execInvs {
+				results[i].Value, results[i].Err = r.execToolNestedAware(ctx, execInvs[i])
+			}
+		}
+
+		for i := range prepared {
+			inv := prepared[i].inv
+			toolID := prepared[i].toolID
+			toolResultSeq := prepared[i].checkpointSeq
+			res, err := results[i].Value, results[i].Err
 			if err != nil {
 				logging.Log(logging.WARNING_LOG_LEVEL, "nested tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
 				res = map[string]any{"error": err.Error()}
 			}
-			res = r.applyToolOutput(res, inv.Name, toolIDs[i])
+			res = r.applyToolOutput(res, inv.Name, toolID)
 			b, err := json.Marshal(res)
 			if err != nil {
 				b = []byte(`{"error":"marshal"}`)
 			}
 			payload := string(b)
-			toolResultSeq := nestedCheckpointSeq
-			if id := toolIDs[i]; id != "" {
+			if id := toolID; id != "" {
 				toolResult := chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
 				stampNestedMessageCheckpoint(&toolResult, toolResultSeq)
 				msgs = append(msgs, toolResult)

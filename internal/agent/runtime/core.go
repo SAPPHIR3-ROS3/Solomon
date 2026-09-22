@@ -90,6 +90,7 @@ type Runtime struct {
 
 	ToolOut *tooloutput.Service
 
+	checkpointMu        sync.Mutex
 	currentToolCpSeq    int
 	stagingCache        *staging.Store
 	stagingCacheSession string

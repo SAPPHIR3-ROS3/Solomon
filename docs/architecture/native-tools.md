@@ -133,7 +133,7 @@ flowchart TD
 
 ## `toolenv`
 
-Passed into every native tool via [`tools.Exec`](../../internal/agent/tools/exec.go). The struct is defined in [`internal/agent/toolenv/env.go`](../../internal/agent/toolenv/env.go) and re-exported as `tools.Env` in [`tools/env.go`](../../internal/agent/tools/env.go). Runtime builds it in [`Runtime.toolEnv()`](../../internal/agent/runtime/exec.go).
+Passed into every native tool via [`tools.Exec`](../../internal/agent/tools/exec.go). The struct is defined in [`internal/agent/toolenv/env.go`](../../internal/agent/toolenv/env.go) and re-exported as `tools.Env` in [`tools/env.go`](../../internal/agent/tools/env.go). Runtime builds it per invocation in [`Runtime.toolEnv(inv)`](../../internal/agent/runtime/exec.go), including the invocation's checkpoint sequence so concurrent edits remain associated with the right tool call.
 
 | Field | Purpose |
 |-------|---------|

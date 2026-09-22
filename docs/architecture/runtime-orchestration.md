@@ -26,7 +26,7 @@ sequenceDiagram
   end
   loop until no tools
     Turns->>LLM: StreamAssistantTurn
-    Turns->>Tools: execTool
+    Turns->>Tools: execute tool batch (parallel where applicable)
     Turns->>RT: persistSession
   end
 ```

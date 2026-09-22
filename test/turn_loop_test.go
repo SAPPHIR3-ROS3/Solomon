@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -139,6 +140,148 @@ func TestRunAgentTurns_toolCallRoundTrip(t *testing.T) {
 	}
 	if backend.turnN != 2 {
 		t.Fatalf("StreamTurn calls=%d", backend.turnN)
+	}
+}
+
+func TestRunAgentTurns_parallelToolCallsExecuteConcurrently(t *testing.T) {
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var inFlight atomic.Int32
+	var maxInFlight atomic.Int32
+	updateMax := func(value int32) {
+		for {
+			current := maxInFlight.Load()
+			if value <= current || maxInFlight.CompareAndSwap(current, value) {
+				return
+			}
+		}
+	}
+	restore := agentruntime.SetExecToolHookForTest(func(ctx context.Context, inv tooling.Invocation) (any, error) {
+		current := inFlight.Add(1)
+		updateMax(current)
+		defer inFlight.Add(-1)
+		started <- struct{}{}
+		select {
+		case <-release:
+			return map[string]any{"tool": inv.Name}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	})
+	defer restore()
+	var releaseOnce sync.Once
+	releaseAll := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseAll()
+
+	backend := &turnScriptBackend{
+		protocol: llm.ProtocolOpenAI,
+		turns: []llm.AssistantTurnResult{
+			{ToolCalls: []llm.AssistantToolCall{
+				{ID: "parallel-1", Name: "searchTools", Arguments: searchToolsArgs()},
+				{ID: "parallel-2", Name: "searchTools", Arguments: searchToolsArgs()},
+			}},
+			{Content: "done"},
+		},
+	}
+	rt := newTurnLoopRuntime(t, backend, nil, nil)
+	errCh := make(chan error, 1)
+	go func() { errCh <- rt.RunAgentTurnsForTest(context.Background()) }()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			t.Fatal("parallel tool calls did not start together")
+		}
+	}
+	releaseAll()
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
+	}
+	if got := maxInFlight.Load(); got < 2 {
+		t.Fatalf("max concurrent tool calls=%d, want at least 2", got)
+	}
+	if len(rt.Session.Messages) != 5 {
+		t.Fatalf("messages=%d: %+v", len(rt.Session.Messages), rt.Session.Messages)
+	}
+	if rt.Session.Messages[2].ToolCallID != "parallel-1" || rt.Session.Messages[3].ToolCallID != "parallel-2" {
+		t.Fatalf("tool result order changed: %+v", rt.Session.Messages[2:4])
+	}
+}
+
+func TestNestedRun_parallelToolCallsExecuteConcurrently(t *testing.T) {
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseAll := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseAll()
+	var inFlight atomic.Int32
+	var maxInFlight atomic.Int32
+	updateMax := func(value int32) {
+		for {
+			current := maxInFlight.Load()
+			if value <= current || maxInFlight.CompareAndSwap(current, value) {
+				return
+			}
+		}
+	}
+	restore := agentruntime.SetExecToolHookForTest(func(ctx context.Context, inv tooling.Invocation) (any, error) {
+		current := inFlight.Add(1)
+		updateMax(current)
+		defer inFlight.Add(-1)
+		started <- struct{}{}
+		select {
+		case <-release:
+			return map[string]any{"tool": inv.Name}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	})
+	defer restore()
+
+	backend := &turnScriptBackend{
+		protocol: llm.ProtocolOpenAI,
+		turns: []llm.AssistantTurnResult{
+			{ToolCalls: []llm.AssistantToolCall{
+				{ID: "nested-parallel-1", Name: "searchTools", Arguments: searchToolsArgs()},
+				{ID: "nested-parallel-2", Name: "searchTools", Arguments: searchToolsArgs()},
+			}},
+			{Content: "nested done"},
+		},
+	}
+	rt := newTurnLoopRuntime(t, backend, nil, nil)
+	resultCh := make(chan struct {
+		result agentruntime.NestedRunResult
+		err    error
+	}, 1)
+	go func() {
+		result, err := rt.RunSubagentToolForTest(context.Background(), agentruntime.NestedRunConfig{
+			Task:       "nested parallel test",
+			Origin:     chatstore.SubOriginParent,
+			ProjectHex: testProjectHex,
+			ToolCall:   chatstore.ToolCall{ID: "nested-parent-call", Name: "subagent"},
+		})
+		resultCh <- struct {
+			result agentruntime.NestedRunResult
+			err    error
+		}{result: result, err: err}
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			t.Fatal("nested parallel tool calls did not start together")
+		}
+	}
+	releaseAll()
+	got := <-resultCh
+	if got.err != nil {
+		t.Fatal(got.err)
+	}
+	if got.result.Status != chatstore.SubStatusDone || !strings.Contains(got.result.Output, "nested done") {
+		t.Fatalf("nested result=%+v", got.result)
+	}
+	if maxInFlight.Load() < 2 {
+		t.Fatalf("max concurrent nested tool calls=%d, want at least 2", maxInFlight.Load())
 	}
 }
 

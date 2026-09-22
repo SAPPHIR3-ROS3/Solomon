@@ -11,7 +11,8 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
-func (r *Runtime) toolEnv() *agenttools.Env {
+func (r *Runtime) toolEnv(inv tooling.Invocation) *agenttools.Env {
+	checkpointSeq := inv.CheckpointSeq
 	return &agenttools.Env{
 		ProjHex:                 r.ProjHex,
 		ProjRoot:                r.ProjRoot,
@@ -28,10 +29,12 @@ func (r *Runtime) toolEnv() *agenttools.Env {
 		CurrentMode:             func() string { return r.Mode },
 		CheckpointStageProjAbs:  r.checkpointStageProjAbs,
 		CheckpointBeforeProjAbs: r.checkpointBeforeProjAbs,
-		CheckpointRecordEdit:    r.checkpointRecordEdit,
-		CheckpointCpSeq:         func() int { return r.currentToolCpSeq },
-		AllowDeferredTools:      false,
-		SwitchModeCountdown:     r.switchModeCountdown,
+		CheckpointRecordEdit: func(kind, path, renameTo string, content []byte) {
+			r.checkpointRecordEditAt(checkpointSeq, kind, path, renameTo, content)
+		},
+		CheckpointCpSeq:     func() int { return checkpointSeq },
+		AllowDeferredTools:  false,
+		SwitchModeCountdown: r.switchModeCountdown,
 		ActivateInstructionsFromAbsPath: func(absPath string) {
 			r.activateInstructionsFromAbsPath(absPath)
 		},
@@ -69,7 +72,7 @@ func (r *Runtime) execTool(ctx context.Context, inv tooling.Invocation) (any, er
 	if execToolHook != nil {
 		return execToolHook(ctx, inv)
 	}
-	env := r.toolEnv()
+	env := r.toolEnv(inv)
 	env.ParentToolCallID = inv.ToolCallID
 	return agenttools.Exec(ctx, env, r.Mode, inv)
 }
