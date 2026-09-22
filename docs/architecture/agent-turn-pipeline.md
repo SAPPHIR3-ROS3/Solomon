@@ -31,9 +31,23 @@ After a user message is recorded, Solomon loops: build system prompt and tools â
 | `ResolveTurnInvocations` | Native tool_calls vs legacy XML; rejects native when `[tools].legacy_force` |
 | `toolParams` | Native tools for current `Mode` plus MCP tool schemas (empty when legacy force) |
 | `llm.StreamAssistantTurn` | SSE stream, accumulator fail-closed, reasoning/content |
-| `execTool` | Parse invocation, call `tools.Exec` with `Env` |
+| `execTool` | Parse one invocation, call `tools.Exec` with `Env` |
 | `applyToolOutput` | Truncate oversized tool JSON before persist/LLM (`internal/tooloutput`) |
 | `persistSession` | Write `chatstore` JSON when session id exists and not ephemeral |
+
+### Tool-call batches
+
+When a native assistant turn contains multiple tool calls, `turnloop` prepares
+all calls and executes them concurrently through `runtime/toolbatch`. Results
+and checkpointed tool messages are then applied and persisted in the model's
+original order, so concurrency does not reorder the transcript or API events.
+The nested subagent loop follows the same rule. Legacy XML calls stay
+sequential because that protocol has no parallel-call signal. Separate
+`orchestrate` runs also use separate sandbox workers while the shared worker is
+busy; calls inside one Go script remain subject to the script's own control
+flow. `subagent` and `switchMode` remain serialized with sibling calls because
+they mutate shared runtime state. Turns from the LLM remain sequential because
+each later turn can depend on preceding results.
 
 ## Turn loop (sequence)
 
@@ -54,8 +68,11 @@ sequenceDiagram
     RT->>RT: ResolveTurnInvocations native or legacy XML
     RT->>Store: append assistant persist
     alt invocations
-      RT->>Tools: execTool per call
-      Tools-->>RT: results
+      par execute independent calls
+        RT->>Tools: execTool calls concurrently
+        Tools-->>RT: results
+      end
+      RT->>RT: order results by model position
       RT->>RT: applyToolOutput truncate/spill if over limit
       RT->>Store: tool messages persist
     end

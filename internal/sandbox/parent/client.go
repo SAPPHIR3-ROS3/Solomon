@@ -171,9 +171,10 @@ func (c *Client) writeJSON(v any) error {
 }
 
 var (
-	globalMu     sync.Mutex
-	globalClient *Client
-	globalRefs   int
+	globalMu        sync.Mutex
+	globalClient    *Client
+	globalRefs      int
+	globalRunActive bool
 )
 
 func Global(ctx context.Context) (*Client, error) {
@@ -235,7 +236,7 @@ func closeGlobalLocked() {
 }
 
 func RunGlobal(ctx context.Context, wasm []byte, mode string, exec ToolExec) (ipc.RunDone, error) {
-	done, err := runOnce(ctx, wasm, mode, exec)
+	done, err, shared := runOnce(ctx, wasm, mode, exec)
 	if err == nil || !isIPCDead(err) {
 		if err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -245,16 +246,54 @@ func RunGlobal(ctx context.Context, wasm []byte, mode string, exec ToolExec) (ip
 		return done, err
 	}
 	logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker ipc dead; retrying run", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-	CloseGlobal()
-	return runOnce(ctx, wasm, mode, exec)
+	if shared {
+		CloseGlobal()
+	}
+	retried, retryErr, _ := runOnce(ctx, wasm, mode, exec)
+	return retried, retryErr
 }
 
-func runOnce(ctx context.Context, wasm []byte, mode string, exec ToolExec) (ipc.RunDone, error) {
-	client, err := Global(ctx)
+// runOnce uses the retained global worker when it is idle. If another
+// RunGlobal call is already using that worker, it starts a dedicated worker so
+// independent orchestration calls do not queue behind one another on the
+// global Client mutex.
+func runOnce(ctx context.Context, wasm []byte, mode string, exec ToolExec) (ipc.RunDone, error, bool) {
+	client, shared, err := acquireGlobalRunClient(ctx)
 	if err != nil {
-		return ipc.RunDone{}, err
+		return ipc.RunDone{}, err, false
 	}
-	return client.Run(ctx, wasm, mode, exec)
+	if !shared {
+		defer client.Close()
+	}
+	defer releaseGlobalRunClient(shared)
+	done, err := client.Run(ctx, wasm, mode, exec)
+	return done, err, shared
+}
+
+func acquireGlobalRunClient(ctx context.Context) (*Client, bool, error) {
+	globalMu.Lock()
+	if globalRunActive {
+		globalMu.Unlock()
+		client, err := Start(ctx)
+		return client, false, err
+	}
+	if err := ensureGlobalLocked(ctx); err != nil {
+		globalMu.Unlock()
+		return nil, false, err
+	}
+	globalRunActive = true
+	client := globalClient
+	globalMu.Unlock()
+	return client, true, nil
+}
+
+func releaseGlobalRunClient(shared bool) {
+	if !shared {
+		return
+	}
+	globalMu.Lock()
+	globalRunActive = false
+	globalMu.Unlock()
 }
 
 func Warm(ctx context.Context, version string) {

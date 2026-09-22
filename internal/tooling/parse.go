@@ -39,9 +39,10 @@ var ErrUnknownLegacyTool = errors.New("unknown legacy tool name")
 var ErrLegacyToolBlockComplete = errors.New("legacy tool_calls block complete")
 
 type Invocation struct {
-	Name       string
-	Args       json.RawMessage
-	ToolCallID string
+	Name          string
+	Args          json.RawMessage
+	ToolCallID    string
+	CheckpointSeq int
 }
 
 func ValidateInvocationNames(invs []Invocation, allowed map[string]struct{}) error {

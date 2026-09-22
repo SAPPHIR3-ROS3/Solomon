@@ -62,7 +62,6 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 		logging.Log(logging.WARNING_LOG_LEVEL, "orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return orchestrateCompileErrorResult(a.Source, err), nil
 	}
-	parent.Warm(ctx, "")
 	done, err := parent.RunGlobal(ctx, wasm, deferredExecMode(env), func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
 		return orchestrateHostCall(ctx, env, name, args)
 	})

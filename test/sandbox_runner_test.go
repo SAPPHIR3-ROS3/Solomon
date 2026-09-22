@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/host"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/ipc"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/run"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -100,6 +103,92 @@ func main() {
 		if done.Output != "out:payload" {
 			t.Fatalf("run %d output=%q", i+1, done.Output)
 		}
+	}
+}
+
+func TestGlobalRunsConcurrentOrchestrationsOnSeparateWorkers(t *testing.T) {
+	parent.CloseGlobal()
+	t.Cleanup(parent.CloseGlobal)
+	ctx := context.Background()
+	src := `package main
+
+import (
+	"fmt"
+	"sdk"
+)
+
+func main() {
+	content, err := sdk.ReadFile("x.txt", "read x")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(content)
+}
+`
+	wasm, err := compile.BuildWASM(compile.Options{Source: src})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseAll := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseAll()
+	var inFlight atomic.Int32
+	var maxInFlight atomic.Int32
+	updateMax := func(value int32) {
+		for {
+			current := maxInFlight.Load()
+			if value <= current || maxInFlight.CompareAndSwap(current, value) {
+				return
+			}
+		}
+	}
+	exec := func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
+		if name != "readFile" {
+			return nil, fmt.Errorf("unexpected tool %q", name)
+		}
+		current := inFlight.Add(1)
+		updateMax(current)
+		defer inFlight.Add(-1)
+		started <- struct{}{}
+		select {
+		case <-release:
+			return json.Marshal(map[string]any{"content": "payload"})
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	type result struct {
+		done ipc.RunDone
+		err  error
+	}
+	results := make(chan result, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			done, err := parent.RunGlobal(ctx, wasm, "agent", exec)
+			results <- result{done: done, err: err}
+		}()
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case <-started:
+		case <-time.After(30 * time.Second):
+			t.Fatal("concurrent orchestrations did not reach host calls together")
+		}
+	}
+	releaseAll()
+	for i := 0; i < 2; i++ {
+		got := <-results
+		if got.err != nil {
+			t.Fatal(got.err)
+		}
+		if got.done.Error != "" || got.done.Output != "payload" {
+			t.Fatalf("run=%+v", got.done)
+		}
+	}
+	if got := maxInFlight.Load(); got < 2 {
+		t.Fatalf("max concurrent host calls=%d, want at least 2", got)
 	}
 }
 

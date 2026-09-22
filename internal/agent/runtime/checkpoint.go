@@ -12,6 +12,15 @@ import (
 )
 
 func (r *Runtime) stagingStore() (*staging.Store, error) {
+	if r == nil {
+		return nil, nil
+	}
+	r.checkpointMu.Lock()
+	defer r.checkpointMu.Unlock()
+	return r.stagingStoreLocked()
+}
+
+func (r *Runtime) stagingStoreLocked() (*staging.Store, error) {
 	if r == nil || r.Session == nil || r.ProjHex == "" || r.Session.ID == "" {
 		return nil, nil
 	}
@@ -39,10 +48,12 @@ func (r *Runtime) checkpointStageProjAbs(absResolved string) {
 }
 
 func (r *Runtime) checkpointBeforeProjAbs(absResolved string) {
-	if checkpoint.SkipStagingIfRunningExecutable(absResolved) {
+	if r == nil || checkpoint.SkipStagingIfRunningExecutable(absResolved) {
 		return
 	}
-	store, err := r.stagingStore()
+	r.checkpointMu.Lock()
+	defer r.checkpointMu.Unlock()
+	store, err := r.stagingStoreLocked()
 	if err != nil || store == nil {
 		if err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "checkpoint staging unavailable", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -53,17 +64,26 @@ func (r *Runtime) checkpointBeforeProjAbs(absResolved string) {
 }
 
 func (r *Runtime) checkpointRecordEdit(kind, absPath, renameTo string, content []byte) {
-	if checkpoint.SkipStagingIfRunningExecutable(absPath) {
+	if r == nil {
 		return
 	}
-	store, err := r.stagingStore()
+	r.checkpointRecordEditAt(r.currentToolCpSeq, kind, absPath, renameTo, content)
+}
+
+func (r *Runtime) checkpointRecordEditAt(cpSeq int, kind, absPath, renameTo string, content []byte) {
+	if r == nil || checkpoint.SkipStagingIfRunningExecutable(absPath) {
+		return
+	}
+	r.checkpointMu.Lock()
+	defer r.checkpointMu.Unlock()
+	store, err := r.stagingStoreLocked()
 	if err != nil || store == nil {
 		if err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "checkpoint staging unavailable", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		}
 		return
 	}
-	_ = store.RecordOp(r.currentToolCpSeq, kind, absPath, renameTo, content)
+	_ = store.RecordOp(cpSeq, kind, absPath, renameTo, content)
 }
 
 func (r *Runtime) ApplyGotoCheckpoint(id *checkpoint.FullCheckpointID) error {

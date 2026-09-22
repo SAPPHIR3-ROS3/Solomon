@@ -14,6 +14,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/btw"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/toolbatch"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
@@ -304,15 +305,21 @@ func Run(ctx context.Context, h Host) error {
 		}
 		stopAfterToolBatch := false
 		stopReason := ""
-		for i := range invs {
-			if interruptedDuringGeneration(ctx, runCtx, nil, stopErr) {
-				if err := appendSyntheticToolResults(h, astSeq, invs, toolIDs, i); err != nil {
-					return err
-				}
-				flushUsageStats()
-				h.ShowGenerationStopped(out)
-				return nil
+		type preparedToolCall struct {
+			inv       tooling.Invocation
+			toolID    string
+			toolCpSeq int
+		}
+		prepared := make([]preparedToolCall, len(invs))
+		if interruptedDuringGeneration(ctx, runCtx, nil, stopErr) {
+			if err := appendSyntheticToolResults(h, astSeq, invs, toolIDs, 0); err != nil {
+				return err
 			}
+			flushUsageStats()
+			h.ShowGenerationStopped(out)
+			return nil
+		}
+		for i := range invs {
 			inv := invs[i]
 			toolID := ""
 			if i < len(toolIDs) {
@@ -331,10 +338,43 @@ func Run(ctx context.Context, h Host) error {
 				toolCpSeq = h.PrintToolInvocation(i, inv.Name, inv.Args)
 			}
 			h.SetCurrentToolCpSeq(toolCpSeq)
-			inv.ToolCallID = toolIDs[i]
-			res, err := h.ExecTool(runCtx, inv)
+			inv.ToolCallID = toolID
+			inv.CheckpointSeq = toolCpSeq
+			prepared[i] = preparedToolCall{inv: inv, toolID: toolID, toolCpSeq: toolCpSeq}
+		}
+
+		execInvs := make([]tooling.Invocation, len(prepared))
+		for i := range prepared {
+			execInvs[i] = prepared[i].inv
+		}
+		results := make([]toolbatch.Result, len(execInvs))
+		if len(execInvs) > 1 && len(turn.ToolCalls) > 1 && toolbatch.CanRunConcurrently(execInvs) {
+			// Multiple calls returned in one assistant turn are independent
+			// native requests from the model. Start them together, then process
+			// their results in model order so transcript/API ordering stays
+			// stable. Legacy XML calls retain their historical sequential order.
+			results = toolbatch.Execute(runCtx, execInvs, h.ExecTool)
+		} else {
+			for i := range execInvs {
+				results[i].Value, results[i].Err = h.ExecTool(runCtx, execInvs[i])
+			}
+		}
+		if interruptedDuringGeneration(ctx, runCtx, nil, stopErr) {
+			if err := appendSyntheticToolResults(h, astSeq, invs, toolIDs, 0); err != nil {
+				return err
+			}
+			flushUsageStats()
+			h.ShowGenerationStopped(out)
+			return nil
+		}
+
+		for i := range prepared {
+			inv := prepared[i].inv
+			toolID := prepared[i].toolID
+			toolCpSeq := prepared[i].toolCpSeq
+			res, err := results[i].Value, results[i].Err
 			if interruptedDuringGeneration(ctx, runCtx, err, stopErr) {
-				if err2 := appendSyntheticToolResults(h, astSeq, invs, toolIDs, i); err2 != nil {
+				if err2 := appendSyntheticToolResults(h, astSeq, invs, toolIDs, 0); err2 != nil {
 					return err2
 				}
 				flushUsageStats()
@@ -353,7 +393,7 @@ func Run(ctx context.Context, h Host) error {
 					compileRetryState.Reset()
 				}
 			}
-			res = h.ApplyToolOutput(res, inv.Name, toolIDs[i])
+			res = h.ApplyToolOutput(res, inv.Name, toolID)
 			payload := toolingResultJSON(res)
 			if h.MachineMode() {
 				h.NoteCIToolResult(res)
@@ -366,7 +406,7 @@ func Run(ctx context.Context, h Host) error {
 				h.CIEmit(cievents.ToolResult(turnIdx, toolID, inv.Name, json.RawMessage(payload), errMsg))
 			}
 			var tm chatstore.Message
-			if id := toolIDs[i]; id != "" {
+			if id := toolID; id != "" {
 				tm = chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
 			} else {
 				tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
