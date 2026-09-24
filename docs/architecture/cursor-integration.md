@@ -1,12 +1,14 @@
-# Cursor integration
+# Cursor API sidecar integration
 
 ## Purpose
 
-Optional **Cursor API** provider: Solomon talks to a local **Node sidecar** (OpenAI-compatible HTTP), the sidecar drives the **Cursor Agent SDK**, and — by default — **Solomon Go** executes all tools on the real project root.
+This page documents the **Cursor API** provider: Solomon talks to a local **Node sidecar** (OpenAI-compatible HTTP), the sidecar drives the **Cursor Agent SDK**, and **Solomon Go** executes workspace tools on the project root.
 
-User setup (TOML, `/connect`, `/integrations`, `/cursortools`): [Configuration — Cursor integration](../user-guide/configuration.md#cursor-integration-tool-execution).
+**Cursor Sub** is a separate provider. It signs in through a browser and connects Solomon's native backend directly to Cursor's subscription Agent service; it does not use this sidecar. See [Cursor Sub direct Agent connection](llm-layer.md#cursor-sub-direct-agent-connection) and [the provider setup guide](../user-guide/configuration.md#cursor-sub-subscription).
 
-Product requirements and full policy tables: [`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md).
+User setup (TOML, `/connect`, `/integrations`, `/cursortools`): [Configuration — Cursor API integration](../user-guide/configuration.md#cursor-integration-tool-execution).
+
+Proxy requirements and policy tables: [`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md).
 
 ## Mental model
 
@@ -157,7 +159,7 @@ Entry: [`integrations/cursor/src/index.ts`](../../integrations/cursor/src/index.
 | [`pathresolver.go`](../../internal/integrations/cursor/pathresolver.go) | Install dir, default base URL, entry script path |
 | [`bootstrap.go`](../../internal/integrations/cursor/bootstrap.go) | Extract embedded bundle, npm deps |
 | [`manager.go`](../../internal/integrations/cursor/manager.go) | Start/stop sidecar, health, `ProxyStatus` |
-| [`sidecar_async.go`](../../internal/integrations/cursor/sidecar_async.go) | Async kick/wait when Cursor provider active |
+| [`sidecar_async.go`](../../internal/integrations/cursor/sidecar_async.go) | Async kick/wait when Cursor API provider active |
 | [`ensure_configured.go`](../../internal/integrations/cursor/ensure_configured.go) | Wait for sidecar if configured |
 | [`agent/runtime.go`](../../internal/integrations/cursor/agent/runtime.go) | `EnsureSidecar` from runtime |
 | [`models.go`](../../internal/integrations/cursor/models.go) | Model list via sidecar HTTP |
@@ -191,13 +193,13 @@ Runtime display when native tools enabled: [`cursor_native_display.go`](../../in
 
 ## Legacy alias map
 
-[`tool-policy.ts`](../../integrations/cursor/src/tool-policy.ts) `CURSOR_NATIVE_ALIASES` (also in [`legacy.ts`](../../integrations/cursor/src/legacy.ts)) documents how Cursor names *would* map to Solomon deferred tools. Under orchestrate-first policy, **redirect-class Cursor tools are not bridged** — the map drives correction hints and tests, not transparent `Read` → `readFile` handoff.
+[`tool-policy.ts`](../../integrations/cursor/src/tool-policy.ts) `CURSOR_NATIVE_ALIASES` (also re-exported by [`legacy.ts`](../../integrations/cursor/src/legacy.ts)) documents how Cursor names *would* map to Solomon deferred tools. Under orchestrate-first policy, **redirect-class Cursor tools are not bridged** — the map drives correction hints and tests, not transparent `Read` → `readFile` handoff.
 
 Native MCP unwrap (`mcp` provider `solomon`): MCP tool calls are redirected to `searchTools` plus `orchestrate`; only Solomon native entry tools (e.g. `subagent`) pass through when allowed.
 
 ### Tool name bridge
 
-[`CURSOR_NATIVE_ALIASES`](../../integrations/cursor/src/tool-policy.ts) maps Cursor search/list names to Solomon `find`: `Grep`, `Glob`, `SemanticSearch`, `ListDir`, `rg`, and similar → `find`. `SemanticSearch` uses regexp fallback today (no vector index). Under orchestrate-first policy, redirect-class Cursor tools are corrected toward `orchestrate` rather than bridged transparently; the alias map still drives tests and legacy paths when internal tools are enabled.
+[`CURSOR_NATIVE_ALIASES`](../../integrations/cursor/src/tool-policy.ts) maps Cursor search/list names to Solomon `find`: `Grep`, `Glob`, `SemanticSearch`, `ListDir`, `rg`, and similar → `find`. `SemanticSearch` uses regexp fallback today (no vector index). Under orchestrate-first policy, redirect-class Cursor tools are corrected toward `orchestrate` rather than bridged transparently; the alias map remains for correction hints and compatibility helpers; managed runtimes keep Cursor internal tools off.
 
 ## SSE extensions
 
@@ -211,9 +213,9 @@ Native event shape: [`cursor-native-tools.ts`](../../integrations/cursor/src/cur
 ## Limits and caveats
 
 - Policy enforcement + `forceStopRun` is the primary execution gate; SDK sandbox is secondary when enabled.
-- Chat mode with Cursor provider is **Phase 3** — agent orchestrate-first is MVP ([`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md)).
+- Chat mode with the Cursor API provider is **Phase 3** — the current documented policy covers agent mode ([`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md)).
 - Guarantees depend on sidecar + Cursor SDK versions (`@cursor/sdk` 1.0.20+ for `customTools`).
-- Requires **Node.js** when Cursor provider is enabled.
+- Requires **Node.js** when the Cursor API provider is enabled.
 - Manual check after upgrades: Composer should call registered Solomon tools by name; `Read`/`StrReplace` attempts should yield one correction then recovery via `orchestrate` / `searchTools`.
 
 ## Debug playbook
@@ -231,7 +233,8 @@ Native event shape: [`cursor-native-tools.ts`](../../integrations/cursor/src/cur
 ## See also
 
 - [`CURSOR-PROXY-FIX.md`](../../CURSOR-PROXY-FIX.md) — product requirements, policy tables, roadmap
-- [Configuration — Cursor integration](../user-guide/configuration.md#cursor-integration-tool-execution)
+- [Cursor Sub direct Agent connection](llm-layer.md#cursor-sub-direct-agent-connection) — browser sign-in and native subscription backend
+- [Configuration — Cursor API integration](../user-guide/configuration.md#cursor-integration-tool-execution)
 - [Native tools](native-tools.md)
 - [Runtime — orchestration](runtime-orchestration.md#cursor-integration-runtime-hooks)
 - [MCP integration](mcp-integration.md)
