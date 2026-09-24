@@ -66,6 +66,23 @@ and are compared against the latest release commit before startup auto-update.
 A release version can be supplied
 explicitly with `VERSION=vYYYY.MDD.N make build` when needed.
 
+## Application icon
+
+The shared icon is generated from the terminal and GUI Braille art in
+[`internal/logo/logo.txt`](../../internal/logo/logo.txt) and its color map in
+[`internal/logo/colors.txt`](../../internal/logo/colors.txt). The Go renderer is
+[`internal/logo/icon.go`](../../internal/logo/icon.go). After editing either
+source file, run:
+
+```bash
+go generate ./internal/logo
+```
+
+This updates the root `icon.svg` and `icon.png`, plus the desktop app assets.
+The GUI's Vite configuration runs the generator before serving or building, so
+the favicon and Wails platform icons stay in sync. Treat generated icon files as
+outputs; edit the two source maps instead.
+
 ## Install from module path
 
 Module path: `github.com/SAPPHIR3-ROS3/Solomon/v2026`
