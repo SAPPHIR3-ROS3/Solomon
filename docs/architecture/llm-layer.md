@@ -44,9 +44,13 @@ The transport resolves the Agent service URL through Cursor's server configurati
 | Area | Implementation |
 |------|----------------|
 | Browser login, refresh, model catalog, API key exchange | [`internal/auth/cursor/`](../../internal/auth/cursor/) |
-| Agent Connect transport and protocol bindings | [`agent.go`](../../internal/auth/cursor/agent.go), [`agentproto/`](../../internal/auth/cursor/agentproto/) |
+| Agent Connect transport and compact wire decoder | [`agent.go`](../../internal/auth/cursor/agent.go), [`agent_wire.go`](../../internal/auth/cursor/agent_wire.go) |
 | Solomon completion adapter | [`cursor_sub.go`](../../internal/llm/cursor_sub.go), [`factory.go`](../../internal/llm/factory.go) |
 | Provider setup and token persistence | [`run.go`](../../internal/providersetup/run.go), [`provider_auth.go`](../../internal/config/provider_auth.go) |
+
+The Agent endpoint uses Protocol Buffers, but Solomon handles only the request and event fields its integration needs. A previous generated Go binding contained Cursor's much broader service schema and expanded into roughly 62,000 lines in one file. The current decoder reads the needed wire fields directly, skips unknown fields, and retains only the upstream license and notice; this keeps the endpoint integration small while allowing unrelated protocol additions to pass through.
+
+Some Cursor models persist their final assistant message as a KV blob without sending text deltas. When a turn ends without streamed content, Solomon extracts text parts from the latest persisted assistant message and excludes reasoning parts.
 
 Deterministic request, stream, tool, image, and auth tests run with `go test ./...`. Optional account-backed tests are gated by `SOLOMON_CURSOR_DIRECT_LIVE=1`; they require a configured Cursor Sub account. Grok text, tool continuation, image input, and Composer tool continuation have live coverage in [`test/cursor_agent_direct_live_test.go`](../../test/cursor_agent_direct_live_test.go), [`test/cursor_agent_tool_live_test.go`](../../test/cursor_agent_tool_live_test.go), and [`test/cursor_agent_image_live_test.go`](../../test/cursor_agent_image_live_test.go).
 

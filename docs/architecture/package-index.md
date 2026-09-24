@@ -109,6 +109,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/auth/anthropic/claude/` | Claude Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
 | `internal/auth/openai/codex/` | ChatGPT Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
 | `internal/auth/openai/codex/chat/` | Codex chat request shaping | [LLM layer](llm-layer.md) |
+| `internal/auth/cursor/` | Cursor Sub OAuth, model catalog, direct Agent endpoint | [LLM layer](llm-layer.md#cursor-sub-direct-agent-connection) |
 | `internal/providersetup/` | Provider onboard during `/connect` | [Supporting packages](supporting-packages.md) |
 | `internal/providerui/` | Provider connection bridge for the desktop UI | [Supporting packages](supporting-packages.md) |
 | `internal/webfetch/` | HTTP client for fetching web content (cookie jar, user agent) | [Supporting packages](supporting-packages.md) |
