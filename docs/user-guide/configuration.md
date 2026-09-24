@@ -164,6 +164,16 @@ Architecture: [Agent turn pipeline](../architecture/agent-turn-pipeline.md#legac
 
 When the active provider is **Cursor API**, Solomon starts a local OpenAI-compatible **sidecar** and keeps **all tool execution in Go** on your project root.
 
+### Cursor Sub (subscription)
+
+Choose **`/connect` → Cursor Sub** to sign in to a Cursor subscription in your browser. Solomon stores the subscription session in its own `config.toml`, discovers the models available to that account, and sends requests directly to Cursor's subscription Agent endpoint. It does not need the Cursor desktop app, Cursor CLI, Node.js, or the optional Cursor API sidecar.
+
+Cursor Sub uses the same Solomon turn loop as the other providers: streamed text and reasoning, model-specific fast/reasoning settings, images, native Solomon tool calls and their results, conversation history, and token usage. Tools run in Solomon, with the same project permissions and confirmation rules as for other providers. The available model list depends on the signed-in subscription.
+
+If authentication expires or model requests return an authentication error, run **`/connect` → Cursor Sub** again to refresh the browser sign-in. Cursor Sub credentials are separate from credentials in a local Cursor installation.
+
+For implementation details and test commands, see [Cursor Sub direct endpoint](../architecture/llm-layer.md#cursor-sub-direct-agent-connection).
+
 | Key | Effective value | Role |
 |-----|-----------------|------|
 | `cursor_internal_tools` | **`false` always** | Deprecated. Cursor built-in tools (Read, Shell, …) are blocked; Composer uses registered Solomon tools (`orchestrate`, `searchTools`, `searchSkill`, `loadSkill`, …). Config load/save forces `false`; `/cursortools on` is rejected. |
@@ -193,6 +203,7 @@ You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic
 | `/onboard` or `/connect` → Anthropic Compatible API | `anthropic` | Messages API (`POST …/v1/messages`); models loaded from the provider API |
 | `/connect` → ChatGPT Sub | `openai` | OAuth; Codex middleware |
 | `/connect` → Claude Sub | `anthropic` | OAuth; native Messages API |
+| `/connect` → Cursor Sub | `openai` | Browser sign-in; direct subscription Agent endpoint, no Cursor app or CLI dependency |
 | `/connect` → Cursor API | `openai` | Optional sidecar; see [Cursor integration](#cursor-integration-tool-execution) |
 
 Provider block fields: `base_url`, `api_key`, optional `api_protocol` (`openai` | `anthropic`). Anthropic official base: `https://api.anthropic.com` (normalized on save).

@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	slashModelMoreCmd           = ">"
-	slashPickerRecentSlots      = 10
-	slashPickerIdxChatGPTSub    = 11
-	slashPickerIdxClaudeSub     = 12
-	slashPickerIdxCursorAPI     = 13
-	slashPickerIdxOtherStart    = 14
+	slashModelMoreCmd        = ">"
+	slashPickerRecentSlots   = 10
+	slashPickerIdxChatGPTSub = 11
+	slashPickerIdxClaudeSub  = 12
+	slashPickerIdxCursorAPI  = 13
+	slashPickerIdxCursorSub  = 14
+	slashPickerIdxOtherStart = 15
 )
 
 type slashPickerDisplayRow struct {
@@ -228,10 +229,14 @@ func (c *slashModelPickerCtx) buildFirstPage() ([]slashPickerDisplayRow, bool) {
 		c.indexTable[slashPickerIdxCursorAPI] = pickerRow{provOnly: config.ProviderNameCursorAPI, section: sectionProvider}
 	}
 
+	if present[config.ProviderNameCursorSub] {
+		c.indexTable[slashPickerIdxCursorSub] = pickerRow{provOnly: config.ProviderNameCursorSub, section: sectionProvider}
+	}
+
 	others := make([]string, 0, len(present))
 	for name := range present {
 		switch name {
-		case config.ProviderNameChatGPTSub, config.ProviderNameClaudeSub, config.ProviderNameCursorAPI:
+		case config.ProviderNameChatGPTSub, config.ProviderNameClaudeSub, config.ProviderNameCursorAPI, config.ProviderNameCursorSub:
 			continue
 		default:
 			others = append(others, name)
@@ -263,6 +268,7 @@ func (c *slashModelPickerCtx) rootPageDisplay() []slashPickerDisplayRow {
 	add(slashPickerIdxChatGPTSub)
 	add(slashPickerIdxClaudeSub)
 	add(slashPickerIdxCursorAPI)
+	add(slashPickerIdxCursorSub)
 	for i := slashPickerIdxOtherStart; i < c.nextIndex; i++ {
 		add(i)
 	}

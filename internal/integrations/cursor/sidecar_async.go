@@ -17,11 +17,18 @@ func sidecarConfigured(cfg *config.Root) (*config.Provider, string, bool) {
 	if cfg == nil {
 		return nil, "", false
 	}
-	p := config.ProviderByName(cfg, config.ProviderNameCursorAPI)
-	if p == nil || !p.IsCursorAPI() || !config.ProviderCredentialsReady(p) {
+	p := config.ProviderByName(cfg, cfg.Current.Provider)
+	if p == nil || p.IsCursorSub() || !p.IsCursorAPI() {
 		return nil, "", false
 	}
-	return p, strings.TrimSpace(p.APIKey), true
+	if !config.ProviderCredentialsReady(p) {
+		return nil, "", false
+	}
+	key := strings.TrimSpace(p.APIKey)
+	if key == "" {
+		return nil, "", false
+	}
+	return p, key, true
 }
 
 func sidecarCWD(cwd string) string {

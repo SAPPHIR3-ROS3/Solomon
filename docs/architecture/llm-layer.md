@@ -15,7 +15,7 @@ Runtime holds `CompletionBackend` (`NewCompletionBackend` in [`internal/llm/fact
 
 ## Model discovery
 
-Model selection uses live provider catalogs. OpenAI-compatible providers use the standard models endpoint; Anthropic providers use the Anthropic models endpoint; ChatGPT Sub uses the Codex subscription models endpoint; Claude Sub uses its authenticated Anthropic endpoint; and Cursor API uses the sidecar catalog. The `/models` command caches the catalogs during startup, refreshes a provider when it is selected, and keeps successful provider results available when another provider cannot be reached.
+Model selection uses live provider catalogs. OpenAI-compatible providers use the standard models endpoint; Anthropic providers use the Anthropic models endpoint; ChatGPT Sub uses the Codex subscription models endpoint; Claude Sub uses its authenticated Anthropic endpoint; Cursor Sub queries the Cursor subscription catalog; and Cursor API uses the sidecar catalog. The `/models` command caches the catalogs during startup, refreshes a provider when it is selected, and keeps successful provider results available when another provider cannot be reached.
 
 Provider-specific filtering and ordering are applied before the ids reach the picker. Role validation uses the same provider listing path, so configured `[[roles.subagent]]` models must still be present in the provider’s current catalog.
 
@@ -32,6 +32,23 @@ Subscription providers use the OpenAI backend with Codex-oriented middleware ins
 | Setup UX | `internal/providersetup/`, `commands/connect/` | `/connect` wizard and provider blocks in TOML |
 
 Tokens are stored in `config.toml` today (secure vault is planned — see [TODO.md](../../TODO.md)). Tests: [`test/provider_auth_test.go`](../../test/provider_auth_test.go), [`test/codex_upstream_error_test.go`](../../test/codex_upstream_error_test.go).
+
+## Cursor Sub direct Agent connection
+
+Cursor Sub uses a dedicated backend and talks to the subscription Agent service directly. It does not start or inspect Cursor CLI, Cursor desktop, or the Cursor API sidecar. Browser sign-in and token refresh live under `internal/auth/cursor/`; model listing and the streaming Agent transport use the same account session.
+
+The backend maps Solomon turns, model parameters, images, tool schemas, prior assistant tool calls, and tool results into Cursor Agent requests. Agent events are mapped back to streamed content and reasoning, native tool calls, and usage. Solomon's regular turn loop executes each returned tool and submits its result in the next request. Requests containing tools are not automatically replayed after transport failure, avoiding duplicate side effects.
+
+The transport resolves the Agent service URL through Cursor's server configuration endpoint and uses Connect over HTTP/2. The subscription API key is exchanged for a short-lived session token; refreshed credentials are persisted by the provider auth layer. A missing/expired login can be repaired with `/connect` → Cursor Sub.
+
+| Area | Implementation |
+|------|----------------|
+| Browser login, refresh, model catalog, API key exchange | [`internal/auth/cursor/`](../../internal/auth/cursor/) |
+| Agent Connect transport and protocol bindings | [`agent.go`](../../internal/auth/cursor/agent.go), [`agentproto/`](../../internal/auth/cursor/agentproto/) |
+| Solomon completion adapter | [`cursor_sub.go`](../../internal/llm/cursor_sub.go), [`factory.go`](../../internal/llm/factory.go) |
+| Provider setup and token persistence | [`run.go`](../../internal/providersetup/run.go), [`provider_auth.go`](../../internal/config/provider_auth.go) |
+
+Deterministic request, stream, tool, image, and auth tests run with `go test ./...`. Optional account-backed tests are gated by `SOLOMON_CURSOR_DIRECT_LIVE=1`; they require a configured Cursor Sub account. Grok text, tool continuation, image input, and Composer tool continuation have live coverage in [`test/cursor_agent_direct_live_test.go`](../../test/cursor_agent_direct_live_test.go), [`test/cursor_agent_tool_live_test.go`](../../test/cursor_agent_tool_live_test.go), and [`test/cursor_agent_image_live_test.go`](../../test/cursor_agent_image_live_test.go).
 
 ## Packages and files
 

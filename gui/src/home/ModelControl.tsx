@@ -14,10 +14,32 @@ const emptyCatalog: ModelCatalog = { current: { provider: "", model: "" }, provi
 
 type ModelControlProps = {
   onFastModeAvailableChange?: (available: boolean) => void;
+  onReasoningModeChange?: (mode: ReasoningMode) => void;
   onModelChange?: (choice: ModelChoice) => void;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
 };
+
+export type ReasoningMode = "none" | "toggle" | "levels";
+
+function listHasModel(list: string[] | undefined, model: string): boolean {
+  const needle = model.trim().toLowerCase();
+  return Boolean(list?.some((id) => id.trim().toLowerCase() === needle));
+}
+
+function modelReasoningMode(provider: { thinkingModels?: string[]; thinkingLevelModels?: string[] } | undefined, model: string): ReasoningMode {
+  if (!provider || (!Array.isArray(provider.thinkingModels) && !Array.isArray(provider.thinkingLevelModels))) return "levels";
+  if (listHasModel(provider.thinkingLevelModels, model)) return "levels";
+  if (listHasModel(provider.thinkingModels, model)) return "toggle";
+  return "none";
+}
+
+function modelSupportsFast(provider: { fastModels?: string[]; supportsFastMode: boolean } | undefined, model: string): boolean {
+  if (!provider?.supportsFastMode) return false;
+  if (!provider.fastModels) return true;
+  const needle = model.trim().toLowerCase();
+  return provider.fastModels.some((id) => id.trim().toLowerCase() === needle);
+}
 
 function modelMatchesQuery(provider: string, model: string, needle: string): boolean {
   const haystack = (provider + " " + model).toLowerCase();
@@ -27,7 +49,7 @@ function modelMatchesQuery(provider: string, model: string, needle: string): boo
   return compactNeedle.length > 0 && compactHaystack.includes(compactNeedle);
 }
 
-export function ModelControl({ onFastModeAvailableChange, onModelChange, open, onOpenChange }: ModelControlProps) {
+export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange, onModelChange, open, onOpenChange }: ModelControlProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
   const setOpen = (next: boolean) => {
@@ -46,7 +68,8 @@ export function ModelControl({ onFastModeAvailableChange, onModelChange, open, o
   function notifyModelChange(choice: ModelChoice, sourceCatalog = catalog) {
     const normalizedProvider = choice.provider.trim().toLowerCase();
     const provider = sourceCatalog.providers.find((group) => group.provider.trim().toLowerCase() === normalizedProvider);
-    onFastModeAvailableChange?.(provider?.supportsFastMode === true);
+    onFastModeAvailableChange?.(modelSupportsFast(provider, choice.model));
+    onReasoningModeChange?.(modelReasoningMode(provider, choice.model));
     onModelChange?.(choice);
   }
 
@@ -107,7 +130,9 @@ export function ModelControl({ onFastModeAvailableChange, onModelChange, open, o
 
   const visibleRecentModels = useMemo(() => recentModels.filter((choice) => {
     const provider = catalog.providers.find((group) => group.provider === choice.provider);
-    return !provider?.disabled.includes(choice.model);
+    if (provider?.disabled.includes(choice.model)) return false;
+    if (provider?.complete && !provider.models.includes(choice.model)) return false;
+    return true;
   }), [catalog.providers, recentModels]);
 
   const showingRecents = activeProvider === recentProvider;

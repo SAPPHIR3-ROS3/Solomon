@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 
 const server = await createServer({ root, configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: 'automatic' } });
 after(() => server.close());

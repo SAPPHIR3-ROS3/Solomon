@@ -17,7 +17,7 @@ func configureManagedProcess(cmd *exec.Cmd) {
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
-		CreationFlags: detachedProcess | createNoWindow,
+		CreationFlags: createNoWindow,
 	}
 }
 
@@ -25,7 +25,7 @@ func runTaskkill(args ...string) {
 	cmd := exec.Command("taskkill", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
-		CreationFlags: detachedProcess | createNoWindow,
+		CreationFlags: createNoWindow,
 	}
 	_ = cmd.Run()
 }

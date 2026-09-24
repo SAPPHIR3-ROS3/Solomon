@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-const server = await createServer({ root: new URL("..", import.meta.url).pathname, configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: "automatic" } });
+const server = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: "automatic" } });
 const { ChatMessageGroups } = await server.ssrLoadModule("/src/chat/ChatMessageGroups.tsx");
 
 test("groups intermediate assistant replies into collapsed tool activity", () => {

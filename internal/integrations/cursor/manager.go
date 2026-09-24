@@ -134,7 +134,23 @@ func nodeExecutable() (string, error) {
 	if p := strings.TrimSpace(os.Getenv("SOLOMON_NODE")); p != "" {
 		return p, nil
 	}
-	return exec.LookPath("node")
+	p, err := exec.LookPath("node")
+	if err != nil {
+		return "", err
+	}
+	return preferNodeExe(p), nil
+}
+
+func preferNodeExe(p string) string {
+	low := strings.ToLower(p)
+	if !strings.HasSuffix(low, ".cmd") && !strings.HasSuffix(low, ".bat") {
+		return p
+	}
+	exe := p[:len(p)-4] + ".exe"
+	if st, err := os.Stat(exe); err == nil && !st.IsDir() {
+		return exe
+	}
+	return p
 }
 
 func sidecarLogFile() (*os.File, error) {

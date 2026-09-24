@@ -125,10 +125,11 @@ func npmEnsureProdDeps(dir string) error {
 	if err != nil {
 		return fmt.Errorf("npm not found in PATH; install Node.js LTS (see scripts/install.sh): %w", err)
 	}
-	cmd := exec.Command(npm, "install", "--omit=dev")
+	cmd := exec.Command(preferNodeExe(npm), "install", "--omit=dev")
 	cmd.Dir = dir
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
+	configureSidecarProcess(cmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("npm install failed in %s: %w", dir, err)
 	}

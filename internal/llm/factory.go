@@ -3,13 +3,18 @@ package llm
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 
+	cursorauth "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/anthropic"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/anthropic"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
@@ -21,12 +26,20 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 		return nil, fmt.Errorf("nil provider")
 	}
 	config.EnsureClaudeSubBaseURL(p)
+	config.EnsureCursorSubBaseURL(p)
 	policy := config.EffectiveAPIResilience(cfg)
+	if p.IsCursorSub() {
+		// A streamed tool call can have side effects; never replay the run.
+		policy.MaxRetries = 1
+		policy.ReadTimeout = 0
+	}
 	hostKey := HostKeyFromBaseURL(p.BaseURL)
 	httpClient := NewResilientHTTPClient(policy)
 	var inner CompletionBackend
-	switch p.EffectiveAPIProtocol() {
-	case config.APIProtocolAnthropic:
+	switch {
+	case p.IsCursorSub():
+		inner = &cursorSubBackend{cfg: cfg, provider: p, httpClient: httpClient}
+	case p.EffectiveAPIProtocol() == config.APIProtocolAnthropic:
 		bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
 		if err != nil {
 			logging.Log(logging.ERROR_LOG_LEVEL, "completion backend resolve bearer failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
@@ -46,7 +59,7 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 		inner = &OpenAIBackend{Client: client}
 	}
 	rb := NewResilientBackend(inner, hostKey, policy, defaultCircuits)
-	if p.IsCursorAPI() {
+	if p.IsCursorAPI() && !p.IsCursorSub() {
 		cfgCopy := cfg
 		rb.SidecarRevive = func(ctx context.Context, err error) {
 			cwd, _ := os.Getwd()
@@ -91,4 +104,65 @@ func OpenAIClientFromBackend(b CompletionBackend) (openai.Client, bool) {
 		return openai.Client{}, false
 	}
 	return ob.Client, true
+}
+
+type cursorSubBackend struct {
+	cfg        *config.Root
+	provider   *config.Provider
+	httpClient *http.Client
+	mu         sync.Mutex
+	pending    *cursorPendingTool
+}
+
+func (b *cursorSubBackend) Protocol() Protocol { return ProtocolOpenAI }
+
+func (b *cursorSubBackend) StreamTurn(ctx context.Context, req TurnRequest, contentOut io.Writer, opts StreamOpts) (AssistantTurnResult, error) {
+	effort := req.ReasoningEffort
+	if req.ForceDisableReasoning {
+		effort = "none"
+	}
+	if b.cfg != nil && strings.TrimSpace(effort) == "" {
+		effort = b.cfg.ReasoningEffortLabel()
+	}
+	result, err := b.streamAgent(ctx, req.Model, req.System, req.Messages, req.ImageFiles, req.Tools, contentOut, effort, opts)
+	if err != nil {
+		return AssistantTurnResult{}, err
+	}
+	out := AssistantTurnResult{Content: result.Content, FinishReason: result.FinishReason}
+	if out.FinishReason == "" {
+		out.FinishReason = FinishReasonStop
+	}
+	for _, call := range result.ToolCalls {
+		out.ToolCalls = append(out.ToolCalls, AssistantToolCall{ID: call.ID, Name: call.Name, Arguments: call.Arguments})
+	}
+	out.Usage = UsageStats{
+		PromptTokens:              result.Usage.PromptTokens,
+		CachedPromptTokens:        result.Usage.CachedPromptTokens,
+		CacheCreationPromptTokens: result.Usage.CacheWriteTokens,
+		ReasoningTokens:           result.Usage.ReasoningTokens,
+		ResponseTokens:            result.Usage.CompletionTokens,
+		TotalTokens:               result.Usage.TotalTokens,
+	}
+	return out, nil
+}
+
+func (b *cursorSubBackend) StreamText(ctx context.Context, req SimpleCompletionRequest, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {
+	result, err := b.streamAgent(ctx, req.Model, req.System, []chatstore.Message{{Role: "user", Content: req.User}}, nil, nil, contentOut, "", opts)
+	return result.Content, UsageStats{PromptTokens: result.Usage.PromptTokens, CachedPromptTokens: result.Usage.CachedPromptTokens, CacheCreationPromptTokens: result.Usage.CacheWriteTokens, ReasoningTokens: result.Usage.ReasoningTokens, ResponseTokens: result.Usage.CompletionTokens, TotalTokens: result.Usage.TotalTokens}, err
+}
+
+func (b *cursorSubBackend) CompleteText(ctx context.Context, req SimpleCompletionRequest) (string, error) {
+	result, err := b.streamAgent(ctx, req.Model, req.System, []chatstore.Message{{Role: "user", Content: req.User}}, nil, nil, io.Discard, "", StreamOpts{})
+	return result.Content, err
+}
+
+func (b *cursorSubBackend) ListModels(ctx context.Context) ([]string, error) {
+	if b == nil || b.provider == nil {
+		return nil, fmt.Errorf("Cursor Sub backend missing provider")
+	}
+	session, err := config.ResolveCursorSessionBearer(ctx, b.cfg, b.provider)
+	if err != nil {
+		return nil, err
+	}
+	return cursorauth.ListAvailableModels(ctx, session)
 }

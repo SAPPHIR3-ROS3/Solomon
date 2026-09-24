@@ -10,7 +10,7 @@ export function resolveModelSelection(
   reasoningEffort: string | undefined,
   fastMode: boolean,
 ): ModelSelection {
-  const resolvedID = resolveFastModelID(models, id, fastMode);
+  const resolvedID = resolveFastModelID(models, resolveKnownModelID(models, id), fastMode);
   let info = models.find((m) => m.id === resolvedID);
   if (!info && !fastMode && isFastModelID(id)) {
     info = models.find((m) => m.id === id);
@@ -24,6 +24,26 @@ export function resolveModelSelection(
     upsertReasoningParam(params, info, reasoning);
   }
   return params.length > 0 ? { id: resolvedID, params } : { id: resolvedID };
+}
+
+function resolveKnownModelID(models: ModelInfo[], id: string): string {
+  const raw = id.trim();
+  const stripped = raw.toLowerCase().startsWith("cursor-") ? raw.slice("cursor-".length) : raw;
+  const ids = models.map((m) => m.id).filter(Boolean);
+  const set = new Set(ids);
+  if (set.has(raw)) {
+    return raw;
+  }
+  if (set.has(stripped)) {
+    return stripped;
+  }
+  const family = stripped.replace(/-fast$/i, "");
+  const matches = ids.filter((candidate) => candidate === family || candidate.startsWith(`${family}.`) || candidate.startsWith(`${family}-`) || (family.startsWith("grok-4") && candidate.startsWith("grok-4")));
+  if (matches.length === 0) {
+    return stripped;
+  }
+  matches.sort();
+  return matches[matches.length - 1]!;
 }
 
 function resolveFastModelID(models: ModelInfo[], id: string, fastMode: boolean): string {

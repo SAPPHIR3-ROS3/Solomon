@@ -129,7 +129,10 @@ const MODEL_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 const TOOL_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
 
 export function sanitizeModelId(v: string | undefined): string {
-  const s = (v ?? DEFAULT_MODEL_ID).trim();
+  let s = (v ?? DEFAULT_MODEL_ID).trim();
+  if (s.toLowerCase().startsWith("cursor-")) {
+    s = s.slice("cursor-".length).trim();
+  }
   if (!s || s.length > 256 || !MODEL_ID_RE.test(s)) {
     return DEFAULT_MODEL_ID;
   }

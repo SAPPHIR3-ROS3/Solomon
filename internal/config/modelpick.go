@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	MaxModelPickerEntries       = 25
-	ModelPickerNoPaginationMax  = 50
+	MaxModelPickerEntries      = 25
+	ModelPickerNoPaginationMax = 50
 )
 
 func ModelPickerPageCap(total int) int {
@@ -62,7 +62,7 @@ func PickModelInteractive(pio PromptIO, p *Provider, providerLabel string, ids [
 	if len(ids) == 0 {
 		return "", fmt.Errorf("no models returned by API")
 	}
-	cursorPick := p != nil && p.IsCursorAPI()
+	cursorPick := p != nil && (p.IsCursorAPI() || p.IsCursorSub())
 	maxList := ModelPickerPageCap(len(ids))
 	truncated := len(ids) > maxList
 	lastIdx := maxList - 1

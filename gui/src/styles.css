@@ -2142,10 +2142,38 @@ button.right-side-panel-history-ref:hover {
   padding: 0 0 16px;
 }
 
+.settings-provider-quota-error-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .settings-provider-quota-error {
-  color: var(--color-text-muted);
+  color: var(--color-danger);
   font: 11px/1.4 "Geist Mono", ui-monospace, monospace;
   margin: 0;
+}
+
+.settings-provider-relogin {
+  appearance: none;
+  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 48%, var(--color-border));
+  border-radius: 6px;
+  color: var(--color-danger);
+  cursor: pointer;
+  font: 11px/1 "Geist", ui-sans-serif, system-ui, sans-serif;
+  height: 26px;
+  padding: 0 10px;
+}
+
+.settings-provider-relogin:hover {
+  background: color-mix(in srgb, var(--color-danger) 26%, transparent);
+}
+
+.settings-provider-relogin:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .settings-provider-quota-bar {
