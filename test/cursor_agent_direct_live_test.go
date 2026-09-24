@@ -69,6 +69,9 @@ func TestCursorAgentDirectLive(t *testing.T) {
 			response += event.Text
 		}
 		if event.Ended {
+			if response == "" {
+				response, _ = s.LatestAssistantText()
+			}
 			break
 		}
 	}

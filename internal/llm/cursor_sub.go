@@ -331,6 +331,11 @@ func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string
 				return cursorauth.ChatResult{}, err
 			}
 		}
+		if event.Ended && result.Content == "" {
+			if text, ok := session.LatestAssistantText(); ok {
+				event.Text = text
+			}
+		}
 		if event.Text != "" {
 			result.Content += event.Text
 			if opts.OnDelta != nil {

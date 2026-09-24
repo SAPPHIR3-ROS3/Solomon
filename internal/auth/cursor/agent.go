@@ -18,10 +18,7 @@ import (
 	"sync"
 	"time"
 
-	agentproto "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/cursor/agentproto"
 	"golang.org/x/net/http2"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // AgentTool is a tool made available to Cursor's Agent service by Solomon.
@@ -74,12 +71,13 @@ type AgentToolCall struct {
 }
 
 type AgentSession struct {
-	writer *io.PipeWriter
-	cancel context.CancelFunc
-	events chan AgentEvent
-	mu     sync.Mutex
-	closed bool
-	blobs  map[string][]byte
+	writer       *io.PipeWriter
+	cancel       context.CancelFunc
+	events       chan AgentEvent
+	mu           sync.Mutex
+	closed       bool
+	blobs        map[string][]byte
+	updatedBlobs []string
 }
 
 // OpenAgentSession uses Cursor's subscription Agent Connect endpoint directly.
@@ -256,6 +254,29 @@ func (s *AgentSession) Next(ctx context.Context) (AgentEvent, bool) {
 	}
 }
 
+// LatestAssistantText returns the text in the newest assistant message Cursor
+// persisted during this session. Some Agent responses persist their final
+// message in the KV store without sending a text-delta event.
+func (s *AgentSession) LatestAssistantText() (string, bool) {
+	if s == nil {
+		return "", false
+	}
+	s.mu.Lock()
+	ids := append([]string(nil), s.updatedBlobs...)
+	blobs := make([][]byte, len(ids))
+	for i, id := range ids {
+		blobs[i] = s.blobs[id]
+	}
+	s.mu.Unlock()
+	for i := len(blobs) - 1; i >= 0; i-- {
+		text, isAssistant := assistantMessageText(blobs[i])
+		if isAssistant {
+			return text, text != ""
+		}
+	}
+	return "", false
+}
+
 func (s *AgentSession) Close() {
 	s.mu.Lock()
 	if !s.closed {
@@ -339,131 +360,28 @@ func (s *AgentSession) readResponse(req *http.Request) {
 			}
 			return
 		}
-		var msg agentproto.AgentServerMessage
-		if err := proto.Unmarshal(payload, &msg); err != nil {
-			s.emit(req.Context(), AgentEvent{Err: err})
-			return
-		}
-		if !s.emit(req.Context(), decodeAgentEvent(&msg)) {
+		if !s.emit(req.Context(), DecodeAgentServerMessage(payload)) {
 			return
 		}
 	}
-}
-
-func decodeAgentEvent(msg *agentproto.AgentServerMessage) AgentEvent {
-	if query := msg.GetInteractionQuery(); query != nil {
-		kind := 0
-		switch query.GetQuery().(type) {
-		case *agentproto.InteractionQuery_WebSearchRequestQuery:
-			kind = 2
-		case *agentproto.InteractionQuery_AskQuestionInteractionQuery:
-			kind = 3
-		case *agentproto.InteractionQuery_SwitchModeRequestQuery:
-			kind = 4
-		case *agentproto.InteractionQuery_ExaSearchRequestQuery:
-			kind = 5
-		case *agentproto.InteractionQuery_ExaFetchRequestQuery:
-			kind = 6
-		case *agentproto.InteractionQuery_CreatePlanRequestQuery:
-			kind = 7
-		case *agentproto.InteractionQuery_WebFetchRequestQuery:
-			kind = 9
-		}
-		return AgentEvent{Query: &AgentQueryRequest{ID: query.GetId(), Kind: kind}}
-	}
-	if kv := msg.GetKvServerMessage(); kv != nil {
-		if set := kv.GetSetBlobArgs(); set != nil {
-			return AgentEvent{KV: &AgentKVRequest{ID: kv.GetId(), BlobID: set.GetBlobId(), BlobData: set.GetBlobData(), Set: true}}
-		}
-		if get := kv.GetGetBlobArgs(); get != nil {
-			return AgentEvent{KV: &AgentKVRequest{ID: kv.GetId(), BlobID: get.GetBlobId()}}
-		}
-	}
-	if update := msg.GetInteractionUpdate(); update != nil {
-		switch item := update.GetMessage().(type) {
-		case *agentproto.InteractionUpdate_TextDelta:
-			return AgentEvent{Text: item.TextDelta.GetText()}
-		case *agentproto.InteractionUpdate_ThinkingDelta:
-			return AgentEvent{Thinking: item.ThinkingDelta.GetText()}
-		case *agentproto.InteractionUpdate_TurnEnded:
-			u := item.TurnEnded
-			return AgentEvent{Ended: true, Usage: ChatUsage{PromptTokens: u.GetInputTokens(), CompletionTokens: u.GetOutputTokens(), TotalTokens: u.GetInputTokens() + u.GetOutputTokens(), CachedPromptTokens: u.GetCacheReadTokens(), CacheWriteTokens: u.GetCacheWriteTokens(), ReasoningTokens: u.GetReasoningTokens()}}
-		}
-		return AgentEvent{Unknown: fmt.Sprintf("interaction:%T", update.GetMessage())}
-	}
-	if exec := msg.GetExecServerMessage(); exec != nil {
-		if exec.GetRequestContextArgs() != nil {
-			return AgentEvent{Context: &AgentExecRequest{ID: exec.GetId(), ExecID: exec.GetExecId()}}
-		}
-		if exec.GetMcpStateExecArgs() != nil {
-			return AgentEvent{MCPState: &AgentExecRequest{ID: exec.GetId(), ExecID: exec.GetExecId()}}
-		}
-		if args := exec.GetMcpArgs(); args != nil {
-			arguments := map[string]any{}
-			for name, raw := range args.GetArgs() {
-				var value structpb.Value
-				if proto.Unmarshal(raw, &value) == nil {
-					arguments[name] = value.AsInterface()
-				} else {
-					arguments[name] = string(raw)
-				}
-			}
-			encoded, _ := json.Marshal(arguments)
-			return AgentEvent{Tool: &AgentToolCall{ID: args.GetToolCallId(), Name: firstNonEmpty(args.GetToolName(), args.GetName()), Arguments: string(encoded), ExecID: exec.GetExecId(), ExecNumber: exec.GetId()}}
-		}
-		base := AgentExecRequest{ID: exec.GetId(), ExecID: exec.GetExecId()}
-		request := &AgentNativeRequest{AgentExecRequest: base}
-		switch exec.GetMessage().(type) {
-		case *agentproto.ExecServerMessage_ShellArgs:
-			request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "shell", 2, 4, 3
-		case *agentproto.ExecServerMessage_ShellStreamArgs:
-			request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "shell stream", 14, 5, 3
-		case *agentproto.ExecServerMessage_BackgroundShellSpawnArgs:
-			request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "background shell", 16, 3, 3
-		case *agentproto.ExecServerMessage_ReadArgs, *agentproto.ExecServerMessage_RedactedReadArgs:
-			request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "read", 7, 3, 2
-		case *agentproto.ExecServerMessage_WriteArgs:
-			request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "write", 3, 6, 2
-		case *agentproto.ExecServerMessage_DeleteArgs:
-			request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "delete", 4, 6, 2
-		case *agentproto.ExecServerMessage_LsArgs:
-			request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "list", 8, 3, 2
-		case *agentproto.ExecServerMessage_DiagnosticsArgs:
-			request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "diagnostics", 9, 3, 2
-		case *agentproto.ExecServerMessage_GrepArgs:
-			request.Kind, request.ResultField = "grep", 5
-		case *agentproto.ExecServerMessage_FetchArgs:
-			request.Kind, request.ResultField = "fetch", 20
-		case *agentproto.ExecServerMessage_ShellAllowlistPrecheckArgs:
-			request.Kind = "precheck_shell"
-		case *agentproto.ExecServerMessage_McpAllowlistPrecheckArgs:
-			request.Kind = "precheck_mcp"
-		case *agentproto.ExecServerMessage_WebFetchAllowlistPrecheckArgs:
-			request.Kind = "precheck_web_fetch"
-		default:
-			return AgentEvent{Unknown: fmt.Sprintf("exec:%T", exec.GetMessage())}
-		}
-		return AgentEvent{Native: request}
-	}
-	return AgentEvent{Unknown: fmt.Sprintf("server:%T", msg.GetMessage())}
 }
 
 func (s *AgentSession) RejectNative(request AgentNativeRequest) error {
 	if strings.HasPrefix(request.Kind, "precheck_") {
-		exec := &agentproto.ExecClientMessage{Id: request.ID, ExecId: request.ExecID}
+		var resultField int
 		switch request.Kind {
 		case "precheck_shell":
-			exec.Message = &agentproto.ExecClientMessage_ShellAllowlistPrecheckResult{ShellAllowlistPrecheckResult: &agentproto.ShellAllowlistPrecheckResult{Allowlisted: false}}
+			resultField = 41
 		case "precheck_mcp":
-			exec.Message = &agentproto.ExecClientMessage_McpAllowlistPrecheckResult{McpAllowlistPrecheckResult: &agentproto.McpAllowlistPrecheckResult{Allowlisted: false}}
+			resultField = 42
 		case "precheck_web_fetch":
-			exec.Message = &agentproto.ExecClientMessage_WebFetchAllowlistPrecheckResult{WebFetchAllowlistPrecheckResult: &agentproto.WebFetchAllowlistPrecheckResult{Allowlisted: false}}
+			resultField = 43
+		default:
+			return fmt.Errorf("Cursor Agent: unsupported precheck %q", request.Kind)
 		}
-		payload, err := proto.Marshal(&agentproto.AgentClientMessage{Message: &agentproto.AgentClientMessage_ExecClientMessage{ExecClientMessage: exec}})
-		if err != nil {
-			return err
-		}
-		return s.Write(payload)
+		exec := append(pbVarint(1, uint64(request.ID)), pbBytes(resultField, nil)...)
+		exec = append(exec, pbString(15, request.ExecID)...)
+		return s.Write(pbBytes(2, exec))
 	}
 	var result []byte
 	reason := "Use Solomon's provided MCP tools for workspace operations."
@@ -500,20 +418,22 @@ func (s *AgentSession) RejectQuery(query AgentQueryRequest) error {
 }
 
 func (s *AgentSession) MCPStateResult(request AgentExecRequest, tools []AgentTool) error {
-	definitions := make([]*agentproto.McpToolDefinition, 0, len(tools))
+	var definitions []byte
 	for _, tool := range tools {
 		schema := string(tool.Schema)
-		definitions = append(definitions, &agentproto.McpToolDefinition{Name: tool.Name, ToolName: tool.Name, ProviderIdentifier: "solomon", Description: tool.Description, InputSchemaJson: &schema})
+		definition := append(pbString(1, tool.Name), pbString(2, tool.Description)...)
+		definition = append(definition, pbString(4, "solomon")...)
+		definition = append(definition, pbString(5, tool.Name)...)
+		definition = append(definition, pbString(6, schema)...)
+		definitions = append(definitions, pbBytes(5, definition)...)
 	}
-	status := "connected"
-	server := &agentproto.McpStateServer{ServerName: "solomon", ServerIdentifier: "solomon", Tools: definitions, Status: &status}
-	exec := &agentproto.ExecClientMessage{Id: request.ID, ExecId: request.ExecID, Message: &agentproto.ExecClientMessage_McpStateExecResult{McpStateExecResult: &agentproto.McpStateExecResult{Result: &agentproto.McpStateExecResult_Success{Success: &agentproto.McpStateSuccess{Servers: []*agentproto.McpStateServer{server}}}}}}
-	message := &agentproto.AgentClientMessage{Message: &agentproto.AgentClientMessage_ExecClientMessage{ExecClientMessage: exec}}
-	payload, err := proto.Marshal(message)
-	if err != nil {
-		return err
-	}
-	return s.Write(payload)
+	server := append(pbString(1, "solomon"), pbString(2, "solomon")...)
+	server = append(server, definitions...)
+	server = append(server, pbString(7, "connected")...)
+	success := pbBytes(1, pbBytes(1, server))
+	exec := append(pbVarint(1, uint64(request.ID)), pbBytes(36, success)...)
+	exec = append(exec, pbString(15, request.ExecID)...)
+	return s.Write(pbBytes(2, exec))
 }
 
 func (s *AgentSession) KVResult(request AgentKVRequest) error {
@@ -525,13 +445,21 @@ func (s *AgentSession) KVResult(request AgentKVRequest) error {
 		if len(request.BlobData) > 8<<20 {
 			return fmt.Errorf("Cursor Agent blob exceeds size limit")
 		}
+		s.mu.Lock()
+		if s.blobs == nil {
+			s.blobs = make(map[string][]byte)
+		}
 		s.blobs[key] = append([]byte(nil), request.BlobData...)
+		s.updatedBlobs = append(s.updatedBlobs, key)
+		s.mu.Unlock()
 		return s.Write(pbBytes(3, append(pbVarint(1, uint64(request.ID)), pbBytes(3, nil)...)))
 	}
 	var result []byte
+	s.mu.Lock()
 	if blob, ok := s.blobs[key]; ok {
-		result = pbBytes(1, blob)
+		result = pbBytes(1, append([]byte(nil), blob...))
 	}
+	s.mu.Unlock()
 	return s.Write(pbBytes(3, append(pbVarint(1, uint64(request.ID)), pbBytes(2, result)...)))
 }
 
