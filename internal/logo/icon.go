@@ -20,12 +20,10 @@ const (
 	IconBackground = "#061C3B"
 	iconBorder     = "#174875"
 	iconSize       = 512
-	iconMarkScale  = 1.0 / 3.0
-	iconCellWidth  = 16.0 * iconMarkScale
-	iconCellHeight = 24.5 * iconMarkScale
-	iconDotWidth   = 6.0 * iconMarkScale
-	iconDotHeight  = 5.4 * iconMarkScale
-	iconDotRadius  = 1.2 * iconMarkScale
+	iconCellWidth  = 16.0
+	iconCellHeight = 24.5
+	iconDotWidth   = 6.0
+	iconDotHeight  = 5.4
 )
 
 type iconDot struct {
@@ -115,7 +113,7 @@ func IconSVG() string {
 	fmt.Fprintf(&svg, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="Solomon">`, iconSize, iconSize, iconSize, iconSize)
 	svg.WriteString(`<rect width="512" height="512" rx="112" fill="` + IconBackground + `"/><rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="` + iconBorder + `" stroke-width="6"/>`)
 	for _, dot := range iconDots() {
-		fmt.Fprintf(&svg, `<rect x="%.2f" y="%.2f" width="%.2f" height="%.2f" rx="%.2f" fill="%s"/>`, dot.x, dot.y, dot.width, dot.height, iconDotRadius, dot.fill)
+		fmt.Fprintf(&svg, `<rect x="%.2f" y="%.2f" width="%.2f" height="%.2f" rx="1.2" fill="%s"/>`, dot.x, dot.y, dot.width, dot.height, dot.fill)
 	}
 	svg.WriteString(`</svg>`)
 	return svg.String()
@@ -160,7 +158,7 @@ func IconPNG(size int) ([]byte, error) {
 			}
 			for x := left; x < right; x++ {
 				px := (float64(x) + 0.5) / supersampling / outputScale
-				if inRoundedRect(px, py, dot.x, dot.y, dot.width, dot.height, iconDotRadius) {
+				if inRoundedRect(px, py, dot.x, dot.y, dot.width, dot.height, 1.2) {
 					large.SetNRGBA(x, y, fill)
 				}
 			}
