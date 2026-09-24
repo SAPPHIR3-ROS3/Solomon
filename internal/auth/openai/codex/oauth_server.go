@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logo"
 )
 
 var (
@@ -108,11 +109,8 @@ func failOAuthWaiter(err error) {
 
 func writeOAuthHTML(w http.ResponseWriter, title, body string, ok bool) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	color := "#fc533a"
-	if ok {
-		color = "#10a37f"
-	}
-	fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><title>%s</title></head><body style="font-family:system-ui;background:#131010;color:#f1ecec;padding:2rem"><h1 style="color:%s">%s</h1><p>%s</p></body></html>`, title, color, title, body)
+	w.Header().Set("Cache-Control", "no-store")
+	fmt.Fprint(w, logo.OAuthCallbackHTML(title, body, ok))
 }
 
 func Login(ctx context.Context, out io.Writer) (ts TokenSet, err error) {

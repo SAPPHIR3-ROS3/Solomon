@@ -10,7 +10,8 @@
 /gui/dist/
 /gui/*.tsbuildinfo
 /gui/package.json.md5
-/gui/desktop/build/
+/gui/desktop/build/*
+!/gui/desktop/build/appicon.png
 /solomon.exe~
 /*.exe~
 /scripts/cursor-bundler.exe
