@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	cursorauth "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
@@ -114,6 +115,40 @@ func filterClaudeSubModels(ids []string) []string {
 	return out
 }
 
+func listCursorSubModels(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {
+	ids, _, err := listCursorSubCatalog(ctx, cfg, p)
+	return ids, err
+}
+
+func listCursorSubCatalog(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, []string, error) {
+	if p == nil {
+		return nil, nil, fmt.Errorf("provider is nil")
+	}
+	session, err := config.ResolveCursorSessionBearer(ctx, cfg, p)
+	if err != nil {
+		return nil, nil, err
+	}
+	flags, err := cursorauth.ListAvailableModelFlags(ctx, session)
+	if err != nil {
+		return nil, nil, err
+	}
+	caps := cursorauth.DedupeVariantFlags(flags)
+	cursorauth.SetModelCaps(caps)
+	return caps.IDs, caps.Fast, nil
+}
+
+func CursorFastModels() []string {
+	return cursorauth.FastModelIDs()
+}
+
+func CursorThinkingToggleModels() []string {
+	return cursorauth.ThinkingToggleIDs()
+}
+
+func CursorThinkingLevelModels() []string {
+	return cursorauth.ThinkingLevelIDs()
+}
+
 func ListModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {
 	if p.IsClaudeSub() {
 		ids, err := listClaudeSubModels(ctx, cfg, p)
@@ -124,6 +159,13 @@ func ListModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Prov
 	}
 	if p.EffectiveAuthKind() == config.AuthKindOAuthChatGPT {
 		return listChatGPTSubModels(ctx, cfg, p)
+	}
+	if p.IsCursorSub() {
+		ids, err := listCursorSubModels(ctx, cfg, p)
+		if err != nil {
+			return cursorauth.DefaultModelIDs(), nil
+		}
+		return ids, nil
 	}
 	if p.IsAnthropic() {
 		bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
@@ -161,6 +203,13 @@ func ListModelsForProviderAll(ctx context.Context, cfg *config.Root, p *config.P
 	}
 	if p.EffectiveAuthKind() == config.AuthKindOAuthChatGPT {
 		return listChatGPTSubModels(ctx, cfg, p)
+	}
+	if p.IsCursorSub() {
+		ids, err := listCursorSubModels(ctx, cfg, p)
+		if err != nil {
+			return cursorauth.DefaultModelIDs(), nil
+		}
+		return ids, nil
 	}
 	if p.IsAnthropic() {
 		bearer, err := config.ResolveProviderBearer(ctx, cfg, p)

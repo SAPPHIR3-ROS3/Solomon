@@ -13,6 +13,8 @@ func quotaBarsFromPayload(payload any, kind string) []apiQuotaBar {
 	switch kind {
 	case "chatgpt":
 		return quotaBarsFromChatGPTPayload(payload)
+	case "chatgpt-resets":
+		return quotaBarsFromChatGPTResetCredits(payload)
 	case "claude":
 		return quotaBarsFromClaudePayload(payload)
 	case "cursor":
@@ -26,10 +28,10 @@ func quotaBarsFromPayload(payload any, kind string) []apiQuotaBar {
 
 func quotaBarsFromChatGPTPayload(payload any) []apiQuotaBar {
 	rateLimit := mapChild(payload, "rate_limit")
-	if rateLimit == nil {
-		return nil
-	}
 	var bars []apiQuotaBar
+	if rateLimit == nil {
+		return uniqueQuotaBars(quotaBarsFromChatGPTResetCredits(payload))
+	}
 	for _, window := range []struct {
 		key      string
 		fallback string
@@ -51,6 +53,7 @@ func quotaBarsFromChatGPTPayload(payload any) []apiQuotaBar {
 			bars = append(bars, bar)
 		}
 	}
+	bars = append(bars, quotaBarsFromChatGPTResetCredits(payload)...)
 	return uniqueQuotaBars(bars)
 }
 
@@ -85,45 +88,32 @@ func quotaBarsFromClaudePayload(payload any) []apiQuotaBar {
 }
 
 func quotaBarsFromCursorPayload(payload any) []apiQuotaBar {
-	var bars []apiQuotaBar
-	if plan := mapChild(payload, "planUsage"); plan != nil {
-		if bar, ok := quotaBarFromUsage(plan, "Plan usage"); ok {
-			bars = append(bars, bar)
-		}
-		for _, metric := range []struct {
-			key   string
-			label string
-		}{
-			{key: "autoPercentUsed", label: "Auto models"},
-			{key: "apiPercentUsed", label: "API models"},
-			{key: "totalPercentUsed", label: "Total usage"},
-		} {
-			if percent, ok := numberField(asMap(plan), metric.key); ok {
-				bars = append(bars, apiQuotaBar{Label: metric.label, Percent: clampPercent(percent)})
-			}
-		}
+	plan := mapChild(payload, "planUsage")
+	if plan == nil {
+		plan = mapPath(payload, "individualUsage", "plan")
 	}
-	if plan := mapPath(payload, "individualUsage", "plan"); plan != nil {
-		if bar, ok := quotaBarFromUsage(plan, "Plan usage"); ok {
-			bars = append(bars, bar)
-		}
+	if plan == nil && asMap(payload) == nil {
+		return nil
 	}
-	if onDemand := mapPath(payload, "individualUsage", "onDemand"); onDemand != nil {
-		if bar, ok := quotaBarFromUsage(onDemand, "On-demand usage"); ok {
-			bars = append(bars, bar)
-		}
+	m := asMap(plan)
+	if m == nil {
+		m = asMap(payload)
 	}
-	if spend := mapChild(payload, "spendLimitUsage"); spend != nil {
-		if bar, ok := quotaBarFromUsage(spend, "On-demand budget"); ok {
-			bars = append(bars, bar)
-		}
+	cursorPct, hasCursor := numberField(m, "autoPercentUsed", "totalPercentUsed")
+	otherPct, hasOther := numberField(m, "apiPercentUsed")
+	if plan == nil && !hasCursor && !hasOther {
+		return nil
 	}
-	if len(bars) == 0 {
-		if bar, ok := quotaBarFromUsage(asMap(payload), "Plan usage"); ok {
-			bars = append(bars, bar)
-		}
+	if !hasCursor {
+		cursorPct = 0
 	}
-	return uniqueQuotaBars(bars)
+	if !hasOther {
+		otherPct = 0
+	}
+	return uniqueQuotaBars([]apiQuotaBar{
+		{Label: "Cursor Models", Percent: clampPercent(cursorPct), Detail: "Includes Cursor Grok and Composer"},
+		{Label: "Other Models", Percent: clampPercent(otherPct)},
+	})
 }
 
 func quotaBarsFromOpenRouterPayload(payload any) []apiQuotaBar {
@@ -297,20 +287,7 @@ func windowLabel(m map[string]any, fallback string) string {
 
 func resetDetail(m map[string]any) string {
 	seconds, hasSeconds := numberField(m, "reset_after_seconds", "resetAfterSeconds", "resets_in_seconds", "resetsInSeconds")
-	var resetAt time.Time
-	if raw := quotaStringField(m, "resets_at", "reset_at", "resetsAt", "resetAt"); raw != "" {
-		resetAt, _ = time.Parse(time.RFC3339Nano, raw)
-		if resetAt.IsZero() {
-			if timestamp, err := strconv.ParseFloat(raw, 64); err == nil {
-				resetAt = quotaTimestamp(timestamp)
-			}
-		}
-	}
-	if resetAt.IsZero() {
-		if timestamp, ok := numberField(m, "reset_at", "resetAt", "resets_at", "resetsAt"); ok {
-			resetAt = quotaTimestamp(timestamp)
-		}
-	}
+	resetAt := parseQuotaTime(m, "resets_at", "reset_at", "resetsAt", "resetAt")
 	if !hasSeconds && !resetAt.IsZero() {
 		seconds = time.Until(resetAt).Seconds()
 		hasSeconds = seconds > 0
@@ -403,6 +380,7 @@ func clampPercent(value float64) float64 {
 type QuotaBarForTest struct {
 	Label   string
 	Percent float64
+	Detail  string
 }
 
 // QuotaBarsForTest exposes the pure parser to external package tests.
@@ -410,7 +388,11 @@ func QuotaBarsForTest(payload any, kind string) []QuotaBarForTest {
 	bars := quotaBarsFromPayload(payload, kind)
 	out := make([]QuotaBarForTest, len(bars))
 	for i, bar := range bars {
-		out[i] = QuotaBarForTest{Label: bar.Label, Percent: bar.Percent}
+		out[i] = QuotaBarForTest{Label: bar.Label, Percent: bar.Percent, Detail: bar.Detail}
 	}
 	return out
+}
+
+func QuotaErrorFromBodyForTest(status string, body []byte) string {
+	return quotaErrorFromBody(status, body)
 }

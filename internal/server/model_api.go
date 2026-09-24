@@ -29,11 +29,14 @@ type apiModelChoice struct {
 }
 
 type apiProviderCatalog struct {
-	Complete         bool     `json:"complete"`
-	Disabled         []string `json:"disabled,omitempty"`
-	Models           []string `json:"models"`
-	Provider         string   `json:"provider"`
-	SupportsFastMode bool     `json:"supportsFastMode"`
+	Complete            bool     `json:"complete"`
+	Disabled            []string `json:"disabled,omitempty"`
+	FastModels          []string `json:"fastModels"`
+	ThinkingModels      []string `json:"thinkingModels"`
+	ThinkingLevelModels []string `json:"thinkingLevelModels"`
+	Models              []string `json:"models"`
+	Provider            string   `json:"provider"`
+	SupportsFastMode    bool     `json:"supportsFastMode"`
 }
 
 type apiModelCatalog struct {
@@ -194,9 +197,13 @@ func (a *modelAPI) loadCatalog(forceRefresh bool) (apiModelCatalog, error) {
 	providers := config.ProviderList(cfg)
 	filtered := make([]config.Provider, 0, len(providers))
 	for _, provider := range providers {
-		if provider.Name != config.ProviderNameClaudeSub {
-			filtered = append(filtered, provider)
+		if provider.Name == config.ProviderNameClaudeSub {
+			continue
 		}
+		if provider.Name == config.ProviderNameCursorAPI && !config.ProviderCredentialsReady(&provider) {
+			continue
+		}
+		filtered = append(filtered, provider)
 	}
 	catalog.Providers = make([]apiProviderCatalog, len(filtered))
 	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
@@ -217,13 +224,19 @@ func (a *modelAPI) loadCatalog(forceRefresh bool) (apiModelCatalog, error) {
 			if provider.Name == cfg.Current.Provider {
 				ids = ensureModelFirst(ids, cfg.Current.Model)
 			}
-			catalog.Providers[index] = apiProviderCatalog{
+			entry := apiProviderCatalog{
 				Complete:         liveCatalog,
 				Disabled:         config.HiddenModelIDs(cfg, provider.Name, ids),
 				Models:           ids,
 				Provider:         provider.Name,
 				SupportsFastMode: config.FastModeSupportedByProvider(&provider),
 			}
+			if provider.IsCursorSub() {
+				entry.FastModels = connect.CursorFastModels()
+				entry.ThinkingModels = connect.CursorThinkingToggleModels()
+				entry.ThinkingLevelModels = connect.CursorThinkingLevelModels()
+			}
+			catalog.Providers[index] = entry
 		}()
 	}
 	waitGroup.Wait()
@@ -251,6 +264,16 @@ func uniqueModelIDs(ids []string) []string {
 func ensureModelFirst(ids []string, current string) []string {
 	current = strings.TrimSpace(current)
 	if current == "" {
+		return ids
+	}
+	found := false
+	for _, id := range ids {
+		if id == current {
+			found = true
+			break
+		}
+	}
+	if !found {
 		return ids
 	}
 	result := []string{current}

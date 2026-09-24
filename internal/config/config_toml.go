@@ -513,7 +513,7 @@ func normalizeRoot(r *Root) {
 	}
 
 	r.Tools.CursorInternalTools = false
-
+	migrateMisnamedCursorSub(r)
 }
 
 func validateRoot(ctx context.Context, r *Root) error {

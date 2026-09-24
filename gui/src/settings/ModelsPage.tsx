@@ -13,7 +13,7 @@ import {
 } from "../projects/projects";
 import { InputModeIcons, ProviderIcon } from "../home/ModelControl";
 
-type ProviderKind = 1 | 2 | 3 | 4 | 5;
+type ProviderKind = 1 | 2 | 3 | 4 | 5 | 6;
 
 type ModelsPageState = {
   catalog: ModelCatalog;
@@ -27,7 +27,8 @@ const providerKinds: Array<{ kind: ProviderKind; label: string }> = [
   { kind: 2, label: "OpenAI Compatible API" },
   { kind: 3, label: "Anthropic Compatible API" },
   { kind: 4, label: "Claude Sub (browser sign-in)" },
-  { kind: 5, label: "Cursor API" },
+  { kind: 5, label: "Cursor Sub (browser sign-in)" },
+  { kind: 6, label: "Cursor API (API key)" },
 ];
 
 const emptyCatalog: ModelCatalog = {
@@ -66,6 +67,7 @@ export function ModelsPage() {
   const [isAddingProvider, setIsAddingProvider] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState("");
   const [isSavingModel, setIsSavingModel] = useState("");
+  const [reloginProvider, setReloginProvider] = useState("");
 
   async function loadCatalog(forceRefresh = false) {
     setState((current) => ({ ...current, error: "", loading: true }));
@@ -141,6 +143,25 @@ export function ModelsPage() {
     });
   }
 
+  async function reloginProviderAccount(provider: string) {
+    const kind = reloginKind(provider);
+    if (!kind) return;
+    setReloginProvider(provider);
+    setState((current) => ({ ...current, error: "" }));
+    try {
+      await connectProvider({ apiKey: "", baseURL: "", kind, name: provider });
+      await loadCatalog(true);
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "Unable to sign in again.",
+        loading: false,
+      }));
+    } finally {
+      setReloginProvider("");
+    }
+  }
+
   async function addProvider(request: { apiKey: string; baseURL: string; kind: ProviderKind; name: string }) {
     setState((current) => ({ ...current, error: "", loading: true }));
     try {
@@ -185,7 +206,15 @@ export function ModelsPage() {
           </div>
 
           <div className="settings-provider-list">
-            {state.catalog.providers.map((provider) => <ProviderRow key={provider.provider} provider={provider} quota={state.quotas.find((entry) => entry.provider === provider.provider)} />)}
+            {state.catalog.providers.map((provider) => (
+              <ProviderRow
+                key={provider.provider}
+                onRelogin={() => void reloginProviderAccount(provider.provider)}
+                provider={provider}
+                quota={state.quotas.find((entry) => entry.provider === provider.provider)}
+                reloginBusy={reloginProvider === provider.provider}
+              />
+            ))}
             {!state.catalog.providers.length && !state.loading ? <p className="settings-models-empty">No providers configured.</p> : null}
           </div>
         </section>
@@ -329,7 +358,7 @@ function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: 
   const [apiKey, setAPIKey] = useState("");
   const needsName = kind === 2 || kind === 3;
   const needsAPIFields = kind === 2 || kind === 3;
-  const needsAPIKey = needsAPIFields || kind === 5;
+  const needsAPIKey = needsAPIFields || kind === 6;
 
   return (
     <form className="settings-provider-form" onSubmit={(event) => {
@@ -355,7 +384,7 @@ function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: 
         <>
           {needsAPIFields ? <label><span>Base URL</span><input onChange={(event) => setBaseURL(event.target.value)} placeholder="https://api.example.com/v1" required type="url" value={baseURL} /></label> : null}
           {needsAPIKey ? <label><span>API key</span><input onChange={(event) => setAPIKey(event.target.value)} placeholder="Enter API key" required type="password" value={apiKey} /></label> : null}
-          {(kind === 1 || kind === 4) ? <p className="settings-provider-form-note">Solomon will open the provider sign-in flow in your browser.</p> : null}
+          {(kind === 1 || kind === 4 || kind === 5) ? <p className="settings-provider-form-note">Solomon will open the provider sign-in flow in your browser.</p> : null}
         </>
       )}
       <div className="settings-provider-form-actions">
@@ -366,11 +395,29 @@ function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: 
   );
 }
 
-function ProviderRow({ provider, quota }: { provider: ProviderCatalog; quota?: ProviderQuota }) {
+function reloginKind(provider: string): ProviderKind | 0 {
+  if (provider === "ChatGPT Sub") return 1;
+  if (provider === "Claude Sub") return 4;
+	if (provider === "Cursor Sub") return 5;
+  return 0;
+}
+
+function ProviderRow({
+  onRelogin,
+  provider,
+  quota,
+  reloginBusy,
+}: {
+  onRelogin: () => void;
+  provider: ProviderCatalog;
+  quota?: ProviderQuota;
+  reloginBusy: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(true);
   const panelId = useId();
   const bars = quota?.bars ?? [];
   const hasQuota = bars.length > 0 || Boolean(quota?.error);
+  const canRelogin = Boolean(quota?.canRelogin) && Boolean(reloginKind(provider.provider));
   return (
     <section className="settings-provider-section">
       <div className="settings-provider-row">
@@ -390,16 +437,27 @@ function ProviderRow({ provider, quota }: { provider: ProviderCatalog; quota?: P
       </div>
       {hasQuota && isOpen ? (
         <div className="settings-provider-quota" id={panelId}>
-          {quota?.error ? <p className="settings-provider-quota-error">{quota.error}</p> : null}
+          {quota?.error ? (
+            <div className="settings-provider-quota-error-row">
+              <p className="settings-provider-quota-error" role="alert">{quota.error}</p>
+              {canRelogin ? (
+                <button className="settings-provider-relogin" disabled={reloginBusy} onClick={onRelogin} type="button">
+                  {reloginBusy ? "Signing in…" : "Sign in again"}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {bars.map((bar) => (
             <div className="settings-provider-quota-bar" key={bar.label}>
               <div className="settings-provider-quota-label">
                 <span>{bar.label}{bar.detail ? ` · ${bar.detail}` : ""}</span>
-                <span>{Math.round(bar.percent)}%</span>
+                {bar.hidePercent ? null : <span>{Math.round(bar.percent)}%</span>}
               </div>
-              <div aria-hidden="true" className="settings-provider-quota-track">
-                <span style={{ width: `${Math.round(bar.percent)}%` }} />
-              </div>
+              {bar.hidePercent ? null : (
+                <div aria-hidden="true" className="settings-provider-quota-track">
+                  <span style={{ width: `${Math.round(bar.percent)}%` }} />
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -102,6 +102,8 @@ func orderListedModelsByProvider(lms []ListedModel, prov string) []ListedModel {
 			ids[i] = lms[i].Model
 		}
 		return orderListedModelsFromIDs(prov, cursorint.OrderModelIDs(ids))
+	case config.ProviderNameCursorSub:
+		return orderListedModelsAlphabetical(lms)
 	default:
 		return orderListedModelsAlphabetical(lms)
 	}

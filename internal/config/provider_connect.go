@@ -18,7 +18,8 @@ const (
 	ProviderKindOpenAICompatible    = 2
 	ProviderKindAnthropicCompatible = 3
 	ProviderKindClaudeSub           = 4
-	ProviderKindCursorAPI           = 5
+	ProviderKindCursorSub           = 5
+	ProviderKindCursorAPI           = 6
 )
 
 func ProviderConnectMenuLines() []string {
@@ -27,7 +28,8 @@ func ProviderConnectMenuLines() []string {
 		"  2) OpenAI Compatible API (base URL + API key)",
 		"  3) Anthropic Compatible API (base URL + API key)",
 		"  4) Claude Sub (browser sign-in)",
-		"  5) Cursor API (API key)",
+		"  5) Cursor Sub (browser sign-in)",
+		"  6) Cursor API (API key)",
 	}
 }
 
@@ -47,9 +49,9 @@ func ChooseProviderKind(pio PromptIO, require bool, menuTitle string) (kind int,
 		menuTitle = "LLM provider type:"
 	}
 	PrintProviderConnectMenu(out, menuTitle)
-	prompt := "Select [1-5]: "
+	prompt := "Select [1-6]: "
 	if !require {
-		prompt = "Select [1-5] (skip to skip provider setup): "
+		prompt = "Select [1-6] (skip to skip provider setup): "
 	}
 	for {
 		line, err := readOnboardLine(pio, prompt)
@@ -69,9 +71,11 @@ func ChooseProviderKind(pio PromptIO, require bool, menuTitle string) (kind int,
 		case "4":
 			return ProviderKindClaudeSub, false, nil
 		case "5":
+			return ProviderKindCursorSub, false, nil
+		case "6":
 			return ProviderKindCursorAPI, false, nil
 		default:
-			fmt.Fprintln(out, "Invalid selection (use 1, 2, 3, 4, or 5).")
+			fmt.Fprintln(out, "Invalid selection (use 1, 2, 3, 4, 5, or 6).")
 		}
 	}
 }
@@ -319,7 +323,9 @@ func rejectReservedProviderName(n string) error {
 	case ProviderNameClaudeSub:
 		return fmt.Errorf("display name %q is reserved; use option 4 for Claude Sub", n)
 	case ProviderNameCursorAPI:
-		return fmt.Errorf("display name %q is reserved; use option 5 for Cursor API", n)
+		return fmt.Errorf("display name %q is reserved; use option 6 for Cursor API", n)
+	case ProviderNameCursorSub:
+		return fmt.Errorf("display name %q is reserved; use option 5 for Cursor Sub", n)
 	default:
 		return nil
 	}

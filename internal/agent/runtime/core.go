@@ -149,7 +149,7 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		p := prov
 		go func() {
 			rt.applyProviderClient(context.Background(), p)
-			if p.IsCursorAPI() {
+			if p.IsCursorAPI() && !p.IsCursorSub() {
 				cwd := rt.ProjRoot
 				if cwd == "" {
 					cwd, _ = os.Getwd()

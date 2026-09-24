@@ -27,8 +27,7 @@ func (r *Runtime) CursorNativeToolsEnabled() bool {
 }
 
 func (r *Runtime) cursorNativeToolsEnabled() bool {
-	return r != nil && r.Prov != nil && r.Prov.IsCursorAPI() &&
-		r.Cfg != nil && r.Cfg.CursorInternalToolsEnabled()
+	return r != nil && r.Prov != nil && r.Prov.IsCursorAPI() && r.Cfg != nil && r.Cfg.CursorInternalToolsEnabled()
 }
 
 func (r *Runtime) printCursorNativeToolEvent(rawJSON string) {

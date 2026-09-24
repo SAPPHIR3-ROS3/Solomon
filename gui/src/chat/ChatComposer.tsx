@@ -298,11 +298,11 @@ function ReasoningControl({ value, onChange, open, onOpenChange, fastAvailable =
         <strong className="welcome-reasoning-value">
           <span aria-hidden="true" className="welcome-reasoning-value-sizer">
             <span>Extra high</span>
-            {fastOn ? <span className="welcome-reasoning-fast-mark"><ComposerBoltIcon /></span> : null}
+            <span className="welcome-reasoning-fast-mark"><ComposerBoltIcon /></span>
           </span>
           <span className="welcome-reasoning-value-text">
             <span>{selectedLabel}</span>
-            {fastOn ? <span className="welcome-reasoning-fast-mark is-on"><ComposerBoltIcon /></span> : null}
+            <span className={`welcome-reasoning-fast-mark${fastOn ? " is-on" : ""}`}><ComposerBoltIcon /></span>
           </span>
         </strong>
         <ComposerChevronIcon className={isOpen ? "is-open" : undefined} />

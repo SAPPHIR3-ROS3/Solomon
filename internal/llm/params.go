@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
+	cursorauth "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
@@ -60,6 +61,7 @@ func ApplyChatReasoningWithEffort(cfg *config.Root, p *openai.ChatCompletionNewP
 		if canonical == "none" {
 			addReasoningDisableExtras(extras)
 		}
+		clampCursorReasoning(cfg, p, extras)
 		applyChatExtraFields(p, extras)
 		return
 	}
@@ -73,6 +75,7 @@ func ApplyChatReasoningWithEffort(cfg *config.Root, p *openai.ChatCompletionNewP
 	if cfg.ReasoningEffortIsNone() {
 		addReasoningDisableExtras(extras)
 	}
+	clampCursorReasoning(cfg, p, extras)
 	applyChatExtraFields(p, extras)
 }
 
@@ -110,6 +113,10 @@ func applyFastModeParams(cfg *config.Root, params *openai.ChatCompletionNewParam
 	if !config.FastModeSupportedByProvider(provider) {
 		return
 	}
+	if provider.IsCursorSub() && !cursorauth.ModelSupportsFast(cfg.Current.Model) {
+		extras["solomon_fast_mode"] = false
+		return
+	}
 	if provider.IsChatGPTSub() {
 		if cfg.EffectiveFastMode() {
 			// OpenAI's ChatGPT/Codex subscription calls this Fast mode in the
@@ -121,6 +128,28 @@ func applyFastModeParams(cfg *config.Root, params *openai.ChatCompletionNewParam
 	// Cursor's sidecar consumes this Solomon-specific flag and needs an
 	// explicit false value when the user disables Fast mode.
 	extras["solomon_fast_mode"] = cfg.EffectiveFastMode()
+}
+
+func clampCursorReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, extras map[string]any) {
+	if cfg == nil || p == nil {
+		return
+	}
+	provider := config.ProviderByName(cfg, cfg.Current.Provider)
+	if provider == nil || !provider.IsCursorSub() {
+		return
+	}
+	switch cursorauth.ThinkingMode(cfg.Current.Model) {
+	case "none":
+		p.ReasoningEffort = shared.ReasoningEffort("none")
+		addReasoningDisableExtras(extras)
+	case "toggle":
+		if string(p.ReasoningEffort) == "" || string(p.ReasoningEffort) == "none" {
+			p.ReasoningEffort = shared.ReasoningEffort("none")
+			addReasoningDisableExtras(extras)
+			return
+		}
+		p.ReasoningEffort = shared.ReasoningEffort("high")
+	}
 }
 
 func applyChatExtraFields(p *openai.ChatCompletionNewParams, extras map[string]any) {

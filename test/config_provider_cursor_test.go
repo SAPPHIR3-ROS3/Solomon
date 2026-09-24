@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -110,6 +112,11 @@ func TestCursorAPIConfigured(t *testing.T) {
 	if config.CursorAPIConfigured(cfg) {
 		t.Fatal("expected false without API key")
 	}
+	cfg.Providers[config.ProviderNameCursorAPI].AuthKind = config.AuthKindOAuthCursor
+	cfg.Providers[config.ProviderNameCursorAPI].OAuthAccessToken = "session-token"
+	if config.CursorAPIConfigured(cfg) {
+		t.Fatal("OAuth login belongs to Cursor Sub, not Cursor API")
+	}
 }
 
 func TestCursorModelsFallbackWhenProxyHasNoModelsEndpoint(t *testing.T) {
@@ -200,5 +207,87 @@ func TestCursorFastModeDisplayDefaultAndDisabled(t *testing.T) {
 	chatGPT := &config.Provider{Name: config.ProviderNameChatGPTSub, AuthKind: config.AuthKindOAuthChatGPT}
 	if got := cfg.ModelDisplayName(chatGPT, "gpt-5.6"); got != "gpt-5.6 (high) (fast)" {
 		t.Fatalf("ChatGPT subscription display=%q", got)
+	}
+}
+
+func TestMigrateMisnamedCursorSub(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	cfgPath := filepath.Join(home, "config.toml")
+	raw := `
+[current]
+provider = "Cursor API"
+model = "composer-2.5"
+
+[providers."Cursor API"]
+name = "Cursor API"
+auth_kind = "oauth_cursor"
+oauth_access_token = "session-jwt.example.token"
+oauth_refresh_token = "refresh-token"
+`
+	if err := os.WriteFile(cfgPath, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Providers[config.ProviderNameCursorAPI] != nil {
+		t.Fatal("expected Cursor API removed when login was saved under that name")
+	}
+	sub := cfg.Providers[config.ProviderNameCursorSub]
+	if sub == nil || sub.OAuthAccessToken != "session-jwt.example.token" {
+		t.Fatalf("expected Cursor Sub with oauth tokens, got %#v", sub)
+	}
+	if cfg.Current.Provider != config.ProviderNameCursorSub {
+		t.Fatalf("current provider=%q", cfg.Current.Provider)
+	}
+	if strings.Contains(sub.BaseURL, "127.0.0.1") || strings.Contains(sub.BaseURL, "8766") {
+		t.Fatalf("Cursor Sub still points at sidecar: %s", sub.BaseURL)
+	}
+}
+
+func TestEnsureCursorSubRewritesSidecarBaseURL(t *testing.T) {
+	p := &config.Provider{
+		Name:     config.ProviderNameCursorSub,
+		AuthKind: config.AuthKindOAuthCursor,
+		BaseURL:  "http://127.0.0.1:8766/v1/",
+	}
+	config.EnsureCursorSubBaseURL(p)
+	if p.BaseURL != config.CursorSubChatBase() {
+		t.Fatalf("base=%q", p.BaseURL)
+	}
+	if strings.Contains(p.BaseURL, "8766") {
+		t.Fatalf("sidecar url leaked: %s", p.BaseURL)
+	}
+}
+
+func TestDropCursorAPIWhenSubPresent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	cfgPath := filepath.Join(home, "config.toml")
+	raw := `
+[providers."Cursor API"]
+name = "Cursor API"
+auth_kind = "cursor_api"
+api_key = "crsr_leftover"
+
+[providers."Cursor Sub"]
+name = "Cursor Sub"
+auth_kind = "oauth_cursor"
+oauth_access_token = "session-jwt.example.token"
+`
+	if err := os.WriteFile(cfgPath, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Providers[config.ProviderNameCursorAPI] != nil {
+		t.Fatal("expected leftover Cursor API removed when Cursor Sub exists")
+	}
+	if cfg.Providers[config.ProviderNameCursorSub] == nil {
+		t.Fatal("expected Cursor Sub to remain")
 	}
 }

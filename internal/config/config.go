@@ -377,7 +377,7 @@ func (r *Root) EffectiveFastMode() bool {
 func FastModeSupportedByProvider(p *Provider) bool {
 	// ChatGPT Sub uses OpenAI's service tier, Claude Sub uses Anthropic's
 	// speed beta, and Cursor uses Solomon's provider-specific flag.
-	return p != nil && (p.IsChatGPTSub() || p.IsClaudeSub() || p.IsCursorAPI())
+	return p != nil && (p.IsChatGPTSub() || p.IsClaudeSub() || p.IsCursorSub() || p.IsCursorAPI())
 }
 
 func (r *Root) FastModeEnabledForProvider(p *Provider) bool {
@@ -388,6 +388,12 @@ func (r *Root) ModelDisplayName(p *Provider, model string) string {
 	model = strings.TrimSpace(model)
 	if model == "" {
 		return ""
+	}
+	if p != nil && (p.IsCursorSub() || p.IsCursorAPI()) {
+		low := strings.ToLower(model)
+		if strings.HasPrefix(low, "grok") && !strings.HasPrefix(low, "cursor-") {
+			model = "cursor-" + model
+		}
 	}
 	out := fmt.Sprintf("%s (%s)", model, r.ReasoningEffortDisplayLabel())
 	if r.FastModeEnabledForProvider(p) {

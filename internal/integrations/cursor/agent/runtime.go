@@ -31,7 +31,7 @@ func BootstrapIO(out io.Writer) cursorint.BootstrapIO {
 }
 
 func EnsureSidecar(ctx context.Context, cfg *config.Root, prov *config.Provider, projRoot string, out io.Writer) error {
-	if cfg == nil || prov == nil || !prov.IsCursorAPI() {
+	if cfg == nil || prov == nil || !prov.IsCursorAPI() || prov.IsCursorSub() {
 		return nil
 	}
 	cwd := projRoot

@@ -70,6 +70,9 @@ export type ModelInfo = {
 export type ProviderCatalog = {
   complete: boolean;
   disabled: string[];
+  fastModels?: string[];
+  thinkingModels?: string[];
+  thinkingLevelModels?: string[];
   metadata: Record<string, ModelInfo>;
   models: string[];
   provider: string;
@@ -84,12 +87,14 @@ export type ModelCatalog = {
 
 export type QuotaBar = {
   detail?: string;
+  hidePercent?: boolean;
   label: string;
   percent: number;
 };
 
 export type ProviderQuota = {
   bars: QuotaBar[];
+  canRelogin: boolean;
   error: string;
   provider: string;
 };
@@ -106,10 +111,11 @@ export async function fetchProviderQuotas(): Promise<ProviderQuota[]> {
           if (!bar || typeof bar !== "object" || !("label" in bar) || typeof bar.label !== "string") return [];
           const percent = "percent" in bar && typeof bar.percent === "number" ? Math.max(0, Math.min(100, bar.percent)) : 0;
           const detail = "detail" in bar && typeof bar.detail === "string" ? bar.detail : undefined;
-          return [{ detail, label: bar.label, percent }];
+          const hidePercent = "hidePercent" in bar && bar.hidePercent === true;
+          return [{ detail, hidePercent, label: bar.label, percent }];
         })
       : [];
-    return [{ provider: entry.provider, error: "error" in entry && typeof entry.error === "string" ? entry.error : "", bars }];
+    return [{ canRelogin: "canRelogin" in entry && entry.canRelogin === true, provider: entry.provider, error: "error" in entry && typeof entry.error === "string" ? entry.error : "", bars }];
   });
 }
 
@@ -279,6 +285,15 @@ function modelCatalogFromPayload(payload: unknown): ModelCatalog {
           complete: "complete" in entry ? Boolean(entry.complete) : false,
           disabled,
           supportsFastMode: "supportsFastMode" in entry && entry.supportsFastMode === true,
+          fastModels: "fastModels" in entry && Array.isArray(entry.fastModels)
+            ? entry.fastModels.filter((model: unknown): model is string => typeof model === "string" && Boolean(model.trim()))
+            : undefined,
+          thinkingModels: "thinkingModels" in entry && Array.isArray(entry.thinkingModels)
+            ? entry.thinkingModels.filter((model: unknown): model is string => typeof model === "string" && Boolean(model.trim()))
+            : undefined,
+          thinkingLevelModels: "thinkingLevelModels" in entry && Array.isArray(entry.thinkingLevelModels)
+            ? entry.thinkingLevelModels.filter((model: unknown): model is string => typeof model === "string" && Boolean(model.trim()))
+            : undefined,
         }];
       })
     : [];

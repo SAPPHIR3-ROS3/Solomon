@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -31,6 +32,11 @@ func Connect(ctx context.Context, request ConnectRequest) (ConnectResponse, erro
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if isBrowserLoginKind(request.Kind) {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), 20*time.Minute)
+		defer cancel()
+	}
 	if request.Kind < config.ProviderKindChatGPTSub || request.Kind > config.ProviderKindCursorAPI {
 		return ConnectResponse{}, fmt.Errorf("unknown provider kind %d", request.Kind)
 	}
@@ -50,8 +56,10 @@ func Connect(ctx context.Context, request ConnectRequest) (ConnectResponse, erro
 	var output bytes.Buffer
 	readLine := func(prompt string) (string, error) {
 		switch {
-		case strings.HasPrefix(prompt, "Select [1-5]"):
+		case strings.HasPrefix(prompt, "Select [1-6]"):
 			return strconv.Itoa(request.Kind), nil
+		case strings.TrimSpace(prompt) == ">":
+			return "0", nil
 		case strings.Contains(prompt, "Display name"):
 			return strings.TrimSpace(request.Name), nil
 		case strings.Contains(prompt, "Base URL"):
@@ -99,4 +107,13 @@ func Connect(ctx context.Context, request ConnectRequest) (ConnectResponse, erro
 		CurrentModel:    strings.TrimSpace(cfg.Current.Model),
 		CurrentProvider: strings.TrimSpace(cfg.Current.Provider),
 	}, nil
+}
+
+func isBrowserLoginKind(kind int) bool {
+	switch kind {
+	case config.ProviderKindChatGPTSub, config.ProviderKindClaudeSub, config.ProviderKindCursorSub:
+		return true
+	default:
+		return false
+	}
 }
