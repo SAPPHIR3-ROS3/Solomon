@@ -115,12 +115,14 @@ function Get-ExePath {
 
 function Write-UpgradeLog {
     param([string]$LogPath)
-    if (-not (Test-Path $LogPath)) {
-        return
+    foreach ($path in @($LogPath, "${LogPath}.err")) {
+        if (-not (Test-Path $path)) {
+            continue
+        }
+        Write-Host "---- upgrade log ($path) ----"
+        Get-Content -Path $path -Raw
+        Write-Host '---- end upgrade log ----'
     }
-    Write-Host "---- upgrade log ($LogPath) ----"
-    Get-Content -Path $LogPath -Raw
-    Write-Host '---- end upgrade log ----'
 }
 
 function Wait-TargetVersion {
@@ -145,8 +147,11 @@ function Invoke-CliUpgrade {
     try {
         Wait-TargetVersion $Exe $LogPath
     } catch {
-        if ($env:GH_TOKEN -and (Test-Path $LogPath)) {
-            $content = Get-Content -Path $LogPath -Raw
+        $content = @($LogPath, "${LogPath}.err") |
+            Where-Object { Test-Path $_ } |
+            ForEach-Object { Get-Content -Path $_ -Raw }
+        if ($env:GH_TOKEN -and $content) {
+            $content = $content -join "`n"
             if ($content -match '403 Forbidden') {
                 Write-Host "solomon upgrade hit GitHub API limits; retrying with install.ps1 ($($env:RELEASE_TAG))"
                 Install-Release $env:RELEASE_TAG
