@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -105,7 +106,9 @@ func main() {
 		servercli.Run(os.Args[2:])
 		return
 	}
-	if !daemonTUIChild && daemonTUIRequested(os.Args) {
+	// The daemon-backed REPL needs a PTY. Windows does not have a daemon PTY
+	// implementation, so keep the interactive CLI in this process there.
+	if runtime.GOOS != "windows" && !daemonTUIChild && daemonTUIRequested(os.Args) {
 		if err := runDaemonTUI(os.Args); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -241,7 +244,11 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	wd, err := resolveREPLWorkingDir(os.Args)
+	replArgs := os.Args
+	if runtime.GOOS == "windows" && len(replArgs) >= 2 && (replArgs[1] == "tui" || replArgs[1] == "attach") {
+		replArgs = append([]string{replArgs[0]}, replArgs[2:]...)
+	}
+	wd, err := resolveREPLWorkingDir(replArgs)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "resolve repl working directory failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
