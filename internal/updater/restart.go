@@ -330,7 +330,8 @@ if ($blockers.Count -gt 0) {
   throw "cannot update while Solomon is still running from $Target (PID $blockingPids)"
 }
 $installed = $false
-for ($i = 0; $i -lt 60; $i++) {
+$lastReplaceError = $null
+for ($i = 0; $i -lt 120; $i++) {
   try {
     if (Test-Path $Target) {
       [System.IO.File]::Replace($staging, $Target, $null)
@@ -340,7 +341,8 @@ for ($i = 0; $i -lt 60; $i++) {
     $installed = $true
     break
   } catch {
-    Start-Sleep -Milliseconds 250
+    $lastReplaceError = $_.Exception.Message
+    Start-Sleep -Milliseconds 500
   }
 }
 if (-not $installed) {
@@ -352,6 +354,8 @@ if (-not $installed) {
   if ($blockers.Count -gt 0) {
     $blockingPids = ($blockers | ForEach-Object { $_.Id }) -join ', '
     $replaceError = "cannot replace $Target; Solomon is still running (PID $blockingPids)"
+  } elseif ($lastReplaceError) {
+    $replaceError = "$replaceError. Last Windows error: $lastReplaceError"
   }
   if ($ServerRestart) {
     Write-Warning 'The executable was not replaced; restoring the stopped Solomon server.'
