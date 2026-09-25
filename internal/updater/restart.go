@@ -310,25 +310,158 @@ New-Item -ItemType Directory -Force -Path (Split-Path $Target) | Out-Null
 $staging = "$Target.new"
 Copy-Item -Force $tmp $staging
 Remove-Item -Force $tmp -ErrorAction SilentlyContinue
+%s
+$targetFullPath = [System.IO.Path]::GetFullPath($Target)
+$blockers = @()
+for ($i = 0; $i -lt 120; $i++) {
+  $blockers = @(Get-Process -Name 'solomon' -ErrorAction SilentlyContinue | Where-Object {
+    if ($_.Id -eq $PID -or -not $_.Path) { $false }
+    else { try { [System.IO.Path]::GetFullPath($_.Path).Equals($targetFullPath, [System.StringComparison]::OrdinalIgnoreCase) } catch { $false } }
+  })
+  if ($blockers.Count -eq 0) { break }
+  Start-Sleep -Milliseconds 250
+}
+if ($blockers.Count -gt 0) {
+  $blockingPids = ($blockers | ForEach-Object { $_.Id }) -join ', '
+  if ($ServerRestart) {
+    Write-Warning 'Another Solomon process is still active; restoring the stopped server before aborting.'
+    Start-SavedSolomonServer
+  }
+  throw "cannot update while Solomon is still running from $Target (PID $blockingPids)"
+}
 $installed = $false
 for ($i = 0; $i -lt 60; $i++) {
   try {
-    if (Test-Path $Target) { Remove-Item -Force $Target -ErrorAction Stop }
-    Move-Item -Force $staging $Target -ErrorAction Stop
+    if (Test-Path $Target) {
+      [System.IO.File]::Replace($staging, $Target, $null)
+    } else {
+      Move-Item -Force $staging $Target -ErrorAction Stop
+    }
     $installed = $true
     break
   } catch {
     Start-Sleep -Milliseconds 250
   }
 }
-if (-not $installed) { throw "failed to replace $Target after install" }
+if (-not $installed) {
+  $replaceError = "failed to replace $Target after the download was verified; Windows may still be scanning or locking the file"
+  $blockers = @(Get-Process -Name 'solomon' -ErrorAction SilentlyContinue | Where-Object {
+    if ($_.Id -eq $PID -or -not $_.Path) { $false }
+    else { try { [System.IO.Path]::GetFullPath($_.Path).Equals($targetFullPath, [System.StringComparison]::OrdinalIgnoreCase) } catch { $false } }
+  })
+  if ($blockers.Count -gt 0) {
+    $blockingPids = ($blockers | ForEach-Object { $_.Id }) -join ', '
+    $replaceError = "cannot replace $Target; Solomon is still running (PID $blockingPids)"
+  }
+  if ($ServerRestart) {
+    Write-Warning 'The executable was not replaced; restoring the stopped Solomon server.'
+    Start-SavedSolomonServer
+  }
+  throw $replaceError
+}
 $RestartExe = $Target
 Write-Host "Installed $Tag -> $Target"
+Start-SavedSolomonServer
 Write-Host '=== Restarting Solomon ==='
 Write-Host ''
 %s
-`, pid, psQuote(tag), psQuote(cwd), psQuote(exe), psArgList(args), psQuote(asset), psQuote(url), psQuote(target), windowsProfileSetupScriptLines(), restartLine)
+	`, pid, psQuote(tag), psQuote(cwd), psQuote(exe), psArgList(args), psQuote(asset), psQuote(url), psQuote(target), windowsProfileSetupScriptLines(), windowsStartManagedServerFunction()+"\n"+windowsStopManagedServerScript(), restartLine)
 	return script, nil
+}
+
+func windowsStopManagedServerScript() string {
+	return `# Stop the detached server before replacing its executable, then keep its startup settings for after the update.
+$ServerRestart = $null
+$SolomonHome = if ($env:SOLOMON_HOME) { $env:SOLOMON_HOME } else { Join-Path $env:USERPROFILE '.solomon' }
+$ServerStatePath = Join-Path $SolomonHome 'run/server/state.json'
+if (Test-Path $ServerStatePath) {
+  try { $ServerState = Get-Content -Raw $ServerStatePath | ConvertFrom-Json } catch { $ServerState = $null }
+  if ($ServerState -and [int]$ServerState.pid -gt 0) {
+    $ServerProcess = Get-Process -Id ([int]$ServerState.pid) -ErrorAction SilentlyContinue
+    if ($ServerProcess -and $ServerProcess.Path) {
+      try {
+        $ServerProcessPath = [System.IO.Path]::GetFullPath($ServerProcess.Path)
+        $TargetFullPath = [System.IO.Path]::GetFullPath($Target)
+      } catch {
+        $ServerProcessPath = ''
+      }
+      if ($ServerProcessPath -and $ServerProcessPath.Equals($TargetFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $OtherSolomonProcesses = @(Get-Process -Name 'solomon' -ErrorAction SilentlyContinue | Where-Object {
+          if ($_.Id -eq $PID -or $_.Id -eq [int]$ServerState.pid -or -not $_.Path) { $false }
+          else { try { [System.IO.Path]::GetFullPath($_.Path).Equals($TargetFullPath, [System.StringComparison]::OrdinalIgnoreCase) } catch { $false } }
+        })
+        if ($OtherSolomonProcesses.Count -gt 0) {
+          $blockingPids = ($OtherSolomonProcesses | ForEach-Object { $_.Id }) -join ', '
+          throw "cannot update while other Solomon instances are running from $Target (PID $blockingPids); the server was left running"
+        }
+        $ServerUri = [Uri]$ServerState.url
+        if ($ServerUri.Scheme -ne 'http' -or -not $ServerUri.IsLoopback) {
+          throw "refusing to stop Solomon server at unexpected URL $($ServerState.url)"
+        }
+        Write-Host "Stopping Solomon server (PID $($ServerState.pid)) before updating..."
+        try {
+          $StopResponse = Invoke-WebRequest -Uri ($ServerUri.AbsoluteUri.TrimEnd('/') + '/_solomon/stop') -Method Post -TimeoutSec 5 -UseBasicParsing
+        } catch {
+          throw "could not stop Solomon server PID $($ServerState.pid): $($_.Exception.Message)"
+        }
+        if ([int]$StopResponse.StatusCode -ne 202) {
+          throw "Solomon server PID $($ServerState.pid) refused to stop (HTTP $($StopResponse.StatusCode))"
+        }
+        $ServerRestart = $ServerState
+        $StopDeadline = [DateTime]::UtcNow.AddSeconds(15)
+        while ($true) {
+          $ServerProcess = Get-Process -Id ([int]$ServerState.pid) -ErrorAction SilentlyContinue
+          if (-not $ServerProcess -or -not $ServerProcess.Path) { break }
+          try { $ServerProcessPath = [System.IO.Path]::GetFullPath($ServerProcess.Path) } catch { break }
+          if (-not $ServerProcessPath.Equals($TargetFullPath, [System.StringComparison]::OrdinalIgnoreCase)) { break }
+          if ([DateTime]::UtcNow -ge $StopDeadline) {
+            throw "Solomon server PID $($ServerState.pid) did not exit after its graceful stop request"
+          }
+          Start-Sleep -Milliseconds 250
+        }
+      }
+    }
+  }
+}`
+}
+
+func windowsStartManagedServerFunction() string {
+	return `function Start-SavedSolomonServer {
+  if (-not $ServerRestart) { return }
+  try {
+    $ServerStartArgs = @('server', 'start')
+    if ($ServerRestart.mode -eq 'dev') {
+      if (-not $ServerRestart.dev_directory) { throw 'saved dev server state has no GUI directory' }
+      $ServerStartArgs += @('dev', [string]$ServerRestart.dev_directory)
+    }
+    Write-Host 'Restarting Solomon server...'
+    & $Target @ServerStartArgs
+    $ServerStarted = $false
+    for ($i = 0; $i -lt 100; $i++) {
+      try {
+        if (Test-Path $ServerStatePath) {
+          $StartedState = Get-Content -Raw $ServerStatePath | ConvertFrom-Json
+          $RestartedAfterStop = [DateTime]::Parse([string]$StartedState.started_at).ToUniversalTime() -gt [DateTime]::Parse([string]$ServerRestart.started_at).ToUniversalTime()
+          if ([int]$StartedState.pid -gt 0 -and $RestartedAfterStop) {
+            $StartedUri = [Uri]$StartedState.url
+            if ($StartedUri.IsLoopback) {
+              $Health = Invoke-RestMethod -Uri ($StartedUri.AbsoluteUri.TrimEnd('/') + '/health') -TimeoutSec 1
+              if ($Health.ok) { $ServerStarted = $true; break }
+            }
+          }
+        }
+      } catch {}
+      Start-Sleep -Milliseconds 100
+    }
+    if ($ServerStarted) {
+      Write-Host 'Solomon server restarted.'
+    } else {
+      Write-Warning 'The previous Solomon server did not restart automatically. Run solomon server start.'
+    }
+  } catch {
+    Write-Warning "The previous Solomon server could not be restarted automatically: $_"
+  }
+}`
 }
 
 func scheduleRestartOnly(ctx context.Context, pid int, cwd, exe string, args []string, progress io.Writer) error {
