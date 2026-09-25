@@ -331,10 +331,13 @@ if ($blockers.Count -gt 0) {
 }
 $installed = $false
 $lastReplaceError = $null
+$backup = "$staging.$PID.bak"
 for ($i = 0; $i -lt 120; $i++) {
   try {
     if (Test-Path $Target) {
-      [System.IO.File]::Replace($staging, $Target, $null)
+      Remove-Item -Force $backup -ErrorAction SilentlyContinue
+      [System.IO.File]::Replace($staging, $Target, $backup)
+      Remove-Item -Force $backup -ErrorAction SilentlyContinue
     } else {
       Move-Item -Force $staging $Target -ErrorAction Stop
     }

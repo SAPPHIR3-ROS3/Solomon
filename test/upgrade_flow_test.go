@@ -185,7 +185,7 @@ func TestUpgradeFlow_windowsInstallRestartScriptHandsOffManagedServer(t *testing
 	for _, want := range []string{
 		"/_solomon/stop",
 		"Start-SavedSolomonServer",
-		"[System.IO.File]::Replace($staging, $Target, $null)",
+		"[System.IO.File]::Replace($staging, $Target, $backup)",
 		"cannot update while other Solomon instances are running",
 		"started_at",
 	} {

@@ -21,7 +21,8 @@ function Get-PrevRelease {
     }
     for ($attempt = 1; $attempt -le 5; $attempt++) {
         try {
-            $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=2" -Headers $headers
+            $allReleases = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=100" -Headers $headers
+            $releases = @($allReleases | Where-Object { $_.prerelease -ne $true -and $_.draft -ne $true })
             if ($releases.Count -ge 2) {
                 return [string]$releases[1].tag_name
             }

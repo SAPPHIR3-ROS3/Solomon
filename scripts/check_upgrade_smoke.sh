@@ -19,14 +19,14 @@ fetch_prev_release() {
   local attempt prev=""
   for attempt in 1 2 3 4 5; do
     if [[ -n "${GH_TOKEN:-}" ]] && command -v gh >/dev/null 2>&1; then
-      prev="$(gh api "/repos/${repo}/releases?per_page=2" --jq '.[1].tag_name // empty' 2>/dev/null || true)"
+      prev="$(gh api "/repos/${repo}/releases?per_page=100" --jq 'map(select(.prerelease != true and .draft != true)) | .[1].tag_name // empty' 2>/dev/null || true)"
     else
       local auth_header=()
       if [[ -n "${GH_TOKEN:-}" ]]; then
         auth_header=(-H "Authorization: Bearer ${GH_TOKEN}")
       fi
       prev="$(curl -fsSL -H "User-Agent: solomon-upgrade-smoke" "${auth_header[@]}" \
-        "https://api.github.com/repos/${repo}/releases?per_page=2" | jq -r '.[1].tag_name // empty' 2>/dev/null || true)"
+        "https://api.github.com/repos/${repo}/releases?per_page=100" | jq -r 'map(select(.prerelease != true and .draft != true)) | .[1].tag_name // empty' 2>/dev/null || true)"
     fi
     if [[ -n "$prev" ]]; then
       printf '%s' "$prev"
