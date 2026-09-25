@@ -116,6 +116,11 @@ func (reg *subagentRegistry) isRunning(id string) bool {
 }
 
 func (reg *subagentRegistry) upsertActiveEntry(e chatstore.ActiveSubagentEntry) error {
+	// Serialize the read-modify-write so concurrent lifecycle transitions do not
+	// race over activeSubagents.json or its temporary file.
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
 	if err := reg.loadActiveFile(); err != nil {
 		return err
 	}
@@ -134,6 +139,9 @@ func (reg *subagentRegistry) upsertActiveEntry(e chatstore.ActiveSubagentEntry) 
 }
 
 func (reg *subagentRegistry) removeActiveEntry(id string) error {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
 	if err := reg.loadActiveFile(); err != nil {
 		return err
 	}
@@ -153,13 +161,6 @@ func (reg *subagentRegistry) registerRun(id string, cancel func()) *subagentRunH
 	h := &subagentRunHandle{cancel: cancel, done: make(chan struct{})}
 	reg.runs[id] = h
 	return h
-}
-
-func (reg *subagentRegistry) hasLiveRun(id string) bool {
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-	_, ok := reg.runs[id]
-	return ok
 }
 
 func (reg *subagentRegistry) finishRun(id string) {
@@ -195,13 +196,19 @@ func (reg *subagentRegistry) cancelAndWait(id string, timeout time.Duration) err
 }
 
 func (reg *subagentRegistry) reconcileOnStartup() {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
 	f, err := chatstore.ReadActiveSubagents()
 	if err != nil || f == nil {
 		return
 	}
 	changed := false
 	for i, e := range f.Agents {
-		if e.Status != chatstore.SubStatusRunning || reg.hasLiveRun(e.ID) {
+		if e.Status != chatstore.SubStatusRunning {
+			continue
+		}
+		if _, live := reg.runs[e.ID]; live {
 			continue
 		}
 		f.Agents[i].Status = chatstore.SubStatusPaused
