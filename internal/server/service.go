@@ -225,6 +225,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/format-go", handleFormatGo)
 	mux.HandleFunc("/__solomon/fast-mode", chatAPI.handleFastMode)
 	mux.HandleFunc("/__solomon/home-directories", projectAPI.handleHomeDirectoryEntries)
+	mux.HandleFunc("/__solomon/filesystem-directories", projectAPI.handleFilesystemDirectoryEntries)
 	mux.HandleFunc("/__solomon/home-git-branches", projectAPI.handleHomeBranches)
 	mux.HandleFunc("/__solomon/home-git-worktrees", projectAPI.handleHomeWorktrees)
 	mux.HandleFunc("/__solomon/home-git-checkout", projectAPI.handleHomeCheckout)

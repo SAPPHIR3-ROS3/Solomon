@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchHomeDirectoryEntries, type ProjectDirectoryEntry } from "./projects";
+import { fetchFilesystemDirectoryListing, type ProjectDirectoryEntry } from "./projects";
 import type { LocalFolderSelection } from "./temporaryWorkspace";
 import "./new-project-dialog.css";
 
@@ -29,12 +29,16 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [folderEntries, setFolderEntries] = useState<ProjectDirectoryEntry[]>([]);
   const [folderError, setFolderError] = useState("");
-  const [folderPath, setFolderPath] = useState("");
+  const [folderPath, setFolderPath] = useState("~");
+  const [homePath, setHomePath] = useState("");
+  const [folderInput, setFolderInput] = useState("~");
   const [isFolderLoading, setIsFolderLoading] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef(folderInput);
   const onCloseRef = useRef(onClose);
+  folderInputRef.current = folderInput;
   onCloseRef.current = onClose;
   const normalizedQuery = query.trim().toLowerCase();
   const visibleSources = projectSources.filter((source) => (
@@ -49,7 +53,9 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
     setActiveSourceId(null);
     setFolderEntries([]);
     setFolderError("");
-    setFolderPath("");
+    setFolderPath("~");
+    setHomePath("");
+    setFolderInput("~");
     setIsFolderPickerOpen(false);
     setIsConfirming(false);
     searchRef.current?.focus();
@@ -66,10 +72,19 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
     const controller = new AbortController();
     setIsFolderLoading(true);
     setFolderError("");
-    void fetchHomeDirectoryEntries(folderPath, controller.signal)
-      .then((entries) => {
+    void fetchFilesystemDirectoryListing(folderPath, controller.signal)
+      .then((listing) => {
         if (controller.signal.aborted) return;
-        setFolderEntries(entries.filter((entry) => entry.isDirectory));
+        setHomePath(listing.homePath);
+        setFolderEntries(listing.entries.filter((entry) => entry.isDirectory));
+        if (folderPath === "~" || folderPath.startsWith("~/")) {
+          const draft = folderInputDraft(folderInputRef.current, listing.path, listing.homePath);
+          setFolderPath(draft.path);
+          setQuery(draft.query);
+          if (folderInputRef.current === folderPath || folderInputRef.current === "~") {
+            setFolderInput(displayFolderPath(listing.path, listing.homePath));
+          }
+        }
       })
       .catch(() => {
         if (controller.signal.aborted) return;
@@ -85,8 +100,14 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
   const visibleFolderEntries = folderEntries.filter((entry) => (
     !normalizedQuery || entry.name.toLowerCase().includes(normalizedQuery)
   ));
-  const folderLocation = folderPath ? `~/${normalizeFolderPath(folderPath)}/` : "~/";
-  const folderListRowCount = Math.min(Math.max(visibleFolderEntries.length, 1), 10);
+  const folderLocation = displayFolderPath(folderPath, homePath);
+  const canGoUp = Boolean(folderPath && folderPath !== "~" && parentFolderPath(folderPath) !== folderPath);
+  const folderListRowCount = Math.min(Math.max(visibleFolderEntries.length + (canGoUp ? 1 : 0), 1), 10);
+  const exactFolderMatch = query
+    ? visibleFolderEntries.find((entry) => entry.name.toLowerCase() === query.trim().toLowerCase())
+    : undefined;
+  const folderSelectionPath = exactFolderMatch?.path ?? folderPath;
+  const folderSelectionLabel = displayFolderPath(folderSelectionPath, homePath);
 
   function handleSearchChange(value: string) {
     if (!isFolderPickerOpen) {
@@ -94,64 +115,64 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
       return;
     }
 
-    const normalizedValue = value.replaceAll("\\", "/");
-    if (normalizedValue === "~" || normalizedValue === "~/") {
-      setFolderPath("");
-      setQuery("");
-      return;
-    }
-    if (!normalizedValue.startsWith("~/")) {
-      setQuery(value);
-      return;
-    }
-
-    const relativeValue = normalizedValue.slice(2);
-    const lastSlash = relativeValue.lastIndexOf("/");
-    if (lastSlash < 0) {
-      setFolderPath("");
-      setQuery(relativeValue);
-      return;
-    }
-
-    setFolderPath(normalizeFolderPath(relativeValue.slice(0, lastSlash)));
-    setQuery(relativeValue.slice(lastSlash + 1));
+    setFolderInput(value);
+    const draft = folderInputDraft(value, folderPath, homePath);
+    setFolderPath(draft.path);
+    setQuery(draft.query);
   }
 
   function openLocalFolderPicker() {
     setActiveSourceId("local");
     setFolderEntries([]);
     setFolderError("");
-    setFolderPath("");
+    setFolderPath("~");
+    setHomePath("");
+    setFolderInput("~");
     setIsFolderPickerOpen(true);
     setQuery("");
   }
 
   function goBackFromFolderPicker() {
-    if (!folderPath) {
-      setIsFolderPickerOpen(false);
-      setQuery("");
-      return;
-    }
-    setFolderPath(parentFolderPath(folderPath));
+    setIsFolderPickerOpen(false);
+    setQuery("");
+  }
+
+  function goToParentFolder() {
+    const parentPath = parentFolderPath(folderPath);
+    if (parentPath === folderPath) return;
+    setFolderPath(parentPath);
+    setFolderInput(displayFolderPath(parentPath, homePath));
     setQuery("");
   }
 
   function openFolder(entry: ProjectDirectoryEntry) {
     if (!entry.isDirectory) return;
-    setFolderPath(normalizeFolderPath(entry.path));
+    const path = normalizeFolderPath(entry.path);
+    setFolderPath(path);
+    setFolderInput(displayFolderPath(path, homePath));
+    setQuery("");
+  }
+
+  function navigateToFolderInput() {
+    const input = folderInput.trim();
+    if (!input || input === "This PC") return;
+    const targetPath = resolveFolderInputPath(input, folderPath, homePath);
+    if (!targetPath) return;
+    setFolderPath(targetPath);
+    setFolderInput(displayFolderPath(targetPath, homePath));
     setQuery("");
   }
 
   async function confirmCurrentFolder() {
-    if (isConfirming) return;
-    const normalizedPath = normalizeFolderPath(folderPath);
+    if (isConfirming || isFolderLoading || !folderSelectionPath || folderSelectionPath === "~") return;
+    const normalizedPath = normalizeFolderPath(folderSelectionPath);
     const pathParts = normalizedPath.split("/").filter(Boolean);
     setIsConfirming(true);
     setFolderError("");
     try {
       await onConfirmLocalFolder({
-        displayPath: folderLocation,
-        name: pathParts.at(-1) ?? "Home",
+        displayPath: displayFolderPath(normalizedPath, homePath),
+        name: pathParts.at(-1) ?? (normalizedPath === "/" ? "/" : "Home"),
         path: normalizedPath,
       });
     } catch (error) {
@@ -179,15 +200,21 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
             </button>
           ) : null}
           <input
-            aria-label={isFolderPickerOpen ? "Search folders" : "Search project sources"}
+            aria-label={isFolderPickerOpen ? "Folder path or search folders" : "Search project sources"}
             onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder={isFolderPickerOpen ? "" : "Search project sources"}
+            onKeyDown={(event) => {
+              if (isFolderPickerOpen && event.key === "Enter") {
+                event.preventDefault();
+                navigateToFolderInput();
+              }
+            }}
+            placeholder={isFolderPickerOpen ? "Type a path to filter folders, then press Enter to open" : "Search project sources"}
             ref={searchRef}
-            type="search"
-            value={isFolderPickerOpen ? `${folderLocation}${query}` : query}
+            type={isFolderPickerOpen ? "text" : "search"}
+            value={isFolderPickerOpen ? folderInput : query}
           />
           {isFolderPickerOpen ? (
-            <button aria-label={`Use folder ${folderLocation}`} className="new-project-dialog-search-confirm" disabled={isConfirming} onClick={() => void confirmCurrentFolder()} title="Use this folder" type="button">
+            <button aria-label={`Use folder ${folderSelectionLabel}`} className="new-project-dialog-search-confirm" disabled={isConfirming || isFolderLoading || !folderSelectionPath || folderSelectionPath === "~"} onClick={() => void confirmCurrentFolder()} title="Use this folder" type="button">
               <CheckIcon />
             </button>
           ) : null}
@@ -201,6 +228,13 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
               role="list"
               style={{ height: `${folderListRowCount * 44}px` }}
             >
+              {canGoUp ? (
+                <button aria-label="Go to parent folder" className="new-project-dialog-folder-row" onClick={goToParentFolder} type="button">
+                  <span aria-hidden="true" className="new-project-dialog-folder-icon"><ChevronLeftIcon /></span>
+                  <span>..</span>
+                  <ChevronRightIcon />
+                </button>
+              ) : null}
               {isFolderLoading ? (
                 <p className="new-project-dialog-folder-message">Loading folders…</p>
               ) : folderError ? (
@@ -288,11 +322,92 @@ function CheckIcon() {
 }
 
 function normalizeFolderPath(path: string) {
-  return path.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  const normalized = path.replaceAll("\\", "/");
+  if (normalized === "/" || normalized === "~" || normalized === "~/") return normalized;
+  if (/^[a-zA-Z]:\/?$/.test(normalized)) return `${normalized.slice(0, 2)}/`;
+  return normalized.replace(/\/+$/, "");
+}
+
+function displayFolderPath(path: string, homePath: string) {
+  const normalized = normalizeFolderPath(path);
+  const home = normalizeFolderPath(homePath);
+  if (!normalized) return "This PC";
+  if (!home) return normalized;
+  if (sameFolderPath(normalized, home)) return "~/";
+
+  const prefix = home.endsWith("/") ? home : `${home}/`;
+  const insensitive = isWindowsFolderPath(home);
+  const matchesHome = insensitive
+    ? normalized.toLowerCase().startsWith(prefix.toLowerCase())
+    : normalized.startsWith(prefix);
+  return matchesHome ? `~/${normalized.slice(prefix.length)}` : normalized;
 }
 
 function parentFolderPath(path: string) {
-  const parts = normalizeFolderPath(path).split("/").filter(Boolean);
-  parts.pop();
-  return parts.join("/");
+  const normalized = normalizeFolderPath(path);
+  if (normalized === "/") return "/";
+  if (/^[a-zA-Z]:\/$/.test(normalized)) return "";
+  if (normalized.startsWith("//") && normalized.slice(2).split("/").filter(Boolean).length <= 2) return "";
+  const lastSlash = normalized.lastIndexOf("/");
+  if (lastSlash < 0) return "";
+  return lastSlash === 0 ? "/" : normalizeFolderPath(normalized.slice(0, lastSlash));
+}
+
+function isAbsoluteFolderPath(path: string) {
+  const normalized = normalizeFolderPath(path);
+  return normalized.startsWith("/")
+    || normalized === "~"
+    || normalized.startsWith("~/")
+    || /^[a-zA-Z]:\//.test(normalized);
+}
+
+function isWindowsFolderPath(path: string) {
+  return /^[a-zA-Z]:\//.test(path) || path.startsWith("//");
+}
+
+function sameFolderPath(leftPath: string, rightPath: string) {
+  const left = normalizeFolderPath(leftPath);
+  const right = normalizeFolderPath(rightPath);
+  if (isWindowsFolderPath(left) || isWindowsFolderPath(right)) return left.toLowerCase() === right.toLowerCase();
+  return left === right;
+}
+
+function joinFolderPath(parent: string, child: string) {
+  const normalizedParent = normalizeFolderPath(parent);
+  const normalizedChild = normalizeFolderPath(child).replace(/^\/+/, "");
+  if (!normalizedParent) return normalizedChild;
+  if (normalizedParent === "/") return `/${normalizedChild}`;
+  return `${normalizedParent.replace(/\/$/, "")}/${normalizedChild}`;
+}
+
+function resolveFolderInputPath(input: string, currentPath: string, homePath: string) {
+  const normalized = normalizeFolderPath(input.trim());
+  if (!normalized || normalized === "This PC") return "";
+  if (normalized === "~" || normalized === "~/") return homePath || "~";
+  if (normalized.startsWith("~/")) return homePath ? joinFolderPath(homePath, normalized.slice(2)) : "~";
+  if (/^[a-zA-Z]:$/.test(input.trim())) return `${normalized.slice(0, 2)}/`;
+  if (isAbsoluteFolderPath(normalized)) return normalized;
+  return joinFolderPath(currentPath || homePath || "~", normalized);
+}
+
+function folderInputDraft(input: string, currentPath: string, homePath: string) {
+  const trimmed = input.trim();
+  if (!trimmed) return { path: currentPath, query: "" };
+  if (trimmed === "This PC") return { path: "", query: "" };
+
+  const normalizedInput = normalizeFolderPath(trimmed);
+  const targetPath = resolveFolderInputPath(trimmed, currentPath, homePath);
+  if (!targetPath) return { path: currentPath, query: "" };
+  if (trimmed === "~" || trimmed === "~/" || /^[a-zA-Z]:$/.test(trimmed) || /[\\/]$/.test(trimmed)) {
+    return { path: targetPath, query: "" };
+  }
+  if (sameFolderPath(targetPath, currentPath)) return { path: currentPath, query: "" };
+
+  const uncParts = normalizedInput.startsWith("//") ? normalizedInput.slice(2).split("/").filter(Boolean) : [];
+  if (uncParts.length === 2) return { path: targetPath, query: "" };
+
+  const lastSlash = targetPath.lastIndexOf("/");
+  if (lastSlash < 0) return { path: currentPath, query: targetPath };
+  const parentPath = lastSlash === 0 ? "/" : normalizeFolderPath(targetPath.slice(0, lastSlash));
+  return { path: parentPath, query: targetPath.slice(lastSlash + 1) };
 }
