@@ -3,6 +3,7 @@ import type { Chat, ChatMessage } from "./chatTypes";
 
 const ACTIVE_CHAT_KEY = "solomon.active-chat";
 const CHAT_STREAM_CURSOR_PREFIX = "solomon.chat-stream-cursor.v1";
+const UNREAD_COMPLETED_CHAT_KEY = "solomon.unread-completed-chats.v1";
 
 export type ActiveChatSelection = {
   chatID: string;
@@ -92,6 +93,26 @@ export function removeChat(chatID: string): boolean {
 export function clearChatStore(): void {
   chats = [];
   notify();
+}
+
+export function getUnreadCompletedChatIDs(): Set<string> {
+  try {
+    if (typeof window === "undefined") return new Set();
+    const value: unknown = JSON.parse(window.localStorage.getItem(UNREAD_COMPLETED_CHAT_KEY) ?? "[]");
+    return Array.isArray(value) ? new Set(value.filter((id): id is string => typeof id === "string" && id.length > 0)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveUnreadCompletedChatIDs(chatIDs: ReadonlySet<string>): void {
+  try {
+    if (typeof window === "undefined") return;
+    if (chatIDs.size) window.localStorage.setItem(UNREAD_COMPLETED_CHAT_KEY, JSON.stringify([...chatIDs]));
+    else window.localStorage.removeItem(UNREAD_COMPLETED_CHAT_KEY);
+  } catch {
+    // Persistence is a convenience; private browsing/storage restrictions must not block chat use.
+  }
 }
 
 export function rememberActiveChat(projectID: string, chatID: string): void {

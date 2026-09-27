@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyLiveStreamEvent, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, deleteLiveChatMessage, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type ChatStreamEventHandler, type LiveChat } from "./chatClient";
-import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, rememberActiveChat, removeChat, saveChat, saveChatStreamCursor, updateChat, useChatStore } from "./chatStore";
+import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, getUnreadCompletedChatIDs, rememberActiveChat, saveUnreadCompletedChatIDs, removeChat, saveChat, saveChatStreamCursor, updateChat, useChatStore } from "./chatStore";
 import type { Chat, ChatMessage } from "./chatTypes";
+import { markChatCompletionRead, markChatCompletionUnread, shouldMarkChatCompletionUnread } from "./unreadCompletion";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
 import { fetchProjectBranches, fetchProjectWorktrees, projectWorktreeLabel, PROJECTS_CHANGED_EVENT, type Project } from "../projects/projects";
 
@@ -12,6 +13,7 @@ export type ChatRuntime = {
   isLoading: boolean;
   error: string;
   streamingChatIDs: ReadonlySet<string>;
+  unreadCompletedChatIDs: ReadonlySet<string>;
   pendingMessageIDs: ReadonlyMap<string, ReadonlySet<string>>;
   clearSelection: () => void;
   openProjectChat: (project: Project, chatID: string) => Promise<void>;
@@ -31,6 +33,7 @@ export function useChatRuntime(): ChatRuntime {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [streamingChatIDs, setStreamingChatIDs] = useState<Set<string>>(() => new Set());
+  const [unreadCompletedChatIDs, setUnreadCompletedChatIDs] = useState<Set<string>>(getUnreadCompletedChatIDs);
   const [pendingMessageIDs, setPendingMessageIDs] = useState<Map<string, Set<string>>>(() => new Map());
   const streams = useRef(new Map<string, AbortController>());
   const streamRetryTimers = useRef(new Map<string, number>());
@@ -44,6 +47,10 @@ export function useChatRuntime(): ChatRuntime {
   useEffect(() => {
     selectedChatIDRef.current = selectedChatID;
   }, [selectedChatID]);
+
+  useEffect(() => {
+    saveUnreadCompletedChatIDs(unreadCompletedChatIDs);
+  }, [unreadCompletedChatIDs]);
 
   const selectedChat = useMemo(
     () => chats.find((chat) => chat.id === selectedChatID) ?? null,
@@ -71,6 +78,7 @@ export function useChatRuntime(): ChatRuntime {
   const clearSelection = useCallback(() => {
     cancelPendingRequests();
     forgetRememberedActiveChat();
+    selectedChatIDRef.current = null;
     setSelectedChatID(null);
     setError("");
   }, [cancelPendingRequests]);
@@ -124,6 +132,18 @@ export function useChatRuntime(): ChatRuntime {
     streams.current.set(chat.id, controller);
     markStreaming(chat.id, true);
     const onEvent: ChatStreamEventHandler = (event, replay = false, imageOrigin = "") => {
+      const currentCursor = getChatStreamCursor(projectID, chat.id);
+      const eventSequence = typeof event.seq === "number" && Number.isFinite(event.seq) ? event.seq : undefined;
+      if (shouldMarkChatCompletionUnread({
+        chatID: chat.id,
+        currentCursor,
+        eventSequence,
+        eventType: typeof event.type === "string" ? event.type : "",
+        isReplay: replay,
+        selectedChatID: selectedChatIDRef.current,
+      })) {
+        setUnreadCompletedChatIDs((current) => markChatCompletionUnread(current, chat.id));
+      }
       if (event.type === "assistant_start" || event.type === "error" || event.type === "run_end") {
         setPendingMessageIDs((current) => {
           if (!current.has(chat.id)) return current;
@@ -140,8 +160,8 @@ export function useChatRuntime(): ChatRuntime {
         if (exitCode !== undefined && exitCode !== 0 && !receivedStreamError) setError(runEndErrorMessage(event));
       }
       streamRetryAttempts.current.delete(chat.id);
-      if (typeof event.seq === "number" && Number.isFinite(event.seq) && event.seq > getChatStreamCursor(projectID, chat.id)) {
-        saveChatStreamCursor(projectID, chat.id, event.seq);
+      if (eventSequence !== undefined && eventSequence > currentCursor) {
+        saveChatStreamCursor(projectID, chat.id, eventSequence);
       }
       updateChat(chat.id, (current) => applyLiveStreamEvent(current as LiveChat, event, imageOrigin, replay));
       if (event.type === "chat_title") window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
@@ -233,6 +253,7 @@ export function useChatRuntime(): ChatRuntime {
       };
       saveChat(contextualChat);
       rememberActiveChat(project.id, contextualChat.id);
+      selectedChatIDRef.current = contextualChat.id;
       setSelectedChatID(contextualChat.id);
       window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
       sendMessage(contextualChat.id, {
@@ -259,6 +280,7 @@ export function useChatRuntime(): ChatRuntime {
     const controller = new AbortController();
     const requestID = loadRequest.current;
     loadController.current = controller;
+    selectedChatIDRef.current = null;
     setSelectedChatID(null);
     setError("");
     setIsLoading(true);
@@ -277,6 +299,8 @@ export function useChatRuntime(): ChatRuntime {
         worktree: chat.worktree ?? projectContext.worktree,
       });
       rememberActiveChat(project.id, chat.id);
+      setUnreadCompletedChatIDs((current) => markChatCompletionRead(current, chat.id));
+      selectedChatIDRef.current = chat.id;
       setSelectedChatID(chat.id);
       const contextualChat = getChat(chat.id);
       if (contextualChat?.status === "running") reconnectDaemonStream(contextualChat);
@@ -334,10 +358,12 @@ export function useChatRuntime(): ChatRuntime {
       streamRetryTimers.current.delete(chatID);
       streamRetryAttempts.current.delete(chatID);
       forgetChatStreamCursor(projectID, chatID);
+      setUnreadCompletedChatIDs((current) => markChatCompletionRead(current, chatID));
       removeChat(chatID);
       if (selectedChatIDRef.current === chatID) {
         cancelPendingRequests();
         forgetRememberedActiveChat();
+        setUnreadCompletedChatIDs((current) => markChatCompletionRead(current, chatID));
         selectedChatIDRef.current = null;
         setSelectedChatID(null);
       }
@@ -398,6 +424,7 @@ export function useChatRuntime(): ChatRuntime {
     isLoading,
     error,
     streamingChatIDs,
+    unreadCompletedChatIDs,
     pendingMessageIDs,
     clearSelection,
     openProjectChat,
