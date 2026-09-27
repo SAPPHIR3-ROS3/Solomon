@@ -409,6 +409,7 @@ export function App() {
           onWidthChange={resizeLeftPanel}
           runningTerminalProjectIds={runningTerminalProjectIds}
           streamingChatIDs={streamingChatIDs}
+          unreadCompletedChatIDs={chatRuntime.unreadCompletedChatIDs}
           temporaryWorkspace={temporaryWorkspace}
           width={renderedLeftPanelWidth}
         />

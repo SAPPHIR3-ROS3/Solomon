@@ -3972,7 +3972,8 @@ button.right-side-panel-history-ref:hover {
   padding: 7px 9px 7px 9px;
 }
 
-.side-panel-chat.is-working {
+.side-panel-chat.is-working,
+.side-panel-chat.is-unread-completed {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 8px 10px;
 }
@@ -3986,6 +3987,13 @@ button.right-side-panel-history-ref:hover {
   flex: 0 0 auto;
   height: 7px;
   width: 7px;
+}
+
+.side-panel-chat-working-dot.is-completed {
+  animation: none;
+  background: #5bd39a;
+  box-shadow: none;
+  opacity: 1;
 }
 
 .side-panel-chat span {

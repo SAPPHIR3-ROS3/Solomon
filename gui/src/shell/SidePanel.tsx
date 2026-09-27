@@ -56,6 +56,7 @@ type SidePanelProps = {
   onWidthChange: (width: number) => void;
   runningTerminalProjectIds: string[];
   streamingChatIDs?: ReadonlySet<string>;
+  unreadCompletedChatIDs?: ReadonlySet<string>;
   temporaryWorkspace: TemporaryWorkspace | null;
   width: number;
 };
@@ -78,6 +79,7 @@ export function SidePanel({
   onWidthChange,
   runningTerminalProjectIds,
   streamingChatIDs,
+  unreadCompletedChatIDs,
   temporaryWorkspace,
   width,
 }: SidePanelProps) {
@@ -568,6 +570,7 @@ export function SidePanel({
                       chatID={chat.id}
                       dateTime={chat.lastMessageAt}
                       isWorking={streamingChatIDs?.has(chat.id) || activeAgentChatIDs.has(chat.id)}
+                      isUnreadCompleted={unreadCompletedChatIDs?.has(chat.id)}
                       key={chat.id}
                       onClick={() => onOpenProjectChat(project, chat.id)}
                       onContextMenu={(event) => handleChatContextMenu(event, project.id, chat.id, chat.title)}
@@ -782,6 +785,7 @@ type ChatListButtonProps = {
   chatID: string;
   dateTime?: string;
   isWorking?: boolean;
+  isUnreadCompleted?: boolean;
   onClick: () => void;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
   onContextMenuKey: (event: KeyboardEvent<HTMLButtonElement>) => void;
@@ -790,10 +794,11 @@ type ChatListButtonProps = {
   title: string;
 };
 
-function ChatListButton({ chatID, dateTime, isWorking = false, onClick, onContextMenu, onContextMenuKey, timeLabel, timeTitle, title }: ChatListButtonProps) {
+export function ChatListButton({ chatID, dateTime, isWorking = false, isUnreadCompleted = false, onClick, onContextMenu, onContextMenuKey, timeLabel, timeTitle, title }: ChatListButtonProps) {
+  const showUnreadCompleted = isUnreadCompleted && !isWorking;
   return (
-    <button aria-busy={isWorking || undefined} className={`side-panel-chat${isWorking ? " is-working" : ""}`} key={chatID} onClick={onClick} onContextMenu={onContextMenu} onKeyDown={onContextMenuKey} title={title} type="button">
-      {isWorking ? <span aria-hidden="true" className="side-panel-chat-working-dot" /> : null}
+    <button aria-busy={isWorking || undefined} aria-label={showUnreadCompleted ? `${title}, completed, unread` : undefined} className={`side-panel-chat${isWorking ? " is-working" : showUnreadCompleted ? " is-unread-completed" : ""}`} key={chatID} onClick={onClick} onContextMenu={onContextMenu} onKeyDown={onContextMenuKey} title={title} type="button">
+      {isWorking || showUnreadCompleted ? <span aria-hidden="true" className={`side-panel-chat-working-dot${showUnreadCompleted ? " is-completed" : ""}`} /> : null}
       <span>{title}</span>
       <time dateTime={dateTime} title={timeTitle}>{timeLabel}</time>
     </button>
