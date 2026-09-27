@@ -18,7 +18,7 @@
   font-weight: 500;
   gap: 6px;
   height: var(--welcome-control-height, 32px);
-  line-height: 1;
+  line-height: 1.2;
   max-width: 230px;
   padding: 0 8px;
 }
