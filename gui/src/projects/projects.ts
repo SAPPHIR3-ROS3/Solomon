@@ -96,6 +96,12 @@ export type ProjectDirectoryEntry = {
   path: string;
 };
 
+export type FilesystemDirectoryListing = {
+  entries: ProjectDirectoryEntry[];
+  homePath: string;
+  path: string;
+};
+
 export type ProjectAtMentionSuggestion = {
   isDirectory: boolean;
   path: string;
@@ -188,6 +194,22 @@ export async function fetchHomeDirectoryEntries(directoryPath = "", signal?: Abo
   ), { signal });
   if (!response.ok) throw new Error(`Unable to read home directories: ${response.status}`);
   return projectDirectoryEntriesFromPayload(await response.json());
+}
+
+export async function fetchFilesystemDirectoryListing(directoryPath = "", signal?: AbortSignal): Promise<FilesystemDirectoryListing> {
+  const response = await fetch(await serverEndpoint(
+    `/__solomon/filesystem-directories?path=${encodeURIComponent(directoryPath)}`,
+  ), { signal });
+  if (!response.ok) throw new Error(`Unable to read directory: ${response.status}`);
+
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object") throw new Error("Unable to read directory");
+  const record = payload as Record<string, unknown>;
+  return {
+    entries: projectDirectoryEntriesFromPayload(record.entries),
+    homePath: typeof record.homePath === "string" ? record.homePath : "",
+    path: typeof record.path === "string" ? record.path : "",
+  };
 }
 
 export async function fetchProjectAtMentionSuggestions(projectID: string, query: string): Promise<ProjectAtMentionSuggestion[]> {

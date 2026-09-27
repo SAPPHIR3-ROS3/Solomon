@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -31,6 +32,12 @@ type apiProjectDirectoryEntry struct {
 	IsDirectory bool   `json:"isDirectory"`
 	Name        string `json:"name"`
 	Path        string `json:"path"`
+}
+
+type apiFilesystemDirectoryListing struct {
+	HomePath string                     `json:"homePath"`
+	Path     string                     `json:"path"`
+	Entries  []apiProjectDirectoryEntry `json:"entries"`
 }
 
 type apiProjectBranches struct {
@@ -376,6 +383,87 @@ func (a *projectAPI) handleHomeDirectoryEntries(w http.ResponseWriter, r *http.R
 		return
 	}
 	writeJSON(w, http.StatusOK, entries)
+}
+
+func (a *projectAPI) handleFilesystemDirectoryEntries(w http.ResponseWriter, r *http.Request) {
+	listing, err := filesystemDirectoryListing(r.URL.Query().Get("path"))
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, listing)
+}
+
+func filesystemDirectoryListing(requestPath string) (apiFilesystemDirectoryListing, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return apiFilesystemDirectoryListing{}, err
+	}
+	home, err = filepath.Abs(filepath.Clean(home))
+	if err != nil {
+		return apiFilesystemDirectoryListing{}, err
+	}
+	home = filepath.ToSlash(home)
+
+	if requestPath == "" {
+		if runtime.GOOS == "windows" {
+			entries := make([]apiProjectDirectoryEntry, 0, 4)
+			for drive := 'A'; drive <= 'Z'; drive++ {
+				target := string(drive) + `:\`
+				info, err := os.Stat(target)
+				if err != nil || !info.IsDir() {
+					continue
+				}
+				entries = append(entries, apiProjectDirectoryEntry{
+					IsDirectory: true,
+					Name:        string(drive) + ":",
+					Path:        filepath.ToSlash(target),
+				})
+			}
+			return apiFilesystemDirectoryListing{HomePath: home, Entries: entries}, nil
+		}
+		requestPath = string(filepath.Separator)
+	}
+
+	filesystemHome := filepath.FromSlash(home)
+	if requestPath == "~" {
+		requestPath = filesystemHome
+	} else if strings.HasPrefix(requestPath, "~/") || strings.HasPrefix(requestPath, "~\\") {
+		requestPath = filepath.Join(filesystemHome, requestPath[2:])
+	}
+	if !filepath.IsAbs(requestPath) {
+		return apiFilesystemDirectoryListing{}, fmt.Errorf("directory path must be absolute")
+	}
+	target, err := filepath.Abs(filepath.Clean(requestPath))
+	if err != nil {
+		return apiFilesystemDirectoryListing{}, err
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		return apiFilesystemDirectoryListing{}, err
+	}
+	if !info.IsDir() {
+		return apiFilesystemDirectoryListing{}, fmt.Errorf("path is not a directory")
+	}
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		return apiFilesystemDirectoryListing{}, err
+	}
+	result := make([]apiProjectDirectoryEntry, 0, len(entries))
+	for _, entry := range entries {
+		result = append(result, apiProjectDirectoryEntry{
+			IsDirectory: entry.IsDir(),
+			Name:        entry.Name(),
+			Path:        filepath.ToSlash(filepath.Join(target, entry.Name())),
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].IsDirectory != result[j].IsDirectory {
+			return result[i].IsDirectory
+		}
+		return result[i].Name < result[j].Name
+	})
+	return apiFilesystemDirectoryListing{HomePath: home, Path: filepath.ToSlash(target), Entries: result}, nil
 }
 
 func (a *projectAPI) handleHomeBranches(w http.ResponseWriter, r *http.Request) {

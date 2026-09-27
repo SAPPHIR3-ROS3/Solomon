@@ -40,6 +40,7 @@ across projects.
 | `GET /__solomon/projects/<project>/research` | List persisted research jobs. |
 | `GET /__solomon/projects/<project>/research/<id>/report` | Return the persisted HTML report for a research job. |
 | `GET /__solomon/home-directories?path=...` | List one directory level under the user home. |
+| `GET /__solomon/filesystem-directories?path=...` | Browse the local filesystem for the new-project folder picker. |
 
 Customization, model and terminal routes are also daemon-owned:
 

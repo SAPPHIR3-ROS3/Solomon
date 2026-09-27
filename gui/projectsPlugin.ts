@@ -19,6 +19,7 @@ const projectsEndpoint = "/__solomon/projects";
 const chatAPIPath = projectsEndpoint;
 const chatProxyHeader = "x-solomon-chat-proxy";
 const homeDirectoryEntriesEndpoint = "/__solomon/home-directories";
+const filesystemDirectoryEntriesEndpoint = "/__solomon/filesystem-directories";
 const homeDirectoryBranchesEndpoint = "/__solomon/home-git-branches";
 const homeDirectoryWorktreesEndpoint = "/__solomon/home-git-worktrees";
 const homeDirectoryCheckoutEndpoint = "/__solomon/home-git-checkout";
@@ -512,6 +513,19 @@ function attachHomeDirectoryEntriesEndpoint(server: { middlewares: { use: (route
   });
 }
 
+function attachFilesystemDirectoryEntriesEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(filesystemDirectoryEntriesEndpoint, (request, response, next) => {
+    if (request.method !== "GET") {
+      next();
+      return;
+    }
+    const directoryPath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
+    void filesystemDirectoryListing(directoryPath)
+      .then((listing) => respondWithJson(response, 200, listing))
+      .catch((error: unknown) => respondWithJson(response, 400, { error: error instanceof Error ? error.message : "Unable to read directory" }));
+  });
+}
+
 function attachHomeGitEndpoints(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
   server.middlewares.use(homeDirectoryBranchesEndpoint, (request, response, next) => {
     if (request.method !== "GET") {
@@ -672,6 +686,41 @@ async function homeDirectoryEntries(directoryPath: string) {
       path: relativeTarget ? path.join(relativeTarget, entry.name) : entry.name,
     }))
     .sort((left, right) => Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name));
+}
+
+async function filesystemDirectoryListing(directoryPath: string) {
+  const home = path.resolve(homedir());
+  if (!directoryPath && process.platform === "win32") {
+    const entries = await Promise.all(Array.from({ length: 26 }, async (_, index) => {
+      const drive = String.fromCharCode(65 + index);
+      const drivePath = `${drive}:\\`;
+      try {
+        if (!(await stat(drivePath)).isDirectory()) return null;
+        return { isDirectory: true, name: `${drive}:`, path: drivePath };
+      } catch {
+        return null;
+      }
+    }));
+    return { homePath: home, path: "", entries: entries.filter((entry) => entry !== null) };
+  }
+
+  const requestedPath = directoryPath === "~"
+    ? home
+    : directoryPath.startsWith("~/") || directoryPath.startsWith("~\\")
+      ? path.resolve(home, directoryPath.slice(2))
+      : directoryPath || path.parse(path.resolve(path.sep)).root;
+  if (!path.isAbsolute(requestedPath)) throw new Error("Directory path must be absolute");
+  const target = path.resolve(requestedPath);
+  if (!(await stat(target)).isDirectory()) throw new Error("Path is not a directory");
+
+  const entries = await readdir(target, { withFileTypes: true });
+  return {
+    homePath: home,
+    path: target,
+    entries: entries
+      .map((entry) => ({ isDirectory: entry.isDirectory(), name: entry.name, path: path.join(target, entry.name) }))
+      .sort((left, right) => Number(right.isDirectory) - Number(left.isDirectory) || left.name.localeCompare(right.name)),
+  };
 }
 
 async function projectResearch(projectID: string) {
@@ -962,6 +1011,7 @@ export function projectsPlugin(): Plugin {
       attachChatAPIProxy(server);
       attachProjectsEndpoint(server);
       attachHomeDirectoryEntriesEndpoint(server);
+      attachFilesystemDirectoryEntriesEndpoint(server);
       attachHomeGitEndpoints(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
@@ -972,6 +1022,7 @@ export function projectsPlugin(): Plugin {
       attachChatAPIProxy(server);
       attachProjectsEndpoint(server);
       attachHomeDirectoryEntriesEndpoint(server);
+      attachFilesystemDirectoryEntriesEndpoint(server);
       attachHomeGitEndpoints(server);
       attachUserNameEndpoint(server);
       attachReasoningEffortEndpoint(server);
