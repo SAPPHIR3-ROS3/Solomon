@@ -19,10 +19,12 @@ import (
 )
 
 var errDaemonTerminalExited = errors.New("daemon terminal exited")
+var errDaemonTerminalStartFailed = errors.New("daemon terminal failed to start")
 
 type daemonTerminalMessage struct {
 	Data    string `json:"data"`
 	ID      string `json:"id"`
+	Message string `json:"message"`
 	Running bool   `json:"running"`
 	Seq     uint64 `json:"seq"`
 	Type    string `json:"type"`
@@ -137,6 +139,9 @@ func runDaemonTUI(args []string) error {
 				if errors.Is(err, errDaemonTerminalExited) {
 					return nil
 				}
+				if errors.Is(err, errDaemonTerminalStartFailed) {
+					return err
+				}
 				reconnect = true
 			case <-resizeTicker.C:
 				sendTerminalResize(connection)
@@ -228,6 +233,11 @@ func readDaemonTerminal(connection *websocket.Conn, output io.Writer, sessionID 
 			_, _ = output.Write(decoded)
 		case "solomon-exit":
 			return errDaemonTerminalExited
+		case "solomon-error":
+			if message.Message == "" {
+				message.Message = "unknown server error"
+			}
+			return fmt.Errorf("%w: %s", errDaemonTerminalStartFailed, message.Message)
 		}
 	}
 }

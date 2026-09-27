@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -25,7 +26,6 @@ const (
 
 var (
 	errTerminalSessionNotFound = errors.New("terminal session not found")
-	errTerminalUnsupported     = errors.New("daemon PTY is not supported on this platform yet")
 )
 
 type terminalOutput struct {
@@ -318,7 +318,11 @@ func terminalWorkingDirectory(requested string) (string, error) {
 
 func terminalShell() (string, []string, error) {
 	if runtime.GOOS == "windows" {
-		return "", nil, errTerminalUnsupported
+		shell, err := exec.LookPath("powershell.exe")
+		if err != nil {
+			return "", nil, fmt.Errorf("find Windows PowerShell: %w", err)
+		}
+		return shell, []string{"-NoLogo"}, nil
 	}
 	shell := strings.TrimSpace(os.Getenv("SHELL"))
 	if shell == "" {

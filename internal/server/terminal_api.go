@@ -53,6 +53,18 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	upgrader := websocket.Upgrader{
+		CheckOrigin:     terminalOriginAllowed,
+		ReadBufferSize:  32 << 10,
+		WriteBufferSize: 32 << 10,
+	}
+	connection, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer connection.Close()
+	connection.SetReadLimit(1 << 20)
+
 	sessionID := strings.TrimSpace(query.Get("session_id"))
 	mode := strings.TrimSpace(query.Get("mode"))
 	var session *terminalSession
@@ -80,22 +92,12 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		status := http.StatusInternalServerError
-		writeAPIError(w, status, err)
+		_ = writeTerminalJSON(connection, map[string]any{
+			"message": err.Error(),
+			"type":    "solomon-error",
+		})
 		return
 	}
-
-	upgrader := websocket.Upgrader{
-		CheckOrigin:     terminalOriginAllowed,
-		ReadBufferSize:  32 << 10,
-		WriteBufferSize: 32 << 10,
-	}
-	connection, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	defer connection.Close()
-	connection.SetReadLimit(1 << 20)
 
 	replay, events, done, unsubscribe := session.Subscribe(r.Context(), after)
 	defer unsubscribe()
