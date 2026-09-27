@@ -69,6 +69,7 @@ export function IntegratedShell({
     let socket: WebSocket | undefined;
     let retryTimer: number | undefined;
     let attempts = 0;
+    let serverRejected = false;
     let disposed = false;
     const storedSession = loadStoredTerminalSession(tabId);
     const sessionIDRef = { current: storedSession.id };
@@ -109,8 +110,15 @@ export function IntegratedShell({
         if (typeof event.data === "string") {
           if (event.data.startsWith("{")) {
             try {
-              const message = JSON.parse(event.data) as { data?: string; id?: string; running?: boolean; seq?: number; type?: string };
+              const message = JSON.parse(event.data) as { data?: string; id?: string; message?: string; running?: boolean; seq?: number; type?: string };
+              if (message.type === "solomon-error") {
+                serverRejected = true;
+                runningChangeRef.current(false);
+                term.write(`\r\n[terminal failed to start: ${message.message || "unknown server error"}]\r\n`);
+                return;
+              }
               if (message.type === "solomon-terminal" && typeof message.id === "string") {
+                if (sessionIDRef.current !== message.id) outputSeqRef.current = 0;
                 sessionIDRef.current = message.id;
                 saveStoredTerminalSession(tabId, { id: message.id, seq: outputSeqRef.current });
                 return;
@@ -141,6 +149,7 @@ export function IntegratedShell({
       };
       nextSocket.onopen = () => {
         attempts = 0;
+        serverRejected = false;
         requestAnimationFrame(() => {
           if (!visibleRef.current) return;
           sendResize();
@@ -150,7 +159,7 @@ export function IntegratedShell({
       nextSocket.onerror = () => nextSocket.close();
       nextSocket.onclose = () => {
         runningChangeRef.current(false);
-        if (!disposed && socket === nextSocket) scheduleRetry();
+        if (!disposed && !serverRejected && socket === nextSocket) scheduleRetry();
       };
     };
     void connect();
