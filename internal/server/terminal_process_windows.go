@@ -65,12 +65,21 @@ func startTerminalProcess(options terminalProcessOptions) (_ terminalProcess, er
 		return nil, fmt.Errorf("create terminal process attributes: %w", err)
 	}
 	defer attributes.Delete()
-	if err := attributes.Update(
+	updateAttribute := windows.NewLazySystemDLL("kernel32.dll").NewProc("UpdateProcThreadAttribute")
+	updated, _, updateErr := updateAttribute.Call(
+		uintptr(unsafe.Pointer(attributes.List())),
+		0,
 		windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-		unsafe.Pointer(console),
+		uintptr(console),
 		unsafe.Sizeof(console),
-	); err != nil {
-		return nil, fmt.Errorf("set terminal pseudoconsole attribute: %w", err)
+		0,
+		0,
+	)
+	if updated == 0 {
+		if updateErr == nil {
+			updateErr = windows.GetLastError()
+		}
+		return nil, fmt.Errorf("set terminal pseudoconsole attribute: %w", updateErr)
 	}
 
 	arguments := append([]string{options.Shell}, options.Args...)
