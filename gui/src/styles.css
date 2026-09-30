@@ -4358,7 +4358,7 @@ button.right-side-panel-history-ref:hover {
   min-width: 0;
 }
 
-.terminal-panel-group:not(:last-child) {
+.terminal-panel-group:not(.is-last-pane) {
   border-right: 1px solid var(--color-border);
 }
 
@@ -4596,3 +4596,9 @@ button.right-side-panel-history-ref:hover {
   transform: translate(0, var(--top-bar-wordmark-translate-y));
   width: calc(var(--settings-panel-width) - var(--side-panel-toggle-left) - var(--side-panel-wordmark-right-inset));
 }
+
+.terminal-panel-group { position:relative; overflow:visible; }
+.terminal-pane-resize { position:absolute; top:0; bottom:0; right:-4px; width:8px; padding:0; border:0; background:transparent; cursor:col-resize; touch-action:none; z-index:5; }
+.terminal-pane-resize:hover,.terminal-pane-resize:focus-visible { background:color-mix(in srgb,var(--color-accent) 35%,transparent); }
+.terminal-session-host { min-width:0; min-height:0; }
+.terminal-panel.is-resizing { user-select:none; }
