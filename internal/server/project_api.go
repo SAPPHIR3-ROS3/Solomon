@@ -218,6 +218,13 @@ func safeWorkspacePath(root, relativePath string) (string, error) {
 	if strings.TrimSpace(relativePath) == "" {
 		return "", errors.New("file path is required")
 	}
+	// Resolve the workspace itself before comparing it with resolved entries.
+	// Temporary directories can use aliases such as /var on macOS or short
+	// directory names on Windows.
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
 	target := filepath.Clean(filepath.Join(root, relativePath))
 	relative, err := filepath.Rel(root, target)
 	if err != nil || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {

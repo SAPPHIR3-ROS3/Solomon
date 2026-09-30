@@ -36,6 +36,10 @@ func performProjectFileOperation(root string, request projectFileOperation) erro
 	if request.Action != "rename" && request.Action != "delete" && request.Action != "copy" && request.Action != "move" {
 		return errors.New("invalid file action")
 	}
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return err
+	}
 	source, err := safeWorkspacePath(root, request.Path)
 	if err != nil {
 		return err
