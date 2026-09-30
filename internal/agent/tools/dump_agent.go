@@ -2,6 +2,7 @@ package tools
 
 func BuildAgentToolDump() (string, error) {
 	b := &dumpBuilder{}
+	b.addBlock("settings", "Read supported Solomon settings before updating one key with its expected previous value. Only user-requested changes; never edit config via shell/editFile. Changes are persisted and reloaded in the active session before the next model request.", `settings(action string, key string, value any, expected any, intent string)`)
 	if err := appendDocsRetrievalDump(b); err != nil {
 		return "", err
 	}
@@ -31,6 +32,7 @@ func BuildAgentToolDump() (string, error) {
 
 func BuildChatToolDump() (string, error) {
 	b := &dumpBuilder{}
+	b.addBlock("settings", "Read supported Solomon settings before updating one key with its expected previous value. Only user-requested changes; never edit config via shell/editFile. Changes are persisted and reloaded in the active session before the next model request.", `settings(action string, key string, value any, expected any, intent string)`)
 	if err := appendDocsRetrievalDump(b); err != nil {
 		return "", err
 	}

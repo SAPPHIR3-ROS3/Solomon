@@ -372,3 +372,33 @@ Full schema, JSON example, and runtime behavior: [MCP integration](../architectu
 - [Usage and commands](usage-and-commands.md)
 - [Data layout](data-layout.md)
 - [Startup and CLI](../architecture/startup-and-cli.md) — first-run wizard
+
+### Settings tool
+
+The native `settings` tool is available in agent and chat modes. Ask Solomon to
+read settings or change a supported preference without editing `config.toml`.
+`action: "read"` returns persisted values and an explicit catalog of supported
+keys, types, ranges and enum values. A null value means the default is in use.
+
+To change one setting, use `action: "update"`, `key`, `value`, and `expected`
+(the value returned by the last read), together with the required `intent`.
+The tool rejects unknown arguments, unsupported keys, incorrect types, invalid
+ranges and stale expected values before writing. It reloads under the config
+lock and saves atomically, preserving unrelated settings. Successful updates
+record the setting name, before/after values and tool correlation in the
+application log; the normal tool log also records calls and failures.
+
+Supported preferences include response language, user name, reasoning effort,
+fast mode, thinking/usage display, anonymization, automatic updates, subagent
+timeout, response/compaction token limits and research limits. Providers,
+credentials and advanced configuration are deliberately excluded.
+
+Successful changes automatically reload the supported preferences in the active
+session, including the compaction threshold and the Cursor backend configuration.
+The next model request uses the new values; requests and background jobs already
+in progress retain their previous configuration. No restart is required.
+Provider, model and service configuration remain unchanged by this reload.
+If live reload fails after persistence, the tool explicitly reports
+`persisted: true`, `applied: false` and an error instead of claiming success.
+The tool validates changes but cannot guarantee that a model chooses the right
+preference; it should be used only for changes requested by the user.

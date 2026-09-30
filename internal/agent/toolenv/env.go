@@ -34,6 +34,7 @@ type Env struct {
 	ProjHex                              string
 	ProjRoot                             string
 	Cfg                                  *config.Root
+	ReloadSettings                       func(context.Context, *config.Root) error
 	MCP                                  *solomonmcp.Manager
 	WebSearch                            search.Engine
 	WebFetch                             webfetch.Fetcher

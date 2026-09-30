@@ -17,6 +17,7 @@ func (r *Runtime) toolEnv(inv tooling.Invocation) *agenttools.Env {
 		ProjHex:                 r.ProjHex,
 		ProjRoot:                r.ProjRoot,
 		Cfg:                     r.Cfg,
+		ReloadSettings:          r.reloadSettings,
 		MCP:                     r.MCP,
 		WebSearch:               r.WebSearch,
 		WebFetch:                r.WebFetch,
