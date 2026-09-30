@@ -9,7 +9,7 @@ import { tags } from "@lezer/highlight";
 import { AsciiBanner } from "../home/Welcome";
 import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon, SearchIcon } from "../shell/RightSidePanel";
 import { SidePanelToggle } from "../shell/SidePanelToggle";
-import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, saveProjectFile, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus } from "../projects/projects";
+import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, saveProjectFile, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 
 type OpenFile = { id: string; path: string; content: string; saved: string };
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
@@ -97,13 +97,15 @@ function buildGoMethodCallDecorations(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
-export function EditorPage({ bottomInset, onHome, project }: { bottomInset: number; onHome: () => void; project: Project | null }) {
+export function EditorPage({ bottomInset, onHome, project, initialFile, onInitialFileOpened }: { onInitialFileOpened?: () => void; initialFile?: ProjectDirectoryEntry | null; bottomInset: number; onHome: () => void; project: Project | null }) {
   const [sideView, setSideView] = useState<"files" | "git">("files");
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const [sideWidth, setSideWidth] = useState(248);
   const [sideResizing, setSideResizing] = useState(false);
   const [entries, setEntries] = useState<ProjectDirectoryEntry[]>([]);
   const [children, setChildren] = useState<Record<string, ProjectDirectoryEntry[]>>({});
+  const childrenRef = useRef(children);
+  childrenRef.current = children;
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [rootCollapsed, setRootCollapsed] = useState(false);
   const [query, setQuery] = useState("");
@@ -111,6 +113,7 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
   const [activeTabId, setActiveTabId] = useState("");
   const activePath = files.find((file) => file.id === activeTabId)?.path ?? "";
   const nextTabId = useRef(0);
+  const pendingFileReads = useRef(new Map<string, Promise<string>>());
   const draggedTab = useRef<string | null>(null);
   const [git, setGit] = useState<ProjectGitStatus>(EMPTY_GIT);
   const [history, setHistory] = useState<ProjectGitHistory>(EMPTY_HISTORY);
@@ -148,6 +151,36 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
     return () => window.removeEventListener(PROJECT_GIT_BRANCH_CHANGED_EVENT, refreshBranchState);
   }, [project?.id]);
 
+  useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    const refresh = (event: Event) => {
+      const change = (event as CustomEvent<ProjectFilesChanged>).detail;
+      if (change.projectID !== project.id) return;
+      const affected = (path: string) => path === change.path || path.startsWith(`${change.path}/`);
+      if (change.action === "delete") {
+        setFiles((current) => current.filter((file) => !affected(file.path)));
+      } else if ((change.action === "rename" || change.action === "move") && change.destination) {
+        setFiles((current) => current.map((file) => affected(file.path) ? { ...file, path: change.destination + file.path.slice(change.path.length) } : file));
+      }
+      void Promise.all([fetchProjectDirectoryEntries(project.id), fetchProjectGitStatus(project.id)]).then(([nextEntries, status]) => {
+        if (!cancelled) { setEntries(nextEntries); setGit(status); }
+      }).catch(() => { if (!cancelled) setMessage("Unable to refresh files."); });
+      void Promise.all(Object.keys(childrenRef.current).map(async (path) => {
+        const nextPath = affected(path) && change.destination && change.action !== "copy" ? change.destination + path.slice(change.path.length) : path;
+        try { return [nextPath, await fetchProjectDirectoryEntries(project.id, nextPath)] as const; }
+        catch { return [nextPath, []] as const; }
+      })).then((loaded) => { if (!cancelled) setChildren(Object.fromEntries(loaded)); });
+      setExpanded((current) => new Set([...current].filter((path) => !(change.action === "delete" && affected(path))).map((path) => affected(path) && change.destination && change.action !== "copy" ? change.destination + path.slice(change.path.length) : path)));
+    };
+    window.addEventListener(PROJECT_FILES_CHANGED_EVENT, refresh);
+    return () => { cancelled = true; window.removeEventListener(PROJECT_FILES_CHANGED_EVENT, refresh); };
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (activeTabId && !files.some((file) => file.id === activeTabId)) setActiveTabId(files[0]?.id ?? "");
+  }, [files, activeTabId]);
+
   async function toggleFolder(entry: ProjectDirectoryEntry) {
     if (expanded.has(entry.path)) { setExpanded((current) => without(current, entry.path)); return; }
     if (!children[entry.path] && project) {
@@ -157,7 +190,7 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
     setExpanded((current) => new Set(current).add(entry.path));
   }
 
-  async function openFile(entry: ProjectDirectoryEntry, mode: "replace" | "new" = "replace") {
+  async function openFile(entry: ProjectDirectoryEntry, mode: "replace" | "new" = "replace", isCurrent: () => boolean = () => true) {
     if (!project) return;
     const existing = files.find((file) => file.path === entry.path);
     if (existing) {
@@ -167,7 +200,14 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
     }
     setMessage("Opening file…");
     try {
-      const content = await fetchProjectFile(project.id, entry.path);
+      const requestKey = `${project.id}:${entry.path}`;
+      let request = pendingFileReads.current.get(requestKey);
+      if (!request) {
+        request = fetchProjectFile(project.id, entry.path).finally(() => pendingFileReads.current.delete(requestKey));
+        pendingFileReads.current.set(requestKey, request);
+      }
+      const content = await request;
+      if (!isCurrent()) return;
       const nextFile = { id: `editor-tab-${nextTabId.current++}`, path: entry.path, content, saved: content };
       setFiles((current) => {
         if (mode === "new" || !activePath) return [...current, nextFile];
@@ -178,8 +218,14 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
       setActiveTabId(nextFile.id);
       setMessage("");
     }
-    catch { setMessage(`Unable to open ${entry.path}.`); }
+    catch { if (isCurrent()) setMessage(`Unable to open ${entry.path}.`); }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    if (initialFile && project) void openFile(initialFile, "new", () => !cancelled).then(() => { if (!cancelled) onInitialFileOpened?.(); });
+    return () => { cancelled = true; };
+  }, [project?.id, initialFile]);
 
   function scheduleOpenFile(entry: ProjectDirectoryEntry) {
     window.clearTimeout(openFileTimer.current);
@@ -314,7 +360,7 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
         </header>
         <div className="right-side-panel-files-shell editor-side-panel-files-shell">
           <nav aria-label={`${workspaceName} files`} className="right-side-panel-files editor-file-list" id="editor-files" role="tabpanel">
-            {!rootCollapsed ? <FileEntries depth={0} entries={entryMap} expandedDirectories={expanded} fileStatus={fileStatus} nameFilter={query.trim().toLowerCase()} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} onToggleDirectory={toggleFolder} parentPath="" selectedPath={activePath} /> : null}
+            {!rootCollapsed ? <FileEntries projectID={project.id} rootPath={project.path} depth={0} entries={entryMap} expandedDirectories={expanded} fileStatus={fileStatus} nameFilter={query.trim().toLowerCase()} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} onToggleDirectory={toggleFolder} parentPath="" selectedPath={activePath} /> : null}
           </nav>
         </div>
       </> : <div className="editor-git-host"><GitHistoryView error="" gitStatus={git} gitStatusError="" gitStatusLoading={false} history={history} loading={false} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} project={project} /></div>}

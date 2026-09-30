@@ -3,6 +3,7 @@ import { fetchProjectSidebarData, normalizeReasoningEffort, saveFastMode, saveRe
 import { AtMentionInput } from "../home/AtMentionInput";
 import { onTerminalClip } from "../terminal-panel/clips";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
+import { ADD_FILE_TO_CHAT_EVENT, type FileChatReference } from "./fileReferences";
 import { ModelControl } from "../home/ModelControl";
 
 const reasoningOptions = [
@@ -59,6 +60,7 @@ export function ChatComposer({
   projectID,
   resetKey,
 }: ChatComposerProps) {
+  const composerRef = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [clips, setClips] = useState<ComposerTerminalClip[]>([]);
@@ -123,6 +125,17 @@ export function ChatComposer({
     });
   }, []);
 
+  useEffect(() => {
+    const addReference = (event: Event) => {
+      const reference = (event as CustomEvent<FileChatReference>).detail;
+      if (reference.projectID !== projectID) return;
+      setDraft((current) => `${current}${current && !/\s$/.test(current) ? " " : ""}${reference.tag} `);
+      requestAnimationFrame(() => composerRef.current?.querySelector("textarea")?.focus());
+    };
+    window.addEventListener(ADD_FILE_TO_CHAT_EVENT, addReference);
+    return () => window.removeEventListener(ADD_FILE_TO_CHAT_EVENT, addReference);
+  }, [projectID]);
+
   function setMode(nextMode: "agent" | "chat") {
     setInternalMode(nextMode);
     onModeChange?.(nextMode);
@@ -179,7 +192,11 @@ export function ChatComposer({
         event.preventDefault();
         void submit();
       }}
-      ref={formRef}
+      ref={(node) => {
+        composerRef.current = node;
+        if (typeof formRef === "function") return formRef(node);
+        if (formRef) formRef.current = node;
+      }}
     >
       <AtMentionInput
         aria-label={ariaLabel}

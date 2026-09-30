@@ -1,5 +1,6 @@
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch } from "../projects/projects";
+import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
+import { useFileContextMenu } from "./FileContextMenu";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 
@@ -43,15 +44,18 @@ function saveExplorerState(projectID: string, expandedDirectories: Set<string>, 
 type RightSidePanelProps = {
   bottomInset: number;
   onWidthChange: (width: number) => void;
+  onOpenFile?: (entry: ProjectDirectoryEntry) => void;
   onOpenResearch: (research: ProjectResearch) => void;
   project: Project | null;
   temporaryWorkspace: TemporaryWorkspace | null;
   width: number;
 };
 
-export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, project, temporaryWorkspace, width }: RightSidePanelProps) {
+export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidthChange, project, temporaryWorkspace, width }: RightSidePanelProps) {
   const [activeView, setActiveView] = useState<"files" | "history" | "research">("files");
   const [entries, setEntries] = useState<Record<string, ProjectDirectoryEntry[]>>({});
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -211,6 +215,30 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
     };
   }, [bottomInset, entries, expandedDirectories, nameFilter, project, temporaryWorkspace]);
 
+  useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    const refresh = (event: Event) => {
+      const change = (event as CustomEvent<ProjectFilesChanged>).detail;
+      if (change.projectID !== project.id) return;
+      const affected = (path: string) => path === change.path || path.startsWith(`${change.path}/`);
+      const updatedPath = (path: string) => affected(path) && change.destination && change.action !== "copy" ? change.destination + path.slice(change.path.length) : path;
+      setExpandedDirectories((current) => {
+        const next = new Set([...current].filter((path) => !(change.action === "delete" && affected(path))).map(updatedPath));
+        saveExplorerState(project.id, next, filesRef.current?.scrollTop ?? 0);
+        return next;
+      });
+      void Promise.all(Object.keys(entriesRef.current).map(async (path) => {
+        const nextPath = updatedPath(path);
+        try { return [nextPath, await fetchProjectDirectoryEntries(project.id, nextPath)] as const; }
+        catch { return [nextPath, []] as const; }
+      })).then((loaded) => { if (!cancelled) { setEntries(Object.fromEntries(loaded)); setError(""); } });
+      void fetchProjectGitStatus(project.id).then((status) => { if (!cancelled) setGitStatus(status); }).catch(() => undefined);
+    };
+    window.addEventListener(PROJECT_FILES_CHANGED_EVENT, refresh);
+    return () => { cancelled = true; window.removeEventListener(PROJECT_FILES_CHANGED_EVENT, refresh); };
+  }, [project?.id]);
+
   function toggleDirectory(entry: ProjectDirectoryEntry) {
     const isExpanded = expandedDirectories.has(entry.path);
     const explorerID = project?.id ?? temporaryWorkspace?.id;
@@ -280,10 +308,10 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
             {!error && !project && !temporaryWorkspace ? <p className="right-side-panel-message">No project open.</p> : null}
             {entries[""]?.length === 0 ? <p className="right-side-panel-message">This folder is empty.</p> : null}
             {nameFilter && entries[""] && !entries[""].some((entry) => entryMatchesFilter(entry, nameFilter, entries)) ? <p className="right-side-panel-message">No files match this search.</p> : null}
-            <FileEntries depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
+            <FileEntries projectID={project?.id} allowAddToChat rootPath={project?.path ?? temporaryWorkspace?.path} onOpenFile={project ? onOpenFile : undefined} depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
           </nav>
         </div>
-      </> : visibleView === "history" ? <GitHistoryView error={gitHistoryError} gitStatus={gitStatus} gitStatusError={gitStatusError} gitStatusLoading={gitStatusLoading} history={gitHistory} loading={gitHistoryLoading} project={project} /> : <section aria-label="Deep research" className="right-side-panel-research" id="right-side-panel-research" role="tabpanel">
+      </> : visibleView === "history" ? <GitHistoryView allowAddToChat onOpenFile={onOpenFile} error={gitHistoryError} gitStatus={gitStatus} gitStatusError={gitStatusError} gitStatusLoading={gitStatusLoading} history={gitHistory} loading={gitHistoryLoading} project={project} /> : <section aria-label="Deep research" className="right-side-panel-research" id="right-side-panel-research" role="tabpanel">
         {!project ? <p className="right-side-panel-message">Open a project to view its deep research.</p> : null}
         {researchLoading ? <p className="right-side-panel-message">Loading deep research…</p> : null}
         {researchError ? <p className="right-side-panel-message" role="status">{researchError}</p> : null}
@@ -302,6 +330,9 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onWidthChange, pro
 }
 
 type FileEntriesProps = {
+  projectID?: string;
+  allowAddToChat?: boolean;
+  rootPath?: string;
   depth: number;
   entries: Record<string, ProjectDirectoryEntry[]>;
   expandedDirectories: Set<string>;
@@ -324,8 +355,9 @@ function entryMatchesFilter(entry: ProjectDirectoryEntry, nameFilter: string, en
   return (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
 }
 
-export function FileEntries({ collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onOpenFileInNewTab, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
-  return entries[parentPath]?.filter((entry) => entryMatchesFilter(entry, nameFilter, entries)).map((entry) => {
+export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onOpenFileInNewTab, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
+  const contextMenu = useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpenFile, onOpenFileInNewTab, onToggleDirectory });
+  return <>{entries[parentPath]?.filter((entry) => entryMatchesFilter(entry, nameFilter, entries)).map((entry) => {
     const hasMatchingChild = Boolean(nameFilter) && entry.isDirectory && (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
     const isExpanded = entry.isDirectory && (hasMatchingChild || (collapsedDirectories ? !collapsedDirectories.has(entry.path) : expandedDirectories.has(entry.path)));
     const status = entry.isDirectory ? folderStatus?.[entry.path] : fileStatus?.[entry.path];
@@ -337,6 +369,8 @@ export function FileEntries({ collapsedDirectories, depth, entries, expandedDire
           className={`right-side-panel-file-row${!entry.isDirectory && entry.path === selectedPath ? " is-active" : ""}${status ? ` status-${status}` : ""}`}
           data-depth={depth}
           onClick={() => entry.isDirectory ? onToggleDirectory(entry) : onOpenFile?.(entry)}
+          onContextMenu={(event) => contextMenu.open(event, entry)}
+          onKeyDown={(event) => contextMenu.openWithKeyboard(event, entry)}
           onDoubleClick={() => entry.isDirectory ? undefined : onOpenFileInNewTab?.(entry)}
           title={entry.name}
           type="button"
@@ -350,13 +384,13 @@ export function FileEntries({ collapsedDirectories, depth, entries, expandedDire
         {isExpanded ? (
           <div className="right-side-panel-file-children">
             {entries[entry.path] ? (
-              <FileEntries collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={folderStatus} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
+              <FileEntries projectID={projectID} allowAddToChat={allowAddToChat} rootPath={rootPath} collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={folderStatus} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
             ) : <span className="right-side-panel-loading">Loading…</span>}
           </div>
         ) : null}
       </div>
     );
-  }) ?? null;
+  }) ?? null}{contextMenu.menu}</>;
 }
 
 type GitHistoryViewProps = {
@@ -368,6 +402,7 @@ type GitHistoryViewProps = {
   loading: boolean;
   project: Project | null;
   readOnly?: boolean;
+  allowAddToChat?: boolean;
   onOpenFile?: (entry: ProjectDirectoryEntry) => void;
   onOpenFileInNewTab?: (entry: ProjectDirectoryEntry) => void;
 };
@@ -377,7 +412,7 @@ const gitHistoryGraphInset = 7;
 const gitHistoryContentInset = 6;
 const emptyGitExpandedDirectories = new Set<string>();
 
-export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, history, loading, onOpenFile, onOpenFileInNewTab, project, readOnly = false }: GitHistoryViewProps) {
+export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoading, history, loading, onOpenFile, onOpenFileInNewTab, project, allowAddToChat = false, readOnly = false }: GitHistoryViewProps) {
   const [branchError, setBranchError] = useState("");
   const [branches, setBranches] = useState<string[]>([]);
   const [branchesError, setBranchesError] = useState("");
@@ -514,7 +549,7 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
             <small>{stagedCount}</small>
           </header>
           {stagedCount > 0 && !stagedChangesCollapsed ? <div aria-label="Staged files" className="right-side-panel-history-tree">
-            <FileEntries collapsedDirectories={collapsedGitFolders} depth={0} entries={stagedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.staged} folderStatus={stagedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={toggleGitFolder} parentPath="" />
+            <FileEntries projectID={project?.id} allowAddToChat={allowAddToChat} rootPath={project?.path} collapsedDirectories={collapsedGitFolders} depth={0} entries={stagedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.staged} folderStatus={stagedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={toggleGitFolder} parentPath="" />
           </div> : null}
         </section>
         <section aria-label="Changes" className={`right-side-panel-history-change-section${changedCount === 0 ? " is-empty" : changesCollapsed ? " is-collapsed" : ""}`}>
@@ -523,7 +558,7 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
             <small>{changedCount}</small>
           </header>
           {changedCount > 0 && !changesCollapsed ? <div aria-label="Changed files" className="right-side-panel-history-tree">
-            <FileEntries collapsedDirectories={collapsedGitFolders} depth={0} entries={changedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.changes} folderStatus={changedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={toggleGitFolder} parentPath="" />
+            <FileEntries projectID={project?.id} allowAddToChat={allowAddToChat} rootPath={project?.path} collapsedDirectories={collapsedGitFolders} depth={0} entries={changedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.changes} folderStatus={changedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={toggleGitFolder} parentPath="" />
           </div> : null}
         </section>
       </div>

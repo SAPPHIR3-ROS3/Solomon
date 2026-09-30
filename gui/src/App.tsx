@@ -46,6 +46,7 @@ export function App() {
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [armedTerminalProjectIds, setArmedTerminalProjectIds] = useState<string[]>([]);
   const [runningTerminalProjectIds, setRunningTerminalProjectIds] = useState<string[]>([]);
+  const [editorFile, setEditorFile] = useState<{ projectID: string; entry: import("./projects/projects").ProjectDirectoryEntry } | null>(null);
   const [activeView, setActiveView] = useState<View>("agent");
   const [isActiveAgentsOpen, setIsActiveAgentsOpen] = useState(false);
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
@@ -376,6 +377,7 @@ export function App() {
       {!isSettingsOpen && activeView !== "editor" && isRightSidePanelOpen && !isCustomizationOpen ? (
         <RightSidePanel
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
+          onOpenFile={(entry) => { if (!selectedWorkspace) return; setEditorFile({ projectID: selectedWorkspace.id, entry }); setActiveView("editor"); }}
           onWidthChange={resizeRightPanel}
           onOpenResearch={(research) => {
             if (!selectedWorkspace) return;
@@ -438,7 +440,7 @@ export function App() {
         />
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "editor" ? (
-        <EditorPage bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} onHome={goHome} project={selectedWorkspace} />
+        <EditorPage onInitialFileOpened={() => setEditorFile(null)} initialFile={editorFile?.projectID === selectedWorkspace?.id ? editorFile?.entry : null} bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} onHome={goHome} project={selectedWorkspace} />
       ) : null}
       {isSettingsOpen ? <SettingsPage onHome={goHome} /> : null}
       {!isSettingsOpen && isActiveAgentsOpen ? (

@@ -87,7 +87,7 @@ func (*projectAPI) handlesProjectRoute(path string) bool {
 		return false
 	}
 	switch parts[1] {
-	case "disk", "removal-info", "file", "files", "research", "history", "status", "branches", "checkout", "worktrees":
+	case "disk", "removal-info", "file-operation", "file", "files", "research", "history", "status", "branches", "checkout", "worktrees":
 		return true
 	default:
 		return false
@@ -110,6 +110,10 @@ func (a *projectAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if len(parts) == 2 && parts[1] == "file-operation" && r.Method == http.MethodPost {
+		a.handleProjectFileOperation(w, r, projectID)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "files" && r.Method == http.MethodGet {
 		a.handleProjectFiles(w, r, projectID)
 		return
