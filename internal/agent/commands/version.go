@@ -17,7 +17,8 @@ var commitTime = ""
 
 var effectiveReleaseVersion struct {
 	sync.RWMutex
-	tag string
+	tag       string
+	identical bool
 }
 
 // BuildCommit returns the full source revision embedded in the build.
@@ -51,24 +52,26 @@ func BuildCommitTime() time.Time {
 }
 
 // SetEffectiveReleaseVersion records the latest published version used as the
-// base for a development build's display version.
-func SetEffectiveReleaseVersion(tag string) {
+// base for a development build's display version. An identical source commit
+// displays the release tag, even when the local build was marked dirty.
+func SetEffectiveReleaseVersion(tag string, identical bool) {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return
 	}
 	effectiveReleaseVersion.Lock()
 	effectiveReleaseVersion.tag = tag
+	effectiveReleaseVersion.identical = identical
 	effectiveReleaseVersion.Unlock()
 }
 
-func effectiveReleaseTag() string {
-	effectiveReleaseVersion.RLock()
-	defer effectiveReleaseVersion.RUnlock()
-	return effectiveReleaseVersion.tag
-}
-
 func VersionString() string {
+	effectiveReleaseVersion.RLock()
+	tag, identical := effectiveReleaseVersion.tag, effectiveReleaseVersion.identical
+	effectiveReleaseVersion.RUnlock()
+	if identical && tag != "" {
+		return tag
+	}
 	raw := strings.TrimSpace(version)
 	if raw == "" {
 		raw = "dev"
@@ -77,12 +80,11 @@ func VersionString() string {
 	if !development {
 		return raw
 	}
-	if effective := effectiveReleaseTag(); effective != "" {
-		base = effective
+	if tag != "" {
+		base = tag
 	}
 	info, _ := debug.ReadBuildInfo()
-	effective := effectiveReleaseTag()
-	if base == "dev" && effective == "" && info != nil {
+	if base == "dev" && tag == "" && info != nil {
 		if v := strings.TrimSpace(info.Main.Version); v != "" && v != "(devel)" && !isGoPseudoVersion(v) {
 			return v
 		}

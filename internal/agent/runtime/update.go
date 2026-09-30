@@ -24,7 +24,7 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 
 	res := updater.CheckWithCommitTime(ctx, commands.VersionString(), commands.BuildCommit(), commands.BuildCommitTime())
 	if res.Err == nil && (res.LocalCommitRelation == "ahead" || res.LocalCommitRelation == "identical") {
-		commands.SetEffectiveReleaseVersion(res.LatestTag)
+		commands.SetEffectiveReleaseVersion(res.LatestTag, res.LocalCommitRelation == "identical")
 		res.Current = commands.VersionString()
 	}
 	var notice *updater.Notice
