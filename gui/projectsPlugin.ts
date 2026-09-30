@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
@@ -764,7 +764,14 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
         .catch(() => { response.statusCode = 404; response.end("Research report not found"); });
       return;
     }
-    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|file|files|research|history|status|branches|checkout|worktrees))?\/?$/);
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|file-operation|file|files|research|history|status|branches|checkout|worktrees))?\/?$/);
+    if (match?.[2] === "file-operation") {
+      if (request.method !== "POST") { respondWithJson(response, 405, { error: "Method not allowed" }); return; }
+      void readJsonBody(request).then((payload) => projectFileOperation(match[1], payload))
+        .then(() => respondWithJson(response, 200, { ok: true }))
+        .catch((error) => respondWithJson(response, 400, { error: error instanceof Error ? error.message : "File operation failed" }));
+      return;
+    }
     if ((request.method === "GET" || request.method === "PUT") && match?.[2] === "file") {
       const filePath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
       if (request.method === "GET") {
@@ -838,7 +845,7 @@ function attachProjectActionEndpoint(server: { middlewares: { use: (route: strin
       next();
       return;
     }
-    if (!match || match[2] === "removal-info" || match[2] === "files" || match[2] === "research" || match[2] === "history" || match[2] === "status" || match[2] === "branches" || match[2] === "checkout" || match[2] === "worktrees") {
+    if (!match || match[2] === "file" || match[2] === "removal-info" || match[2] === "files" || match[2] === "research" || match[2] === "history" || match[2] === "status" || match[2] === "branches" || match[2] === "checkout" || match[2] === "worktrees") {
       respondWithJson(response, 400, { error: "Invalid project ID" });
       return;
     }
@@ -1030,4 +1037,36 @@ export function projectsPlugin(): Plugin {
     },
     name: "solomon-projects",
   };
+}
+
+async function projectFileOperation(projectID: string, payload: unknown) {
+  const request = payload as { action?: string; path?: string; destination?: string } | null;
+  if (!request || !["rename", "delete", "copy", "move"].includes(request.action ?? "") || typeof request.path !== "string") throw new Error("Invalid file action");
+  const root = await projectFilePath(projectID, ".");
+  await projectFilePath(projectID, request.path);
+  const source = path.resolve(root, request.path);
+  if (source === root) throw new Error("Cannot modify workspace root");
+  if (request.action === "delete") { await rm(source, { recursive: true }); return; }
+  if (typeof request.destination !== "string" || !request.destination.trim() || path.isAbsolute(request.destination)) throw new Error("Invalid destination");
+  const destination = path.normalize(request.destination);
+  const parent = await projectFilePath(projectID, path.dirname(destination));
+  const target = path.join(parent, path.basename(destination));
+  if (target === root || target === source || target.startsWith(`${source}${path.sep}`)) throw new Error("Invalid destination");
+  try { await lstat(target); throw new Error("Destination already exists"); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  if (request.action === "rename" || request.action === "move") { await rename(source, target); return; }
+  await copyProjectEntry(source, target);
+}
+
+async function copyProjectEntry(source: string, target: string): Promise<void> {
+  const info = await lstat(source);
+  if (info.isSymbolicLink()) throw new Error("Copying symbolic links is not supported");
+  if (info.isDirectory()) {
+    await mkdir(target, { mode: info.mode });
+    try { for (const entry of await readdir(source)) await copyProjectEntry(path.join(source, entry), path.join(target, entry)); }
+    catch (error) { await rm(target, { recursive: true, force: true }); throw error; }
+  } else {
+    if (!info.isFile()) throw new Error("Unsupported file type");
+    await copyFile(source, target, 1);
+  }
 }
