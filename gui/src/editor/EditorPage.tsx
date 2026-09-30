@@ -11,7 +11,7 @@ import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon, SearchIco
 import { SidePanelToggle } from "../shell/SidePanelToggle";
 import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, saveProjectFile, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus } from "../projects/projects";
 
-type OpenFile = { path: string; content: string; saved: string };
+type OpenFile = { id: string; path: string; content: string; saved: string };
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
 const EMPTY_HISTORY: ProjectGitHistory = { commits: [], current: "", isRepo: false };
 
@@ -108,7 +108,10 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
   const [rootCollapsed, setRootCollapsed] = useState(false);
   const [query, setQuery] = useState("");
   const [files, setFiles] = useState<OpenFile[]>([]);
-  const [activePath, setActivePath] = useState("");
+  const [activeTabId, setActiveTabId] = useState("");
+  const activePath = files.find((file) => file.id === activeTabId)?.path ?? "";
+  const nextTabId = useRef(0);
+  const draggedTab = useRef<string | null>(null);
   const [git, setGit] = useState<ProjectGitStatus>(EMPTY_GIT);
   const [history, setHistory] = useState<ProjectGitHistory>(EMPTY_HISTORY);
   const [branch, setBranch] = useState("");
@@ -120,7 +123,7 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
   const openFileTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    setEntries([]); setChildren({}); setExpanded(new Set()); setRootCollapsed(false); setFiles([]); setActivePath(""); setBranchOptions([]); setBranchMenuOpen(false); setMessage("");
+    setEntries([]); setChildren({}); setExpanded(new Set()); setRootCollapsed(false); setFiles([]); setActiveTabId(""); setBranchOptions([]); setBranchMenuOpen(false); setMessage("");
     if (!project) return;
     void Promise.all([fetchProjectDirectoryEntries(project.id), fetchProjectGitStatus(project.id), fetchProjectBranches(project.id), fetchProjectGitHistory(project.id)])
       .then(([nextEntries, status, branches, nextHistory]) => { setEntries(nextEntries); setGit(status); setBranch(branches.current); setBranchOptions(branches.branches); setHistory(nextHistory); })
@@ -158,21 +161,21 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
     if (!project) return;
     const existing = files.find((file) => file.path === entry.path);
     if (existing) {
-      setFiles((current) => mode === "new" ? [...current.filter((file) => file.path !== entry.path), existing] : current);
-      setActivePath(entry.path);
+      setFiles((current) => mode === "new" ? [...current.filter((file) => file.id !== existing.id), existing] : current);
+      setActiveTabId(existing.id);
       return;
     }
     setMessage("Opening file…");
     try {
       const content = await fetchProjectFile(project.id, entry.path);
-      const nextFile = { path: entry.path, content, saved: content };
+      const nextFile = { id: `editor-tab-${nextTabId.current++}`, path: entry.path, content, saved: content };
       setFiles((current) => {
         if (mode === "new" || !activePath) return [...current, nextFile];
-        const activeIndex = current.findIndex((file) => file.path === activePath);
+        const activeIndex = current.findIndex((file) => file.id === activeTabId);
         if (activeIndex < 0) return [...current, nextFile];
         return current.map((file, index) => index === activeIndex ? nextFile : file);
       });
-      setActivePath(entry.path);
+      setActiveTabId(nextFile.id);
       setMessage("");
     }
     catch { setMessage(`Unable to open ${entry.path}.`); }
@@ -188,11 +191,34 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
     void openFile(entry, "new");
   }
 
-  function closeFile(path: string) {
-    const index = files.findIndex((file) => file.path === path);
-    const remaining = files.filter((file) => file.path !== path);
+  function closeFile(id: string) {
+    const index = files.findIndex((file) => file.id === id);
+    const remaining = files.filter((file) => file.id !== id);
     setFiles(remaining);
-    if (activePath === path) setActivePath(remaining[Math.min(index, remaining.length - 1)]?.path ?? "");
+    if (activeTabId === id) setActiveTabId(remaining[Math.min(index, remaining.length - 1)]?.id ?? "");
+  }
+
+  function duplicateFile(file: OpenFile) {
+    const duplicate = { ...file, id: `editor-tab-${nextTabId.current++}` };
+    setFiles((current) => {
+      const index = current.findIndex((item) => item.id === file.id);
+      return [...current.slice(0, index + 1), duplicate, ...current.slice(index + 1)];
+    });
+    setActiveTabId(duplicate.id);
+  }
+
+  function moveFile(targetId: string) {
+    const sourceId = draggedTab.current;
+    if (!sourceId || sourceId === targetId) return;
+    setFiles((current) => {
+      const source = current.find((file) => file.id === sourceId);
+      if (!source) return current;
+      const targetIndex = current.findIndex((file) => file.id === targetId);
+      const next = current.filter((file) => file.id !== sourceId);
+      next.splice(targetIndex, 0, source);
+      return next;
+    });
+    draggedTab.current = null;
   }
 
   async function selectBranch(nextBranch: string) {
@@ -250,7 +276,7 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
     window.addEventListener("pointercancel", stop);
   }
 
-  const active = files.find((file) => file.path === activePath);
+  const active = files.find((file) => file.id === activeTabId);
   const fileStatus = useMemo(() => ({ ...git.changes, ...git.staged }), [git]);
   const entryMap = useMemo(() => ({ "": entries, ...children }), [entries, children]);
   if (!project) return <>
@@ -295,7 +321,7 @@ export function EditorPage({ bottomInset, onHome, project }: { bottomInset: numb
       <button aria-label="Resize editor side panel" className="editor-resize" onDoubleClick={() => setSideWidth(248)} onPointerDown={startSideResize} title="Drag to resize" type="button" />
     </aside>
     <main className="editor-workbench">
-      {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.path === activePath ? " active" : ""}`} key={file.path}><button className="editor-tab-trigger" onClick={() => setActivePath(file.path)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.path)}>×</button></div>; })}</nav></div> : null}
+      {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to duplicate" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onDoubleClick={() => duplicateFile(file)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
       {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}</div><CodeEditor file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} /></> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
