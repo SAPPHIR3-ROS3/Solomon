@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/turnloop"
+	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
@@ -53,4 +54,12 @@ func SetExecToolHookForTest(fn func(context.Context, tooling.Invocation) (any, e
 	prev := execToolHook
 	execToolHook = fn
 	return func() { execToolHook = prev }
+}
+
+func (r *Runtime) ToolEnvForTest() *agenttools.Env {
+	return r.toolEnv(tooling.Invocation{})
+}
+
+func (r *Runtime) SystemPromptForTest(disableThinking bool) (string, error) {
+	return r.systemPrompt(disableThinking)
 }
