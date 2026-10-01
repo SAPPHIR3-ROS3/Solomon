@@ -10,25 +10,25 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 )
 
-func TestVersionStringReleaseCommit(t *testing.T) {
+func TestVersionStringReleaseAsset(t *testing.T) {
 	// Isolate the process-wide release state from other version tests.
 	if os.Getenv("SOLOMON_TEST_RELEASE_VERSION") == "1" {
 		const tag = "v2026.1001.1"
 		commands.SetEffectiveReleaseVersion(tag, false)
 		if got := commands.VersionString(); !strings.HasPrefix(got, tag+"-dev") {
-			t.Fatalf("ahead build version = %q, want development suffix", got)
+			t.Fatalf("unverified build version = %q, want development suffix", got)
 		}
 		commands.SetEffectiveReleaseVersion(tag, true)
 		if got := commands.VersionString(); got != tag {
-			t.Fatalf("identical build version = %q, want %q", got, tag)
+			t.Fatalf("verified release asset version = %q, want %q", got, tag)
 		}
 		commands.SetEffectiveReleaseVersion(tag, false)
 		if got := commands.VersionString(); !strings.HasPrefix(got, tag+"-dev") {
-			t.Fatalf("subsequent ahead build version = %q, want development suffix", got)
+			t.Fatalf("subsequent unverified build version = %q, want development suffix", got)
 		}
 		return
 	}
-	cmd := exec.Command(os.Args[0], "-test.run=^TestVersionStringReleaseCommit$")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestVersionStringReleaseAsset$")
 	cmd.Env = append(os.Environ(), "SOLOMON_TEST_RELEASE_VERSION=1")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("version regression test: %v\n%s", err, output)

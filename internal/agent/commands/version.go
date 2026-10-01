@@ -17,8 +17,8 @@ var commitTime = ""
 
 var effectiveReleaseVersion struct {
 	sync.RWMutex
-	tag       string
-	identical bool
+	tag                 string
+	matchesReleaseAsset bool
 }
 
 // BuildCommit returns the full source revision embedded in the build.
@@ -52,24 +52,24 @@ func BuildCommitTime() time.Time {
 }
 
 // SetEffectiveReleaseVersion records the latest published version used as the
-// base for a development build's display version. An identical source commit
-// displays the release tag, even when the local build was marked dirty.
-func SetEffectiveReleaseVersion(tag string, identical bool) {
+// base for a development build's display version. Only a verified match of both
+// the source commit and the published asset digest displays the release tag.
+func SetEffectiveReleaseVersion(tag string, matchesReleaseAsset bool) {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return
 	}
 	effectiveReleaseVersion.Lock()
 	effectiveReleaseVersion.tag = tag
-	effectiveReleaseVersion.identical = identical
+	effectiveReleaseVersion.matchesReleaseAsset = matchesReleaseAsset
 	effectiveReleaseVersion.Unlock()
 }
 
 func VersionString() string {
 	effectiveReleaseVersion.RLock()
-	tag, identical := effectiveReleaseVersion.tag, effectiveReleaseVersion.identical
+	tag, matchesReleaseAsset := effectiveReleaseVersion.tag, effectiveReleaseVersion.matchesReleaseAsset
 	effectiveReleaseVersion.RUnlock()
-	if identical && tag != "" {
+	if matchesReleaseAsset && tag != "" {
 		return tag
 	}
 	raw := strings.TrimSpace(version)
