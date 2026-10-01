@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -47,6 +48,7 @@ type CheckResult struct {
 	Newer               bool
 	Err                 error
 	LocalCommitRelation string
+	MatchesReleaseAsset bool
 }
 
 type Notice struct {
@@ -63,10 +65,17 @@ func (r CheckResult) Notice() *Notice {
 
 type releaseJSON struct {
 	TagName string `json:"tag_name"`
+	Assets  []struct {
+		Name   string `json:"name"`
+		Digest string `json:"digest"`
+	} `json:"assets"`
 }
 
 type compareJSON struct {
-	Status string `json:"status"`
+	Status     string `json:"status"`
+	BaseCommit struct {
+		SHA string `json:"sha"`
+	} `json:"base_commit"`
 }
 
 type commitJSON struct {
@@ -153,9 +162,13 @@ func CheckWithCommitTime(ctx context.Context, currentVersion, localCommit string
 	}
 	res.LatestTag = tag
 	if IsDevelopmentVersion(current) && localCommit != "" {
-		relation, err := compareLocalCommit(cctx, tag, localCommit)
+		comparison, err := compareLocalCommit(cctx, tag, localCommit)
+		relation := comparison.Status
 		res.LocalCommitRelation = relation
 		if err == nil && (relation == "ahead" || relation == "identical") {
+			if relation == "identical" && len(localCommit) == 40 && comparison.BaseCommit.SHA == localCommit {
+				res.MatchesReleaseAsset = matchesRunningReleaseAsset(rel)
+			}
 			logging.Log(logging.INFO_LOG_LEVEL, "updater local development build is not behind latest release", logging.LogOptions{Params: map[string]any{"current": current, "latest": tag, "relation": relation}})
 			return res
 		}
@@ -186,29 +199,55 @@ func CheckWithCommitTime(ctx context.Context, currentVersion, localCommit string
 	return res
 }
 
-func compareLocalCommit(ctx context.Context, tag, localCommit string) (string, error) {
+func compareLocalCommit(ctx context.Context, tag, localCommit string) (compareJSON, error) {
 	compareURL := strings.TrimRight(compareReleaseAPI, "/") + "/" + url.PathEscape(tag) + "..." + url.PathEscape(localCommit)
 	resp, err := httpGetLatest(ctx, compareURL)
 	if err != nil {
-		return "", err
+		return compareJSON{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("github compare API: %s", resp.Status)
+		return compareJSON{}, fmt.Errorf("github compare API: %s", resp.Status)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", err
+		return compareJSON{}, err
 	}
 	var comparison compareJSON
 	if err := json.Unmarshal(body, &comparison); err != nil {
-		return "", err
+		return compareJSON{}, err
 	}
 	status := strings.TrimSpace(strings.ToLower(comparison.Status))
 	if status == "" {
-		return "", fmt.Errorf("github compare API returned an empty status")
+		return compareJSON{}, fmt.Errorf("github compare API returned an empty status")
 	}
-	return status, nil
+	comparison.Status = status
+	return comparison, nil
+}
+
+// A shared Git revision does not prove that a locally rebuilt executable is
+// the published asset. Require its SHA-256 digest too; missing proof keeps dev.
+func matchesRunningReleaseAsset(rel releaseJSON) bool {
+	name, err := releaseAssetName(rel.TagName)
+	if err != nil {
+		return false
+	}
+	for _, asset := range rel.Assets {
+		if asset.Name != name || !strings.HasPrefix(asset.Digest, "sha256:") {
+			continue
+		}
+		path, err := os.Executable()
+		if err != nil {
+			return false
+		}
+		if runtime.GOOS == "linux" {
+			// Hash the running inode even if an install replaced its path.
+			path = "/proc/self/exe"
+		}
+		actual, err := fileSHA256Hex(path)
+		return err == nil && actual == strings.TrimPrefix(asset.Digest, "sha256:")
+	}
+	return false
 }
 
 func fetchReleaseCommitTime(ctx context.Context, tag string) (time.Time, error) {

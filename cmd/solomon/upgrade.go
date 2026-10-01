@@ -25,7 +25,7 @@ func runUpgradeCLI() {
 		os.Exit(1)
 	}
 	if res.LocalCommitRelation == "ahead" || res.LocalCommitRelation == "identical" {
-		commands.SetEffectiveReleaseVersion(res.LatestTag, res.LocalCommitRelation == "identical")
+		commands.SetEffectiveReleaseVersion(res.LatestTag, res.MatchesReleaseAsset)
 		current = commands.VersionString()
 	}
 	if !res.Newer {
