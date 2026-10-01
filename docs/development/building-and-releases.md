@@ -66,6 +66,17 @@ and are compared against the latest release commit before startup auto-update.
 A release version can be supplied
 explicitly with `VERSION=vYYYY.MDD.N make build` when needed.
 
+Makefile and release builds also embed the Git source-tree hash captured before
+compilation and version stamping. The update check displays the release tag only
+when both the full current commit and this input tree match the release's source
+commit. Uncommitted source changes retain `-dirty`; a newer commit retains `-dev`.
+Generated outputs ignored by Git do not change this source fingerprint. The
+release workflow creates a tag on the source commit, so that commit is the
+pre-release baseline; its parent would omit the last actual code change.
+Executable checksums still verify downloads, but do not determine development
+status. Builds made directly with `go build` lack this source snapshot and cannot
+be promoted to a release by the source-tree comparison.
+
 ## Application icon
 
 The shared icon is generated from the terminal and GUI Braille art in

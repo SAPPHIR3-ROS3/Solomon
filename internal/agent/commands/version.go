@@ -14,11 +14,30 @@ import (
 var version = "dev"
 var commit = ""
 var commitTime = ""
+var sourceTree = ""
+var commitTree = ""
+
+// BuildSourceTree returns the source inputs captured before compilation.
+func BuildSourceTree() string { return strings.TrimSpace(sourceTree) }
+
+func sourceModified(info *debug.BuildInfo) bool {
+	if len(sourceTree) == 40 && len(commitTree) == 40 {
+		return sourceTree != commitTree
+	}
+	if info != nil {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.modified" {
+				return setting.Value == "true"
+			}
+		}
+	}
+	return false
+}
 
 var effectiveReleaseVersion struct {
 	sync.RWMutex
-	tag                 string
-	matchesReleaseAsset bool
+	tag                  string
+	matchesReleaseSource bool
 }
 
 // BuildCommit returns the full source revision embedded in the build.
@@ -53,23 +72,23 @@ func BuildCommitTime() time.Time {
 
 // SetEffectiveReleaseVersion records the latest published version used as the
 // base for a development build's display version. Only a verified match of both
-// the source commit and the published asset digest displays the release tag.
-func SetEffectiveReleaseVersion(tag string, matchesReleaseAsset bool) {
+// the current commit and its pre-compilation source tree displays the release tag.
+func SetEffectiveReleaseVersion(tag string, matchesReleaseSource bool) {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return
 	}
 	effectiveReleaseVersion.Lock()
 	effectiveReleaseVersion.tag = tag
-	effectiveReleaseVersion.matchesReleaseAsset = matchesReleaseAsset
+	effectiveReleaseVersion.matchesReleaseSource = matchesReleaseSource
 	effectiveReleaseVersion.Unlock()
 }
 
 func VersionString() string {
 	effectiveReleaseVersion.RLock()
-	tag, matchesReleaseAsset := effectiveReleaseVersion.tag, effectiveReleaseVersion.matchesReleaseAsset
+	tag, matchesReleaseSource := effectiveReleaseVersion.tag, effectiveReleaseVersion.matchesReleaseSource
 	effectiveReleaseVersion.RUnlock()
-	if matchesReleaseAsset && tag != "" {
+	if matchesReleaseSource && tag != "" {
 		return tag
 	}
 	raw := strings.TrimSpace(version)
@@ -77,24 +96,17 @@ func VersionString() string {
 		raw = "dev"
 	}
 	base, development := developmentBase(raw)
-	if !development {
+	info, _ := debug.ReadBuildInfo()
+	modified := sourceModified(info)
+	if !development && !modified {
 		return raw
 	}
 	if tag != "" {
 		base = tag
 	}
-	info, _ := debug.ReadBuildInfo()
-	if base == "dev" && tag == "" && info != nil {
+	if base == "dev" && tag == "" && !modified && info != nil {
 		if v := strings.TrimSpace(info.Main.Version); v != "" && v != "(devel)" && !isGoPseudoVersion(v) {
 			return v
-		}
-	}
-	var modified bool
-	if info != nil {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.modified" {
-				modified = setting.Value == "true"
-			}
 		}
 	}
 	revision := BuildCommit()
