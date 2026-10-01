@@ -1,6 +1,6 @@
 # UI-PRD — Solomon GUI (Deep v5)
 
-Product requirements for the production Solomon interface and feature parity with the `ui-prototypes` Deep (v5) direction.
+Product requirements for the production Solomon interface.
 
 **Status:** Draft — decisions from `/grill-me` session (2026-07-22).
 
@@ -22,7 +22,7 @@ Use **top bar** for the upper chrome; do not call it “header” or “toolbar�
 
 ## 1. Executive Summary
 
-**Problem Statement:** Solomon’s agent runtime is built for the **system terminal** (REPL). There is currently no approved GUI host or service architecture. Prototyping (five directions) is complete; Deep v5 is the chosen product surface.
+**Problem Statement:** Solomon’s agent runtime is built for the **system terminal** (REPL). There is currently no approved GUI host or service architecture. The production GUI lives in `gui/`.
 
 **Proposed Solution:** Build the Deep v5 GUI as a shared frontend under `gui/src/`, with Wails code isolated under `gui/desktop/`. The GUI host, service process, API contract, installation flow, and browser delivery are intentionally undecided and will be designed from scratch.
 
@@ -35,7 +35,7 @@ Use **top bar** for the upper chrome; do not call it “header” or “toolbar�
 | KPI | Target |
 |-----|--------|
 | Install → usable UI | User completes first chat within **5 minutes** after `make install` on a fresh config (tri-OS). |
-| Prototype parity | **100%** of Deep v5 panels and interactions listed in §2.3 behave correctly against real backends (not mock TOML / Lorem stream). |
+| Feature coverage | **100%** of Deep v5 panels and interactions listed in §2.3 behave correctly against real backends (not mock TOML / Lorem stream). |
 | Daemon availability | App launch succeeds when daemon is down: auto-start or clear recovery within **3 s**. |
 | Turn latency (UI) | First SSE byte visible within **500 ms** of submit on local daemon (excluding LLM time). |
 | Workspace isolation | Switching workspace never leaks chats, files, or git state across project ids. |
@@ -111,11 +111,9 @@ Each item is **Done** when wired to the global daemon (not Vite mock middleware)
 
 - Remote / tailnet access with passkey login (auth endpoints exist; UI enforcement deferred on loopback).
 - Replacing the **system terminal** REPL for shell-first workflows.
-- Other prototype directions (Current, Atlas, Pulse, Quiet) in production build.
 - LSP, semantic search, MemPalace, vault migration.
 - Git push/pull UI, PR integration, merge conflict editor beyond status display.
 - Native macOS `Cmd+V` image paste (see `TODO.md`).
-- Embedded `ui-prototypes` gallery / mock-config.toml in production app.
 
 ---
 
@@ -186,7 +184,7 @@ System terminal (separate):  user runs `solomon` REPL in Ghostty, iTerm, etc.
 - `POST/GET /v1/responses`, cancel, stream replay
 - `GET /v1/health`
 
-**New daemon routes** (port from `ui-prototypes/vite.config.ts` middleware):
+**New daemon routes** (proposed workspace, editor, and settings APIs):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -213,7 +211,7 @@ System terminal (separate):  user runs `solomon` REPL in Ghostty, iTerm, etc.
 | Path | Role |
 |------|------|
 | `gui/` | Root of the GUI project: shared frontend tooling and package metadata. |
-| `gui/src/` | Source for the production Deep GUI (extracted from `ui-prototypes/src/Deep*`, `shared.tsx`, styles); its build is embedded in `solomon` as the default bundle. |
+| `gui/src/` | Source for the production GUI; its build is embedded in `solomon` as the default bundle. |
 | `gui/desktop/` | Wails desktop adapter only: tray, daemon lifecycle, and desktop-only PTY bridge. It must not duplicate React UI code. |
 | `~/.solomon/gui/` | Intended active GUI bundle location; hosting and installation behavior are deferred. |
 
@@ -245,12 +243,12 @@ All phases ship toward **full §2.3 parity**; phasing is build order, not scope 
 
 | Phase | Deliverable | Exit criterion |
 |-------|-------------|----------------|
-| **P0 — UI foundation (active)** | Extract and organize Deep v5 in `gui/src/`; preserve its current interactive mock behavior behind a client interface | `gui/` runs in Vite and visually/functionally matches Deep v5 without importing `ui-prototypes` |
+| **P0 — UI foundation (active)** | Maintain the GUI in `gui/src/`; preserve its interactive behavior behind a client interface | `gui/` runs independently in Vite and meets the requirements in §2.3 |
 | **P1 — Daemon architecture (deferred)** | Reconsider daemon scope, UI serving, GUI bundle embed/updates, workspace registry, auth, and desktop lifecycle | Approved daemon design and API contract |
 | **P2 — API integration (deferred)** | Implement the approved daemon contract; replace the mock client without reshaping UI components | `gui/src/` works against the approved real backend |
 | **P3 — Chat** | Conversations API + SSE wired to Deep chat UI; model/reasoning/fast controls persist to session | End-to-end agent turn with tool events |
 | **P4 — Editor + git** | File R/W, autosave, git panel, graph, commit, branch checkout | Edit file on disk; commit from UI |
-| **P5 — Terminal panel** | Port lab PTY service (node-pty + WebSocket); wire to Wails/desktop UI | Multi-pane terminal panel matches v5 behavior |
+| **P5 — Terminal panel** | Implement UI-layer PTY service (node-pty + WebSocket); wire to Wails/desktop UI | Multi-pane terminal panel matches v5 behavior |
 | **P6 — Onboarding** | In-app wizard when `NeedsOnboard` | Fresh install never requires REPL |
 | **P7 — Install** | `make install` registers daemon + app + tray on macOS, Linux, Windows | Click icon → app → chat on clean machine |
 
@@ -263,7 +261,7 @@ All phases ship toward **full §2.3 parity**; phasing is build order, not scope 
 | Risk | Mitigation |
 |------|------------|
 | **CGO conflict** — main binary uses `CGO_ENABLED=0`; Wails may need CGO | Separate `solomon` (CGO=0) and `solomon-desktop` (CGO=1 if required by Wails); daemon stays CGO=0 |
-| **DeepPrototype.tsx > 500 LoC** | Split into `gui/src/agent/`, `gui/src/editor/`, `gui/src/terminal-panel/` during migration |
+| **Large GUI components** | Split into `gui/src/agent/`, `gui/src/editor/`, `gui/src/terminal-panel/` as the UI evolves |
 | **Global daemon + one turn** | Single turn lock globally; queue or 409 with UI message (match current server) |
 | **GNOME systray** | Document extension requirement; test KDE + GNOME in parity walkthrough |
 | **Windows terminal panel** | Early spike in P5 (node-pty + ConPTY); fallback message if spawn fails |
@@ -280,10 +278,10 @@ Tasks are ordered by phase. Estimate **T-shirt size** only (S/M/L/XL).
 | ID | Task | Size |
 |----|------|------|
 | T-001 | Create `gui/` project root with standalone frontend tooling and `gui/src/` from Deep styles, assets, and dependencies | M |
-| T-002 | Split `DeepPrototype.tsx` into bounded `gui/src/app/`, `agent/`, `editor/`, `terminal-panel/`, and `shared/` modules | XL |
+| T-002 | Organize the GUI into bounded `gui/src/app/`, `agent/`, `editor/`, `terminal-panel/`, and `shared/` modules | XL |
 | T-003 | Define a typed UI client interface and a mock implementation backed by fixtures; no daemon route names leak into components | M |
 | T-004 | Move `mock-config.toml` and mock stream behavior into explicit UI development fixtures | M |
-| T-005 | Keep visual and interaction parity with `/v5` through a repeatable local walkthrough | M |
+| T-005 | Verify the visual and interaction requirements in §2.3 through a repeatable local walkthrough | M |
 
 ### P1 — Daemon architecture (deferred)
 
@@ -317,7 +315,7 @@ The earlier route-by-route backlog (`/v1/workspaces`, files, models, git, and us
 
 | ID | Task | Size |
 |----|------|------|
-| T-050 | Extract lab PTY service from `ui-prototypes/vite.config.ts`; run under Wails/desktop (node-pty, `/__solomon/terminal` or renamed path) | L |
+| T-050 | Implement the UI-layer PTY service under Wails/desktop (node-pty, `/__solomon/terminal` or renamed path) | L |
 | T-051 | Wire Deep terminal panel / tabs to UI-layer WebSocket (not daemon) | M |
 | T-052 | Tri-OS terminal panel QA (zsh, bash, PowerShell) | M |
 
@@ -344,7 +342,7 @@ The earlier route-by-route backlog (`/v1/workspaces`, files, models, git, and us
 | Dependency | Used for | Status |
 |------------|----------|--------|
 | **Wails v2** | Desktop shell, tray, WebView | **Approved** (2026-07-22) |
-| **node-pty** | Terminal panel PTY in UI layer (already in `ui-prototypes`) | Existing; no new dep |
+| **node-pty** | Terminal panel PTY in UI layer | Existing; no new dep |
 
 ---
 
@@ -353,7 +351,7 @@ The earlier route-by-route backlog (`/v1/workspaces`, files, models, git, and us
 | Decision | Choice |
 |----------|--------|
 | UI direction | Deep v5 only |
-| MVP scope | ≥ prototype feature parity |
+| MVP scope | Full feature coverage of §2.3 |
 | Daemon scope | **Deferred for redesign**; earlier global-user-level proposal is not implementation authority |
 | Client | Wails app (not browser-first) |
 | Auth (MVP) | Open on loopback |
@@ -362,16 +360,3 @@ The earlier route-by-route backlog (`/v1/workspaces`, files, models, git, and us
 | Terminal naming | **Terminal panel** / **terminal tab** in UI; not “terminal” alone |
 | Top bar | Horizontal top chrome (panels, wordmark, switch, path, terminal panel toggle, …) |
 | Terminal panel backend | UI layer (node-pty), **not** `solomon daemon` |
-
-## Appendix B — Prototype → production mapping
-
-| Prototype source | Production |
-|------------------|------------|
-| `ui-prototypes/src/DeepPrototype.tsx` | `gui/src/` (split modules) |
-| `gui/` build embedded in `solomon` | Deferred installation design decision |
-| `~/.solomon/gui/` | Intended active GUI-bundle location; user-owned mutable files |
-| `ui-prototypes/vite.config.ts` middleware (workspace, git, models, …) | UI mock-client behavior for now; later mapping is deferred with daemon design |
-| `ui-prototypes/vite.config.ts` terminal plugin | UI-layer PTY service (Wails/desktop); **not** daemon |
-| `ui-prototypes/src/shared.tsx` (`TextEditor`, etc.) | `gui/src/shared/` |
-| `scripts/ui_model_catalog.go` | Deferred backend integration decision |
-| Previous HTTP service | Removed; the replacement design starts from zero |

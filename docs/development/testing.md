@@ -10,14 +10,13 @@ How Solomon tests are organized, which style to use, and shared helpers. Command
 | Colocation | Do **not** add `*_test.go` next to `internal/` sources |
 | Enforcement | [`test/test_layout_test.go`](../../test/test_layout_test.go) checks Go's `go list -test ./...` metadata and fails when Go detects tests outside `test/` |
 | Init | [`test/init_test.go`](../../test/init_test.go) — `TestMain` sets logging for the suite |
-| CI | UI prototype build, `go vet ./...`, documentation/package checks, and tests; Linux runs `CGO_ENABLED=1 go test ./... -count=1 -race`, while macOS/Windows run `go test ./... -count=1` ([`release.yml`](../../.github/workflows/release.yml)) |
+| CI | `go vet ./...`, documentation/package checks, and tests; Linux runs `CGO_ENABLED=1 go test ./... -count=1 -race`, while macOS/Windows run `go test ./... -count=1` ([`release.yml`](../../.github/workflows/release.yml)) |
 
 Run everything:
 
 ```bash
 go test ./... -count=1
 CGO_ENABLED=1 go test ./... -count=1 -race  # Linux CI parity
-npm --prefix ui-prototypes test
 ```
 
 Focused:

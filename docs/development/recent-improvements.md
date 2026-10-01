@@ -49,4 +49,4 @@ Run the repository-wide suite with:
     make test
     make check-docs
 
-The suite builds and tests the Cursor integration, tests the UI prototypes, runs all Go tests, and validates documentation links and package indexes.
+The suite builds and tests the Cursor integration, runs all Go tests, and validates documentation links and package indexes.
