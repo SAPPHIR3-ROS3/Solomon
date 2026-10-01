@@ -961,7 +961,6 @@ const specialFolderTypes: Record<string, string> = {
   test: "folder_type_test",
   tests: "folder_type_test",
   tools: "folder_type_tools",
-  "ui-prototypes": "folder_type_library",
   Videos: "folder_type_video",
   videos: "folder_type_video",
 };

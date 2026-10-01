@@ -97,7 +97,7 @@
 .editor-git-list button{padding-left:12px}.editor-git-graph{position:absolute;right:0;bottom:0;left:0;height:220px;margin:0!important;border-top:1px solid #26323a;background:color-mix(in srgb,var(--color-surface) 65%,#0b1116)}.editor-git-graph>header{position:relative;border-bottom:1px solid #1e2831}.editor-git-graph ol{height:190px;margin:0;padding:0;overflow:auto;list-style:none}.editor-git-graph li{height:22px;padding:0 7px;display:flex;align-items:center;gap:5px;color:#b6c1c7;font:11px "Geist",sans-serif}.editor-git-graph li>svg{width:24px;height:22px;stroke:#6fd39c}.editor-git-graph li>svg circle{fill:#0d1318;stroke-width:2}.editor-git-graph li>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.editor-git-graph li>small{max-width:76px;overflow:hidden;color:#77848b;font:9px "Geist Mono",monospace;text-overflow:ellipsis;white-space:nowrap}.editor-git-graph li>small.branch{padding:2px 5px;border-radius:5px;background:#1976cf;color:#dceeff}
 
 /* v5 Deep palette: the editor is intentionally independent from the app's
-   blue workspace theme. These values mirror the source prototype tokens. */
+   blue workspace theme. These values define the editor color tokens. */
 .app-shell[data-active-view="editor"] {
   --color-canvas:#0a0d10;
   --color-surface:#0f141a;
