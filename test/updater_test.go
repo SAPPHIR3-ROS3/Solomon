@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -18,51 +17,33 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
-func TestCheckWithCommit_requiresMatchingReleaseCommitAndAsset(t *testing.T) {
-	path, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		t.Fatal(err)
-	}
-	digest := "sha256:" + hex.EncodeToString(h.Sum(nil))
+func TestCheckWithSourceTree_requiresCurrentCommitAndPreReleaseInputs(t *testing.T) {
 	const tag = "v2026.930.0"
-	asset, err := updater.ReleaseAssetName(tag)
-	if err != nil {
-		t.Fatal(err)
-	}
 	localCommit := strings.Repeat("a", 40)
+	releaseTree := strings.Repeat("c", 40)
 	for _, tc := range []struct {
-		name, relation, releaseCommit, assetName, digest string
-		want                                             bool
+		name, relation, releaseCommit, localTree, remoteTree string
+		want                                                 bool
 	}{
-		{"exact commit and asset", "identical", localCommit, asset, digest, true},
-		{"same commit rebuilt binary", "identical", localCommit, asset, "sha256:" + strings.Repeat("0", 64), false},
-		{"different commit same asset", "identical", strings.Repeat("b", 40), asset, digest, false},
-		{"missing release commit", "identical", "", asset, digest, false},
-		{"missing asset digest", "identical", localCommit, asset, "", false},
-		{"wrong platform", "identical", localCommit, "other-platform", digest, false},
-		{"ahead commit", "ahead", localCommit, asset, digest, false},
+		{"same commit and inputs after rebuild", "identical", localCommit, releaseTree, releaseTree, true},
+		{"uncommitted source change", "identical", localCommit, strings.Repeat("d", 40), releaseTree, false},
+		{"different current commit same inputs", "identical", strings.Repeat("b", 40), releaseTree, releaseTree, false},
+		{"missing release commit", "identical", "", releaseTree, releaseTree, false},
+		{"missing local inputs", "identical", localCommit, "", releaseTree, false},
+		{"missing pre release inputs", "identical", localCommit, releaseTree, "", false},
+		{"ahead commit", "ahead", localCommit, releaseTree, releaseTree, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/latest" {
 					_ = json.NewEncoder(w).Encode(map[string]any{
 						"tag_name": tag,
-						"assets":   []map[string]string{{"name": tc.assetName, "digest": tc.digest}},
 					})
 					return
 				}
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"status":      tc.relation,
-					"base_commit": map[string]string{"sha": tc.releaseCommit},
+					"base_commit": map[string]any{"sha": tc.releaseCommit, "commit": map[string]any{"tree": map[string]string{"sha": tc.remoteTree}}},
 				})
 			}))
 			defer srv.Close()
@@ -70,8 +51,8 @@ func TestCheckWithCommit_requiresMatchingReleaseCommitAndAsset(t *testing.T) {
 			defer restoreLatest()
 			restoreCompare := updater.SetCompareReleaseAPIURL(srv.URL + "/compare")
 			defer restoreCompare()
-			res := updater.CheckWithCommit(context.Background(), tag+"-dev-aaaaaaa-dirty", localCommit)
-			if res.Err != nil || res.MatchesReleaseAsset != tc.want || res.Newer {
+			res := updater.CheckWithSourceTree(context.Background(), tag+"-dev-aaaaaaa-dirty", localCommit, time.Time{}, tc.localTree)
+			if res.Err != nil || res.MatchesReleaseSource != tc.want || res.Newer {
 				t.Fatalf("release identity: %+v, want match=%v", res, tc.want)
 			}
 		})

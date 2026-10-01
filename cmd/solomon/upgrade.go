@@ -19,13 +19,13 @@ func runUpgradeCLI() {
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	logging.Log(logging.INFO_LOG_LEVEL, "upgrade cli", logging.LogOptions{Params: map[string]any{"marker": upgradeSmokeMarker}})
 	current := commands.VersionString()
-	res := updater.CheckWithCommitTime(ctx, current, commands.BuildCommit(), commands.BuildCommitTime())
+	res := updater.CheckWithSourceTree(ctx, current, commands.BuildCommit(), commands.BuildCommitTime(), commands.BuildSourceTree())
 	if res.Err != nil {
 		fmt.Fprintln(os.Stderr, res.Err)
 		os.Exit(1)
 	}
 	if res.LocalCommitRelation == "ahead" || res.LocalCommitRelation == "identical" {
-		commands.SetEffectiveReleaseVersion(res.LatestTag, res.MatchesReleaseAsset)
+		commands.SetEffectiveReleaseVersion(res.LatestTag, res.MatchesReleaseSource)
 		current = commands.VersionString()
 	}
 	if !res.Newer {

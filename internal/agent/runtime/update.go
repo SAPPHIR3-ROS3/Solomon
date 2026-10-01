@@ -22,9 +22,9 @@ func (r *Runtime) refreshUpdateCheck(ctx context.Context, force bool) (*updater.
 	}
 	r.updateMu.Unlock()
 
-	res := updater.CheckWithCommitTime(ctx, commands.VersionString(), commands.BuildCommit(), commands.BuildCommitTime())
+	res := updater.CheckWithSourceTree(ctx, commands.VersionString(), commands.BuildCommit(), commands.BuildCommitTime(), commands.BuildSourceTree())
 	if res.Err == nil && (res.LocalCommitRelation == "ahead" || res.LocalCommitRelation == "identical") {
-		commands.SetEffectiveReleaseVersion(res.LatestTag, res.MatchesReleaseAsset)
+		commands.SetEffectiveReleaseVersion(res.LatestTag, res.MatchesReleaseSource)
 		res.Current = commands.VersionString()
 	}
 	var notice *updater.Notice

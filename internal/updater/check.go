@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -43,12 +42,12 @@ func SetReleaseCommitAPIURL(url string) func() {
 }
 
 type CheckResult struct {
-	Current             string
-	LatestTag           string
-	Newer               bool
-	Err                 error
-	LocalCommitRelation string
-	MatchesReleaseAsset bool
+	Current              string
+	LatestTag            string
+	Newer                bool
+	Err                  error
+	LocalCommitRelation  string
+	MatchesReleaseSource bool
 }
 
 type Notice struct {
@@ -65,16 +64,17 @@ func (r CheckResult) Notice() *Notice {
 
 type releaseJSON struct {
 	TagName string `json:"tag_name"`
-	Assets  []struct {
-		Name   string `json:"name"`
-		Digest string `json:"digest"`
-	} `json:"assets"`
 }
 
 type compareJSON struct {
 	Status     string `json:"status"`
 	BaseCommit struct {
-		SHA string `json:"sha"`
+		SHA    string `json:"sha"`
+		Commit struct {
+			Tree struct {
+				SHA string `json:"sha"`
+			} `json:"tree"`
+		} `json:"commit"`
 	} `json:"base_commit"`
 }
 
@@ -124,6 +124,12 @@ func CheckWithCommit(ctx context.Context, currentVersion, localCommit string) Ch
 }
 
 func CheckWithCommitTime(ctx context.Context, currentVersion, localCommit string, localCommitTime time.Time) CheckResult {
+	return CheckWithSourceTree(ctx, currentVersion, localCommit, localCommitTime, "")
+}
+
+// CheckWithSourceTree compares the current source commit and the input tree
+// captured before compiling assets, independently of the executable's bytes.
+func CheckWithSourceTree(ctx context.Context, currentVersion, localCommit string, localCommitTime time.Time, sourceTree string) CheckResult {
 	current := strings.TrimSpace(currentVersion)
 	localCommit = strings.TrimSpace(localCommit)
 	res := CheckResult{Current: current}
@@ -167,7 +173,7 @@ func CheckWithCommitTime(ctx context.Context, currentVersion, localCommit string
 		res.LocalCommitRelation = relation
 		if err == nil && (relation == "ahead" || relation == "identical") {
 			if relation == "identical" && len(localCommit) == 40 && comparison.BaseCommit.SHA == localCommit {
-				res.MatchesReleaseAsset = matchesRunningReleaseAsset(rel)
+				res.MatchesReleaseSource = len(sourceTree) == 40 && comparison.BaseCommit.Commit.Tree.SHA == sourceTree
 			}
 			logging.Log(logging.INFO_LOG_LEVEL, "updater local development build is not behind latest release", logging.LogOptions{Params: map[string]any{"current": current, "latest": tag, "relation": relation}})
 			return res
@@ -223,31 +229,6 @@ func compareLocalCommit(ctx context.Context, tag, localCommit string) (compareJS
 	}
 	comparison.Status = status
 	return comparison, nil
-}
-
-// A shared Git revision does not prove that a locally rebuilt executable is
-// the published asset. Require its SHA-256 digest too; missing proof keeps dev.
-func matchesRunningReleaseAsset(rel releaseJSON) bool {
-	name, err := releaseAssetName(rel.TagName)
-	if err != nil {
-		return false
-	}
-	for _, asset := range rel.Assets {
-		if asset.Name != name || !strings.HasPrefix(asset.Digest, "sha256:") {
-			continue
-		}
-		path, err := os.Executable()
-		if err != nil {
-			return false
-		}
-		if runtime.GOOS == "linux" {
-			// Hash the running inode even if an install replaced its path.
-			path = "/proc/self/exe"
-		}
-		actual, err := fileSHA256Hex(path)
-		return err == nil && actual == strings.TrimPrefix(asset.Digest, "sha256:")
-	}
-	return false
 }
 
 func fetchReleaseCommitTime(ctx context.Context, tag string) (time.Time, error) {

@@ -2,6 +2,7 @@
 /cursor-bundler*
 /cursor_bundler*
 /bin/
+/dist/
 *node_modules*
 /ui-prototypes/dist/
 /ui-prototypes/*.tsbuildinfo

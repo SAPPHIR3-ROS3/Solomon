@@ -100,7 +100,9 @@ jobs:
           fi
           COMMIT=$(git rev-parse HEAD)
           COMMIT_TIME=$(git show -s --format=%cI HEAD)
-          go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=${VERSION} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=${COMMIT} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=${COMMIT_TIME}" ./cmd/solomon
+          SOURCE_TREE=$(go run ./scripts/source_identity)
+          COMMIT_TREE=$(git rev-parse 'HEAD^{tree}')
+          go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=${VERSION} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=${COMMIT} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=${COMMIT_TIME} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=${SOURCE_TREE} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=${COMMIT_TREE}" ./cmd/solomon
 
   release:
     if: |
@@ -186,6 +188,10 @@ jobs:
           VER: ${{ steps.version.outputs.ver }}
         run: |
           set -e
+          # Capture the source tree before creating release outputs or stamping versions.
+          SOURCE_TREE=$(go run ./scripts/source_identity)
+          COMMIT_TREE=$(git rev-parse 'HEAD^{tree}')
+          COMMIT=$(git rev-parse HEAD)
           mkdir -p dist
           for spec in linux/amd64 linux/arm64 windows/amd64 windows/arm64 darwin/amd64 darwin/arm64; do
             goos="${spec%/*}"
@@ -194,7 +200,7 @@ jobs:
             if [ "$goos" = "windows" ]; then
               out="${out}.exe"
             fi
-            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$VER -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(git rev-parse --short HEAD)" -o "$out" ./cmd/solomon
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$VER -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$COMMIT -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=$SOURCE_TREE -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=$COMMIT_TREE" -o "$out" ./cmd/solomon
           done
 
       - name: Generate release checksums

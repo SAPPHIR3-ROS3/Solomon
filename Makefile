@@ -40,7 +40,9 @@ VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 COMMIT_TIME ?= $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 endif
-LDFLAGS = -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=$(COMMIT_TIME)
+SOURCE_TREE = $(strip $(shell go run ./scripts/source_identity))
+COMMIT_TREE = $(strip $(shell git rev-parse "HEAD^{tree}"))
+LDFLAGS = -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=$(COMMIT_TIME) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=$(SOURCE_TREE) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=$(COMMIT_TREE)
 
 BUILD_FLAGS = -trimpath -ldflags="$(LDFLAGS)"
 
