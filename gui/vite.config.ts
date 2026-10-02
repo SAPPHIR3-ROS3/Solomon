@@ -36,7 +36,9 @@ function rootIconPlugin(): Plugin {
   };
 }
 
+// Browser integration tests use a private dependency cache alongside their daemon.
 export default defineConfig({
+  cacheDir: process.env.SOLOMON_VITE_CACHE_DIR || undefined,
   plugins: [react(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin()],
   server: {
     fs: {

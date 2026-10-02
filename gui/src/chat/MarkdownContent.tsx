@@ -24,7 +24,7 @@ export function MarkdownContent({ content }: { content: string }) {
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeImageTags]}
     >
-      {escapeImageTags(content)}
+      {escapeImageTags(normalizeCodeBlocks(content))}
     </Markdown>
   );
 }
@@ -143,4 +143,33 @@ function escapeImageTags(content: string) {
 function isFileLink(href?: string) {
   if (!href || href.startsWith("#") || /^[a-z][a-z\d+.-]*:/i.test(href)) return false;
   return href.startsWith("./") || href.startsWith("../") || href.startsWith("/") || /\.[a-z\d]{1,8}(?:[?#].*)?$/i.test(href);
+}
+
+function normalizeCodeBlocks(content: string) {
+  const lines = content.split("\n");
+  let fence: { marker: string; length: number } | undefined;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index].replace(/\r$/, "");
+    const delimiter = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      if (delimiter && delimiter[1][0] === fence.marker && delimiter[1].length >= fence.length && !delimiter[2].trim()) fence = undefined;
+      continue;
+    }
+    if (delimiter) {
+      fence = { marker: delimiter[1][0], length: delimiter[1].length };
+      continue;
+    }
+    // Recupera solo blocchi autonomi con un'etichetta testuale esplicita.
+    if (!/^ {0,3}`(?:text|plaintext|tree|dirtree)\s*$/i.test(line)) continue;
+    let end = index + 1;
+    while (end < lines.length && !/^ {0,3}`\s*$/.test(lines[end])) {
+      if (lines[end].includes("`")) break;
+      end++;
+    }
+    if (end >= lines.length || !/^ {0,3}`\s*$/.test(lines[end])) continue;
+    lines[index] = lines[index].replace("`", "```");
+    lines[end] = lines[end].replace("`", "```");
+    index = end;
+  }
+  return lines.join("\n");
 }

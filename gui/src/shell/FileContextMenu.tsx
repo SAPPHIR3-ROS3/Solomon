@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { fetchProjectAtMentionSuggestions, operateProjectFile, type ProjectDirectoryEntry, type ProjectFileOperation } from "../projects/projects";
+import { copyTextFallback } from "../chat/chatClipboard";
 import { addFileToChat } from "../chat/fileReferences";
 
 type FileClipboard = { projectID: string; entry: ProjectDirectoryEntry; cut: boolean };
@@ -53,7 +54,7 @@ export function useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpen
     triggerRef.current = button; setError(""); setTarget({ entry, x, y });
   }
   async function copy(text: string) {
-    try { await navigator.clipboard.writeText(text); close(); }
+    try { if (navigator.clipboard?.writeText) { try { await navigator.clipboard.writeText(text); } catch { copyTextFallback(text); } } else copyTextFallback(text); close(); }
     catch { setError("Unable to copy to clipboard."); }
   }
   function beginDialog(kind: FileDialog["kind"], entry: ProjectDirectoryEntry) {

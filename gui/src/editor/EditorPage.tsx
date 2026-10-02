@@ -6,6 +6,7 @@ import { go } from "@codemirror/lang-go";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { powerShell } from "@codemirror/legacy-modes/mode/powershell";
 import { tags } from "@lezer/highlight";
+import { copyTextFallback } from "../chat/chatClipboard";
 import { AsciiBanner } from "../home/Welcome";
 import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon, SearchIcon } from "../shell/RightSidePanel";
 import { SidePanelToggle } from "../shell/SidePanelToggle";
@@ -196,6 +197,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     if (existing) {
       setFiles((current) => mode === "new" ? [...current.filter((file) => file.id !== existing.id), existing] : current);
       setActiveTabId(existing.id);
+      if (window.matchMedia("(max-width: 720px), (pointer: coarse) and (max-width: 1024px)").matches) setSideCollapsed(true);
       return;
     }
     setMessage("Opening file…");
@@ -216,6 +218,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
         return current.map((file, index) => index === activeIndex ? nextFile : file);
       });
       setActiveTabId(nextFile.id);
+      if (window.matchMedia("(max-width: 720px), (pointer: coarse) and (max-width: 1024px)").matches) setSideCollapsed(true);
       setMessage("");
     }
     catch { if (isCurrent()) setMessage(`Unable to open ${entry.path}.`); }
@@ -335,7 +338,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   return <>
     <SidePanelToggle isOpen={!sideCollapsed} onToggle={() => setSideCollapsed((current) => !current)} />
     {!sideCollapsed ? <button aria-label="Go to home" className="editor-top-wordmark" onClick={onHome} style={editorLayoutStyle} type="button">SOLOMON</button> : null}
-    <div className={`editor-top-path${sideCollapsed ? " is-collapsed" : ""}`} style={editorLayoutStyle} title={project.path}><span>{abbreviateHomePath(project.path)}</span><button aria-label="Copy project path" title="Copy project path" onClick={() => void navigator.clipboard?.writeText(project.path)}><CopyIcon /></button></div>
+    <div className={`editor-top-path${sideCollapsed ? " is-collapsed" : ""}`} style={editorLayoutStyle} title={project.path}><span>{abbreviateHomePath(project.path)}</span><button aria-label="Copy project path" title="Copy project path" onClick={() => { if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(project.path).catch(() => copyTextFallback(project.path)); else copyTextFallback(project.path); }}><CopyIcon /></button></div>
     <section className={`editor-page${sideCollapsed ? " side-collapsed" : ""}`} style={{ ...editorLayoutStyle, bottom: 0 }}>
     <aside className={`editor-sidebar${sideResizing ? " is-resizing" : ""}`} id="side-panel">
       <header aria-label="Explorer views" className="right-side-panel-head editor-side-panel-head">
@@ -368,7 +371,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     </aside>
     <main className="editor-workbench">
       {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to duplicate" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onDoubleClick={() => duplicateFile(file)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
-      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}</div><CodeEditor file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} /></> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
+      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div><CodeEditor file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} /></> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
     <footer className="editor-status"><span className="editor-status-branch"><GitBranchIcon />{branch || "No repository"}</span><span className="editor-status-spacer"/><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span></footer>

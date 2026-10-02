@@ -82,6 +82,33 @@ When REPL behavior needs new assertions, add **`ForTest` exports** in `editor/ed
 - **Parallel:** rare; default sequential is fine
 - **Cursor bundle:** `make test` / CI run `cursor_bundler` before tests ([`Makefile`](../../Makefile))
 
+## Mobile browser checks
+
+After `make gui-deps`, run:
+
+```bash
+npm --prefix gui test
+SOLOMON_TEST_BINARY="$(command -v solomon)" npm --prefix gui run test:mobile
+```
+
+The mobile suite uses `playwright-core` with an installed Chromium browser.
+Set `SOLOMON_TEST_BROWSER` to the browser executable when it is outside the
+usual Linux paths. It starts its own daemon and Vite instance with a temporary
+Solomon home, workspace and dependency cache; it does not restart the user's
+running daemon. Model catalog and chat replies are fixtures, so the suite does
+not make paid inference requests. File saving and terminal PTYs use real APIs.
+
+By default it serves the source frontend in development mode. To check a binary
+containing the compiled frontend, set `SOLOMON_TEST_MODE=normal` and point
+`SOLOMON_TEST_BINARY` at that binary after `make gui-build` and a Go build.
+
+The suite covers phone portrait/landscape sizes, touch navigation, model menus,
+photo attachments, IME confirmation, keyboard resizing without losing drafts,
+SSE replies, file saving, terminal WebSockets and desktop navigation. When a LAN
+interface is available, it also verifies API/WebSocket access from that host and
+clipboard copying over HTTP. Device emulation does not replace testing Safari
+and Android browsers on physical phones.
+
 ## Coverage map
 
 | Area | Test files | Architecture / debug |

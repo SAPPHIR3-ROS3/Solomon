@@ -6,6 +6,7 @@ import "./pulse.css";
 import "./theme/themes.css";
 import "./typography.css";
 import "./editor/editor.css";
+import "./responsive.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
