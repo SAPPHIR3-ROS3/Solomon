@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	guibundle "github.com/SAPPHIR3-ROS3/Solomon/v2026/gui"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
@@ -191,6 +192,10 @@ func Run(ctx context.Context, options Options) error {
 	terminalAPI := newTerminalAPI(terminalManager)
 	httpServer := &http.Server{}
 	mux := http.NewServeMux()
+	guiStatus := "not configured"
+	if proxy != nil || guibundle.Ready() {
+		guiStatus = "ready"
+	}
 	chatAPI := newChatAPI(serviceCtx)
 	projectAPI := newProjectAPI()
 	customizationAPI := newCustomizationAPI()
@@ -198,7 +203,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, Health{
 			OK: true, Server: state, Now: time.Now().UTC(), Uptime: time.Since(state.StartedAt).Round(time.Second).String(),
-			API: "not configured", GUI: "not configured", Workers: "not configured",
+			API: "ready", GUI: guiStatus, Workers: "ready",
 		})
 	})
 	mux.HandleFunc("POST /_solomon/stop", func(w http.ResponseWriter, _ *http.Request) {
@@ -254,6 +259,8 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/terminal", terminalAPI.handleWebSocket)
 	if proxy != nil {
 		mux.Handle("/", proxy)
+	} else if guibundle.Ready() {
+		mux.Handle("/", productionFrontend())
 	}
 	httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/__solomon" || strings.HasPrefix(r.URL.Path, "/__solomon/") {

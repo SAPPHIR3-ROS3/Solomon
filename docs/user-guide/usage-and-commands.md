@@ -77,6 +77,21 @@ solomon server status
 solomon server stop
 ```
 
+### Phone and tablet access
+
+Run `solomon server status` on the computer hosting Solomon. On a phone on the
+same network, open one of the reported **local** URLs in the browser. With
+Tailscale connected on both devices, open the reported **tailscale** URL.
+The browser uses the same projects, chats, streaming runs and terminal sessions
+as the desktop app.
+
+The touch layout supports portrait and landscape, drawer navigation, photo
+attachments, and a Save button in the editor. The composer keeps its draft when
+the virtual keyboard reduces the available space. Folder browsing and terminal
+commands operate on the computer hosting Solomon. To publish frontend changes
+from a source checkout, run `make hot-install`; a running development server
+loads source changes through Vite.
+
 For GUI development, pass the GUI project directory explicitly. The server
 launches Vite as its child and proxies it at its advertised local URL, so browser
 and Wails desktop development use the same frontend and daemon API.

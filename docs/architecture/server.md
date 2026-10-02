@@ -1,6 +1,6 @@
 # Local server
 
-The `solomon server` process is a user-scoped, detached local service. It is manually started and stopped; it is not tied to a workspace, a shell, or the current working directory.
+The `solomon server` process is a user-scoped, detached local service. It can be started manually or on demand by the desktop client; it is not tied to a workspace, a shell, or the current working directory.
 
 ## Responsibilities
 
@@ -54,8 +54,10 @@ Customization, model and terminal routes are also daemon-owned:
 
 The browser and Wails GUI use these same daemon routes. The Vite middleware
 contains a development fallback for opening the frontend directly, but it is not
-the ownership boundary for a server-backed client; the Wails bridge is used only
-to discover the daemon URL during desktop development.
+the ownership boundary for a server-backed client; the Wails bridge exposes a private loopback gateway that forwards API requests,
+SSE streams and WebSockets to the current daemon. The gateway follows daemon
+state after a restart and adapts native `wails://wails` origins for older daemons.
+Closing the desktop window closes this gateway, while daemon-owned work continues.
 
 ## Lifecycle
 
@@ -84,6 +86,14 @@ clients. Browser API requests and terminal upgrades reject unrelated origins,
 but this is not a substitute for authentication on an untrusted network.
 
 `GET /health` returns JSON with `ok`, server PID/version/mode/URLs, the discovered `addresses` list, start time, Go runtime details, Vite status, Vite process-group leader PID and development directory when present, plus the existing API, GUI and worker readiness fields. It is the readiness check used by the CLI.
+
+## Production frontend
+
+`make gui-build` stages the Vite output for embedding in the CLI and native
+desktop client. In normal mode the server serves those assets and the React
+entry point for client-side routes. Missing static assets return 404. Health
+reports API and workers as `ready`, and GUI as `ready` when a compiled bundle
+or development frontend is available.
 
 ## Development frontend
 

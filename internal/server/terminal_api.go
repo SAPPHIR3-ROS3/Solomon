@@ -178,6 +178,9 @@ func terminalOriginAllowed(r *http.Request) bool {
 		return true
 	}
 	parsed, err := url.Parse(origin)
+	if err == nil && parsed.Scheme == "wails" && parsed.Host == "wails" && parsed.User == nil && parsed.RawQuery == "" && parsed.Fragment == "" && (parsed.Path == "" || parsed.Path == "/") {
+		return true
+	}
 	if err != nil || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 		return false
 	}

@@ -11,7 +11,7 @@ type NewProjectDialogProps = {
 
 const projectSources = [
   {
-    description: "Open a project from a folder on this computer",
+    description: "Open a project from a folder on the Solomon server",
     id: "local",
     label: "Local folder",
     icon: <FolderIcon />,

@@ -75,7 +75,7 @@ export async function desktopBridge(): Promise<WailsDesktopBridge | undefined> {
   // Wails injects its bindings immediately after the document starts loading.
   // Do not use runtime.Environment as the guard here: on a cold WebView load it
   // can arrive after React has already requested sidebar data.
-  if (window.location.hostname !== "wails.localhost" && !window.go?.main) return undefined;
+  if (!isNativeLocation() && !window.go?.main) return undefined;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const bridge = window.go?.main?.DesktopBridge;
     if (bridge) return bridge;
@@ -111,10 +111,8 @@ export async function serverEndpoint(path: string): Promise<string> {
   const serverURL = await getDesktopServerURL();
   if (serverURL) return `${serverURL.replace(/\/$/, "")}${path}`;
 
-  if (window.location.hostname !== "wails.localhost") return path;
-  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-  const port = window.location.port ? `:${window.location.port}` : "";
-  return `${protocol}//127.0.0.1${port}${path}`;
+  if (!isNativeLocation()) return path;
+  throw new Error("Solomon daemon is unavailable. Start it with solomon server start.");
 }
 
 function getDesktopServerURL(): Promise<string> {
@@ -136,8 +134,12 @@ function getDesktopServerURL(): Promise<string> {
   });
 }
 
+function isNativeLocation(): boolean {
+  return window.location.hostname === "wails.localhost" || (window.location.protocol === "wails:" && window.location.hostname === "wails");
+}
+
 function isWailsDesktop(): boolean {
-  return typeof window.runtime?.Environment === "function";
+  return isNativeLocation() || Boolean(window.go?.main) || typeof window.runtime?.Environment === "function";
 }
 
 function osFromPlatform(platform: string): ClientOS {
