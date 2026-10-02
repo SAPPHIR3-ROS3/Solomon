@@ -27,7 +27,7 @@ const MIN_TERMINAL_PANEL_HEIGHT = 120;
 const FALLBACK_KEEP_ALIVE_HEIGHT = 96;
 const DEFAULT_SIDE_PANEL_WIDTH = 240;
 const MIN_SIDE_PANEL_WIDTH = DEFAULT_SIDE_PANEL_WIDTH;
-const WELCOME_HORIZONTAL_PADDING = 72;
+const WELCOME_HORIZONTAL_PADDING = 32;
 const MAX_COMPOSER_WIDTH = 960;
 const TEXTBOX_SIDE_PANEL_GAP = 36;
 const LEFT_SIDE_PANEL_WIDTH_KEY = "solomon.left-side-panel-width";
@@ -60,7 +60,8 @@ export function App() {
   const [welcomeResetToken, setWelcomeResetToken] = useState(0);
   const [selectedResearch, setSelectedResearch] = useState<{ project: Project; research: ProjectResearch } | null>(null);
   const [workspaceFocus, setWorkspaceFocus] = useState<{ project: Project; token: number } | null>(null);
-  const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
+  const [viewportHeight, setViewportHeight] = useState(getVisibleViewportHeight);
+  const [viewportTop, setViewportTop] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(getViewportContentWidth);
   const [viewportScrollbarWidth, setViewportScrollbarWidth] = useState(getViewportScrollbarWidth);
   const restoreAttemptedRef = useRef(false);
@@ -93,15 +94,21 @@ export function App() {
 
   useEffect(() => {
     const onResize = () => {
-      setViewportHeight(window.innerHeight);
+      setViewportHeight(getVisibleViewportHeight());
+      setViewportTop(window.visualViewport?.scale === 1 ? window.visualViewport.offsetTop : 0);
       setViewportWidth(getViewportContentWidth());
       setViewportScrollbarWidth(getViewportScrollbarWidth());
     };
     window.addEventListener("resize", onResize);
+    window.visualViewport?.addEventListener("resize", onResize);
+    window.visualViewport?.addEventListener("scroll", onResize);
+    onResize();
     const resizeObserver = new ResizeObserver(onResize);
     resizeObserver.observe(document.documentElement);
     return () => {
       window.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("scroll", onResize);
       resizeObserver.disconnect();
     };
   }, []);
@@ -118,7 +125,14 @@ export function App() {
     setTerminalPanelHeight((height) => Math.min(height, maxTerminalPanelHeight));
   }, [maxTerminalPanelHeight]);
 
+  const closeMobilePanels = useCallback(() => {
+    if (!window.matchMedia("(max-width: 720px), (pointer: coarse) and (max-width: 1024px)").matches) return;
+    setIsSidePanelOpen(false);
+    setIsRightSidePanelOpen(false);
+  }, []);
+
   function goHome() {
+    closeMobilePanels();
     chatRuntime.clearSelection();
     setIsNewProjectDialogOpen(false);
     setWelcomeResetToken((current) => current + 1);
@@ -134,6 +148,7 @@ export function App() {
   }
 
   function openNewProjectDialog() {
+    closeMobilePanels();
     setIsNewProjectDialogOpen(true);
   }
 
@@ -150,6 +165,7 @@ export function App() {
   }
 
   function openTemporaryWorkspace() {
+    closeMobilePanels();
     if (!temporaryWorkspace) return;
     chatRuntime.clearSelection();
     setActiveTemporaryWorkspaceID(temporaryWorkspace.id);
@@ -175,6 +191,7 @@ export function App() {
   }
 
   function openSettings() {
+    closeMobilePanels();
     setIsSettingsOpen(true);
     setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
@@ -183,6 +200,7 @@ export function App() {
   }
 
   function toggleActiveAgents() {
+    closeMobilePanels();
     setIsActiveAgentsOpen((open) => {
       if (!open) {
         setIsCustomizationOpen(false);
@@ -193,6 +211,7 @@ export function App() {
   }
 
   function toggleCustomization() {
+    closeMobilePanels();
     setIsCustomizationOpen((open) => {
       if (!open) {
         setIsActiveAgentsOpen(false);
@@ -207,6 +226,7 @@ export function App() {
   }
 
   function openProjectNewChat(project: Project) {
+    closeMobilePanels();
     chatRuntime.clearSelection();
     setWelcomeResetToken((current) => current + 1);
     setIsActiveAgentsOpen(false);
@@ -220,6 +240,7 @@ export function App() {
   }
 
   function openProjectTerminal(project: Project) {
+    closeMobilePanels();
     chatRuntime.clearSelection();
     setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
@@ -234,6 +255,7 @@ export function App() {
   }
 
   const openProjectChat = useCallback(async (project: Project, chatID: string) => {
+    closeMobilePanels();
     setWelcomeResetToken((current) => current + 1);
     setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
@@ -243,7 +265,7 @@ export function App() {
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedResearch(null);
     await chatRuntime.openProjectChat(project, chatID);
-  }, [chatRuntime.openProjectChat]);
+  }, [chatRuntime.openProjectChat, closeMobilePanels]);
 
   async function openActiveAgent(projectID: string, projectName: string, node: ActiveAgentNode) {
     const sidebar = await fetchProjectSidebarData();
@@ -312,7 +334,12 @@ export function App() {
 
   const preferredLeftWidth = isSidePanelOpen ? leftSidePanelWidth : 0;
   const preferredRightWidth = isRightSidePanelOpen && !isCustomizationOpen ? rightSidePanelWidth : 0;
-  const composerWidth = Math.min(MAX_COMPOSER_WIDTH, Math.max(0, viewportWidth - WELCOME_HORIZONTAL_PADDING));
+  // Match --central-column-width, including before the composer is measured.
+  const composerWidth = Math.max(0, Math.min(
+    MAX_COMPOSER_WIDTH,
+    viewportWidth * 2 / 3 + 96,
+    viewportWidth - WELCOME_HORIZONTAL_PADDING,
+  ));
   const fallbackMaximumPanelWidth = Math.max(
     0,
     Math.floor((viewportWidth - composerWidth) / 2) - TEXTBOX_SIDE_PANEL_GAP,
@@ -323,8 +350,28 @@ export function App() {
   const maximumRightPanelWidth = !isCustomizationOpen && composerBounds
     ? Math.max(0, Math.floor(viewportWidth - composerBounds.right) - TEXTBOX_SIDE_PANEL_GAP)
     : fallbackMaximumPanelWidth;
-  const renderedLeftPanelWidth = Math.min(preferredLeftWidth, maximumLeftPanelWidth);
-  const renderedRightPanelWidth = Math.min(preferredRightWidth, maximumRightPanelWidth);
+  const leftPanelOverlay = maximumLeftPanelWidth < MIN_SIDE_PANEL_WIDTH;
+  const rightPanelOverlay = maximumRightPanelWidth < MIN_SIDE_PANEL_WIDTH;
+  const drawerWidth = Math.max(0, viewportWidth - 48);
+  const renderedLeftPanelWidth = Math.min(preferredLeftWidth, leftPanelOverlay ? drawerWidth : maximumLeftPanelWidth);
+  const rightPanelVisible = isRightSidePanelOpen && !isCustomizationOpen && !(isSidePanelOpen && leftPanelOverlay);
+  const renderedRightPanelWidth = rightPanelVisible
+    ? Math.min(preferredRightWidth, rightPanelOverlay ? drawerWidth : maximumRightPanelWidth)
+    : 0;
+  const panelOverlayOpen = !isSettingsOpen && activeView !== "editor" && (
+    (isSidePanelOpen && leftPanelOverlay) || (rightPanelVisible && rightPanelOverlay)
+  );
+
+  useEffect(() => {
+    if (!panelOverlayOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setIsSidePanelOpen(false);
+      setIsRightSidePanelOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [panelOverlayOpen]);
 
   function resizeLeftPanel(width: number) {
     const maximum = Math.max(MIN_SIDE_PANEL_WIDTH, maximumLeftPanelWidth);
@@ -340,15 +387,28 @@ export function App() {
     <main
       className="app-shell"
       data-active-view={activeView}
+      data-compact-height={viewportHeight < 560}
+      data-left-panel-overlay={leftPanelOverlay}
+      data-right-panel-overlay={rightPanelOverlay}
       data-client-os={client.os}
       data-client-surface={client.surface}
       style={{
+        "--visual-viewport-height": `${viewportHeight}px`,
+        "--visual-viewport-top": `${viewportTop}px`,
         "--left-panel-width": `${isSettingsOpen ? Math.min(leftSidePanelWidth, Math.max(0, viewportWidth)) : renderedLeftPanelWidth}px`,
         "--right-panel-width": `${renderedRightPanelWidth}px`,
         "--settings-panel-width": `${Math.min(leftSidePanelWidth, Math.max(0, viewportWidth))}px`,
         "--viewport-scrollbar-width": `${viewportScrollbarWidth}px`,
       } as CSSProperties}
     >
+      {panelOverlayOpen ? (
+        <button
+          aria-label="Close side panels"
+          className="side-panel-backdrop"
+          onClick={() => { setIsSidePanelOpen(false); setIsRightSidePanelOpen(false); }}
+          type="button"
+        />
+      ) : null}
       <div
         aria-hidden="true"
         className={`window-drag-area${isSidePanelOpen || isSettingsOpen ? " is-left-inset" : ""}${isRightSidePanelOpen && !isCustomizationOpen && !isSettingsOpen ? " is-right-inset" : ""}`}
@@ -356,7 +416,10 @@ export function App() {
       {!isSettingsOpen && activeView !== "editor" ? (
         <SidePanelToggle
           isOpen={isSidePanelOpen}
-          onToggle={() => setIsSidePanelOpen((open) => !open)}
+          onToggle={() => {
+            if (leftPanelOverlay) setIsRightSidePanelOpen(false);
+            setIsSidePanelOpen((open) => !open);
+          }}
         />
       ) : null}
       {!isSettingsOpen && activeView !== "editor" && isSidePanelOpen ? (
@@ -367,20 +430,22 @@ export function App() {
       {!isSettingsOpen && activeView !== "editor" ? (
         <RightSidePanelToggle
           disabled={isCustomizationOpen}
-          isOpen={isRightSidePanelOpen && !isCustomizationOpen}
+          isOpen={rightPanelVisible}
           onToggle={() => {
             if (isCustomizationOpen) return;
+            if (rightPanelOverlay) setIsSidePanelOpen(false);
             setIsRightSidePanelOpen((open) => !open);
           }}
         />
       ) : null}
-      {!isSettingsOpen && activeView !== "editor" && isRightSidePanelOpen && !isCustomizationOpen ? (
+      {!isSettingsOpen && activeView !== "editor" && rightPanelVisible ? (
         <RightSidePanel
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
-          onOpenFile={(entry) => { if (!selectedWorkspace) return; setEditorFile({ projectID: selectedWorkspace.id, entry }); setActiveView("editor"); }}
+          onOpenFile={(entry) => { if (!selectedWorkspace) return; closeMobilePanels(); setEditorFile({ projectID: selectedWorkspace.id, entry }); setActiveView("editor"); }}
           onWidthChange={resizeRightPanel}
           onOpenResearch={(research) => {
             if (!selectedWorkspace) return;
+            closeMobilePanels();
             chatRuntime.clearSelection();
             setSelectedResearch({
               project: selectedWorkspace,
@@ -548,4 +613,9 @@ function normalizeTemporaryWorkspacePath(value: string) {
     .replaceAll("\\", "/")
     .replace(/^~\/?/, "")
     .replace(/^\/+|\/+$/g, "");
+}
+
+function getVisibleViewportHeight() {
+  const viewport = window.visualViewport;
+  return viewport?.scale === 1 ? viewport.height : window.innerHeight;
 }

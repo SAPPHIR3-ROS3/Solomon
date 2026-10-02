@@ -65,6 +65,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   const shellRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef(0);
   const nextImageIDRef = useRef(0);
+  const imagePickerRef = useRef<HTMLInputElement>(null);
   const previousImagesRef = useRef<ComposerImageAttachment[]>([]);
   const recoveredImageIDsRef = useRef(new Set<number>());
   const [suggestions, setSuggestions] = useState<ProjectAtMentionSuggestion[]>([]);
@@ -194,10 +195,16 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
       .flatMap((item) => item.getAsFile() ?? []);
     if (!files.length || !onImagesChange) return;
     event.preventDefault();
-    const pasted = files.map((file) => {
+    attachImages(files);
+  }
+
+  function attachImages(files: File[]) {
+    if (!files.length || !onImagesChange) return;
+    const pasted = files.filter((file) => file.type.startsWith("image/")).map((file) => {
       const id = nextImageIDRef.current++;
       return { blob: file, id, name: file.name || `image-${id}.png`, tag: `[img-${id}]`, url: URL.createObjectURL(file) };
     });
+    if (!pasted.length) return;
     const input = inputRef.current;
     const start = input?.selectionStart ?? value.length;
     const end = input?.selectionEnd ?? start;
@@ -290,6 +297,15 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
           ))}
         </div>
       ) : null}
+      {onImagesChange ? <>
+        <input accept="image/*" aria-label="Choose images" hidden multiple onChange={(event) => {
+          attachImages(Array.from(event.currentTarget.files ?? []));
+          event.currentTarget.value = "";
+        }} ref={imagePickerRef} type="file" />
+        <button aria-label="Attach images" className="composer-image-upload" onClick={() => imagePickerRef.current?.click()} type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
+      </> : null}
       <textarea
         aria-label={ariaLabel}
         className={`${className} at-mention-input`.trim()}
@@ -317,6 +333,8 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
           scheduleVisualCaret(event.currentTarget);
         }}
         onKeyDown={(event) => {
+          // IME confirmation belongs to the keyboard, including mobile keyboards.
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           if (suggestions.length) {
             if (event.key === "ArrowDown") { event.preventDefault(); setSelected((current) => Math.min(current + 1, suggestions.length - 1)); return; }
             if (event.key === "ArrowUp") { event.preventDefault(); setSelected((current) => Math.max(current - 1, 0)); return; }

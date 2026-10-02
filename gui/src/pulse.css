@@ -1,47 +1,44 @@
-@property --chat-pulse-opacity {
-  inherits: true;
-  initial-value: .45;
-  syntax: "<number>";
-}
-
-@property --chat-pulse-ring-opacity {
-  inherits: true;
-  initial-value: 0%;
-  syntax: "<percentage>";
-}
-
-@property --chat-pulse-ring-size {
-  inherits: true;
-  initial-value: 0px;
-  syntax: "<length>";
-}
-
-@keyframes chat-pulse-clock {
-  0%, 100% {
-    --chat-pulse-opacity: .45;
-    --chat-pulse-ring-opacity: 0%;
-    --chat-pulse-ring-size: 0px;
-  }
-
-  50% {
-    --chat-pulse-opacity: 1;
-    --chat-pulse-ring-opacity: 20%;
-    --chat-pulse-ring-size: 5px;
-  }
+/* Animate opacity on the indicators themselves, avoiding inherited-property
+   interpolation and style recalculation throughout the app shell. */
+@keyframes chat-activity-pulse {
+  0%, 100% { opacity: .45; }
+  50% { opacity: 1; }
 }
 
 .app-shell {
-  --chat-pulse-opacity: .45;
-  --chat-pulse-ring-opacity: 0%;
-  --chat-pulse-ring-size: 0px;
-  animation: chat-pulse-clock 1.15s ease-in-out infinite;
+  --chat-pulse-opacity: .8;
+  --chat-pulse-ring-opacity: 12%;
+  --chat-pulse-ring-size: 3px;
+}
+
+.app-shell .chat-subagent-card.is-running .chat-subagent-status-dot,
+.app-shell .chat-subchat-panel.is-running .chat-subchat-status-dot,
+.app-shell .chat-tool-card.is-running .chat-tool-status-dot,
+.app-shell .chat-subagent-indicator-dot,
+.app-shell .chat-subagent-indicator-item-dot,
+.app-shell .active-agents-node.is-running > button .active-agents-status,
+.app-shell .active-agents-node.is-queued > button .active-agents-status,
+.app-shell .side-panel-chat-working-dot,
+.app-shell .right-side-panel-research-item.is-running > svg {
+  animation: chat-activity-pulse 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .app-shell {
-    animation: none;
-    --chat-pulse-opacity: .8;
     --chat-pulse-ring-opacity: 0%;
     --chat-pulse-ring-size: 0px;
+  }
+
+  .app-shell .chat-subagent-card.is-running .chat-subagent-status-dot,
+  .app-shell .chat-subchat-panel.is-running .chat-subchat-status-dot,
+  .app-shell .chat-tool-card.is-running .chat-tool-status-dot,
+  .app-shell .chat-subagent-indicator-dot,
+  .app-shell .chat-subagent-indicator-item-dot,
+  .app-shell .active-agents-node.is-running > button .active-agents-status,
+  .app-shell .active-agents-node.is-queued > button .active-agents-status,
+  .app-shell .side-panel-chat-working-dot,
+  .app-shell .right-side-panel-research-item.is-running > svg {
+    animation: none;
+    opacity: .8;
   }
 }

@@ -90,7 +90,7 @@
 .chat-turn { max-width: 80%; position: relative; }
 .chat-turn.is-user, .chat-turn.is-assistant { align-self: stretch; max-width: none; width: 100%; }
 .chat-turn.is-assistant + .chat-turn.is-user { margin-top: 10px; }
-.chat-message { border: 1px solid var(--color-border); border-radius: 10px; font: 17px/1.55 "Geist", sans-serif; max-width: 80%; padding: 12px 14px; position: relative; }
+.chat-message { border: 1px solid var(--color-border); border-radius: 10px; font: 17px/1.55 "Geist", sans-serif; max-width: 80%; min-width: 0; overflow-wrap: anywhere; padding: 12px 14px; position: relative; }
 .chat-message.is-user {
   align-self: stretch;
   background: var(--color-surface-raised);

@@ -225,7 +225,8 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
       else if (available >= withFolder) next = { banner: false, title: false, folder: true, composer: true, version: true, chatCount: true, tokenCount: true };
       else if (available >= withComposerAndMeta) next = { banner: false, title: false, folder: false, composer: true, version: true, chatCount: true, tokenCount: true };
       else if (available >= composerH) next = { banner: false, title: false, folder: false, composer: true, version: false, chatCount: false, tokenCount: false };
-      else next = { banner: false, title: false, folder: false, composer: false, version: false, chatCount: false, tokenCount: false };
+      // Keep the draft mounted when a phone keyboard leaves very little space.
+      else next = { banner: false, title: false, folder: false, composer: true, version: false, chatCount: false, tokenCount: false };
       keepAliveHandlerRef.current?.(padTop + folderH + composerH + (next.version || next.chatCount || next.tokenCount ? metaH : 0) + padBottom);
       setVisibility((current) => (
         current.banner === next.banner && current.title === next.title && current.folder === next.folder && current.composer === next.composer && current.version === next.version && current.chatCount === next.chatCount && current.tokenCount === next.tokenCount

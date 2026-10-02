@@ -1,0 +1,174 @@
+/* Scale the same centered column continuously in Home and Chat. */
+.app-shell {
+  --central-column-width: min(960px, calc(66.666667vw + 96px), calc(100vw - 32px));
+}
+
+.welcome-stage,
+.welcome-measure {
+  width: var(--central-column-width);
+  max-width: var(--central-column-width);
+}
+
+.chat-view {
+  --chat-content-max-width: var(--central-column-width);
+}
+
+/* Use drawers when the space beside the centered composer is too narrow. */
+.side-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 13;
+  border: 0;
+  padding: 0;
+  background: rgb(0 0 0 / 35%);
+  cursor: pointer;
+}
+.app-shell[data-left-panel-overlay="true"] .side-panel,
+.app-shell[data-right-panel-overlay="true"] .right-side-panel { z-index: 14; }
+.app-shell[data-left-panel-overlay="true"]:has(.side-panel) .side-panel-toggle,
+.app-shell[data-left-panel-overlay="true"]:has(.side-panel) .side-panel-wordmark,
+.app-shell[data-right-panel-overlay="true"]:has(.right-side-panel) .right-side-panel-toggle { z-index: 15; }
+.app-shell[data-left-panel-overlay="true"] .side-panel .side-panel-resize,
+.app-shell[data-right-panel-overlay="true"] .right-side-panel .side-panel-resize { display: none; }
+.app-shell[data-left-panel-overlay="true"] .chat-topbar { left: calc(var(--side-panel-toggle-end) + 8px); }
+.app-shell[data-right-panel-overlay="true"] .chat-topbar { right: calc(50% + 121px); }
+
+@media (max-width: 720px), (pointer: coarse) and (max-width: 1024px) {
+  .welcome-screen { padding: var(--top-bar-height) 16px 16px; }
+  .welcome-stage { min-width: 0; }
+  .welcome-title {
+    font-size: clamp(24px, 6vw, 42px);
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .welcome-ascii-banner { font-size: clamp(7px, 2vw, 15px); }
+  .welcome-toolbar, .welcome-toolbar-modes, .welcome-meta-row { flex-wrap: wrap; }
+  .welcome-toolbar-left { flex: 1 1 200px; }
+  .welcome-toolbar > .welcome-send { margin-left: auto; }
+  .welcome-composer { min-width: 0; padding-inline: 12px; }
+  .at-mention-picker { min-width: 0; max-width: 100%; }
+  .chat-view { --chat-horizontal-padding: 16px; }
+  .research-report-view { padding-inline: 16px; }
+  .view-switch { width: 180px; }
+  .chat-topbar,
+  .app-shell[data-right-panel-overlay="true"] .chat-topbar { right: calc(50% + 98px); }
+  .chat-topbar-context { min-width: 0; flex-shrink: 1; }
+  .chat-topbar-folder { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-topbar-folder, .chat-topbar-title { font-size: 14px; }
+  .editor-page { grid-template-columns: min(var(--editor-side-width, 248px), 40vw) minmax(0, 1fr); }
+  .editor-page::before { width: min(var(--editor-side-width, 248px), 40vw); }
+  .editor-top-wordmark, .editor-top-path { display: none; }
+  .editor-breadcrumb, .editor-status { min-width: 0; overflow: hidden; }
+}
+
+@media (max-width: 640px) {
+  .settings-sidebar {
+    width: 100%; height: 142px; bottom: auto;
+    border-right: 0; border-bottom: 1px solid var(--color-border);
+  }
+  .settings-sidebar .settings-wordmark { left: 16px; width: 140px; }
+  .settings-navigation { display: flex; flex: none; gap: 8px; overflow-x: auto; padding: 4px 8px; }
+  .settings-navigation > button { flex: 0 0 auto; width: auto; font-size: 13px; }
+  .settings-sidebar-footer { position: absolute; top: 9px; right: 8px; border: 0; padding: 0; }
+  .settings-back { font-size: 0; gap: 0; width: 36px; justify-content: center; }
+  .settings-main { inset: 142px 0 0; }
+  .settings-models-header { padding-inline: 16px; }
+  .settings-models-content { padding: 20px 16px 32px; }
+  .settings-models-panel-heading, .settings-provider-toggle { flex-wrap: wrap; gap: 10px; }
+  .settings-docs-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(80px, 140px) minmax(0, 1fr); }
+  .settings-docs-files { border-right: 0; border-bottom: 1px solid var(--color-border); }
+  .settings-docs-article { padding: 16px; overflow-wrap: anywhere; }
+}
+
+@media (max-height: 560px) {
+  .welcome-screen { align-items: flex-start; overflow-y: auto; }
+  .welcome-stage { margin-block: auto; flex-shrink: 0; }
+}
+
+/* Browser controls must stay tappable beneath the native-only drag region. */
+.app-shell[data-client-surface="web"] .window-drag-area { pointer-events: none; }
+
+@media (max-width: 720px), (pointer: coarse) and (max-width: 1024px) {
+  /* Fixed descendants follow the visible viewport when the soft keyboard opens. */
+  .app-shell[data-client-surface="web"] {
+    contain: layout;
+    position: fixed;
+    top: var(--visual-viewport-top, 0px);
+    left: env(safe-area-inset-left, 0px);
+    right: env(safe-area-inset-right, 0px);
+    height: var(--visual-viewport-height, 100dvh);
+    min-height: 0;
+  }
+  .app-shell {
+    --side-panel-toggle-size: 44px;
+    --side-panel-toggle-left: 4px;
+    --top-bar-height: calc(60px + env(safe-area-inset-top, 0px));
+    --top-bar-content-center: calc(30px + env(safe-area-inset-top, 0px));
+    --top-bar-control-top: calc(8px + env(safe-area-inset-top, 0px));
+    --top-bar-switch-top: calc(7.5px + env(safe-area-inset-top, 0px));
+  }
+  .side-panel-toggle, .right-side-panel-toggle, .terminal-panel-toggle { width: 44px; height: 44px; }
+  .right-side-panel-toggle { right: 4px; }
+  .terminal-panel-toggle { right: 52px; }
+  .view-switch { left: calc(50% - 24px); width: 136px; }
+  .view-switch button { min-height: 36px; padding-inline: 4px; }
+  .welcome-screen { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .welcome-input,
+  .app-shell input:not([type="checkbox"]):not([type="range"]),
+  .app-shell textarea { font-size: 16px; }
+  .welcome-toolbar { --welcome-control-height: 40px; }
+  .welcome-model-menu { grid-template-columns: minmax(90px, 38%) minmax(0, 1fr); }
+  .welcome-model-menu, .welcome-workspace-menu { max-width: calc(100vw - 56px); }
+  .side-panel-action, .side-panel-project-trigger, .side-panel-chat { min-height: 44px; }
+  .side-panel-user-settings { min-width: 44px; min-height: 44px; }
+  .chat-topbar,
+  .app-shell[data-left-panel-overlay="true"] .chat-topbar,
+  .app-shell[data-right-panel-overlay="true"] .chat-topbar {
+    left: 16px; right: 16px; top: var(--top-bar-height); height: 36px;
+  }
+  .chat-view { padding-top: calc(var(--top-bar-height) + 36px); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .app-shell[data-compact-height="true"] .welcome-screen { align-items: flex-start; overflow-y: auto; }
+  .app-shell[data-compact-height="true"] .welcome-stage { flex-shrink: 0; margin-block: auto; }
+  .app-shell[data-compact-height="true"] .welcome-lockup,
+  .app-shell[data-compact-height="true"] .welcome-meta-row { display: none; }
+  .customization-search { max-width: 100%; min-width: 0; }
+  .editor-empty .welcome-ascii-banner { max-width: 100%; overflow: hidden; }
+}
+
+.composer-image-upload, .editor-save { display: none; }
+@media (max-width: 720px), (pointer: coarse) and (max-width: 1024px) {
+  .view-switch { height: 44px; }
+  .view-switch button { min-width: 0; width: 50%; gap: 4px; }
+  .editor-save {
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: auto; flex: none; min-width: 52px; min-height: 32px;
+    padding: 0 8px; border: 1px solid var(--color-border); border-radius: 6px;
+    background: var(--color-surface); color: var(--color-text); font: inherit;
+  }
+  .editor-save:disabled { opacity: .45; }
+  .at-mention-input-shell:has(.composer-image-upload) { padding-right: 40px; }
+  .composer-image-upload {
+    display: grid; place-items: center; position: absolute; top: 0; right: 0;
+    width: 40px; height: 44px; border: 0; border-radius: 8px;
+    color: var(--color-text-muted); background: transparent;
+  }
+  .composer-image-upload svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+  .composer-image-upload:focus-visible, .editor-save:focus-visible { outline: 2px solid var(--focus-ring); }
+}
+
+@media (max-width: 720px), (pointer: coarse) and (max-width: 1024px) {
+  .welcome-toolbar-left { flex: 1 1 0; }
+  .app-shell[data-compact-height="true"] .welcome-input {
+    min-height: 48px;
+    max-height: clamp(48px, calc(var(--visual-viewport-height, 100dvh) - 240px), 160px);
+    overflow-y: auto !important;
+  }
+}
+
+@media (max-width: 720px), (pointer: coarse) and (max-width: 1024px) {
+  .app-shell .cm-content[contenteditable="true"] { font-size: 16px; }
+  .chat-message-footer button { min-width: 40px; min-height: 40px; }
+  .chat-code-block > header { height: 40px; }
+  .chat-copy-code { width: 40px; height: 36px; }
+}
