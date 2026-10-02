@@ -125,3 +125,40 @@ Prebuilt binaries are attached per platform; the install scripts download those 
 - [Overview](../architecture/overview.md)
 - [Testing](testing.md)
 - [Startup and CLI](../architecture/startup-and-cli.md)
+
+## Native desktop client (Linux)
+
+The desktop client embeds the production React UI. It connects to the same
+Solomon daemon used by the web client and starts that daemon when needed.
+Closing the window leaves daemon-owned chats and terminals running.
+
+Install the GTK 3 and WebKitGTK 4.1 development packages first. On Debian:
+
+```bash
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+make desktop-install
+```
+
+This installs `solomon` and `solomon-desktop` in `BIN_DIR` (the Go binary
+directory by default), plus the Solomon icon and launcher under
+`${XDG_DATA_HOME:-~/.local/share}`. Open **Solomon** from **Show Applications**.
+`desktop-install` preserves a running daemon, including its development mode.
+The desktop gateway adapts native WebView requests for older running daemons.
+
+On Linux, `make hot-install` updates the CLI, web frontend, integrations and
+native desktop client, including its icon and application-menu entry, then
+restarts the daemon in its previous mode. It builds the native client before
+stopping the daemon; missing GTK/WebKit development packages abort the command
+while the existing daemon keeps running. Use `make desktop-install` for a desktop
+update that preserves the running daemon.
+
+For separate builds:
+
+```bash
+make gui-build       # compile and stage the shared embedded frontend
+make desktop-build   # build gui/desktop/build/bin/solomon-desktop
+```
+
+`make build` and `make install` also compile the web frontend. Direct `go build`
+uses the last staged frontend; run `make gui-build` first to refresh it.
+`SOLOMON_BINARY` can point the desktop client at a CLI outside its own directory.

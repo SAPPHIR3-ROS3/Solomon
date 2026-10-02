@@ -1,4 +1,4 @@
-.PHONY: solomon build install hot-install test check-docs loc-chart server-stop desktop-dev gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install hot-install test check-docs loc-chart server-stop desktop-dev desktop-build desktop-install gui-build gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -97,6 +97,22 @@ desktop-dev:
 gui-deps:
 	go run ./scripts/npm_deps gui
 
+# Stage the production UI for both the local web server and Wails.
+gui-build: gui-deps
+	npm --prefix gui run build
+	go run scripts/gui_bundle.go
+
+# Native Linux builds require GTK 3 and WebKitGTK 4.1 development packages.
+desktop-build: gui-build
+	mkdir -p gui/desktop/build/bin
+	CGO_ENABLED=1 go build -tags production,webkit2_41 $(BUILD_FLAGS) -o gui/desktop/build/bin/solomon-desktop ./gui/desktop
+
+# Install without stopping the existing daemon or graphical application.
+desktop-install: desktop-build
+	mkdir -p "$(BIN_DIR)"
+	go build $(BUILD_FLAGS) -o "$(INSTALL_BIN)" ./cmd/solomon
+	bash scripts/install-desktop.sh "$(BIN_DIR)"
+
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
 cursor-proxy-deps: cursor-stop
 	go run ./scripts/npm_deps $(CURSOR_PROXY_DIR)
@@ -145,7 +161,7 @@ cloak-install:
 	bash -c 'source scripts/install.sh; install_cloakbrowser; configure_runtime_defaults'
 endif
 
-solomon build: cursor-bundle
+solomon build: cursor-bundle gui-build
 	go build $(BUILD_FLAGS) -o $(OUT) ./cmd/solomon
 
 test: cursor-bundle
@@ -172,7 +188,7 @@ install:
 	$(call INSTALL_STEP,2/9 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
 	$(call INSTALL_STEP,3/9 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
 	$(call INSTALL_STEP,4/9 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,5/9 Verify GUI npm dependencies,$(MAKE) gui-deps)
+	$(call INSTALL_STEP,5/9 Build production GUI,$(MAKE) gui-build)
 	$(call INSTALL_STEP,6/9 Install solomon binary,$(GO_INSTALL) $(BUILD_FLAGS) ./cmd/solomon)
 	$(call INSTALL_STEP,7/9 Install prompt templates,$(INSTALL_BIN) templates install)
 	$(call INSTALL_STEP,8/9 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
@@ -187,10 +203,16 @@ endif
 	@echo "solomon -> $(INSTALL_BIN)"
 	@echo "=== Done ==="
 
-# Full install, then bring the local server back up. Windows starts the GUI in
+# Full install, including the native app/menu entry on Linux, then bring the
+# local server back up. Build the native client before stopping the daemon so
+# missing development dependencies leave the running service untouched.
+# Windows starts the GUI in
 # dev mode; Unix preserves the prior mode/dev directory from state.json when
 # present, otherwise starts `server start dev <repo>/gui`.
 # Needed because `make install` stops the server and clears state before `restart` can read it.
+ifeq ($(GOOS),linux)
+hot-install: desktop-build
+endif
 hot-install:
 	@$(FIX_TTY)
 	@echo ""
@@ -210,7 +232,8 @@ else
 	fi; \
 	echo "Restart target: mode=$$MODE"; \
 	if [ "$$MODE" = "dev" ]; then echo "Restart target: devDir=$$DEVDIR"; fi; \
-	$(MAKE) install; \
+	$(MAKE) install && \
+	if [ "$(GOOS)" = "linux" ]; then bash scripts/install-desktop.sh "$(BIN_DIR)"; fi && \
 	if [ "$$MODE" = "dev" ]; then \
 		$(INSTALL_BIN) server start dev "$$DEVDIR"; \
 	else \

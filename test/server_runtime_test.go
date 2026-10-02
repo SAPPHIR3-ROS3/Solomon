@@ -20,6 +20,7 @@ import (
 	"time"
 
 	servercli "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server"
+	guibundle "github.com/SAPPHIR3-ROS3/Solomon/v2026/gui"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
@@ -36,7 +37,11 @@ func TestServerRuntime_normalHealth(t *testing.T) {
 	if health.Server.URL != server.URL || health.Server.LocalURL == "" {
 		t.Fatalf("server URLs were not reported: %#v", health.Server)
 	}
-	if health.API != "not configured" || health.GUI != "not configured" || health.Workers != "not configured" {
+	guiStatus := "not configured"
+	if guibundle.Ready() {
+		guiStatus = "ready"
+	}
+	if health.API != "ready" || health.GUI != guiStatus || health.Workers != "ready" {
 		t.Fatalf("unexpected initial service status: %#v", health)
 	}
 }

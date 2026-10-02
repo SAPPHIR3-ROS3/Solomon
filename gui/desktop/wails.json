@@ -4,5 +4,5 @@
   "outputfilename": "solomon-desktop",
   "frontend:dir": "..",
   "frontend:install": "npm install",
-  "frontend:build": "npm run build"
+  "frontend:build": "npm run build && cd .. && go run scripts/gui_bundle.go"
 }

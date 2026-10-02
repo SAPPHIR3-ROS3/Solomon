@@ -34,3 +34,7 @@ integrations/cursor/pnpm-debug.log*
 
 # Go embed bundle (generated: go run scripts/cursor_bundler.go bundle)
 internal/integrations/cursor/bundle/
+
+# Generated production GUI bundle shared by CLI and Wails
+/gui/assets/frontend/*
+!/gui/assets/frontend/.keep
