@@ -3,21 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Solomon — the local-first terminal agent for any LLM</title>
-  <meta name="description" content="Solomon is a local-first terminal agent. One Go binary, any model: OpenAI-compatible APIs, Anthropic, or your ChatGPT, Claude and Cursor subscriptions.">
+  <title>Solomon — the local-first coding agent for the models you already have</title>
+  <meta name="description" content="Solomon is a local-first coding agent in a single Go binary. Use the models you already have access to, online or offline, from the terminal, the desktop, the browser or your CI.">
   <meta name="theme-color" content="#061c3b">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/icon.png">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Solomon — the local-first terminal agent">
-  <meta property="og:description" content="One Go binary. Your provider, your keys, your workspace.">
+  <meta property="og:title" content="Solomon — the local-first coding agent">
+  <meta property="og:description" content="One Go binary. Your models, your machine, every surface.">
   <meta property="og:url" content="https://sapphir3-ros3.github.io/Solomon/">
   <meta property="og:image" content="https://sapphir3-ros3.github.io/Solomon/assets/icon.png">
   <meta name="twitter:card" content="summary">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles/base.css" data-dev>
+  <link rel="stylesheet" href="styles/hero.css" data-dev>
+  <link rel="stylesheet" href="styles/sections.css" data-dev>
+  <link rel="stylesheet" href="styles/motion.css" data-dev>
+  <script src="https://cdn.jsdelivr.net/npm/animejs@4.1.4/lib/anime.iife.min.js" crossorigin="anonymous"></script>
+  <script>
+    (function () {
+      var dev = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+      var stamp = dev ? "?t=" + Date.now() : "";
+      if (dev) {
+        var links = document.querySelectorAll("link[data-dev]");
+        for (var i = 0; i < links.length; i++) links[i].href = links[i].getAttribute("href") + stamp;
+      }
+      ["main.js", "motion.js"].forEach(function (src) {
+        var s = document.createElement("script");
+        s.src = src + stamp;
+        s.defer = true;
+        document.head.appendChild(s);
+      });
+    })();
+  </script>
 </head>
 <body>
   <header class="nav">
@@ -26,10 +46,12 @@
         <img src="assets/icon.svg" alt="" width="28" height="28">
         <span>Solomon</span>
       </a>
-      <nav class="nav-links" aria-label="Primary">
-        <a href="#features">Features</a>
+      <nav class="nav-links" aria-label="Primary" data-nav>
+        <a href="#surfaces">Surfaces</a>
         <a href="#code-mode">Code mode</a>
+        <a href="#features">Features</a>
         <a href="#different">Why Solomon</a>
+        <a href="#author">Authorship</a>
         <a href="https://github.com/SAPPHIR3-ROS3/Solomon/tree/main/docs">Docs</a>
       </nav>
       <a class="btn btn-ghost btn-sm" href="https://github.com/SAPPHIR3-ROS3/Solomon">
@@ -40,17 +62,17 @@
   </header>
 
   <main>
-    <section class="hero">
+    <section class="hero" id="top">
       <div class="glows" aria-hidden="true">
         <span class="glow glow-blue"></span>
         <span class="glow glow-sky"></span>
         <span class="glow glow-gold"></span>
       </div>
-      <div class="hero-grid" aria-hidden="true"></div>
+      <div class="dotfield" aria-hidden="true" data-dotfield></div>
       <div class="wrap hero-inner">
         <p class="eyebrow reveal"><span class="dot"></span> Early release &middot; Open source &middot; MIT</p>
-        <h1 class="reveal">The terminal agent<br>that works on <em>your</em> terms.</h1>
-        <p class="lede reveal">Solomon is a local-first coding agent in a single Go binary. Point it at any model, attach it to any project, and keep every session, plan and log on your own machine.</p>
+        <h1 class="reveal" data-words>The coding agent<br>that works on <em class="rotator" data-rotate="your terms|your machine|your models|your rules">your terms</em>.</h1>
+        <p class="lede reveal">Solomon is a local-first coding agent in a single Go binary. Use the models you already have access to, online or offline, attach it to any project, and keep every session, plan and log on your own machine.</p>
 
         <div class="install reveal" data-install>
           <div class="install-tabs" role="tablist" aria-label="Install method">
@@ -69,13 +91,13 @@
         </div>
 
         <div class="hero-cta reveal">
-          <a class="btn btn-primary" href="https://github.com/SAPPHIR3-ROS3/Solomon">View on GitHub</a>
-          <a class="btn btn-ghost" href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/usage-and-commands.md#quickstart">Read the quickstart &rarr;</a>
+          <a class="btn btn-primary" href="https://github.com/SAPPHIR3-ROS3/Solomon" data-magnet>View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/usage-and-commands.md#quickstart" data-magnet>Read the quickstart &rarr;</a>
         </div>
       </div>
 
       <div class="wrap">
-        <div class="terminal reveal" aria-label="Example Solomon session">
+        <div class="terminal reveal" aria-label="Example Solomon session" data-tilt>
           <div class="terminal-bar">
             <span class="lights"><i></i><i></i><i></i></span>
             <span class="terminal-title">~/code/api &mdash; solomon</span>
@@ -86,16 +108,18 @@
       </div>
     </section>
 
-    <section class="providers" aria-label="Supported providers">
+    <section class="models" aria-label="Supported models">
       <div class="wrap">
-        <p class="providers-label">Bring any model. Keep your subscriptions.</p>
-        <ul class="providers-list">
-          <li>OpenAI-compatible APIs</li>
+        <p class="models-label">Use the models you already have. Online or offline.</p>
+      </div>
+      <div class="marquee" data-marquee>
+        <ul class="marquee-track">
+          <li>Any OpenAI-compatible endpoint</li>
           <li>Anthropic Messages API</li>
-          <li>ChatGPT subscription</li>
-          <li>Claude subscription</li>
-          <li>Cursor subscription</li>
-          <li>MCP servers</li>
+          <li>Local runtimes on your own hardware</li>
+          <li>The accounts you already pay for</li>
+          <li>Switch mid-session with <code>/models</code></li>
+          <li>Per-role models for subagents</li>
         </ul>
       </div>
     </section>
@@ -106,21 +130,80 @@
           <p class="kicker">Principles</p>
           <h2>Built to stay out of your way,<br>and out of your repo.</h2>
         </div>
-        <div class="pillar-grid">
-          <article class="pillar reveal">
+        <div class="pillar-grid" data-stagger>
+          <article class="pillar reveal" data-spot>
             <span class="pillar-index">01</span>
             <h3>Local-first</h3>
             <p>Config, chats, plans, skills and logs live under <code>~/.solomon</code>, partitioned per workspace. Nothing is written into your repository, and there is no hosted service in the middle.</p>
           </article>
-          <article class="pillar reveal">
+          <article class="pillar reveal" data-spot>
             <span class="pillar-index">02</span>
-            <h3>Bring your own model</h3>
-            <p>Any HTTPS endpoint that speaks OpenAI Chat Completions, native Anthropic, or browser sign-in to the subscriptions you already pay for. Switch with <code>/models</code> mid-session.</p>
+            <h3>Your models, not ours</h3>
+            <p>Any endpoint that speaks OpenAI Chat Completions or native Anthropic, a local runtime on your laptop, or an account you already pay for. No gatekeeping, no markup, no middleman.</p>
           </article>
-          <article class="pillar reveal">
+          <article class="pillar reveal" data-spot>
             <span class="pillar-index">03</span>
             <h3>One binary</h3>
-            <p>A single Go executable for Linux, macOS and Windows. Interactive REPL, headless runs, a local server for the GUI, and built-in updates all ship together.</p>
+            <p>A single Go executable for Linux, macOS and Windows. The REPL, the headless runner, the local server, the desktop app and self-update all ship inside it.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section surfaces" id="surfaces">
+      <div class="wrap">
+        <div class="surfaces-head">
+          <div class="section-head reveal">
+            <p class="kicker">Every surface</p>
+            <h2>One agent.<br>Wherever you <em>happen</em> to be.</h2>
+            <p class="section-lede">The same sessions, plans and rules follow you from the shell to a window, to a browser tab, to a pipeline. One <code>~/.solomon</code>, one history, no sync service.</p>
+          </div>
+          <div class="orbit reveal" data-orbit aria-hidden="true">
+            <div class="orbit-ring"></div>
+            <img class="orbit-core" src="assets/icon.svg" alt="" width="96" height="96">
+            <div class="orbit-nodes">
+              <span class="orbit-node" data-angle="270">Terminal</span>
+              <span class="orbit-node" data-angle="330">Desktop</span>
+              <span class="orbit-node" data-angle="30">Web</span>
+              <span class="orbit-node" data-angle="90">CI</span>
+              <span class="orbit-node soon" data-angle="150">Remote</span>
+              <span class="orbit-node soon" data-angle="210">Mobile</span>
+            </div>
+            <div class="orbit-packets"></div>
+          </div>
+        </div>
+        <div class="surface-grid" data-stagger>
+          <article class="surface reveal" data-spot>
+            <span class="surface-status now">Now</span>
+            <h3>Terminal</h3>
+            <p>The REPL. Multiline input, streaming output, <code>@file</code> mentions, pasted images, tab completion and a shell-first mode.</p>
+          </article>
+          <article class="surface reveal" data-spot>
+            <span class="surface-status now">Now</span>
+            <h3>Desktop</h3>
+            <p>A native window over the same engine. Chat, editor and terminal panels, the same sessions as the shell.</p>
+          </article>
+          <article class="surface reveal" data-spot>
+            <span class="surface-status now">Now</span>
+            <h3>Web</h3>
+            <p><code>solomon server</code> serves the GUI on loopback, LAN and Tailscale. Open it from any browser, including the one on your phone.</p>
+          </article>
+          <article class="surface reveal" data-spot>
+            <span class="surface-status now">Now</span>
+            <h3>CI</h3>
+            <p><code>solomon exec</code> runs one prompt without the REPL. JSONL events on stdout, stable exit codes, nothing interactive to babysit.</p>
+            <pre class="surface-snippet">solomon exec --jsonl --fail-on-tool-error \
+  "run go test ./... and fix failures"</pre>
+          </article>
+          <article class="surface reveal soon" data-spot>
+            <span class="surface-status">Next</span>
+            <h3>Remote</h3>
+            <p>Drive a Solomon that runs on another machine as if it were local, with the workspace staying where it is.</p>
+          </article>
+          <article class="surface reveal soon" data-spot>
+            <span class="surface-status">Next</span>
+            <h3>Mobile</h3>
+            <p>A first-class client for the small screen, picking up the same sessions you left open on the desk.</p>
           </article>
         </div>
       </div>
@@ -135,10 +218,23 @@
           <ul class="checks">
             <li>Batches many operations into one model turn</li>
             <li>Keeps large intermediate results out of the context window</li>
-            <li>MCP tools join the same catalog as native ones</li>
+            <li>Every call carries a human-readable intent</li>
           </ul>
         </div>
-        <div class="code-card reveal">
+        <div class="split-visual">
+          <div class="turns reveal" data-turns aria-label="Many round trips versus one orchestrated turn">
+            <div class="lane">
+              <span class="lane-label">One tool per call</span>
+              <div class="lane-track"><span class="lane-end">model</span><span class="lane-line"></span><span class="lane-end">tools</span><i class="ball ball-a"></i></div>
+              <span class="lane-count" data-count-a>0 turns</span>
+            </div>
+            <div class="lane lane-solomon">
+              <span class="lane-label">Code mode</span>
+              <div class="lane-track"><span class="lane-end">model</span><span class="lane-line"></span><span class="lane-end">sandbox</span><i class="ball ball-b"></i></div>
+              <span class="lane-count" data-count-b>0 turns</span>
+            </div>
+          </div>
+        <div class="code-card reveal" data-tilt>
           <div class="code-bar"><span>orchestrate</span><span class="muted">main.go</span></div>
 <pre class="code"><span class="k">package</span> main
 
@@ -155,6 +251,7 @@
 	fmt.<span class="f">Println</span>(<span class="f">len</span>(src), hits, res.Output)
 }</pre>
         </div>
+        </div>
       </div>
     </section>
 
@@ -162,46 +259,38 @@
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Features</p>
-          <h2>Everything an agent needs.<br>Nothing it does not.</h2>
+          <h2>Opinionated where it counts.<br>Quiet everywhere else.</h2>
         </div>
-        <div class="feature-grid">
-          <article class="feature reveal">
-            <h3>Agent at work</h3>
-            <ul>
-              <li>Read, edit, create, rename and delete files</li>
-              <li>Glob and regexp search in one <code>find</code> tool</li>
-              <li>Real shell commands with timeouts</li>
-              <li>Nested subagents, sync or in background</li>
-              <li>Durable plans with a <code>buildPlan</code> handoff</li>
-            </ul>
+        <div class="feature-grid" data-stagger>
+          <article class="feature reveal" data-spot>
+            <span class="feature-tag">checkpoints</span>
+            <h3>Undo the agent.</h3>
+            <p>Every turn gets an id like <code>[#012]</code>. <code>/goto</code> rewinds or forks the transcript and puts every edited file back the way it was. Bad turns cost seconds, not afternoons.</p>
           </article>
-          <article class="feature reveal">
-            <h3>Knowledge and the web</h3>
-            <ul>
-              <li>Web search: DuckDuckGo, SearxNG, Brave, Bing, Google PSE, Exa, Parallel</li>
-              <li>URL fetch with markdown conversion</li>
-              <li>Deep research jobs with evidence checks and HTML reports</li>
-              <li>Embedded documentation search with <code>/docs</code></li>
-            </ul>
+          <article class="feature reveal" data-spot>
+            <span class="feature-tag">repl</span>
+            <h3>Ask while it streams.</h3>
+            <p><code>/btw</code> opens a side question without interrupting the turn in flight. Reasoning is shown as it happens, and <code>/terminal on</code> turns the prompt into a shell with the agent one keystroke away.</p>
           </article>
-          <article class="feature reveal">
-            <h3>A REPL built for work</h3>
-            <ul>
-              <li>Multiline input, streaming output, reasoning display</li>
-              <li><code>@file</code> mentions and clipboard images</li>
-              <li><code>/btw</code> side questions while the model streams</li>
-              <li>Shell-first mode with <code>/terminal on</code></li>
-              <li>Tab completion for commands, skills and paths</li>
-            </ul>
+          <article class="feature reveal" data-spot>
+            <span class="feature-tag">research</span>
+            <h3>Research with receipts.</h3>
+            <p>Deep research jobs fan out across DuckDuckGo, SearxNG, Brave, Bing, Google PSE, Exa and Parallel, check the evidence, and hand back an HTML report you can actually cite.</p>
           </article>
-          <article class="feature reveal">
-            <h3>Extend and automate</h3>
-            <ul>
-              <li>Skills from skills.sh with <code>solomon add</code></li>
-              <li>MCP servers from <code>mcp.json</code></li>
-              <li><code>AGENTS.md</code> plus numbered custom rules</li>
-              <li>Local server for the web GUI, on LAN and Tailscale</li>
-            </ul>
+          <article class="feature reveal" data-spot>
+            <span class="feature-tag">subagents</span>
+            <h3>Delegate, then move on.</h3>
+            <p>Nested agents with their own system prompt, their own model and their own budget. Run them inline or in the background and collect the result when you want it.</p>
+          </article>
+          <article class="feature reveal" data-spot>
+            <span class="feature-tag">plans</span>
+            <h3>Plans that outlive the chat.</h3>
+            <p>A plan is a file with a design and checkable todos, not a message that scrolls away. <code>buildPlan</code> promotes it straight into implementation, one verified item at a time.</p>
+          </article>
+          <article class="feature reveal" data-spot>
+            <span class="feature-tag">extend</span>
+            <h3>Teach it your house rules.</h3>
+            <p><code>AGENTS.md</code> and numbered rules shape every turn. Skills install from skills.sh with <code>solomon add</code>; MCP servers from <code>mcp.json</code> join the same tool catalog as the native ones.</p>
           </article>
         </div>
       </div>
@@ -211,17 +300,9 @@
       <div class="wrap different-inner">
         <div class="section-head reveal">
           <p class="kicker">Only in Solomon</p>
-          <h2>Small decisions<br>that add up.</h2>
+          <h2>Nothing here<br>is <em>accidental</em>.</h2>
         </div>
-        <ol class="editorial">
-          <li class="reveal">
-            <h3>Checkpoint rewind</h3>
-            <p>Every turn gets an id like <code>[#012]</code>. <code>/goto</code> rewinds or forks the transcript and restores edited files, instead of making you start over.</p>
-          </li>
-          <li class="reveal">
-            <h3>Plans as artifacts</h3>
-            <p>Plans are files with checkable todos that outlive the chat. <code>buildPlan</code> promotes one straight into implementation.</p>
-          </li>
+        <ol class="editorial" data-stagger>
           <li class="reveal">
             <h3>Nothing silently dropped</h3>
             <p>Oversized tool output is truncated for the model but saved in full to a local path it can read in the next turn.</p>
@@ -231,8 +312,16 @@
             <p>Inconsistent SSE chunks are rejected at the harness, so the transcript on disk always matches what really happened.</p>
           </li>
           <li class="reveal">
+            <h3>Intent on every call</h3>
+            <p>Each tool call carries a short, human-readable reason. A session log reads like a changelog, not a packet capture.</p>
+          </li>
+          <li class="reveal">
             <h3>Readable skill history</h3>
             <p><code>/skill:name</code> stays visible in the transcript while the model receives the fully expanded skill.</p>
+          </li>
+          <li class="reveal">
+            <h3>Per-workspace partitions</h3>
+            <p>Sessions, plans and logs are keyed by project under <code>~/.solomon</code>. Two repos never see each other's history.</p>
           </li>
           <li class="reveal">
             <h3>Safe by construction</h3>
@@ -242,32 +331,26 @@
       </div>
     </section>
 
-    <section class="section split" id="ci">
-      <div class="wrap split-inner reverse">
-        <div class="split-copy reveal">
-          <p class="kicker">Headless</p>
-          <h2>From your terminal<br>to your pipeline.</h2>
-          <p><code>solomon exec</code> runs a single prompt without the REPL. Add <code>--jsonl</code> to stream events or <code>--json</code> for one final report. Stdout stays machine-readable and exit codes stay stable.</p>
-          <dl class="codes">
-            <div><dt>0</dt><dd>ok</dd></div>
-            <div><dt>3</dt><dd>config</dd></div>
-            <div><dt>4</dt><dd>LLM / API</dd></div>
-            <div><dt>5</dt><dd>tool policy</dd></div>
-            <div><dt>6</dt><dd>timeout</dd></div>
-          </dl>
+    <section class="section author" id="author">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Authorship</p>
+          <h2>Designed by a person.<br><span class="underlined"><em>Not generated.</em><svg class="scribble" viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 16 C 80 4, 140 22, 210 12 S 340 6, 396 14" pathLength="1" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></span></h2>
+          <p class="section-lede">Solomon is not a repository where a model decided everything and a human pressed enter. Every architectural choice below was taken on purpose by its author, with a reason that can be defended. Models write lines here. They do not get to choose the shape.</p>
         </div>
-        <div class="code-card reveal">
-          <div class="code-bar"><span>shell</span><span class="muted">ci.sh</span></div>
-<pre class="code"><span class="c"># one-shot, saved to the project history</span>
-solomon exec <span class="s">"summarize the README"</span>
-
-<span class="c"># ephemeral, nothing written to disk</span>
-solomon temp exec <span class="s">"explain this stack trace"</span>
-
-<span class="c"># CI: stream JSON, fail on tool errors</span>
-solomon exec --jsonl --fail-on-tool-error \
-  <span class="s">"run go test ./... and fix failures"</span></pre>
+        <div class="stats reveal" data-stats>
+          <div><strong><span data-count="100">0</span><small>%</small></strong><span>of architectural decisions taken by the author</span></div>
+          <div><strong><span data-count="0" data-from="1102">0</span></strong><span>files in the repo whose design was delegated to a model</span></div>
+          <div><strong>1</strong><span>binary, one history, every surface</span></div>
         </div>
+        <dl class="ledger" data-stagger>
+          <div class="reveal"><dt>One Go binary</dt><dd>Nothing to install besides itself. No runtime, no package manager, no daemon you forgot about.</dd></div>
+          <div class="reveal"><dt>Code mode in a WASM sandbox</dt><dd>Fewer turns and a smaller context window, with host access only through an SDK that can be audited.</dd></div>
+          <div class="reveal"><dt><code>~/.solomon</code>, never your repo</dt><dd>Your git history stays yours. Agent state is yours too, just somewhere else.</dd></div>
+          <div class="reveal"><dt>Fail-closed streaming</dt><dd>A transcript that could be wrong is worse than one that stops. The harness refuses rather than guesses.</dd></div>
+          <div class="reveal"><dt>Models are interchangeable</dt><dd>No provider is privileged in the architecture. Whatever you can reach today is what Solomon uses today.</dd></div>
+          <div class="reveal"><dt>Checkpoints are first-class</dt><dd>Undo exists because agents make mistakes, and because the person should always hold the last word.</dd></div>
+        </dl>
       </div>
     </section>
 
@@ -280,8 +363,8 @@ solomon exec --jsonl --fail-on-tool-error \
         <img class="closing-mark" src="assets/icon.svg" alt="" width="96" height="96">
         <h2>Your model. Your machine.<br><em>Your agent.</em></h2>
         <div class="hero-cta">
-          <a class="btn btn-primary" href="#top" data-scroll-install>Install Solomon</a>
-          <a class="btn btn-ghost" href="https://github.com/SAPPHIR3-ROS3/Solomon/tree/main/docs">Browse the docs &rarr;</a>
+          <a class="btn btn-primary" href="#top" data-scroll-install data-magnet>Install Solomon</a>
+          <a class="btn btn-ghost" href="https://github.com/SAPPHIR3-ROS3/Solomon/tree/main/docs" data-magnet>Browse the docs &rarr;</a>
         </div>
       </div>
     </section>
@@ -302,7 +385,5 @@ solomon exec --jsonl --fail-on-tool-error \
       <p class="muted">MIT License &middot; preview software, expect rough edges</p>
     </div>
   </footer>
-
-  <script src="main.js" defer></script>
 </body>
 </html>
