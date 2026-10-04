@@ -95,4 +95,10 @@ func (r *Runtime) exitForUpdateRestart(leadLine, tag string) {
 		commands.PrintSystem(r.Out, updater.InstallFallbackMessage(tag))
 		os.Exit(1)
 	}
+	if os.Getenv("SOLOMON_DAEMON_TUI") == "1" {
+		// Keep the PTY alive until the coordinator stops the daemon. Its clients
+		// then receive the restart notification and reconnect to the new daemon.
+		select {}
+	}
+	os.Exit(0)
 }

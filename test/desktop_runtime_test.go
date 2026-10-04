@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,90 @@ import (
 	guibundle "github.com/SAPPHIR3-ROS3/Solomon/v2026/gui"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
+
+func TestDesktopRuntime_proxyExposesServerVersion(t *testing.T) {
+	state, stop := startServerForTest(t, serverruntime.Options{})
+	defer stop()
+	proxy := httptest.NewServer(serverruntime.DesktopProxy())
+	defer proxy.Close()
+	for _, origin := range []string{"wails://wails", "http://wails.localhost", "https://wails.localhost"} {
+		request, err := http.NewRequest(http.MethodGet, proxy.URL+"/health", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Origin", origin)
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var health serverruntime.Health
+		err = json.NewDecoder(response.Body).Decode(&health)
+		response.Body.Close()
+		if err != nil || response.StatusCode != http.StatusOK || !health.OK || health.Server.Version != state.Version {
+			t.Fatalf("version unavailable for %s: status=%s health=%+v error=%v", origin, response.Status, health, err)
+		}
+		if response.Header.Get("Access-Control-Allow-Origin") != origin {
+			t.Fatalf("health origin = %q, want %q", response.Header.Get("Access-Control-Allow-Origin"), origin)
+		}
+	}
+	for _, path := range []string{"/", "/settings", "/health/other"} {
+		response, err := http.Get(proxy.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusNotFound {
+			t.Fatalf("unexpected proxy route %s: %s", path, response.Status)
+		}
+	}
+	request, _ := http.NewRequest(http.MethodGet, proxy.URL+"/health", nil)
+	request.Header.Set("Origin", "https://untrusted.example")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("health accepted unrelated origin: %s", response.Status)
+	}
+}
+
+func TestDesktopRuntime_frontendFollowsDaemonAssets(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	proxy := httptest.NewServer(serverruntime.DesktopFrontend())
+	defer proxy.Close()
+	for _, version := range []string{"old daemon UI", "new daemon UI"} {
+		daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/" && r.URL.Path != "/assets/app.js" {
+				t.Errorf("unexpected route: %s", r.URL.Path)
+			}
+			w.Write([]byte(version))
+		}))
+		defer daemon.Close()
+		if err := serverruntime.SaveState(serverruntime.State{URL: daemon.URL}); err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range []string{"/", "/assets/app.js"} {
+			response, err := http.Get(proxy.URL + path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(response.Body)
+			response.Body.Close()
+			if response.StatusCode != http.StatusOK || string(body) != version {
+				t.Fatalf("stale frontend: %s %s", response.Status, body)
+			}
+		}
+	}
+	response, err := http.Post(proxy.URL+"/_solomon/stop", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("frontend exposed daemon stop: %s", response.Status)
+	}
+}
 
 func TestDesktopRuntime_reusesHealthyDaemon(t *testing.T) {
 	state, stop := startServerForTest(t, serverruntime.Options{})

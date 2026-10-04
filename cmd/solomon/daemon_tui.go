@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/lifecycle"
 	"io"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -20,14 +23,16 @@ import (
 
 var errDaemonTerminalExited = errors.New("daemon terminal exited")
 var errDaemonTerminalStartFailed = errors.New("daemon terminal failed to start")
+var errDaemonRestarting = errors.New("daemon restarting")
 
 type daemonTerminalMessage struct {
-	Data    string `json:"data"`
-	ID      string `json:"id"`
-	Message string `json:"message"`
-	Running bool   `json:"running"`
-	Seq     uint64 `json:"seq"`
-	Type    string `json:"type"`
+	Data      string `json:"data"`
+	ID        string `json:"id"`
+	Message   string `json:"message"`
+	Running   bool   `json:"running"`
+	DaemonPID int    `json:"daemon_pid"`
+	Seq       uint64 `json:"seq"`
+	Type      string `json:"type"`
 }
 
 // daemonTUIRequested keeps the explicit tui/attach aliases while making the
@@ -102,11 +107,26 @@ func runDaemonTUI(args []string) error {
 	}
 	defer func() { _ = terminal.Restore(int(os.Stdin.Fd()), state) }()
 
+	var updateStop <-chan struct{}
+	if runtime.GOOS == "windows" {
+		stop, cleanup, err := lifecycle.RegisterClient(context.Background(), "tui", args[1:])
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		updateStop = stop
+	}
 	input := make(chan []byte, 64)
 	go readTUIInput(input)
 	var sessionID string
 	var outputSeq uint64
+	var daemonPID int
 	for {
+		select {
+		case <-updateStop:
+			return nil
+		default:
+		}
 		connection, err := dialDaemonTerminal(baseURL, workingDirectory, sessionID, outputSeq)
 		if err != nil {
 			if waitErr := waitForDaemonReconnect(750 * time.Millisecond); waitErr != nil {
@@ -117,13 +137,17 @@ func runDaemonTUI(args []string) error {
 		sendTerminalResize(connection)
 		readDone := make(chan error, 1)
 		go func() {
-			readDone <- readDaemonTerminal(connection, os.Stdout, &sessionID, &outputSeq)
+			readDone <- readDaemonTerminal(connection, os.Stdout, &sessionID, &outputSeq, &daemonPID)
 		}()
 
 		reconnect := false
 		resizeTicker := time.NewTicker(500 * time.Millisecond)
 		for !reconnect {
 			select {
+			case <-updateStop:
+				resizeTicker.Stop()
+				_ = connection.Close()
+				return nil
 			case data, ok := <-input:
 				if !ok {
 					resizeTicker.Stop()
@@ -137,6 +161,16 @@ func runDaemonTUI(args []string) error {
 				resizeTicker.Stop()
 				_ = connection.Close()
 				if errors.Is(err, errDaemonTerminalExited) {
+					return nil
+				}
+				if errors.Is(err, errDaemonRestarting) {
+					sessionID, outputSeq = "", 0
+					// Restore the terminal before exec: the new process must capture
+					// the user's normal terminal settings, rather than raw mode.
+					_ = terminal.Restore(int(os.Stdin.Fd()), state)
+					if err := restartTUIAfterDaemonUpdate(args, daemonPID); err != nil {
+						return err
+					}
 					return nil
 				}
 				if errors.Is(err, errDaemonTerminalStartFailed) {
@@ -201,7 +235,7 @@ func dialDaemonTerminal(baseURL, workingDirectory, sessionID string, after uint6
 	return connection, nil
 }
 
-func readDaemonTerminal(connection *websocket.Conn, output io.Writer, sessionID *string, outputSeq *uint64) error {
+func readDaemonTerminal(connection *websocket.Conn, output io.Writer, sessionID *string, outputSeq *uint64, daemonPID *int) error {
 	for {
 		messageType, data, err := connection.ReadMessage()
 		if err != nil {
@@ -218,7 +252,11 @@ func readDaemonTerminal(connection *websocket.Conn, output io.Writer, sessionID 
 		}
 		switch message.Type {
 		case "solomon-terminal":
+			*daemonPID = message.DaemonPID
 			if message.ID != "" {
+				if message.ID != *sessionID {
+					*outputSeq = 0
+				}
 				*sessionID = message.ID
 			}
 		case "solomon-output":
@@ -233,6 +271,8 @@ func readDaemonTerminal(connection *websocket.Conn, output io.Writer, sessionID 
 			_, _ = output.Write(decoded)
 		case "solomon-exit":
 			return errDaemonTerminalExited
+		case "solomon-restarting":
+			return errDaemonRestarting
 		case "solomon-error":
 			if message.Message == "" {
 				message.Message = "unknown server error"

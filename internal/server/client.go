@@ -27,18 +27,37 @@ func EnsureRunning(ctx context.Context, cliPath string) (State, error) {
 }
 
 func daemonHealthy(ctx context.Context, state State) bool {
+	health, err := ReadHealth(ctx, state)
+	return err == nil && health.OK && health.Server.PID == state.PID
+}
+
+// ReadHealth reads live daemon metadata rather than the persisted startup snapshot.
+func ReadHealth(ctx context.Context, state State) (Health, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(state.URL, "/")+"/health", nil)
 	if err != nil {
-		return false
+		return Health{}, err
 	}
 	response, err := (&http.Client{Timeout: time.Second}).Do(request)
 	if err != nil {
-		return false
+		return Health{}, err
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return false
+		return Health{}, fmt.Errorf("daemon health: %s", response.Status)
 	}
 	var health Health
-	return json.NewDecoder(response.Body).Decode(&health) == nil && health.OK && health.Server.PID == state.PID
+	err = json.NewDecoder(response.Body).Decode(&health)
+	return health, err
+}
+
+func RunningVersion() string {
+	state, err := LoadState()
+	if err != nil {
+		return ""
+	}
+	health, err := ReadHealth(context.Background(), state)
+	if err != nil || !health.OK || health.Server.PID != state.PID {
+		return ""
+	}
+	return health.Server.Version
 }

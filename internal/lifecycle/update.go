@@ -1,0 +1,343 @@
+package lifecycle
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"github.com/gofrs/flock"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
+)
+
+func RunUpdateCommand(args []string) bool {
+	if len(args) < 2 || args[1] != "__upgrade-runtime" {
+		return false
+	}
+	logging.LogInit(logging.INFO_LOG_LEVEL)
+	if len(args) != 4 {
+		fmt.Fprintln(os.Stderr, "invalid update coordinator arguments")
+		os.Exit(1)
+	}
+	home, err := paths.SolomonHome()
+	if err == nil {
+		err = os.MkdirAll(filepath.Join(home, "run"), 0700)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	lock := flock.New(filepath.Join(home, "run", "update.lock"))
+	locked, err := lock.TryLock()
+	if err != nil || !locked {
+		fmt.Fprintln(os.Stderr, "another Solomon update is already running", err)
+		os.Exit(1)
+	}
+	defer lock.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+	fmt.Printf("Updating Solomon runtime to %s\n", args[2])
+	ops := platformRuntimeUpdateOps(ctx, args[2])
+	parentPID, err := strconv.Atoi(args[3])
+	if err != nil || parentPID <= 1 {
+		fmt.Fprintln(os.Stderr, "invalid update parent")
+		os.Exit(1)
+	}
+	parentIdentity := processIdentity(parentPID)
+	stop := ops.stop
+	ops.stop = func(target string) error {
+		if err := stop(target); err != nil {
+			return err
+		}
+		return waitProcessExit(ctx, parentPID, parentIdentity)
+	}
+	if err := applyRuntimeUpdate(ctx, args[2], ops); err != nil {
+		fmt.Fprintln(os.Stderr, "Solomon update failed:", err)
+		os.Exit(1)
+	}
+	fmt.Println("Solomon daemon and clients restarted.")
+	return true
+}
+
+type runtimeUpdateOps struct {
+	prepare func() (staged, target string, err error)
+	stop    func(target string) error
+	commit  func(staged, target string) error
+	start   func(target string) error
+	restore func(target string) error
+	quiesce func() error
+}
+
+// Keep downloads outside the interruption window and restore the old runtime
+// on any failure after stopping it. Tests supply isolated processes and files.
+func applyRuntimeUpdate(ctx context.Context, tag string, ops runtimeUpdateOps) (err error) {
+	staged, target, err := ops.prepare()
+	if err != nil {
+		return err
+	}
+	defer os.Remove(staged)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	backup := target + ".runtime-backup"
+	if err := os.Link(target, backup); err != nil {
+		return fmt.Errorf("preserve current runtime: %w", err)
+	}
+	rollbackSafe := true
+	defer func() {
+		if rollbackSafe {
+			os.Remove(backup)
+		}
+	}()
+	commitAttempted := false
+	defer func() {
+		if err != nil {
+			if ops.quiesce != nil {
+				if stopErr := ops.quiesce(); stopErr != nil {
+					rollbackSafe = false
+					err = errors.Join(err, stopErr, fmt.Errorf("previous binary preserved at %s", backup))
+					return
+				}
+			}
+			if commitAttempted {
+				if rollbackErr := os.Rename(backup, target); rollbackErr != nil {
+					rollbackSafe = false
+					err = errors.Join(err, rollbackErr, fmt.Errorf("previous binary preserved at %s", backup))
+					return
+				}
+			}
+			err = errors.Join(err, ops.restore(target))
+		}
+	}()
+	if err = ops.stop(target); err != nil {
+		return err
+	}
+	commitAttempted = true
+	if err = ops.commit(staged, target); err != nil {
+		return err
+	}
+	if err = ops.start(target); err != nil {
+		return err
+	}
+	return nil
+}
+
+type desktopUpdateProcess struct {
+	pid        int
+	identity   string
+	executable string
+	env        []string
+	cwd        string
+	args       []string
+	stopFile   string
+	kind       string
+}
+
+func platformRuntimeUpdateOps(ctx context.Context, tag string) runtimeUpdateOps {
+	var desktops []desktopUpdateProcess
+	var stopped []desktopUpdateProcess
+	var restarted []desktopUpdateProcess
+	var oldState serverruntime.State
+	var daemonStopped bool
+	start := func(target string, requireVersion bool) error {
+		startCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		command := exec.CommandContext(startCtx, target, "server", "start")
+		command.Stdout, command.Stderr = os.Stdout, os.Stderr
+		if err := command.Run(); err != nil {
+			return err
+		}
+		deadline := time.Now().Add(20 * time.Second)
+		for time.Now().Before(deadline) {
+			state, err := serverruntime.LoadState()
+			if err == nil {
+				health, err := serverruntime.ReadHealth(startCtx, state)
+				if err == nil && health.OK && health.Server.PID == state.PID && (!requireVersion || health.Server.Version == tag) {
+					for _, desktop := range stopped {
+						command := exec.Command(desktop.executable, desktop.args...)
+						command.Env, command.Dir = desktop.env, desktop.cwd
+						configureClientProcess(command, desktop.kind)
+						if err := startClientProcess(command, desktop.kind); err != nil {
+							return fmt.Errorf("restart desktop: %w", err)
+						}
+						client := desktop
+						client.pid = command.Process.Pid
+						client.identity = processIdentity(client.pid)
+						client.stopFile = ""
+						restarted = append(restarted, client)
+						_ = command.Process.Release()
+					}
+					stopped = nil
+					return nil
+				}
+			}
+			select {
+			case <-startCtx.Done():
+				return startCtx.Err()
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+		return fmt.Errorf("daemon did not become ready at version %s", tag)
+	}
+	return runtimeUpdateOps{
+		prepare: func() (string, string, error) { return updater.PrepareInstall(ctx, tag, os.Stdout) },
+		stop: func(target string) error {
+			var err error
+			desktops, err = updateClients(filepath.Join(filepath.Dir(target), desktopName()))
+			if err != nil {
+				return err
+			}
+			oldState, err = serverruntime.LoadState()
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			if err == nil {
+				parsed, err := url.Parse(oldState.URL)
+				if err != nil || parsed.Scheme != "http" || (parsed.Hostname() != "localhost" && !net.ParseIP(parsed.Hostname()).IsLoopback()) {
+					return fmt.Errorf("refusing to stop a non-loopback daemon")
+				}
+				health, err := serverruntime.ReadHealth(ctx, oldState)
+				if err != nil || !health.OK || health.Server.PID != oldState.PID {
+					return fmt.Errorf("cannot verify daemon identity: %w", err)
+				}
+			}
+			for _, desktop := range desktops {
+				if processIdentity(desktop.pid) != desktop.identity {
+					continue
+				}
+				if err := requestClientStop(desktop); err != nil {
+					return err
+				}
+				if err := waitProcessExit(ctx, desktop.pid, desktop.identity); err != nil {
+					return err
+				}
+				stopped = append(stopped, desktop)
+			}
+			if oldState.PID > 0 {
+				identity := processIdentity(oldState.PID)
+				request, _ := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(oldState.URL, "/")+"/_solomon/stop", nil)
+				response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request)
+				if err != nil {
+					return err
+				}
+				response.Body.Close()
+				if response.StatusCode != http.StatusAccepted {
+					return fmt.Errorf("daemon refused to stop: %s", response.Status)
+				}
+				daemonStopped = true
+				if err := waitProcessExit(ctx, oldState.PID, identity); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		commit: updater.CommitInstall,
+		start:  func(target string) error { return start(target, true) },
+		quiesce: func() error {
+			// Close any partially restarted clients before restoring mapped binaries.
+			for _, client := range restarted {
+				clients, lookupErr := updateClients(filepath.Join(filepath.Dir(client.executable), desktopName()))
+				if lookupErr != nil {
+					return lookupErr
+				}
+				for _, registered := range clients {
+					if registered.pid == client.pid && registered.identity == client.identity {
+						client = registered
+						break
+					}
+				}
+				if err := requestClientStop(client); err != nil {
+					return err
+				}
+				if err := waitProcessExit(context.Background(), client.pid, client.identity); err != nil {
+					return err
+				}
+			}
+			restarted = nil
+			// Windows cannot replace an executable while its process is running.
+			if state, err := serverruntime.LoadState(); err == nil && state.PID != oldState.PID {
+				request, _ := http.NewRequest(http.MethodPost, strings.TrimRight(state.URL, "/")+"/_solomon/stop", nil)
+				if response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request); err == nil {
+					response.Body.Close()
+				}
+				if err := waitProcessExit(context.Background(), state.PID, processIdentity(state.PID)); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		restore: func(target string) error {
+			if daemonStopped || len(stopped) > 0 {
+				return start(target, false)
+			}
+			return nil
+		},
+	}
+}
+
+func waitProcessExit(ctx context.Context, pid int, identity string) error {
+	deadline := time.Now().Add(20 * time.Second)
+	for identity != "" && processIdentity(pid) == identity {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("Solomon process %d did not stop", pid)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	return nil
+}
+
+// ApplyLocalUpdate applies a verified local build using the same runtime handoff.
+func ApplyLocalUpdate(ctx context.Context, tag, staged, target string, desktopStaged ...string) error {
+	ops := platformRuntimeUpdateOps(ctx, tag)
+	ops.prepare = func() (string, string, error) { return staged, target, nil }
+	if len(desktopStaged) > 0 {
+		desktopTarget := filepath.Join(filepath.Dir(target), desktopName())
+		backup := desktopTarget + ".runtime-backup"
+		if err := os.Link(desktopTarget, backup); err != nil {
+			return err
+		}
+		defer os.Remove(backup)
+		commit, restore := ops.commit, ops.restore
+		desktopCommitted := false
+		ops.commit = func(staged, target string) error {
+			if err := commit(staged, target); err != nil {
+				return err
+			}
+			err := updater.CommitInstall(desktopStaged[0], desktopTarget)
+			desktopCommitted = err == nil
+			return err
+		}
+		ops.restore = func(target string) error {
+			if desktopCommitted {
+				if err := os.Rename(backup, desktopTarget); err != nil {
+					return err
+				}
+			}
+			return restore(target)
+		}
+	}
+	return applyRuntimeUpdate(ctx, tag, ops)
+}
+
+func desktopName() string {
+	if runtime.GOOS == "windows" {
+		return "solomon-desktop.exe"
+	}
+	return "solomon-desktop"
+}

@@ -25,19 +25,22 @@ import (
 )
 
 type State struct {
-	PID       int                `json:"pid"`
-	URL       string             `json:"url"`
-	LocalURL  string             `json:"localhost_url"`
-	Addresses []ReachableAddress `json:"addresses,omitempty"`
-	StartedAt time.Time          `json:"started_at"`
-	Version   string             `json:"version"`
-	Mode      string             `json:"mode"`
-	Vite      string             `json:"vite"`
-	ViteURL   string             `json:"vite_url,omitempty"`
-	VitePID   int                `json:"vite_pid,omitempty"`
-	DevDir    string             `json:"dev_directory,omitempty"`
-	GOOS      string             `json:"goos"`
-	GoVersion string             `json:"go_version"`
+	PID        int                `json:"pid"`
+	URL        string             `json:"url"`
+	LocalURL   string             `json:"localhost_url"`
+	Addresses  []ReachableAddress `json:"addresses,omitempty"`
+	StartedAt  time.Time          `json:"started_at"`
+	Version    string             `json:"version"`
+	Commit     string             `json:"commit,omitempty"`
+	CommitTime time.Time          `json:"commit_time,omitempty"`
+	SourceTree string             `json:"source_tree,omitempty"`
+	Mode       string             `json:"mode"`
+	Vite       string             `json:"vite"`
+	ViteURL    string             `json:"vite_url,omitempty"`
+	VitePID    int                `json:"vite_pid,omitempty"`
+	DevDir     string             `json:"dev_directory,omitempty"`
+	GOOS       string             `json:"goos"`
+	GoVersion  string             `json:"go_version"`
 }
 
 type ReachableAddress struct {
@@ -146,16 +149,19 @@ func Run(ctx context.Context, options Options) error {
 	port := listener.Addr().(*net.TCPAddr).Port
 	addresses := reachableAddresses(listener.Addr().(*net.TCPAddr), port)
 	state := State{
-		PID:       os.Getpid(),
-		URL:       "http://127.0.0.1:" + strconv.Itoa(port),
-		LocalURL:  "http://localhost:" + strconv.Itoa(port),
-		Addresses: addresses,
-		StartedAt: time.Now().UTC(),
-		Version:   commands.VersionString(),
-		Mode:      mode,
-		Vite:      "stopped",
-		GOOS:      runtime.GOOS,
-		GoVersion: runtime.Version(),
+		PID:        os.Getpid(),
+		URL:        "http://127.0.0.1:" + strconv.Itoa(port),
+		LocalURL:   "http://localhost:" + strconv.Itoa(port),
+		Addresses:  addresses,
+		StartedAt:  time.Now().UTC(),
+		Version:    commands.LocalVersionString(),
+		Commit:     commands.BuildCommit(),
+		CommitTime: commands.BuildCommitTime(),
+		SourceTree: commands.BuildSourceTree(),
+		Mode:       mode,
+		Vite:       "stopped",
+		GOOS:       runtime.GOOS,
+		GoVersion:  runtime.Version(),
 	}
 	var vite *exec.Cmd
 	var proxy *httputil.ReverseProxy

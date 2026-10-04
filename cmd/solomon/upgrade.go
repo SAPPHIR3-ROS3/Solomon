@@ -9,6 +9,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
@@ -18,8 +19,23 @@ func runUpgradeCLI() {
 	ctx := context.Background()
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	logging.Log(logging.INFO_LOG_LEVEL, "upgrade cli", logging.LogOptions{Params: map[string]any{"marker": upgradeSmokeMarker}})
-	current := commands.VersionString()
-	res := updater.CheckWithSourceTree(ctx, current, commands.BuildCommit(), commands.BuildCommitTime(), commands.BuildSourceTree())
+	executable, err := os.Executable()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	state, err := serverruntime.EnsureRunning(ctx, executable)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	health, err := serverruntime.ReadHealth(ctx, state)
+	if err != nil || !health.OK {
+		fmt.Fprintln(os.Stderr, "Solomon daemon is unavailable:", err)
+		os.Exit(1)
+	}
+	current, commit, commitTime, sourceTree := health.Server.Version, health.Server.Commit, health.Server.CommitTime, health.Server.SourceTree
+	res := updater.CheckWithSourceTree(ctx, current, commit, commitTime, sourceTree)
 	if res.Err != nil {
 		fmt.Fprintln(os.Stderr, res.Err)
 		os.Exit(1)
@@ -34,7 +50,7 @@ func runUpgradeCLI() {
 	}
 	notice := res.Notice()
 	fmt.Fprintf(os.Stdout, "Installing %s...\n", notice.Latest)
-	err := updater.RunSystemInstall(ctx, notice.Latest, os.Stdout)
+	err = updater.RunSystemInstall(ctx, notice.Latest, os.Stdout)
 	if errors.Is(err, updater.ErrRestartScheduled) {
 		if finishErr := updater.FinishUpgradeRestart(ctx, notice.Latest); finishErr != nil {
 			fmt.Fprintln(os.Stderr, finishErr)

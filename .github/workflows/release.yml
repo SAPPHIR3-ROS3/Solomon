@@ -62,6 +62,9 @@ jobs:
         run: |
           go run scripts/cursor_bundler.go build
           go run scripts/cursor_bundler.go bundle
+
+      - name: Build the daemon frontend
+        run: make gui-build
       - run: go vet ./...
       - run: go run scripts/check_doc_paths.go
       - run: go run scripts/check_package_index.go
@@ -135,6 +138,9 @@ jobs:
         run: |
           go run scripts/cursor_bundler.go build
           go run scripts/cursor_bundler.go bundle
+
+      - name: Build the daemon frontend
+        run: make gui-build
 
       - id: version
         name: Resolve calendar version tag

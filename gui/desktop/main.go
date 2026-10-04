@@ -1,22 +1,22 @@
 package main
 
 import (
-	"embed"
+	"context"
+	_ "embed"
 	"log"
+	"os/signal"
+	"syscall"
 
-	guibundle "github.com/SAPPHIR3-ROS3/Solomon/v2026/gui"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/lifecycle"
+	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
-
-// assets provides the fallback document for Wails development.
-//
-//go:embed all:assets
-var assets embed.FS
 
 //go:embed assets/icon.png
 var appIcon []byte
@@ -30,21 +30,44 @@ func main() {
 		log.Fatal(err)
 	}
 	defer closeProxy()
-	configureDesktopModelLister()
-	frontend := guibundle.Assets()
-	if !guibundle.Ready() {
-		frontend = assets
-	}
+	var stopSignals context.CancelFunc
+	var cleanupClient func()
 	if err := wails.Run(&options.App{
 		Title:  "Solomon",
 		Width:  1280,
 		Height: 840,
+		OnStartup: func(ctx context.Context) {
+			shutdown, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
+			stopSignals = stop
+			request, cleanup, err := lifecycle.RegisterClient(ctx, "desktop", nil)
+			if err != nil {
+				log.Printf("register desktop: %v", err)
+				wailsruntime.Quit(ctx)
+				return
+			}
+			cleanupClient = cleanup
+			go func() {
+				select {
+				case <-request:
+					wailsruntime.Quit(ctx)
+				case <-ctx.Done():
+				}
+			}()
+			go func() { <-shutdown.Done(); wailsruntime.Quit(ctx) }()
+		},
+		OnShutdown: func(context.Context) {
+			if cleanupClient != nil {
+				cleanupClient()
+			}
+			if stopSignals != nil {
+				stopSignals()
+			}
+		},
 		AssetServer: &assetserver.Options{
-			Assets: frontend,
+			Handler: serverruntime.DesktopFrontend(),
 		},
 		BackgroundColour: &options.RGBA{R: 23, G: 25, B: 27, A: 1},
 		Bind: []interface{}{
-			&DesktopBridge{},
 			bridge,
 		},
 		Mac: &mac.Options{
