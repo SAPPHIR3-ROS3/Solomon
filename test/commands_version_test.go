@@ -38,7 +38,7 @@ func TestVersionStringSourceStamps(t *testing.T) {
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("build stamped binary: %v\n%s", err, out)
 			}
-			out, err := exec.Command(binary, "version").CombinedOutput()
+			out, err := exec.Command(binary, "version", "--binary").CombinedOutput()
 			if err != nil {
 				t.Fatalf("read stamped version: %v\n%s", err, out)
 			}

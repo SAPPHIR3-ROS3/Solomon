@@ -58,7 +58,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
   const [homeStats, setHomeStats] = useState(() => getCachedHomeStats());
   const [workspaceName, setWorkspaceName] = useState("Home");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [version, setVersion] = useState("dev");
+  const [version, setVersion] = useState("");
   const [openMenu, setOpenMenu] = useState<"workspace" | "branch" | "worktree" | Exclude<ChatComposerMenu, null> | null>(null);
   const [visibility, setVisibility] = useState<Visibility>({ banner: true, title: true, folder: true, composer: true, version: true, chatCount: true, tokenCount: true });
   const screenRef = useRef<HTMLElement>(null);
@@ -196,7 +196,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
         if (!controller.signal.aborted) setVersion(nextVersion);
       })
       .catch(() => {
-        if (!controller.signal.aborted) setVersion("dev");
+        // Preserve the last daemon version across a temporary interruption.
       });
     return () => controller.abort();
   }, [isVisible]);
@@ -398,14 +398,14 @@ async function loadServerVersion(signal: AbortSignal): Promise<string> {
   if (!response.ok) throw new Error(`Unable to load server version: ${response.status}`);
   const payload: unknown = await response.json();
   if (!payload || typeof payload !== "object" || !("server" in payload) || !payload.server || typeof payload.server !== "object" || !("version" in payload.server) || typeof payload.server.version !== "string") {
-    return "dev";
+    throw new Error("Daemon health response has no version");
   }
-  return payload.server.version.trim() || "dev";
+  return payload.server.version.trim();
 }
 
 function formatVersion(value: string): string {
   const normalized = value.trim().replace(/^v/i, "");
-  return `v${normalized || "dev"}`;
+  return normalized ? `v${normalized}` : "—";
 }
 
 function formatChatCount(value: number): string {

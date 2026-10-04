@@ -23,7 +23,7 @@ func TestUpgradeFlow_exitPathMatchesOSPolicy(t *testing.T) {
 	}
 }
 
-func TestUpgradeFlow_runSystemInstallSchedulesBackgroundOnWindows(t *testing.T) {
+func TestUpgradeFlow_runSystemInstallDefersCoordinatorOnWindows(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("windows background install restart")
 	}
@@ -37,8 +37,8 @@ func TestUpgradeFlow_runSystemInstallSchedulesBackgroundOnWindows(t *testing.T) 
 	if !errors.Is(err, updater.ErrRestartScheduled) {
 		t.Fatalf("got %v", err)
 	}
-	if scheduleCalls != 1 {
-		t.Fatalf("expected one background install schedule, got %d", scheduleCalls)
+	if scheduleCalls != 0 {
+		t.Fatalf("expected no install before runtime shutdown, got %d", scheduleCalls)
 	}
 }
 
@@ -84,11 +84,11 @@ func TestUpgradeFlow_exitDoesNotDoubleScheduleOnWindows(t *testing.T) {
 	if err := updater.SimulateUpgradeExitRestartForTest("v2099.1.0"); err != nil {
 		t.Fatal(err)
 	}
-	if scheduleCalls != 1 {
-		t.Fatalf("expected one background schedule, got %d", scheduleCalls)
+	if scheduleCalls != 0 {
+		t.Fatalf("expected no legacy background schedule, got %d", scheduleCalls)
 	}
-	if execCalls != 0 {
-		t.Fatalf("windows exit must not call ExecInstallRestart, got %d calls", execCalls)
+	if execCalls != 1 {
+		t.Fatalf("windows exit must call ExecInstallRestart once, got %d calls", execCalls)
 	}
 }
 
@@ -123,21 +123,9 @@ func TestUpgradeFlow_windowsInstallRestartScriptRequiresExe(t *testing.T) {
 	}
 }
 
-func TestUpgradeFlow_execInstallRestartNoOpOnWindows(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("windows exec install restart guard")
-	}
-	var scheduleCalls int
-	restore := updater.SetScheduleInstallRestartHook(func(context.Context, string, io.Writer) error {
-		scheduleCalls++
-		return nil
-	})
-	defer restore()
-	if err := updater.ExecInstallRestartForTest(context.Background(), "v2099.1.0"); err != nil {
-		t.Fatal(err)
-	}
-	if scheduleCalls != 0 {
-		t.Fatalf("ExecInstallRestart on windows must not schedule install, got %d calls", scheduleCalls)
+func TestUpgradeFlow_coordinatorPolicySupportsAllPlatforms(t *testing.T) {
+	if !updater.UsesExecInstallRestartAfterSystemInstallForTest() {
+		t.Fatal("supported platforms must defer the coordinator until shutdown")
 	}
 }
 

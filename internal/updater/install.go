@@ -108,17 +108,19 @@ func SetHTTPDownload(fn func(context.Context, string) (*http.Response, error)) f
 	return func() { httpDownload = prev }
 }
 
-func Install(ctx context.Context, tag string, progress io.Writer) error {
+// PrepareInstall downloads and verifies a release beside its final destination.
+// It does not replace the running installation; the caller owns the staged file.
+func PrepareInstall(ctx context.Context, tag string, progress io.Writer) (staged, target string, err error) {
 	if progress == nil {
 		progress = io.Discard
 	}
 	asset, err := releaseAssetName(tag)
 	if err != nil {
-		return err
+		return "", "", err
 	}
-	target, err := installTargetPath()
+	target, err = installTargetPath()
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	url := releaseDownloadURL(tag, asset)
 	if ctx == nil {
@@ -128,18 +130,18 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 	resp, err := httpDownload(ctx, url)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "updater download failed", logging.LogOptions{Params: map[string]any{"tag": tag, "url": url, "err": err.Error()}})
-		return err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download %s: %s", url, resp.Status)
+		return "", "", fmt.Errorf("download %s: %s", url, resp.Status)
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return err
+		return "", "", err
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(target), ".solomon-update-*")
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	tmpPath := tmp.Name()
 	ok := false
@@ -150,20 +152,43 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 		}
 	}()
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
-		return err
+		return "", "", err
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		return "", "", err
 	}
 	if err := verifyReleaseAsset(ctx, tag, asset, tmpPath, progress); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "updater verify release failed", logging.LogOptions{Params: map[string]any{"tag": tag, "asset": asset, "err": err.Error()}})
-		return err
+		return "", "", err
 	}
 	if runtime.GOOS != "windows" {
 		if err := os.Chmod(tmpPath, 0o755); err != nil {
-			return err
+			return "", "", err
 		}
 	}
+	ok = true
+	return tmpPath, target, nil
+}
+
+func Install(ctx context.Context, tag string, progress io.Writer) error {
+	if progress == nil {
+		progress = io.Discard
+	}
+	staged, target, err := PrepareInstall(ctx, tag, progress)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(staged)
+	if err := CommitInstall(staged, target); err != nil {
+		return err
+	}
+	logging.Log(logging.INFO_LOG_LEVEL, "updater install complete", logging.LogOptions{Params: map[string]any{"tag": tag, "path": target}})
+	fmt.Fprintf(progress, "Installed %s to %s\n", tag, target)
+	return nil
+}
+
+// CommitInstall replaces the binary atomically, restoring it on failure.
+func CommitInstall(staged, target string) error {
 	backup := target + ".bak"
 	_ = os.Remove(backup)
 	if _, err := os.Stat(target); err == nil {
@@ -171,14 +196,11 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 			return fmt.Errorf("backup current binary: %w", err)
 		}
 	}
-	if err := os.Rename(tmpPath, target); err != nil {
+	if err := os.Rename(staged, target); err != nil {
 		_ = os.Rename(backup, target)
 		return fmt.Errorf("install binary: %w", err)
 	}
-	ok = true
 	_ = os.Remove(backup)
-	logging.Log(logging.INFO_LOG_LEVEL, "updater install complete", logging.LogOptions{Params: map[string]any{"tag": tag, "path": target}})
-	fmt.Fprintf(progress, "Installed %s to %s\n", tag, target)
 	return nil
 }
 
@@ -214,7 +236,7 @@ func InstallFallbackMessage(tag string) string {
 
 func canExecInstallRestart() bool {
 	switch runtime.GOOS {
-	case "linux", "darwin":
+	case "linux", "darwin", "windows":
 		return true
 	default:
 		return false

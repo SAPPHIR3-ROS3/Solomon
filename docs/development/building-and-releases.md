@@ -77,6 +77,24 @@ Executable checksums still verify downloads, but do not determine development
 status. Builds made directly with `go build` lack this source snapshot and cannot
 be promoted to a release by the source-tree comparison.
 
+The running daemon is the version authority for the desktop app, TUI and
+`solomon version`. Use `solomon version --binary` only to inspect the installed
+binary independently of the daemon. If no daemon is available, the normal
+version command reports that fact instead of substituting a binary version.
+
+On Linux, Windows and macOS, `solomon upgrade` and TUI updates use a detached coordinator. It
+downloads and verifies the release before interrupting work, closes the native
+Solomon clients, stops the daemon and its PTYs/workers, replaces the binary, and
+starts the daemon with the release's bundled production UI. Desktop windows are
+reopened and attached TUIs re-enter through the installed CLI. The desktop shell
+loads UI assets and API data from the daemon, so it does not retain a separate
+frontend version. A failed installation restores the previous binary and restarts
+the runtime. Progress and errors are written to `~/.solomon/logs/update/update.log`
+(under `SOLOMON_HOME` when configured). Native clients register a graceful shutdown handshake on all three platforms.
+Windows runs the coordinator from a separate executable copy to release installation
+locks, and reopens TUI transports in a new console. Unix TUI transports resume in
+their existing terminal. CI runs the runtime handoff tests on all three platforms.
+
 ## Application icon
 
 The shared icon is generated from the terminal and GUI Braille art in

@@ -84,7 +84,23 @@ func SetEffectiveReleaseVersion(tag string, matchesReleaseSource bool) {
 	effectiveReleaseVersion.Unlock()
 }
 
+// SetVersionProvider lets clients display the authoritative daemon version.
+// The daemon itself and binary diagnostics use LocalVersionString.
+func SetVersionProvider(provider func() string) { versionProvider = provider }
+
+var versionProvider func() string
+
 func VersionString() string {
+	if versionProvider != nil {
+		if value := strings.TrimSpace(versionProvider()); value != "" {
+			return value
+		}
+		return "daemon unavailable"
+	}
+	return LocalVersionString()
+}
+
+func LocalVersionString() string {
 	effectiveReleaseVersion.RLock()
 	tag, matchesReleaseSource := effectiveReleaseVersion.tag, effectiveReleaseVersion.matchesReleaseSource
 	effectiveReleaseVersion.RUnlock()

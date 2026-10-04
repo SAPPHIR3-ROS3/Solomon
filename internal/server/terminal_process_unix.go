@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"syscall"
 
 	"github.com/creack/pty"
 )
@@ -36,7 +37,8 @@ func (p *unixTerminalProcess) Kill() error {
 	if p.cmd.Process == nil {
 		return nil
 	}
-	return p.cmd.Process.Kill()
+	// PTY children own a session/process group. Stop their workers as well.
+	return syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
 }
 
 func (p *unixTerminalProcess) Resize(cols, rows uint16) error {

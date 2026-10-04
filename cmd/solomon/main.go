@@ -19,12 +19,14 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/lifecycle"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/providersetup"
 	sandboxworker "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/worker"
+	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
 
@@ -68,8 +70,17 @@ func resolveREPLWorkingDir(args []string) (string, error) {
 }
 
 func main() {
+	if lifecycle.RunUpdateCommand(os.Args) {
+		return
+	}
+	if len(os.Args) < 3 || os.Args[1] != "server" || os.Args[2] != "run" {
+		if len(os.Args) < 3 || os.Args[1] != "version" || os.Args[2] != "--binary" {
+			commands.SetVersionProvider(serverruntime.RunningVersion)
+		}
+	}
 	daemonTUIChild := len(os.Args) >= 2 && os.Args[1] == "--daemon-tui"
 	if daemonTUIChild {
+		_ = os.Setenv("SOLOMON_DAEMON_TUI", "1")
 		// The daemon launches this hidden form inside the PTY. Strip the marker
 		// before the regular startup path so the child runs the existing REPL
 		// against the directory supplied by the daemon.
@@ -106,9 +117,8 @@ func main() {
 		servercli.Run(os.Args[2:])
 		return
 	}
-	// The daemon-backed REPL needs a PTY. Windows does not have a daemon PTY
-	// implementation, so keep the interactive CLI in this process there.
-	if runtime.GOOS != "windows" && !daemonTUIChild && daemonTUIRequested(os.Args) {
+	// Unix PTYs and Windows ConPTY both run the TUI in the daemon.
+	if !daemonTUIChild && daemonTUIRequested(os.Args) {
 		if err := runDaemonTUI(os.Args); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)

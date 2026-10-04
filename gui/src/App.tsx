@@ -21,6 +21,7 @@ import { forgetRememberedActiveChat, getRememberedActiveChat } from "./chat/chat
 import { ChatTopbar, ChatView } from "./chat/ChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
 import { EditorPage } from "./editor/EditorPage";
+import { watchDaemonLifecycle } from "./daemonLifecycle";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
 const MIN_TERMINAL_PANEL_HEIGHT = 120;
@@ -35,6 +36,7 @@ const RIGHT_SIDE_PANEL_WIDTH_KEY = "solomon.right-side-panel-width";
 const EMPTY_MESSAGE_IDS = new Set<string>();
 
 export function App() {
+  useEffect(() => watchDaemonLifecycle(() => window.location.reload()), []);
   const [client, setClient] = useState(initialClient);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [isRightSidePanelOpen, setIsRightSidePanelOpen] = useState(false);

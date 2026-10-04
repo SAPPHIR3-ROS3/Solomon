@@ -82,16 +82,17 @@ func defaultExecInstallRestart(ctx context.Context, tag string) error {
 		return fmt.Errorf("empty release tag")
 	}
 	switch runtime.GOOS {
-	case "linux", "darwin":
-		return execUnixInstallRestart(ctx, tag)
-	case "windows":
-		return nil
+	case "linux", "darwin", "windows":
+		return launchCoordinatedUpdate(tag)
 	default:
 		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
 }
 
 func execUnixInstallRestart(ctx context.Context, tag string) error {
+	if runtime.GOOS == "linux" {
+		return launchCoordinatedUpdate(tag)
+	}
 	_ = ctx
 	exe, err := restartExecutable()
 	if err != nil {

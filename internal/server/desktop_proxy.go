@@ -12,8 +12,17 @@ import (
 // so installing a new GUI does not require interrupting their active sessions.
 // The caller must serve this handler exclusively on a loopback listener.
 func DesktopProxy() http.Handler {
+	return desktopProxy(false)
+}
+
+// DesktopFrontend makes the daemon the source of the native client's UI assets.
+// Reloading a client after an update loads the daemon's matching frontend.
+func DesktopFrontend() http.Handler { return desktopProxy(true) }
+
+func desktopProxy(frontend bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/__solomon/") {
+		isAPI := strings.HasPrefix(r.URL.Path, "/__solomon/") || r.URL.Path == "/health"
+		if !isAPI && (!frontend || r.Method != http.MethodGet || strings.HasPrefix(r.URL.Path, "/_solomon")) {
 			http.NotFound(w, r)
 			return
 		}

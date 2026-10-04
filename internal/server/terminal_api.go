@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -102,10 +103,11 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	replay, events, done, unsubscribe := session.Subscribe(r.Context(), after)
 	defer unsubscribe()
 	if err := writeTerminalJSON(connection, map[string]any{
-		"cwd":  session.Info().Cwd,
-		"seq":  session.Info().Seq,
-		"id":   session.Info().ID,
-		"type": "solomon-terminal",
+		"cwd":        session.Info().Cwd,
+		"seq":        session.Info().Seq,
+		"id":         session.Info().ID,
+		"type":       "solomon-terminal",
+		"daemon_pid": os.Getpid(),
 	}); err != nil {
 		return
 	}
@@ -150,6 +152,12 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-done:
+			select {
+			case <-a.manager.ctx:
+				_ = writeTerminalJSON(connection, map[string]any{"type": "solomon-restarting"})
+				return
+			default:
+			}
 			for {
 				select {
 				case output := <-events:
@@ -165,6 +173,9 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case <-inputErrors:
 			return
 		case <-r.Context().Done():
+			return
+		case <-a.manager.ctx:
+			_ = writeTerminalJSON(connection, map[string]any{"type": "solomon-restarting"})
 			return
 		}
 	}

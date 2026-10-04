@@ -19,6 +19,7 @@ type windowsTerminalProcess struct {
 	mu      sync.Mutex
 	console windows.Handle
 	process windows.Handle
+	job     windows.Handle
 
 	closeOnce sync.Once
 	closeErr  error
@@ -95,7 +96,8 @@ func startTerminalProcess(options terminalProcessOptions) (_ terminalProcess, er
 		StartupInfo:             windows.StartupInfo{Cb: uint32(unsafe.Sizeof(windows.StartupInfoEx{}))},
 		ProcThreadAttributeList: attributes.List(),
 	}
-	startup.StartupInfo.Flags |= windows.STARTF_USESTDHANDLES
+	// ConPTY supplies the child's console handles. STARTF_USESTDHANDLES would
+	// replace them with the zero handles in this startup structure.
 	var processInfo windows.ProcessInformation
 	if err := windows.CreateProcess(
 		nil,
@@ -103,7 +105,7 @@ func startTerminalProcess(options terminalProcessOptions) (_ terminalProcess, er
 		nil,
 		nil,
 		false,
-		windows.CREATE_UNICODE_ENVIRONMENT|windows.EXTENDED_STARTUPINFO_PRESENT,
+		windows.CREATE_UNICODE_ENVIRONMENT|windows.EXTENDED_STARTUPINFO_PRESENT|windows.CREATE_SUSPENDED,
 		nil,
 		currentDirectory,
 		&startup.StartupInfo,
@@ -111,7 +113,25 @@ func startTerminalProcess(options terminalProcessOptions) (_ terminalProcess, er
 	); err != nil {
 		return nil, fmt.Errorf("start terminal shell %q: %w", options.Shell, err)
 	}
+	job, err := windows.CreateJobObject(nil, nil)
+	if err == nil {
+		limits := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
+		limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | windows.JOB_OBJECT_LIMIT_BREAKAWAY_OK
+		_, err = windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&limits)), uint32(unsafe.Sizeof(limits)))
+	}
+	if err == nil {
+		err = windows.AssignProcessToJobObject(job, processInfo.Process)
+	}
+	if err == nil {
+		_, err = windows.ResumeThread(processInfo.Thread)
+	}
 	closeWindowsHandle(processInfo.Thread)
+	if err != nil {
+		_ = windows.TerminateProcess(processInfo.Process, 1)
+		closeWindowsHandle(processInfo.Process)
+		closeWindowsHandle(job)
+		return nil, fmt.Errorf("isolate terminal process tree: %w", err)
+	}
 	closeWindowsHandle(inputRead)
 	inputRead = 0
 	closeWindowsHandle(outputWrite)
@@ -131,6 +151,7 @@ func startTerminalProcess(options terminalProcessOptions) (_ terminalProcess, er
 		_ = windows.TerminateProcess(processInfo.Process, 1)
 		_, _ = windows.WaitForSingleObject(processInfo.Process, windows.INFINITE)
 		closeWindowsHandle(processInfo.Process)
+		closeWindowsHandle(job)
 		return nil, errors.New("wrap terminal pseudoconsole pipes")
 	}
 
@@ -139,6 +160,7 @@ func startTerminalProcess(options terminalProcessOptions) (_ terminalProcess, er
 		input:   input,
 		output:  output,
 		process: processInfo.Process,
+		job:     job,
 		done:    make(chan struct{}),
 	}
 	console = 0
@@ -183,7 +205,7 @@ func (p *windowsTerminalProcess) Kill() error {
 	if p.process == 0 {
 		return nil
 	}
-	return windows.TerminateProcess(p.process, 1)
+	return windows.TerminateJobObject(p.job, 1)
 }
 
 func (p *windowsTerminalProcess) Resize(cols, rows uint16) error {
@@ -227,6 +249,8 @@ func (p *windowsTerminalProcess) waitForExit() {
 	p.mu.Lock()
 	if p.process == process {
 		closeWindowsHandle(p.process)
+		closeWindowsHandle(p.job)
+		p.job = 0
 		p.process = 0
 	}
 	p.mu.Unlock()
