@@ -1,9 +1,12 @@
 (function () {
   "use strict";
 
+  // Base layer: works without anime.js. motion.js (loaded after this file)
+  // registers hooks on window.SolomonMotion to take over the visual side.
   document.documentElement.classList.add("js");
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var M = (window.SolomonMotion = window.SolomonMotion || {});
 
   // Install tabs and copy
   var install = document.querySelector("[data-install]");
@@ -17,6 +20,7 @@
         tabs.forEach(function (t) { t.setAttribute("aria-selected", "false"); });
         tab.setAttribute("aria-selected", "true");
         target.textContent = tab.getAttribute("data-cmd");
+        if (M.onTab) M.onTab(target);
       });
     });
 
@@ -24,6 +28,7 @@
       var text = target.textContent;
       var done = function () {
         copyBtn.classList.add("done");
+        if (M.onCopy) M.onCopy(copyBtn);
         setTimeout(function () { copyBtn.classList.remove("done"); }, 1600);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -47,30 +52,72 @@
     });
   }
 
-  // Reveal on scroll
-  var reveals = document.querySelectorAll(".reveal");
+  // Reveal on scroll. The observer decides *when*; if motion.js registered a
+  // hook it decides *how*, otherwise the CSS transition in base.css runs.
+  var reveals = Array.prototype.slice.call(document.querySelectorAll(".reveal"));
+  var headline = document.querySelector("[data-words]");
+
+  function show(els, group) {
+    if (M.onReveal && !reduceMotion) {
+      M.onReveal(els, group);
+    } else {
+      els.forEach(function (el, i) { el.style.setProperty("--i", String(i)); el.classList.add("in"); });
+    }
+  }
+
   if ("IntersectionObserver" in window && !reduceMotion) {
+    var grouped = [];
+    var groups = [];
+    document.querySelectorAll("[data-stagger]").forEach(function (group) {
+      var kids = Array.prototype.filter.call(group.children, function (c) { return c.classList.contains("reveal"); });
+      if (!kids.length) return;
+      kids.forEach(function (k) { grouped.push(k); });
+      groups.push([group, kids]);
+    });
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("in");
-          io.unobserve(entry.target);
-        }
+        if (!entry.isIntersecting) return;
+        io.unobserve(entry.target);
+        var hit = groups.filter(function (g) { return g[0] === entry.target; })[0];
+        show(hit ? hit[1] : [entry.target], hit ? entry.target : null);
       });
     }, { rootMargin: "0px 0px -8% 0px" });
-    reveals.forEach(function (el) { io.observe(el); });
+    groups.forEach(function (g) { io.observe(g[0]); });
+    reveals.forEach(function (el) {
+      if (grouped.indexOf(el) !== -1 || el === headline) return;
+      io.observe(el);
+    });
+    if (headline) headline.classList.add("in");
   } else {
     reveals.forEach(function (el) { el.classList.add("in"); });
+  }
+
+  // Active nav link while scrolling
+  var navLinks = document.querySelectorAll("[data-nav] a[href^='#']");
+  if (navLinks.length && "IntersectionObserver" in window) {
+    var byId = {};
+    navLinks.forEach(function (a) { byId[a.getAttribute("href").slice(1)] = a; });
+    var nio = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        var link = byId[entry.target.id];
+        if (!link || !entry.isIntersecting) return;
+        navLinks.forEach(function (a) { a.classList.remove("active"); });
+        link.classList.add("active");
+      });
+    }, { rootMargin: "-40% 0px -55% 0px" });
+    Object.keys(byId).forEach(function (id) {
+      var sec = document.getElementById(id);
+      if (sec) nio.observe(sec);
+    });
   }
 
   // Terminal session
   var term = document.querySelector("[data-terminal]");
   if (!term) return;
 
-  // Each line: [kind, text]. "type" lines are typed out, the rest appear at once.
   var script = [
     ["type", [["t-gold", "$ "], ["", "solomon ."]]],
-    ["line", [["t-dim", "Solomon · agent mode · provider: Claude Sub · ~/code/api"]]],
+    ["line", [["t-dim", "Solomon · agent mode · model: local/qwen2.5-coder · ~/code/api"]]],
     ["line", [["", ""]]],
     ["type", [["t-dim", "[#001] "], ["t-gold", "You: "], ["", "add rate limiting to the /login handler and cover it with tests"]]],
     ["line", [["", ""]]],
@@ -144,6 +191,7 @@
             if (isInput) return wait(350).then(function () { return typeInto(el, part[1], 38); });
             if (kind === "stream") return typeInto(el, part[1], 6);
             el.textContent = part[1];
+            if (kind === "line" && part[1] && M.onTermLine) M.onTermLine(el);
           });
         });
         return seq.then(function () {
