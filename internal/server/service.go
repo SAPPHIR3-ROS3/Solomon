@@ -296,11 +296,19 @@ func Run(ctx context.Context, options Options) error {
 		mux.ServeHTTP(w, r)
 	})
 
+	shutdownDone := make(chan struct{})
 	go func() {
 		<-serviceCtx.Done()
 		_ = httpServer.Shutdown(context.Background())
+		// HTTP shutdown does not wait for hijacked WebSocket connections. Let
+		// terminal handlers send their restart notice before the daemon exits.
+		terminalAPI.clients.Wait()
+		close(shutdownDone)
 	}()
-	return httpServer.Serve(listener)
+	err = httpServer.Serve(listener)
+	cancelService()
+	<-shutdownDone
+	return err
 }
 
 func resolveListenAddr(options Options) (string, error) {
