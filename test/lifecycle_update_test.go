@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -96,6 +97,8 @@ func TestCoordinatedUpdateInstallsBeforeRestartAndRollsBackFailures(t *testing.T
 
 func TestCoordinatedUpdateRestartsAnIsolatedDaemonAndNotifiesItsTerminal(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
 	t.Setenv("SOLOMON_HOME", filepath.Join(dir, "home"))
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -114,6 +117,25 @@ func TestCoordinatedUpdateRestartsAnIsolatedDaemonAndNotifiesItsTerminal(t *test
 	build.Dir = ".."
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build fixture: %v %s", err, output)
+	}
+	// This test exercises daemon updates with an already provisioned desktop.
+	// The fictional release must never trigger a public release download.
+	desktop, err := updater.DesktopExecutablePath(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(desktop), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(desktop, []byte("desktop fixture"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	marker, err := json.Marshal(map[string]string{"tag": tag, "cli": target})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(desktop+".install.json", marker, 0600); err != nil {
+		t.Fatal(err)
 	}
 	data, err := os.ReadFile(target)
 	if err != nil {

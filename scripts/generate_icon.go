@@ -39,7 +39,6 @@ func main() {
 		if err := os.WriteFile(path, asset.data, 0o644); err != nil {
 			fail(err)
 		}
-		fmt.Println(filepath.Rel(root, path))
 	}
 }
 

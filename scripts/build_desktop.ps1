@@ -31,8 +31,14 @@ try {
     Write-Host 'Compiling Solomon desktop...'
     $buildLog = Join-Path $env:TEMP ("solomon-desktop-build-$([guid]::NewGuid().ToString('n')).log")
     try {
-        & go run "github.com/wailsapp/wails/v2/cmd/wails@$wailsVersion" build -skipbindings -nosyncgomod -m *> $buildLog
-        if ($LASTEXITCODE -ne 0) {
+        $previousErrorPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & go run "github.com/wailsapp/wails/v2/cmd/wails@$wailsVersion" build -skipbindings -nosyncgomod -m *> $buildLog
+            $buildExitCode = $LASTEXITCODE
+        }
+        finally { $ErrorActionPreference = $previousErrorPreference }
+        if ($buildExitCode -ne 0) {
             Get-Content -LiteralPath $buildLog | Out-Host
             throw 'Desktop build failed'
         }
@@ -53,7 +59,10 @@ if ($Install) {
     try {
         $commit = (git rev-parse HEAD).Trim()
         $commitTime = (git show -s --format=%cI HEAD).Trim()
-        $metadata = "-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$Version -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$commit -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=$commitTime"
+        $sourceTree = (go run ./scripts/source_identity).Trim()
+        if ($LASTEXITCODE -ne 0) { throw 'Source identity calculation failed' }
+        $commitTree = (git rev-parse 'HEAD^{tree}').Trim()
+        $metadata = "-s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$Version -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$commit -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=$commitTime -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=$sourceTree -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=$commitTree"
         & go build -trimpath -ldflags $metadata -o $cliBuild ./cmd/solomon
         if ($LASTEXITCODE -ne 0) { throw 'CLI build failed' }
         Install-BuiltExecutable -Source $cliBuild -Target (Join-Path $BinDir 'solomon.exe')

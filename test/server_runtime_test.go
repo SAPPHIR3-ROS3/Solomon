@@ -46,6 +46,45 @@ func TestServerRuntime_normalHealth(t *testing.T) {
 	}
 }
 
+func TestServerRuntime_desktopCanReadHealthVersion(t *testing.T) {
+	server, stop := startServerForTest(t, serverruntime.Options{})
+	defer stop()
+	for _, origin := range []string{"http://wails.localhost", "https://wails.localhost"} {
+		request, err := http.NewRequest(http.MethodGet, server.URL+"/health", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Origin", origin)
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := response.Header.Get("Access-Control-Allow-Origin"); got != origin {
+			response.Body.Close()
+			t.Fatalf("desktop cannot read health: allowed origin = %q, want %q", got, origin)
+		}
+		var health serverruntime.Health
+		if err := json.NewDecoder(response.Body).Decode(&health); err != nil {
+			response.Body.Close()
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if !health.OK || health.Server.Version == "" {
+			t.Fatalf("missing desktop server version: %#v", health)
+		}
+	}
+	request, _ := http.NewRequest(http.MethodOptions, server.URL+"/health", nil)
+	request.Header.Set("Origin", "https://untrusted.example")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusForbidden || response.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("health preflight must reject untrusted origins")
+	}
+}
+
 func TestServerRuntime_defaultAdvertisesReachableIPv4Addresses(t *testing.T) {
 	if !hasNonLoopbackIPv4Interface(t) {
 		t.Skip("no non-loopback IPv4 interface available")

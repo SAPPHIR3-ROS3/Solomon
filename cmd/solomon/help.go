@@ -24,11 +24,14 @@ Usage:
   solomon [directory]
   solomon tui [directory]
   solomon attach [directory]
+  solomon desktop
   solomon exec [options] <prompt>
   solomon temp exec [options] <prompt>
   solomon server <command>
 
 Commands:
+  desktop                         Open the desktop application
+  desktop install [release-tag]   Reinstall the desktop application
   version                         Print the installed version
   upgrade                         Install the latest release
   init                            Create the default configuration

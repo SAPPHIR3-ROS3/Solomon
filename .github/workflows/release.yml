@@ -83,6 +83,16 @@ jobs:
       - name: Verify upgrade restart flow
         shell: bash
         run: go test ./test -count=1 -run '^TestUpgradeFlow_'
+      - name: Verify Windows desktop build and registration
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/build_desktop.ps1 -Install
+          $key = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Solomon'
+          if ($key.DisplayName -ne 'Solomon') { throw 'Solomon application registration missing' }
+          $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Solomon\Solomon.lnk'
+          $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($link)
+          if (-not (Test-Path -LiteralPath $shortcut.TargetPath)) { throw 'Solomon Start menu target missing' }
       - name: Run tests
         shell: bash
         run: |
@@ -107,10 +117,80 @@ jobs:
           COMMIT_TREE=$(git rev-parse 'HEAD^{tree}')
           go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=${VERSION} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=${COMMIT} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=${COMMIT_TIME} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=${SOURCE_TREE} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=${COMMIT_TREE}" ./cmd/solomon
 
+  desktop_assets:
+    if: |
+      always() &&
+      (needs.test.result == 'success' ||
+       (needs.test.result == 'skipped' && needs.prior_test_status.outputs.skip_tests == 'true'))
+    needs: [prior_test_status, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows/amd64
+            asset: windows-amd64.exe
+          - runner: windows-latest
+            platform: windows/arm64
+            asset: windows-arm64.exe
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            asset: linux-amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            asset: linux-arm64
+          - runner: macos-15-intel
+            platform: darwin/amd64
+            asset: darwin-amd64.app.tar.gz
+          - runner: macos-15
+            platform: darwin/arm64
+            asset: darwin-arm64.app.tar.gz
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Install Linux native build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+      - name: Build Cursor integration bundle
+        run: |
+          go run scripts/cursor_bundler.go build
+          go run scripts/cursor_bundler.go bundle
+      - name: Build native desktop
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+          mkdir -p desktop-dist
+          cd gui/desktop
+          wails_version=$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+          flags=()
+          if [[ "$PLATFORM" == linux/* ]]; then flags=(-tags webkit2_41); fi
+          go run "github.com/wailsapp/wails/v2/cmd/wails@${wails_version}" build -skipbindings -nosyncgomod -m -platform "$PLATFORM" "${flags[@]}"
+          if [[ "$PLATFORM" == darwin/* ]]; then
+            COPYFILE_DISABLE=1 tar -czf "../../desktop-dist/solomon-desktop-${ASSET}" -C build/bin Solomon.app
+          elif [[ "$PLATFORM" == windows/* ]]; then
+            cp build/bin/solomon-desktop.exe "../../desktop-dist/solomon-desktop-${ASSET}"
+          else
+            cp build/bin/solomon-desktop "../../desktop-dist/solomon-desktop-${ASSET}"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.asset }}
+          path: desktop-dist/*
+
   release:
     if: |
       always() &&
       github.event_name == 'workflow_dispatch' &&
+      needs.desktop_assets.result == 'success' &&
       (
         needs.test.result == 'success' ||
         (
@@ -118,7 +198,7 @@ jobs:
           needs.prior_test_status.outputs.skip_tests == 'true'
         )
       )
-    needs: [prior_test_status, test]
+    needs: [prior_test_status, test, desktop_assets]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -155,14 +235,6 @@ jobs:
         run: |
           set -e
           git fetch --tags origin
-          if git symbolic-ref -q refs/remotes/origin/HEAD >/dev/null; then
-            DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
-          else
-            DEFAULT_BRANCH="main"
-          fi
-          git checkout "$DEFAULT_BRANCH"
-          git pull origin "$DEFAULT_BRANCH" --ff-only
-
           Y=$(date -u +%Y)
           M=$((10#$(date -u +%m)))
           D=$((10#$(date -u +%d)))
@@ -180,7 +252,6 @@ jobs:
           VER="${PREFIX}.${REV}"
 
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
-          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
         env:
@@ -213,6 +284,22 @@ jobs:
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$VER -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$COMMIT -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=$SOURCE_TREE -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=$COMMIT_TREE" -o "$out" ./cmd/solomon
           done
 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: desktop-dist
+          merge-multiple: true
+
+      - name: Collect native desktop executables
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          set -e
+          for asset in desktop-dist/solomon-desktop-*; do
+            suffix=${asset##*/solomon-desktop-}
+            cp "$asset" "dist/solomon-desktop-${VER}-${suffix}"
+          done
+
       - name: Generate release checksums
         env:
           VER: ${{ steps.version.outputs.ver }}
@@ -220,7 +307,7 @@ jobs:
           set -e
           (
             cd dist
-            sha256sum solomon-${VER}-* > checksums.txt
+            sha256sum solomon-* > checksums.txt
           )
 
       - name: Create GitHub release
@@ -231,7 +318,7 @@ jobs:
           set -e
           gh release create "$VER" dist/* \
             --title "$VER" \
-            --notes "Calendar release $VER. Assets are native executables per platform (linux, windows, macOS; amd64 and arm64). Role scores are assigned manually."
+            --notes "Calendar release $VER. CLI and native desktop assets for Linux, Windows and macOS (amd64 and arm64). First launch completes desktop installation automatically."
 
   post_release_smoke:
     if: |
@@ -341,6 +428,12 @@ jobs:
             exit 1
           fi
           "$exe" version
+          case "$(uname -s)" in
+            Darwin) desktop="$HOME/Applications/Solomon.app/Contents/MacOS/solomon-desktop" ;;
+            Linux) desktop="$expected_bin/solomon-desktop" ;;
+          esac
+          [[ -x "$desktop" ]] || { echo "Desktop missing: $desktop" >&2; exit 1; }
+          [[ -f "$desktop.install.json" ]] || { echo "Desktop setup marker missing" >&2; exit 1; }
 
       - name: Smoke test installed binary (Windows)
         if: runner.os == 'Windows'
@@ -381,6 +474,14 @@ jobs:
           }
           & $exe version
 
+          $desktop = Join-Path $expectedBin 'solomon-desktop.exe'
+          if (-not (Test-Path -LiteralPath $desktop)) { throw 'Desktop executable missing' }
+          $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Solomon\Solomon.lnk'
+          $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($link)
+          if ($shortcut.TargetPath -ne $desktop) { throw 'Incorrect Start menu desktop target' }
+          $app = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Solomon'
+          if ($app.DisplayName -ne 'Solomon') { throw 'Solomon missing from Windows apps' }
+
       - name: Smoke test upgrade path (macOS / Linux)
         if: runner.os != 'Windows'
         shell: bash
@@ -389,6 +490,52 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/check_upgrade_smoke.sh
+
+      - name: Verify go install completes the desktop package (macOS / Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+        run: |
+          set -euo pipefail
+          export GOBIN="$RUNNER_TEMP/go-install-bin"
+          mkdir -p "$GOBIN"
+          for attempt in $(seq 1 15); do
+            if go install "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@${RELEASE_TAG}"; then break; fi
+            if [[ "$attempt" == 15 ]]; then exit 1; fi
+            sleep 2
+          done
+          "$GOBIN/solomon" version
+          if [[ "$(uname -s)" == Darwin ]]; then
+            desktop="$HOME/Applications/Solomon.app/Contents/MacOS/solomon-desktop"
+            [[ "$(readlink "$(dirname "$desktop")/solomon")" == "$GOBIN/solomon" ]]
+          else
+            desktop="$GOBIN/solomon-desktop"
+            grep -Fq "$desktop" "$HOME/.local/share/applications/solomon.desktop"
+          fi
+          [[ -x "$desktop" && -f "$desktop.install.json" ]]
+
+      - name: Verify go install completes the desktop package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+        run: |
+          $env:GOBIN = Join-Path $env:RUNNER_TEMP 'go-install-bin'
+          New-Item -ItemType Directory -Force -Path $env:GOBIN | Out-Null
+          for ($attempt = 1; $attempt -le 15; $attempt++) {
+            go install "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@$env:RELEASE_TAG"
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($attempt -eq 15) { throw 'go install failed' }
+            Start-Sleep -Seconds 2
+          }
+          & (Join-Path $env:GOBIN 'solomon.exe') version
+          if ($LASTEXITCODE -ne 0) { throw 'First-launch desktop setup failed' }
+          $desktop = Join-Path $env:GOBIN 'solomon-desktop.exe'
+          if (-not (Test-Path -LiteralPath "$desktop.install.json")) { throw 'Desktop setup missing' }
+          $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Solomon\Solomon.lnk'
+          $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($link)
+          if ($shortcut.TargetPath -ne $desktop) { throw 'go install did not register the GUI' }
 
       - name: Smoke test upgrade path (Windows)
         if: runner.os == 'Windows'
