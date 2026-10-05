@@ -97,8 +97,6 @@ func TestCoordinatedUpdateInstallsBeforeRestartAndRollsBackFailures(t *testing.T
 
 func TestCoordinatedUpdateRestartsAnIsolatedDaemonAndNotifiesItsTerminal(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	t.Setenv("USERPROFILE", dir)
 	t.Setenv("SOLOMON_HOME", filepath.Join(dir, "home"))
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -118,6 +116,9 @@ func TestCoordinatedUpdateRestartsAnIsolatedDaemonAndNotifiesItsTerminal(t *test
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build fixture: %v %s", err, output)
 	}
+	// Isolate application data after building, preserving Go's module/cache paths.
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
 	// This test exercises daemon updates with an already provisioned desktop.
 	// The fictional release must never trigger a public release download.
 	desktop, err := updater.DesktopExecutablePath(target)
