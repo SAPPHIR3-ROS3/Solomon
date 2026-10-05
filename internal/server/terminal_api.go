@@ -10,12 +10,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 type terminalAPI struct {
 	manager *terminalManager
+	clients sync.WaitGroup
 }
 
 type terminalControlMessage struct {
@@ -29,6 +32,8 @@ func newTerminalAPI(manager *terminalManager) *terminalAPI {
 }
 
 func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	a.clients.Add(1)
+	defer a.clients.Done()
 	if r.Method != http.MethodGet {
 		writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
 		return
@@ -240,6 +245,9 @@ func (a *terminalAPI) handleInput(session *terminalSession, data []byte) error {
 }
 
 func writeTerminalJSON(connection *websocket.Conn, value any) error {
+	if err := connection.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return err
+	}
 	return connection.WriteJSON(value)
 }
 
