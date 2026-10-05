@@ -171,9 +171,9 @@ jobs:
           mkdir -p desktop-dist
           cd gui/desktop
           wails_version=$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
-          flags=()
-          if [[ "$PLATFORM" == linux/* ]]; then flags=(-tags webkit2_41); fi
-          go run "github.com/wailsapp/wails/v2/cmd/wails@${wails_version}" build -skipbindings -nosyncgomod -m -platform "$PLATFORM" "${flags[@]}"
+          flags=(-skipbindings -nosyncgomod -m -platform "$PLATFORM")
+          if [[ "$PLATFORM" == linux/* ]]; then flags+=(-tags webkit2_41); fi
+          go run "github.com/wailsapp/wails/v2/cmd/wails@${wails_version}" build "${flags[@]}"
           if [[ "$PLATFORM" == darwin/* ]]; then
             COPYFILE_DISABLE=1 tar -czf "../../desktop-dist/solomon-desktop-${ASSET}" -C build/bin Solomon.app
           elif [[ "$PLATFORM" == windows/* ]]; then

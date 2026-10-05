@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:desktop": "npm run build && cd .. && go run scripts/gui_bundle.go",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "preview": "vite preview",
     "test:mobile": "node --test --test-concurrency=1 e2e/mobile.test.mjs"
