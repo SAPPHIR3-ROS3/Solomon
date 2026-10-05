@@ -5,6 +5,8 @@
 /dist/
 *node_modules*
 /gui/dist/
+/gui/desktop/dist/
+/gui/desktop/*.syso
 /gui/*.tsbuildinfo
 /gui/package.json.md5
 /gui/desktop/build/*

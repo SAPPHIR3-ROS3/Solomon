@@ -84,11 +84,12 @@ function Resolve-InstallVersion {
 }
 
 function Install-ReleaseAsset {
+    param([string]$Name = 'solomon')
     $arch = Get-GoArch
-    $asset = "solomon-$Version-windows-$arch.exe"
+    $asset = "$Name-$Version-windows-$arch.exe"
     $url = "https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/$Version/$asset"
     $binDir = Get-GoInstallBinDir
-    $target = Join-Path $binDir 'solomon.exe'
+    $target = Join-Path $binDir "$Name.exe"
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Write-Host "Downloading Solomon release asset $asset..."
     $maxAttempts = 15
@@ -131,7 +132,18 @@ function Install-ReleaseAsset {
     } finally {
         Remove-Item -Force $checksumsPath -ErrorAction SilentlyContinue
     }
-    Move-Item -Force $tmp $target
+    $backup = "$target.$([guid]::NewGuid().ToString('n')).bak"
+    try {
+        if (Test-Path -LiteralPath $target) { Move-Item -LiteralPath $target -Destination $backup }
+        try { Move-Item -LiteralPath $tmp -Destination $target }
+        catch {
+            if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $target }
+            throw
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $tmp, $backup -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Ensure-Go {
@@ -594,7 +606,8 @@ function Install-Solomon {
     $bin = Join-Path $binDir 'solomon.exe'
     if (Test-Path $bin) {
         Write-Host "solomon installed: $bin"
-        & $bin init 2>$null
+        & $bin init
+        if ($LASTEXITCODE -ne 0) { throw 'Solomon desktop setup failed' }
         & $bin version 2>$null
         $cmd = Get-Command solomon -ErrorAction SilentlyContinue
         if ($cmd) {

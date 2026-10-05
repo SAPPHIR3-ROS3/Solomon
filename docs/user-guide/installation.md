@@ -7,6 +7,9 @@ How to install Solomon and ensure `solomon` is on your shell `PATH`.
 - [Go](https://go.dev/) **1.25.0+** ([`go.mod`](../../go.mod))
 - Node.js **20+** and npm for the native CloakBrowser fallback (the standard installer ensures them)
 - Network access for `go install` or the install script
+- Desktop runtime: WebView2 on Windows; GTK3 and WebKit2GTK 4.1 on Linux.
+  macOS uses the system WebKit runtime. On Ubuntu/Debian, install the Linux
+  runtime with `sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0`.
 
 The standard installer also installs the official CloakBrowser npm wrapper and
 its public browser build under `~/.solomon/cloakbrowser` (roughly a few hundred
@@ -45,6 +48,26 @@ irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install
 From a clone: `powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1`
 
 Reload the terminal, then run `solomon version`.
+
+All installation methods produce the same CLI and native desktop application.
+The first normal CLI launch (including `solomon version`, `solomon init`, or
+`solomon desktop`) downloads the desktop asset for the CLI's release and CPU,
+checks its checksum, and registers it with the OS. Standard installers perform
+this step automatically through `solomon init`; `go install` users need only
+run Solomon normally. No separate GUI installation command is required.
+
+Windows gets a Start menu entry and an **Installed apps** registration. Linux
+gets an application menu entry and icon. macOS gets `~/Applications/Solomon.app`
+registered with Launch Services. `solomon desktop` opens the native GUI and
+starts its local server automatically.
+
+Subsequent launches use the installed GUI without network access. Updating
+the CLI to another release refreshes the GUI on its next launch. Development
+builds reuse an existing local GUI, or resolve the latest release when missing.
+Help and internal server/worker processes do not trigger installation.
+
+`solomon desktop install [release-tag]` remains available to reinstall manually.
+From a Windows checkout, `make desktop-install` builds the local GUI instead.
 
 ## `go install` (manual)
 

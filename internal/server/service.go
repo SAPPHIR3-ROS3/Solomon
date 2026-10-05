@@ -269,7 +269,7 @@ func Run(ctx context.Context, options Options) error {
 		mux.Handle("/", productionFrontend())
 	}
 	httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/__solomon" || strings.HasPrefix(r.URL.Path, "/__solomon/") {
+		if r.URL.Path == "/health" || r.URL.Path == "/__solomon" || strings.HasPrefix(r.URL.Path, "/__solomon/") {
 			origin := strings.TrimSpace(r.Header.Get("Origin"))
 			if origin != "" {
 				if !terminalOriginAllowed(r) {

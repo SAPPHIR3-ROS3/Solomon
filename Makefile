@@ -2,6 +2,8 @@
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
+SHELL := cmd.exe
+.SHELLFLAGS := /c
 OUT ?= solomon.exe
 INSTALL_NAME := solomon.exe
 else
@@ -27,19 +29,21 @@ ifeq ($(GOOS),windows)
 EXACT_TAG := $(shell git describe --tags --exact-match --match "v*" 2>NUL)
 BASE_TAG := $(shell git describe --tags --abbrev=0 --match "v*" 2>NUL)
 WORKTREE_DIRTY := $(shell git status --porcelain 2>NUL)
-LATEST_RELEASE_TAG = $(strip $(shell powershell -NoProfile -Command "(Invoke-RestMethod -UseBasicParsing -Uri 'https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest').tag_name" 2>NUL))
-VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG)),$(if $(LATEST_RELEASE_TAG),$(LATEST_RELEASE_TAG)-dev,$(if $(BASE_TAG),$(BASE_TAG)-dev,dev)))
+VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG)),$(if $(BASE_TAG),$(BASE_TAG)-dev,dev))
 COMMIT ?= $(shell git rev-parse HEAD 2>NUL || echo unknown)
-COMMIT_TIME ?= $(shell git show -s --format=%cI HEAD 2>NUL || echo unknown)
+COMMIT_TIME ?= $(shell git show -s --format=%%cI HEAD 2>NUL || echo unknown)
 else
 EXACT_TAG := $(shell git describe --tags --exact-match --match 'v*' 2>/dev/null)
 BASE_TAG := $(shell git describe --tags --abbrev=0 --match 'v*' 2>/dev/null)
 WORKTREE_DIRTY := $(shell git status --porcelain 2>/dev/null)
-LATEST_RELEASE_TAG = $(strip $(shell curl -fsSL --max-time 5 -H 'Accept: application/vnd.github+json' -H 'User-Agent: solomon-build' 'https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest' 2>/dev/null | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'))
-VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG)),$(if $(LATEST_RELEASE_TAG),$(LATEST_RELEASE_TAG)-dev,$(if $(BASE_TAG),$(BASE_TAG)-dev,dev)))
+VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG)),$(if $(BASE_TAG),$(BASE_TAG)-dev,dev))
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 COMMIT_TIME ?= $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 endif
+ifeq ($(origin VERSION),file)
+VERSION := $(VERSION)
+endif
+export VERSION
 SOURCE_TREE = $(strip $(shell go run ./scripts/source_identity))
 COMMIT_TREE = $(strip $(shell git rev-parse "HEAD^{tree}"))
 LDFLAGS = -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=$(COMMIT_TIME) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=$(SOURCE_TREE) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=$(COMMIT_TREE)
@@ -51,10 +55,11 @@ CURSOR_PROXY_DIR := integrations/cursor
 
 ifeq ($(GOOS),windows)
 FIX_TTY =
+PRINT_LINE = echo $(subst >,^>,$(1))
+PRINT_BLANK = echo.
 define INSTALL_STEP
 	@echo.
 	@echo -- $(1) --
-	@echo     $(2)
 	@$(2)
 endef
 define INSTALL_STEP_SKIPPED
@@ -64,9 +69,11 @@ define INSTALL_STEP_SKIPPED
 endef
 else
 FIX_TTY = stty sane opost onlcr icanon echo 2>/dev/null || true;
+PRINT_LINE = echo "$(1)"
+PRINT_BLANK = echo ""
 define INSTALL_STEP
 	@$(FIX_TTY)
-	@echo ""
+	@$(PRINT_BLANK)
 	@echo "── $(1) ──"
 	@echo "    $$ $(2)"
 	@$(2)
@@ -74,7 +81,7 @@ define INSTALL_STEP
 endef
 define INSTALL_STEP_SKIPPED
 	@$(FIX_TTY)
-	@echo ""
+	@$(PRINT_BLANK)
 	@echo "── $(1) ──"
 	@echo "    → CloakBrowser already installed — skipped"
 	@$(FIX_TTY)
@@ -94,6 +101,15 @@ desktop-dev:
 	$(MAKE) gui-deps
 	go run scripts/desktop_dev.go
 
+# Build and register the native Windows application and its CLI launcher.
+ifeq ($(GOOS),windows)
+desktop-build: gui-deps
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_desktop.ps1
+
+desktop-install: gui-deps
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_desktop.ps1 -Install -BinDir "$(BIN_DIR)" -Version "$(VERSION)"
+endif
+
 gui-deps:
 	go run ./scripts/npm_deps gui
 
@@ -103,6 +119,7 @@ gui-build: gui-deps
 	go run scripts/gui_bundle.go
 
 # Native Linux builds require GTK 3 and WebKitGTK 4.1 development packages.
+ifneq ($(GOOS),windows)
 desktop-build: gui-build
 	mkdir -p gui/desktop/build/bin
 	CGO_ENABLED=1 go build -tags production,webkit2_41 $(BUILD_FLAGS) -o gui/desktop/build/bin/solomon-desktop ./gui/desktop
@@ -112,6 +129,7 @@ desktop-install: desktop-build
 	mkdir -p "$(BIN_DIR)"
 	go build $(BUILD_FLAGS) -o "$(INSTALL_BIN)" ./cmd/solomon
 	bash scripts/install-desktop.sh "$(BIN_DIR)"
+endif
 
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
 cursor-proxy-deps: cursor-stop
@@ -182,14 +200,18 @@ endif
 # Full reinstall: stop the Solomon server and Cursor sidecar, verify GUI npm dependencies, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration, and provision CloakBrowser.
 install:
 	@$(FIX_TTY)
-	@echo ""
-	@echo "=== Solomon install ($(VERSION)) ==="
+	@$(PRINT_BLANK)
+	@$(call PRINT_LINE,=== Solomon install ($(VERSION)) ===)
 	$(call INSTALL_STEP,1/9 Stop Solomon server,$(MAKE) server-stop)
 	$(call INSTALL_STEP,2/9 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
 	$(call INSTALL_STEP,3/9 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
 	$(call INSTALL_STEP,4/9 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
 	$(call INSTALL_STEP,5/9 Build production GUI,$(MAKE) gui-build)
+ifeq ($(GOOS),windows)
+	$(call INSTALL_STEP,6/9 Install Solomon CLI and desktop,$(MAKE) desktop-install)
+else
 	$(call INSTALL_STEP,6/9 Install solomon binary,$(GO_INSTALL) $(BUILD_FLAGS) ./cmd/solomon)
+endif
 	$(call INSTALL_STEP,7/9 Install prompt templates,$(INSTALL_BIN) templates install)
 	$(call INSTALL_STEP,8/9 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
 ifneq ($(CLOAK_BROWSER_READY),1)
@@ -199,9 +221,9 @@ else
 	@bash -c 'source scripts/install.sh; configure_runtime_defaults' >/dev/null
 endif
 	@$(FIX_TTY)
-	@echo ""
-	@echo "solomon -> $(INSTALL_BIN)"
-	@echo "=== Done ==="
+	@$(PRINT_BLANK)
+	@$(call PRINT_LINE,solomon -> $(INSTALL_BIN))
+	@$(call PRINT_LINE,=== Done ===)
 
 # Full install, including the native app/menu entry on Linux, then bring the
 # local server back up. Build the native client before stopping the daemon so
@@ -215,8 +237,8 @@ hot-install: desktop-build
 endif
 hot-install:
 	@$(FIX_TTY)
-	@echo ""
-	@echo "=== Solomon hot-install ($(VERSION)) ==="
+	@$(PRINT_BLANK)
+	@$(call PRINT_LINE,=== Solomon hot-install ($(VERSION)) ===)
 ifeq ($(GOOS),windows)
 	@$(MAKE) install
 	@$(INSTALL_BIN) server start dev "$(CURDIR)/gui"
@@ -241,8 +263,8 @@ else
 	fi
 endif
 	@$(FIX_TTY)
-	@echo ""
-	@echo "=== hot-install done ==="
+	@$(PRINT_BLANK)
+	@$(call PRINT_LINE,=== hot-install done ===)
 
 clean-cursor-bundle:
 ifeq ($(GOOS),windows)

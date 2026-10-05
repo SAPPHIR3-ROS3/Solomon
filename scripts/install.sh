@@ -828,11 +828,11 @@ install_solomon() {
   solomon_bin="${bin_dir}/solomon"
   if command -v solomon >/dev/null 2>&1; then
     echo "solomon installed: $(command -v solomon)"
-    solomon init 2>/dev/null || true
+    solomon init
     solomon version 2>/dev/null || true
   elif [[ -x "$solomon_bin" ]]; then
     echo "solomon installed: ${solomon_bin}"
-    "$solomon_bin" init 2>/dev/null || true
+    "$solomon_bin" init
     "$solomon_bin" version 2>/dev/null || true
   else
     echo "solomon binary is in ${bin_dir} (add to PATH if needed)" >&2

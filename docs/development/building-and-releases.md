@@ -65,6 +65,9 @@ Builds from a non-tagged or dirty checkout carry a `<base>-dev-<commit>` version
 and are compared against the latest release commit before startup auto-update.
 A release version can be supplied
 explicitly with `VERSION=vYYYY.MDD.N make build` when needed.
+The default base version comes from the checkout's Git tags, without a GitHub
+API request, and is shared with recursive Make invocations. Run `git fetch --tags`
+to refresh those tags before building when needed.
 
 Makefile and release builds also embed the Git source-tree hash captured before
 compilation and version stamping. The update check displays the release tag only
@@ -136,6 +139,13 @@ Push and pull requests run vet, test, and build ([release.yml](../../.github/wor
 **Actions → Release → Run workflow** creates tag `vYYYY.MDD.N`, GitHub release assets, and a GitHub release.
 
 Prebuilt binaries are attached per platform; the install scripts download those assets by default.
+
+The release workflow also builds Wails desktop assets on native Windows,
+Linux, and macOS runners for amd64 and arm64. macOS assets contain a
+`Solomon.app` bundle; Linux and Windows assets contain the desktop executable.
+All desktop artifacts must build successfully before the release tag and
+checksums are published. The first CLI launch completes GUI installation using
+these assets, including when the CLI was built with plain `go install`.
 
 ## See also
 

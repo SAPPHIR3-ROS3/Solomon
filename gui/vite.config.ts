@@ -40,6 +40,19 @@ function rootIconPlugin(): Plugin {
 export default defineConfig({
   cacheDir: process.env.SOLOMON_VITE_CACHE_DIR || undefined,
   plugins: [react(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin()],
+  build: {
+    rolldownOptions: {
+      output: {
+        strictExecutionOrder: true,
+        codeSplitting: {
+          groups: [
+            { name: "vendor", test: /node_modules/, minSize: 50_000, maxSize: 350_000 },
+            { name: "app", test: /[\\/]src[\\/]/, minSize: 50_000, maxSize: 350_000 },
+          ],
+        },
+      },
+    },
+  },
   server: {
     fs: {
       allow: [".."],
