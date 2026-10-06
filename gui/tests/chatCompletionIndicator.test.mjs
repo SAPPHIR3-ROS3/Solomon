@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import { createElement } from "react";
@@ -45,6 +46,14 @@ test("renders a steady green indicator for completed unread chats but keeps acti
   assert.match(active, /side-panel-chat is-working/);
   assert.match(active, /side-panel-chat-working-dot"/);
   assert.doesNotMatch(active, /is-completed/);
+});
+
+test("activity pulse excludes completed sidebar indicators", async () => {
+  const pulseCSS = await readFile(new URL("../src/pulse.css", import.meta.url), "utf8");
+  const stylesCSS = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
+  assert.match(pulseCSS, /\.app-shell \.side-panel-chat-working-dot:not\(\.is-completed\),/);
+  assert.doesNotMatch(pulseCSS, /\.app-shell \.side-panel-chat-working-dot\s*[,\{]/);
+  assert.match(stylesCSS, /\.side-panel-chat-working-dot\.is-completed\s*\{[^}]*animation: none;[^}]*opacity: 1;/);
 });
 
 await server.close();
