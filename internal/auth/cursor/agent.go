@@ -192,7 +192,18 @@ func agentToolWire(tool AgentTool) []byte {
 	return def
 }
 
+// ResolveAgentModelID converts Solomon's catalog ID to the Agent service slug,
+// preserving variant suffixes. The catalog prefixes Grok IDs with "cursor-".
+func ResolveAgentModelID(model string) string {
+	model = strings.TrimSpace(model)
+	if strings.HasPrefix(strings.ToLower(model), "cursor-grok") {
+		return stripCursorModelPrefix(model)
+	}
+	return model
+}
+
 func agentRunRequest(model, system, user string, tools []AgentTool, history [][]byte, images []AgentImage) ([]byte, map[string][]byte, error) {
+	model = ResolveAgentModelID(model)
 	blobs := make(map[string][]byte, len(history))
 	var state []byte
 	for _, message := range history {
