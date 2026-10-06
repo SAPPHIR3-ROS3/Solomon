@@ -18,7 +18,7 @@
 .app-shell .chat-subagent-indicator-item-dot,
 .app-shell .active-agents-node.is-running > button .active-agents-status,
 .app-shell .active-agents-node.is-queued > button .active-agents-status,
-.app-shell .side-panel-chat-working-dot,
+.app-shell .side-panel-chat-working-dot:not(.is-completed),
 .app-shell .right-side-panel-research-item.is-running > svg {
   animation: chat-activity-pulse 1.6s ease-in-out infinite;
 }
@@ -36,7 +36,7 @@
   .app-shell .chat-subagent-indicator-item-dot,
   .app-shell .active-agents-node.is-running > button .active-agents-status,
   .app-shell .active-agents-node.is-queued > button .active-agents-status,
-  .app-shell .side-panel-chat-working-dot,
+  .app-shell .side-panel-chat-working-dot:not(.is-completed),
   .app-shell .right-side-panel-research-item.is-running > svg {
     animation: none;
     opacity: .8;
