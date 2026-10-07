@@ -1,5 +1,5 @@
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
+import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, stageProjectChanges, unstageProjectChanges, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 import { useFileContextMenu } from "./FileContextMenu";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
@@ -235,8 +235,14 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
       })).then((loaded) => { if (!cancelled) { setEntries(Object.fromEntries(loaded)); setError(""); } });
       void fetchProjectGitStatus(project.id).then((status) => { if (!cancelled) setGitStatus(status); }).catch(() => undefined);
     };
+    const refreshGitStatus = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectID?: string }>).detail;
+      if (detail?.projectID && detail.projectID !== project.id) return;
+      void fetchProjectGitStatus(project.id).then((status) => { if (!cancelled) setGitStatus(status); }).catch(() => undefined);
+    };
     window.addEventListener(PROJECT_FILES_CHANGED_EVENT, refresh);
-    return () => { cancelled = true; window.removeEventListener(PROJECT_FILES_CHANGED_EVENT, refresh); };
+    window.addEventListener(PROJECT_GIT_STATUS_CHANGED_EVENT, refreshGitStatus);
+    return () => { cancelled = true; window.removeEventListener(PROJECT_FILES_CHANGED_EVENT, refresh); window.removeEventListener(PROJECT_GIT_STATUS_CHANGED_EVENT, refreshGitStatus); };
   }, [project?.id]);
 
   function toggleDirectory(entry: ProjectDirectoryEntry) {
@@ -342,6 +348,8 @@ type FileEntriesProps = {
   nameFilter: string;
   onOpenFile?: (entry: ProjectDirectoryEntry) => void;
   onOpenFileInNewTab?: (entry: ProjectDirectoryEntry) => void;
+  onStageEntry?: (entry: ProjectDirectoryEntry) => void;
+  onUnstageEntry?: (entry: ProjectDirectoryEntry) => void;
   onToggleDirectory: (entry: ProjectDirectoryEntry) => void;
   parentPath: string;
   selectedPath?: string;
@@ -355,7 +363,7 @@ function entryMatchesFilter(entry: ProjectDirectoryEntry, nameFilter: string, en
   return (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
 }
 
-export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onOpenFileInNewTab, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
+export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onOpenFileInNewTab, onStageEntry, onUnstageEntry, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
   const contextMenu = useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpenFile, onOpenFileInNewTab, onToggleDirectory });
   return <>{entries[parentPath]?.filter((entry) => entryMatchesFilter(entry, nameFilter, entries)).map((entry) => {
     const hasMatchingChild = Boolean(nameFilter) && entry.isDirectory && (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
@@ -380,11 +388,13 @@ export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDire
           <span>{entry.name}</span>
           {entry.isDirectory && !isExpanded && status ? <i aria-label={`Folder status: ${gitStatusLabel(status)}`} className={`right-side-panel-folder-status status-${status}`} /> : null}
           {!entry.isDirectory && status ? <i aria-label={gitStatusLabel(status)} className={`right-side-panel-file-status status-${status}`}>{status}</i> : null}
+          {onStageEntry ? <span aria-label={`Stage ${entry.name}`} className="right-side-panel-stage" role="button" tabIndex={0} title="Stage changes" onClick={(event) => { event.stopPropagation(); onStageEntry(entry); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); onStageEntry(entry); } }}><IndexMark kind="add" /></span> : null}
+          {onUnstageEntry ? <span aria-label={`Unstage ${entry.name}`} className="right-side-panel-stage" role="button" tabIndex={0} title="Unstage changes" onClick={(event) => { event.stopPropagation(); onUnstageEntry(entry); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); onUnstageEntry(entry); } }}><IndexMark kind="remove" /></span> : null}
         </button>
         {isExpanded ? (
           <div className="right-side-panel-file-children">
             {entries[entry.path] ? (
-              <FileEntries projectID={projectID} allowAddToChat={allowAddToChat} rootPath={rootPath} collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={folderStatus} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
+              <FileEntries projectID={projectID} allowAddToChat={allowAddToChat} rootPath={rootPath} collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={folderStatus} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onStageEntry={onStageEntry} onUnstageEntry={onUnstageEntry} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
             ) : <span className="right-side-panel-loading">Loading…</span>}
           </div>
         ) : null}
@@ -426,6 +436,8 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
   const [graphPanelHeight, setGraphPanelHeight] = useState(220);
   const [graphResizing, setGraphResizing] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
+  const [stageError, setStageError] = useState("");
+  const [staging, setStaging] = useState(false);
   const branchPickerRef = useRef<HTMLDivElement>(null);
   const [graphHistory, setGraphHistory] = useState(history);
   const commits = useMemo(() => gitHistoryLanes(graphHistory.commits), [graphHistory.commits]);
@@ -511,6 +523,20 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
     document.addEventListener("pointercancel", stop);
   }
 
+  async function stagePaths(paths: string[], action: "stage" | "unstage" = "stage") {
+    if (!project || readOnly || staging || paths.length === 0) return;
+    setStaging(true);
+    setStageError("");
+    try {
+      if (action === "unstage") await unstageProjectChanges(project.id, paths);
+      else await stageProjectChanges(project.id, paths);
+    } catch {
+      setStageError(action === "unstage" ? "Unable to unstage the selected changes." : "Unable to stage the selected changes.");
+    } finally {
+      setStaging(false);
+    }
+  }
+
   async function selectBranch(branch: string) {
     if (!project || readOnly || branchLoading) return;
     setBranchLoading(true);
@@ -537,6 +563,7 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
         {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
         {gitStatusError ? <p className="right-side-panel-message" role="status">{gitStatusError}</p> : null}
         {branchError ? <p className="right-side-panel-message" role="status">{branchError}</p> : null}
+        {stageError ? <p className="right-side-panel-message" role="status">{stageError}</p> : null}
       </div>
       {!readOnly ? <div aria-label="Create commit" className="right-side-panel-history-commit-form">
         <input aria-label="Commit message" onChange={(event) => setCommitMessage(event.target.value)} placeholder="Commit message" type="text" value={commitMessage} />
@@ -546,19 +573,25 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
         <section aria-label="Staged changes" className={`right-side-panel-history-change-section${stagedCount === 0 ? " is-empty" : stagedChangesCollapsed ? " is-collapsed" : ""}`}>
           <header className="right-side-panel-history-section-header">
             {stagedCount ? <button aria-expanded={!stagedChangesCollapsed} onClick={() => setStagedChangesCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!stagedChangesCollapsed} /><span>Staged Changes</span></button> : <span className="right-side-panel-history-section-label">Staged Changes</span>}
-            <small>{stagedCount}</small>
+            <span className="right-side-panel-history-section-meta">
+              <small>{stagedCount}</small>
+              {!readOnly && stagedCount > 0 ? <button aria-label="Unstage all changes" className="right-side-panel-stage-all" disabled={staging} onClick={() => void stagePaths(Object.keys(gitStatus.staged), "unstage")} title="Unstage all changes" type="button"><IndexMark kind="remove" /></button> : null}
+            </span>
           </header>
           {stagedCount > 0 && !stagedChangesCollapsed ? <div aria-label="Staged files" className="right-side-panel-history-tree">
-            <FileEntries projectID={project?.id} allowAddToChat={allowAddToChat} rootPath={project?.path} collapsedDirectories={collapsedGitFolders} depth={0} entries={stagedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.staged} folderStatus={stagedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={toggleGitFolder} parentPath="" />
+            <FileEntries projectID={project?.id} allowAddToChat={allowAddToChat} rootPath={project?.path} collapsedDirectories={collapsedGitFolders} depth={0} entries={stagedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.staged} folderStatus={stagedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onUnstageEntry={readOnly ? undefined : (entry) => void stagePaths(pathsForGitEntry(entry, gitStatus.staged), "unstage")} onToggleDirectory={toggleGitFolder} parentPath="" />
           </div> : null}
         </section>
         <section aria-label="Changes" className={`right-side-panel-history-change-section${changedCount === 0 ? " is-empty" : changesCollapsed ? " is-collapsed" : ""}`}>
           <header className="right-side-panel-history-section-header">
             {changedCount ? <button aria-expanded={!changesCollapsed} onClick={() => setChangesCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!changesCollapsed} /><span>Changes</span></button> : <span className="right-side-panel-history-section-label">Changes</span>}
-            <small>{changedCount}</small>
+            <span className="right-side-panel-history-section-meta">
+              <small>{changedCount}</small>
+              {!readOnly && changedCount > 0 ? <button aria-label="Stage all changes" className="right-side-panel-stage-all" disabled={staging} onClick={() => void stagePaths(Object.keys(gitStatus.changes))} title="Stage all changes" type="button"><IndexMark kind="add" /></button> : null}
+            </span>
           </header>
           {changedCount > 0 && !changesCollapsed ? <div aria-label="Changed files" className="right-side-panel-history-tree">
-            <FileEntries projectID={project?.id} allowAddToChat={allowAddToChat} rootPath={project?.path} collapsedDirectories={collapsedGitFolders} depth={0} entries={changedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.changes} folderStatus={changedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onToggleDirectory={toggleGitFolder} parentPath="" />
+            <FileEntries projectID={project?.id} allowAddToChat={allowAddToChat} rootPath={project?.path} collapsedDirectories={collapsedGitFolders} depth={0} entries={changedEntries} expandedDirectories={emptyGitExpandedDirectories} fileStatus={gitStatus.changes} folderStatus={changedFolderStatus} nameFilter="" onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onStageEntry={readOnly ? undefined : (entry) => void stagePaths(pathsForGitEntry(entry, gitStatus.changes))} onToggleDirectory={toggleGitFolder} parentPath="" />
           </div> : null}
         </section>
       </div>
@@ -632,6 +665,16 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
       </section>
     </section>
   );
+}
+
+function IndexMark({ kind }: { kind: "add" | "remove" }) {
+  return <svg aria-hidden="true" viewBox="0 0 12 12"><path d={kind === "add" ? "M6 1.5v9M1.5 6h9" : "M1.5 6h9"} /></svg>;
+}
+
+function pathsForGitEntry(entry: ProjectDirectoryEntry, fileStatus: Record<string, string>) {
+  if (!entry.isDirectory) return fileStatus[entry.path] ? [entry.path] : [];
+  const prefix = `${entry.path}/`;
+  return Object.keys(fileStatus).filter((path) => path === entry.path || path.startsWith(prefix));
 }
 
 function gitStatusLabel(status: string) {

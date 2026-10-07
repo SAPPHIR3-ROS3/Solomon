@@ -10,7 +10,7 @@ import { copyTextFallback } from "../chat/chatClipboard";
 import { AsciiBanner } from "../home/Welcome";
 import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon, SearchIcon } from "../shell/RightSidePanel";
 import { SidePanelToggle } from "../shell/SidePanelToggle";
-import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, saveProjectFile, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
+import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, saveProjectFile, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 
 type OpenFile = { id: string; path: string; content: string; saved: string };
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
@@ -174,8 +174,14 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       })).then((loaded) => { if (!cancelled) setChildren(Object.fromEntries(loaded)); });
       setExpanded((current) => new Set([...current].filter((path) => !(change.action === "delete" && affected(path))).map((path) => affected(path) && change.destination && change.action !== "copy" ? change.destination + path.slice(change.path.length) : path)));
     };
+    const refreshGitStatus = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectID?: string }>).detail;
+      if (detail?.projectID && detail.projectID !== project.id) return;
+      void fetchProjectGitStatus(project.id).then((status) => { if (!cancelled) setGit(status); }).catch(() => undefined);
+    };
     window.addEventListener(PROJECT_FILES_CHANGED_EVENT, refresh);
-    return () => { cancelled = true; window.removeEventListener(PROJECT_FILES_CHANGED_EVENT, refresh); };
+    window.addEventListener(PROJECT_GIT_STATUS_CHANGED_EVENT, refreshGitStatus);
+    return () => { cancelled = true; window.removeEventListener(PROJECT_FILES_CHANGED_EVENT, refresh); window.removeEventListener(PROJECT_GIT_STATUS_CHANGED_EVENT, refreshGitStatus); };
   }, [project?.id]);
 
   useEffect(() => {
