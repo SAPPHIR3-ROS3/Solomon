@@ -2,6 +2,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
+import { createHealthResponder, runtimeDigest } from "../src/health.js";
 import test from "node:test";
 import { openAIToolsToMcpTools } from "../src/openai-tools.js";
 import { processStreamEvent, proxyToolCorrectionMessage, nativeInvocationsFromText } from "../src/chat-helpers.js";
@@ -758,4 +760,113 @@ test("drainAgentToolStream forceStopRun on deferred readFile direct call (2.11)"
   assert.equal(cancelled, true);
   assert.deepEqual(state.blockedTools, ["readFile"]);
   assert.deepEqual(state.pendingBridged, []);
+});
+
+const nativePolicyCases = [
+  { name: "buildPlan", args: {}, names: ["orchestrate", "buildPlan"] },
+  { name: "fetchWeb", args: { url: "https://example.com" }, names: ["fetchWeb"] },
+  { name: "webSearch", args: { query: "Solomon" }, names: ["webSearch"] },
+];
+
+for (const { name, args, names } of nativePolicyCases) {
+  test(`exposed native ${name} passes the bridge and still requires intent`, () => {
+    const expected = { name, args, intent: "native policy regression" };
+    assert.deepEqual(bridgeToolInvocation(name, { ...args, intent: expected.intent }, bridgeCtx(...names)), expected);
+    assert.equal(bridgeToolInvocation(name, args, bridgeCtx(...names)), null);
+    assert.equal(bridgeToolInvocation(name, { ...args, intent: expected.intent }, bridgeCtx()), null);
+    assert.equal(bridgeToolInvocation(name, { ...args, intent: expected.intent }, { allowedNames: null }), null);
+  });
+
+  for (const provider of [null, "custom-user-tools", "solomon"]) {
+    test(`native ${name} stops SDK and finalizes without correction via ${provider ?? "direct"}`, async () => {
+      const input = { ...args, intent: "native policy regression" };
+      const event = provider
+        ? { type: "tool_call", name: "mcp", status: "running", args: { providerIdentifier: provider, toolName: name, args: input } }
+        : { type: "tool_call", name, status: "running", args: input };
+      const { cancelled, cancelCalls, state } = await drainMockRun([event], names);
+      assert.equal(cancelled, true);
+      assert.equal(cancelCalls, 1);
+      assert.deepEqual(state.blockedTools, []);
+      const result = finalizeTurnToolResults(state, "", { nativeTools: true, allowedNames: new Set(names) });
+      assert.deepEqual(result.bridged, [{ name, args, intent: input.intent }]);
+      assert.equal(result.proxyCorrection, undefined);
+    });
+  }
+
+  test(`native ${name} passes assistant proposal and text fallback`, () => {
+    const input = { ...args, intent: "native policy regression" };
+    const pending: any[] = [];
+    const blocked: string[] = [];
+    processStreamEvent(
+      { type: "assistant", message: { content: [{ type: "tool_use", name, input, id: "native-test" }] } } as any,
+      false, () => {}, () => {}, pending, () => {}, (label) => blocked.push(label), bridgeCtx(...names),
+    );
+    assert.deepEqual(pending, [{ name, args, intent: input.intent }]);
+    assert.deepEqual(blocked, []);
+    const xml = '<tool_calls><tool name="' + name + '"><args>' + JSON.stringify(input) + '</args></tool></tool_calls>';
+    const result = finalizeTurnToolResults({ pendingBridged: [], blockedTools: [] }, xml, { nativeTools: true, allowedNames: new Set(names) });
+    assert.deepEqual(result.bridged, [{ name, args: input, intent: input.intent }]);
+    assert.equal(result.proxyCorrection, undefined);
+  });
+}
+
+test("native exceptions do not allow agent web tools, Cursor aliases or other deferred calls", () => {
+  for (const name of ["fetchWeb", "webSearch", "WebFetch", "WebSearch", "web_fetch", "web_search", "readFile", "editFile", "shell", "find", "createPlan", "editPlan"]) {
+    const args = { intent: "verify denial", query: "Solomon", url: "https://example.com", path: "a.txt", command: "true" };
+    assert.equal(bridgeToolInvocation(name, args, bridgeCtx("orchestrate", name)), null, name);
+  }
+  for (const name of ["WebFetch", "WebSearch", "web_fetch", "web_search", "Read", "ApplyPatch"]) {
+    assert.equal(bridgeToolInvocation(name, { intent: "verify denial", query: "Solomon", url: "https://example.com" }, bridgeCtx("fetchWeb", "webSearch", name)), null, name);
+  }
+});
+
+test("restricted native catalogs still block missing intents and built-in proposals", async () => {
+  for (const { name, args, names } of nativePolicyCases) {
+    for (const provider of [null, "custom-user-tools"]) {
+      const event = provider
+        ? { type: "tool_call", name: "mcp", status: "running", args: { providerIdentifier: provider, toolName: name, args } }
+        : { type: "tool_call", name, status: "running", args };
+      const { cancelled, state } = await drainMockRun([event], names);
+      assert.equal(cancelled, true);
+      assert.deepEqual(state.pendingBridged, []);
+      assert.ok(state.blockedTools[0]?.endsWith(":missing_intent"));
+    }
+  }
+  for (const name of ["WebFetch", "WebSearch", "Read", "ApplyPatch", "webSearch", "fetchWeb"]) {
+    const { cancelled, state } = await drainMockRun([{ type: "tool_call", name, status: "running", args: { intent: "verify denial", query: "Solomon", url: "https://example.com" } }], ["orchestrate", name]);
+    assert.equal(cancelled, true);
+    assert.deepEqual(state.pendingBridged, []);
+    assert.deepEqual(state.blockedTools, [name]);
+  }
+});
+
+test("sidecar health snapshots runtime and proves credentials without exposing them", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cursor-health-"));
+  const oldObs = process.env.CURSOR_API_PROXY_OBS;
+  try {
+    fs.mkdirSync(path.join(root, "dist/prompts"), { recursive: true });
+    for (const name of ["dist/index.js", "package.json", "package-lock.json", "dist/prompts/harness.txt"]) {
+      fs.writeFileSync(path.join(root, name), name);
+    }
+    process.env.CURSOR_API_PROXY_OBS = "1";
+    const key = "private-health-test-key";
+    const health = createHealthResponder({ apiKey: key, cwd: root, allowCursorInternalTools: false }, root);
+    const nonce = "a".repeat(64);
+    const response = health(nonce);
+    assert.equal(response.identity.bundle, runtimeDigest(root));
+    assert.equal(response.identity.protocol, 1);
+    assert.equal(response.identity.observability, true);
+    const id = response.identity;
+    const payload = [nonce, String(id.protocol), id.bundle, id.cwd, String(id.internalTools), String(id.observability)].join("\n");
+    assert.equal(response.proof, createHmac("sha256", key).update(payload).digest("hex"));
+    assert.notEqual(health("b".repeat(64)).proof, response.proof);
+    assert.equal(health("invalid").proof, undefined);
+    assert.ok(!JSON.stringify(response).includes(key));
+    fs.writeFileSync(path.join(root, "dist/prompts/harness.txt"), "changed");
+    assert.notEqual(runtimeDigest(root), id.bundle);
+    assert.equal(health(nonce).identity.bundle, id.bundle);
+  } finally {
+    if (oldObs === undefined) delete process.env.CURSOR_API_PROXY_OBS; else process.env.CURSOR_API_PROXY_OBS = oldObs;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

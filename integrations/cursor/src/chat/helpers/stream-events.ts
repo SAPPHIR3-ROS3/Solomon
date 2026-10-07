@@ -16,6 +16,7 @@ import {
   BLOCKED_MCP_EXTERNAL_LABEL,
   blockedMcpToolLabel,
   isSolomonCanonicalTool,
+  isExposedNativePolicyException,
   missingIntentBlockedLabel,
   shouldHardDenyCursorTool,
   shouldRedirectCursorTool,
@@ -88,7 +89,8 @@ export function processStreamEvent(
       reportBlocked(name);
       return;
     }
-    if (shouldRedirectCursorTool(name)) {
+    if (shouldRedirectCursorTool(name) &&
+        !isExposedNativePolicyException(name, bridgeCtx.allowedNames)) {
       reportBlocked(name);
       return;
     }

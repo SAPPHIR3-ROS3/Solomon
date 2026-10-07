@@ -11,6 +11,7 @@ import {
 } from "../../openai-tools.js";
 import {
   missingIntentBlockedLabel,
+  isExposedNativePolicyException,
   shouldBlockDeferredSolomonTool,
   shouldHardDenyCursorTool,
 } from "../../tool-policy.js";
@@ -46,7 +47,8 @@ export function nativeInvocationsFromText(text: string, turnOpts: TurnToolOpts):
       blockedTools.push(inv.name);
       return false;
     }
-    if (shouldBlockDeferredSolomonTool(inv.name)) {
+    if (shouldBlockDeferredSolomonTool(inv.name) &&
+        !isExposedNativePolicyException(inv.name, turnOpts.allowedNames)) {
       blockedTools.push(inv.name);
       return false;
     }

@@ -1,4 +1,5 @@
 import http from "node:http";
+import { createHealthResponder } from "./health.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } from "./chat/index.js";
 import { sanitizeReflectedText, stripUnsafeControlChars, sanitizeModelId, isSafeToolName } from "./messages.js";
@@ -24,8 +25,9 @@ const MAX_IMAGE_URL_CHARS = 8192;
 const ALLOWED_ROLES = new Set(["user", "assistant", "system", "tool"]);
 
 export function createServer(cfg: ProxyConfig): http.Server {
+  const health = createHealthResponder(cfg, process.cwd());
   return http.createServer((req, res) => {
-    void route(req, res, cfg).catch((err) => {
+    void route(req, res, cfg, health).catch((err) => {
       sendError(res, 500, err instanceof Error ? err.message : String(err));
     });
   });
@@ -35,11 +37,12 @@ async function route(
   req: IncomingMessage,
   res: ServerResponse,
   cfg: ProxyConfig,
+  health: ReturnType<typeof createHealthResponder>,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const path = url.pathname.replace(/\/+$/, "") || "/";
   if (req.method === "GET" && (path === "/health" || path === "/v1/health")) {
-    sendJsonResponse(res, 200, { ok: true });
+    sendJsonResponse(res, 200, health(url.searchParams.get("nonce") ?? ""));
     return;
   }
   if (req.method === "GET" && (path === "/v1/models" || path === "/models")) {

@@ -239,3 +239,15 @@ Native event shape: [`cursor-native-tools.ts`](../../integrations/cursor/src/cur
 - [Runtime — orchestration](runtime-orchestration.md#cursor-integration-runtime-hooks)
 - [MCP integration](mcp-integration.md)
 - [`integrations/cursor/`](../../integrations/cursor/)
+
+## Verified sidecar reuse (health protocol v1)
+
+`Manager.Ensure` checks compatibility on both startup and reuse, not just HTTP liveness. `/health` and `/v1/health` expose `identity`: protocol version, startup runtime SHA-256, absolute workspace cwd, internal-tools flag, and observability flag. The runtime digest covers `dist/index.js`, `dist/prompts/*`, `package.json`, and `package-lock.json`; the running process retains its startup snapshot so replacing files cannot disguise a stale process.
+
+A fresh 32-byte nonce (64 lowercase hex characters) yields an HMAC-SHA256 `proof`, keyed with the configured API key and bound to the nonce and identity fields. The API key is neither sent in the health request nor exposed in the response; no static key fingerprint is published. This checks configuration consistency for the local listener, not remote Cursor API reachability.
+
+Compatible pre-existing listeners can be reused. Legacy health responses, stale bundles, configuration/credential mismatches and unsupported protocols are refused. Solomon restarts only processes it owns; an incompatible external listener requires explicit operator shutdown and reports an actionable error. A live but unverified process no longer produces a successful Ensure result. `/integrations` health remains a liveness indicator, not proof of compatibility.
+
+Rebuild and deploy the sidecar bundle before using this protocol (`npm --prefix integrations/cursor run build`, then `go run scripts/cursor_bundler.go bundle` for the embedded distribution). Existing installed listeners must be restarted explicitly if not owned by the current process.
+
+Verification: `go test ./test -run 'Test(EnsureVerifiedListener|RuntimeDigestTracksAssets|HealthProofVector|ManagedNodeHandshakeLifecycle)' -count=1` covers compatible adoption, legacy/malformed/stale metadata, flags/cwd/credential mismatch and managed Node startup/reuse/restart. The managed Node test uses a temporary local port and dummy key, never calls Cursor, and skips when the built sidecar or Node dependencies are unavailable.

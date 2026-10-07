@@ -21,7 +21,7 @@ Related backlog items: [`TODO.md`](TODO.md) (LOW / EXTREMELY LOW priority sectio
 5. Chat mode with the Cursor API provider follows the same orchestrate-first policy (details in Phase 3).
 6. The live Composer evaluation validates criteria 1–3 on a real workspace.
 
-**Current status:** The core agent-mode implementation exists, but the MVP is not implementation-complete: the code audit reproduced rejection of exposed native `buildPlan` and chat `fetchWeb` / `webSearch`. Chat alignment is partially implemented, not absent. Policy fixes, sidecar compatibility checks, and targeted regression coverage remain open (see Code audit). The audit reran the sidecar suite with **71/71 passing** and the targeted Go proxy-correction tests successfully; these do not cover the confirmed policy conflicts. Criteria 1–3 and 6 remain unverified in a live Composer run; the last recorded attempt failed before a model turn because the Cursor API request returned `Network request failed` ([evaluation record](docs/eval/cursor-proxy-phase2-manual.md)).
+**Current status:** The core agent-mode implementation exists, but the MVP is not implementation-complete: the code audit reproduced rejection of exposed native `buildPlan` and chat `fetchWeb` / `webSearch`, now fixed with targeted regression coverage. Chat alignment is partially implemented, not absent. Sidecar compatibility checks are implemented and tested; remaining chat correction/harness alignment and live evaluation remain open (see Code audit). The initial audit passed **71/71** sidecar tests without covering these conflicts; after the native policy and health fixes, **89/89** pass with targeted regressions, along with the Go proxy-correction tests. Criteria 1–3 and 6 remain unverified in a live Composer run; the last recorded attempt failed before a model turn because the Cursor API request returned `Network request failed` ([evaluation record](docs/eval/cursor-proxy-phase2-manual.md)).
 
 ---
 
@@ -48,8 +48,8 @@ Related backlog items: [`TODO.md`](TODO.md) (LOW / EXTREMELY LOW priority sectio
 - [x] Browser MCP (`browser_*`, `mcp:external` for `cursor-ide-browser`) is blocked with no passthrough.
 - [x] `cursor_internal_tools` deprecated — config and runtime force `false`; `/cursortools on` rejected; documented as incompatible with orchestrate-first Composer.
 - [x] Phase 1 cleanup: legacy naming clarified, tool policy module extracted, dead bridge paths removed or gated.
-- [ ] Exposed native planning `buildPlan` and chat `fetchWeb` / `webSearch` pass through to Go without deferred-tool or Cursor-alias rejection.
-- [ ] Existing sidecars are reused only after bundle/protocol compatibility and process configuration verification, not merely HTTP liveness.
+- [x] Exposed native planning `buildPlan` and chat `fetchWeb` / `webSearch` pass through to Go without deferred-tool or Cursor-alias rejection.
+- [x] Existing sidecars are reused only after bundle/protocol compatibility and process configuration verification, not merely HTTP liveness.
 - [ ] Chat mode Cursor path fully aligned and regression-tested in Phase 3 (partial implementation already exists).
 - [ ] Live Composer evaluation confirms successful work and policy behavior on a real workspace.
 
@@ -166,18 +166,24 @@ tools.Exec (Go) — orchestrate runs WASM; subagent native; modeAllowed unchange
 
 ### Code audit — confirmed gaps
 
-These findings come from code inspection and isolated bridge reproductions, not a new live Cursor session. No implementation fix was applied during the audit.
+These findings come from code inspection and isolated bridge reproductions, not a new live Cursor session. The initial audit applied no implementation fix; the native policy findings below have since been addressed as recorded here.
 
 | Finding | Evidence | Required completion |
 |---------|----------|---------------------|
-| Native chat web tools rejected | `bridgeToolInvocation()` returns `null` for `fetchWeb` and `webSearch` even with the full chat catalog in `allowedNames`. Both are in `DEFERRED_SOLOMON_TOOL_NAMES`; `webSearch` also collides with `CURSOR_NATIVE_ALIASES`. Chat corrections recommend native `webSearch` despite rejection. | Surface-aware policy, alias separation, targeted regressions (3.1/3.3/3.6). |
-| Native planning entry point rejected | The bridge returns `null` for explicitly exposed `buildPlan`; policy classifies it as deferred although the Go agent prompt exposes it during planning. | Align native planning exception with request catalog (2.16). |
-| Healthy stale sidecar adopted | `Manager.Ensure()` in `internal/integrations/cursor/manager.go` reuses a healthy listener without verifying bundle/protocol or actual process configuration. `server.ts` health returns only `{ ok: true }`. | Compatibility/identity handshake and lifecycle tests (2.17). |
+| Native chat web tools rejected — fixed | The initial audit reproduced `null` for exposed `fetchWeb` / `webSearch` due to deferred/alias classification. `isExposedNativePolicyException()` now permits exact exposed names without `orchestrate`, including single-tool catalogs; Cursor aliases remain blocked. | Automated bridge/proposal/custom-tool/fallback regressions pass. Remaining chat correction alignment and live smoke are tracked in 3.3/3.5/3.6. |
+| Native planning entry point rejected — fixed | The initial audit reproduced `null` for exposed `buildPlan`. The shared policy exception now permits it only when present in the request catalog, preserving required intent and denial when absent. | Completed with automated regressions (2.16); live plan+todos evaluation remains in 2.15. |
+| Healthy stale sidecar adopted — fixed | The initial audit found unverified adoption and `{ ok: true }` health. Ensure now verifies the protocol, startup runtime digest, configuration and nonce-bound credential proof before reuse. | Completed: compatibility/identity handshake and lifecycle tests (2.17); installed bundle refresh and live evaluation remain. |
 | Chat alignment incomplete, not absent | Chat harness clauses, chat-aware sidecar corrections, and runtime-selected Go chat syntax exist. Go fallback `tool_print.go` remains agent-oriented; sidecar surface detection is heuristic; catalog heading advertises XML invocation schemas. | Finish alignment and restricted-catalog/fallback tests (3.2/3.3/3.5/3.6). |
+
+**Latest verification:** Sidecar suite **89/89 passed** after adding health snapshot/HMAC coverage; `CGO_ENABLED=1 go test -race ./test -run 'Test(EnsureVerifiedListener|RuntimeDigestTracksAssets|HealthProofVector|ManagedNodeHandshakeLifecycle|GoTestsLiveInTopLevelTestDirectory)' -count=1` passed, including the real managed Node lifecycle test. The full `go test ./...` suite passed after moving all new Go tests under `test/` as required by repository layout; `git diff --check` passed. No production listener was restarted and no live Composer evaluation was run.
 
 **Audit verification:** `npm --prefix integrations/cursor test` passed **71/71**; `go test ./test -run 'Test(CursorProxy|StripCursorProxy)' -count=1` passed. Isolated bridge reproductions confirmed the three rejected native calls above. Existing green tests are not evidence that those paths work.
 
-**Completion order:** Fix planning/chat policy and add regressions; implement sidecar compatibility verification; finish correction/harness alignment; refresh/restart the installed sidecar and rerun live evaluation. The historical `Network request failed` was not reconfirmed by this audit.
+**Sidecar reuse implementation:** Added health protocol v1 and a fresh nonce challenge. Runtime digest includes `dist/index.js`, `dist/prompts/*`, `package.json`, and `package-lock.json`; Node computes it once at startup and Go compares it with the current install. HMAC proof binds protocol, bundle and configuration to the requested key without exposing the key. HTTP liveness alone is no longer sufficient for Ensure. Legacy `{ ok: true }`, changed bundle/cwd/flags/key, malformed metadata, and protocol mismatch fail closed. External processes are never killed by this rejection. Managed startup/reuse/credential-change restart is verified by an actual local Node test with no Cursor API request. Rebuild/bundle/deploy is required before installed runtimes gain this protocol.
+
+**First-point implementation:** Added a shared, exact-name policy exception gated by the request catalog: `buildPlan` is allowed only when exposed; `fetchWeb` / `webSearch` are allowed only when exposed without the agent `orchestrate` entry point, including restricted single-tool chat catalogs. Applied the exception to the bridge, assistant tool proposals, and text fallback. Cursor aliases and other deferred calls remain blocked; missing intent still fails. The updated suite passes **88/88**, targeted Go proxy-correction tests pass, and `git diff --check` passes. Live Composer evaluation has not been run.
+
+**Remaining completion order:** Sidecar compatibility verification (2.17) is complete; finish chat correction/harness alignment and remaining tests (3.2/3.3/3.5/3.6); refresh/restart the installed sidecar and rerun live evaluation (2.15). Native planning/chat policy and its targeted regressions are complete. The historical `Network request failed` was not reconfirmed by this audit.
 
 ### Security & Privacy
 
@@ -204,7 +210,7 @@ No behavior change beyond what is required for compilation.
 - [x] **1.7 Harness inventory** — Current implementation sources are listed in [the architecture guide](docs/architecture/cursor-integration.md).
 - [x] **1.8 Tests green** — `npm --prefix integrations/cursor test` — 36/36 pass (2026-06-24); no Phase 1 regressions.
 
-#### Phase 2 — Orchestrate-first behavior (MVP) — **core implemented; policy/lifecycle fixes and live evaluation pending**
+#### Phase 2 — Orchestrate-first behavior (MVP) — **native policy and lifecycle checks implemented; live evaluation pending**
 
 - [x] **2.1 Resolve tool-exposure mechanism** — Use SDK `local.customTools` with a stub `execute`; intercept `custom-user-tools` calls, stop the SDK run, and return native tool calls to Go. Keep XML parsing as a fallback. See Open Decisions.
 - [x] **2.2 Apply chosen mechanism** — Convert OpenAI tool definitions to SDK `customTools` and register them in `Agent.create`; Solomon Go remains the executor.
@@ -222,17 +228,17 @@ No behavior change beyond what is required for compilation.
 - [x] **2.14 Docs** — Update `docs/architecture/cursor-integration.md` mental model and tool policy.
 - [ ] **2.15 Live eval** — The five-task protocol and one blocked attempt are recorded in [`docs/eval/cursor-proxy-phase2-manual.md`](docs/eval/cursor-proxy-phase2-manual.md). The 2026-06-24 attempt failed before a model turn; rerun the live evaluation and record results. Automated sidecar policy tests were recorded as 69/69 passing on that date.
 
-- [ ] **2.16 Native planning policy** — Permit exposed `buildPlan` while planning is active; add direct/custom-tool and stream/non-stream regressions without enabling other deferred tools.
-- [ ] **2.17 Sidecar compatibility handshake** — Extend health/identity metadata and manager verification to reject stale/incompatible listeners and detect process configuration mismatch before reuse. Cover managed and pre-existing listeners; do not expose API keys in metadata.
+- [x] **2.16 Native planning policy** — Exposed `buildPlan` passes bridge, SDK custom-tool/direct proposals, and shared turn finalization used by stream/non-stream. Regressions cover cancellation, required intent, absent catalogs, and unchanged deferred/built-in denial.
+- [x] **2.17 Sidecar compatibility handshake** — Health protocol v1 reports a startup snapshot of runtime SHA-256, absolute cwd, internal-tools and observability flags. Fresh nonce/HMAC-SHA256 verifies the current API key without exposing credentials or static key fingerprints. Ensure verifies reuse and startup, restarts only owned incompatible processes, and rejects external incompatible listeners with an actionable error. Tests cover metadata mismatch, credential changes, compatible external reuse and real managed Node lifecycle.
 
-#### Phase 3 — Chat mode alignment — **partially implemented; functional conflicts remain**
+#### Phase 3 — Chat mode alignment — **native web policy fixed; harness/correction alignment and live smoke pending**
 
-- [ ] **3.1 Chat tool surface** — Existing prompt/harness declares `docsRetrieval`, `fetchWeb`, `webSearch`, `deepResearch`, `researchStatus`, and `switchMode`. Complete bridge policy alignment so every exposed chat tool reaches Go, with no workspace mutation.
+- [x] **3.1 Chat tool surface** — Prompt/harness declares `docsRetrieval`, `fetchWeb`, `webSearch`, `deepResearch`, `researchStatus`, and `switchMode`. Native web calls now pass through the bridge when exposed in a chat catalog, including restricted single-tool catalogs; no workspace mutation capability was added.
 - [ ] **3.2 Chat harness** — Mode-specific clauses already exist in `harness-clauses.txt` and `harness-tools-clause.txt`. Remove the stale “schemas for XML invocations” catalog heading in `harness-prompt.ts` and regression-test native-only instructions; XML parsing may remain a compatibility fallback.
-- [ ] **3.3 Chat policy enforcement** — Shared allowed-name filtering and built-in blocks exist, but native chat `fetchWeb` / `webSearch` are rejected by deferred/alias policy. Separate native chat names from Cursor aliases and deferred agent tools; make surface detection robust to restricted catalogs instead of relying only on the current heuristic.
-- [x] **3.4 Go chat prompt** — Chat template and `ExternalToolBridgeChatInvocationSyntax()` define the chat policy; `internal/agent/runtime/core.go` selects the chat-specific syntax. Functional bridge correctness remains open in 3.1/3.3.
-- [ ] **3.5 Chat corrections** — Sidecar chat-aware hints/footer exist but can recommend a native web tool that the bridge rejects. Align them with corrected policy and make the Go fallback mode-aware (currently agent/orchestrate-oriented).
-- [ ] **3.6 Chat tests** — Add dedicated native chat pass-through and built-in denial regressions for direct/custom-tool and stream/non-stream paths; verify corrections recommend executable tools. Run manual research + switchMode smoke after automated fixes.
+- [ ] **3.3 Chat policy enforcement** — Native chat `fetchWeb` / `webSearch` now pass via an exact-name, catalog-gated exception across bridge, proposals and text fallback; Cursor aliases, agent web calls and other deferred calls remain blocked. Still align correction surface detection for restricted catalogs: the separate correction-message heuristic has not been changed by this fix.
+- [x] **3.4 Go chat prompt** — Chat template and `ExternalToolBridgeChatInvocationSyntax()` define the chat policy; `internal/agent/runtime/core.go` selects the chat-specific syntax. Native web bridge correctness is fixed in 3.1; remaining correction-surface alignment is tracked in 3.3/3.5.
+- [ ] **3.5 Chat corrections** — Sidecar chat-aware hints/footer now recommend native web tools accepted by the corrected bridge. Still align correction surface detection and make the Go fallback mode-aware (currently agent/orchestrate-oriented).
+- [ ] **3.6 Chat tests** — Added targeted regressions for native web pass-through, direct/custom-tool events, assistant proposals, shared stream/non-stream finalization and text fallback; cancellation, intent, absent catalogs and unchanged built-in/deferred denial are covered. Suite passes 88/88. Still add correction-surface/fallback coverage and run manual research + switchMode smoke; no live Composer test has been performed.
 
 #### v1.1+ (post-MVP)
 
@@ -259,7 +265,7 @@ No behavior change beyond what is required for compilation.
 |-------|--------|
 | Native tool exposure mechanism | **Decided (2026-06-24, revised):** SDK `local.customTools` from OpenAI `tools[]` + stream bridge for `custom-user-tools` MCP + stub Node `execute`; XML/`tool_calls` fallback retained. See [§2.1](#21-tool-exposure-customtools-with-go-prehook) |
 | `cursor_internal_tools = true` long-term | **Decided:** deprecated; always `false` |
-| Chat mode Composer surface | Surface declared and prompts partially implemented; bridge policy conflicts and regression/live verification remain in Phase 3 |
+| Chat mode Composer surface | Native web bridge policy corrected with regressions; remaining harness/correction alignment and live verification are tracked in Phase 3 |
 | `SemanticSearch` quality | Remains regexp via orchestrate until semantic find ships (`TODO.md` LOW) |
 
 #### 2.1 Tool exposure: `customTools` with Go prehook
@@ -310,7 +316,7 @@ See grilling session notes: tools with Solomon overlap are blocked in favor of o
 
 ## Scope and current status
 
-Phase 1 is complete. Phase 2 has the core agent-mode policy, but native planning and sidecar compatibility fixes remain before MVP closure. Phase 3 is partially implemented, with confirmed native web-tool rejection and remaining correction/test alignment. Live Composer behavior remains unverified; the last recorded attempt is in [`docs/eval/cursor-proxy-phase2-manual.md`](docs/eval/cursor-proxy-phase2-manual.md).
+Phase 1 is complete. Phase 2 has the core agent-mode policy, with native planning/chat policy now corrected; sidecar compatibility checks are implemented; live evaluation remains before MVP closure. Phase 3 is partially implemented, with native web-tool rejection corrected and remaining correction/harness alignment and live verification. Live Composer behavior remains unverified; the last recorded attempt is in [`docs/eval/cursor-proxy-phase2-manual.md`](docs/eval/cursor-proxy-phase2-manual.md).
 
 Cursor Sub is a separate provider with browser sign-in and a direct Agent backend. Its implementation and protocol notes live in [the LLM architecture guide](docs/architecture/llm-layer.md#cursor-sub-direct-agent-connection).
 
