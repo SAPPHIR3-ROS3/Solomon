@@ -120,6 +120,7 @@ jobs:
   desktop_assets:
     if: |
       always() &&
+      github.event_name == 'workflow_dispatch' &&
       (needs.test.result == 'success' ||
        (needs.test.result == 'skipped' && needs.prior_test_status.outputs.skip_tests == 'true'))
     needs: [prior_test_status, test]
