@@ -185,6 +185,21 @@ export function shouldRedirectCursorTool(name: string): boolean {
   return Object.prototype.hasOwnProperty.call(CURSOR_NATIVE_ALIASES, trimmed);
 }
 
+export function isExposedNativePolicyException(
+  name: string,
+  allowedNames: Set<string> | null,
+): boolean {
+  const trimmed = name.trim();
+  if (!allowedNames?.has(trimmed)) {
+    return false;
+  }
+  if (trimmed === "buildPlan") {
+    return true;
+  }
+  return !allowedNames.has("orchestrate") &&
+    (trimmed === "fetchWeb" || trimmed === "webSearch");
+}
+
 export function shouldBlockDeferredSolomonTool(name: string): boolean {
   return DEFERRED_SOLOMON_TOOL_NAMES.has(name.trim());
 }

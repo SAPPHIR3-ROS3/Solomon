@@ -1,6 +1,7 @@
 import { normalizeSolomonToolArgs } from "../legacy-normalize.js";
 import {
   isValidSolomonToolName,
+  isExposedNativePolicyException,
   resolveBridgedSolomonName,
   shouldBlockDeferredSolomonTool,
   shouldHardDenyCursorTool,
@@ -58,14 +59,15 @@ export function bridgeToolInvocation(
   if (shouldHardDenyCursorTool(trimmed)) {
     return null;
   }
-  if (shouldRedirectCursorTool(trimmed)) {
+  const nativeException = isExposedNativePolicyException(trimmed, ctx.allowedNames);
+  if (shouldRedirectCursorTool(trimmed) && !nativeException) {
     return null;
   }
   const mapped = mapCursorToolInvocation(eventName, rawArgs, ctx);
   if (!mapped) {
     return null;
   }
-  if (shouldBlockDeferredSolomonTool(mapped.name)) {
+  if (shouldBlockDeferredSolomonTool(mapped.name) && !nativeException) {
     return null;
   }
   return mapped;

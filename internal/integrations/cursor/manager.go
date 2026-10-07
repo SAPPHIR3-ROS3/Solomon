@@ -65,37 +65,43 @@ func (m *Manager) Ensure(ctx context.Context, apiKey, cwd string, allowCursorInt
 		port = DefaultPort
 	}
 	cwd = sidecarCWD(cwd)
+	expected, err := expectedHealth(dir, cwd, allowCursorInternalTools)
+	if err != nil {
+		return "", err
+	}
+	cwd = expected.CWD
 	mu.Lock()
 	defer mu.Unlock()
-	if running != nil && running.apiKey == apiKey && running.dir == dir && running.port == port && running.allowCursorInternalTools == allowCursorInternalTools && running.proxyObservability == sidecarProxyObsEnabled {
-		if healthOK(ctx, port) {
+	if running != nil && running.port == port {
+		if err := verifySidecar(ctx, port, expected, apiKey); err == nil {
 			return DefaultBaseURL(port), nil
 		}
-		if processAlive(running) {
-			if waitHealth(ctx, port, 15*time.Second) {
-				return DefaultBaseURL(port), nil
-			}
-			return DefaultBaseURL(port), nil
+		if running.cmd == nil {
+			running = nil
+		} else {
+			stopLocked()
 		}
-		stopLocked()
-	}
-	if running != nil {
+	} else if running != nil {
 		stopLocked()
 	}
 	if healthOK(ctx, port) {
-		if running == nil {
-			running = &processState{port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools, proxyObservability: sidecarProxyObsEnabled}
+		if err := verifySidecar(ctx, port, expected, apiKey); err != nil {
+			return "", fmt.Errorf("cursor listener on port %d cannot be reused: %w; stop the external listener explicitly", port, err)
 		}
+		running = &processState{port: port, dir: dir, apiKey: apiKey, cwd: cwd, allowCursorInternalTools: allowCursorInternalTools, proxyObservability: sidecarProxyObsEnabled}
 		return DefaultBaseURL(port), nil
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 	if err := startLocked(dir, apiKey, cwd, allowCursorInternalTools, port); err != nil {
 		return "", err
 	}
-	if waitHealth(ctx, port, 45*time.Second) {
-		return DefaultBaseURL(port), nil
+	if err := waitVerifiedHealth(ctx, port, expected, apiKey, 45*time.Second); err != nil {
+		stopLocked()
+		return "", fmt.Errorf("cursor API proxy failed compatibility check on port %d: %w", port, err)
 	}
-	stopLocked()
-	return "", fmt.Errorf("cursor API proxy failed health check on port %d", port)
+	return DefaultBaseURL(port), nil
 }
 
 func (m *Manager) Stop() {
@@ -247,17 +253,6 @@ func processAlive(ps *processState) bool {
 		return false
 	}
 	return ps.cmd.ProcessState == nil
-}
-
-func waitHealth(ctx context.Context, port int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if healthOK(ctx, port) {
-			return true
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	return false
 }
 
 func healthOK(ctx context.Context, port int) bool {
