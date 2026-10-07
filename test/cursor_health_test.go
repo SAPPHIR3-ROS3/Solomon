@@ -70,7 +70,7 @@ func TestEnsureVerifiedListener(t *testing.T) {
 				if mode == "credentials" {
 					proofKey = "different-secret"
 				}
-				_ = json.NewEncoder(w).Encode(cursorint.HealthResponseForTest{true, id, cursorint.HealthProofForTest(proofKey, r.URL.Query().Get("nonce"), id)})
+				_ = json.NewEncoder(w).Encode(cursorint.HealthResponseForTest{OK: true, Identity: id, Proof: cursorint.HealthProofForTest(proofKey, r.URL.Query().Get("nonce"), id)})
 			}))
 			defer server.Close()
 			_, portString, _ := net.SplitHostPort(server.Listener.Addr().String())
@@ -123,7 +123,7 @@ func TestRuntimeDigestTracksAssets(t *testing.T) {
 }
 
 func TestHealthProofVector(t *testing.T) {
-	id := cursorint.HealthIdentityForTest{1, "bundle", "/workspace", false, true}
+	id := cursorint.HealthIdentityForTest{Protocol: 1, Bundle: "bundle", CWD: "/workspace", InternalTools: false, Observability: true}
 	if cursorint.HealthProofForTest("key", "nonce", id) != "a9d6a238cc83623d104d9472076cc1602439f28b1ebfa069bd56bbd8f7873b27" {
 		t.Fatal("proof differs from Node HMAC vector")
 	}
