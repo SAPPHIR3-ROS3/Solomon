@@ -677,6 +677,73 @@ html {
   transform: rotate(90deg);
 }
 
+.right-side-panel-history-section-meta {
+  align-items: center;
+  align-self: stretch;
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.right-side-panel-stage-all,
+.right-side-panel-stage {
+  align-items: center;
+  align-self: center;
+  background: transparent;
+  border: 0;
+  box-sizing: border-box;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 9px;
+  justify-content: center;
+  line-height: 0;
+  margin: 0;
+  opacity: 0;
+  padding: 0;
+  width: 9px;
+}
+
+.right-side-panel-stage-all svg,
+.right-side-panel-stage svg {
+  display: block;
+  fill: none;
+  height: 9px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.15;
+  width: 9px;
+}
+
+.right-side-panel-file-row > span.right-side-panel-stage {
+  margin-left: auto;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.right-side-panel-file-row > .right-side-panel-file-status + span.right-side-panel-stage,
+.right-side-panel-file-row > .right-side-panel-folder-status + span.right-side-panel-stage {
+  margin-left: 6px;
+}
+
+.right-side-panel-history-section-header:hover .right-side-panel-stage-all,
+.right-side-panel-file-row:hover .right-side-panel-stage,
+.right-side-panel-stage:focus-visible,
+.right-side-panel-stage-all:focus-visible {
+  color: var(--color-text);
+  opacity: 1;
+}
+
+.right-side-panel-stage-all:disabled {
+  cursor: default;
+  opacity: 0;
+}
+
+.right-side-panel-history-section-header:hover .right-side-panel-stage-all:disabled {
+  opacity: .4;
+}
+
 .right-side-panel-history-section-header small {
   color: var(--color-text-muted);
   font: 9px "Geist Mono", ui-monospace, monospace;

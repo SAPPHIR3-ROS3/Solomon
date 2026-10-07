@@ -28,6 +28,7 @@ export type { ConnectProviderRequest, ModelCatalog, ModelChoice, ModelInfo, Mode
 export { fetchProviderQuotas } from "./models";
 
 export const PROJECT_GIT_BRANCH_CHANGED_EVENT = "solomon:git-branch-changed";
+export const PROJECT_GIT_STATUS_CHANGED_EVENT = "solomon:git-status-changed";
 export const PROJECTS_CHANGED_EVENT = "solomon:projects-changed";
 const USER_NAME_CACHE_KEY = "solomon:user-name";
 const HOME_STATS_CACHE_KEY = "solomon:home-stats";
@@ -256,6 +257,26 @@ export async function fetchProjectGitStatus(projectID: string, signal?: AbortSig
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/status`), { signal });
   if (!response.ok) throw new Error(`Unable to read project Git status: ${response.status}`);
   return projectGitStatusFromPayload(await response.json());
+}
+
+export async function stageProjectChanges(projectID: string, paths: string[]): Promise<ProjectGitStatus> {
+  return updateProjectGitIndex(projectID, "stage", paths);
+}
+
+export async function unstageProjectChanges(projectID: string, paths: string[]): Promise<ProjectGitStatus> {
+  return updateProjectGitIndex(projectID, "unstage", paths);
+}
+
+async function updateProjectGitIndex(projectID: string, action: "stage" | "unstage", paths: string[]): Promise<ProjectGitStatus> {
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/${action}`), {
+    body: JSON.stringify({ paths }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Unable to ${action} Git changes: ${response.status}`);
+  const status = projectGitStatusFromPayload(await response.json());
+  window.dispatchEvent(new CustomEvent(PROJECT_GIT_STATUS_CHANGED_EVENT, { detail: { projectID } }));
+  return status;
 }
 
 export async function fetchProjectWorktrees(projectID: string, signal?: AbortSignal): Promise<ProjectWorktrees> {

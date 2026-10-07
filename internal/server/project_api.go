@@ -87,7 +87,7 @@ func (*projectAPI) handlesProjectRoute(path string) bool {
 		return false
 	}
 	switch parts[1] {
-	case "disk", "removal-info", "file-operation", "file", "files", "research", "history", "status", "branches", "checkout", "worktrees":
+	case "disk", "removal-info", "file-operation", "file", "files", "research", "history", "status", "stage", "unstage", "branches", "checkout", "worktrees":
 		return true
 	default:
 		return false
@@ -141,6 +141,14 @@ func (a *projectAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) 
 	}
 	if len(parts) == 2 && parts[1] == "status" && r.Method == http.MethodGet {
 		a.handleProjectStatus(w, projectID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "stage" && r.Method == http.MethodPost {
+		a.handleProjectStage(w, r, projectID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "unstage" && r.Method == http.MethodPost {
+		a.handleProjectUnstage(w, r, projectID)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "branches" && r.Method == http.MethodGet {
@@ -301,6 +309,48 @@ func (a *projectAPI) handleProjectStatus(w http.ResponseWriter, projectID string
 	status, err := gitStatus(root)
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (a *projectAPI) handleProjectStage(w http.ResponseWriter, r *http.Request, projectID string) {
+	var request struct {
+		Paths []string `json:"paths"`
+	}
+	if err := decodeJSONBody(w, r, &request, 1<<20); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	root, err := registeredProjectRoot(projectID)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, err)
+		return
+	}
+	status, err := stageGitPaths(root, request.Paths)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (a *projectAPI) handleProjectUnstage(w http.ResponseWriter, r *http.Request, projectID string) {
+	var request struct {
+		Paths []string `json:"paths"`
+	}
+	if err := decodeJSONBody(w, r, &request, 1<<20); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	root, err := registeredProjectRoot(projectID)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, err)
+		return
+	}
+	status, err := unstageGitPaths(root, request.Paths)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, status)
@@ -784,6 +834,36 @@ func gitStatus(root string) (apiProjectGitStatus, error) {
 		}
 	}
 	return apiProjectGitStatus{Changes: changeMap, IsRepo: true, Staged: desktopgit.ParseStatus([]byte(staged))}, nil
+}
+
+func stageGitPaths(root string, paths []string) (apiProjectGitStatus, error) {
+	return applyGitIndex(root, []string{"add", "--"}, paths, "stage git paths")
+}
+
+func unstageGitPaths(root string, paths []string) (apiProjectGitStatus, error) {
+	return applyGitIndex(root, []string{"restore", "--staged", "--"}, paths, "unstage git paths")
+}
+
+func applyGitIndex(root string, command, paths []string, action string) (apiProjectGitStatus, error) {
+	if !isGitWorkTree(root) {
+		return apiProjectGitStatus{}, fmt.Errorf("not a git repository")
+	}
+	args := append([]string{}, command...)
+	for _, path := range paths {
+		path = strings.TrimSpace(strings.ReplaceAll(path, "\\", "/"))
+		path = strings.TrimPrefix(path, "./")
+		if path == "" || strings.HasPrefix(path, "/") || strings.Contains(path, "..") {
+			return apiProjectGitStatus{}, fmt.Errorf("invalid git path")
+		}
+		args = append(args, path)
+	}
+	if len(args) == len(command) {
+		return apiProjectGitStatus{}, fmt.Errorf("no paths to update")
+	}
+	if _, err := runGit(root, args...); err != nil {
+		return apiProjectGitStatus{}, fmt.Errorf("%s: %w", action, err)
+	}
+	return gitStatus(root)
 }
 
 func validGitBranchName(name string) bool {
