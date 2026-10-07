@@ -81,6 +81,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
       isFollowingBottomRef.current = true;
     }
     lastScrollTopRef.current = currentScrollTop;
+    shell.style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, currentScrollTop / 18)));
   }, [cancelScheduledScroll]);
 
   const onMessagesPointerDown = useCallback(() => {
