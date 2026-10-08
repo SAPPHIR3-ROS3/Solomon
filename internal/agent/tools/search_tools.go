@@ -22,6 +22,7 @@ type deferredTool struct {
 
 func deferredCatalog() []deferredTool {
 	return []deferredTool{
+		{Name: "readChat", Description: readChatDescription, SDKCall: "ReadChat(chatID string, tools, stats bool, intent string) (string, error)", Mode: "both", SearchTerms: "chat thread conversation transcript history id reference"},
 		{Name: "docsRetrieval", Description: "Search embedded Solomon documentation (snippets or full article by path)", SDKCall: "DocsRetrieval(query, intent string) (string, error); DocsSearch(query, intent string) (string, error); DocsArticle(path, intent string) (string, error); DocsRetrievalInfo(query, intent string) (DocsResult, error); DocsSearchInfo(query, intent string) (DocsResult, error); DocsArticleInfo(path, intent string) (DocsResult, error)", Mode: "both", SearchTerms: "docs documentation search article"},
 		{Name: "createPlan", Description: "Create a structured plan file with frontmatter and Goal section", SDKCall: "CreatePlan(name, goal, intent string) (map[string]any, error)", Mode: "agent", SearchTerms: "plan create goal"},
 		{Name: "editPlan", Description: "Replace the first occurrence of old text in a plan file", SDKCall: "EditPlan(name, oldString, newString, intent string) (map[string]any, error)", Mode: "agent", SearchTerms: "plan edit replace"},

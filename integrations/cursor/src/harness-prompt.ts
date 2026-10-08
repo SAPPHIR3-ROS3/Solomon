@@ -15,6 +15,7 @@ const SOLOMON_NATIVE_ENTRY_TOOLS = [
   "searchSkill",
   "loadSkill",
   "docsRetrieval",
+  "readChat",
   "fetchWeb",
   "webSearch",
   "deepResearch",

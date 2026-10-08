@@ -353,7 +353,7 @@ func TestNativeToolParamsIncludesListSubAgents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(params) != 9 {
+	if len(params) != 10 {
 		t.Fatalf("agent tools: %d", len(params))
 	}
 	names := map[string]bool{}

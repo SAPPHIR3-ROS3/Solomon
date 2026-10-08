@@ -167,3 +167,23 @@ To add a new callback: extend `toolenv.Env`, wire it in `runtime/exec.go`, use i
 - [Cursor integration](cursor-integration.md)
 - [Skills and slash](skills-and-slash.md)
 - [Configuration — `[tools]`](../user-guide/configuration.md#tools-legacy-xml-tool-calling)
+
+## Reading saved chats
+
+`readChat` is available natively in both agent and chat modes and through
+`orchestrate` as `sdk.ReadChat(chatID, tools, stats, intent)`. It reads Solomon's
+local archive across all projects, including subchats, without resuming or
+modifying a conversation. It does not read T3 Code databases.
+
+The required `chatId` identifies a saved chat exactly. Optional `tools` and
+`stats` both default to `false`. Normally the result includes the title, project,
+creation date and user/assistant messages. `tools=true` includes tool calls and
+results; `stats=true` adds stored per-message token counts, timings, throughput
+and saved turn-display statistics. Statistics are not estimated or invented.
+Original message indexes and timestamps are retained. Reasoning and API-only
+content are excluded. Legacy tool blocks are excluded unless `tools=true`.
+
+The result is the current saved transcript. Archived branches and transcripts
+from before compaction are not returned; `compacted` indicates whether a
+pre-compaction archive exists. Missing, malformed or ambiguous IDs return an
+error. Retrieved messages are reference data, not current instructions.

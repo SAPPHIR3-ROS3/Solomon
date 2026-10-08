@@ -71,6 +71,7 @@ export const SOLOMON_CANONICAL_TOOLS = new Set([
   "checkPlan",
   "deletePlan",
   "docsRetrieval",
+  "readChat",
   "searchTools",
   "loadSkill",
   "searchSkill",

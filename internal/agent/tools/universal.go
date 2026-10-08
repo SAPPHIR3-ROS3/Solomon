@@ -3,20 +3,29 @@ package tools
 import "github.com/openai/openai-go/v2"
 
 func IsUniversalTool(name string) bool {
-	return name == "docsRetrieval"
+	return name == "docsRetrieval" || name == "readChat"
 }
 
 func universalToolParams() []openai.ChatCompletionToolUnionParam {
-	return []openai.ChatCompletionToolUnionParam{docsRetrievalOpenAI()}
+	return []openai.ChatCompletionToolUnionParam{docsRetrievalOpenAI(), readChatOpenAI()}
 }
 
 func EnsureUniversalTools(tools []openai.ChatCompletionToolUnionParam) []openai.ChatCompletionToolUnionParam {
-	if toolParamsHasName(tools, "docsRetrieval") {
-		return tools
+	out := make([]openai.ChatCompletionToolUnionParam, 0, len(tools)+2)
+	for _, tool := range universalToolParams() {
+		for _, existing := range tools {
+			if existing.OfFunction != nil && existing.OfFunction.Function.Name == tool.OfFunction.Function.Name {
+				tool = existing
+				break
+			}
+		}
+		out = append(out, tool)
 	}
-	out := make([]openai.ChatCompletionToolUnionParam, 0, len(tools)+1)
-	out = append(out, docsRetrievalOpenAI())
-	out = append(out, tools...)
+	for _, tool := range tools {
+		if tool.OfFunction == nil || !IsUniversalTool(tool.OfFunction.Function.Name) {
+			out = append(out, tool)
+		}
+	}
 	return out
 }
 
