@@ -17,6 +17,10 @@ func ApplyUpdateForTest(ctx context.Context, tag string, ops UpdateOpsForTest) e
 	return applyRuntimeUpdate(ctx, tag, runtimeUpdateOps{prepare: ops.Prepare, stop: ops.Stop, commit: ops.Commit, start: ops.Start, restore: ops.Restore, quiesce: ops.Quiesce})
 }
 
+func HotInstallForTest(target string, install func() error, ops UpdateOpsForTest) error {
+	return hotInstall(target, install, runtimeUpdateOps{stop: ops.Stop, start: ops.Start, quiesce: ops.Quiesce, restore: ops.Restore})
+}
+
 type DesktopProcessForTest struct {
 	PID      int
 	Identity string

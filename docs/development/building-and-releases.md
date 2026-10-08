@@ -175,7 +175,10 @@ The desktop gateway adapts native WebView requests for older running daemons.
 
 On Linux, `make hot-install` updates the CLI, web frontend, integrations and
 native desktop client, including its icon and application-menu entry, then
-restarts the daemon in its previous mode. It builds the native client before
+closes the running native clients, then restarts the daemon in its previous mode
+and reopens those clients using the installed binaries. The command verifies the
+daemon's build and waits for each reopened client to register before reporting
+success. Chat history and settings remain saved. It builds the native client before
 stopping the daemon; missing GTK/WebKit development packages abort the command
 while the existing daemon keeps running. Use `make desktop-install` for a desktop
 update that preserves the running daemon.

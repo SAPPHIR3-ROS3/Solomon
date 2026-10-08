@@ -228,10 +228,9 @@ endif
 # Full install, including the native app/menu entry on Linux, then bring the
 # local server back up. Build the native client before stopping the daemon so
 # missing development dependencies leave the running service untouched.
-# Windows starts the GUI in
-# dev mode; Unix preserves the prior mode/dev directory from state.json when
-# present, otherwise starts `server start dev <repo>/gui`.
-# Needed because `make install` stops the server and clears state before `restart` can read it.
+# Preserve the prior mode/dev directory from state.json when present;
+# otherwise start `server start dev <repo>/gui`.
+# The coordinator closes and reopens native clients and preserves daemon mode.
 ifeq ($(GOOS),linux)
 hot-install: desktop-build
 endif
@@ -239,29 +238,7 @@ hot-install:
 	@$(FIX_TTY)
 	@$(PRINT_BLANK)
 	@$(call PRINT_LINE,=== Solomon hot-install ($(VERSION)) ===)
-ifeq ($(GOOS),windows)
-	@$(MAKE) install
-	@$(INSTALL_BIN) server start dev "$(CURDIR)/gui"
-else
-	@STATE_FILE="$${SOLOMON_HOME:-$$HOME/.solomon}/run/server/state.json"; \
-	MODE=dev; \
-	DEVDIR="$(CURDIR)/gui"; \
-	if [ -f "$$STATE_FILE" ]; then \
-		CAPTURED_MODE=$$(sed -n 's/.*"mode"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$$STATE_FILE" | head -n1); \
-		CAPTURED_DEVDIR=$$(sed -n 's/.*"dev_directory"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$$STATE_FILE" | head -n1); \
-		if [ -n "$$CAPTURED_MODE" ]; then MODE=$$CAPTURED_MODE; fi; \
-		if [ -n "$$CAPTURED_DEVDIR" ]; then DEVDIR=$$CAPTURED_DEVDIR; fi; \
-	fi; \
-	echo "Restart target: mode=$$MODE"; \
-	if [ "$$MODE" = "dev" ]; then echo "Restart target: devDir=$$DEVDIR"; fi; \
-	$(MAKE) install && \
-	if [ "$(GOOS)" = "linux" ]; then bash scripts/install-desktop.sh "$(BIN_DIR)"; fi && \
-	if [ "$$MODE" = "dev" ]; then \
-		$(INSTALL_BIN) server start dev "$$DEVDIR"; \
-	else \
-		$(INSTALL_BIN) server start; \
-	fi
-endif
+	go run ./scripts/hot_install "$(INSTALL_BIN)" "$(MAKE)" "$(BIN_DIR)"
 	@$(FIX_TTY)
 	@$(PRINT_BLANK)
 	@$(call PRINT_LINE,=== hot-install done ===)
