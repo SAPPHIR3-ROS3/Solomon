@@ -43,7 +43,8 @@
   }
 }
 
-.chat-worked-for-wave {
+.chat-worked-for-wave,
+.chat-reasoning-wave {
   white-space: pre;
 }
 
@@ -52,7 +53,8 @@
   to { background-position: calc(100% + 3ch) 0; }
 }
 
-.app-shell .chat-worked-for.is-live .chat-worked-for-wave {
+.app-shell .chat-worked-for.is-live .chat-worked-for-wave,
+.app-shell .chat-reasoning.is-live .chat-reasoning-wave {
   background-color: var(--color-text-muted);
   background-image: linear-gradient(90deg, transparent, var(--color-text) 40%, var(--color-text) 60%, transparent);
   background-repeat: no-repeat;
@@ -64,7 +66,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell .chat-worked-for.is-live .chat-worked-for-wave {
+  .app-shell .chat-worked-for.is-live .chat-worked-for-wave,
+  .app-shell .chat-reasoning.is-live .chat-reasoning-wave {
     animation: none;
     background: none;
     color: var(--color-text-muted);
