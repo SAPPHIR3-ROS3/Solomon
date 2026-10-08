@@ -8,7 +8,7 @@ import {
 const ORCHESTRATE_FOOTER =
   "Cursor built-ins are disabled. Use native tool_calls only: searchTools (discover deferred SDK signatures), orchestrate (run workspace scripts), searchSkill and loadSkill (skills).";
 const CHAT_FOOTER =
-  "This is CHAT mode. Use native tool_calls only: docsRetrieval, webSearch, fetchWeb, deepResearch, researchStatus, or switchMode; switchMode before workspace implementation.";
+  "This is CHAT mode. Use native tool_calls only: docsRetrieval, readChat, webSearch, fetchWeb, deepResearch, researchStatus, or switchMode; switchMode before workspace implementation.";
 
 function isChatSurface(allowedNames: Set<string> | null): boolean {
   if (!allowedNames || allowedNames.has("orchestrate")) {

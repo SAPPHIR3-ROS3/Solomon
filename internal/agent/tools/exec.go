@@ -78,7 +78,7 @@ func resolveToolInvocation(ctx context.Context, env *Env, mode string, inv tooli
 
 func isInternalToolName(name string) bool {
 	switch name {
-	case "docsRetrieval",
+	case "docsRetrieval", "readChat",
 		"createPlan", "editPlan", "buildPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
 		"shell", "readFile", "editFile", "find", "listDir", "tree", "subagent", "fetchWeb", "webSearch",
 		"deepResearch", "researchStatus",
@@ -145,6 +145,8 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 	switch inv.Name {
 	case "docsRetrieval":
 		return execDocsRetrieval(env, inv.Args)
+	case "readChat":
+		return execReadChat(ctx, inv.Args)
 	case "createPlan":
 		return execCreatePlan(env, inv.Args)
 	case "editPlan":

@@ -128,7 +128,7 @@ func ExternalToolBridgeInvocationSyntax() string {
 	return strings.TrimSpace(`Cursor proxy: invoke Solomon tools via native API tool_calls (function calling) only. Tool names and JSON argument schemas match ## Available tools below. Do not emit <tool_calls> XML blocks, Tool: lines, markdown pseudo-calls, or plain-text tool narration — only API tool_calls execute on the host. Never use Cursor IDE built-ins (Read, StrReplace, Shell, Task, …).
 
 Rules:
-- Native entry tools: orchestrate, searchTools, subagent, listSubAgents, switchMode, searchSkill, loadSkill, docsRetrieval, and buildPlan while a planning session is active.
+- Native entry tools: orchestrate, searchTools, subagent, listSubAgents, switchMode, searchSkill, loadSkill, docsRetrieval, readChat, and buildPlan while a planning session is active.
 - Use exact tool names from ## Available tools below.
 - Optional brief prose may precede tool_calls; do not describe a tool call in text instead of invoking it.
 - Workspace read/edit/shell/find work: call searchTools when unsure which deferred SDK to use, then orchestrate (package main, import "sdk" only).
@@ -143,7 +143,7 @@ func ExternalToolBridgeChatInvocationSyntax() string {
 	return strings.TrimSpace(`Cursor proxy: invoke chat tools via native API tool_calls (function calling) only. Tool names and JSON argument schemas match ## Available tools below. Do not emit Cursor IDE built-ins, <tool_calls> XML blocks, Tool: lines, markdown pseudo-calls, or plain-text tool narration — only API tool_calls execute on the host.
 
 Rules:
-- Chat native tools: docsRetrieval, fetchWeb, webSearch, deepResearch, researchStatus, and switchMode.
+- Chat native tools: docsRetrieval, readChat, fetchWeb, webSearch, deepResearch, researchStatus, and switchMode.
 - Chat has no direct workspace read, edit, shell, find, plan, skill, subagent, or MCP tool surface.
 - Use switchMode to move to agent mode before workspace implementation; after the switch, follow the agent/orchestrate workflow.
 - Use exact tool names from ## Available tools below.

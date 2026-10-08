@@ -13,6 +13,7 @@ const NATIVE_ENTRY_TOOLS = new Set([
   "searchSkill",
   "loadSkill",
   "docsRetrieval",
+  "readChat",
 ]);
 
 const WORKSPACE_DEFERRED_TOOLS = new Set(["readFile", "editFile", "shell", "find"]);

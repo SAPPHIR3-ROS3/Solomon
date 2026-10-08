@@ -12,6 +12,7 @@ import {
 } from "../src/tool-policy.js";
 
 const NATIVE_ALLOW = [
+  "readChat",
   "orchestrate",
   "searchTools",
   "subagent",
@@ -64,6 +65,7 @@ const defaultArgs: Record<string, unknown> = {
   switchMode: { target_mode_id: "chat", intent: "switch to chat" },
   searchSkill: { query: "babysit", intent: "find babysit skill" },
   loadSkill: { name: "babysit", intent: "load babysit skill" },
+  readChat: { chatId: "reference-chat", intent: "Read prior conversation" },
   readFile: { path: "main.go", intent: "read main.go" },
   editFile: { path: "main.go", oldString: "a", newString: "b", intent: "replace a" },
   shell: { command: "go test", intent: "run tests" },
@@ -71,6 +73,7 @@ const defaultArgs: Record<string, unknown> = {
 };
 
 const POLICY_MATRIX: PolicyMatrixRow[] = [
+  { id: "native-readChat", tool: "readChat", class: "native", hintIncludes: "", orchestrateFooter: false },
   { id: "native-orchestrate", tool: "orchestrate", class: "native", hintIncludes: "", orchestrateFooter: false },
   { id: "native-searchTools", tool: "searchTools", class: "native", hintIncludes: "", orchestrateFooter: false },
   { id: "native-subagent", tool: "subagent", class: "native", hintIncludes: "", orchestrateFooter: false },
