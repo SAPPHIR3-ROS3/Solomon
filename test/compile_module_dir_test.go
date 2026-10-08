@@ -56,3 +56,62 @@ func main() {
 		t.Fatal(err)
 	}
 }
+
+func TestBuildWASM_readOnlyModule(t *testing.T) {
+	for _, inModuleCache := range []bool{false, true} {
+		name := "source-tree"
+		if inModuleCache {
+			name = "module-cache"
+		}
+		t.Run(name, func(t *testing.T) {
+			cacheRoot := t.TempDir()
+			if inModuleCache {
+				t.Setenv("GOMODCACHE", cacheRoot)
+			}
+			testBuildWASMReadOnlyModule(t, filepath.Join(cacheRoot, "Solomon module"))
+		})
+	}
+}
+
+func testBuildWASMReadOnlyModule(t *testing.T, root string) {
+	t.Helper()
+	sdkDir := filepath.Join(root, "internal", "sandbox", "sdk")
+	if err := os.MkdirAll(sdkDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"go.mod":                      "module " + compile.SolomonModulePath + "\n\ngo 1.25.0\n",
+		"internal/sandbox/sdk/sdk.go": "package sdk\nconst Value = 42\n",
+		// Also prevent writes on platforms where directory modes are ignored.
+		".solomon": "module contents must not be modified\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o444); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Chmod(root, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
+	wasm, err := compile.BuildWASM(compile.Options{
+		ModuleRoot: root,
+		Source: `package main
+import ("fmt"; "sdk")
+func main() { fmt.Println(sdk.Value) }
+`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wasm) < 4 || string(wasm[:4]) != "\x00asm" {
+		t.Fatal("expected a compiled WASM module")
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("module directory was modified: %v", entries)
+	}
+}

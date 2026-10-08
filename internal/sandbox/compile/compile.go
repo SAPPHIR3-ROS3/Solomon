@@ -30,7 +30,15 @@ func BuildWASM(opts Options) ([]byte, error) {
 			return nil, err
 		}
 	}
-	cacheBase := filepath.Join(modRoot, ".solomon")
+	modRoot, err := filepath.Abs(modRoot)
+	if err != nil {
+		return nil, err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	cacheBase := filepath.Join(home, ".solomon", "cache", "orchestrate")
 	if err := os.MkdirAll(cacheBase, 0o755); err != nil {
 		return nil, err
 	}
@@ -55,14 +63,22 @@ func BuildWASM(opts Options) ([]byte, error) {
 		return nil, err
 	}
 	outPath := filepath.Join(slotDir, "script.wasm")
-	relSlot, err := filepath.Rel(modRoot, slotDir)
-	if err != nil {
+	// A child module path permits internal SDK imports without placing files or
+	// overlays inside Solomon's module tree (Go rejects overlays in GOMODCACHE).
+	goMod := fmt.Sprintf("module %s/orchestrate\n\ngo 1.25.0\n\nrequire %s v2026.0.0\n\nreplace %s => %q\n", SolomonModulePath, SolomonModulePath, SolomonModulePath, modRoot)
+	if err := os.WriteFile(filepath.Join(slotDir, "go.mod"), []byte(goMod), 0o600); err != nil {
 		return nil, err
 	}
-	pkg := "./" + filepath.ToSlash(relSlot)
-	cmd := exec.Command("go", "build", "-o", outPath, pkg)
-	cmd.Dir = modRoot
-	cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm", "CGO_ENABLED=0")
+	if sums, err := os.ReadFile(filepath.Join(modRoot, "go.sum")); err == nil {
+		if err := os.WriteFile(filepath.Join(slotDir, "go.sum"), sums, 0o600); err != nil {
+			return nil, err
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	cmd := exec.Command("go", "build", "-mod=mod", "-o", outPath, ".")
+	cmd.Dir = slotDir
+	cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm", "CGO_ENABLED=0", "GOWORK=off")
 	if opts.CacheDir != "" {
 		cmd.Env = append(cmd.Env, "GOCACHE="+opts.CacheDir)
 	}
