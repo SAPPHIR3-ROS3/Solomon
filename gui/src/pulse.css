@@ -42,3 +42,31 @@
     opacity: .8;
   }
 }
+
+.chat-worked-for-wave {
+  white-space: pre;
+}
+
+@keyframes chat-worked-for-glow {
+  from { background-position: -3ch 0; }
+  to { background-position: calc(100% + 3ch) 0; }
+}
+
+.app-shell .chat-worked-for.is-live .chat-worked-for-wave {
+  background-color: var(--color-text-muted);
+  background-image: linear-gradient(90deg, transparent, var(--color-text) 40%, var(--color-text) 60%, transparent);
+  background-repeat: no-repeat;
+  background-size: 3ch 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: chat-worked-for-glow 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .chat-worked-for.is-live .chat-worked-for-wave {
+    animation: none;
+    background: none;
+    color: var(--color-text-muted);
+  }
+}

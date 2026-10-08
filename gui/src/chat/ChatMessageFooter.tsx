@@ -49,7 +49,20 @@ export function MessageFooter({ index, message, onRequestDelete }: { index: numb
 
   return (
     <footer className="chat-message-footer">
-      <time dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>
+      {onRequestDelete ? (
+        <button aria-label="Delete message" className="chat-delete-message" onClick={onRequestDelete} title="Delete message" type="button">
+          <CloseIcon />
+        </button>
+      ) : null}
+      <button
+        aria-label={copied ? "Message copied" : "Copy message"}
+        className="chat-copy-message"
+        onClick={() => void copyMessage()}
+        title={copied ? "Message copied" : "Copy message"}
+        type="button"
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+      </button>
       {stats ? (
         <div className="chat-stats-control" ref={statsRef}>
           <button
@@ -69,28 +82,21 @@ export function MessageFooter({ index, message, onRequestDelete }: { index: numb
           {isStatsOpen ? <MessageStatsPopover id={`message-stats-${message.id}`} stats={stats} workedFor={message.workedFor} /> : null}
         </div>
       ) : null}
-      <button
-        aria-label={copied ? "Message copied" : "Copy message"}
-        className="chat-copy-message"
-        onClick={() => void copyMessage()}
-        title={copied ? "Message copied" : "Copy message"}
-        type="button"
-      >
-        {copied ? <CheckIcon /> : <CopyIcon />}
-      </button>
-      {onRequestDelete ? (
-        <button aria-label="Delete message" className="chat-delete-message" onClick={onRequestDelete} title="Delete message" type="button">
-          <CloseIcon />
-        </button>
-      ) : null}
+      <time dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>
     </footer>
   );
 }
 
 export function WorkedForCounter({ isLive, seconds }: { isLive: boolean; seconds: number }) {
+  const label = `worked for ${formatWorkedDuration(seconds)}`;
+
   return (
-    <span aria-live={isLive ? "polite" : undefined} className={`chat-worked-for${isLive ? " is-live" : ""}`}>
-      worked for {formatWorkedDuration(seconds)}
+    <span aria-label={isLive ? label : undefined} aria-live={isLive ? "polite" : undefined} className={`chat-worked-for${isLive ? " is-live" : ""}`}>
+      {isLive ? (
+        <span aria-hidden="true" className="chat-worked-for-wave">
+          {label}
+        </span>
+      ) : label}
     </span>
   );
 }

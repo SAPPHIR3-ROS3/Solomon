@@ -266,22 +266,22 @@
 .chat-tool-result-todo-checkbox { border: 1px solid var(--color-text-muted); border-radius: 3px; flex: 0 0 auto; height: 12px; margin-top: 3px; position: relative; width: 12px; }
 .chat-tool-result-todo-checkbox.is-checked { background: var(--color-accent); border-color: var(--color-accent); }
 .chat-tool-result-todo-checkbox.is-checked::after { border-bottom: 1.5px solid var(--color-accent-contrast); border-right: 1.5px solid var(--color-accent-contrast); content: ""; height: 6px; left: 3px; position: absolute; top: 1px; transform: rotate(45deg); width: 3px; }
-.chat-message-footer { align-items: center; display: flex; margin-top: 6px; min-height: 26px; padding: 0 4px; }
+.chat-message-footer { align-items: center; display: flex; justify-content: flex-end; margin-top: 6px; min-height: 26px; padding: 0 4px; }
 .chat-turn.is-user .chat-message-footer { padding: 0 14px; }
 .chat-turn.is-assistant .chat-message-footer { padding: 0 17px; }
-.chat-message-footer time { color: var(--color-text-muted); font: 560 12px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .03em; }
-.chat-worked-for { align-items: center; align-self: flex-end; color: var(--color-text-muted); display: inline-flex; font: 400 17px/1.55 "Geist", sans-serif; margin: 2px 17px 0; white-space: nowrap; }
-.chat-worked-for.is-live { color: var(--color-crown-gold); }
-.chat-copy-message { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 6px; padding: 0; width: 26px; }
+.chat-message-footer time { color: var(--color-text-muted); font: 560 12px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .03em; margin-left: 10px; }
+.chat-worked-for { align-items: center; align-self: flex-end; color: var(--color-crown-gold); display: inline-flex; font: 400 17px/1.55 "Geist", sans-serif; margin: 2px 17px 0; white-space: nowrap; }
+.chat-worked-for.is-live { color: var(--color-text-muted); }
+.chat-copy-message { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 0; padding: 0; width: 26px; }
 .chat-copy-message:hover { background: var(--color-surface-raised); color: var(--color-text); }
 .chat-copy-message:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .chat-copy-message svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 16px; }
 .chat-stats-control { position: relative; }
-.chat-stats-trigger { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 10px; padding: 0; width: 26px; }
+.chat-stats-trigger { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 6px; padding: 0; width: 26px; }
 .chat-stats-trigger:hover, .chat-stats-trigger[aria-expanded="true"] { background: var(--color-surface-raised); color: var(--color-text); }
 .chat-stats-trigger:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .chat-stats-trigger svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 16px; }
-.chat-stats-popover { background: color-mix(in srgb, var(--color-surface) 96%, #000); border: 1px solid color-mix(in srgb, var(--color-border) 84%, var(--color-text-muted)); border-radius: 10px; bottom: calc(100% + 8px); box-shadow: 0 16px 36px rgb(0 0 0 / 38%), 0 0 0 1px rgb(255 255 255 / 4%); color: var(--color-text); left: 0; max-width: calc(100vw - 32px); min-width: 236px; padding: 12px 14px; position: absolute; width: 252px; z-index: 20; }
+.chat-stats-popover { background: color-mix(in srgb, var(--color-surface) 96%, #000); border: 1px solid color-mix(in srgb, var(--color-border) 84%, var(--color-text-muted)); border-radius: 10px; bottom: calc(100% + 8px); box-shadow: 0 16px 36px rgb(0 0 0 / 38%), 0 0 0 1px rgb(255 255 255 / 4%); color: var(--color-text); right: 0; max-width: calc(100vw - 32px); min-width: 236px; padding: 12px 14px; position: absolute; width: 252px; z-index: 20; }
 .chat-stats-title { color: var(--color-text); font: 650 13px/1.2 "Geist", sans-serif; margin-bottom: 8px; }
 .chat-stats-popover dl { margin: 0; }
 .chat-stats-row { align-items: baseline; display: grid; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; gap: 18px; grid-template-columns: minmax(0, 1fr) auto; padding: 3px 0; }
@@ -291,6 +291,7 @@
 .chat-stats-row.is-total { font-weight: 650; padding-top: 6px; }
 .chat-stats-row.is-total dt, .chat-stats-row.is-total dd { color: var(--color-text); }
 .chat-delete-message { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 2px; padding: 0; width: 26px; }
+.chat-delete-message + .chat-copy-message { margin-left: 6px; }
 .chat-delete-message:hover { background: color-mix(in srgb, var(--color-danger) 18%, transparent); color: #e57373; }
 .chat-delete-message:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .chat-delete-message svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 16px; }
