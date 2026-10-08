@@ -269,8 +269,10 @@
 .chat-message-footer { align-items: center; display: flex; justify-content: flex-end; margin-top: 6px; min-height: 26px; padding: 0 4px; }
 .chat-turn.is-user .chat-message-footer { padding: 0 14px; }
 .chat-turn.is-assistant .chat-message-footer { padding: 0 17px; }
+.chat-assistant-footer { align-items: center; display: flex; gap: 12px; margin-top: 6px; min-height: 26px; padding: 0 17px; }
+.chat-turn.is-assistant .chat-assistant-footer .chat-message-footer { flex: 1; margin-top: 0; padding: 0; }
 .chat-message-footer time { color: var(--color-text-muted); font: 560 12px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .03em; margin-left: 10px; }
-.chat-worked-for { align-items: center; align-self: flex-end; color: var(--color-crown-gold); display: inline-flex; font: 400 17px/1.55 "Geist", sans-serif; margin: 2px 17px 0; white-space: nowrap; }
+.chat-worked-for { align-items: center; color: var(--color-crown-gold); display: inline-flex; flex-shrink: 0; font: 400 17px/1.55 "Geist", sans-serif; margin: 0; white-space: nowrap; }
 .chat-worked-for.is-live { color: var(--color-text-muted); }
 .chat-copy-message { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 0; padding: 0; width: 26px; }
 .chat-copy-message:hover { background: var(--color-surface-raised); color: var(--color-text); }
