@@ -151,12 +151,14 @@ function AssistantTurn({
           onStopTool={responseActions?.onStopTool}
         />
       ) : null}
-      {shouldShowWorkedFor && activeWorkedFor !== undefined ? null : (
-        <MessageFooter index={(responseEntry ?? activityEntries[activityEntries.length - 1]).index} message={footerMessage} />
-      )}
-      {shouldShowWorkedFor && (activeWorkedFor !== undefined || footerMessage.workedFor !== undefined) ? (
-        <WorkedForCounter isLive={activeWorkedFor !== undefined} seconds={activeWorkedFor ?? footerMessage.workedFor!} />
-      ) : null}
+      <div className="chat-assistant-footer">
+        {shouldShowWorkedFor && (activeWorkedFor !== undefined || footerMessage.workedFor !== undefined) ? (
+          <WorkedForCounter isLive={activeWorkedFor !== undefined} seconds={activeWorkedFor ?? footerMessage.workedFor!} />
+        ) : null}
+        {shouldShowWorkedFor && activeWorkedFor !== undefined ? null : (
+          <MessageFooter index={(responseEntry ?? activityEntries[activityEntries.length - 1]).index} message={footerMessage} />
+        )}
+      </div>
     </div>
   );
 }
