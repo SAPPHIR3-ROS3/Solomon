@@ -89,7 +89,9 @@ The touch layout supports portrait and landscape, drawer navigation, photo
 attachments, and a Save button in the editor. The composer keeps its draft when
 the virtual keyboard reduces the available space. Folder browsing and terminal
 commands operate on the computer hosting Solomon. To publish frontend changes
-from a source checkout, run `make hot-install`; a running development server
+from a source checkout, run `make hot-install`. This closes and reopens the native
+Solomon clients and restarts the server in its previous mode, preserving saved
+chats and settings. A running development server
 loads source changes through Vite.
 
 For GUI development, pass the GUI project directory explicitly. The server

@@ -1,0 +1,2 @@
+.katex { white-space: normal; overflow-wrap: normal; }
+.katex-display { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 4px 0; }

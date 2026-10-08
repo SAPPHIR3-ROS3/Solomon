@@ -145,16 +145,23 @@ type desktopUpdateProcess struct {
 	kind       string
 }
 
-func platformRuntimeUpdateOps(ctx context.Context, tag string) runtimeUpdateOps {
+func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serverruntime.State) runtimeUpdateOps {
 	var desktops []desktopUpdateProcess
 	var stopped []desktopUpdateProcess
 	var restarted []desktopUpdateProcess
 	var oldState serverruntime.State
+	if len(defaults) > 0 {
+		oldState = defaults[0]
+	}
 	var daemonStopped bool
 	start := func(target string, requireVersion bool) error {
 		startCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		command := exec.CommandContext(startCtx, target, "server", "start")
+		args := []string{"server", "start"}
+		if oldState.Mode == "dev" {
+			args = append(args, "dev", oldState.DevDir)
+		}
+		command := exec.CommandContext(startCtx, target, args...)
 		command.Stdout, command.Stderr = os.Stdout, os.Stderr
 		if err := command.Run(); err != nil {
 			return err
@@ -165,19 +172,40 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string) runtimeUpdateOps 
 			if err == nil {
 				health, err := serverruntime.ReadHealth(startCtx, state)
 				if err == nil && health.OK && health.Server.PID == state.PID && (!requireVersion || health.Server.Version == tag) {
+					if tag == "" {
+						if err := verifyInstalledDaemon(target, health.Server); err != nil {
+							return err
+						}
+					}
 					for _, desktop := range stopped {
-						command := exec.Command(desktop.executable, desktop.args...)
+						executable := desktop.executable
+						if tag == "" {
+							executable = target
+							if desktop.kind != "tui" {
+								executable = filepath.Join(filepath.Dir(target), desktopName())
+							}
+						}
+						command := exec.Command(executable, desktop.args...)
 						command.Env, command.Dir = desktop.env, desktop.cwd
+						if tag == "" && desktop.kind != "tui" {
+							command.Env = append(command.Env, "SOLOMON_BINARY="+target)
+						}
 						configureClientProcess(command, desktop.kind)
 						if err := startClientProcess(command, desktop.kind); err != nil {
 							return fmt.Errorf("restart desktop: %w", err)
 						}
 						client := desktop
+						client.executable = executable
 						client.pid = command.Process.Pid
 						client.identity = processIdentity(client.pid)
 						client.stopFile = ""
 						restarted = append(restarted, client)
 						_ = command.Process.Release()
+						if tag == "" {
+							if err := waitClientRegistration(startCtx, client); err != nil {
+								return err
+							}
+						}
 					}
 					stopped = nil
 					return nil
@@ -199,11 +227,12 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string) runtimeUpdateOps 
 			if err != nil {
 				return err
 			}
-			oldState, err = serverruntime.LoadState()
+			state, err := serverruntime.LoadState()
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
 			if err == nil {
+				oldState = state
 				parsed, err := url.Parse(oldState.URL)
 				if err != nil || parsed.Scheme != "http" || (parsed.Hostname() != "localhost" && !net.ParseIP(parsed.Hostname()).IsLoopback()) {
 					return fmt.Errorf("refusing to stop a non-loopback daemon")
@@ -244,7 +273,7 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string) runtimeUpdateOps 
 			return nil
 		},
 		commit: updater.CommitInstall,
-		start:  func(target string) error { return start(target, true) },
+		start:  func(target string) error { return start(target, tag != "") },
 		quiesce: func() error {
 			// Close any partially restarted clients before restoring mapped binaries.
 			for _, client := range restarted {

@@ -1,6 +1,11 @@
 import { isValidElement, type ReactNode, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import { normalizeMathDelimiters } from "./mathDelimiters";
+import "katex/dist/katex.min.css";
+import "./math.css";
 import { rehypeImageTags } from "./rehypeImageTags";
 import "./imageTags.css";
 import { CheckIcon, CopyIcon } from "./ChatIcons";
@@ -21,10 +26,10 @@ export function MarkdownContent({ content }: { content: string }) {
           </div>
         ),
       }}
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeImageTags]}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeImageTags, [rehypeKatex, { trust: false }]]}
     >
-      {escapeImageTags(normalizeCodeBlocks(content))}
+      {escapeImageTags(normalizeMathDelimiters(normalizeCodeBlocks(content)))}
     </Markdown>
   );
 }
