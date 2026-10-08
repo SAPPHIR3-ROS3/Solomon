@@ -129,7 +129,7 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
   );
 }
 
-export function ReasoningBlock({ isCollapsed, message, onToggle }: { isCollapsed: boolean; message: ChatMessage; onToggle: () => void }) {
+export function ReasoningBlock({ isCollapsed, isLive = false, message, onToggle }: { isCollapsed: boolean; isLive?: boolean; message: ChatMessage; onToggle: () => void }) {
   const reasoning = message.reasoning?.trim();
   const thoughtFor = message.thoughtFor ?? message.stats?.ttftSeconds;
 
@@ -137,7 +137,7 @@ export function ReasoningBlock({ isCollapsed, message, onToggle }: { isCollapsed
     <div
       aria-expanded={!isCollapsed}
       aria-label="Model reasoning"
-      className={`chat-reasoning${isCollapsed ? " is-collapsed" : ""}`}
+      className={`chat-reasoning${isCollapsed ? " is-collapsed" : ""}${isCollapsed && isLive ? " is-live" : ""}`}
       onClick={(event) => {
         event.stopPropagation();
         onToggle();
@@ -153,17 +153,19 @@ export function ReasoningBlock({ isCollapsed, message, onToggle }: { isCollapsed
       title="Click to collapse or expand reasoning"
     >
       {!isCollapsed && reasoning ? <div className="chat-reasoning-copy">{reasoning}</div> : null}
-      {thoughtFor !== undefined && thoughtFor > 0 ? <div className="chat-thought-for">{formatThoughtDuration(thoughtFor)}</div> : null}
+      {(thoughtFor !== undefined && thoughtFor > 0) || isCollapsed ? (
+        <div className="chat-thought-for"><span className="chat-reasoning-wave">{thoughtFor !== undefined && thoughtFor > 0 ? formatThoughtDuration(thoughtFor) : isLive ? "thinking" : "reasoning"}</span></div>
+      ) : null}
     </div>
   );
 }
 
-export function ReasoningSummaryBlock({ seconds }: { seconds: number }) {
+export function ReasoningSummaryBlock({ isLive = false, seconds }: { isLive?: boolean; seconds: number }) {
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
 
   return (
-    <div aria-label="Model reasoning" className="chat-reasoning chat-reasoning-summary">
-      <div className="chat-thought-for">{formatThoughtDuration(seconds)}</div>
+    <div aria-label="Model reasoning" className={`chat-reasoning chat-reasoning-summary${isLive ? " is-live" : ""}`}>
+      <div className="chat-thought-for"><span className="chat-reasoning-wave">{formatThoughtDuration(seconds)}</span></div>
     </div>
   );
 }
