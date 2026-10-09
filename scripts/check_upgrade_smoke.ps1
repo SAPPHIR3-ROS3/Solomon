@@ -146,7 +146,33 @@ function Wait-TargetVersion {
 
 function Invoke-CliUpgrade {
     param([string]$Exe, [string]$LogPath)
-    $p = Start-Process -FilePath $Exe -ArgumentList 'upgrade' -NoNewWindow -PassThru -RedirectStandardOutput $LogPath -RedirectStandardError "${LogPath}.err"
+    # The runner's job forbids CREATE_BREAKAWAY_FROM_JOB used by old updaters.
+    # WMI starts the CLI outside that job, while preserving the runner user's env.
+    # https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects
+    $launchScript = "${LogPath}.launch.ps1"
+    $quotedExe = $Exe.Replace("'", "''")
+    $quotedLog = $LogPath.Replace("'", "''")
+    @"
+& '$quotedExe' upgrade > '$quotedLog' 2> '${quotedLog}.err'
+exit `$LASTEXITCODE
+"@ | Set-Content -LiteralPath $launchScript -Encoding utf8
+    $shellExe = (Get-Process -Id $PID).Path
+    $startup = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{
+        CreateFlags = [uint32]0x01000400 # Break away from the WMI job; Unicode env.
+        EnvironmentVariables = [string[]]@(
+            [Environment]::GetEnvironmentVariables().GetEnumerator() |
+                ForEach-Object { "$($_.Key)=$($_.Value)" }
+        )
+    }
+    $result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+        CommandLine = ('"{0}" -NoProfile -ExecutionPolicy Bypass -File "{1}"' -f $shellExe, $launchScript)
+        CurrentDirectory = (Get-Location).ProviderPath
+        ProcessStartupInformation = $startup
+    }
+    if ($result.ReturnValue -ne 0) {
+        throw "Cannot start upgrade smoke outside runner job: WMI status $($result.ReturnValue)"
+    }
+    $p = Get-Process -Id $result.ProcessId -ErrorAction SilentlyContinue
     try {
         Wait-TargetVersion $Exe $LogPath
     } catch {
@@ -166,9 +192,13 @@ function Invoke-CliUpgrade {
             throw
         }
     }
-    $p.WaitForExit()
+    if ($p -and -not $p.WaitForExit(30000)) {
+        throw 'Upgrade CLI did not exit after the target runtime became ready'
+    }
+    Remove-Item -LiteralPath $launchScript -ErrorAction SilentlyContinue
     if (Test-Path "${LogPath}.err") {
-        Add-Content -Path $LogPath -Value (Get-Content -Path "${LogPath}.err" -Raw)
+        $stderr = Get-Content -Path "${LogPath}.err" -Raw
+        if ($stderr) { Add-Content -Path $LogPath -Value $stderr }
     }
 }
 
