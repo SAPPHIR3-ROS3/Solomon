@@ -171,7 +171,7 @@ $ErrorActionPreference = 'Stop'
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($Installer, [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw ($errors | Out-String) }
-foreach ($name in @('Set-TomlScalar', 'Install-ReleaseAsset', 'Install-Solomon', 'Test-VersionGe', 'Test-CloakBrowserReady')) {
+foreach ($name in @('Set-TomlScalar', 'Get-SolomonTempDir', 'Install-ReleaseAsset', 'Install-Solomon', 'Test-VersionGe', 'Test-CloakBrowserReady')) {
   $function = $ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name}, $true)
   Invoke-Expression $function.Extent.Text
 }
