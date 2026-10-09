@@ -360,6 +360,14 @@ func formatDuration(seconds int64) string {
 	}
 	hours := minutes / 60
 	minutes %= 60
+	if hours >= 24 {
+		days := hours / 24
+		hours %= 24
+		if hours == 0 {
+			return fmt.Sprintf("in %dd", days)
+		}
+		return fmt.Sprintf("in %dd %dh", days, hours)
+	}
 	if minutes == 0 {
 		return fmt.Sprintf("in %dh", hours)
 	}

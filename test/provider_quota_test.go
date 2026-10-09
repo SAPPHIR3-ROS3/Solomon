@@ -46,6 +46,24 @@ func TestProviderQuotaParsers(t *testing.T) {
 	}
 }
 
+func TestProviderQuotaDurationUsesDays(t *testing.T) {
+	body := `{"rate_limit":{"primary_window":{"used_percent":1,"limit_window_seconds":18000,"reset_after_seconds":401400},"secondary_window":{"used_percent":2,"limit_window_seconds":604800,"reset_after_seconds":17520}}}`
+	var payload any
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		t.Fatal(err)
+	}
+	got := server.QuotaBarsForTest(payload, "chatgpt")
+	if len(got) != 2 {
+		t.Fatalf("bars=%v", got)
+	}
+	if got[0].Detail != "reset in 4d 15h" {
+		t.Fatalf("long reset=%q, want days and hours", got[0].Detail)
+	}
+	if got[1].Detail != "reset in 4h 52m" {
+		t.Fatalf("short reset=%q, want hours and minutes", got[1].Detail)
+	}
+}
+
 func TestQuotaErrorFromBody(t *testing.T) {
 	tests := []struct {
 		name   string

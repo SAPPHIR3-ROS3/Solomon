@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { prefetchProviderQuotas } from "../projects/projects";
 import { DocsViewer } from "./DocsViewer";
 import { ModelsPage } from "./ModelsPage";
 import { ChatSettings } from "./ChatSettings";
@@ -13,6 +14,10 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
   const [isDocsOpen, setIsDocsOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const isSearching = query.trim().length > 0;
+
+  useEffect(() => {
+    prefetchProviderQuotas();
+  }, []);
 
   return (
     <section aria-label="Settings" className="settings-page">
