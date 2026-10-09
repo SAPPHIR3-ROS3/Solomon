@@ -99,10 +99,49 @@ export type ProviderQuota = {
   provider: string;
 };
 
+const PROVIDER_QUOTA_CACHE_KEY = "solomon:provider-quotas";
+const quotaStampPattern = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2})(?: \([^)]*\))?/g;
+
+let providerQuotaCache: ProviderQuota[] | null | undefined;
+let providerQuotaRequest: Promise<ProviderQuota[]> | null = null;
+
+export function getCachedProviderQuotas(): ProviderQuota[] | null {
+  if (providerQuotaCache === undefined) providerQuotaCache = readProviderQuotaCache();
+  return providerQuotaCache;
+}
+
+export function prefetchProviderQuotas(): void {
+  void fetchProviderQuotas().catch(() => {});
+}
+
 export async function fetchProviderQuotas(): Promise<ProviderQuota[]> {
+  if (providerQuotaRequest) return providerQuotaRequest;
+  providerQuotaRequest = requestProviderQuotas().finally(() => {
+    providerQuotaRequest = null;
+  });
+  return providerQuotaRequest;
+}
+
+export function liveQuotaDetail(detail: string, now = Date.now()): string {
+  return detail.replace(quotaStampPattern, (_match, stamp: string) => {
+    const at = localStampMillis(stamp);
+    if (!Number.isFinite(at)) return stamp;
+    const seconds = Math.floor((at - now) / 1000);
+    if (seconds <= 0) return stamp;
+    return `${stamp} (${formatQuotaCountdown(seconds)})`;
+  });
+}
+
+async function requestProviderQuotas(): Promise<ProviderQuota[]> {
   const response = await fetch(await serverEndpoint("/__solomon/provider-quotas"), { cache: "no-store" });
   if (!response.ok) throw new Error(`Unable to load quotas: ${response.status}`);
-  const payload: unknown = await response.json();
+  const quotas = providerQuotasFromPayload(await response.json());
+  providerQuotaCache = quotas;
+  writeProviderQuotaCache(quotas);
+  return quotas;
+}
+
+function providerQuotasFromPayload(payload: unknown): ProviderQuota[] {
   if (!payload || typeof payload !== "object" || !("providers" in payload) || !Array.isArray(payload.providers)) return [];
   return payload.providers.flatMap((entry: unknown) => {
     if (!entry || typeof entry !== "object" || !("provider" in entry) || typeof entry.provider !== "string") return [];
@@ -117,6 +156,49 @@ export async function fetchProviderQuotas(): Promise<ProviderQuota[]> {
       : [];
     return [{ canRelogin: "canRelogin" in entry && entry.canRelogin === true, provider: entry.provider, error: "error" in entry && typeof entry.error === "string" ? entry.error : "", bars }];
   });
+}
+
+function formatQuotaCountdown(seconds: number): string {
+  if (seconds < 60) return `in ${seconds}s`;
+  const minutesTotal = Math.floor(seconds / 60);
+  if (minutesTotal < 60) return `in ${minutesTotal}m`;
+  let hours = Math.floor(minutesTotal / 60);
+  const minutes = minutesTotal % 60;
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    hours %= 24;
+    if (hours === 0) return `in ${days}d`;
+    return `in ${days}d ${hours}h`;
+  }
+  if (minutes === 0) return `in ${hours}h`;
+  return `in ${hours}h ${minutes}m`;
+}
+
+function localStampMillis(stamp: string): number {
+  const [date, time] = stamp.split(" ");
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0, 0).getTime();
+}
+
+function readProviderQuotaCache(): ProviderQuota[] | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(PROVIDER_QUOTA_CACHE_KEY);
+    if (!raw) return null;
+    const quotas = providerQuotasFromPayload(JSON.parse(raw));
+    return quotas.length ? quotas : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeProviderQuotaCache(quotas: ProviderQuota[]): void {
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(PROVIDER_QUOTA_CACHE_KEY, JSON.stringify({ providers: quotas }));
+  } catch {
+    return;
+  }
 }
 
 export type ConnectProviderRequest = {

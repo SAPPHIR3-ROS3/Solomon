@@ -5,6 +5,8 @@ import {
   fetchModelCatalog,
   fetchProviderQuotas,
   getCachedModelCatalog,
+  getCachedProviderQuotas,
+  liveQuotaDetail,
   saveCurrentModel,
   setModelEnabled,
   type ModelCatalog,
@@ -62,7 +64,7 @@ function catalogWithModelVisibility(catalog: ModelCatalog, provider: string, mod
 }
 
 export function ModelsPage() {
-  const [state, setState] = useState<ModelsPageState>(() => ({ catalog: getCachedModelCatalog() ?? emptyCatalog, error: "", loading: true, quotas: [] }));
+  const [state, setState] = useState<ModelsPageState>(() => ({ catalog: getCachedModelCatalog() ?? emptyCatalog, error: "", loading: true, quotas: getCachedProviderQuotas() ?? [] }));
   const [query, setQuery] = useState("");
   const [isAddingProvider, setIsAddingProvider] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState("");
@@ -71,14 +73,14 @@ export function ModelsPage() {
 
   async function loadCatalog(forceRefresh = false) {
     setState((current) => ({ ...current, error: "", loading: true }));
+    void fetchProviderQuotas().then((quotas) => setState((current) => ({ ...current, quotas }))).catch(() => {});
     try {
       const catalog = await fetchModelCatalog(forceRefresh);
       const unavailable = forceRefresh ? catalog.providers.filter((provider) => !provider.complete) : [];
       const error = unavailable.length
         ? `Unable to refresh models for: ${unavailable.map((provider) => provider.provider).join(", ")}. Showing saved models for these providers.`
         : "";
-      const quotas = await fetchProviderQuotas().catch(() => []);
-      setState({ catalog, error, loading: false, quotas });
+      setState((current) => ({ ...current, catalog, error, loading: false }));
       if (forceRefresh) setRefreshedAt(error ? "" : new Date().toLocaleTimeString());
     } catch (error) {
       setState((current) => ({
@@ -450,7 +452,7 @@ function ProviderRow({
           {bars.map((bar) => (
             <div className="settings-provider-quota-bar" key={bar.label}>
               <div className="settings-provider-quota-label">
-                <span>{bar.label}{bar.detail ? ` · ${bar.detail}` : ""}</span>
+                <span>{bar.label}{bar.detail ? ` · ${liveQuotaDetail(bar.detail)}` : ""}</span>
                 {bar.hidePercent ? null : <span>{Math.round(bar.percent)}%</span>}
               </div>
               {bar.hidePercent ? null : (
