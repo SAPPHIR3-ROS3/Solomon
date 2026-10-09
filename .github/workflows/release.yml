@@ -254,13 +254,26 @@ jobs:
 
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
 
-      - name: Create and push tag
+      - name: Prepare release source with embedded assets
         env:
           VER: ${{ steps.version.outputs.ver }}
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # go install builds the tagged source without running our bundlers.
+          # Keep generated assets in the release commit, off the development branch.
+          git add -f internal/integrations/cursor/bundle gui/assets/frontend
+          git commit -m "build: include embedded assets for $VER"
+
+      - name: Verify release source archive builds without bundlers
+        run: bash scripts/check_release_source.sh
+
+      - name: Create and push tag
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          set -e
           git tag -a "$VER" -m "Calendar release $VER"
           git push origin "$VER"
           echo "Pushed tag $VER"
@@ -334,6 +347,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
 
       - name: Wait for release assets to be available
         shell: bash
