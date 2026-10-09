@@ -127,7 +127,10 @@ func main() {
 		return
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "server" {
-		servercli.Run(os.Args[2:])
+		if err := servercli.Run(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		return
 	}
 	// Unix PTYs and Windows ConPTY both run the TUI in the daemon.

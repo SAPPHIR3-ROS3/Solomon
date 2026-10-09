@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -154,6 +155,37 @@ func TestDesktopConcurrentFirstLaunchDownloadsOnce(t *testing.T) {
 	}
 }
 
+func TestDesktopRegistrationFailureRestoresInstalledGUIAndMarker(t *testing.T) {
+	cli, _, _, _ := desktopInstallFixture(t)
+	target, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker, err := os.ReadFile(target + ".install.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	restore := updater.SetDesktopRegistrar(func(context.Context, string, string, string, io.Writer) error {
+		return errors.New("application registration failed")
+	})
+	defer restore()
+	if err := updater.InstallDesktop(context.Background(), "v2026.1005.1", cli, io.Discard); err == nil {
+		t.Fatal("registration failure reported success")
+	}
+	after, err := os.ReadFile(target)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("registration failure lost previous GUI: %v", err)
+	}
+	afterMarker, err := os.ReadFile(target + ".install.json")
+	if err != nil || !bytes.Equal(marker, afterMarker) {
+		t.Fatalf("registration failure lost previous marker: %v", err)
+	}
+}
+
 func TestDesktopChecksumFailurePreservesInstalledGUI(t *testing.T) {
 	cli, _, _, registrations := desktopInstallFixture(t)
 	if _, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard); err != nil {
@@ -201,5 +233,72 @@ func TestDesktopMissingChecksumsDoesNotRegister(t *testing.T) {
 	}
 	if registrations.Load() != 0 {
 		t.Fatal("unverified GUI was registered")
+	}
+}
+
+func TestDesktopEmptyDownloadPreservesExistingInstallation(t *testing.T) {
+	cli, _, _, registrations := desktopInstallFixture(t)
+	target, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(target)
+	restore := updater.SetHTTPDownload(func(_ context.Context, url string) (*http.Response, error) {
+		body := ""
+		if strings.HasSuffix(url, "/checksums.txt") {
+			asset, _ := updater.DesktopAssetName("v2026.1005.1", runtime.GOOS, runtime.GOARCH)
+			body = fmt.Sprintf("%x  %s\n", sha256.Sum256(nil), asset)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+	defer restore()
+	if err := updater.InstallDesktop(context.Background(), "v2026.1005.1", cli, io.Discard); err == nil {
+		t.Fatal("empty desktop download accepted")
+	}
+	after, err := os.ReadFile(target)
+	if err != nil || !bytes.Equal(before, after) || registrations.Load() != 1 {
+		t.Fatalf("empty download changed installed desktop: %v", err)
+	}
+}
+
+func TestBuiltDesktopRejectsIncompleteArtifactsBeforeReplacement(t *testing.T) {
+	cli, _, _, registrations := desktopInstallFixture(t)
+	target, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(target)
+	for _, kind := range []string{"missing", "directory", "empty", "not executable"} {
+		t.Run(kind, func(t *testing.T) {
+			if kind == "not executable" && runtime.GOOS == "windows" {
+				t.Skip("Windows executable files do not use Unix permission bits")
+			}
+			source := filepath.Join(t.TempDir(), "built desktop")
+			executable := source
+			if runtime.GOOS == "darwin" {
+				executable = filepath.Join(source, "Contents", "MacOS", "solomon-desktop")
+				if err := os.MkdirAll(filepath.Dir(executable), 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch kind {
+			case "directory":
+				err = os.Mkdir(executable, 0755)
+			case "empty":
+				err = os.WriteFile(executable, nil, 0755)
+			case "not executable":
+				err = os.WriteFile(executable, []byte("desktop"), 0600)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := updater.InstallBuiltDesktop(context.Background(), "dev", cli, source, io.Discard); err == nil {
+				t.Fatal("incomplete built desktop accepted")
+			}
+			after, err := os.ReadFile(target)
+			if err != nil || !bytes.Equal(before, after) || registrations.Load() != 1 {
+				t.Fatalf("invalid build replaced existing desktop: %v", err)
+			}
+		})
 	}
 }

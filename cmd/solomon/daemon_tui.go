@@ -192,9 +192,11 @@ func ensureDaemonForTUI() (string, error) {
 	if configured := strings.TrimSpace(os.Getenv("SOLOMON_SERVER_URL")); configured != "" {
 		return strings.TrimRight(configured, "/"), nil
 	}
-	state, err := serverruntime.LoadState()
+	state, err := serverruntime.LoadRunningState(context.Background())
 	if err != nil {
-		servercli.Run([]string{"start"})
+		if err := servercli.Run([]string{"start"}); err != nil {
+			return "", err
+		}
 		state, err = serverruntime.LoadState()
 	}
 	if err != nil || strings.TrimSpace(state.URL) == "" {

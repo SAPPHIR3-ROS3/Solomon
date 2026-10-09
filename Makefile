@@ -1,4 +1,4 @@
-.PHONY: solomon build install hot-install test check-docs loc-chart server-stop desktop-dev desktop-build desktop-install gui-build gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install hot-install install-prepare install-deploy test check-docs loc-chart server-stop desktop-dev desktop-build desktop-install gui-build gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -11,18 +11,9 @@ OUT ?= solomon
 INSTALL_NAME := solomon
 endif
 
-GO_BIN_DIR := $(strip $(shell go env GOBIN))
-ifeq ($(GO_BIN_DIR),)
-GO_BIN_DIR := $(shell go env GOPATH)/bin
-endif
+GO_BIN_DIR := $(strip $(shell go run ./scripts/install_path))
 BIN_DIR ?= $(GO_BIN_DIR)
 INSTALL_BIN := $(BIN_DIR)/$(INSTALL_NAME)
-ifeq ($(GOOS),windows)
-GO_INSTALL = set "GOBIN=$(BIN_DIR)" && go install
-else
-GO_INSTALL = GOBIN="$(BIN_DIR)" go install
-endif
-
 export CGO_ENABLED := 0
 
 ifeq ($(GOOS),windows)
@@ -94,7 +85,7 @@ cursor-stop:
 	@$(FIX_TTY)
 
 server-stop:
-	-go run $(BUILD_FLAGS) ./cmd/solomon server stop
+	go run $(BUILD_FLAGS) ./cmd/solomon server stop
 
 # Run Wails against the URL advertised by the running Solomon dev server.
 desktop-dev:
@@ -106,8 +97,6 @@ ifeq ($(GOOS),windows)
 desktop-build: gui-deps
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_desktop.ps1
 
-desktop-install: gui-deps
-	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_desktop.ps1 -Install -BinDir "$(BIN_DIR)" -Version "$(VERSION)"
 endif
 
 gui-deps:
@@ -119,16 +108,16 @@ gui-build: gui-deps
 	go run scripts/gui_bundle.go
 
 # Native Linux builds require GTK 3 and WebKitGTK 4.1 development packages.
-ifneq ($(GOOS),windows)
+ifeq ($(GOOS),linux)
 desktop-build: gui-build
 	mkdir -p gui/desktop/build/bin
 	CGO_ENABLED=1 go build -tags production,webkit2_41 $(BUILD_FLAGS) -o gui/desktop/build/bin/solomon-desktop ./gui/desktop
 
-# Install without stopping the existing daemon or graphical application.
-desktop-install: desktop-build
-	mkdir -p "$(BIN_DIR)"
-	go build $(BUILD_FLAGS) -o "$(INSTALL_BIN)" ./cmd/solomon
-	bash scripts/install-desktop.sh "$(BIN_DIR)"
+endif
+
+ifeq ($(GOOS),darwin)
+desktop-build: gui-build
+	cd gui/desktop && CGO_ENABLED=1 go run "github.com/wailsapp/wails/v2/cmd/wails@$$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)" build -skipbindings -nosyncgomod -m
 endif
 
 # Build the Cursor proxy sidecar (TypeScript -> dist/index.js).
@@ -197,44 +186,32 @@ include .env
 export
 endif
 
-# Full reinstall: stop the Solomon server and Cursor sidecar, verify GUI npm dependencies, rebuild Cursor proxy + embed bundle, install solomon, deploy ~/.solomon integration, and provision CloakBrowser.
-install:
+# Prepare every artifact and dependency before interrupting the installed runtime.
+install-prepare:
 	@$(FIX_TTY)
 	@$(PRINT_BLANK)
-	@$(call PRINT_LINE,=== Solomon install ($(VERSION)) ===)
-	$(call INSTALL_STEP,1/9 Stop Solomon server,$(MAKE) server-stop)
-	$(call INSTALL_STEP,2/9 Stop Cursor sidecar,$(CURSOR_BUNDLER) stop)
-	$(call INSTALL_STEP,3/9 Build Cursor proxy (TypeScript),$(CURSOR_BUNDLER) build --force)
-	$(call INSTALL_STEP,4/9 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,5/9 Build production GUI,$(MAKE) gui-build)
-ifeq ($(GOOS),windows)
-	$(call INSTALL_STEP,6/9 Install Solomon CLI and desktop,$(MAKE) desktop-install)
-else
-	$(call INSTALL_STEP,6/9 Install solomon binary,$(GO_INSTALL) $(BUILD_FLAGS) ./cmd/solomon)
-endif
-	$(call INSTALL_STEP,7/9 Install prompt templates,$(INSTALL_BIN) templates install)
-	$(call INSTALL_STEP,8/9 Deploy Cursor integration,$(CURSOR_BUNDLER) install)
+	@$(call PRINT_LINE,=== Prepare Solomon installation ($(VERSION)) ===)
+	$(call INSTALL_STEP,1/5 Build Cursor proxy,$(CURSOR_BUNDLER) build --force)
+	$(call INSTALL_STEP,2/5 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
+	$(call INSTALL_STEP,3/5 Build production GUI and native desktop,$(MAKE) gui-build desktop-build)
+	$(call INSTALL_STEP,4/5 Build staged CLI,go build $(BUILD_FLAGS) -o "$(OUT)" ./cmd/solomon)
 ifneq ($(CLOAK_BROWSER_READY),1)
-	$(call INSTALL_STEP,9/9 Install CloakBrowser,$(MAKE) cloak-install)
+	$(call INSTALL_STEP,5/5 Provision CloakBrowser,$(MAKE) cloak-install)
 else
-	$(call INSTALL_STEP_SKIPPED,9/9 Install CloakBrowser)
+	$(call INSTALL_STEP_SKIPPED,5/5 Provision CloakBrowser)
 	@bash -c 'source scripts/install.sh; configure_runtime_defaults' >/dev/null
 endif
+
+# Called only by the coordinator, with both installed executables backed up.
+install-deploy:
+	"$(INSTALL_BIN)" templates install
+	$(CURSOR_BUNDLER) deploy-install "$(CURSOR_STAGE)"
 	@$(FIX_TTY)
 	@$(PRINT_BLANK)
 	@$(call PRINT_LINE,solomon -> $(INSTALL_BIN))
-	@$(call PRINT_LINE,=== Done ===)
 
-# Full install, including the native app/menu entry on Linux, then bring the
-# local server back up. Build the native client before stopping the daemon so
-# missing development dependencies leave the running service untouched.
-# Preserve the prior mode/dev directory from state.json when present;
-# otherwise start `server start dev <repo>/gui`.
-# The coordinator closes and reopens native clients and preserves daemon mode.
-ifeq ($(GOOS),linux)
-hot-install: desktop-build
-endif
-hot-install:
+# All source installations use the same runtime handoff on every platform.
+install hot-install desktop-install:
 	@$(FIX_TTY)
 	@$(PRINT_BLANK)
 	@$(call PRINT_LINE,=== Solomon hot-install ($(VERSION)) ===)

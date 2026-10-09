@@ -53,7 +53,7 @@ func goInstallBinDir() (string, error) {
 	}
 	if out, err := exec.Command("go", "env", "GOPATH").Output(); err == nil {
 		if p := strings.TrimSpace(string(out)); p != "" {
-			return filepath.Join(p, "bin"), nil
+			return filepath.Join(filepath.SplitList(p)[0], "bin"), nil
 		}
 	}
 	if home, err := os.UserHomeDir(); err == nil {
@@ -63,6 +63,15 @@ func goInstallBinDir() (string, error) {
 }
 
 func installTargetPath() (string, error) {
+	if configured := strings.TrimSpace(os.Getenv("SOLOMON_BINARY")); configured != "" {
+		return filepath.Abs(configured)
+	}
+	if executable, err := os.Executable(); err == nil {
+		base := strings.ToLower(filepath.Base(executable))
+		if base == "solomon" || base == "solomon.exe" {
+			return executable, nil
+		}
+	}
 	dir, err := goInstallBinDir()
 	if err != nil {
 		return "", err
@@ -189,19 +198,14 @@ func Install(ctx context.Context, tag string, progress io.Writer) error {
 
 // CommitInstall replaces the binary atomically, restoring it on failure.
 func CommitInstall(staged, target string) error {
-	backup := target + ".bak"
-	_ = os.Remove(backup)
-	if _, err := os.Stat(target); err == nil {
-		if err := os.Rename(target, backup); err != nil {
-			return fmt.Errorf("backup current binary: %w", err)
-		}
+	info, err := os.Lstat(staged)
+	if err != nil {
+		return err
 	}
-	if err := os.Rename(staged, target); err != nil {
-		_ = os.Rename(backup, target)
-		return fmt.Errorf("install binary: %w", err)
+	if !info.Mode().IsRegular() || info.Size() == 0 {
+		return fmt.Errorf("staged binary must be a nonempty regular file")
 	}
-	_ = os.Remove(backup)
-	return nil
+	return replaceInstallationPath(staged, target)
 }
 
 const (
@@ -216,7 +220,7 @@ func InstallCommand(tag string) (string, error) {
 	}
 	switch runtime.GOOS {
 	case "linux", "darwin":
-		return fmt.Sprintf("SOLOMON_VERSION=%s curl -fsSL %s | bash", tag, installScriptRawURL), nil
+		return fmt.Sprintf("curl -fsSL %s | SOLOMON_VERSION='%s' bash", installScriptRawURL, strings.ReplaceAll(tag, "'", "'\"'\"'")), nil
 	case "windows":
 		escaped := strings.ReplaceAll(tag, "'", "''")
 		return fmt.Sprintf("$env:SOLOMON_VERSION='%s'; irm %s | iex", escaped, installPS1RawURL), nil

@@ -235,7 +235,11 @@ func TestCoordinatedUpdatePreservesBackupWhenNewRuntimeCannotStop(t *testing.T) 
 	if err == nil || restored {
 		t.Fatalf("unsafe restore: err=%v restored=%v", err, restored)
 	}
-	backup, err := os.ReadFile(target + ".runtime-backup")
+	backups, err := filepath.Glob(filepath.Join(directory, ".solomon-rollback-*", "original"))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("backup locations=%v, err=%v", backups, err)
+	}
+	backup, err := os.ReadFile(backups[0])
 	if err != nil || string(backup) != "old" {
 		t.Fatalf("lost recoverable binary: %s %v", backup, err)
 	}

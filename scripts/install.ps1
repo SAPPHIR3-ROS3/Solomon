@@ -53,10 +53,17 @@ function Install-GoWindows {
         Write-Host "Downloading Go $GoRequired (windows-$arch)..."
         $zipPath = Join-Path $tmp $zip
         Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
-        if (Test-Path $GoRoot) {
-            Remove-Item -Recurse -Force $GoRoot
+        Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
+        & (Join-Path $tmp 'go\bin\go.exe') version | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Downloaded Go toolchain is invalid' }
+        $goBackup = Join-Path $parent ('.go-backup-' + [guid]::NewGuid().ToString('n'))
+        if (Test-Path -LiteralPath $GoRoot) { Move-Item -LiteralPath $GoRoot -Destination $goBackup }
+        try { Move-Item -LiteralPath (Join-Path $tmp 'go') -Destination $GoRoot }
+        catch {
+            if (Test-Path -LiteralPath $goBackup) { Move-Item -LiteralPath $goBackup -Destination $GoRoot }
+            throw
         }
-        Expand-Archive -Path $zipPath -DestinationPath $parent -Force
+        if (Test-Path -LiteralPath $goBackup) { Remove-Item -LiteralPath $goBackup -Recurse -Force }
     }
     finally {
         Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
@@ -93,7 +100,8 @@ function Install-ReleaseAsset {
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Write-Host "Downloading Solomon release asset $asset..."
     $maxAttempts = 15
-    $tmp = Join-Path $env:TEMP ("solomon-" + [guid]::NewGuid().ToString('n'))
+    $tmp = Join-Path $binDir ('.solomon-download-' + [guid]::NewGuid().ToString('n'))
+    try {
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         try {
             Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
@@ -123,27 +131,29 @@ function Install-ReleaseAsset {
         if ($expected -ne $actual) {
             throw "checksum mismatch for $asset (expected $expected, got $actual)"
         }
-    } catch [System.Net.WebException] {
-        if ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 404) {
-            Write-Warning "no checksums.txt for $Version; skipping integrity check"
-        } else {
-            throw
-        }
     } finally {
         Remove-Item -Force $checksumsPath -ErrorAction SilentlyContinue
     }
     $backup = "$target.$([guid]::NewGuid().ToString('n')).bak"
+    if ((Get-Item -LiteralPath $tmp).Length -eq 0) { throw 'Downloaded binary is empty' }
+    $installed = $false
     try {
         if (Test-Path -LiteralPath $target) { Move-Item -LiteralPath $target -Destination $backup }
-        try { Move-Item -LiteralPath $tmp -Destination $target }
+        try { Move-Item -LiteralPath $tmp -Destination $target; $installed = $true }
         catch {
-            if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $target }
+            if (Test-Path -LiteralPath $backup) {
+                try { Move-Item -LiteralPath $backup -Destination $target }
+                catch { throw "Binary rollback failed; original retained at $backup. $($_.Exception.Message)" }
+            }
             throw
         }
     }
     finally {
-        Remove-Item -LiteralPath $tmp, $backup -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+        # The backup is empty after restoration, or obsolete after success.
+        if ($installed) { Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue }
     }
+    } finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
 }
 
 function Ensure-Go {
@@ -227,6 +237,11 @@ function Ensure-Node {
 }
 
 function Test-CloakBrowserReady {
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) { return $false }
+    try {
+        $nodeVersion = ((node --version).Trim()).TrimStart('v') -replace '-.*$', ''
+        if ($LASTEXITCODE -ne 0 -or -not (Test-VersionGe -Have $nodeVersion -Want $NodeRequired)) { return $false }
+    } catch { return $false }
     $solomonHome = if ($env:SOLOMON_HOME) { $env:SOLOMON_HOME } else { Join-Path $env:USERPROFILE '.solomon' }
     $cloakDir = Join-Path $solomonHome 'cloakbrowser'
     $cloakCache = Join-Path $cloakDir 'cache'
@@ -354,8 +369,9 @@ function Set-TomlScalar {
             if (-not $inTable -and -not $updated) {
                 $result.Add($replacement)
                 $updated = $true
+                continue
             }
-            continue
+            if (-not $inTable) { continue }
         }
         $result.Add($line)
     }
@@ -430,7 +446,7 @@ function Get-GoInstallBinDir {
     if ($gobin) {
         return $gobin
     }
-    return Join-Path (go env GOPATH) 'bin'
+    return Join-Path (((go env GOPATH) -split ';')[0]) 'bin'
 }
 
 function Ensure-GoBinInPath {
@@ -500,7 +516,7 @@ $Marker
 if ((Test-Path `$goBin) -and (`$env:Path -notlike "*`$goBin*")) { `$env:Path = "`$goBin;" + `$env:Path }
 `$goInstallBin = (go env GOBIN).Trim()
 if (-not `$goInstallBin) {
-    `$goInstallBin = Join-Path (go env GOPATH) 'bin'
+    `$goInstallBin = Join-Path (((go env GOPATH) -split ';')[0]) 'bin'
 }
 if (Test-Path `$goInstallBin) {
     `$sessionParts = `$env:Path -split ';' | Where-Object {
@@ -600,6 +616,20 @@ function Setup-Shell {
 function Install-Solomon {
     Resolve-InstallVersion
     Ensure-GoBinInPath
+    $installedCLI = Join-Path (Get-GoInstallBinDir) 'solomon.exe'
+    $installedDesktop = Join-Path (Get-GoInstallBinDir) 'solomon-desktop.exe'
+    $running = Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
+        $_.ExecutablePath -ieq $installedCLI -or $_.ExecutablePath -ieq $installedDesktop
+    }
+    if ($running) { throw 'Solomon is running. Use solomon upgrade for a coordinated update, or close Solomon before reinstalling.' }
+    $previousCLI = $null
+    $hadPreviousCLI = Test-Path -LiteralPath $installedCLI
+    if ($hadPreviousCLI) {
+        $previousCLI = "$installedCLI.$([guid]::NewGuid().ToString('n')).reinstall-backup"
+        Copy-Item -LiteralPath $installedCLI -Destination $previousCLI
+    }
+    $installationSucceeded = $false
+    try {
     Write-Host "Installing solomon ($Version)..."
     Install-ReleaseAsset
     $binDir = Get-GoInstallBinDir
@@ -616,6 +646,19 @@ function Install-Solomon {
     }
     else {
         throw "solomon binary expected at $bin"
+    }
+    $installationSucceeded = $true
+    } catch {
+        $installationFailure = $_
+        try {
+            if (Test-Path -LiteralPath $installedCLI) { Remove-Item -LiteralPath $installedCLI -Force }
+            if ($hadPreviousCLI) { Move-Item -LiteralPath $previousCLI -Destination $installedCLI }
+        } catch {
+            throw "CLI rollback failed; original retained at $previousCLI. Installation: $installationFailure; recovery: $_"
+        }
+        throw $installationFailure
+    } finally {
+        if ($installationSucceeded -and $previousCLI) { Remove-Item -LiteralPath $previousCLI -Force -ErrorAction SilentlyContinue }
     }
 }
 
@@ -639,7 +682,7 @@ if ($CloakBrowserOnly) {
 Ensure-Go
 Ensure-Make
 Setup-Shell
-Install-Solomon
 Install-CloakBrowser
 Configure-RuntimeDefaults
+Install-Solomon
 Write-Host 'Done.'

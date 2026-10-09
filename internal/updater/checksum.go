@@ -52,7 +52,7 @@ func fileSHA256Hex(path string) (string, error) {
 }
 
 func verifyReleaseAsset(ctx context.Context, tag, asset, filePath string, progress io.Writer) error {
-	return verifyAssetChecksum(ctx, tag, asset, filePath, progress, false)
+	return verifyAssetChecksum(ctx, tag, asset, filePath, progress, true)
 }
 
 func verifyAssetChecksum(ctx context.Context, tag, asset, filePath string, progress io.Writer, required bool) error {
@@ -67,7 +67,11 @@ func verifyAssetChecksum(ctx context.Context, tag, asset, filePath string, progr
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
 		if required {
-			return fmt.Errorf("release %s is missing required desktop checksums", tag)
+			kind := ""
+			if strings.HasPrefix(asset, "solomon-desktop-") {
+				kind = "desktop "
+			}
+			return fmt.Errorf("release %s is missing required %schecksums", tag, kind)
 		}
 		logging.Log(logging.WARNING_LOG_LEVEL, "updater checksums missing; skipping verify", logging.LogOptions{Params: map[string]any{"tag": tag}})
 		fmt.Fprintf(progress, "Warning: release %s has no %s; skipping integrity check\n", tag, checksumsAsset)

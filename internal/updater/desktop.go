@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -135,6 +136,49 @@ func InstallDesktop(ctx context.Context, tag, cli string, progress io.Writer) er
 	return installDesktop(ctx, tag, cli, progress)
 }
 
+// InstallBuiltDesktop deploys the already built native client without a release
+// lookup. On macOS source is the complete Solomon.app bundle.
+func InstallBuiltDesktop(ctx context.Context, version, cli, source string, progress io.Writer) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cli, err := filepath.Abs(cli)
+	if err != nil {
+		return err
+	}
+	target, err := DesktopExecutablePath(cli)
+	if err != nil {
+		return err
+	}
+	lock, err := lockDesktopInstallation(ctx, target)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	destination := target
+	executable := source
+	if runtime.GOOS == "darwin" {
+		destination = filepath.Dir(filepath.Dir(filepath.Dir(target)))
+		executable = filepath.Join(source, "Contents", "MacOS", "solomon-desktop")
+	}
+	if err := validateDesktopExecutable(executable); err != nil {
+		return err
+	}
+	stage, err := os.MkdirTemp(filepath.Dir(destination), ".solomon-built-desktop-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	staged := filepath.Join(stage, filepath.Base(destination))
+	if err := copyInstallationPath(source, staged); err != nil {
+		return err
+	}
+	if err := replaceInstallationPath(staged, destination); err != nil {
+		return err
+	}
+	return finishDesktopInstallation(ctx, version, cli, target, progress)
+}
+
 func lockDesktopInstallation(ctx context.Context, target string) (*flock.Flock, error) {
 	path := target + ".install.lock"
 	if runtime.GOOS == "darwin" {
@@ -158,7 +202,7 @@ func lockDesktopInstallation(ctx context.Context, target string) (*flock.Flock, 
 	return lock, nil
 }
 
-func installDesktop(ctx context.Context, tag, cli string, progress io.Writer) error {
+func installDesktop(ctx context.Context, tag, cli string, progress io.Writer) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -204,9 +248,26 @@ func installDesktop(ctx context.Context, tag, cli string, progress io.Writer) er
 	if err := tmp.Close(); err != nil {
 		return err
 	}
+	if info, err := os.Stat(tmp.Name()); err != nil || info.Size() == 0 {
+		return fmt.Errorf("downloaded desktop is empty or unreadable: %s", asset)
+	}
 	if err := verifyAssetChecksum(ctx, tag, asset, tmp.Name(), progress, true); err != nil {
 		return err
 	}
+	backupPaths := []string{target, target + ".install.json"}
+	if runtime.GOOS == "darwin" {
+		backupPaths = []string{filepath.Dir(filepath.Dir(filepath.Dir(target)))}
+	}
+	backup, err := BackupInstallation(backupPaths...)
+	if err != nil {
+		return err
+	}
+	defer backup.Close()
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, backup.Restore())
+		}
+	}()
 	if runtime.GOOS == "darwin" {
 		if err := installDesktopBundle(tmp.Name(), target); err != nil {
 			return err
@@ -237,37 +298,18 @@ func finishDesktopInstallation(ctx context.Context, tag, cli, target string, pro
 }
 
 func replaceDesktopPath(source, target string) error {
-	backupFile, err := os.CreateTemp(filepath.Dir(target), ".solomon-desktop-backup-*")
-	if err != nil {
-		return err
-	}
-	backup := backupFile.Name()
-	if err := backupFile.Close(); err != nil {
-		return err
-	}
-	if err := os.Remove(backup); err != nil {
-		return err
-	}
-	// Use a distinct backup because a running Windows GUI can keep its
-	// previous executable open across more than one CLI update.
-	if _, err := os.Stat(target); err == nil {
-		if err := os.Rename(target, backup); err != nil {
-			return err
-		}
-	}
-	if err := os.Rename(source, target); err != nil {
-		_ = os.Rename(backup, target)
-		return err
-	}
-	_ = removeDesktopBackup(backup)
-	return nil
+	return replaceInstallationPath(source, target)
 }
 
-func removeDesktopBackup(path string) error {
-	if runtime.GOOS == "darwin" {
-		return os.RemoveAll(path)
+func validateDesktopExecutable(path string) error {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+		return fmt.Errorf("desktop requires a nonempty executable: %s", path)
 	}
-	return os.Remove(path)
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+		return fmt.Errorf("desktop is not executable: %s", path)
+	}
+	return nil
 }
 
 func installDesktopBundle(archive, executable string) error {
@@ -326,7 +368,7 @@ func installDesktopBundle(archive, executable string) error {
 			return fmt.Errorf("unsupported desktop archive entry: %s", header.Name)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(stage, "Solomon.app", "Contents", "MacOS", "solomon-desktop")); err != nil {
+	if err := validateDesktopExecutable(filepath.Join(stage, "Solomon.app", "Contents", "MacOS", "solomon-desktop")); err != nil {
 		return err
 	}
 	return replaceDesktopPath(filepath.Join(stage, "Solomon.app"), bundle)

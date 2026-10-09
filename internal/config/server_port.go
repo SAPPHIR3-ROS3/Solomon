@@ -42,21 +42,35 @@ func (r *Root) EffectiveServerPort() int {
 // persists it to config.toml, and otherwise uses the persisted config value.
 // A missing value is deterministic rather than an instruction to bind an
 // ephemeral port.
-func ResolveServerPort() (int, error) {
+func configuredServerPort() (*Root, int, error) {
 	cfg, err := LoadOptional()
 	if err != nil {
-		return 0, err
+		return nil, 0, err
 	}
 	if err := ValidateServerPort(cfg.ServerPort); err != nil {
-		return 0, err
+		return nil, 0, err
 	}
 
 	port := cfg.EffectiveServerPort()
 	if raw, ok := os.LookupEnv(ServerPortEnv); ok && strings.TrimSpace(raw) != "" {
 		port, err = ParseServerPort(raw)
 		if err != nil {
-			return 0, fmt.Errorf("%s: %w", ServerPortEnv, err)
+			return nil, 0, fmt.Errorf("%s: %w", ServerPortEnv, err)
 		}
+	}
+	return cfg, port, nil
+}
+
+// ConfiguredServerPort reads the discovery address without writing config.toml.
+func ConfiguredServerPort() (int, error) {
+	_, port, err := configuredServerPort()
+	return port, err
+}
+
+func ResolveServerPort() (int, error) {
+	cfg, port, err := configuredServerPort()
+	if err != nil {
+		return 0, err
 	}
 
 	if cfg.ServerPort != port {
