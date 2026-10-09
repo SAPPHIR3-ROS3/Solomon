@@ -11,6 +11,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `current.provider`, `current.model` | Active backend |
 | `providers.<name>` | Named provider blocks (`base_url`, `api_key`, `api_protocol`, …) |
 | `recent_models.<name>` | Recent model ids per provider |
+| `[gui.chat]`, `[gui.models]`, `[gui.docs]` | GUI preferences grouped like the Settings page |
 | `user_name` | Shown / used in-session |
 | `subagent_timeout_minutes` | Subagent slices (wizard default 20) |
 | `[api_resilience]` | LLM HTTP retry, backoff, circuit breaker, timeouts (optional; defaults in code) |
@@ -34,6 +35,37 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `[export].path` | Optional absolute directory for `/export` markdown files (default root `~/.solomon/exported/`) |
 | `[[roles.subagent]]` | Optional economical model pool for nested subagents (see below) |
 | `[prompt_templates]` | SHA256 per edited system prompt template (see below) |
+
+### GUI preferences
+
+The `gui` section belongs to the graphical interface and follows its Settings
+sections. The daemon reads and writes it through `GET /__solomon/gui-settings` and
+`PATCH /__solomon/gui-settings`; changes persist in this same file, including for the
+native client. GUI writes preserve backend settings and do not contact providers.
+
+```toml
+[gui.chat]
+auto_close_tool_calls = false
+start_tool_calls_collapsed = false
+
+[gui.models.hidden_models]
+OpenAI = ["model-hidden-from-selector"]
+
+[gui.docs]
+```
+
+`auto_close_tool_calls` collapses tool activity when the model's run ends.
+`start_tool_calls_collapsed` controls its initial state independently. Both default
+to `false`. The first load migrates existing chat preferences from browser storage
+only if the corresponding config key is absent. After a successful save, the GUI
+removes those browser keys and uses the config as the source of truth.
+
+Model visibility is saved under `gui.models.hidden_models`. Old root-level
+`hidden_models` and `model-visibility.json` values are migration inputs until the
+first GUI write. Once `gui.models` exists, it takes precedence, including when no
+models are hidden. `gui.docs` reserves the documentation section; it currently has
+no editable preferences. Provider credentials and the active runtime model remain
+in their backend sections.
 
 ### `[prompt_templates]` (system prompt templates)
 

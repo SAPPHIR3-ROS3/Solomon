@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { ChatMessage, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 import { ChatImageAttachments, CheckpointLabel, CompactionCard, InterruptedGenerationMarker } from "./ChatMessageParts";
@@ -7,6 +7,7 @@ import { assistantFooterMessage, groupChatTurns, indexChatMessages, toolCheckpoi
 import { MessageFooter, ReasoningBlock, ReasoningSummaryBlock, WorkedForCounter } from "./ChatMessageFooter";
 import { CollapseSubchatIcon } from "./ChatIcons";
 import { MarkdownContent } from "./MarkdownContent";
+import { useStartToolCallsCollapsed, useGUIChatPreferencesState } from "../settings/chatPreferences";
 
 type ChatMessageGroupHandlers = {
   onOpenSubagent?: (messageID: string, toolID: string) => void;
@@ -15,6 +16,10 @@ type ChatMessageGroupHandlers = {
 };
 
 export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !== undefined, messages, onOpenSubagent, onRequestDelete, onStopTool }: { isWorking?: boolean; liveWorkedFor?: number; messages: IndexedChatMessage[] } & ChatMessageGroupHandlers) {
+  const preferences = useGUIChatPreferencesState();
+  const preferencesReady = preferences.ready;
+  const autoCollapseToolCalls = preferences.chat.autoCloseToolCalls;
+  const startToolCallsCollapsed = preferences.chat.startToolCallsCollapsed;
   const groups = groupChatTurns(messages);
   const lastAssistantGroupIndex = groups.reduce((lastIndex, entries, groupIndex) => (
     entries[0]?.message.role === "assistant" ? groupIndex : lastIndex
@@ -32,6 +37,9 @@ export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !==
           const shouldShowWorkedFor = groupIndex === lastAssistantGroupIndex;
           return (
             <AssistantTurn
+              preferencesReady={preferencesReady}
+              autoCollapseToolCalls={autoCollapseToolCalls}
+              startToolCallsCollapsed={startToolCallsCollapsed}
               activeWorkedFor={activeWorkedFor}
               isWorking={isWorking && groupIndex === groups.length - 1}
               entries={entries}
@@ -71,6 +79,9 @@ type ToolActivityControl = {
 };
 
 function AssistantTurn({
+  preferencesReady,
+  autoCollapseToolCalls,
+  startToolCallsCollapsed,
   activeWorkedFor,
   entries,
   footerMessage,
@@ -79,6 +90,9 @@ function AssistantTurn({
   onStopTool,
   shouldShowWorkedFor,
 }: {
+  preferencesReady: boolean;
+  autoCollapseToolCalls: boolean;
+  startToolCallsCollapsed: boolean;
   activeWorkedFor?: number;
   entries: IndexedChatMessage[];
   footerMessage: ChatMessage;
@@ -98,7 +112,14 @@ function AssistantTurn({
   const hasToolCalls = toolCalls.length > 0;
   const activityEntries = withActivityCheckpoints(rawActivityEntries, toolCalls);
   const [collapsedOverride, setCollapsedOverride] = useState<boolean | undefined>(undefined);
-  const isToolActivityCollapsed = collapsedOverride ?? !toolCalls.some((tool) => tool.name === "orchestrate");
+  const wasWorking = useRef(isWorking);
+  useEffect(() => {
+    if (!preferencesReady) return;
+    if (autoCollapseToolCalls && !isWorking) setCollapsedOverride(true);
+    else if (isWorking && !wasWorking.current) setCollapsedOverride(undefined);
+    wasWorking.current = isWorking;
+  }, [autoCollapseToolCalls, isWorking, preferencesReady]);
+  const isToolActivityCollapsed = collapsedOverride ?? (startToolCallsCollapsed || (preferencesReady && autoCollapseToolCalls && !isWorking));
   const timelineClassName = [
     "chat-assistant-timeline",
     hasToolCalls ? "has-tool-activity" : "",
@@ -267,9 +288,10 @@ function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagen
 }
 
 function ToolActivity({ isCollapsed: controlledIsCollapsed, onOpenSubagent, onStopTool, onToggleCollapsed, toolCalls }: { isCollapsed?: boolean; onOpenSubagent?: (tool: ChatToolCall) => void; onStopTool?: (toolID: string) => void; onToggleCollapsed?: () => void; toolCalls: ChatToolCall[] }) {
-  const [localIsCollapsed, setLocalIsCollapsed] = useState(() => !toolCalls.some((tool) => tool.name === "orchestrate"));
+  const startToolCallsCollapsed = useStartToolCallsCollapsed();
+  const [localIsCollapsed, setLocalIsCollapsed] = useState<boolean | undefined>(undefined);
   const isControlled = onToggleCollapsed !== undefined;
-  const isCollapsed = controlledIsCollapsed ?? localIsCollapsed;
+  const isCollapsed = controlledIsCollapsed ?? localIsCollapsed ?? startToolCallsCollapsed;
   const collapseLabel = toolActivityCollapseLabel(isCollapsed, toolCalls.length);
 
   function toggleCollapsed() {
@@ -277,7 +299,7 @@ function ToolActivity({ isCollapsed: controlledIsCollapsed, onOpenSubagent, onSt
       onToggleCollapsed();
       return;
     }
-    setLocalIsCollapsed((current) => !current);
+    setLocalIsCollapsed(!isCollapsed);
   }
 
   if (isControlled && isCollapsed) return null;
@@ -396,7 +418,7 @@ export function SubagentChatPanel({ isLoading = false, messages, onCollapse, too
           <p>{tool.input ?? "No task provided."}</p>
         </div>
         <div className="chat-subchat-transcript">
-          {isLoading ? <p className="chat-empty">Loading subchat…</p> : transcript.length ? <ChatMessageGroups messages={indexChatMessages(transcript)} /> : <p className="chat-empty">No subchat messages yet.</p>}
+          {isLoading ? <p className="chat-empty">Loading subchat…</p> : transcript.length ? <ChatMessageGroups isWorking={status === "running" || status === "queued"} messages={indexChatMessages(transcript)} /> : <p className="chat-empty">No subchat messages yet.</p>}
         </div>
       </div>
     </section>

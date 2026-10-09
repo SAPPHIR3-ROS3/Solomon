@@ -65,7 +65,7 @@ func updateConfig(mutate func(*Root) error) (*Root, error) {
 	if err := validateRoot(context.Background(), root); err != nil {
 		return nil, err
 	}
-	if err := Save(root); err != nil {
+	if err := saveUnlocked(root); err != nil {
 		return nil, err
 	}
 	return root, nil

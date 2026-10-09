@@ -401,7 +401,7 @@ function toolCallFromPayload(payload: unknown, index: number, _imageOrigin = "")
   return {
     checkpointBranch: stringValue(record.checkpointBranch ?? record.checkpoint_branch) || undefined,
     checkpointSeq: numberValue(record.checkpointSeq ?? record.checkpoint_seq, undefined),
-    defaultOpen: Boolean(record.defaultOpen),
+    defaultOpen: typeof record.defaultOpen === "boolean" ? record.defaultOpen : undefined,
     delete: Boolean(record.delete),
     full: Boolean(record.full),
     id: stringValue(record.id) || `tool-${index}`,

@@ -82,6 +82,8 @@ type Tools struct {
 }
 
 type Root struct {
+	GUI                       GUISettings `toml:"gui"`
+	guiSnapshot               string
 	UserName                  string               `toml:"user_name"`
 	Providers                 map[string]*Provider `toml:"-"`
 	Current                   Current              `toml:"current"`
