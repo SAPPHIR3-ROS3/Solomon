@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -99,9 +101,19 @@ func TestServerCommandsReportErrorsAndStartIsIdempotent(t *testing.T) {
 
 func TestForegroundDaemonReportsOccupiedPort(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	occupied := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "unrelated service") }))
+	listener, err := occupyWildcardPort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	occupied := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "unrelated service") }))
+	occupied.Listener = listener
+	occupied.Start()
 	defer occupied.Close()
-	t.Setenv("SOLOMON_SERVER_PORT", strings.TrimPrefix(occupied.URL, "http://127.0.0.1:"))
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SOLOMON_SERVER_PORT", port)
 	if err := servercli.Run([]string{"run"}); err == nil || !strings.Contains(err.Error(), "listen tcp4") {
 		t.Fatalf("occupied port reported success: %v", err)
 	}
@@ -215,4 +227,11 @@ func TestDaemonRecoveryRejectsRedirects(t *testing.T) {
 	if _, err := serverruntime.ReadHealth(context.Background(), serverruntime.State{URL: redirect.URL}); err == nil || requests != 0 {
 		t.Fatalf("followed health redirect: requests=%d err=%v", requests, err)
 	}
+}
+
+func occupyWildcardPort() (net.Listener, error) {
+	if runtime.GOOS == "darwin" {
+		return net.Listen("tcp4", "0.0.0.0:0")
+	}
+	return net.Listen("tcp", "127.0.0.1:0")
 }

@@ -31,6 +31,13 @@ function Test-VersionGe {
     return $h -ge $w
 }
 
+function Get-SolomonTempDir {
+    foreach ($candidate in @($env:TEMP, $env:TMP, [System.IO.Path]::GetTempPath())) {
+        if ($candidate) { return $candidate.TrimEnd('\', '/') }
+    }
+    throw 'no temporary directory available'
+}
+
 function Get-GoArch {
     switch ($env:PROCESSOR_ARCHITECTURE) {
         'AMD64' { return 'amd64' }
@@ -47,7 +54,7 @@ function Install-GoWindows {
     $url = "https://go.dev/dl/$zip"
     $parent = Split-Path $GoRoot -Parent
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
-    $tmp = Join-Path $env:TEMP "solomon-go-$([guid]::NewGuid().ToString('n'))"
+    $tmp = Join-Path (Get-SolomonTempDir) "solomon-go-$([guid]::NewGuid().ToString('n'))"
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     try {
         Write-Host "Downloading Go $GoRequired (windows-$arch)..."
@@ -115,7 +122,7 @@ function Install-ReleaseAsset {
         }
     }
     $checksumsUrl = "https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/$Version/checksums.txt"
-    $checksumsPath = Join-Path $env:TEMP ("solomon-checksums-" + [guid]::NewGuid().ToString('n'))
+    $checksumsPath = Join-Path (Get-SolomonTempDir) ("solomon-checksums-" + [guid]::NewGuid().ToString('n'))
     try {
         Invoke-WebRequest -Uri $checksumsUrl -OutFile $checksumsPath -UseBasicParsing
         $expected = $null
