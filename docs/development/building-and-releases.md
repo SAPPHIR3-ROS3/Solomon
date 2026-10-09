@@ -147,6 +147,12 @@ All desktop artifacts must build successfully before the release tag and
 checksums are published. The first CLI launch completes GUI installation using
 these assets, including when the CLI was built with plain `go install`.
 
+The release tag points to a commit containing the generated Cursor and frontend
+bundles. These assets stay out of the development branch. Before pushing the tag,
+CI compiles an archive of that commit for Linux, Windows and macOS without running
+the bundlers, so missing embedded files fail before publication. Upgrade smoke
+tests give older Unix releases a controlling terminal for their restart scripts.
+
 ## See also
 
 - [Installation and PATH](../user-guide/installation.md)

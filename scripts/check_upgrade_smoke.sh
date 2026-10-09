@@ -5,6 +5,7 @@ set -euo pipefail
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 
 repo="${GITHUB_REPOSITORY}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 legacy_tag="${UPGRADE_SMOKE_LEGACY_TAG:-v2026.624.0}"
 fixed_baseline="${UPGRADE_SMOKE_FIXED_BASELINE:-v2026.701.0}"
 smoke_root="${UPGRADE_SMOKE_ROOT:-$(mktemp -d)}"
@@ -126,7 +127,8 @@ wait_for_target_version() {
 run_cli_upgrade() {
   local exe="$1"
   local log="$2"
-  "$exe" upgrade >"$log" 2>&1 &
+  # Older releases reopen /dev/tty when restarting the upgraded CLI.
+  python3 "$script_dir/upgrade_smoke_pty.py" "$exe" upgrade >"$log" 2>&1 &
   local upgrade_pid=$!
   if wait_for_target_version "$exe" "$log"; then
     wait "$upgrade_pid" 2>/dev/null || true
