@@ -210,7 +210,7 @@ install_release_asset() (
   mkdir -p "$bin_dir"
   tmp="$(mktemp "$bin_dir/.solomon-download.XXXXXX")"
   checksums="$(mktemp "$bin_dir/.solomon-checksums.XXXXXX")"
-  trap 'rm -f "$tmp" "$checksums"' EXIT
+  trap "rm -f $(printf '%q' "$tmp") $(printf '%q' "$checksums")" EXIT
   echo "Downloading Solomon release asset ${asset}..."
     attempt=1
   max_attempts=15

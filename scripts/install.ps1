@@ -643,8 +643,13 @@ function Install-Solomon {
     $bin = Join-Path $binDir 'solomon.exe'
     if (Test-Path $bin) {
         Write-Host "solomon installed: $bin"
+        $stream = [System.IO.File]::OpenRead($bin)
+        try {
+            $mz = ($stream.ReadByte() -eq 0x4D) -and ($stream.ReadByte() -eq 0x5A)
+        } finally { $stream.Close() }
+        if (-not $mz) { throw 'Solomon desktop setup failed' }
         & $bin init
-        if ($LASTEXITCODE -ne 0) { throw 'Solomon desktop setup failed' }
+        if (-not $? -or $LASTEXITCODE -ne 0) { throw 'Solomon desktop setup failed' }
         & $bin version 2>$null
         $cmd = Get-Command solomon -ErrorAction SilentlyContinue
         if ($cmd) {
