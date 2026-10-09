@@ -64,11 +64,18 @@ before(async () => {
 after(async () => {
   await browser?.close();
   if (daemon?.pid && daemon.exitCode === null) {
-    const exited = once(daemon, "exit"); daemon.kill("SIGTERM");
-    await Promise.race([exited, wait(5000)]);
-    if (daemon.exitCode === null) { daemon.kill("SIGKILL"); await exited; }
+    const exited = once(daemon, "exit");
+    if (process.platform === "win32") {
+      const cleanup = spawn("taskkill", ["/PID", String(daemon.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+      await once(cleanup, "exit");
+      await exited;
+    } else {
+      daemon.kill("SIGTERM");
+      await Promise.race([exited, wait(5000)]);
+      if (daemon.exitCode === null) { daemon.kill("SIGKILL"); await exited; }
+    }
   }
-  if (home) await rm(home, { recursive: true, force: true });
+  if (home) await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 async function mobilePage(width, height = 844, pageURL = url, touch = true) {
@@ -199,10 +206,11 @@ test("mobile terminal sends input and receives PTY output over WebSocket", async
     }));
     await page.getByRole("button", { name: "Show terminal panel", exact: true }).tap();
     await page.locator(".xterm-helper-textarea").waitFor({ state: "attached" });
-    for (let attempt = 0; attempt < 30 && !output; attempt += 1) await wait(100);
+    for (let attempt = 0; attempt < 100 && !output; attempt += 1) await wait(100);
     assert.ok(output, "Terminal did not connect");
-    await page.locator(".xterm-helper-textarea").focus(); await page.keyboard.type("printf MOBILE_%s_OK terminal"); await page.keyboard.press("Enter");
-    for (let attempt = 0; attempt < 30 && !output.includes("MOBILE_terminal_OK"); attempt += 1) await wait(100);
+    const command = process.platform === "win32" ? "Write-Output ('MOBILE_' + 'terminal_OK')" : "printf MOBILE_%s_OK terminal";
+    await page.locator(".xterm-helper-textarea").focus(); await page.keyboard.type(command); await page.keyboard.press("Enter");
+    for (let attempt = 0; attempt < 100 && !output.includes("MOBILE_terminal_OK"); attempt += 1) await wait(100);
     assert.ok(output.includes("MOBILE_terminal_OK"), output); await withinViewport(page, ".terminal-panel"); assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

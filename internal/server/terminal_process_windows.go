@@ -93,11 +93,15 @@ func startTerminalProcess(options terminalProcessOptions) (_ terminalProcess, er
 		return nil, fmt.Errorf("encode terminal working directory: %w", err)
 	}
 	startup := &windows.StartupInfoEx{
-		StartupInfo:             windows.StartupInfo{Cb: uint32(unsafe.Sizeof(windows.StartupInfoEx{}))},
+		StartupInfo: windows.StartupInfo{
+			Cb:    uint32(unsafe.Sizeof(windows.StartupInfoEx{})),
+			Flags: windows.STARTF_USESTDHANDLES,
+		},
 		ProcThreadAttributeList: attributes.List(),
 	}
-	// ConPTY supplies the child's console handles. STARTF_USESTDHANDLES would
-	// replace them with the zero handles in this startup structure.
+	// Explicit null standard handles prevent Windows from copying the daemon's
+	// redirected log handles into the child. ConPTY supplies console handles
+	// for these null slots when the child attaches to its pseudoconsole.
 	var processInfo windows.ProcessInformation
 	if err := windows.CreateProcess(
 		nil,

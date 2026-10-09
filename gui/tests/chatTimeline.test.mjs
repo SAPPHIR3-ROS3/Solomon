@@ -56,14 +56,14 @@ test("il contatore illumina le lettere in onda durante il lavoro e diventa giall
   const pulse = await readFile(new URL("../src/pulse.css", import.meta.url), "utf8");
   assert.match(css, /\.chat-worked-for\s*\{[^}]*color: var\(--color-crown-gold\)/);
   assert.match(css, /\.chat-worked-for\.is-live\s*\{[^}]*color: var\(--color-text-muted\)/);
-  assert.match(pulse, /\.app-shell \.chat-worked-for\.is-live \.chat-worked-for-wave\s*\{[^}]*animation: chat-worked-for-glow/);
+  assert.match(pulse, /\.app-shell \.chat-worked-for\.is-live \.chat-worked-for-wave(?:\s*,[^{}]+)?\s*\{[^}]*animation: chat-worked-for-glow/);
   assert.doesNotMatch(pulse, /\.chat-worked-for\.is-live\s*\{\s*animation:/);
   assert.match(pulse, /from \{ background-position: -3ch 0; \}/);
   assert.match(pulse, /to \{ background-position: calc\(100% \+ 3ch\) 0; \}/);
   assert.match(pulse, /background-repeat: no-repeat;/);
   assert.match(pulse, /background-size: 3ch 100%;/);
   assert.match(pulse, /background-clip: text;/);
-  assert.match(pulse, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.app-shell \.chat-worked-for\.is-live \.chat-worked-for-wave\s*\{\s*animation: none;/);
+  assert.match(pulse, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.app-shell \.chat-worked-for\.is-live \.chat-worked-for-wave(?:\s*,[^{}]+)?\s*\{\s*animation: none;/);
 });
 
 test("il footer mostra copia, dati e ora in questo ordine", () => {
