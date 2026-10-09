@@ -13,7 +13,7 @@ import { chromium } from "playwright-core";
 const home = await mkdtemp(join(tmpdir(), "solomon-gui-settings-test-"));
 after(() => rm(home, { recursive: true, force: true }));
 const configPath = join(home, "config.toml");
-const helper = join(home, "gui-settings-helper");
+const helper = join(home, process.platform === "win32" ? "gui-settings-helper.exe" : "gui-settings-helper");
 await promisify(execFile)("go", ["build", "-o", helper, "gui/desktop/gui_settings.go"], { cwd: fileURLToPath(new URL("../..", import.meta.url)) });
 const baseConfig = "user_name = 'Fixture'\n[providers.OpenAI]\napi_key = 'secret-fixture'\n";
 await writeFile(configPath, baseConfig);
