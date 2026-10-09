@@ -110,15 +110,17 @@ dump_upgrade_log() {
 wait_for_target_version() {
   local exe="$1"
   local log="${2:-}"
-  local attempt ver=""
+  local attempt ver="" binary_ver=""
   for attempt in $(seq 1 90); do
-    if ver="$("$exe" version 2>/dev/null | tr -d '\r\n')" && [[ "$ver" == *"$RELEASE_TAG"* ]]; then
+    binary_ver="$("$exe" version --binary 2>/dev/null | tr -d '\r\n' || true)"
+    if ver="$("$exe" version 2>/dev/null | tr -d '\r\n')" && \
+      [[ "$binary_ver" == *"$RELEASE_TAG"* && "$ver" == *"$RELEASE_TAG"* ]]; then
       echo "Upgrade smoke OK (${RELEASE_TAG}): ${ver}"
       return 0
     fi
     sleep 2
   done
-  echo "Upgrade smoke failed: expected version to include ${RELEASE_TAG}, last=${ver:-none}" >&2
+  echo "Upgrade smoke failed: expected ${RELEASE_TAG}, binary=${binary_ver:-none}, daemon=${ver:-none}" >&2
   "$exe" version >&2 || true
   dump_upgrade_log "$log"
   return 1
@@ -150,13 +152,19 @@ run_case() {
   log="$(case_dir_for "$from_tag").log"
 
   echo "Upgrade smoke (cli): ${from_tag} -> ${RELEASE_TAG}"
+  local installed_exe
+  installed_exe="$(exe_path)"
+  # Each case starts from its own source release, not a daemon from a prior case.
+  if [[ -x "$installed_exe" ]]; then
+    "$installed_exe" server stop
+  fi
   install_release "$from_tag"
   local exe
   exe="$(exe_path)"
   export NO_COLOR=1
 
   local current
-  current="$("$exe" version | tr -d '\r\n')"
+  current="$("$exe" version --binary | tr -d '\r\n')"
   echo "Installed source release: ${current}"
   if [[ "$current" != *"$from_tag"* ]]; then
     echo "expected version to include ${from_tag}, got ${current}" >&2
@@ -171,29 +179,35 @@ run_case() {
   verify_log_strict "$log" "$from_tag"
 }
 
-prev="$(fetch_prev_release || true)"
-if [[ -z "$prev" ]] && ! release_exists "$legacy_tag"; then
-  echo "Skipping upgrade smoke: no previous or legacy release to upgrade from"
-  exit 0
-fi
-
-sources=()
-if [[ -n "$prev" && "$prev" != "$RELEASE_TAG" ]]; then
-  sources+=("$prev")
-fi
-if [[ "$legacy_tag" != "$RELEASE_TAG" && "$legacy_tag" != "$prev" ]] && release_exists "$legacy_tag"; then
-  sources+=("$legacy_tag")
-fi
-if [[ ${#sources[@]} -eq 0 ]]; then
-  echo "Skipping upgrade smoke: no source tags to test"
-  exit 0
-fi
-
-mkdir -p "$smoke_root"
-
-for from_tag in "${sources[@]}"; do
-  if [[ "$from_tag" == "$RELEASE_TAG" ]]; then
-    continue
+main() {
+  prev="$(fetch_prev_release || true)"
+  if [[ -z "$prev" ]] && ! release_exists "$legacy_tag"; then
+    echo "Skipping upgrade smoke: no previous or legacy release to upgrade from"
+    return 0
   fi
-  run_case "$from_tag"
-done
+
+  sources=()
+  if [[ -n "$prev" && "$prev" != "$RELEASE_TAG" ]]; then
+    sources+=("$prev")
+  fi
+  if [[ "$legacy_tag" != "$RELEASE_TAG" && "$legacy_tag" != "$prev" ]] && release_exists "$legacy_tag"; then
+    sources+=("$legacy_tag")
+  fi
+  if [[ ${#sources[@]} -eq 0 ]]; then
+    echo "Skipping upgrade smoke: no source tags to test"
+    return 0
+  fi
+
+  mkdir -p "$smoke_root"
+
+  for from_tag in "${sources[@]}"; do
+    if [[ "$from_tag" == "$RELEASE_TAG" ]]; then
+      continue
+    fi
+    run_case "$from_tag"
+  done
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main
+fi

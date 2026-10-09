@@ -129,17 +129,19 @@ function Write-UpgradeLog {
 function Wait-TargetVersion {
     param([string]$Exe, [string]$LogPath = '')
     $last = ''
+    $binaryVersion = ''
     for ($attempt = 1; $attempt -le 90; $attempt++) {
+        $binaryVersion = (& $Exe version --binary 2>&1 | Out-String).Trim()
         $ver = (& $Exe version 2>&1 | Out-String).Trim()
         $last = $ver
-        if ($ver -like "*$($env:RELEASE_TAG)*") {
+        if ($binaryVersion -like "*$($env:RELEASE_TAG)*" -and $ver -like "*$($env:RELEASE_TAG)*") {
             Write-Host "Upgrade smoke OK ($($env:RELEASE_TAG)): $ver"
             return
         }
         Start-Sleep -Seconds 2
     }
     Write-UpgradeLog $LogPath
-    throw "Upgrade smoke failed: expected version to include $($env:RELEASE_TAG), last=$last"
+    throw "Upgrade smoke failed: expected $($env:RELEASE_TAG), binary=$binaryVersion, daemon=$last"
 }
 
 function Invoke-CliUpgrade {
@@ -175,11 +177,15 @@ function Invoke-UpgradeSmokeCase {
 
     $logPath = "$(Get-CaseDir $FromTag).log"
     Write-Host "Upgrade smoke (cli): $FromTag -> $($env:RELEASE_TAG)"
+    $installedExe = Get-ExePath
+    if (Test-Path -LiteralPath $installedExe) {
+        & $installedExe server stop
+    }
     Install-Release $FromTag
     $exe = Get-ExePath
     $env:NO_COLOR = '1'
 
-    $current = (& $exe version 2>&1 | Out-String).Trim()
+    $current = (& $exe version --binary 2>&1 | Out-String).Trim()
     Write-Host "Installed source release: $current"
     if ($current -notlike "*$FromTag*") {
         throw "expected version to include $FromTag, got $current"

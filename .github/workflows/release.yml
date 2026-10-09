@@ -9,6 +9,10 @@ on:
         description: Re-run the test suite even if this commit already passed CI
         type: boolean
         default: false
+      smoke_release_tag:
+        description: Only run installation and upgrade checks for an existing release tag
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -16,7 +20,7 @@ permissions:
 
 jobs:
   prior_test_status:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.smoke_release_tag == ''
     runs-on: ubuntu-latest
     outputs:
       skip_tests: ${{ steps.check.outputs.skip_tests }}
@@ -36,7 +40,7 @@ jobs:
         github.event_name == 'push' ||
         github.event_name == 'pull_request' ||
         (
-          github.event_name == 'workflow_dispatch' && (
+          github.event_name == 'workflow_dispatch' && inputs.smoke_release_tag == '' && (
             needs.prior_test_status.result == 'skipped' ||
             needs.prior_test_status.outputs.skip_tests != 'true'
           )
@@ -338,7 +342,7 @@ jobs:
     if: |
       always() &&
       github.event_name == 'workflow_dispatch' &&
-      needs.release.result == 'success'
+      (needs.release.result == 'success' || inputs.smoke_release_tag != '')
     needs: release
     strategy:
       fail-fast: false
@@ -355,7 +359,7 @@ jobs:
       - name: Wait for release assets to be available
         shell: bash
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
         run: |
           set -euo pipefail
           asset="solomon-${RELEASE_TAG}-linux-amd64"
@@ -375,7 +379,7 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
         run: |
           set -euo pipefail
           curl -fsSL "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh" | bash -s -- "${RELEASE_TAG}"
@@ -384,7 +388,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
         run: |
           $script = irm "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1"
           $block = [scriptblock]::Create($script)
@@ -504,7 +508,7 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/check_upgrade_smoke.sh
@@ -513,7 +517,7 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
         run: |
           set -euo pipefail
           export GOBIN="$RUNNER_TEMP/go-install-bin"
@@ -537,7 +541,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
         run: |
           $env:GOBIN = Join-Path $env:RUNNER_TEMP 'go-install-bin'
           New-Item -ItemType Directory -Force -Path $env:GOBIN | Out-Null
@@ -559,7 +563,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: ./scripts/check_upgrade_smoke.ps1
@@ -569,7 +573,7 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
         run: |
           set -euo pipefail
           case "$(uname -s)" in
@@ -595,7 +599,7 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
           ASSET_NAME: ${{ steps.asset_meta_unix.outputs.asset }}
         run: |
           set -euo pipefail
@@ -617,7 +621,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
         run: |
           switch ($env:PROCESSOR_ARCHITECTURE.ToUpperInvariant()) {
             'AMD64' { $arch = 'amd64' }
@@ -631,7 +635,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          RELEASE_TAG: ${{ needs.release.outputs.ver }}
+          RELEASE_TAG: ${{ inputs.smoke_release_tag || needs.release.outputs.ver }}
           ASSET_NAME: ${{ steps.asset_meta_windows.outputs.asset }}
         run: |
           if (-not $env:ASSET_NAME) {

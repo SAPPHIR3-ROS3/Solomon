@@ -152,6 +152,10 @@ bundles. These assets stay out of the development branch. Before pushing the tag
 CI compiles an archive of that commit for Linux, Windows and macOS without running
 the bundlers, so missing embedded files fail before publication. Upgrade smoke
 tests give older Unix releases a controlling terminal for their restart scripts.
+They check the installed binary with `version --binary` and wait for both the
+binary and daemon to reach the target version. To recheck a published release
+without creating another tag, run the workflow with `smoke_release_tag` set to
+that release tag.
 
 ## See also
 
