@@ -61,7 +61,12 @@ func TestReadChatFlagsAndCrossProject(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SOLOMON_HOME", home)
 	p := savedReadChat(t, home, "other-project", "", readChatFixture)
-	if err := os.WriteFile(filepath.Join(home, "projectsId.json"), []byte(`{"/other/workspace":"other-project"}`), 0600); err != nil {
+	projectRoot := filepath.Join(home, "other", "workspace")
+	projectIDs, err := json.Marshal(map[string]string{projectRoot: "other-project"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "projectsId.json"), projectIDs, 0600); err != nil {
 		t.Fatal(err)
 	}
 	for _, mode := range []string{"agent", "chat"} {
@@ -72,7 +77,11 @@ func TestReadChatFlagsAndCrossProject(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if string(result["projectId"]) != `"other-project"` || string(result["projectRoot"]) != `"/other/workspace"` || string(result["compacted"]) != "true" {
+					var gotProjectRoot string
+					if err := json.Unmarshal(result["projectRoot"], &gotProjectRoot); err != nil {
+						t.Fatal(err)
+					}
+					if string(result["projectId"]) != `"other-project"` || gotProjectRoot != projectRoot || string(result["compacted"]) != "true" {
 						t.Fatalf("metadata: %s", result)
 					}
 					var msgs []map[string]json.RawMessage
