@@ -156,6 +156,8 @@ They check the installed binary with `version --binary` and wait for both the
 binary and daemon to reach the target version. To recheck a published release
 without creating another tag, run the workflow with `smoke_release_tag` set to
 that release tag.
+Windows upgrade checks start the CLI through WMI with the runner user's environment,
+because the Actions job forbids the process breakaway requested by older updaters.
 
 ## See also
 
