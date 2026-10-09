@@ -110,8 +110,9 @@ dump_upgrade_log() {
 wait_for_target_version() {
   local exe="$1"
   local log="${2:-}"
+  local max_attempts="${3:-90}"
   local attempt ver="" binary_ver=""
-  for attempt in $(seq 1 90); do
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
     binary_ver="$("$exe" version --binary 2>/dev/null | tr -d '\r\n' || true)"
     if ver="$("$exe" version 2>/dev/null | tr -d '\r\n')" && \
       [[ "$binary_ver" == *"$RELEASE_TAG"* && "$ver" == *"$RELEASE_TAG"* ]]; then
