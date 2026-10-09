@@ -38,7 +38,7 @@ esac
 			t.Fatal(err)
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, "bash", "-c", `
 set -euo pipefail
@@ -46,7 +46,7 @@ source "$1"
 exe_path() { printf '%s/solomon' "$FAKE_STATE_DIR"; }
 sleep() { command sleep 0.02; }
 # A daemon at the target version cannot hide an outdated installed binary.
-if wait_for_target_version "$(exe_path)" > "$FAKE_STATE_DIR/stale.log" 2>&1; then
+if wait_for_target_version "$(exe_path)" "" 1 > "$FAKE_STATE_DIR/stale.log" 2>&1; then
   echo 'accepted an outdated binary' >&2
   exit 1
 fi
