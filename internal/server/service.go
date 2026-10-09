@@ -22,9 +22,11 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/gofrs/flock"
 )
 
 type State struct {
+	Home       string             `json:"home,omitempty"`
 	PID        int                `json:"pid"`
 	URL        string             `json:"url"`
 	LocalURL   string             `json:"localhost_url"`
@@ -109,11 +111,17 @@ func SaveState(state State) error {
 	if err != nil {
 		return err
 	}
-	temporary := path + ".tmp"
-	if err := os.WriteFile(temporary, data, 0o600); err != nil {
+	file, err := os.CreateTemp(filepath.Dir(path), ".state-*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(temporary, path)
+	defer os.Remove(file.Name())
+	_, writeErr := file.Write(data)
+	closeErr := file.Close()
+	if err := errors.Join(writeErr, closeErr); err != nil {
+		return err
+	}
+	return os.Rename(file.Name(), path)
 }
 
 func ClearState() error {
@@ -134,6 +142,26 @@ func ClearState() error {
 }
 
 func Run(ctx context.Context, options Options) error {
+	home, err := paths.SolomonHome()
+	if err != nil {
+		return err
+	}
+	home, err = filepath.Abs(home)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(home, "run", "server"), 0o700); err != nil {
+		return err
+	}
+	lock := flock.New(filepath.Join(home, "run", "server", "daemon.lock"))
+	locked, err := lock.TryLock()
+	if err != nil {
+		return err
+	}
+	if !locked {
+		return fmt.Errorf("a Solomon daemon already owns %s", home)
+	}
+	defer lock.Close()
 	mode := options.Mode
 	if mode == "" {
 		mode = "normal"
@@ -142,13 +170,14 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
-	listener, err := net.Listen("tcp4", listenAddr)
+	listener, err := listenForDaemon(ctx, listenAddr)
 	if err != nil {
 		return err
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	addresses := reachableAddresses(listener.Addr().(*net.TCPAddr), port)
 	state := State{
+		Home:       home,
 		PID:        os.Getpid(),
 		URL:        "http://127.0.0.1:" + strconv.Itoa(port),
 		LocalURL:   "http://localhost:" + strconv.Itoa(port),
@@ -188,7 +217,9 @@ func Run(ctx context.Context, options Options) error {
 	fmt.Fprintf(os.Stderr, "solomon server started url=%s pid=%d mode=%s vite=%s\n", state.URL, state.PID, state.Mode, state.Vite)
 	defer func() {
 		fmt.Fprintln(os.Stderr, "solomon server stopped")
-		_ = ClearState()
+		if current, err := LoadState(); err == nil && current.PID == state.PID && current.StartedAt.Equal(state.StartedAt) {
+			_ = ClearState()
+		}
 	}()
 
 	serviceCtx, cancelService := context.WithCancel(ctx)

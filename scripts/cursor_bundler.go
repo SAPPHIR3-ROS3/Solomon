@@ -14,6 +14,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
 type lineIO struct{}
@@ -43,6 +44,18 @@ func main() {
 		err = cmdBundle()
 	case "install":
 		err = cmdInstall()
+	case "prepare-install":
+		if len(os.Args) != 3 {
+			err = fmt.Errorf("usage: cursor_bundler prepare-install <staging-directory>")
+		} else {
+			err = prepareInstall(os.Args[2])
+		}
+	case "deploy-install":
+		if len(os.Args) != 3 {
+			err = fmt.Errorf("usage: cursor_bundler deploy-install <staging-directory>")
+		} else {
+			err = deployInstall(os.Args[2])
+		}
 	default:
 		usage()
 		os.Exit(2)
@@ -144,9 +157,25 @@ func cmdBundle() error {
 }
 
 func cmdInstall() error {
-	if err := cmdStop(); err != nil {
+	dir, err := cursorInstallDir()
+	if err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Dir(dir), 0755); err != nil {
+		return err
+	}
+	stage, err := os.MkdirTemp(filepath.Dir(dir), ".cursor-install-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	if err := prepareInstall(stage); err != nil {
+		return err
+	}
+	return deployInstall(stage)
+}
+
+func prepareInstall(stage string) error {
 	root, err := findRepoRoot()
 	if err != nil {
 		return err
@@ -155,18 +184,30 @@ func cmdInstall() error {
 	if _, err := os.Stat(filepath.Join(bundle, "dist", "index.js")); err != nil {
 		return fmt.Errorf("bundle missing (run: go run scripts/cursor_bundler.go build && go run scripts/cursor_bundler.go bundle): %w", err)
 	}
+	if err := copyDir(bundle, stage); err != nil {
+		return err
+	}
+	bundlerNote("installing Cursor integration (npm production deps)")
+	if err := npmInstallProd(stage); err != nil {
+		return err
+	}
+	return nil
+}
+
+func deployInstall(stage string) error {
 	dir, err := cursorInstallDir()
 	if err != nil {
 		return err
 	}
-	if err := removeDirRobust(dir); err != nil {
+	for _, required := range []string{filepath.Join("dist", "index.js"), filepath.Join("node_modules", "@cursor", "sdk", "package.json")} {
+		if _, err := os.Stat(filepath.Join(stage, required)); err != nil {
+			return fmt.Errorf("prepared Cursor integration is incomplete: %w", err)
+		}
+	}
+	if err := cmdStop(); err != nil {
 		return err
 	}
-	if err := copyDir(bundle, dir); err != nil {
-		return err
-	}
-	bundlerNote("installing Cursor integration (npm production deps)")
-	if err := npmInstallProd(dir); err != nil {
+	if err := updater.CommitDirectoryInstall(stage, dir); err != nil {
 		return err
 	}
 	bundlerNote("cursor integration installed at " + dir)

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,28 +19,24 @@ import (
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
-func Run(args []string) {
+func Run(args []string) error {
 	if len(args) == 0 {
 		usage()
-		return
+		return fmt.Errorf("missing server subcommand")
 	}
 	switch args[0] {
 	case "start":
 		mode, devDir, err := parseStart(args[1:])
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return
+			return err
 		}
-		if err := start(mode, devDir); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
+		return start(mode, devDir)
 	case "run":
 		mode, devDir, err := parseRun(args[1:])
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return
+			return err
 		}
-		runProcess(mode, devDir)
+		return runProcess(mode, devDir)
 	case "status":
 		status()
 	case "stop":
@@ -47,33 +44,29 @@ func Run(args []string) {
 			if errors.Is(err, os.ErrNotExist) {
 				fmt.Println("server: stopped")
 			} else {
-				fmt.Fprintln(os.Stderr, err)
+				return err
 			}
 		}
 	case "restart":
 		mode, devDir := "normal", ""
-		if state, err := serverruntime.LoadState(); err == nil {
+		if state, err := serverruntime.LoadRunningState(context.Background()); err == nil {
 			mode, devDir = state.Mode, state.DevDir
 		}
 		if err := stop(); err != nil && !errors.Is(err, os.ErrNotExist) {
-			fmt.Fprintln(os.Stderr, err)
-			return
+			return err
 		}
-		if err := start(mode, devDir); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
+		return start(mode, devDir)
 	case "logs":
 		interactive := len(args) == 2 && args[1] == "interactive"
 		if len(args) > 2 || (len(args) == 2 && !interactive) {
-			fmt.Fprintln(os.Stderr, "usage: solomon server logs [interactive]")
-			return
+			return fmt.Errorf("usage: solomon server logs [interactive]")
 		}
-		if err := logs(interactive); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
+		return logs(interactive)
 	default:
 		usage()
+		return fmt.Errorf("unknown server subcommand: %s", args[0])
 	}
+	return nil
 }
 
 func usage() {
@@ -122,12 +115,11 @@ func start(mode, devDir string) error {
 	if err := loadDotEnv(devDir); err != nil {
 		return err
 	}
-	if state, err := serverruntime.LoadState(); err == nil {
-		if healthy(state) {
-			return fmt.Errorf("server already running at %s", state.URL)
-		}
-		serverruntime.ForceStop(state)
-		_ = serverruntime.ClearState()
+	if state, err := serverruntime.LoadRunningState(context.Background()); err == nil {
+		fmt.Printf("server already running at %s\n", state.URL)
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
 	logPath, err := serverruntime.LogPath()
 	if err != nil {
@@ -157,24 +149,60 @@ func start(mode, devDir string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	_ = cmd.Process.Release()
+	startedPID := cmd.Process.Pid
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if state, err := serverruntime.LoadState(); err == nil && healthy(state) {
+		if state, err := serverruntime.LoadState(); err == nil && state.PID == startedPID && healthy(state) {
 			fmt.Printf("server started\nurl: %s\nlocalhost: %s\n", state.URL, state.LocalURL)
 			printReachableAddresses(state)
 			fmt.Printf("pid: %d\n", state.PID)
 			return nil
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case err := <-exited:
+			return fmt.Errorf("daemon exited during startup (%v): %s; inspect %s with solomon server logs", err, startupLogTail(logPath), logPath)
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	// Only terminate the child created by this invocation, never a PID taken
+	// from an unverified stale state file.
+	if state, err := serverruntime.LoadState(); err == nil && state.PID == startedPID {
+		serverruntime.ForceStop(state)
+	} else {
+		_ = cmd.Process.Kill()
 	}
 	return fmt.Errorf("server did not become healthy; inspect with: solomon server logs")
 }
 
-func runProcess(mode, devDir string) {
+func startupLogTail(path string) string {
+	file, err := os.Open(path)
+	if err != nil {
+		return "log unavailable"
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return "log unavailable"
+	}
+	if info.Size() > 2048 {
+		_, _ = file.Seek(-2048, io.SeekEnd)
+	}
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return "log unavailable"
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) > 3 {
+		lines = lines[len(lines)-3:]
+	}
+	return strings.Join(lines, " | ")
+}
+
+func runProcess(mode, devDir string) error {
 	if err := loadDotEnv(devDir); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
+		return err
 	}
 	// The server subcommand returns before main's normal logging setup. The
 	// runtime (notably the background MCP connector) logs from goroutines, so
@@ -183,8 +211,9 @@ func runProcess(mode, devDir string) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := serverruntime.Run(ctx, serverruntime.Options{Mode: mode, DevDir: devDir}); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		fmt.Fprintln(os.Stderr, err)
+		return err
 	}
+	return nil
 }
 
 func FormatStatusFields(state serverruntime.State) string {
@@ -197,7 +226,7 @@ func FormatStatusFields(state serverruntime.State) string {
 }
 
 func status() {
-	state, err := serverruntime.LoadState()
+	state, err := serverruntime.LoadRunningState(context.Background())
 	if err != nil || !healthy(state) {
 		fmt.Println("server: stopped")
 		return
@@ -223,9 +252,9 @@ func printReachableAddresses(state serverruntime.State) {
 }
 
 func stop() error {
-	state, err := serverruntime.LoadState()
+	state, err := serverruntime.LoadRunningState(context.Background())
 	if err != nil {
-		return os.ErrNotExist
+		return err
 	}
 	request, err := http.NewRequest(http.MethodPost, state.URL+"/_solomon/stop", nil)
 	if err != nil {
@@ -233,9 +262,7 @@ func stop() error {
 	}
 	response, err := (&http.Client{Timeout: 2 * time.Second}).Do(request)
 	if err != nil {
-		serverruntime.ForceStop(state)
-		_ = serverruntime.ClearState()
-		return fmt.Errorf("server was not reachable; cleared stale state")
+		return fmt.Errorf("stop verified daemon: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusAccepted {
@@ -247,31 +274,16 @@ func stop() error {
 			return nil
 		}
 		if !healthy(state) {
-			serverruntime.ForceStop(state)
-			_ = serverruntime.ClearState()
 			fmt.Println("server stopped")
 			return nil
 		}
 	}
-	if !healthy(state) {
-		serverruntime.ForceStop(state)
-		_ = serverruntime.ClearState()
-		fmt.Println("server stopped")
-		return nil
-	}
-	serverruntime.ForceStop(state)
-	_ = serverruntime.ClearState()
-	fmt.Println("server stopped")
-	return nil
+	return fmt.Errorf("daemon %d did not stop; state preserved for recovery", state.PID)
 }
 
 func healthy(state serverruntime.State) bool {
-	response, err := (&http.Client{Timeout: 300 * time.Millisecond}).Get(state.URL + "/health")
-	if err != nil {
-		return false
-	}
-	defer response.Body.Close()
-	return response.StatusCode == http.StatusOK
+	health, err := serverruntime.ReadHealth(context.Background(), state)
+	return err == nil && health.OK && health.Server.PID == state.PID && health.Server.StartedAt.Equal(state.StartedAt)
 }
 
 func logs(interactive bool) error {

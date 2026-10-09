@@ -19,7 +19,9 @@ go_install_bin_dir() {
     printf '%s\n' "$gobin"
     return
   fi
-  printf '%s/bin\n' "$(go env GOPATH)"
+  local gopath
+  gopath="$(go env GOPATH)"
+  printf '%s/bin\n' "${gopath%%:*}"
 }
 
 persist_github_path() {
@@ -61,13 +63,14 @@ if command -v go >/dev/null 2>&1; then
   if [[ -n "$_solomon_gobin" ]]; then
     _solomon_go_bin="$_solomon_gobin"
   else
-    _solomon_go_bin="$(go env GOPATH)/bin"
+    _solomon_gopath="$(go env GOPATH)"
+    _solomon_go_bin="${_solomon_gopath%%:*}/bin"
   fi
   case ":${PATH}:" in
     *":${_solomon_go_bin}:"*) ;;
     *) export PATH="${_solomon_go_bin}:${PATH}" ;;
   esac
-  unset _solomon_gobin _solomon_go_bin
+  unset _solomon_gobin _solomon_go_bin _solomon_gopath
 fi
 EOF
 }
@@ -79,7 +82,8 @@ if command -q go
   if test -n "$_solomon_gobin"
     fish_add_path --prepend $_solomon_gobin
   else
-    fish_add_path --prepend (go env GOPATH)/bin
+    set -l _solomon_gopath (string split ':' (go env GOPATH))
+    fish_add_path --prepend $_solomon_gopath[1]/bin
   end
 end
 EOF
@@ -122,10 +126,23 @@ ensure_gopath_rc_block() {
 
 version_ge() {
   local have="$1" want="$2"
-  if [[ "$(printf '%s\n%s\n' "$want" "$have" | sort -V | head -n1)" == "$want" ]]; then
-    return 0
+  # BSD sort (macOS) has no -V. Compare numeric components with POSIX awk.
+  awk -v have="$have" -v want="$want" 'BEGIN {
+    nh=split(have,h,"."); nw=split(want,w,"."); n=nh>nw?nh:nw;
+    for(i=1;i<=n;i++) { if(h[i]+0>w[i]+0) exit 0; if(h[i]+0<w[i]+0) exit 1 }
+    exit 0
+  }'
+}
+
+file_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    echo 'SHA-256 verification requires sha256sum or shasum' >&2
+    return 1
   fi
-  return 1
 }
 
 go_semver() {
@@ -181,7 +198,7 @@ resolve_install_version() {
   echo "Latest release: ${INSTALL_VERSION}"
 }
 
-install_release_asset() {
+install_release_asset() (
   local platform goos goarch asset url bin_dir target tmp
   platform="$(detect_platform)"
   goos="${platform%-*}"
@@ -190,8 +207,10 @@ install_release_asset() {
   url="https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/${INSTALL_VERSION}/${asset}"
   bin_dir="$(go_install_bin_dir)"
   target="${bin_dir}/solomon"
-  tmp="$(mktemp)"
   mkdir -p "$bin_dir"
+  tmp="$(mktemp "$bin_dir/.solomon-download.XXXXXX")"
+  checksums="$(mktemp "$bin_dir/.solomon-checksums.XXXXXX")"
+  trap 'rm -f "$tmp" "$checksums"' EXIT
   echo "Downloading Solomon release asset ${asset}..."
     attempt=1
   max_attempts=15
@@ -209,15 +228,14 @@ install_release_asset() {
     attempt=$((attempt + 1))
   done
   checksums_url="https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/${INSTALL_VERSION}/checksums.txt"
-  checksums="$(mktemp)"
   if curl -fsSL "$checksums_url" -o "$checksums"; then
-    expected="$(awk -v asset="$asset" '$NF==asset {print $1; exit}' "$checksums")"
+    expected="$(awk -v asset="$asset" '{name=$NF; sub(/^\*/,"",name); if(name==asset) {print tolower($1); exit}}' "$checksums")"
     if [[ -z "$expected" ]]; then
       echo "checksums: no entry for ${asset} in checksums.txt" >&2
       rm -f "$tmp" "$checksums"
       exit 1
     fi
-    actual="$(sha256sum "$tmp" | awk '{print $1}')"
+    actual="$(file_sha256 "$tmp")"
     if [[ "$expected" != "$actual" ]]; then
       echo "checksum mismatch for ${asset} (expected ${expected}, got ${actual})" >&2
       rm -f "$tmp" "$checksums"
@@ -225,13 +243,16 @@ install_release_asset() {
     fi
     rm -f "$checksums"
   else
-    echo "Warning: no checksums.txt for ${INSTALL_VERSION}; skipping integrity check" >&2
+    echo "Cannot download checksums.txt for ${INSTALL_VERSION}; installation cancelled" >&2
+    exit 1
   fi
+  [[ -s "$tmp" ]] || { echo 'Downloaded binary is empty' >&2; exit 1; }
+  # Chmod before the atomic rename; a running CLI keeps its previous inode.
+  chmod 755 "$tmp"
   mv "$tmp" "$target"
-  chmod +x "$target"
-}
+)
 
-install_go() {
+install_go() (
   local platform tarball url parent tmp
   platform="$(detect_platform)"
   tarball="go${GO_REQUIRED}.${platform}.tar.gz"
@@ -239,14 +260,24 @@ install_go() {
   parent="$(dirname "$GO_INSTALL_ROOT")"
   mkdir -p "$parent"
   echo "Downloading Go ${GO_REQUIRED} (${platform})..."
-  tmp="$(mktemp -d)"
+  tmp="$(mktemp -d "$parent/.solomon-go.XXXXXX")"
+  trap 'rm -rf "$tmp"' EXIT
   curl -fsSL "$url" -o "${tmp}/${tarball}"
-  rm -rf "$GO_INSTALL_ROOT"
-  tar -C "$parent" -xzf "${tmp}/${tarball}"
-  rm -rf "$tmp"
-  export PATH="${GO_INSTALL_ROOT}/bin:${PATH}"
-  INSTALLED_LOCAL_GO=1
-}
+  tar -C "$tmp" -xzf "${tmp}/${tarball}"
+  "${tmp}/go/bin/go" version >/dev/null
+  if [[ -e "$GO_INSTALL_ROOT" ]]; then
+    mv "$GO_INSTALL_ROOT" "$tmp/previous-go"
+  fi
+  if ! mv "$tmp/go" "$GO_INSTALL_ROOT"; then
+    if [[ -e "$tmp/previous-go" ]]; then
+      if ! mv "$tmp/previous-go" "$GO_INSTALL_ROOT"; then
+        trap - EXIT
+        echo "Go rollback failed; previous toolchain retained in $tmp/previous-go" >&2
+      fi
+    fi
+    exit 1
+  fi
+)
 
 ensure_go() {
   local ver
@@ -262,6 +293,8 @@ ensure_go() {
     echo "Go not found; installing ${GO_REQUIRED}..."
   fi
   install_go
+  export PATH="${GO_INSTALL_ROOT}/bin:${PATH}"
+  INSTALLED_LOCAL_GO=1
   ver="$(go_semver)"
   if ! version_ge "$ver" "$GO_REQUIRED"; then
     echo "Go install failed (got ${ver})" >&2
@@ -500,6 +533,10 @@ ensure_node() {
 }
 
 cloakbrowser_ready() {
+  command -v node >/dev/null 2>&1 || return 1
+  local node_version
+  node_version="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//')" || return 1
+  version_ge "$node_version" "$NODE_REQUIRED" || return 1
   local solomon_home cloak_dir cloak_cache browser
   solomon_home="${SOLOMON_HOME:-${HOME}/.solomon}"
   cloak_dir="${solomon_home}/cloakbrowser"
@@ -616,8 +653,8 @@ upsert_toml_scalar() {
         print
         next
       }
-      $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
-        if (!in_table && !updated) { print line; updated = 1 }
+      !in_table && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+        if (!updated) { print line; updated = 1 }
         next
       }
       { print }
@@ -818,19 +855,43 @@ setup_shell() {
   echo "Reload your shell or run: source $(rc_file)"
 }
 
-install_solomon() {
+install_solomon() (
   resolve_install_version
   ensure_go_bin_in_path
-  echo "Installing solomon (${INSTALL_VERSION})..."
-  install_release_asset
-  local bin_dir solomon_bin
+  local server_port
+  server_port="$(resolve_installer_server_port "${SOLOMON_HOME:-${HOME}/.solomon}")"
+  if curl --connect-timeout 2 --max-time 3 -fsS "http://127.0.0.1:${server_port}/health" -o /dev/null 2>/dev/null; then
+    echo 'A daemon is active. Use solomon upgrade for a coordinated update, or stop Solomon before reinstalling.' >&2
+    return 1
+  fi
+  local bin_dir solomon_bin previous
   bin_dir="$(go_install_bin_dir)"
   solomon_bin="${bin_dir}/solomon"
-  if command -v solomon >/dev/null 2>&1; then
-    echo "solomon installed: $(command -v solomon)"
-    solomon init
-    solomon version 2>/dev/null || true
-  elif [[ -x "$solomon_bin" ]]; then
+  previous="$(mktemp "$bin_dir/.solomon-reinstall-backup.XXXXXX")"
+  local had_previous=0
+  if [[ -e "$solomon_bin" ]]; then
+    cp -p "$solomon_bin" "$previous"
+    had_previous=1
+  fi
+  rollback_release_install() {
+    local status=$?
+    if (( status != 0 )); then
+      if (( had_previous == 1 )); then
+        if ! mv -f "$previous" "$solomon_bin"; then
+          echo "CLI rollback failed; original retained at $previous" >&2
+          return "$status"
+        fi
+      else
+        rm -f "$solomon_bin"
+      fi
+    fi
+    rm -f "$previous"
+    return "$status"
+  }
+  trap rollback_release_install EXIT
+  echo "Installing solomon (${INSTALL_VERSION})..."
+  install_release_asset
+  if [[ -x "$solomon_bin" ]]; then
     echo "solomon installed: ${solomon_bin}"
     "$solomon_bin" init
     "$solomon_bin" version 2>/dev/null || true
@@ -838,7 +899,7 @@ install_solomon() {
     echo "solomon binary is in ${bin_dir} (add to PATH if needed)" >&2
     exit 1
   fi
-}
+)
 
 setup_path_only() {
   ensure_go
@@ -849,9 +910,9 @@ main() {
   ensure_go
   ensure_make
   setup_shell
-  install_solomon
   install_cloakbrowser
   configure_runtime_defaults
+  install_solomon
   echo "Done."
 }
 

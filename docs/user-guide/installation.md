@@ -67,7 +67,8 @@ builds reuse an existing local GUI, or resolve the latest release when missing.
 Help and internal server/worker processes do not trigger installation.
 
 `solomon desktop install [release-tag]` remains available to reinstall manually.
-From a Windows checkout, `make desktop-install` builds the local GUI instead.
+From a checkout, `make desktop-install` builds and installs the local GUI through
+the same coordinated runtime handoff as `make hot-install` on all three platforms.
 
 ## `go install` (manual)
 
@@ -90,10 +91,19 @@ make build
 Produces `./solomon` (Unix/macOS) or `./solomon.exe` (Windows). Release workflow and CI checks: [Building and releases](../development/building-and-releases.md).
 
 For GUI development from a clone, `make hot-install` verifies the locked npm
-dependencies for `gui` and installs them when they are missing or incomplete
-before restarting the server. On Windows it starts the server in development
-mode; on Unix it preserves the previous server mode. To run only that
+dependencies for `gui` and installs them when they are missing or incomplete.
+It prepares the CLI, native desktop and dependencies before stopping the server,
+then verifies the replacement and reopens native clients. It preserves the prior
+server mode and port on all platforms, or uses development mode for a first
+installation. Failed deployment restores the previous installation. To run only that
 dependency check, use `make gui-deps`.
+
+Use `solomon upgrade` to update an active release installation. Standalone release
+installers require Solomon to be closed; they do not replace files underneath
+active clients. Downloads require a matching release checksum.
+
+Failure cases and recovery guarantees are documented in the
+[installation reliability audit](../development/installation-audit.md).
 
 ## Verify install
 

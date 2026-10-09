@@ -12,12 +12,20 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 	"github.com/gofrs/flock"
 )
 
 // HotInstall replaces the local installation while its daemon and native clients
 // are stopped, then starts fresh processes in the daemon's previous mode.
 func HotInstall(ctx context.Context, target, defaultDevDir string, install func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	target, err := filepath.Abs(target)
+	if err != nil {
+		return err
+	}
 	home, err := paths.SolomonHome()
 	if err != nil {
 		return err
@@ -34,8 +42,50 @@ func HotInstall(ctx context.Context, target, defaultDevDir string, install func(
 		return fmt.Errorf("another Solomon update is already running")
 	}
 	defer lock.Unlock()
-	ops := platformRuntimeUpdateOps(ctx, "", serverruntime.State{Mode: "dev", DevDir: defaultDevDir})
-	return hotInstall(target, install, ops)
+	desktop, err := updater.DesktopExecutablePath(target)
+	if err != nil {
+		return err
+	}
+	backupPaths := []string{target, desktop, desktop + ".install.json"}
+	if strings.HasSuffix(desktop, filepath.Join("Contents", "MacOS", "solomon-desktop")) {
+		backupPaths = []string{target, filepath.Dir(filepath.Dir(filepath.Dir(desktop)))}
+	}
+	cursor := strings.TrimSpace(os.Getenv("SOLOMON_CURSOR_API_ROOT"))
+	if cursor == "" {
+		cursor = filepath.Join(home, "integrations", "cursor")
+	}
+	backupPaths = append(backupPaths, cursor)
+	backup, err := updater.BackupInstallation(backupPaths...)
+	if err != nil {
+		return err
+	}
+	defaultState := serverruntime.State{Mode: "normal"}
+	if defaultDevDir != "" {
+		defaultState.Mode, defaultState.DevDir = "dev", defaultDevDir
+	}
+	ops := platformRuntimeUpdateOps(ctx, "", defaultState)
+	restore := ops.restore
+	restored := false
+	installAttempted := false
+	ops.restore = func(target string) error {
+		restored = true
+		if installAttempted {
+			if err := backup.Restore(); err != nil {
+				return err
+			}
+		}
+		return restore(target)
+	}
+	err = hotInstall(target, func() error {
+		installAttempted = true
+		return install()
+	}, ops)
+	if err == nil || restored {
+		backup.Close()
+	} else {
+		err = errors.Join(err, fmt.Errorf("installation backups retained because recovery did not complete: %v", backup.Locations()))
+	}
+	return err
 }
 
 func hotInstall(target string, install func() error, ops runtimeUpdateOps) (err error) {

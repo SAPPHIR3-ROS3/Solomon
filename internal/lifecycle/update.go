@@ -91,14 +91,14 @@ func applyRuntimeUpdate(ctx context.Context, tag string, ops runtimeUpdateOps) (
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	backup := target + ".runtime-backup"
-	if err := os.Link(target, backup); err != nil {
-		return fmt.Errorf("preserve current runtime: %w", err)
+	backup, err := updater.BackupInstallation(target)
+	if err != nil {
+		return err
 	}
 	rollbackSafe := true
 	defer func() {
 		if rollbackSafe {
-			os.Remove(backup)
+			backup.Close()
 		}
 	}()
 	commitAttempted := false
@@ -107,14 +107,14 @@ func applyRuntimeUpdate(ctx context.Context, tag string, ops runtimeUpdateOps) (
 			if ops.quiesce != nil {
 				if stopErr := ops.quiesce(); stopErr != nil {
 					rollbackSafe = false
-					err = errors.Join(err, stopErr, fmt.Errorf("previous binary preserved at %s", backup))
+					err = errors.Join(err, stopErr, fmt.Errorf("previous installation backups retained: %v", backup.Locations()))
 					return
 				}
 			}
 			if commitAttempted {
-				if rollbackErr := os.Rename(backup, target); rollbackErr != nil {
+				if rollbackErr := backup.Restore(); rollbackErr != nil {
 					rollbackSafe = false
-					err = errors.Join(err, rollbackErr, fmt.Errorf("previous binary preserved at %s", backup))
+					err = errors.Join(err, rollbackErr)
 					return
 				}
 			}
@@ -154,17 +154,21 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 		oldState = defaults[0]
 	}
 	var daemonStopped bool
+	daemonPort := ""
 	start := func(target string, requireVersion bool) error {
 		startCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		args := []string{"server", "start"}
-		if oldState.Mode == "dev" {
+		if !requireVersion && oldState.Mode == "dev" {
 			args = append(args, "dev", oldState.DevDir)
 		}
 		command := exec.CommandContext(startCtx, target, args...)
+		if daemonPort != "" {
+			command.Env = append(os.Environ(), "SOLOMON_SERVER_PORT="+daemonPort)
+		}
 		command.Stdout, command.Stderr = os.Stdout, os.Stderr
 		if err := command.Run(); err != nil {
-			return err
+			return fmt.Errorf("start daemon: %w", err)
 		}
 		deadline := time.Now().Add(20 * time.Second)
 		for time.Now().Before(deadline) {
@@ -182,12 +186,18 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 						if tag == "" {
 							executable = target
 							if desktop.kind != "tui" {
-								executable = filepath.Join(filepath.Dir(target), desktopName())
+								executable, err = updater.DesktopExecutablePath(target)
+								if err != nil {
+									return err
+								}
 							}
 						}
 						command := exec.Command(executable, desktop.args...)
 						command.Env, command.Dir = desktop.env, desktop.cwd
-						if tag == "" && desktop.kind != "tui" {
+						if daemonPort != "" {
+							command.Env = append(command.Env, "SOLOMON_SERVER_PORT="+daemonPort)
+						}
+						if desktop.kind != "tui" {
 							command.Env = append(command.Env, "SOLOMON_BINARY="+target)
 						}
 						configureClientProcess(command, desktop.kind)
@@ -217,17 +227,21 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 			case <-time.After(100 * time.Millisecond):
 			}
 		}
-		return fmt.Errorf("daemon did not become ready at version %s", tag)
+		return fmt.Errorf("daemon did not become ready (expected version %q); inspect with solomon server logs", tag)
 	}
 	return runtimeUpdateOps{
 		prepare: func() (string, string, error) { return updater.PrepareInstall(ctx, tag, os.Stdout) },
 		stop: func(target string) error {
 			var err error
-			desktops, err = updateClients(filepath.Join(filepath.Dir(target), desktopName()))
+			desktopTarget, err := updater.DesktopExecutablePath(target)
 			if err != nil {
 				return err
 			}
-			state, err := serverruntime.LoadState()
+			desktops, err = updateClients(desktopTarget)
+			if err != nil {
+				return err
+			}
+			state, err := serverruntime.LoadRunningState(ctx)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -237,9 +251,10 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 				if err != nil || parsed.Scheme != "http" || (parsed.Hostname() != "localhost" && !net.ParseIP(parsed.Hostname()).IsLoopback()) {
 					return fmt.Errorf("refusing to stop a non-loopback daemon")
 				}
+				daemonPort = parsed.Port()
 				health, err := serverruntime.ReadHealth(ctx, oldState)
 				if err != nil || !health.OK || health.Server.PID != oldState.PID {
-					return fmt.Errorf("cannot verify daemon identity: %w", err)
+					return fmt.Errorf("cannot verify daemon identity (pid %d): %v", oldState.PID, err)
 				}
 			}
 			for _, desktop := range desktops {
@@ -249,10 +264,12 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 				if err := requestClientStop(desktop); err != nil {
 					return err
 				}
+				// Once requested, shutdown can finish after the update context expires.
+				// Recovery must remember this client even if the wait is interrupted.
+				stopped = append(stopped, desktop)
 				if err := waitProcessExit(ctx, desktop.pid, desktop.identity); err != nil {
 					return err
 				}
-				stopped = append(stopped, desktop)
 			}
 			if oldState.PID > 0 {
 				identity := processIdentity(oldState.PID)
@@ -275,6 +292,18 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 		commit: updater.CommitInstall,
 		start:  func(target string) error { return start(target, tag != "") },
 		quiesce: func() error {
+			// Finish pending shutdowns with an independent recovery deadline before
+			// restoring files or starting replacements for those same clients.
+			for _, client := range stopped {
+				if err := waitProcessExit(context.Background(), client.pid, client.identity); err != nil {
+					return err
+				}
+			}
+			if daemonStopped {
+				if err := waitProcessExit(context.Background(), oldState.PID, processIdentity(oldState.PID)); err != nil {
+					return err
+				}
+			}
 			// Close any partially restarted clients before restoring mapped binaries.
 			for _, client := range restarted {
 				clients, lookupErr := updateClients(filepath.Join(filepath.Dir(client.executable), desktopName()))
@@ -336,12 +365,20 @@ func ApplyLocalUpdate(ctx context.Context, tag, staged, target string, desktopSt
 	ops := platformRuntimeUpdateOps(ctx, tag)
 	ops.prepare = func() (string, string, error) { return staged, target, nil }
 	if len(desktopStaged) > 0 {
-		desktopTarget := filepath.Join(filepath.Dir(target), desktopName())
-		backup := desktopTarget + ".runtime-backup"
-		if err := os.Link(desktopTarget, backup); err != nil {
+		desktopTarget, err := updater.DesktopExecutablePath(target)
+		if err != nil {
 			return err
 		}
-		defer os.Remove(backup)
+		backup, err := updater.BackupInstallation(desktopTarget)
+		if err != nil {
+			return err
+		}
+		safeToClean := false
+		defer func() {
+			if safeToClean {
+				backup.Close()
+			}
+		}()
 		commit, restore := ops.commit, ops.restore
 		desktopCommitted := false
 		ops.commit = func(staged, target string) error {
@@ -354,12 +391,18 @@ func ApplyLocalUpdate(ctx context.Context, tag, staged, target string, desktopSt
 		}
 		ops.restore = func(target string) error {
 			if desktopCommitted {
-				if err := os.Rename(backup, desktopTarget); err != nil {
+				if err := backup.Restore(); err != nil {
 					return err
 				}
 			}
+			safeToClean = true
 			return restore(target)
 		}
+		err = applyRuntimeUpdate(ctx, tag, ops)
+		if err == nil {
+			safeToClean = true
+		}
+		return err
 	}
 	return applyRuntimeUpdate(ctx, tag, ops)
 }

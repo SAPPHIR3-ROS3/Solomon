@@ -18,6 +18,10 @@ func launchCoordinatedUpdate(tag string) error {
 	if err != nil {
 		return err
 	}
+	installedCLI := executable
+	if configured := os.Getenv("SOLOMON_BINARY"); configured != "" {
+		installedCLI = configured
+	}
 	home, err := paths.SolomonHome()
 	if err != nil {
 		return err
@@ -61,7 +65,7 @@ func launchCoordinatedUpdate(tag string) error {
 	}
 	args := []string{"__upgrade-runtime", tag, strconv.Itoa(os.Getpid())}
 	command := exec.Command(executable, args...)
-	command.Env = os.Environ()
+	command.Env = append(os.Environ(), "SOLOMON_BINARY="+installedCLI)
 	command.Stdout, command.Stderr = log, log
 	configureCoordinator(command)
 	if err := command.Start(); err != nil {
