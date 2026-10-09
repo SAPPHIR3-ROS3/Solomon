@@ -10,7 +10,7 @@ jobs:
   agent-jsonl:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Solomon
         run: go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
       - name: Stream JSONL events
@@ -23,7 +23,7 @@ jobs:
   agent-json-report:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Solomon
         run: go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest
       - name: Write final JSON report
@@ -32,7 +32,7 @@ jobs:
           OPENAI_BASE_URL: https://api.openai.com/v1
           MODEL_ID: gpt-4o
         run: solomon exec --json fix lint issues > solomon-report.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: solomon-report
           path: solomon-report.json
