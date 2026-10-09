@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
+import { runGUISettings } from "./guiSettingsPlugin";
 
 const modelsEndpoint = "/__solomon/models";
 const currentModelEndpoint = "/__solomon/current-model";
@@ -131,20 +132,6 @@ function parseRecentModels(source: string): Map<string, string[]> {
   return recent;
 }
 
-function parseHiddenModels(source: string): Map<string, string[]> {
-  const body = sectionBody(source, /^\s*\[hidden_models\]\s*$/m);
-  const hidden = new Map<string, string[]>();
-  for (const line of body.split(/\r?\n/)) {
-    const match = line.match(/^\s*(?:"([^"]+)"|'((?:[^']|'')*)'|([A-Za-z0-9_-]+))\s*=\s*\[(.*)\]\s*(?:#.*)?$/);
-    if (!match) continue;
-    const provider = (match[1] || (match[2] ? match[2].replaceAll("''", "'") : "") || match[3] || "").trim();
-    if (!provider || skippedProviders.has(provider)) continue;
-    const models = Array.from(match[4].matchAll(/"([^"]+)"|'((?:[^']|'')*)'/g), (entry) => (entry[1] || entry[2]?.replaceAll("''", "'") || "").trim()).filter(Boolean);
-    if (models.length) hidden.set(provider, models);
-  }
-  return hidden;
-}
-
 function parseCurrent(source: string): ModelChoice {
   const body = sectionBody(source, /^\s*\[current\]\s*$/m);
   const provider = body.match(/^\s*provider\s*=\s*((?:"(?:[^"\\]|\\.)*")|(?:'(?:[^']|'')*')|[^\s#]+)\s*(?:#.*)?$/m);
@@ -167,14 +154,9 @@ function uniqueModels(ids: string[], first = ""): string[] {
   return out;
 }
 
-async function readHiddenModels(home: string, source?: string): Promise<Map<string, string[]>> {
-  try {
-    const hidden = JSON.parse(await readFile(path.join(home, "model-visibility.json"), "utf8")) as Record<string, string[]>;
-    return new Map(Object.entries(hidden ?? {}));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return parseHiddenModels(source ?? await readFile(configPath(home), "utf8"));
-  }
+async function readHiddenModels(home: string, _source?: string): Promise<Map<string, string[]>> {
+  const settings = await runGUISettings({ action: "read" }, home);
+  return new Map(Object.entries(settings.models.hiddenModels ?? {}));
 }
 
 async function readRecentModelCatalog(home: string): Promise<ModelCatalog> {
@@ -305,16 +287,8 @@ function queueConfigWrite<T>(write: () => Promise<T>): Promise<T> {
 }
 
 async function writeModelVisibility(home: string, provider: string, model: string, enabled: boolean): Promise<ModelVisibility> {
-  return new Promise((resolve, reject) => {
-    const child = execFile("go", ["run", path.join(guiRoot, "desktop", "model_visibility.go")],
-      { cwd: repositoryRoot, env: { ...process.env, SOLOMON_HOME: home }, timeout: 15_000 },
-      (error, stdout, stderr) => {
-        if (error) { reject(new Error(stderr?.trim() || error.message)); return; }
-        try { resolve(JSON.parse(stdout) as ModelVisibility); } catch (error) { reject(error); }
-      });
-    child.stdin?.on("error", reject);
-    child.stdin?.end(JSON.stringify({ provider, model, enabled }));
-  });
+  await runGUISettings({ action: "visibility", provider, model, enabled }, home);
+  return { provider, model, enabled };
 }
 
 async function writeCurrentModel(home: string, provider: string, model: string): Promise<ModelChoice> {

@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 const server = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: "automatic" } });
 const { ChatMessageGroups } = await server.ssrLoadModule("/src/chat/ChatMessageGroups.tsx");
 
-test("groups intermediate assistant replies into collapsed tool activity", () => {
+test("groups intermediate assistant replies into expanded tool activity by default", () => {
   const tool = (id, checkpointSeq) => ({
     checkpointSeq,
     id,
@@ -32,10 +32,10 @@ test("groups intermediate assistant replies into collapsed tool activity", () =>
     indexed("a4", 5, "final response", "final thought"),
   ];
   const html = renderToStaticMarkup(createElement(ChatMessageGroups, { messages, onOpenSubagent: () => {}, onStopTool: () => {} }));
-  assert.equal(html.includes("intermediate response"), false);
+  assert.equal(html.includes("intermediate response"), true);
   assert.equal(html.includes("final response"), true);
   assert.equal((html.match(/chat-tool-activity-controls/g) ?? []).length, 1);
-  assert.equal((html.match(/chat-tool-card/g) ?? []).length, 0);
+  assert.equal((html.match(/chat-tool-card/g) ?? []).length, 2);
 });
 
 const { MessageFooter, WorkedForCounter } = await server.ssrLoadModule("/src/chat/ChatMessageFooter.tsx");

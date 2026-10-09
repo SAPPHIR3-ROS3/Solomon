@@ -6,6 +6,7 @@ import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { projectsPlugin } from "./projectsPlugin";
 import { customizationPlugin } from "./customizationPlugin";
+import { guiSettingsPlugin } from "./guiSettingsPlugin";
 import { modelsPlugin } from "./modelsPlugin";
 
 const rootIconPath = fileURLToPath(new URL("../icon.svg", import.meta.url));
@@ -39,7 +40,7 @@ function rootIconPlugin(): Plugin {
 // Browser integration tests use a private dependency cache alongside their daemon.
 export default defineConfig({
   cacheDir: process.env.SOLOMON_VITE_CACHE_DIR || undefined,
-  plugins: [react(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin()],
+  plugins: [react(), guiSettingsPlugin(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin()],
   build: {
     rolldownOptions: {
       output: {

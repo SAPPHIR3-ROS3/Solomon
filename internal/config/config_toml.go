@@ -15,11 +15,13 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 
+	"github.com/gofrs/flock"
 	to "github.com/pelletier/go-toml/v2"
 )
 
 type rootLegacyFile struct {
-	UserName string `toml:"user_name"`
+	GUI      GUISettings `toml:"gui"`
+	UserName string      `toml:"user_name"`
 
 	Providers []Provider `toml:"providers"`
 
@@ -87,7 +89,8 @@ type rootLegacyFile struct {
 }
 
 type rootFile struct {
-	UserName string `toml:"user_name"`
+	GUI      GUISettings `toml:"gui"`
+	UserName string      `toml:"user_name"`
 
 	Providers map[string]Provider `toml:"providers,omitempty"`
 
@@ -186,7 +189,9 @@ func rootFromFile(f *rootFile) *Root {
 
 	r := &Root{
 
-		UserName: f.UserName,
+		UserName:    f.UserName,
+		GUI:         f.GUI,
+		guiSnapshot: guiFingerprint(f.GUI),
 
 		Current: f.Current,
 
@@ -269,15 +274,19 @@ func rootToFile(r *Root) *rootFile {
 
 	}
 
+	if r.GUI.Models.HiddenModels == nil && r.HiddenModels != nil {
+		r.GUI.Models.HiddenModels = r.HiddenModels
+	}
 	f := &rootFile{
 
 		UserName: r.UserName,
+		GUI:      r.GUI,
 
 		Current: r.Current,
 
 		RecentModels: r.RecentModels,
 
-		HiddenModels: r.HiddenModels,
+		HiddenModels: nil,
 
 		SubagentTimeoutMinutes: r.SubagentTimeoutMinutes,
 
@@ -401,7 +410,9 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 
 	r := &Root{
 
-		UserName: f.UserName,
+		UserName:    f.UserName,
+		GUI:         f.GUI,
+		guiSnapshot: guiFingerprint(f.GUI),
 
 		Current: f.Current,
 
@@ -635,6 +646,32 @@ func Load() (*Root, error) {
 }
 
 func Save(r *Root) error {
+	path, err := paths.ConfigPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	lock := flock.New(filepath.Join(filepath.Dir(path), "config.lock"))
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	defer lock.Unlock()
+	return saveUnlocked(r)
+}
+
+func saveUnlocked(r *Root) error {
+	// Preserve GUI preferences from newer targeted writes when saving a stale
+	// runtime snapshot. Explicit changes to GUI on the Root are still respected.
+	if r != nil && (r.guiSnapshot == guiFingerprint(r.GUI) || (r.guiSnapshot == "" && guiFingerprint(r.GUI) == guiFingerprint(GUISettings{}))) {
+		latest, err := ReadGUISettings()
+		if err == nil {
+			r.GUI = latest
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
 
 	normalizeRoot(r)
 
@@ -688,6 +725,7 @@ func Save(r *Root) error {
 
 	}
 
+	r.guiSnapshot = guiFingerprint(r.GUI)
 	return nil
 
 }

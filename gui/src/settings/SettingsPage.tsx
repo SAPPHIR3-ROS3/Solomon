@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DocsViewer } from "./DocsViewer";
 import { ModelsPage } from "./ModelsPage";
+import { ChatSettings } from "./ChatSettings";
 
 type SettingsPageProps = {
   onHome: () => void;
@@ -10,6 +11,8 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
   const [query, setQuery] = useState("");
   const [isModelsOpen, setIsModelsOpen] = useState(false);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const isSearching = query.trim().length > 0;
 
   return (
     <section aria-label="Settings" className="settings-page">
@@ -32,11 +35,25 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
 
         <nav aria-label="Settings sections" className="settings-navigation">
           <button
+            aria-current={isChatOpen ? "page" : undefined}
+            className="settings-section-link"
+            onClick={() => {
+              setIsChatOpen(true);
+              setIsModelsOpen(false);
+              setIsDocsOpen(false);
+            }}
+            type="button"
+          >
+            <ChatIcon />
+            <span>Chat</span>
+          </button>
+          <button
             aria-current={isModelsOpen ? "page" : undefined}
             className="settings-section-link"
             onClick={() => {
               setIsModelsOpen(true);
               setIsDocsOpen(false);
+              setIsChatOpen(false);
             }}
             type="button"
           >
@@ -49,6 +66,7 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
             onClick={() => {
               setIsDocsOpen(true);
               setIsModelsOpen(false);
+              setIsChatOpen(false);
             }}
             type="button"
           >
@@ -66,10 +84,20 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
       </aside>
 
       <main aria-label="Settings content" className="settings-main">
-        {isModelsOpen ? <ModelsPage /> : null}
-        {isDocsOpen ? <DocsViewer /> : null}
+        {isSearching || isChatOpen ? <ChatSettings query={query} /> : null}
+        {!isSearching && isModelsOpen ? <ModelsPage /> : null}
+        {!isSearching && isDocsOpen ? <DocsViewer /> : null}
       </main>
     </section>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H9l-5 3v-4a4 4 0 0 1-1-3V8a4 4 0 0 1 4-4Z" />
+      <path d="M7 9h10M7 13h6" />
+    </svg>
   );
 }
 

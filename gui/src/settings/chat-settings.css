@@ -1,0 +1,45 @@
+.settings-chat-error {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 12px 14px;
+}
+
+.settings-chat-error p {
+  flex: 1 1 220px;
+  font: 12px/1.5 "Geist Mono", ui-monospace, monospace;
+  margin: 0;
+}
+
+.settings-chat-retry {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  cursor: pointer;
+  flex: none;
+  font: 12px/1 "Geist", sans-serif;
+  padding: 8px 12px;
+}
+
+.settings-chat-retry:hover {
+  background: var(--color-canvas);
+}
+
+.settings-chat-retry:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.settings-chat-retry:disabled {
+  cursor: wait;
+  opacity: .6;
+}

@@ -67,7 +67,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const lastMessageThoughtFor = chat.messages.at(-1)?.thoughtFor ?? null;
   const lastMessageWorkedFor = chat.messages.at(-1)?.workedFor ?? null;
   const pendingMessageKey = [...pendingUserMessageIDs].join("-");
-  const isChatWorking = isStreaming || chat.status === "running";
+  const isChatWorking = chat.status === "running" || (isStreaming && chat.status === undefined);
   const scrollContentKey = [
     chat.messages.length,
     lastMessageContent,
@@ -230,6 +230,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
         <div className="chat-messages" ref={messagesRef}>
           {chat.messages.length ? (
             <ChatMessageGroups
+              isWorking={isChatWorking}
               liveWorkedFor={liveWorkedFor}
               messages={visibleMessages}
               onOpenSubagent={(messageID, toolID) => setOpenSubagent({ messageID, toolID })}

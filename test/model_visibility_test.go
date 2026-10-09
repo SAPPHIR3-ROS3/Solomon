@@ -2,8 +2,10 @@ package test
 
 import (
 	"fmt"
+	toml "github.com/pelletier/go-toml/v2"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -86,8 +88,19 @@ model = 'gpt-5'
 	if err != nil {
 		t.Fatalf("read updated config: %v", err)
 	}
-	if string(b) != configSource {
-		t.Fatal("visibility update rewrote the main config")
+	var before, after map[string]any
+	if err := toml.Unmarshal([]byte(configSource), &before); err != nil {
+		t.Fatal(err)
+	}
+	if err := toml.Unmarshal(b, &after); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := after["gui"]; !ok {
+		t.Fatal("missing GUI preferences in the main config")
+	}
+	delete(after, "gui")
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("visibility update changed backend settings")
 	}
 	saved, err := config.ReadModelVisibility()
 	if err != nil {

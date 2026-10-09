@@ -257,6 +257,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/promptTemplate", customizationAPI.handlePromptTemplate)
 	mux.HandleFunc("/__solomon/promptTemplates/update", customizationAPI.handleUpdatePromptTemplate)
 	mux.HandleFunc("/__solomon/promptTemplates/reset", customizationAPI.handleResetPromptTemplate)
+	mux.HandleFunc("/__solomon/gui-settings", handleGUISettings)
 	mux.HandleFunc("/__solomon/models", modelAPI.handleCatalog)
 	mux.HandleFunc("/__solomon/current-model", modelAPI.handleCurrent)
 	mux.HandleFunc("/__solomon/model-visibility", modelAPI.handleVisibility)
@@ -283,7 +284,7 @@ func Run(ctx context.Context, options Options) error {
 				}
 			}
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			if r.Method == http.MethodOptions {
 				if origin == "" {
 					writeAPIError(w, http.StatusForbidden, errors.New("request origin is required"))
