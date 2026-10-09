@@ -50,6 +50,11 @@ func runProjectFileOperation(t *testing.T, endpoint string, operation projectFil
 		decodeServerTestJSON(t, response, &payload)
 		t.Fatalf("%+v: status = %d, want %d: %v", operation, response.StatusCode, wantStatus, payload)
 	}
+	// Drain successful test responses so the HTTP transport can reuse the
+	// connection instead of leaving new connections pending during shutdown.
+	if _, err := io.Copy(io.Discard, response.Body); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestProjectFileOperations(t *testing.T) {

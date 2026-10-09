@@ -4,9 +4,7 @@ package test
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,11 +60,18 @@ func TestWindowsTerminalHelper(t *testing.T) {
 	if os.Args[len(os.Args)-1] == "child" {
 		fmt.Fprintln(os.Stdout, "terminal-stdout")
 		fmt.Fprintln(os.Stderr, "terminal-stderr")
-		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		reader := bufio.NewReader(os.Stdin)
+		line, err := reader.ReadString('\n')
 		if err != nil || strings.TrimSpace(line) != "terminal-input" {
 			os.Exit(2)
 		}
 		fmt.Fprintln(os.Stdout, "terminal-input-ok")
+		// Keep the child alive until the host has read all markers: process
+		// teardown closes the ConPTY output pipe and can discard unread bytes.
+		line, err = reader.ReadString('\n')
+		if err != nil || strings.TrimSpace(line) != "terminal-exit" {
+			os.Exit(3)
+		}
 		os.Exit(0)
 	}
 	executable, _ := os.Executable()
@@ -78,19 +83,34 @@ func TestWindowsTerminalHelper(t *testing.T) {
 	}
 	defer process.Close()
 	defer process.Kill()
+	reader := bufio.NewReader(process)
+	var output strings.Builder
+	readUntil := func(markers ...string) {
+		t.Helper()
+		for {
+			complete := true
+			for _, marker := range markers {
+				complete = complete && strings.Contains(output.String(), marker)
+			}
+			if complete {
+				return
+			}
+			line, err := reader.ReadString('\n')
+			output.WriteString(line)
+			if err != nil {
+				t.Fatalf("read pseudoconsole output: %v (%q)", err, output.String())
+			}
+		}
+	}
+	readUntil("terminal-stdout", "terminal-stderr")
 	if _, err := process.Write([]byte("terminal-input\r\n")); err != nil {
 		t.Fatal(err)
 	}
-	data, err := io.ReadAll(process)
-	if err != nil && !errors.Is(err, os.ErrClosed) {
+	readUntil("terminal-input-ok")
+	if _, err := process.Write([]byte("terminal-exit\r\n")); err != nil {
 		t.Fatal(err)
 	}
 	if err := process.Wait(); err != nil {
 		t.Fatal(err)
-	}
-	for _, marker := range []string{"terminal-stdout", "terminal-stderr", "terminal-input-ok"} {
-		if !strings.Contains(string(data), marker) {
-			t.Fatalf("missing %s in pseudoconsole output: %q", marker, data)
-		}
 	}
 }
