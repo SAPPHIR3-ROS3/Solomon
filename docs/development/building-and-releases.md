@@ -156,6 +156,17 @@ They check the installed binary with `version --binary` and wait for both the
 binary and daemon to reach the target version. To recheck a published release
 without creating another tag, run the workflow with `smoke_release_tag` set to
 that release tag.
+
+The default `GITHUB_TOKEN` publishes tags when the release's workflow files match
+the default branch. If workflows change on the default branch during a release,
+GitHub can reject the tag push for missing `workflows` permission. The workflow
+checks this before building and again before pushing the tag. Restart the release
+from the latest default-branch commit, or configure the repository secret
+`RELEASE_TOKEN` with a fine-grained personal access token scoped to this repository
+and **Contents: write** plus **Workflows: write**. The release job uses this token
+for checkout, tag publication, and GitHub release creation. Do not add a
+`workflows` key under Actions `permissions`; `GITHUB_TOKEN` does not expose it.
+
 Windows upgrade checks start the CLI through WMI with the runner user's environment,
 because the Actions job forbids the process breakaway requested by older updaters.
 

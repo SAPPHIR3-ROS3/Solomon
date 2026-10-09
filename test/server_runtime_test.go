@@ -386,6 +386,9 @@ func startServerAtAddressForTest(t *testing.T, options serverruntime.Options, li
 			return
 		}
 		stopped = true
+		// Close pooled client connections, including speculative connections
+		// that would otherwise keep HTTP shutdown waiting for its idle grace.
+		http.DefaultClient.CloseIdleConnections()
 		cancel()
 		select {
 		case err := <-errs:
