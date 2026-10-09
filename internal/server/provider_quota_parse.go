@@ -110,10 +110,32 @@ func quotaBarsFromCursorPayload(payload any) []apiQuotaBar {
 	if !hasOther {
 		otherPct = 0
 	}
+	reset := cursorResetDetail(payload, m)
+	cursorDetail := "Includes Cursor Grok and Composer"
+	if reset != "" {
+		cursorDetail += " · " + reset
+	}
 	return uniqueQuotaBars([]apiQuotaBar{
-		{Label: "Cursor Models", Percent: clampPercent(cursorPct), Detail: "Includes Cursor Grok and Composer"},
-		{Label: "Other Models", Percent: clampPercent(otherPct)},
+		{Label: "Cursor Models", Percent: clampPercent(cursorPct), Detail: cursorDetail},
+		{Label: "Other Models", Percent: clampPercent(otherPct), Detail: reset},
 	})
+}
+
+func cursorResetDetail(payload any, plan map[string]any) string {
+	for _, source := range []map[string]any{plan, asMap(payload)} {
+		if source == nil {
+			continue
+		}
+		if detail := resetDetail(source); detail != "" {
+			return detail
+		}
+		when := parseQuotaTime(source, "billingCycleEnd", "billing_cycle_end", "billingCycleEndMs", "cycleEnd")
+		if when.IsZero() {
+			continue
+		}
+		return resetDetail(map[string]any{"resets_at": when.Format(time.RFC3339Nano)})
+	}
+	return ""
 }
 
 func quotaBarsFromOpenRouterPayload(payload any) []apiQuotaBar {
