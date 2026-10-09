@@ -74,6 +74,23 @@ test('invalid and untrusted TeX does not crash rendering or create active links'
   assert.ok(!html.includes('<script'));
 });
 
+test('math rendering ignores macro definitions inherited from Object.prototype', () => {
+  const macro = String.raw`\dependabotPollutedMacro`;
+  const content = String.raw`\(\dependabotPollutedMacro\)`;
+  const previous = Object.getOwnPropertyDescriptor(Object.prototype, macro);
+  try {
+    Object.defineProperty(Object.prototype, macro, { configurable: true, value: 'POLLUTED' });
+    const html = render(content);
+    // Unknown commands may render as error text or a katex-error fallback.
+    assert.match(html, /(?:<mtext>|class="katex-error"[^>]*>)\\dependabotPollutedMacro/);
+    assert.ok(!html.includes('<mi>P</mi>'));
+    assert.equal(formulas(render(String.raw`\(x^2\)`)), 1);
+  } finally {
+    if (previous) Object.defineProperty(Object.prototype, macro, previous);
+    else delete Object.prototype[macro];
+  }
+});
+
 test('preserves Markdown and image badges beside formulas', () => {
   const html = render(String.raw`- **Formula:** \(n_0=1\) [img-0]
 - [file](./file.md)`);
