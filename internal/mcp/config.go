@@ -133,6 +133,16 @@ func ParseConfig(raw []byte) (*Config, error) {
 	sort.Strings(names)
 	cfg := &Config{}
 	for i, name := range names {
+		// Skip disabled servers before expanding secrets or validating transports.
+		var state struct {
+			Disabled bool `json:"disabled"`
+		}
+		if err := json.Unmarshal(servers[name], &state); err != nil {
+			return nil, fmt.Errorf("server %q: %w", name, err)
+		}
+		if state.Disabled {
+			continue
+		}
 		sc, err := parseServer(name, i+1, servers[name])
 		if err != nil {
 			return nil, fmt.Errorf("server %q: %w", name, err)

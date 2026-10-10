@@ -34,6 +34,7 @@ export type CustomizationRule = {
 };
 
 export type CustomizationCatalogItem = {
+  disabled?: boolean;
   badge?: string;
   detail: string;
   id: string;
@@ -112,6 +113,16 @@ export async function fetchCustomizationSkills(signal?: AbortSignal): Promise<Cu
 
 export async function fetchCustomizationMcps(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
   return fetchCatalogItems("mcps", signal);
+}
+
+export async function setCustomizationMcpDisabled(id: string, disabled: boolean): Promise<CustomizationCatalogItem[]> {
+  const response = await fetch(await serverEndpoint("/__solomon/mcps"), {
+    body: JSON.stringify({ id, disabled }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Unable to update MCP: ${response.status}`);
+  return catalogItemsFromPayload(await response.json(), "mcps");
 }
 
 export async function fetchCustomizationSubagents(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
@@ -196,7 +207,7 @@ export function sameCustomizationCatalog(left: CustomizationCatalogItem[], right
   if (left.length !== right.length) return false;
   return left.every((item, index) => {
     const other = right[index];
-    if (!other || item.id !== other.id || item.title !== other.title || item.detail !== other.detail || (item.badge ?? "") !== (other.badge ?? "")) return false;
+    if (!other || item.id !== other.id || item.title !== other.title || item.detail !== other.detail || Boolean(item.disabled) !== Boolean(other.disabled) || (item.badge ?? "") !== (other.badge ?? "")) return false;
     const leftScores = item.scores ?? [];
     const rightScores = other.scores ?? [];
     if (leftScores.length !== rightScores.length) return false;
@@ -259,6 +270,7 @@ function isCustomizationCatalogItem(value: unknown): value is CustomizationCatal
     && "title" in value && typeof value.title === "string"
     && "detail" in value && typeof value.detail === "string"
     && (!("badge" in value) || typeof value.badge === "string")
+    && (!("disabled" in value) || typeof value.disabled === "boolean")
   )) return false;
   if (!("scores" in value) || value.scores === undefined) return true;
   return Array.isArray(value.scores) && value.scores.every((score) => Boolean(

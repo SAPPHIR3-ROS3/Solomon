@@ -21,6 +21,7 @@ const rolesTableCatalog = [
 const rolesTableMax = 5;
 
 export type CatalogItem = {
+  disabled?: boolean;
   badge?: string;
   detail: string;
   id: string;
