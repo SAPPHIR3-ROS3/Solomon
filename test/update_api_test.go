@@ -1,4 +1,4 @@
-package server
+package test
 
 import (
 	"context"
@@ -12,23 +12,22 @@ import (
 	"testing"
 	"time"
 
+	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
-func updateRequest(a *updateAPI, method, body string) *httptest.ResponseRecorder {
+func updateRequest(a *serverruntime.UpdateAPIForTest, method, body string) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(method, "http://localhost/__solomon/update", strings.NewReader(body))
-	a.handle(w, r)
+	a.ServeHTTP(w, r)
 	return w
 }
 
-func waitUpdatePhase(t *testing.T, a *updateAPI, phase string) {
+func waitUpdatePhase(t *testing.T, a *serverruntime.UpdateAPIForTest, phase string) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		a.mu.Lock()
-		current := a.status.Phase
-		a.mu.Unlock()
+		current, _ := a.Status()
 		if current == phase {
 			return
 		}
@@ -38,24 +37,24 @@ func waitUpdatePhase(t *testing.T, a *updateAPI, phase string) {
 }
 
 func TestGUIUpdateRequiresDownloadAndExplicitRestart(t *testing.T) {
-	a := newUpdateAPI(context.Background(), State{Version: "v2026.1008.0"})
-	a.check = func(context.Context) updater.CheckResult {
+	a := serverruntime.NewUpdateAPIForTest(context.Background(), serverruntime.State{Version: "v2026.1008.0"})
+	a.SetCheck(func(context.Context) updater.CheckResult {
 		return updater.CheckResult{LatestTag: "v2026.1009.0", Newer: true}
-	}
+	})
 	downloadStarted, finishDownload := make(chan struct{}), make(chan struct{})
-	a.prepare = func(context.Context, string, io.Writer) (string, string, error) {
+	a.SetPrepare(func(context.Context, string, io.Writer) (string, string, error) {
 		close(downloadStarted)
 		<-finishDownload
 		return "staged", "target", nil
-	}
+	})
 	launches := 0
-	a.launch = func(tag, staged, target string) error {
+	a.SetLaunch(func(tag, staged, target string) error {
 		launches++
 		if tag != "v2026.1009.0" || staged != "staged" || target != "target" {
 			t.Fatal("incorrect coordinator handoff")
 		}
 		return nil
-	}
+	})
 	updateRequest(a, http.MethodGet, "")
 	waitUpdatePhase(t, a, "available")
 	if launches != 0 {
@@ -88,50 +87,46 @@ func TestGUIUpdateRequiresDownloadAndExplicitRestart(t *testing.T) {
 }
 
 func TestGUIUpdateFailuresCanBeRetried(t *testing.T) {
-	a := newUpdateAPI(context.Background(), State{Version: "dev"})
-	a.checked = time.Now()
-	a.status = updateStatus{Phase: "available", Latest: "v2026.1009.0"}
-	a.prepare = func(context.Context, string, io.Writer) (string, string, error) {
+	a := serverruntime.NewUpdateAPIForTest(context.Background(), serverruntime.State{Version: "dev"})
+	a.SetStatus("available", "v2026.1009.0", "")
+	a.SetPrepare(func(context.Context, string, io.Writer) (string, string, error) {
 		return "", "", errors.New("checksum mismatch")
-	}
+	})
 	updateRequest(a, http.MethodPost, `{"action":"download"}`)
 	waitUpdatePhase(t, a, "available")
-	a.mu.Lock()
-	if a.status.Error != "checksum mismatch" {
-		t.Fatal(a.status)
+	if _, message := a.Status(); message != "checksum mismatch" {
+		t.Fatal(message)
 	}
-	a.status.Phase = "ready"
-	a.mu.Unlock()
-	a.launch = func(string, string, string) error { return errors.New("cannot launch helper") }
+	a.SetStatus("ready", "v2026.1009.0", "")
+	a.SetLaunch(func(string, string, string) error { return errors.New("cannot launch helper") })
 	if w := updateRequest(a, http.MethodPost, `{"action":"install"}`); w.Code != http.StatusInternalServerError {
 		t.Fatal(w.Code)
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.status.Phase != "ready" || a.status.Error != "cannot launch helper" {
-		t.Fatal(a.status)
+	if phase, message := a.Status(); phase != "ready" || message != "cannot launch helper" {
+		t.Fatal(phase, message)
 	}
 }
 
 func TestGUIUpdateReportsCoordinatorFailure(t *testing.T) {
-	a := newUpdateAPI(context.Background(), State{})
-	a.status.Phase = "restarting"
-	a.staged = filepath.Join(t.TempDir(), ".solomon-update-test")
-	if err := os.WriteFile(a.staged+".error", []byte("runtime could not restart"), 0600); err != nil {
+	a := serverruntime.NewUpdateAPIForTest(context.Background(), serverruntime.State{})
+	staged := filepath.Join(t.TempDir(), ".solomon-update-test")
+	a.SetStatus("restarting", "", staged)
+	if err := os.WriteFile(staged+".error", []byte("runtime could not restart"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	w := updateRequest(a, http.MethodGet, "")
-	if !strings.Contains(w.Body.String(), "runtime could not restart") || a.status.Phase != "available" {
+	phase, _ := a.Status()
+	if !strings.Contains(w.Body.String(), "runtime could not restart") || phase != "available" {
 		t.Fatal(w.Body.String())
 	}
 }
 
 func TestGUIUpdateRejectsForeignOriginAndInvalidActions(t *testing.T) {
-	a := newUpdateAPI(context.Background(), State{})
+	a := serverruntime.NewUpdateAPIForTest(context.Background(), serverruntime.State{})
 	r := httptest.NewRequest(http.MethodPost, "http://localhost/__solomon/update", strings.NewReader(`{"action":"download"}`))
 	r.Header.Set("Origin", "https://untrusted.example")
 	w := httptest.NewRecorder()
-	a.handle(w, r)
+	a.ServeHTTP(w, r)
 	if w.Code != http.StatusForbidden {
 		t.Fatal(w.Code)
 	}
@@ -144,20 +139,19 @@ func TestGUIUpdateRejectsForeignOriginAndInvalidActions(t *testing.T) {
 }
 
 func TestGUIUpdateCachesCheckWhenAlreadyCurrent(t *testing.T) {
-	a := newUpdateAPI(context.Background(), State{Version: "v2026.1009.0"})
+	a := serverruntime.NewUpdateAPIForTest(context.Background(), serverruntime.State{Version: "v2026.1009.0"})
 	checks := 0
-	a.check = func(context.Context) updater.CheckResult {
+	a.SetCheck(func(context.Context) updater.CheckResult {
 		checks++
 		return updater.CheckResult{LatestTag: "v2026.1009.0"}
-	}
+	})
 	updateRequest(a, http.MethodGet, "")
 	waitUpdatePhase(t, a, "idle")
 	for i := 0; i < 5; i++ {
 		updateRequest(a, http.MethodGet, "")
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if checks != 1 || a.status.Phase != "idle" {
-		t.Fatalf("checks=%d status=%+v", checks, a.status)
+	phase, _ := a.Status()
+	if checks != 1 || phase != "idle" {
+		t.Fatalf("checks=%d phase=%s", checks, phase)
 	}
 }
