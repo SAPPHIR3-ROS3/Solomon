@@ -95,7 +95,7 @@ func (h turnHost) StreamOptsCI(turnIdx int) llm.StreamOpts { return h.Runtime.st
 func (h turnHost) WrapLLMErr(err error) error              { return h.Runtime.wrapLLMErr(err) }
 func (h turnHost) ExternalToolBridge() bool                { return h.Runtime.externalToolBridge() }
 func (h turnHost) StripCursorProxyInlineErrors(content string) (string, string) {
-	return stripCursorProxyInlineErrors(content)
+	return stripCursorProxyInlineErrorsWithCorrection(content, h.Runtime.proxyToolCorrectionMessage)
 }
 func (h turnHost) ResolveTurnInvocations(turn llm.AssistantTurnResult, legacySW *tooling.LegacyStreamWriter) ([]tooling.Invocation, []string, bool, error) {
 	return h.Runtime.ResolveTurnInvocations(turn, legacySW)

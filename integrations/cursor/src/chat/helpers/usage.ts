@@ -13,6 +13,7 @@ import {
   missingIntentBlockedLabel,
   isExposedNativePolicyException,
   shouldBlockDeferredSolomonTool,
+  shouldRedirectCursorTool,
   shouldHardDenyCursorTool,
 } from "../../tool-policy.js";
 import { invocationIntent } from "../../tool-intent.js";
@@ -22,6 +23,7 @@ import type { OpenAIUsagePayload } from "../../openai-sse.js";
 
 export type TurnToolOpts = {
   allowedNames: Set<string> | null;
+  surfaceNames?: Set<string> | null;
   parallelToolCalls?: boolean;
 };
 
@@ -47,8 +49,8 @@ export function nativeInvocationsFromText(text: string, turnOpts: TurnToolOpts):
       blockedTools.push(inv.name);
       return false;
     }
-    if (shouldBlockDeferredSolomonTool(inv.name) &&
-        !isExposedNativePolicyException(inv.name, turnOpts.allowedNames)) {
+    if ((shouldRedirectCursorTool(inv.name) || shouldBlockDeferredSolomonTool(inv.name)) &&
+        !isExposedNativePolicyException(inv.name, turnOpts.allowedNames, turnOpts.surfaceNames)) {
       blockedTools.push(inv.name);
       return false;
     }

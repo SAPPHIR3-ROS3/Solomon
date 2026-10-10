@@ -104,7 +104,7 @@ export async function streamCompletion(
       await drainAgentToolStream(
         run,
         cfg.allowCursorInternalTools,
-        { allowedNames: turnOpts.allowedNames },
+        { allowedNames: turnOpts.allowedNames, surfaceNames: turnOpts.surfaceNames },
         {
           onText: (t) => {
             if ((streamState.toolDetected && streamState.pendingBridged.length > 0) || clientAborted) {

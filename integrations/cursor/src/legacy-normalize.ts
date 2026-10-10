@@ -16,7 +16,7 @@ export function normalizeSolomonToolArgs(
   if (solomonName === "editFile" && isDeleteCursorName(viaCursorName)) {
     return normalizeDeleteEditFileArgs(raw);
   }
-  if (solomonName === "find" && isListDirCursorName(viaCursorName)) {
+  if (solomonName === "listDir" && isListDirCursorName(viaCursorName)) {
     return normalizeListDirArgs(raw);
   }
   if (solomonName === "find" && isSemanticSearchCursorName(viaCursorName)) {
@@ -249,11 +249,13 @@ function normalizeListDirArgs(raw: unknown): Record<string, unknown> | null {
     return null;
   }
   const dirPath = pickString(obj, ["path", "target_directory", "targetDirectory", "directory"]) ?? ".";
-  const pattern = pickString(obj, ["pattern", "glob_pattern", "globPattern"]) ?? "**/*";
-  const out: Record<string, unknown> = { pattern, files: true, path: dirPath };
-  const hl = pickNumber(obj, ["headLimit", "head_limit"]);
-  if (hl !== undefined) {
-    out.headLimit = hl;
+  const out: Record<string, unknown> = { path: dirPath };
+  for (const [target, keys] of [
+    ["includeHidden", ["includeHidden", "include_hidden"]],
+    ["respectGitignore", ["respectGitignore", "respect_gitignore"]],
+  ] as const) {
+    const value = pickOptionalBool(obj, [...keys]);
+    if (value !== undefined) out[target] = value;
   }
   return out;
 }

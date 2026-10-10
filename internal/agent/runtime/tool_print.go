@@ -32,7 +32,7 @@ var cursorNativeAliases = map[string]string{
 	"read": "readFile", "Read": "readFile", "read_file": "readFile", "ReadFile": "readFile", "readfile": "readFile",
 	"shell": "shell", "Shell": "shell", "bash": "shell", "Bash": "shell", "run_terminal_cmd": "shell", "terminal": "shell",
 	"edit": "editFile", "Edit": "editFile", "write": "editFile", "Write": "editFile", "StrReplace": "editFile", "strReplace": "editFile", "str_replace": "editFile", "search_replace": "editFile", "Delete": "editFile", "delete": "editFile",
-	"find": "find", "Find": "find", "Grep": "find", "grep": "find", "Glob": "find", "glob": "find", "ListDir": "find", "list_dir": "find", "listDir": "find", "ls": "find", "ripgrep": "find", "rg": "find", "SemanticSearch": "find", "semanticSearch": "find", "semantic_search": "find",
+	"find": "find", "Find": "find", "Grep": "find", "grep": "find", "Glob": "find", "glob": "find", "ListDir": "listDir", "list_dir": "listDir", "listDir": "listDir", "LS": "listDir", "ls": "listDir", "ripgrep": "find", "rg": "find", "SemanticSearch": "find", "semanticSearch": "find", "semantic_search": "find",
 	"Task": "subagent", "task": "subagent",
 	"WebFetch": "fetchWeb", "webFetch": "fetchWeb", "web_fetch": "fetchWeb", "Fetch": "fetchWeb", "fetch": "fetchWeb",
 	"WebSearch": "webSearch", "webSearch": "webSearch", "web_search": "webSearch",
@@ -171,6 +171,9 @@ func redirectCorrectionHint(toolName string) string {
 	}
 	if strings.HasPrefix(trimmed, "mcp:") {
 		deferred := trimmed[4:]
+		if cursorToolRedirectTarget(deferred) == "listDir" {
+			return "Cursor directory wrappers are disabled. Call searchTools, then orchestrate with sdk.ListDir."
+		}
 		if shouldBlockDeferredSolomonTool(deferred) {
 			return deferred + ": call searchTools, then orchestrate with the matching sandbox SDK — not a direct native tool_call."
 		}
@@ -191,8 +194,10 @@ func redirectCorrectionHint(toolName string) string {
 		return "Cursor Shell is disabled. Call searchTools, then orchestrate with sdk.Shell (sync only)."
 	case "find":
 		return "Cursor Grep/Glob are disabled. Call searchTools, then orchestrate with sdk.Glob, sdk.Grep, or sdk.GrepLines."
+	case "listDir":
+		return "Cursor directory listing is disabled. Call searchTools, then orchestrate with sdk.ListDir."
 	case "subagent":
-		return "Nested agent work: emit native subagent via <tool_calls> or tool_calls."
+		return "Nested agent work: emit native subagent via API tool_calls."
 	case "fetchWeb":
 		return "HTTP fetch: orchestrate with sdk.FetchWeb."
 	case "webSearch":
@@ -312,7 +317,7 @@ func (r *Runtime) handleRejectedNativeToolCall() error {
 
 func (r *Runtime) toolInvocationCorrectionUserMsg() string {
 	if r != nil && r.externalToolBridge() && !r.legacyToolsForced() {
-		return nativeBridgeToolCorrectionUserMsg
+		return r.nativeBridgeCorrectionMessage()
 	}
 	return legacyToolJSONCorrectionUserMsg
 }
@@ -351,7 +356,7 @@ func (r *Runtime) handleProxyToolCorrection(msg string) error {
 		return nil
 	}
 	if !r.machineMode() {
-		termcolor.WriteSystem(r.Out, "Cursor proxy rejected a built-in tool call; retry with Solomon native tools: searchTools (discover deferred SDK), orchestrate (run workspace scripts), searchSkill, loadSkill.")
+		termcolor.WriteSystem(r.Out, r.proxyCorrectionScreenMessage())
 		fmt.Fprintln(r.Out)
 		flushWriter(r.Out)
 	}
@@ -374,6 +379,10 @@ func (r *Runtime) injectToolCorrectionUserMsg(correction string) error {
 }
 
 func stripCursorProxyInlineErrors(content string) (string, string) {
+	return stripCursorProxyInlineErrorsWithCorrection(content, cursorProxyToolCorrectionMessage)
+}
+
+func stripCursorProxyInlineErrorsWithCorrection(content string, correction func([]string) string) (string, string) {
 	lines := strings.Split(content, "\n")
 	out := make([]string, 0, len(lines))
 	var blocked []string
@@ -392,7 +401,7 @@ func stripCursorProxyInlineErrors(content string) (string, string) {
 	if len(blocked) == 0 {
 		return content, ""
 	}
-	fallback := cursorProxyToolCorrectionMessage(blocked)
+	fallback := correction(blocked)
 	return cleaned, fallback
 }
 
