@@ -70,6 +70,12 @@ export function ModelsPage() {
   const [refreshedAt, setRefreshedAt] = useState("");
   const [isSavingModel, setIsSavingModel] = useState("");
   const [reloginProvider, setReloginProvider] = useState("");
+  const [quotaNow, setQuotaNow] = useState(Date.now);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setQuotaNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function loadCatalog(forceRefresh = false) {
     setState((current) => ({ ...current, error: "", loading: true }));
@@ -214,6 +220,7 @@ export function ModelsPage() {
                 onRelogin={() => void reloginProviderAccount(provider.provider)}
                 provider={provider}
                 quota={state.quotas.find((entry) => entry.provider === provider.provider)}
+                quotaNow={quotaNow}
                 reloginBusy={reloginProvider === provider.provider}
               />
             ))}
@@ -408,11 +415,13 @@ function ProviderRow({
   onRelogin,
   provider,
   quota,
+  quotaNow,
   reloginBusy,
 }: {
   onRelogin: () => void;
   provider: ProviderCatalog;
   quota?: ProviderQuota;
+  quotaNow: number;
   reloginBusy: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -452,7 +461,7 @@ function ProviderRow({
           {bars.map((bar) => (
             <div className="settings-provider-quota-bar" key={bar.label}>
               <div className="settings-provider-quota-label">
-                <span>{bar.label}{bar.detail ? ` · ${liveQuotaDetail(bar.detail)}` : ""}</span>
+                <span>{bar.label}{bar.detail ? ` · ${liveQuotaDetail(bar.detail, quotaNow)}` : ""}</span>
                 {bar.hidePercent ? null : <span>{Math.round(bar.percent)}%</span>}
               </div>
               {bar.hidePercent ? null : (
