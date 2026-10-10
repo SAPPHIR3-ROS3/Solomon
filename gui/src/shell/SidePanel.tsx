@@ -3,6 +3,7 @@ import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCac
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 import { fetchActiveAgentChatIDs } from "./ActiveAgentsPage";
+import { UpdateButton } from "./UpdateButton";
 
 const INITIAL_CHAT_LIMIT = 5;
 const MIN_SCROLL_THUMB_HEIGHT = 28;
@@ -643,6 +644,7 @@ export function SidePanel({
             <button className="side-panel-user-name" onDoubleClick={beginUserNameEdit} title="Double-click to edit" type="button">
               {userName || "Unnamed user"}
             </button>
+            <UpdateButton />
             <button aria-label="User settings" className="side-panel-user-settings" onClick={onOpenSettings} title="User settings" type="button">
               <SettingsIcon />
             </button>
