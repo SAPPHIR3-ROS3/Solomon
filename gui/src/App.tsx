@@ -17,7 +17,6 @@ import { createProjectFromFolder, fetchProjectSidebarData, prefetchModelCatalog,
 import { ResearchReportView } from "./research/ResearchReportView";
 import { useChatRuntime } from "./chat/useChatRuntime";
 import { parseChatBannerError } from "./chat/chatMessageUtils";
-import { forgetRememberedActiveChat, getRememberedActiveChat } from "./chat/chatStore";
 import { ChatTopbar, ChatView } from "./chat/ChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
 import { EditorPage } from "./editor/EditorPage";
@@ -66,7 +65,6 @@ export function App() {
   const [viewportTop, setViewportTop] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(getViewportContentWidth);
   const [viewportScrollbarWidth, setViewportScrollbarWidth] = useState(getViewportScrollbarWidth);
-  const restoreAttemptedRef = useRef(false);
   const maxTerminalPanelHeight = Math.max(
     MIN_TERMINAL_PANEL_HEIGHT,
     viewportHeight - (welcomeKeepAliveHeight > 0 ? welcomeKeepAliveHeight : FALLBACK_KEEP_ALIVE_HEIGHT),
@@ -283,26 +281,6 @@ export function App() {
       : null);
     await openProjectChat({ ...project, name: projectName }, chatID);
   }
-
-  useEffect(() => {
-    if (restoreAttemptedRef.current) return;
-    restoreAttemptedRef.current = true;
-    const remembered = getRememberedActiveChat();
-    if (!remembered) return;
-    void fetchProjectSidebarData()
-      .then(async (sidebar) => {
-        const project = sidebar.projects.find((candidate) => candidate.id === remembered.projectID);
-        const chat = project?.chats.find((candidate) => candidate.id === remembered.chatID);
-        if (!project || !chat) {
-          forgetRememberedActiveChat();
-          return;
-        }
-        await openProjectChat(project, chat.id);
-      })
-      .catch(() => {
-        // A temporary daemon outage should not prevent the normal home view.
-      });
-  }, [openProjectChat]);
 
   const selectedTemporaryWorkspace = activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace : null;
   const workspaceNameOverride = selectedTemporaryWorkspace?.name ?? null;
