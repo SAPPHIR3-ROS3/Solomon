@@ -1,5 +1,33 @@
 import { serverEndpoint } from "../platform";
 
+export type GlobalAgents = { path: string; content: string };
+
+export async function fetchGlobalAgents(signal?: AbortSignal): Promise<GlobalAgents> {
+  const response = await fetch(await serverEndpoint("/__solomon/globalAgents"), { cache: "no-store", signal });
+  if (!response.ok) throw new Error(`Unable to load global instructions: ${response.status}`);
+  return globalAgentsFromPayload(await response.json());
+}
+
+export async function updateGlobalAgents(content: string): Promise<GlobalAgents> {
+  const response = await fetch(await serverEndpoint("/__solomon/globalAgents"), {
+    body: JSON.stringify({ content }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Unable to save global instructions: ${response.status}`);
+  return globalAgentsFromPayload(await response.json());
+}
+
+function globalAgentsFromPayload(payload: unknown): GlobalAgents {
+  if (payload && typeof payload === "object" && "globalAgents" in payload) {
+    const item = payload.globalAgents;
+    if (item && typeof item === "object" && "path" in item && typeof item.path === "string" && "content" in item && typeof item.content === "string") {
+      return { path: item.path, content: item.content };
+    }
+  }
+  throw new Error("Invalid global instructions response");
+}
+
 export type CustomizationRule = {
   id: number;
   text: string;

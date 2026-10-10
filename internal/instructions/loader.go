@@ -87,7 +87,7 @@ func truncateContent(s string, max int64) (string, bool) {
 }
 
 func (l *Loader) LoadGlobal() (path, content string, ok bool) {
-	p, err := paths.GlobalAgentsPath()
+	p, err := paths.EnsureGlobalAgentsPath()
 	if err != nil {
 		return "", "", false
 	}

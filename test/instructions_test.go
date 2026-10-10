@@ -9,6 +9,23 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/instructions"
 )
 
+func TestInstructionsLoadGlobalCreatesMissingFile(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "solomon")
+	t.Setenv("SOLOMON_HOME", home)
+	loader := instructions.NewLoader()
+	path, content, ok := loader.LoadGlobal()
+	if !ok || path != filepath.Join(home, "AGENTS.md") || content != "" {
+		t.Fatalf("missing file: path=%q content=%q ok=%v", path, content, ok)
+	}
+	if err := os.WriteFile(path, []byte("existing instructions"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, content, ok = instructions.NewLoader().LoadGlobal()
+	if !ok || content != "existing instructions" {
+		t.Fatalf("existing file: content=%q ok=%v", content, ok)
+	}
+}
+
 func TestInstructionsFindAgentsFilePriority(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("claude"), 0o600); err != nil {

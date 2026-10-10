@@ -66,6 +66,45 @@ type apiPromptTemplate struct {
 
 func newCustomizationAPI() *customizationAPI { return &customizationAPI{} }
 
+func (a *customizationAPI) handleGlobalAgents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
+		return
+	}
+	var request struct {
+		Content *string `json:"content"`
+	}
+	if r.Method == http.MethodPost {
+		if err := decodeJSONBody(w, r, &request, 256<<10); err != nil {
+			writeAPIError(w, http.StatusBadRequest, err)
+			return
+		}
+		if request.Content == nil {
+			writeAPIError(w, http.StatusBadRequest, errors.New("content is required"))
+			return
+		}
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	p, err := paths.EnsureGlobalAgentsPath()
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if request.Content != nil {
+		if err := os.WriteFile(p, []byte(*request.Content), 0o600); err != nil {
+			writeAPIError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	content, err := os.ReadFile(p)
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"globalAgents": map[string]string{"path": p, "content": string(content)}})
+}
+
 func (a *customizationAPI) handleRules(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))

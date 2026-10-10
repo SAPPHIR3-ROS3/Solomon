@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { CatalogList, EditableCatalogList, RulesList, SearchIcon, catalogMatches, useRolesTableEditor } from "./catalog";
 import { SystemPromptsPanel } from "./prompts";
+import { GlobalAgentsPanel } from "./globalAgents";
 import {
   deleteCustomizationRule,
   deleteCustomizationSubagent,
@@ -379,7 +380,7 @@ export function CustomizationPage() {
           </div>
         </div>
 
-        {activeFilter !== "System Prompts" ? (
+        {activeFilter !== "System Prompts" && activeFilter !== "Global AGENTS.md" ? (
           <div className="customization-list-head">
             <div className="customization-list-head-title">
               <h1>
@@ -475,7 +476,7 @@ export function CustomizationPage() {
           />
         ) : null}
         {activeFilter === "Global AGENTS.md" ? (
-          <p className="customization-empty">No {activeFilter.toLocaleLowerCase()} configured yet.</p>
+          <GlobalAgentsPanel />
         ) : null}
       </div>
     </section>
