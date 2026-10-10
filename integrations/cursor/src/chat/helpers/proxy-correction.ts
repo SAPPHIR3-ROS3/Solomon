@@ -1,52 +1,37 @@
 import {
   correctionHintForBlockedTool,
   isHardDenyBlockedLabel,
+  shouldHardDenyCursorTool,
+  isChatToolSurface,
+  isExposedNativePolicyException,
   shouldBlockDeferredSolomonTool,
   shouldRedirectCursorTool,
 } from "../../tool-policy.js";
 
-const ORCHESTRATE_FOOTER =
-  "Cursor built-ins are disabled. Use native tool_calls only: searchTools (discover deferred SDK signatures), orchestrate (run workspace scripts), searchSkill and loadSkill (skills).";
-const CHAT_FOOTER =
-  "This is CHAT mode. Use native tool_calls only: docsRetrieval, readChat, webSearch, fetchWeb, deepResearch, researchStatus, or switchMode; switchMode before workspace implementation.";
-
-function isChatSurface(allowedNames: Set<string> | null): boolean {
-  if (!allowedNames || allowedNames.has("orchestrate")) {
-    return false;
-  }
-  return ["fetchWeb", "webSearch", "deepResearch", "researchStatus"].some((name) =>
-    allowedNames.has(name),
-  );
-}
-
 export function proxyToolCorrectionMessage(
   blocked: string[],
   allowedNames: Set<string> | null,
+  surfaceNames: Set<string> | null = allowedNames,
 ): string {
   const unique = [...new Set(blocked.map((n) => n.trim()).filter(Boolean))];
-  if (unique.length === 0) {
-    return "";
-  }
-  const chatSurface = isChatSurface(allowedNames);
+  if (unique.length === 0) return "";
+  const chatSurface = isChatToolSurface(surfaceNames);
+  const catalog = allowedNames ?? new Set<string>();
   const parts: string[] = [`Blocked by Solomon proxy: ${unique.join(", ")}.`];
-  const hints: string[] = [];
   for (const name of unique) {
-    const hint = correctionHintForBlockedTool(name, chatSurface);
-    if (hint) {
-      hints.push(hint);
-    }
+    const hint = correctionHintForBlockedTool(name, chatSurface, catalog);
+    if (hint) parts.push(hint);
   }
-  if (hints.length > 0) {
-    parts.push(hints.join(" "));
-  }
-  if (
-    unique.some(
-      (n) =>
-        !isHardDenyBlockedLabel(n) &&
-        (shouldRedirectCursorTool(n) || n.startsWith("mcp:")),
-    )
-  ) {
-    parts.push(chatSurface ? CHAT_FOOTER : ORCHESTRATE_FOOTER);
+  if (unique.some((n) => !isHardDenyBlockedLabel(n) &&
+      (shouldRedirectCursorTool(n) || shouldBlockDeferredSolomonTool(n) || n.startsWith("mcp:")))) {
+    const available = [...catalog]
+      .filter((n) => !shouldHardDenyCursorTool(n))
+      .filter((n) => !shouldBlockDeferredSolomonTool(n) || isExposedNativePolicyException(n, allowedNames, surfaceNames))
+      .filter((n) => !shouldRedirectCursorTool(n) || isExposedNativePolicyException(n, allowedNames, surfaceNames))
+      .sort();
+    parts.push((chatSurface ? "This is CHAT mode. " : "Cursor built-ins are disabled. ") +
+      (available.length > 0 ? `Use native tool_calls only from this request: ${available.join(", ")}.`
+        : "No native tools are available in this request; continue in plain text."));
   }
   parts.push("Reply with a corrected invocation or plain text.");
   return parts.join(" ");

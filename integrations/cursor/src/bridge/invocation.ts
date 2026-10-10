@@ -59,7 +59,7 @@ export function bridgeToolInvocation(
   if (shouldHardDenyCursorTool(trimmed)) {
     return null;
   }
-  const nativeException = isExposedNativePolicyException(trimmed, ctx.allowedNames);
+  const nativeException = isExposedNativePolicyException(trimmed, ctx.allowedNames, ctx.surfaceNames);
   if (shouldRedirectCursorTool(trimmed) && !nativeException) {
     return null;
   }

@@ -20,7 +20,7 @@ import { harnessToolsClause, harnessPreamble, harnessToolCatalog, sortToolNamesF
 import { DEFAULT_SUBAGENT_SYS_PROMPT, ensureDefaultSubagentSysPrompt } from "../src/cursor-agent.js";
 import { DEFAULT_SUBAGENT_SYS_PATH } from "../src/legacy.js";
 import type { CursorNativeToolEvent } from "../src/cursor-native-tools.js";
-import { finalizeTurnToolResults } from "../src/chat/turn.js";
+import { turnOptsFromRequest, finalizeTurnToolResults } from "../src/chat/turn.js";
 import { createAgentToolStreamState, drainAgentToolStream, shouldForceStopProxyRun } from "../src/chat/helpers/stream-loop.js";
 import { forceStopRun } from "../src/run-control.js";
 import type { ChatCompletionTool } from "../src/openai-types.js";
@@ -127,15 +127,15 @@ test("maps str_replace cursor alias into editFile via mapper", () => {
   });
 });
 
-test("maps ListDir cursor alias into find glob listing via mapper", () => {
+test("maps ListDir cursor alias into deferred directory listing via mapper", () => {
   const inv = mapCursorToolInvocation(
     "ListDir",
     { path: "internal", intent: "list internal files" },
-    bridgeCtx("find"),
+    bridgeCtx("listDir"),
   );
   assert.deepEqual(inv, {
-    name: "find",
-    args: { pattern: "**/*", files: true, path: "internal" },
+    name: "listDir",
+    args: { path: "internal" },
     intent: "list internal files",
   });
 });
@@ -869,4 +869,133 @@ test("sidecar health snapshots runtime and proves credentials without exposing t
     if (oldObs === undefined) delete process.env.CURSOR_API_PROXY_OBS; else process.env.CURSOR_API_PROXY_OBS = oldObs;
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+for (const name of ["LS", "ls", "ListDir", "list_dir", "listDir"]) {
+  test(`directory ${name} redirects, stops SDK and never bridges directly (2.18)`, async () => {
+    const args = { target_directory: "internal", include_hidden: true, respect_gitignore: false, intent: "list directory" };
+    const names = ["orchestrate", "searchTools", "listDir", name];
+    assert.deepEqual(mapCursorToolInvocation(name, args, bridgeCtx(...names)), {
+      name: "listDir", args: { path: "internal", includeHidden: true, respectGitignore: false }, intent: args.intent,
+    });
+    assert.equal(bridgeToolInvocation(name, args, bridgeCtx(...names)), null);
+    for (const event of [
+      { type: "tool_call", name, status: "running", args },
+      { type: "assistant", message: { content: [{ type: "tool_use", name, input: args, id: "directory" }] } },
+      { type: "tool_call", name: "mcp", status: "running", args: { providerIdentifier: "custom-user-tools", toolName: name, args } },
+    ]) {
+      const { cancelled, state, text } = await drainMockRun([event,
+        { type: "assistant", message: { content: [{ type: "text", text: "must not consume after block" }] } },
+      ], names);
+      assert.equal(cancelled, true);
+      assert.equal(text, "");
+      assert.deepEqual(state.pendingBridged, []);
+      assert.equal(state.blockedTools.length, 1);
+      const final = finalizeTurnToolResults(state, "", { nativeTools: true, allowedNames: new Set(names) });
+      assert.deepEqual(final.bridged, []);
+      assert.ok(final.proxyCorrection?.includes(event.name === "mcp" ? "orchestrate" : "sdk.ListDir"));
+    }
+    const xml = `<tool_calls><tool name="${name}"><args>${JSON.stringify(args)}</args></tool></tool_calls>`;
+    const final = finalizeTurnToolResults({ pendingBridged: [], blockedTools: [] }, xml, { nativeTools: true, allowedNames: new Set(names) });
+    assert.deepEqual(final.bridged, []);
+    assert.deepEqual(final.blockedTools, [name]);
+    assert.ok(final.proxyCorrection?.includes("sdk.ListDir"));
+  });
+}
+
+for (const name of ["docsRetrieval", "readChat", "switchMode", "fetchWeb", "webSearch", "deepResearch", "researchStatus"]) {
+  test(`chat correction with only ${name} never advertises absent tools (3.3/3.5)`, () => {
+    const names = new Set([name]);
+    const msg = proxyToolCorrectionMessage(["Read"], names);
+    assert.ok(msg.includes("CHAT mode"));
+    assert.ok(!msg.includes("orchestrate"));
+    assert.ok(!msg.includes("searchTools"));
+    for (const other of ["docsRetrieval", "readChat", "switchMode", "fetchWeb", "webSearch", "deepResearch", "researchStatus"].filter((n) => n !== name)) {
+      assert.ok(!msg.includes(other), `${other} absent from ${name}: ${msg}`);
+    }
+  });
+}
+
+test("chat web corrections and hard deny recovery respect restricted catalogs (3.5)", () => {
+  const names = new Set(["fetchWeb"]);
+  const missing = proxyToolCorrectionMessage(["WebSearch"], names);
+  assert.ok(!missing.includes("native webSearch"));
+  assert.ok(missing.includes("not exposed"));
+  assert.ok(proxyToolCorrectionMessage(["WebFetch"], names).includes("native fetchWeb"));
+  for (const blocked of ["ApplyPatch", "apply_patch", "Await", "await", "GenerateImage", "generate_image", "CallMcpTool", "mcp:editFile"]) {
+    const msg = proxyToolCorrectionMessage([blocked], names);
+    assert.ok(!/orchestrate|searchTools|subagent|switchMode/.test(msg), msg);
+    const withSwitch = proxyToolCorrectionMessage([blocked], new Set(["fetchWeb", "switchMode"]));
+    assert.ok(!/orchestrate|searchTools|subagent/.test(withSwitch), withSwitch);
+  }
+  for (const blocked of ["ApplyPatch", "Await", "CallMcpTool", "mcp:editFile"]) {
+    assert.ok(proxyToolCorrectionMessage([blocked], new Set(["switchMode"])).includes("native switchMode"));
+  }
+});
+
+test("forced and disabled tool choice keep surface identity but restrict recovery (3.3)", () => {
+  const chatTools: ChatCompletionTool[] = ["docsRetrieval", "fetchWeb", "switchMode"].map((name) => ({ type: "function", function: { name } }));
+  for (const choice of [{ type: "function" as const, function: { name: "docsRetrieval" } }, "none" as const]) {
+    const opts = turnOptsFromRequest({ messages: [], tools: chatTools, tool_choice: choice });
+    const final = finalizeTurnToolResults({ pendingBridged: [], blockedTools: ["Read"] }, "", opts);
+    const msg = final.proxyCorrection!;
+    assert.ok(msg.includes("CHAT mode"));
+    assert.ok(!/orchestrate|searchTools|switchMode|fetchWeb/.test(msg), msg);
+    if (choice === "none") assert.ok(msg.includes("No native tools"));
+  }
+  const agentTools: ChatCompletionTool[] = ["orchestrate", "docsRetrieval", "fetchWeb"].map((name) => ({ type: "function", function: { name } }));
+  const opts = turnOptsFromRequest({ messages: [], tools: agentTools, tool_choice: { type: "function", function: { name: "fetchWeb" } } });
+  const ctx = { allowedNames: opts.allowedNames, surfaceNames: opts.surfaceNames };
+  assert.equal(bridgeToolInvocation("fetchWeb", { url: "https://example.com", intent: "fetch" }, ctx), null);
+  const pending: any[] = [];
+  const blocked: string[] = [];
+  processStreamEvent({ type: "assistant", message: { content: [{ type: "tool_use", name: "fetchWeb", input: { url: "https://example.com", intent: "fetch" } }] } } as any,
+    false, () => {}, () => {}, pending, () => {}, (name) => blocked.push(name), ctx);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(blocked, ["fetchWeb"]);
+  const xml = '<tool_calls><tool name="fetchWeb"><args>{"url":"https://example.com","intent":"fetch"}</args></tool></tool_calls>';
+  const final = finalizeTurnToolResults({ pendingBridged: [], blockedTools: [] }, xml, opts);
+  assert.deepEqual(final.bridged, []);
+  assert.deepEqual(final.blockedTools, ["fetchWeb"]);
+  assert.ok(!final.proxyCorrection?.includes("CHAT mode"));
+  assert.ok(!final.proxyCorrection?.includes("native fetchWeb"));
+});
+
+test("restricted agent correction does not suggest absent discovery tools", () => {
+  const msg = proxyToolCorrectionMessage(["LS"], new Set(["orchestrate"]));
+  assert.ok(msg.includes("sdk.ListDir"));
+  assert.ok(!msg.includes("searchTools"));
+});
+
+test("chat harness advertises native API invocation without stale XML catalog heading (3.2)", () => {
+  const tools: ChatCompletionTool[] = ["docsRetrieval", "fetchWeb", "webSearch", "switchMode"].map((name) => ({ type: "function", function: { name } }));
+  const preamble = harnessPreamble(tools);
+  assert.ok(preamble.includes("native API tool_calls"));
+  assert.ok(preamble.includes("Do not write <tool_calls> XML"));
+  assert.ok(!preamble.includes("schemas for XML invocations"));
+  const catalog = harnessToolCatalog(tools);
+  assert.ok(catalog.includes("native API tool_calls by exact name"));
+  assert.ok(!catalog.includes("XML"));
+  for (const name of ["Read", "Shell", "StrReplace"]) assert.ok(!new RegExp(`use ${name}\\b`).test(preamble));
+});
+
+test("chat planning entry does not turn native web research into agent deferred calls", () => {
+  const names = new Set(["buildPlan", "fetchWeb", "webSearch", "switchMode"]);
+  assert.notEqual(bridgeToolInvocation("fetchWeb", { url: "https://example.com", intent: "research" }, { allowedNames: names }), null);
+  const msg = proxyToolCorrectionMessage(["Read"], names);
+  assert.ok(msg.includes("CHAT mode"));
+  assert.ok(!msg.includes("orchestrate"));
+});
+
+test("correction footer never advertises hard-denied tools even if present in request", () => {
+  const msg = proxyToolCorrectionMessage(["LS"], new Set(["orchestrate", "ApplyPatch", "AskQuestion", "browser_navigate", "Read", "listDir"]));
+  const footer = msg.slice(msg.indexOf("Use native tool_calls only"));
+  assert.ok(footer.includes("orchestrate"));
+  for (const forbidden of ["ApplyPatch", "AskQuestion", "browser_navigate", "Read", "listDir"]) assert.ok(!footer.includes(forbidden));
+});
+
+test("correction without a tool catalog does not invent available native tools", () => {
+  const msg = proxyToolCorrectionMessage(["LS", "ApplyPatch"], null);
+  assert.ok(msg.includes("No native tools"));
+  assert.ok(!/orchestrate|searchTools|subagent|switchMode|searchSkill|loadSkill/.test(msg));
 });

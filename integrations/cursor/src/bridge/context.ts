@@ -6,6 +6,7 @@ export type BridgedToolInvocation = {
 
 export type BridgedToolContext = {
   allowedNames: Set<string> | null;
+  surfaceNames?: Set<string> | null;
 };
 
 export const SOLOMON_MCP_PROVIDER = "solomon";

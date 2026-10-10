@@ -28,10 +28,11 @@ export const CURSOR_NATIVE_ALIASES: Record<string, string> = {
   grep: "find",
   Glob: "find",
   glob: "find",
-  ListDir: "find",
-  list_dir: "find",
-  listDir: "find",
-  ls: "find",
+  ListDir: "listDir",
+  list_dir: "listDir",
+  listDir: "listDir",
+  LS: "listDir",
+  ls: "listDir",
   ripgrep: "find",
   rg: "find",
   SemanticSearch: "find",
@@ -189,6 +190,7 @@ export function shouldRedirectCursorTool(name: string): boolean {
 export function isExposedNativePolicyException(
   name: string,
   allowedNames: Set<string> | null,
+  surfaceNames: Set<string> | null = allowedNames,
 ): boolean {
   const trimmed = name.trim();
   if (!allowedNames?.has(trimmed)) {
@@ -197,7 +199,7 @@ export function isExposedNativePolicyException(
   if (trimmed === "buildPlan") {
     return true;
   }
-  return !allowedNames.has("orchestrate") &&
+  return isChatToolSurface(surfaceNames) &&
     (trimmed === "fetchWeb" || trimmed === "webSearch");
 }
 
@@ -220,7 +222,8 @@ export function shouldStopProxyOnBlockedTool(label: string): boolean {
     return true;
   }
   if (trimmed.startsWith("mcp:")) {
-    return shouldBlockDeferredSolomonTool(trimmed.slice(4));
+    const tool = trimmed.slice(4);
+    return shouldBlockDeferredSolomonTool(tool) || shouldRedirectCursorTool(tool) || shouldHardDenyCursorTool(tool);
   }
   return shouldRedirectCursorTool(trimmed) || shouldBlockDeferredSolomonTool(trimmed);
 }
@@ -294,6 +297,9 @@ export function redirectCorrectionHint(toolName: string): string | null {
   }
   if (trimmed.startsWith("mcp:")) {
     const deferred = trimmed.slice(4);
+    if (cursorToolRedirectTarget(deferred) === "listDir") {
+      return "Cursor directory wrappers are disabled. Call searchTools, then orchestrate with sdk.ListDir.";
+    }
     if (shouldBlockDeferredSolomonTool(deferred)) {
       return `${deferred}: this MCP wrapper is not callable; use searchTools, then orchestrate with sdk.mcp.<tool>(intent, args) — not a direct native or MCP tool_call.`;
     }
@@ -316,6 +322,8 @@ export function redirectCorrectionHint(toolName: string): string | null {
       return "Cursor Shell is disabled. Call searchTools, then orchestrate with sdk.Shell (sync only).";
     case "find":
       return "Cursor Grep/Glob are disabled. Call searchTools, then orchestrate with sdk.Glob, sdk.Grep, or sdk.GrepLines.";
+    case "listDir":
+      return "Cursor directory listing is disabled. Call searchTools, then orchestrate with sdk.ListDir.";
     case "subagent":
       return "Nested agent work: emit native subagent via API tool_calls.";
     case "fetchWeb":
@@ -327,37 +335,82 @@ export function redirectCorrectionHint(toolName: string): string | null {
   }
 }
 
-function chatCorrectionHintForBlockedTool(toolName: string): string | null {
-  const hardDeny = hardDenyCorrectionHint(toolName);
+export function isChatToolSurface(names: Set<string> | null): boolean {
+  if (!names || ["orchestrate", "searchTools", "subagent", "listSubAgents", "searchSkill", "loadSkill"].some((n) => names.has(n))) {
+    return false;
+  }
+  return ["docsRetrieval", "readChat", "fetchWeb", "webSearch", "deepResearch", "researchStatus", "switchMode"].some((n) => names.has(n));
+}
+
+function chatCorrectionHintForBlockedTool(toolName: string, allowedNames: Set<string> | null): string | null {
+  const trimmed = toolName.trim();
+  const key = trimmed.replace(/_/g, "").toLowerCase();
+  const switchHint = allowedNames?.has("switchMode")
+    ? "Call native switchMode before workspace implementation."
+    : "Workspace implementation is unavailable in this request; continue in plain text.";
+  // Agent recovery for these hard-denied tools is not available in chat.
+  if (key === "generateimage") {
+    return "Image generation is unavailable; describe the image in plain text.";
+  }
+  if (key === "await") {
+    return "Background workspace tasks are unavailable in CHAT mode. " + switchHint;
+  }
+  if (key === "applypatch") {
+    return "Unified diff ApplyPatch is unsupported. " + switchHint;
+  }
+  const hardDeny = hardDenyCorrectionHint(trimmed);
   if (hardDeny) {
     return hardDeny;
   }
-  const trimmed = toolName.trim();
   if (trimmed.startsWith("mcp:")) {
-    return "MCP actions are not exposed in CHAT mode; use switchMode before any implementation work and do not claim an MCP result without a host tool result.";
+    return "MCP actions are not exposed in CHAT mode; do not claim an MCP result without a host tool result. " + switchHint;
   }
   const target = cursorToolRedirectTarget(trimmed);
-  if (target === "fetchWeb") {
-    return "Use the native fetchWeb tool in CHAT mode.";
-  }
-  if (target === "webSearch") {
-    return "Use the native webSearch tool in CHAT mode.";
+  if (target === "fetchWeb" || target === "webSearch") {
+    return allowedNames?.has(target)
+      ? `Use the native ${target} tool in CHAT mode.`
+      : "The requested web capability is not exposed in this request; continue in plain text.";
   }
   if (shouldRedirectCursorTool(trimmed) || shouldBlockDeferredSolomonTool(trimmed)) {
-    return "This workspace or agent tool is unavailable in CHAT mode; call switchMode before implementation.";
+    return "This workspace or agent tool is unavailable in CHAT mode. " + switchHint;
   }
   return null;
 }
 
-export function correctionHintForBlockedTool(toolName: string, chatSurface = false): string | null {
+export function correctionHintForBlockedTool(
+  toolName: string,
+  chatSurface = false,
+  allowedNames: Set<string> | null = null,
+): string | null {
   const missingIntent = missingIntentCorrectionHint(toolName);
   if (missingIntent) {
     return missingIntent;
   }
   if (chatSurface) {
-    return chatCorrectionHintForBlockedTool(toolName);
+    return chatCorrectionHintForBlockedTool(toolName, allowedNames);
   }
-  return hardDenyCorrectionHint(toolName) ?? redirectCorrectionHint(toolName);
+  // A forced/restricted agent catalog may lack its normal execution entry point.
+  if (allowedNames && !allowedNames.has("orchestrate")) {
+    const key = toolName.trim().replace(/_/g, "").toLowerCase();
+    if (key === "generateimage") return "Image generation is unavailable; describe the image in plain text.";
+    if (key === "await" || key === "applypatch") return "This workspace operation is unavailable in this request; continue in plain text.";
+    if (shouldRedirectCursorTool(toolName) || shouldBlockDeferredSolomonTool(toolName) || toolName.startsWith("mcp:")) {
+      return hardDenyCorrectionHint(toolName) ?? "This tool is unavailable in this request; use only exposed native tools or continue in plain text.";
+    }
+  }
+  if (allowedNames && cursorToolRedirectTarget(toolName.trim()) === "subagent" && !allowedNames.has("subagent")) {
+    return "Nested agent execution is not exposed in this request; continue in plain text.";
+  }
+  if (allowedNames?.has("orchestrate") && !allowedNames.has("subagent") && toolName.trim().replace(/_/g, "").toLowerCase() === "await") {
+    return "Use synchronous native orchestrate instead of Await.";
+  }
+  const hint = hardDenyCorrectionHint(toolName) ?? redirectCorrectionHint(toolName);
+  if (hint && allowedNames && !allowedNames.has("searchTools")) {
+    return hint.replace("Call searchTools, then orchestrate", "Call native orchestrate")
+      .replace("use searchTools, then orchestrate", "use native orchestrate")
+      .replace("use searchTools for schemas, then orchestrate", "use native orchestrate");
+  }
+  return hint;
 }
 
 export function cursorToolRedirectTarget(cursorName: string): string | undefined {

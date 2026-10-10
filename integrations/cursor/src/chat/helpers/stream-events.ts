@@ -90,7 +90,7 @@ export function processStreamEvent(
       return;
     }
     if (shouldRedirectCursorTool(name) &&
-        !isExposedNativePolicyException(name, bridgeCtx.allowedNames)) {
+        !isExposedNativePolicyException(name, bridgeCtx.allowedNames, bridgeCtx.surfaceNames)) {
       reportBlocked(name);
       return;
     }

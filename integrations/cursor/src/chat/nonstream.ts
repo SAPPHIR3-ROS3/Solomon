@@ -65,7 +65,7 @@ export async function handleNonStream(
     await drainAgentToolStream(
       run,
       cfg.allowCursorInternalTools,
-      { allowedNames: turnOpts.allowedNames },
+      { allowedNames: turnOpts.allowedNames, surfaceNames: turnOpts.surfaceNames },
       {
         onText: (t) => { content += nextTextChunk(content, t); },
         onThinking: (t) => { reasoning += t; },

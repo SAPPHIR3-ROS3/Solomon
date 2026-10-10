@@ -94,9 +94,11 @@ Full mapping tables: [`CURSOR-PROXY-FIX.md` §3](../../CURSOR-PROXY-FIX.md#tool-
 
 ### Run control
 
-On bridged native invocation or policy-blocked tool, the sidecar calls **`forceStopRun`** so the Cursor SDK does not continue executing tools on disk ([`stream-loop.ts`](../../integrations/cursor/src/chat/helpers/stream-loop.ts), [`run-control.ts`](../../integrations/cursor/src/run-control.ts)). SDK sandbox remains a secondary layer when enabled.
+On bridged native invocation or a covered policy-blocked tool, the sidecar calls **`forceStopRun`** to request SDK cancellation and exits the shared stream loop ([`stream-loop.ts`](../../integrations/cursor/src/chat/helpers/stream-loop.ts), [`run-control.ts`](../../integrations/cursor/src/run-control.ts)). Cancellation is conditional on SDK support and errors are swallowed. Sandbox startup can fall back to an unsandboxed agent; SDK non-execution in those paths remains to be verified under PRD task 2.20.
 
-Correction copy (orchestrate-first, names `searchTools`, `orchestrate`, `searchSkill`, `loadSkill`): [`proxy-correction.ts`](../../integrations/cursor/src/chat/helpers/proxy-correction.ts). Go-side mirror: [`tool_print.go`](../../internal/agent/runtime/tool_print.go).
+Correction copy (orchestrate-first, names `searchTools`, `orchestrate`, `searchSkill`, `loadSkill`): [`proxy-correction.ts`](../../integrations/cursor/src/chat/helpers/proxy-correction.ts). Go-side policy mirror: [`tool_print.go`](../../internal/agent/runtime/tool_print.go); mode-aware fallback and display: [`cursor_proxy_corrections.go`](../../internal/agent/runtime/cursor_proxy_corrections.go).
+
+Corrections retain the full request tool surface to identify agent/chat mode while honoring the restricted catalog imposed by `tool_choice` for recovery suggestions. Shared detection also covers single-tool chat catalogs. Chat recovery never recommends agent workspace entry points; `switchMode` and native web tools are suggested only when callable in the current request.
 
 ### Proxy correction circuit breaker
 
@@ -199,7 +201,7 @@ Native MCP unwrap (`mcp` provider `solomon`): MCP tool calls are redirected to `
 
 ### Tool name bridge
 
-[`CURSOR_NATIVE_ALIASES`](../../integrations/cursor/src/tool-policy.ts) maps Cursor search/list names to Solomon `find`: `Grep`, `Glob`, `SemanticSearch`, `ListDir`, `rg`, and similar → `find`. `SemanticSearch` uses regexp fallback today (no vector index). Under orchestrate-first policy, redirect-class Cursor tools are corrected toward `orchestrate` rather than bridged transparently; the alias map remains for correction hints and compatibility helpers; managed runtimes keep Cursor internal tools off.
+[`CURSOR_NATIVE_ALIASES`](../../integrations/cursor/src/tool-policy.ts) maps Cursor search names (`Grep`, `Glob`, `SemanticSearch`, `rg`, and similar) to Solomon `find`, and directory aliases (`LS`, `ls`, `ListDir`, `list_dir`, `listDir`) to deferred `listDir`. Directory recovery uses `sdk.ListDir` inside `orchestrate`; direct native directory calls remain blocked. `SemanticSearch` uses regexp fallback today (no vector index). Under orchestrate-first policy, redirect-class Cursor tools are corrected toward `orchestrate` rather than bridged transparently; the alias map remains for correction hints and compatibility helpers; managed runtimes keep Cursor internal tools off.
 
 ## SSE extensions
 

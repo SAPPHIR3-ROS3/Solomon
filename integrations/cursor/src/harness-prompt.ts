@@ -99,7 +99,7 @@ export function harnessToolCatalog(tools: ChatCompletionTool[] | undefined): str
   if (!tools?.length) {
     return "";
   }
-  const lines: string[] = ["[Harness] Tool catalog (native entry points first; schemas for XML invocations):"];
+  const lines: string[] = ["[Harness] Tool catalog (native entry points first; native API tool_calls by exact name):"];
   const seen = new Set<string>();
   const ordered = [...tools].sort((a, b) => {
     const an = a.function?.name?.trim() ?? "";

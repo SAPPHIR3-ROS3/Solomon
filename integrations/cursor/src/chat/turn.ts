@@ -21,6 +21,7 @@ export type TurnOpts = {
   nativeTools: boolean;
   allowedNames: Set<string> | null;
   parallelToolCalls?: boolean;
+  surfaceNames?: Set<string> | null;
 };
 
 function promptToolsFromRequest(req: ChatCompletionRequest): ChatCompletionTool[] | undefined {
@@ -40,6 +41,7 @@ export function turnOptsFromRequest(req: ChatCompletionRequest): TurnOpts {
     nativeTools: requestUsesNativeTools(req.tools, req.tool_choice),
     allowedNames: allowedToolNamesFromRequest(req.tools, req.tool_choice),
     parallelToolCalls: req.parallel_tool_calls,
+    surfaceNames: allowedToolNamesFromRequest(req.tools),
   };
 }
 
@@ -66,7 +68,7 @@ export function resolveProxyCorrection(
   if (blockedTools.length === 0 || bridgedCount > 0) {
     return undefined;
   }
-  const msg = proxyToolCorrectionMessage(blockedTools, turnOpts.allowedNames);
+  const msg = proxyToolCorrectionMessage(blockedTools, turnOpts.allowedNames, turnOpts.surfaceNames === undefined ? turnOpts.allowedNames : turnOpts.surfaceNames);
   return msg || undefined;
 }
 
