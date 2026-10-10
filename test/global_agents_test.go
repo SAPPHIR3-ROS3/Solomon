@@ -1,4 +1,4 @@
-package server
+package test
 
 import (
 	"encoding/json"
@@ -8,12 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
 func TestGlobalAgentsCreateEditAndClear(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "solomon")
 	t.Setenv("SOLOMON_HOME", home)
-	a := newCustomizationAPI()
+	a := serverruntime.GlobalAgentsHandlerForTest()
 	for _, step := range []struct {
 		method, body, content string
 	}{
@@ -24,7 +26,7 @@ func TestGlobalAgentsCreateEditAndClear(t *testing.T) {
 		{http.MethodGet, "", ""},
 	} {
 		w := httptest.NewRecorder()
-		a.handleGlobalAgents(w, httptest.NewRequest(step.method, "/__solomon/globalAgents", strings.NewReader(step.body)))
+		a.ServeHTTP(w, httptest.NewRequest(step.method, "/__solomon/globalAgents", strings.NewReader(step.body)))
 		if w.Code != http.StatusOK {
 			t.Fatalf("%s: %d %s", step.method, w.Code, w.Body.String())
 		}
@@ -54,10 +56,10 @@ func TestGlobalAgentsRejectInvalidUpdate(t *testing.T) {
 	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	a := newCustomizationAPI()
+	a := serverruntime.GlobalAgentsHandlerForTest()
 	for _, body := range []string{`{}`, `{"content":null}`, `{"content":42}`, `{`} {
 		w := httptest.NewRecorder()
-		a.handleGlobalAgents(w, httptest.NewRequest(http.MethodPost, "/__solomon/globalAgents", strings.NewReader(body)))
+		a.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/__solomon/globalAgents", strings.NewReader(body)))
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("body %q: status %d", body, w.Code)
 		}
