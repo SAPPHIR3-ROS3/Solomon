@@ -128,7 +128,7 @@ func TestDesktopRuntime_productionFrontend(t *testing.T) {
 	}
 	state, stop := startServerForTest(t, serverruntime.Options{})
 	defer stop()
-	for _, path := range []string{"/", "/settings", "/settings/chat", "/settings/models", "/settings/docs", "/assets/missing.js"} {
+	for _, path := range []string{"/", "/settings", "/assets/missing.js"} {
 		response, err := http.Get(state.URL + path)
 		if err != nil {
 			t.Fatal(err)

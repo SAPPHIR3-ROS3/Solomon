@@ -17,16 +17,7 @@ function normalizedPathname(pathname = window.location.pathname) {
 }
 
 export function isSettingsPath(pathname = window.location.pathname) {
-  const path = normalizedPathname(pathname);
-  return path === "/settings" || path.startsWith("/settings/");
-}
-
-export function settingsSection(pathname = window.location.pathname): SettingsSection {
-  const path = normalizedPathname(pathname);
-  if (!path.startsWith("/settings/")) return "";
-  const section = path.slice("/settings/".length);
-  if (section === "chat" || section === "models" || section === "docs") return section;
-  return "";
+  return normalizedPathname(pathname) === "/settings";
 }
 
 export function subscribeSettingsLocation(onChange: () => void) {
@@ -42,9 +33,8 @@ function publishLocation() {
   window.dispatchEvent(new Event(locationEvent));
 }
 
-export function showSettings(section: SettingsSection = "") {
-  const next = section ? `/settings/${section}` : "/settings";
-  if (normalizedPathname() !== next) window.history.pushState(null, "", next);
+export function showSettings() {
+  if (!isSettingsPath()) window.history.pushState(null, "", "/settings");
   publishLocation();
 }
 
@@ -56,14 +46,12 @@ export function hideSettings() {
 
 export function SettingsPage({ onHome }: SettingsPageProps) {
   const [query, setQuery] = useState("");
-  const [section, setSection] = useState<SettingsSection>(settingsSection);
+  const [section, setSection] = useState<SettingsSection>("");
   const isSearching = query.trim().length > 0;
 
   useEffect(() => {
     prefetchProviderQuotas();
   }, []);
-
-  useEffect(() => subscribeSettingsLocation(() => setSection(settingsSection())), []);
 
   return (
     <section aria-label="Settings" className="settings-page">
@@ -88,7 +76,7 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
           <button
             aria-current={section === "chat" ? "page" : undefined}
             className="settings-section-link"
-            onClick={() => showSettings("chat")}
+            onClick={() => setSection("chat")}
             type="button"
           >
             <ChatIcon />
@@ -97,7 +85,7 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
           <button
             aria-current={section === "models" ? "page" : undefined}
             className="settings-section-link"
-            onClick={() => showSettings("models")}
+            onClick={() => setSection("models")}
             type="button"
           >
             <ModelsIcon />
@@ -106,7 +94,7 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
           <button
             aria-current={section === "docs" ? "page" : undefined}
             className={`settings-docs-link${section === "docs" ? " is-active" : ""}`}
-            onClick={() => showSettings("docs")}
+            onClick={() => setSection("docs")}
             type="button"
           >
             <DocsIcon />
