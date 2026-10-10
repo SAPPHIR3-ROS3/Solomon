@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -111,7 +110,10 @@ func moduleRootFromStub() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", SolomonModulePath)
+	cmd, err := goCommand("list", "-m", "-f", "{{.Dir}}", SolomonModulePath)
+	if err != nil {
+		return "", err
+	}
 	cmd.Dir = stubDir
 	out, err := cmd.Output()
 	if err != nil {
@@ -166,7 +168,10 @@ func ensureOrchestrateStub(version string) (string, error) {
 			return "", err
 		}
 	}
-	cmd := exec.Command("go", "mod", "download", SolomonModulePath+"@"+version)
+	cmd, err := goCommand("mod", "download", SolomonModulePath+"@"+version)
+	if err != nil {
+		return "", err
+	}
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		msg := strings.TrimSpace(string(out))

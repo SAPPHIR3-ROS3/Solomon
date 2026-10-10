@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -76,7 +75,10 @@ func BuildWASM(opts Options) ([]byte, error) {
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
-	cmd := exec.Command("go", "build", "-mod=mod", "-o", outPath, ".")
+	cmd, err := goCommand("build", "-mod=mod", "-o", outPath, ".")
+	if err != nil {
+		return nil, err
+	}
 	cmd.Dir = slotDir
 	cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm", "CGO_ENABLED=0", "GOWORK=off")
 	if opts.CacheDir != "" {

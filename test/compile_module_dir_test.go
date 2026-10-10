@@ -2,12 +2,39 @@ package test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
 )
+
+func TestBuildWASM_desktopPATH(t *testing.T) {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	goPath, err = filepath.EvalSymlinks(goPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, explicitRoot := range []bool{false, true} {
+		name := "installation-fallback"
+		if explicitRoot {
+			name = "explicit-GOROOT"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := ""
+			if explicitRoot {
+				root = filepath.Dir(filepath.Dir(goPath))
+			}
+			t.Setenv("GOROOT", root)
+			t.Setenv("PATH", t.TempDir())
+			testBuildWASMReadOnlyModule(t, filepath.Join(t.TempDir(), "Solomon module"))
+		})
+	}
+}
 
 func TestModuleDir_fromNonModuleCWD(t *testing.T) {
 	wd, err := os.Getwd()
