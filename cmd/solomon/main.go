@@ -147,6 +147,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	if _, err := paths.EnsureGlobalAgentsPath(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	cfg, configExisted, err := config.LoadStartup()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

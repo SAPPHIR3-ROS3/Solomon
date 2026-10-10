@@ -120,6 +120,26 @@ func GlobalAgentsPath() (string, error) {
 	return filepath.Join(root, "AGENTS.md"), nil
 }
 
+// EnsureGlobalAgentsPath creates an empty global instructions file if missing.
+// Exclusive creation preserves existing content, including concurrent edits.
+func EnsureGlobalAgentsPath() (string, error) {
+	p, err := GlobalAgentsPath()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return "", err
+	}
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if os.IsExist(err) {
+		return p, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return p, f.Close()
+}
+
 func GlobalRulesDir() (string, error) {
 	root, err := SolomonHome()
 	if err != nil {

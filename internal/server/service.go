@@ -142,6 +142,9 @@ func ClearState() error {
 }
 
 func Run(ctx context.Context, options Options) error {
+	if _, err := paths.EnsureGlobalAgentsPath(); err != nil {
+		return err
+	}
 	home, err := paths.SolomonHome()
 	if err != nil {
 		return err
@@ -288,6 +291,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/promptTemplate", customizationAPI.handlePromptTemplate)
 	mux.HandleFunc("/__solomon/promptTemplates/update", customizationAPI.handleUpdatePromptTemplate)
 	mux.HandleFunc("/__solomon/promptTemplates/reset", customizationAPI.handleResetPromptTemplate)
+	mux.HandleFunc("/__solomon/globalAgents", customizationAPI.handleGlobalAgents)
 	mux.HandleFunc("/__solomon/gui-settings", handleGUISettings)
 	mux.HandleFunc("/__solomon/models", modelAPI.handleCatalog)
 	mux.HandleFunc("/__solomon/current-model", modelAPI.handleCurrent)
