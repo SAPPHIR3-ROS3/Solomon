@@ -31,6 +31,8 @@ CLOAKBROWSER_CACHE_DIR="$PWD/cache" npx --no-install cloakbrowser install
 
 Installs Go **1.25.0+** and Node.js **20+** if needed, ensures `make` is available, configures your shell `PATH`, installs Solomon, and provisions the official CloakBrowser fallback.
 
+On macOS, missing Node.js/npm and `make` are installed through Homebrew. At the start of every macOS installation, the installer detects Homebrew in the standard Apple Silicon and Intel locations, or runs its official installer if missing, even when the other dependencies are already available. Homebrew may require administrator credentials and Xcode Command Line Tools; if its setup fails, resolve the reported error and rerun the Solomon installer. The installed Node runtime is added to the current and future shell PATH without forcing links or using MacPorts.
+
 **macOS / Linux:**
 
 ```bash

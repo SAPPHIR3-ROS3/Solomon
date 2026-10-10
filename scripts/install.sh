@@ -5,6 +5,9 @@ GO_REQUIRED="1.25.0"
 NODE_REQUIRED="20.0.0"
 GO_INSTALL_ROOT="${HOME}/.local/go"
 INSTALLED_LOCAL_GO=0
+BREW_BIN_DIR=""
+NODE_BIN_DIR=""
+MAKE_BIN_DIR=""
 INSTALL_VERSION="${SOLOMON_VERSION:-${1:-latest}}"
 GITHUB_RELEASES_API="https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases/latest"
 MARKER="# solomon-installer"
@@ -357,31 +360,66 @@ linux_install_packages() {
   esac
 }
 
-install_make_darwin() {
-  local brew_prefix
+find_homebrew() {
+  local candidate
   if command -v brew >/dev/null 2>&1; then
-    echo "Installing make via Homebrew..."
-    if brew install make; then
-      brew_prefix="$(brew --prefix make 2>/dev/null || true)"
-      if [[ -n "$brew_prefix" && -d "${brew_prefix}/libexec/gnubin" ]]; then
-        export PATH="${brew_prefix}/libexec/gnubin:${PATH}"
-      fi
-      command -v make >/dev/null 2>&1 && return 0
-    fi
+    return 0
   fi
-  if command -v port >/dev/null 2>&1; then
-    echo "Installing make via MacPorts..."
-    if sudo port install make; then
+  for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+    if [[ -x "$candidate" ]]; then
+      export PATH="${candidate%/brew}:${PATH}"
       return 0
     fi
+  done
+  return 1
+}
+
+ensure_homebrew() {
+  local installer brew_prefix install_status=0
+  if ! find_homebrew; then
+    echo "Homebrew not found; installing from the official installer..."
+    installer="$(mktemp)"
+    if ! curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$installer"; then
+      rm -f "$installer"
+      echo "Homebrew download failed; see https://brew.sh/ and rerun this script." >&2
+      return 1
+    fi
+    # The Solomon installer is often piped into bash: give Homebrew the
+    # controlling terminal for its prompts when available.
+    if ( : </dev/tty ) 2>/dev/null; then
+      /bin/bash "$installer" </dev/tty || install_status=$?
+    else
+      NONINTERACTIVE=1 /bin/bash "$installer" || install_status=$?
+    fi
+    if [[ "$install_status" != 0 ]]; then
+      rm -f "$installer"
+      echo "Homebrew installation failed; complete installation at https://brew.sh/ and rerun this script." >&2
+      return 1
+    fi
+    rm -f "$installer"
+    if ! find_homebrew; then
+      echo "Homebrew installed but brew was not found; follow its PATH instructions and rerun this script." >&2
+      return 1
+    fi
   fi
-  if ! xcode-select -p >/dev/null 2>&1; then
-    echo "Installing Xcode Command Line Tools (complete the dialog if shown, then rerun this script)..."
-    xcode-select --install 2>/dev/null || true
-    exit 1
+  brew_prefix="$(brew --prefix)" || return 1
+  BREW_BIN_DIR="${brew_prefix}/bin"
+  export PATH="${BREW_BIN_DIR}:${PATH}"
+  persist_github_path "$BREW_BIN_DIR"
+}
+
+install_make_darwin() {
+  ensure_homebrew || return 1
+  echo "Installing make via Homebrew..."
+  if ! brew install make; then
+    echo "Homebrew make installation failed; resolve the brew error above and rerun this script." >&2
+    return 1
   fi
-  echo "make install failed; install via Homebrew, MacPorts, or Xcode Command Line Tools." >&2
-  exit 1
+  local brew_prefix
+  brew_prefix="$(brew --prefix make)" || return 1
+  MAKE_BIN_DIR="${brew_prefix}/libexec/gnubin"
+  export PATH="${MAKE_BIN_DIR}:${PATH}"
+  persist_github_path "$MAKE_BIN_DIR"
 }
 
 install_make_linux() {
@@ -417,7 +455,7 @@ ensure_make() {
 node_lts_major() {
   local major=""
   if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
-    major="$(curl -fsSL https://nodejs.org/dist/index.json 2>/dev/null | python3 -c "
+    major="$(curl --connect-timeout 10 --max-time 30 -fsSL https://nodejs.org/dist/index.json 2>/dev/null | python3 -c "
 import json,sys
 for e in json.load(sys.stdin):
     if e.get('lts'):
@@ -433,39 +471,24 @@ for e in json.load(sys.stdin):
 
 install_node_darwin() {
   local major formula brew_prefix
+  ensure_homebrew || return 1
   major="$(node_lts_major)"
-  if command -v brew >/dev/null 2>&1; then
-    formula="node@${major}"
-    echo "Installing Node.js LTS (${formula}) via Homebrew..."
+  formula="node@${major}"
+  echo "Installing Node.js LTS (${formula}) via Homebrew..."
+  if ! brew install "$formula"; then
+    echo "${formula} installation failed; trying brew install node..."
+    formula="node"
     if ! brew install "$formula"; then
-      echo "${formula} unavailable; trying brew install node..."
-      brew install node
-    else
-      brew link --overwrite --force "$formula" 2>/dev/null || true
+      echo "Homebrew Node.js installation failed; resolve the brew error above and rerun this script." >&2
+      return 1
     fi
-    if ! command -v node >/dev/null 2>&1; then
-      brew_prefix="$(brew --prefix "$formula" 2>/dev/null || brew --prefix node 2>/dev/null || true)"
-      if [[ -n "$brew_prefix" && -d "${brew_prefix}/bin" ]]; then
-        export PATH="${brew_prefix}/bin:${PATH}"
-      fi
-    fi
-    return 0
   fi
-  if command -v port >/dev/null 2>&1; then
-    echo "Installing Node.js LTS (nodejs${major}) via MacPorts..."
-    if sudo port install "nodejs${major}"; then
-      return 0
-    fi
-    for fallback in 22 20 18; do
-      if [[ "$fallback" != "$major" ]] && sudo port install "nodejs${fallback}"; then
-        return 0
-      fi
-    done
-    echo "MacPorts Node.js install failed" >&2
-    exit 1
-  fi
-  echo "Neither Homebrew nor MacPorts found; install Node.js LTS from https://nodejs.org/" >&2
-  exit 1
+  brew_prefix="$(brew --prefix "$formula")" || return 1
+  # Versioned formulae are keg-only. Prefer the installed runtime even if an
+  # older Node is already in PATH, without overwriting Homebrew's links.
+  NODE_BIN_DIR="${brew_prefix}/bin"
+  export PATH="${NODE_BIN_DIR}:${PATH}"
+  persist_github_path "$NODE_BIN_DIR"
 }
 
 install_node_linux_fallback() {
@@ -497,12 +520,12 @@ ensure_node() {
   if command -v node >/dev/null 2>&1; then
     node_present=1
     local ver
-    ver="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//')"
-    if version_ge "$ver" "$NODE_REQUIRED"; then
+    ver="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//' || true)"
+    if version_ge "$ver" "$NODE_REQUIRED" && command -v npm >/dev/null 2>&1; then
       echo "Node ${ver} OK (>= ${NODE_REQUIRED})"
       return 0
     fi
-    echo "Node ${ver} is older than ${NODE_REQUIRED}; upgrading..."
+    echo "Node ${ver:-unknown} or npm is unavailable/unsupported; installing a supported runtime..."
   fi
   if [[ "$node_present" == 1 ]]; then
     echo "Installing Node.js LTS..."
@@ -524,10 +547,14 @@ ensure_node() {
     exit 1
   fi
   local ver
-  ver="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//')"
+  ver="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//' || true)"
   if ! version_ge "$ver" "$NODE_REQUIRED"; then
     echo "Node install failed (got ${ver}; need >= ${NODE_REQUIRED})" >&2
     exit 1
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "Node installed but npm was not found in PATH" >&2
+    return 1
   fi
   echo "Node ${ver} ready"
 }
@@ -799,6 +826,22 @@ unix_rc_files() {
   echo "${HOME}/.profile"
 }
 
+configure_dependency_paths() {
+  local rc="$1" shell_kind="$2" dir quoted line
+  for dir in "$BREW_BIN_DIR" "$MAKE_BIN_DIR" "$NODE_BIN_DIR"; do
+    [[ -n "$dir" ]] || continue
+    printf -v quoted '%q' "$dir"
+    if [[ "$shell_kind" == fish ]]; then
+      line="fish_add_path --prepend $quoted"
+    else
+      line="export PATH=$quoted:\"\$PATH\""
+    fi
+    if ! line_in_file "$rc" "$line"; then
+      printf '\n%s\n%s\n' "$MARKER-dependencies" "$line" >>"$rc"
+    fi
+  done
+}
+
 configure_unix_rc() {
   local rc go_bin
   rc="$1"
@@ -819,6 +862,7 @@ configure_unix_rc() {
   fi
 
   ensure_gopath_rc_block "$rc" go_install_bin_export_line
+  configure_dependency_paths "$rc" unix
 }
 
 configure_fish_rc() {
@@ -840,6 +884,7 @@ configure_fish_rc() {
   fi
 
   ensure_gopath_rc_block "$rc" go_install_bin_fish_line
+  configure_dependency_paths "$rc" fish
 }
 
 setup_shell() {
@@ -907,10 +952,13 @@ setup_path_only() {
 }
 
 main() {
+  if [[ "$(uname -s)" == Darwin ]]; then
+    ensure_homebrew || return 1
+  fi
   ensure_go
   ensure_make
-  setup_shell
   install_cloakbrowser
+  setup_shell
   configure_runtime_defaults
   install_solomon
   echo "Done."

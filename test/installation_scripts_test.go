@@ -37,6 +37,128 @@ func installerScriptFixture(t *testing.T) string {
 	return file
 }
 
+func TestMacOSInstallerUsesHomebrewAndPersistsNodePath(t *testing.T) {
+	for _, scenario := range []string{"lts", "fallback", "failed install", "broken node", "missing npm"} {
+		t.Run(scenario, func(t *testing.T) {
+			command := exec.Command(installerBash(t), "-c", `
+source "$1"
+fixture_dir="$2"; fixture_scenario="$3"
+mkdir -p "$fixture_dir/old/bin" "$fixture_dir/brew/bin" "$fixture_dir/node@24/bin" "$fixture_dir/node/bin"
+printf '#!/usr/bin/env bash\necho v16.0.0\n' > "$fixture_dir/old/bin/node"
+if [[ "$fixture_scenario" == 'broken node' ]]; then
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$fixture_dir/old/bin/node"
+fi
+for formula in node@24 node; do
+  printf '#!/usr/bin/env bash\necho v24.0.0\n' > "$fixture_dir/$formula/bin/node"
+  printf '#!/usr/bin/env bash\necho 10.0.0\n' > "$fixture_dir/$formula/bin/npm"
+  chmod +x "$fixture_dir/$formula/bin/"*
+done
+if [[ "$fixture_scenario" == 'missing npm' ]]; then
+  printf '#!/usr/bin/env bash\necho v24.0.0\n' > "$fixture_dir/old/bin/node"
+fi
+chmod +x "$fixture_dir/old/bin/node"
+export PATH="$fixture_dir/old/bin:$PATH"
+node_lts_major() { echo 24; }
+uname() { echo Darwin; }
+port() { echo 'MacPorts must not be used' >&2; exit 90; }
+sudo() { echo 'sudo must not be used for formula installation' >&2; exit 91; }
+brew() {
+  printf '%s\n' "$*" >> "$fixture_dir/brew.log"
+  case "$1" in
+    --prefix) printf '%s\n' "$fixture_dir/${2:-brew}" ;;
+    install)
+      [[ "$fixture_scenario" != 'failed install' ]] || return 1
+      if [[ "$fixture_scenario" == fallback && "$2" == node@24 ]]; then return 1; fi ;;
+    *) echo 'Unexpected brew command' >&2; exit 92 ;;
+  esac
+}
+# Simulate no npm in the original runtime, even on hosts with npm installed.
+command() {
+  if [[ "$fixture_scenario" == 'missing npm' && "${1:-}" == -v && "${2:-}" == npm && "$PATH" == "$fixture_dir/old/bin:"* ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+if [[ "$fixture_scenario" == 'failed install' ]]; then
+  if install_node_darwin; then echo 'Failed brew install accepted' >&2; exit 93; fi
+  exit 0
+fi
+ensure_node
+[[ "$(node --version)" == v24.0.0 ]]
+command -v npm
+expected=node@24
+[[ "$fixture_scenario" != fallback ]] || expected=node
+[[ "$NODE_BIN_DIR" == "$fixture_dir/$expected/bin" ]]
+rc="$fixture_dir/profile"
+configure_unix_rc "$rc"
+configure_unix_rc "$rc"
+[[ "$(grep -c '^# solomon-installer-dependencies$' "$rc")" == 2 ]]
+export PATH="$fixture_dir/old/bin:$PATH"
+source "$rc"
+[[ "$(command -v node)" == "$fixture_dir/$expected/bin/node" ]]
+configure_fish_rc "$fixture_dir/config.fish"
+grep -q 'fish_add_path --prepend .*node' "$fixture_dir/config.fish"
+grep -q 'install node@24' "$fixture_dir/brew.log"
+`, "installer-test", filepath.ToSlash(installerScriptFixture(t)), filepath.ToSlash(t.TempDir()), scenario)
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("macOS Node installation: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+func TestUnixInstallerBootstrapsHomebrewAtStartOnMacOS(t *testing.T) {
+	for _, scenario := range []string{"Darwin", "Linux", "bootstrap failure"} {
+		t.Run(scenario, func(t *testing.T) {
+			command := exec.Command(installerBash(t), "-c", `
+source "$1"
+scenario="$2"; steps=""
+uname() { if [[ "$scenario" == Linux ]]; then echo Linux; else echo Darwin; fi; }
+ensure_homebrew() {
+  steps="${steps}brew "
+  [[ "$scenario" != 'bootstrap failure' ]]
+}
+ensure_go() { steps="${steps}go "; }
+ensure_make() { steps="${steps}make "; }
+install_cloakbrowser() { steps="${steps}browser "; }
+setup_shell() { steps="${steps}path "; }
+configure_runtime_defaults() { steps="${steps}config "; }
+install_solomon() { steps="${steps}solomon "; }
+if [[ "$scenario" == 'bootstrap failure' ]]; then
+  if main; then exit 7; fi
+  [[ "$steps" == 'brew ' ]]
+else
+  main
+  expected='go make browser path config solomon '
+  [[ "$scenario" != Darwin ]] || expected="brew $expected"
+  [[ "$steps" == "$expected" ]]
+fi
+`, "installer-test", filepath.ToSlash(installerScriptFixture(t)), scenario)
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("installer bootstrap order: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+func TestMacOSHomebrewBootstrapFailureStopsBeforeInstallingNode(t *testing.T) {
+	command := exec.Command(installerBash(t), "-c", `
+source "$1"
+find_homebrew() { return 1; }
+curl() {
+  [[ "$2" == https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh ]]
+  printf 'exit 1\n' > "$4"
+}
+brew() { echo 'brew must not run after bootstrap failure' >&2; exit 90; }
+install_node_darwin
+`, "installer-test", filepath.ToSlash(installerScriptFixture(t)))
+	// A failed bootstrap must propagate failure and provide recovery instructions.
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "Homebrew installation failed") {
+		t.Fatalf("bootstrap failure: %v\n%s", err, output)
+	}
+}
+
 func TestUnixInstallerWorksWithoutGNUVersionSortAndPreservesTomlTables(t *testing.T) {
 	script := installerScriptFixture(t)
 	config := filepath.Join(t.TempDir(), "config.toml")
