@@ -408,6 +408,10 @@ function attachProjectsEndpoint(server: { middlewares: { use: (route: string, ha
 }
 
 function attachChatAPIProxy(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use("/__solomon/slash-commands", (request, response) => {
+    void proxyChatAPIRequest(request, response, `/__solomon/slash-commands${request.url?.includes("?") ? request.url.slice(request.url.indexOf("?")) : ""}`)
+      .catch((error: unknown) => respondWithJson(response, 502, { error: error instanceof Error ? error.message : "Solomon daemon is unavailable" }));
+  });
   server.middlewares.use(projectActionEndpoint, (request, response, next) => {
     const rawURL = request.url ?? "";
     const queryIndex = rawURL.indexOf("?");
@@ -417,7 +421,7 @@ function attachChatAPIProxy(server: { middlewares: { use: (route: string, handle
     const relativePath = normalizedPath.startsWith(`${chatAPIPath}/`)
       ? normalizedPath.slice(chatAPIPath.length)
       : normalizedPath;
-    if (!/^\/[a-f0-9]{64}\/(?:chats|subchats|at-mentions)(?:\/|$)/.test(relativePath)) {
+    if (!/^\/[a-f0-9]{64}\/(?:chats|subchats|at-mentions|slash-commands)(?:\/|$)/.test(relativePath)) {
       next();
       return;
     }

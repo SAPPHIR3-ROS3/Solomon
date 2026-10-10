@@ -391,6 +391,10 @@ func (a *chatAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) {
 		a.handleProjectAtMentions(w, r, root)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "slash-commands" {
+		a.handleProjectSlashCommands(w, r, projectID, root)
+		return
+	}
 
 	if len(parts) == 2 && parts[1] == "chats" {
 		a.handleChatCollection(w, r, projectID)
@@ -470,7 +474,7 @@ func (a *chatAPI) handlesProjectRoute(path string) bool {
 		return false
 	}
 	switch parts[1] {
-	case "at-mentions", "chats", "subchats":
+	case "at-mentions", "slash-commands", "chats", "subchats":
 		return true
 	default:
 		return false
@@ -643,6 +647,14 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	generateTitle := needsChatTitleGeneration(sess)
+	if strings.HasPrefix(content, "/") {
+		if len(req.Images) != 0 || len(req.Clips) != 0 {
+			writeAPIError(w, http.StatusBadRequest, errors.New("send attachments as a message, separately from slash commands"))
+			return
+		}
+		a.handleSendSlashCommand(w, r, projectID, projectRoot, chatID, sess, content)
+		return
+	}
 	titleInput := chatTitleInput(req.Content, len(req.Images) > 0)
 	cfg, prov, err := loadChatRuntimeConfig()
 	if err != nil {
