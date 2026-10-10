@@ -18,6 +18,10 @@ The side panel includes an Active Agents view backed by the server's active-agen
 
 Terminal sessions are managed by the extracted integrated-shell component and persist per project. Selected terminal output can be captured as a clip and referenced from the composer. Clip references use the same safe Markdown decoration path as image references.
 
+## Settings
+
+Opening settings from the side panel navigates to `/settings`. Chat, Models, and Docs use `/settings/chat`, `/settings/models`, and `/settings/docs`. A direct visit or reload keeps the selected section, and the browser back button walks back through those pages toward home.
+
 ## Models and providers
 
 - Model catalog loading is shared consistently across server and desktop clients.

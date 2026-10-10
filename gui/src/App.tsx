@@ -12,7 +12,7 @@ import { applyTheme, savedTheme } from "./theme";
 import { CustomizationPage } from "./customization/CustomizationPage";
 import { Welcome } from "./home/Welcome";
 import { NewProjectDialog } from "./projects/NewProjectDialog";
-import { SettingsPage } from "./settings/SettingsPage";
+import { hideSettings, isSettingsPath, SettingsPage, showSettings, subscribeSettingsLocation } from "./settings/SettingsPage";
 import { createProjectFromFolder, fetchProjectSidebarData, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
 import { useChatRuntime } from "./chat/useChatRuntime";
@@ -53,7 +53,7 @@ export function App() {
   const [isActiveAgentsOpen, setIsActiveAgentsOpen] = useState(false);
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const [openSubagentRequest, setOpenSubagentRequest] = useState<{ chatID: string; subchatID: string; task?: string; title?: string; toolID?: string; status?: string } | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(isSettingsPath);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
   const [temporaryWorkspace, setTemporaryWorkspace] = useState<TemporaryWorkspace | null>(null);
   const [activeTemporaryWorkspaceID, setActiveTemporaryWorkspaceID] = useState<string | null>(null);
@@ -83,6 +83,8 @@ export function App() {
   useEffect(() => {
     void detectClient().then(setClient);
   }, []);
+
+  useEffect(() => subscribeSettingsLocation(() => setIsSettingsOpen(isSettingsPath())), []);
 
   useEffect(() => {
     applyTheme(savedTheme());
@@ -138,6 +140,7 @@ export function App() {
     chatRuntime.clearSelection();
     setIsNewProjectDialogOpen(false);
     setWelcomeResetToken((current) => current + 1);
+    hideSettings();
     setIsSettingsOpen(false);
     setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
@@ -194,6 +197,7 @@ export function App() {
 
   function openSettings() {
     closeMobilePanels();
+    showSettings();
     setIsSettingsOpen(true);
     setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);

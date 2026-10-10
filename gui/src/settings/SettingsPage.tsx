@@ -8,16 +8,62 @@ type SettingsPageProps = {
   onHome: () => void;
 };
 
+type SettingsSection = "" | "chat" | "models" | "docs";
+
+const locationEvent = "solomon-settings-location";
+
+function normalizedPathname(pathname = window.location.pathname) {
+  return pathname.replace(/\/+$/, "") || "/";
+}
+
+export function isSettingsPath(pathname = window.location.pathname) {
+  const path = normalizedPathname(pathname);
+  return path === "/settings" || path.startsWith("/settings/");
+}
+
+export function settingsSection(pathname = window.location.pathname): SettingsSection {
+  const path = normalizedPathname(pathname);
+  if (!path.startsWith("/settings/")) return "";
+  const section = path.slice("/settings/".length);
+  if (section === "chat" || section === "models" || section === "docs") return section;
+  return "";
+}
+
+export function subscribeSettingsLocation(onChange: () => void) {
+  window.addEventListener("popstate", onChange);
+  window.addEventListener(locationEvent, onChange);
+  return () => {
+    window.removeEventListener("popstate", onChange);
+    window.removeEventListener(locationEvent, onChange);
+  };
+}
+
+function publishLocation() {
+  window.dispatchEvent(new Event(locationEvent));
+}
+
+export function showSettings(section: SettingsSection = "") {
+  const next = section ? `/settings/${section}` : "/settings";
+  if (normalizedPathname() !== next) window.history.pushState(null, "", next);
+  publishLocation();
+}
+
+export function hideSettings() {
+  if (!isSettingsPath()) return;
+  window.history.pushState(null, "", "/");
+  publishLocation();
+}
+
 export function SettingsPage({ onHome }: SettingsPageProps) {
   const [query, setQuery] = useState("");
-  const [isModelsOpen, setIsModelsOpen] = useState(false);
-  const [isDocsOpen, setIsDocsOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [section, setSection] = useState<SettingsSection>(settingsSection);
   const isSearching = query.trim().length > 0;
 
   useEffect(() => {
     prefetchProviderQuotas();
   }, []);
+
+  useEffect(() => subscribeSettingsLocation(() => setSection(settingsSection())), []);
 
   return (
     <section aria-label="Settings" className="settings-page">
@@ -40,39 +86,27 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
 
         <nav aria-label="Settings sections" className="settings-navigation">
           <button
-            aria-current={isChatOpen ? "page" : undefined}
+            aria-current={section === "chat" ? "page" : undefined}
             className="settings-section-link"
-            onClick={() => {
-              setIsChatOpen(true);
-              setIsModelsOpen(false);
-              setIsDocsOpen(false);
-            }}
+            onClick={() => showSettings("chat")}
             type="button"
           >
             <ChatIcon />
             <span>Chat</span>
           </button>
           <button
-            aria-current={isModelsOpen ? "page" : undefined}
+            aria-current={section === "models" ? "page" : undefined}
             className="settings-section-link"
-            onClick={() => {
-              setIsModelsOpen(true);
-              setIsDocsOpen(false);
-              setIsChatOpen(false);
-            }}
+            onClick={() => showSettings("models")}
             type="button"
           >
             <ModelsIcon />
             <span>Models</span>
           </button>
           <button
-            aria-current={isDocsOpen ? "page" : undefined}
-            className={`settings-docs-link${isDocsOpen ? " is-active" : ""}`}
-            onClick={() => {
-              setIsDocsOpen(true);
-              setIsModelsOpen(false);
-              setIsChatOpen(false);
-            }}
+            aria-current={section === "docs" ? "page" : undefined}
+            className={`settings-docs-link${section === "docs" ? " is-active" : ""}`}
+            onClick={() => showSettings("docs")}
             type="button"
           >
             <DocsIcon />
@@ -89,9 +123,9 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
       </aside>
 
       <main aria-label="Settings content" className="settings-main">
-        {isSearching || isChatOpen ? <ChatSettings query={query} /> : null}
-        {!isSearching && isModelsOpen ? <ModelsPage /> : null}
-        {!isSearching && isDocsOpen ? <DocsViewer /> : null}
+        {isSearching || section === "chat" ? <ChatSettings query={query} /> : null}
+        {!isSearching && section === "models" ? <ModelsPage /> : null}
+        {!isSearching && section === "docs" ? <DocsViewer /> : null}
       </main>
     </section>
   );
