@@ -39,7 +39,8 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 ### GUI preferences
 
 The `gui` section belongs to the graphical interface and follows its Settings
-sections. The daemon reads and writes it through `GET /__solomon/gui-settings` and
+sections. The page lives at `/settings`, with `/settings/chat`, `/settings/models`,
+and `/settings/docs` for those sections. The daemon reads and writes it through `GET /__solomon/gui-settings` and
 `PATCH /__solomon/gui-settings`; changes persist in this same file, including for the
 native client. GUI writes preserve backend settings and do not contact providers.
 

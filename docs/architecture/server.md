@@ -91,7 +91,9 @@ but this is not a substitute for authentication on an untrusted network.
 
 `make gui-build` stages the Vite output for embedding in the CLI and native
 desktop client. In normal mode the server serves those assets and the React
-entry point for client-side routes. Missing static assets return 404. Health
+entry point for client-side routes. `/settings` opens the settings shell.
+`/settings/chat`, `/settings/models`, and `/settings/docs` open those sections,
+including after a reload. Missing static assets return 404. Health
 reports API and workers as `ready`, and GUI as `ready` when a compiled bundle
 or development frontend is available.
 
