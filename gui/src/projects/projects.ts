@@ -200,6 +200,15 @@ export async function fetchHomeDirectoryEntries(directoryPath = "", signal?: Abo
   return projectDirectoryEntriesFromPayload(await response.json());
 }
 
+export async function createFilesystemFolder(parentPath: string, name: string): Promise<ProjectDirectoryEntry> {
+  const response = await fetch(await serverEndpoint("/__solomon/filesystem-directories"), {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: parentPath, name }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "Unable to create folder.");
+  return payload as ProjectDirectoryEntry;
+}
+
 export async function fetchFilesystemDirectoryListing(directoryPath = "", signal?: AbortSignal): Promise<FilesystemDirectoryListing> {
   const response = await fetch(await serverEndpoint(
     `/__solomon/filesystem-directories?path=${encodeURIComponent(directoryPath)}`,

@@ -447,6 +447,37 @@ func (a *projectAPI) handleHomeDirectoryEntries(w http.ResponseWriter, r *http.R
 }
 
 func (a *projectAPI) handleFilesystemDirectoryEntries(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		var request struct {
+			Path string `json:"path"`
+			Name string `json:"name"`
+		}
+		if err := decodeJSONBody(w, r, &request, 4096); err != nil {
+			writeAPIError(w, http.StatusBadRequest, err)
+			return
+		}
+		name := strings.TrimSpace(request.Name)
+		if request.Path == "" || name == "" || name == "." || name == ".." || strings.ContainsAny(name, "/\\\x00") || !filepath.IsLocal(name) {
+			writeAPIError(w, http.StatusBadRequest, errors.New("invalid folder name or parent path"))
+			return
+		}
+		listing, err := filesystemDirectoryListing(request.Path)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err)
+			return
+		}
+		target := filepath.Join(filepath.FromSlash(listing.Path), name)
+		if err := os.Mkdir(target, 0o755); err != nil {
+			writeAPIError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, apiProjectDirectoryEntry{IsDirectory: true, Name: name, Path: filepath.ToSlash(target)})
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
+		return
+	}
 	listing, err := filesystemDirectoryListing(r.URL.Query().Get("path"))
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchFilesystemDirectoryListing, type ProjectDirectoryEntry } from "./projects";
+import { createFilesystemFolder, fetchFilesystemDirectoryListing, type ProjectDirectoryEntry } from "./projects";
 import type { LocalFolderSelection } from "./temporaryWorkspace";
 import "./new-project-dialog.css";
 
@@ -34,6 +34,10 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
   const [folderInput, setFolderInput] = useState("~");
   const [isFolderLoading, setIsFolderLoading] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [isFolderCreatePending, setIsFolderCreatePending] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [createFolderError, setCreateFolderError] = useState("");
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef(folderInput);
@@ -58,6 +62,9 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
     setFolderInput("~");
     setIsFolderPickerOpen(false);
     setIsConfirming(false);
+    setIsCreatingFolder(false);
+    setNewFolderName("");
+    setCreateFolderError("");
     searchRef.current?.focus();
 
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -133,6 +140,8 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
   }
 
   function goBackFromFolderPicker() {
+    setIsCreatingFolder(false);
+    setCreateFolderError("");
     setIsFolderPickerOpen(false);
     setQuery("");
   }
@@ -161,6 +170,27 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
     setFolderPath(targetPath);
     setFolderInput(displayFolderPath(targetPath, homePath));
     setQuery("");
+  }
+
+  async function createFolder() {
+    const name = newFolderName.trim();
+    if (isFolderCreatePending || isFolderLoading || !folderPath || !name) return;
+    if (name === "." || name === ".." || /[/\\\0]/.test(name)) {
+      setCreateFolderError("Enter a folder name without path separators.");
+      return;
+    }
+    setIsFolderCreatePending(true);
+    setCreateFolderError("");
+    try {
+      const entry = await createFilesystemFolder(folderPath, name);
+      openFolder(entry);
+      setIsCreatingFolder(false);
+      setNewFolderName("");
+    } catch (error) {
+      setCreateFolderError(error instanceof Error ? error.message : "Unable to create folder.");
+    } finally {
+      setIsFolderCreatePending(false);
+    }
   }
 
   async function confirmCurrentFolder() {
@@ -195,12 +225,13 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
       <section aria-label="Project sources" aria-modal="true" className="new-project-dialog" role="dialog">
         <div className={`new-project-dialog-search${isFolderPickerOpen ? " is-folder-picker" : ""}`}>
           {isFolderPickerOpen ? (
-            <button aria-label="Back to project sources" className="new-project-dialog-search-back" onClick={goBackFromFolderPicker} type="button">
+            <button aria-label="Back to project sources" disabled={isFolderCreatePending} className="new-project-dialog-search-back" onClick={goBackFromFolderPicker} type="button">
               <ChevronLeftIcon />
             </button>
           ) : null}
           <input
             aria-label={isFolderPickerOpen ? "Folder path or search folders" : "Search project sources"}
+            disabled={isFolderCreatePending}
             onChange={(event) => handleSearchChange(event.target.value)}
             onKeyDown={(event) => {
               if (isFolderPickerOpen && event.key === "Enter") {
@@ -214,7 +245,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
             value={isFolderPickerOpen ? folderInput : query}
           />
           {isFolderPickerOpen ? (
-            <button aria-label={`Use folder ${folderSelectionLabel}`} className="new-project-dialog-search-confirm" disabled={isConfirming || isFolderLoading || !folderSelectionPath || folderSelectionPath === "~"} onClick={() => void confirmCurrentFolder()} title="Use this folder" type="button">
+            <button aria-label={`Use folder ${folderSelectionLabel}`} className="new-project-dialog-search-confirm" disabled={isConfirming || isFolderCreatePending || isFolderLoading || !folderSelectionPath || folderSelectionPath === "~"} onClick={() => void confirmCurrentFolder()} title="Use this folder" type="button">
               <CheckIcon />
             </button>
           ) : null}
@@ -229,7 +260,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
               style={{ height: `${folderListRowCount * 44}px` }}
             >
               {canGoUp ? (
-                <button aria-label="Go to parent folder" className="new-project-dialog-folder-row" onClick={goToParentFolder} type="button">
+                <button aria-label="Go to parent folder" disabled={isFolderCreatePending} className="new-project-dialog-folder-row" onClick={goToParentFolder} type="button">
                   <span aria-hidden="true" className="new-project-dialog-folder-icon"><ChevronLeftIcon /></span>
                   <span>..</span>
                   <ChevronRightIcon />
@@ -240,7 +271,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
               ) : folderError ? (
                 <p className="new-project-dialog-folder-message is-error">{folderError}</p>
               ) : visibleFolderEntries.length ? visibleFolderEntries.map((entry) => (
-                <button className="new-project-dialog-folder-row" key={entry.path} onClick={() => openFolder(entry)} type="button">
+                <button className="new-project-dialog-folder-row" disabled={isFolderCreatePending} key={entry.path} onClick={() => openFolder(entry)} type="button">
                   <span aria-hidden="true" className="new-project-dialog-folder-icon"><FolderIcon /></span>
                   <span>{entry.name}</span>
                   <ChevronRightIcon />
@@ -248,6 +279,21 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
               )) : (
                 <p className="new-project-dialog-folder-message">No folders match “{query}”.</p>
               )}
+            </div>
+            <div className="new-project-dialog-folder-footer">
+              {isCreatingFolder ? (
+                <form className="new-project-dialog-create-form" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}>
+                  <input aria-label="New folder name" autoFocus disabled={isFolderCreatePending} onChange={(event) => setNewFolderName(event.target.value)} placeholder="Folder name" value={newFolderName} />
+                  <button disabled={isFolderCreatePending || isFolderLoading || !folderPath || !newFolderName.trim()} type="submit">{isFolderCreatePending ? "Creating…" : "Create"}</button>
+                  <button disabled={isFolderCreatePending} onClick={() => { setIsCreatingFolder(false); setCreateFolderError(""); }} type="button">Cancel</button>
+                </form>
+              ) : (
+                <button className="new-project-dialog-folder-row" disabled={isFolderLoading || isConfirming || !folderPath || folderPath === "~"} onClick={() => { setNewFolderName(query); setCreateFolderError(""); setIsCreatingFolder(true); }} type="button">
+                  <span aria-hidden="true" className="new-project-dialog-folder-icon"><FolderPlusIcon /></span>
+                  <span>Create folder</span>
+                </button>
+              )}
+              {createFolderError ? <p className="new-project-dialog-folder-message is-error" role="alert">{createFolderError}</p> : null}
             </div>
           </div>
         ) : (
@@ -286,6 +332,10 @@ function FolderIcon() {
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
     </svg>
   );
+}
+
+function FolderPlusIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><path d="M12 10v6m-3-3h6" /></svg>;
 }
 
 function GitUrlIcon() {

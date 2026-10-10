@@ -519,6 +519,19 @@ function attachHomeDirectoryEntriesEndpoint(server: { middlewares: { use: (route
 
 function attachFilesystemDirectoryEntriesEndpoint(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
   server.middlewares.use(filesystemDirectoryEntriesEndpoint, (request, response, next) => {
+    if (request.method === "POST") {
+      void readJsonBody(request).then(async (payload) => {
+        const record = payload as { path?: unknown; name?: unknown } | null;
+        const name = typeof record?.name === "string" ? record.name.trim() : "";
+        if (typeof record?.path !== "string" || !record.path || !name || name === "." || name === ".." || Boolean(path.parse(name).root) || /[/\\\0]/.test(name)) throw new Error("Invalid folder name or parent path");
+        const listing = await filesystemDirectoryListing(record.path);
+        if (!listing.path) throw new Error("Choose a parent folder");
+        const target = path.join(listing.path, name);
+        await mkdir(target);
+        respondWithJson(response, 201, { isDirectory: true, name, path: target });
+      }).catch((error: unknown) => respondWithJson(response, 400, { error: error instanceof Error ? error.message : "Unable to create folder" }));
+      return;
+    }
     if (request.method !== "GET") {
       next();
       return;
