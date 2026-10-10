@@ -12,6 +12,7 @@ import {
   reorderCustomizationRules,
   sameCustomizationCatalog,
   sameCustomizationRules,
+  setCustomizationMcpDisabled,
   updateCustomizationRule,
   updateCustomizationSubagent,
   type CustomizationCatalogItem,
@@ -33,6 +34,8 @@ export function CustomizationPage() {
   const [rules, setRules] = useState<CustomizationRule[]>([]);
   const [skills, setSkills] = useState<CustomizationCatalogItem[]>([]);
   const [mcps, setMcps] = useState<CustomizationCatalogItem[]>([]);
+  const [isSavingMcp, setIsSavingMcp] = useState(false);
+  const [mcpError, setMcpError] = useState("");
   const [subagents, setSubagents] = useState<CustomizationCatalogItem[]>([]);
   const [isLoadingRules, setIsLoadingRules] = useState(true);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
@@ -66,7 +69,7 @@ export function CustomizationPage() {
   const visibleMcps = mcps.filter((item) => catalogMatches(item, normalizedQuery));
   const visibleSubagents = subagents.filter((item) => catalogMatches(item, normalizedQuery));
   const canReorderRules = !isSavingRuleOrder && !query.trim() && editingRuleId === null && !isDeletingRule;
-  interactionLock.current = draggedRuleId !== null || isSavingRuleOrder || editingRuleId !== null || isSavingRuleText || isDeletingRule || editingSubagentId !== null || isSavingSubagent || isDeletingSubagent || rolesTable.isBusy;
+  interactionLock.current = isSavingMcp || draggedRuleId !== null || isSavingRuleOrder || editingRuleId !== null || isSavingRuleText || isDeletingRule || editingSubagentId !== null || isSavingSubagent || isDeletingSubagent || rolesTable.isBusy;
 
   useEffect(() => {
     const scrollport = filtersScrollRef.current;
@@ -312,6 +315,20 @@ export function CustomizationPage() {
     setDropIndicator(null);
   }
 
+  async function toggleMcp(item: CustomizationCatalogItem) {
+    if (interactionLock.current) return;
+    interactionLock.current = true;
+    setIsSavingMcp(true);
+    setMcpError("");
+    try {
+      setMcps(await setCustomizationMcpDisabled(item.id, !item.disabled));
+    } catch {
+      setMcpError("Could not save the MCP status. Please try again.");
+    } finally {
+      setIsSavingMcp(false);
+    }
+  }
+
   function updateDropIndicator(ruleId: number, clientY: number, element: HTMLElement) {
     if (draggedRuleId === null || draggedRuleId === ruleId) {
       setDropIndicator(null);
@@ -441,13 +458,19 @@ export function CustomizationPage() {
           />
         ) : null}
         {activeFilter === "MCPs" ? (
-          <CatalogList
-            emptyLabel="No MCP servers configured yet."
-            isLoading={isLoadingCatalog}
-            items={visibleMcps}
-            kind="MCP"
-            query={query}
-          />
+          <>
+            <p className="customization-catalog-detail">Changes apply to subsequent agent runs.</p>
+            <CatalogList
+              emptyLabel="No MCP servers configured yet."
+              isLoading={isLoadingCatalog}
+              items={visibleMcps}
+              kind="MCP"
+              isSaving={isSavingMcp}
+              onToggle={(item) => void toggleMcp(item)}
+              query={query}
+            />
+            {mcpError ? <p className="customization-rule-error" role="alert">{mcpError}</p> : null}
+          </>
         ) : null}
         {activeFilter === "Subagents" ? (
           <EditableCatalogList

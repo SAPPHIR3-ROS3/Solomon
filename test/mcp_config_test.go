@@ -76,6 +76,25 @@ func TestParseConfigValidationErrors(t *testing.T) {
 	}
 }
 
+func TestParseConfigSkipsDisabledServersBeforeValidationAndEnvExpansion(t *testing.T) {
+	for _, raw := range []string{
+		`{"mcpServers":{"disabled":{"disabled":true,"command":"$SOLOMON_MCP_SECRET_NOT_SET"},"active":{"command":"test"}}}`,
+		`{"mcpServers":{"disabled":{"disabled":true,"type":"unknown"},"active":{"command":"test","disabled":false}}}`,
+	} {
+		cfg, err := mcp.ParseConfig([]byte(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cfg.Servers) != 1 || cfg.Servers[0].Name != "active" {
+			t.Fatalf("active servers: %+v", cfg.Servers)
+		}
+	}
+	cfg, err := mcp.ParseConfig([]byte(`{"mcpServers":{"disabled":{"disabled":true}}}`))
+	if err != nil || len(cfg.Servers) != 0 {
+		t.Fatalf("all disabled: %+v, %v", cfg, err)
+	}
+}
+
 func TestParseConfigSupportsLegacySSETransport(t *testing.T) {
 	cfg, err := mcp.ParseConfig([]byte(`{"mcpServers":{"legacy":{"type":"sse","url":"https://example.com/sse"}}}`))
 	if err != nil {

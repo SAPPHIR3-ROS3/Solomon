@@ -160,12 +160,16 @@ export function CatalogList({
   items,
   kind,
   query,
+  onToggle,
+  isSaving = false,
 }: {
   emptyLabel: string;
   isLoading: boolean;
   items: CustomizationCatalogItem[];
   kind: string;
   query: string;
+  onToggle?: (item: CustomizationCatalogItem) => void;
+  isSaving?: boolean;
 }) {
   return (
     <div className="customization-rules">
@@ -178,9 +182,20 @@ export function CatalogList({
               {item.detail ? <span className="customization-catalog-detail">{item.detail}</span> : null}
             </span>
           </button>
-          <button aria-label={`More options for ${kind} ${item.title}`} className="customization-rule-more" type="button">
+          {onToggle ? (
+            <button
+              aria-label={`Enable MCP ${item.title}`}
+              aria-checked={!item.disabled}
+              className={`settings-model-toggle${item.disabled ? "" : " is-enabled"}`}
+              disabled={isSaving}
+              onClick={() => onToggle(item)}
+              role="switch"
+              title={item.disabled ? "Disabled — enable MCP" : "Enabled — disable MCP"}
+              type="button"
+            ><span /></button>
+          ) : <button aria-label={`More options for ${kind} ${item.title}`} className="customization-rule-more" type="button">
             <MoreIcon />
-          </button>
+          </button>}
         </div>
       ))}
       {!items.length ? (

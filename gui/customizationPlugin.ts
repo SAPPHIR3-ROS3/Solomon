@@ -150,7 +150,7 @@ async function readGlobalSkills(): Promise<CatalogItem[]> {
 async function readMcps(): Promise<CatalogItem[]> {
   let payload: unknown;
   try {
-    payload = JSON.parse(await readFile(path.join(solomonHome(), "mcp.json"), "utf8"));
+    payload = JSON.parse(await readFile(mcpConfigPath(), "utf8"));
   } catch {
     return [];
   }
@@ -159,15 +159,55 @@ async function readMcps(): Promise<CatalogItem[]> {
   }
   const items = Object.entries(payload.mcpServers as Record<string, unknown>).map(([id, value]) => {
     if (!value || typeof value !== "object") return { detail: "", id, title: id };
-    const server = value as { command?: unknown; type?: unknown; url?: unknown };
+    const server = value as { command?: unknown; type?: unknown; url?: unknown; disabled?: unknown };
     const detail = typeof server.url === "string" && server.url.trim()
       ? server.url.trim()
       : typeof server.command === "string" && server.command.trim()
         ? server.command.trim()
         : typeof server.type === "string" ? server.type : "";
-    return { detail, id, title: id };
+    return { detail, id, title: id, disabled: server.disabled === true };
   });
   return items.sort((left, right) => left.title.localeCompare(right.title));
+}
+
+function mcpConfigPath() {
+  return process.env.SOLOMON_MCP_CONFIG || path.join(solomonHome(), "mcp.json");
+}
+
+function attachMcpMutationEndpoint(server: Parameters<typeof attachReorderRulesEndpoint>[0]) {
+  let pending = Promise.resolve();
+  server.middlewares.use(mcpsEndpoint, (request, response, next) => {
+    if (request.method !== "POST") { next(); return; }
+    void readJsonBody(request, 4096).then((payload) => {
+      const update = pending.then(async () => {
+        if (!payload || typeof payload !== "object" || !("id" in payload) || typeof payload.id !== "string"
+          || !("disabled" in payload) || typeof payload.disabled !== "boolean") throw new Error("Invalid MCP status");
+        const configPath = mcpConfigPath();
+        const document = JSON.parse(await readFile(configPath, "utf8"));
+        const server = Object.hasOwn(document.mcpServers ?? {}, payload.id) ? document.mcpServers[payload.id] : undefined;
+        if (!server || typeof server !== "object" || Array.isArray(server)) throw new Error("MCP server not found");
+        server.disabled = payload.disabled;
+        const temporary = `${configPath}.${process.pid}-${Date.now()}.tmp`;
+        try {
+          await writeFile(temporary, JSON.stringify(document, null, 2) + "\n", { mode: 0o600 });
+          await rename(temporary, configPath);
+        } finally {
+          await unlink(temporary).catch(() => {});
+        }
+        return readMcps();
+      });
+      pending = update.then(() => {}, () => {});
+      return update;
+    }).then((mcps) => {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json; charset=utf-8");
+      response.end(JSON.stringify({ mcps }));
+    }).catch(() => {
+      response.statusCode = 400;
+      response.setHeader("Content-Type", "application/json; charset=utf-8");
+      response.end(JSON.stringify({ error: "Could not save MCP status" }));
+    });
+  });
 }
 
 function attachJsonGet(server: MiddlewareServer, route: string, key: string, reader: () => Promise<unknown>) {
@@ -455,6 +495,7 @@ function attachRolesTableSaveEndpoint(server: { middlewares: { use: (route: stri
 export function customizationPlugin(): Plugin {
   return {
     configurePreviewServer(server) {
+      attachMcpMutationEndpoint(server);
       attachRulesEndpoint(server);
       attachReorderRulesEndpoint(server);
       attachUpdateRulesEndpoint(server);
@@ -465,6 +506,7 @@ export function customizationPlugin(): Plugin {
       attachCatalogEndpoints(server);
     },
     configureServer(server) {
+      attachMcpMutationEndpoint(server);
       attachRulesEndpoint(server);
       attachReorderRulesEndpoint(server);
       attachUpdateRulesEndpoint(server);
