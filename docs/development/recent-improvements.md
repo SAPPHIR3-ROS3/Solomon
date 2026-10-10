@@ -20,7 +20,7 @@ Terminal sessions are managed by the extracted integrated-shell component and pe
 
 ## Settings
 
-Opening settings from the side panel navigates to `/settings`. Chat, Models, and Docs use `/settings/chat`, `/settings/models`, and `/settings/docs`. A direct visit or reload keeps the selected section, and the browser back button walks back through those pages toward home.
+Opening settings from the side panel navigates to `/settings`. Chat, Models, and Docs stay on that page. A direct visit or reload keeps the settings page open, and the browser back button returns toward home.
 
 ## Models and providers
 

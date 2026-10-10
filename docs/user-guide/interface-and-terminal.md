@@ -29,8 +29,8 @@ Solomon espone alcune funzioni nella GUI e altre nel terminale. Questa pagina in
 | Visualizzare deep research | GUI | Condivisa | Tab Deep research nella Home; `/research` e gli strumenti `deepResearch` / `researchStatus` nel terminale |
 | Modificare rules, prompt, skills e subagents | GUI | Condivisa | Customization; `/rules`, `/add`, `/remove`, `/instructions` |
 | Configurare MCP | Prevista | Terminale | `~/.solomon/mcp.json`, `/mcp` |
-| Cercare nella documentazione Solomon | GUI | Condivisa | `/settings/docs`; `/docs <query>` e `docsRetrieval` |
-| Impostazioni di chat, modelli e documentazione | GUI | Condivisa | `/settings`, `/settings/chat`, `/settings/models`, `/settings/docs`; sezione `[gui]` |
+| Cercare nella documentazione Solomon | GUI | Condivisa | Sezione Docs in `/settings`; `/docs <query>` e `docsRetrieval` |
+| Impostazioni di chat, modelli e documentazione | GUI | Condivisa | `/settings`; sezione `[gui]` |
 | Esportare una chat in Markdown | Prevista | Terminale | `/export` |
 | Configurare retry e timeout API | Prevista | Terminale | `config.toml`, sezione `[api_resilience]` |
 | Aggiornare Solomon | Prevista | Terminale | `/update`, `/upgrade`, `/autoupdate` |
@@ -47,11 +47,11 @@ La GUI è pensata per le operazioni visuali e contestuali:
 - elenco dei job di Deep research e apertura dei report HTML;
 - impostazioni che non richiedono di conoscere TOML, percorsi locali o comandi.
 
-Le impostazioni si aprono dal side panel e restano sotto `/settings`. Chat, modelli e documentazione hanno un indirizzo proprio: `/settings/chat`, `/settings/models` e `/settings/docs`. Aprire uno di questi indirizzi, oppure ricaricare la pagina, mostra la stessa sezione. Il pulsante Back torna alla home su `/`; il tasto Indietro del browser ripercorre le sezioni visitate.
+Le impostazioni si aprono dal side panel all'indirizzo `/settings`. Chat, modelli e documentazione restano sezioni di quella stessa pagina, senza un indirizzo separato. Il pulsante Back torna alla home su `/`.
 
 Le chat persistite vengono lette e aggiornate dal daemon locale: la selezione nella sidebar apre la sessione Solomon esistente, il primo invio in un nuovo progetto crea la sessione e il turno viene trasmesso alla GUI con eventi incrementali. Se la GUI viene ricaricata durante un turno, il daemon continua l'esecuzione e la GUI si riaggancia alla sessione tramite replay degli eventi.
 
-La sezione Docs, all'indirizzo `/settings/docs`, carica i file Markdown inclusi nella cartella `docs/` e li rende navigabili e leggibili senza uscire dall'applicazione.
+La sezione Docs, dentro `/settings`, carica i file Markdown inclusi nella cartella `docs/` e li rende navigabili e leggibili senza uscire dall'applicazione.
 
 ## Transcript osservabile nella GUI
 

@@ -5,7 +5,7 @@ import { createServer } from "vite";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const server = await createServer({ root, server: { middlewareMode: true, hmr: false } });
-const { hideSettings, isSettingsPath, settingsSection, showSettings, subscribeSettingsLocation } = await server.ssrLoadModule("/src/settings/SettingsPage.tsx");
+const { hideSettings, isSettingsPath, showSettings, subscribeSettingsLocation } = await server.ssrLoadModule("/src/settings/SettingsPage.tsx");
 after(() => server.close());
 
 function installWindow(pathname) {
@@ -35,51 +35,40 @@ function installWindow(pathname) {
   return pushes;
 }
 
-test("settings routes recognize the page and its sections", () => {
+test("only /settings is the settings page", () => {
   installWindow("/");
   assert.equal(isSettingsPath("/"), false);
   assert.equal(isSettingsPath("/settings-extra"), false);
+  assert.equal(isSettingsPath("/settings/chat"), false);
+  assert.equal(isSettingsPath("/settings/models"), false);
+  assert.equal(isSettingsPath("/settings/docs"), false);
   assert.equal(isSettingsPath("/settings"), true);
   assert.equal(isSettingsPath("/settings/"), true);
-  assert.equal(isSettingsPath("/settings/chat"), true);
-  assert.equal(isSettingsPath("/settings/models/"), true);
-  assert.equal(isSettingsPath("/settings/docs"), true);
-  assert.equal(isSettingsPath("/settings/other"), true);
-  assert.equal(settingsSection("/settings"), "");
-  assert.equal(settingsSection("/settings/"), "");
-  assert.equal(settingsSection("/settings/chat/"), "chat");
-  assert.equal(settingsSection("/settings/models"), "models");
-  assert.equal(settingsSection("/settings/docs"), "docs");
-  assert.equal(settingsSection("/settings/other"), "");
 });
 
-test("opening and leaving settings updates the address and subscribers", () => {
+test("opening and leaving settings stays on /settings", () => {
   const pushes = installWindow("/");
   const seen = [];
   const unsubscribe = subscribeSettingsLocation(() => seen.push(window.location.pathname));
   showSettings();
-  showSettings("models");
-  showSettings("models");
-  showSettings("docs");
+  showSettings();
   hideSettings();
   hideSettings();
-  assert.deepEqual(pushes, ["/settings", "/settings/models", "/settings/docs", "/"]);
-  assert.deepEqual(seen, ["/settings", "/settings/models", "/settings/models", "/settings/docs", "/"]);
-  assert.equal(settingsSection(), "");
+  assert.deepEqual(pushes, ["/settings", "/"]);
+  assert.deepEqual(seen, ["/settings", "/settings", "/"]);
   assert.equal(isSettingsPath(), false);
   unsubscribe();
-  showSettings("chat");
-  assert.deepEqual(seen, ["/settings", "/settings/models", "/settings/models", "/settings/docs", "/"]);
-  assert.equal(window.location.pathname, "/settings/chat");
+  showSettings();
+  assert.deepEqual(seen, ["/settings", "/settings", "/"]);
+  assert.equal(window.location.pathname, "/settings");
 });
 
-test("the browser back button keeps subscribers on the restored settings path", () => {
-  installWindow("/settings/docs");
+test("the browser back button closes settings without a section address", () => {
+  installWindow("/settings");
   const seen = [];
-  subscribeSettingsLocation(() => seen.push([window.location.pathname, settingsSection()]));
-  window.location.pathname = "/settings";
-  window.dispatchEvent(new Event("popstate"));
+  subscribeSettingsLocation(() => seen.push(window.location.pathname));
   window.location.pathname = "/";
   window.dispatchEvent(new Event("popstate"));
-  assert.deepEqual(seen, [["/settings", ""], ["/", ""]]);
+  assert.deepEqual(seen, ["/"]);
+  assert.equal(isSettingsPath(), false);
 });
