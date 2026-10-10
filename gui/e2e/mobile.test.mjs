@@ -103,6 +103,26 @@ async function openChat(page) {
   await chatButton.tap(); await page.locator(".chat-view").waitFor({ state: "visible" });
 }
 
+test("startup stays on home after opening a thread in the previous session", async () => {
+  const { page, errors } = await mobilePage(390);
+  let chatLoads = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === `/__solomon/projects/${project.id}/chats/${chat.id}`) chatLoads += 1;
+  });
+  try {
+    await openChat(page);
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("solomon.active-chat"))), { chatID: chat.id, projectID: project.id });
+    const previousChatLoads = chatLoads;
+    await page.reload({ waitUntil: "networkidle" });
+    assert.ok(await page.locator(".welcome-stage .welcome-composer").isVisible());
+    assert.equal(await page.locator(".chat-view").count(), 0);
+    assert.equal(chatLoads, previousChatLoads);
+    await openChat(page);
+    assert.ok(await page.locator(".chat-view").isVisible());
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
 for (const [width, height] of [[320, 640], [390, 844], [412, 915], [844, 390]]) {
   test(`touch navigation and menus at ${width}x${height}`, async () => {
     const { page, errors } = await mobilePage(width, height);
