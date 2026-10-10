@@ -15,7 +15,7 @@ func TestBuildWASM_desktopPATH(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goPath, err = filepath.EvalSymlinks(goPath)
+	goRoot, err := exec.Command(goPath, "env", "GOROOT").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestBuildWASM_desktopPATH(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			root := ""
 			if explicitRoot {
-				root = filepath.Dir(filepath.Dir(goPath))
+				root = strings.TrimSpace(string(goRoot))
 			}
 			t.Setenv("GOROOT", root)
 			t.Setenv("PATH", t.TempDir())
