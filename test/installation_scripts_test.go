@@ -42,7 +42,8 @@ func TestMacOSInstallerUsesHomebrewAndPersistsNodePath(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) {
 			command := exec.Command(installerBash(t), "-c", `
 source "$1"
-fixture_dir="$2"; fixture_scenario="$3"
+# PATH entries need MSYS paths on Windows; drive-letter colons split PATH.
+fixture_dir="$(cd "$2" && pwd)"; fixture_scenario="$3"
 mkdir -p "$fixture_dir/old/bin" "$fixture_dir/brew/bin" "$fixture_dir/node@24/bin" "$fixture_dir/node/bin"
 printf '#!/usr/bin/env bash\necho v16.0.0\n' > "$fixture_dir/old/bin/node"
 if [[ "$fixture_scenario" == 'broken node' ]]; then
