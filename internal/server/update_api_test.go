@@ -1,0 +1,163 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
+)
+
+func updateRequest(a *updateAPI, method, body string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(method, "http://localhost/__solomon/update", strings.NewReader(body))
+	a.handle(w, r)
+	return w
+}
+
+func waitUpdatePhase(t *testing.T, a *updateAPI, phase string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		a.mu.Lock()
+		current := a.status.Phase
+		a.mu.Unlock()
+		if current == phase {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("update never reached %s", phase)
+}
+
+func TestGUIUpdateRequiresDownloadAndExplicitRestart(t *testing.T) {
+	a := newUpdateAPI(context.Background(), State{Version: "v2026.1008.0"})
+	a.check = func(context.Context) updater.CheckResult {
+		return updater.CheckResult{LatestTag: "v2026.1009.0", Newer: true}
+	}
+	downloadStarted, finishDownload := make(chan struct{}), make(chan struct{})
+	a.prepare = func(context.Context, string, io.Writer) (string, string, error) {
+		close(downloadStarted)
+		<-finishDownload
+		return "staged", "target", nil
+	}
+	launches := 0
+	a.launch = func(tag, staged, target string) error {
+		launches++
+		if tag != "v2026.1009.0" || staged != "staged" || target != "target" {
+			t.Fatal("incorrect coordinator handoff")
+		}
+		return nil
+	}
+	updateRequest(a, http.MethodGet, "")
+	waitUpdatePhase(t, a, "available")
+	if launches != 0 {
+		t.Fatal("checking installed an update")
+	}
+	if w := updateRequest(a, http.MethodPost, `{"action":"install"}`); w.Code != http.StatusConflict {
+		t.Fatal(w.Code)
+	}
+	if w := updateRequest(a, http.MethodPost, `{"action":"download"}`); w.Code != http.StatusAccepted {
+		t.Fatal(w.Code)
+	}
+	<-downloadStarted
+	if w := updateRequest(a, http.MethodPost, `{"action":"download"}`); w.Code != http.StatusConflict {
+		t.Fatal("duplicate download accepted")
+	}
+	close(finishDownload)
+	waitUpdatePhase(t, a, "ready")
+	if launches != 0 {
+		t.Fatal("downloading restarted the application")
+	}
+	if w := updateRequest(a, http.MethodPost, `{"action":"install"}`); w.Code != http.StatusAccepted {
+		t.Fatal(w.Code)
+	}
+	if w := updateRequest(a, http.MethodPost, `{"action":"install"}`); w.Code != http.StatusConflict {
+		t.Fatal("duplicate restart accepted")
+	}
+	if launches != 1 {
+		t.Fatalf("launches: %d", launches)
+	}
+}
+
+func TestGUIUpdateFailuresCanBeRetried(t *testing.T) {
+	a := newUpdateAPI(context.Background(), State{Version: "dev"})
+	a.checked = time.Now()
+	a.status = updateStatus{Phase: "available", Latest: "v2026.1009.0"}
+	a.prepare = func(context.Context, string, io.Writer) (string, string, error) {
+		return "", "", errors.New("checksum mismatch")
+	}
+	updateRequest(a, http.MethodPost, `{"action":"download"}`)
+	waitUpdatePhase(t, a, "available")
+	a.mu.Lock()
+	if a.status.Error != "checksum mismatch" {
+		t.Fatal(a.status)
+	}
+	a.status.Phase = "ready"
+	a.mu.Unlock()
+	a.launch = func(string, string, string) error { return errors.New("cannot launch helper") }
+	if w := updateRequest(a, http.MethodPost, `{"action":"install"}`); w.Code != http.StatusInternalServerError {
+		t.Fatal(w.Code)
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.status.Phase != "ready" || a.status.Error != "cannot launch helper" {
+		t.Fatal(a.status)
+	}
+}
+
+func TestGUIUpdateReportsCoordinatorFailure(t *testing.T) {
+	a := newUpdateAPI(context.Background(), State{})
+	a.status.Phase = "restarting"
+	a.staged = filepath.Join(t.TempDir(), ".solomon-update-test")
+	if err := os.WriteFile(a.staged+".error", []byte("runtime could not restart"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	w := updateRequest(a, http.MethodGet, "")
+	if !strings.Contains(w.Body.String(), "runtime could not restart") || a.status.Phase != "available" {
+		t.Fatal(w.Body.String())
+	}
+}
+
+func TestGUIUpdateRejectsForeignOriginAndInvalidActions(t *testing.T) {
+	a := newUpdateAPI(context.Background(), State{})
+	r := httptest.NewRequest(http.MethodPost, "http://localhost/__solomon/update", strings.NewReader(`{"action":"download"}`))
+	r.Header.Set("Origin", "https://untrusted.example")
+	w := httptest.NewRecorder()
+	a.handle(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatal(w.Code)
+	}
+	if w := updateRequest(a, http.MethodPost, `{"action":"unexpected"}`); w.Code != http.StatusBadRequest {
+		t.Fatal(w.Code)
+	}
+	if w := updateRequest(a, http.MethodDelete, ""); w.Code != http.StatusMethodNotAllowed {
+		t.Fatal(w.Code)
+	}
+}
+
+func TestGUIUpdateCachesCheckWhenAlreadyCurrent(t *testing.T) {
+	a := newUpdateAPI(context.Background(), State{Version: "v2026.1009.0"})
+	checks := 0
+	a.check = func(context.Context) updater.CheckResult {
+		checks++
+		return updater.CheckResult{LatestTag: "v2026.1009.0"}
+	}
+	updateRequest(a, http.MethodGet, "")
+	waitUpdatePhase(t, a, "idle")
+	for i := 0; i < 5; i++ {
+		updateRequest(a, http.MethodGet, "")
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if checks != 1 || a.status.Phase != "idle" {
+		t.Fatalf("checks=%d status=%+v", checks, a.status)
+	}
+}

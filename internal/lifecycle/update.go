@@ -27,7 +27,12 @@ func RunUpdateCommand(args []string) bool {
 		return false
 	}
 	logging.LogInit(logging.INFO_LOG_LEVEL)
-	if len(args) != 4 {
+	reportFailure := func(err error) {
+		if len(args) == 6 {
+			_ = os.WriteFile(args[4]+".error", []byte(err.Error()), 0600)
+		}
+	}
+	if len(args) != 4 && len(args) != 6 {
 		fmt.Fprintln(os.Stderr, "invalid update coordinator arguments")
 		os.Exit(1)
 	}
@@ -36,12 +41,14 @@ func RunUpdateCommand(args []string) bool {
 		err = os.MkdirAll(filepath.Join(home, "run"), 0700)
 	}
 	if err != nil {
+		reportFailure(err)
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	lock := flock.New(filepath.Join(home, "run", "update.lock"))
 	locked, err := lock.TryLock()
 	if err != nil || !locked {
+		reportFailure(errors.New("another Solomon update is already running"))
 		fmt.Fprintln(os.Stderr, "another Solomon update is already running", err)
 		os.Exit(1)
 	}
@@ -50,8 +57,17 @@ func RunUpdateCommand(args []string) bool {
 	defer cancel()
 	fmt.Printf("Updating Solomon runtime to %s\n", args[2])
 	ops := platformRuntimeUpdateOps(ctx, args[2])
+	if len(args) == 6 {
+		ops.prepare = func() (string, string, error) {
+			if err := updater.VerifyPreparedInstall(ctx, args[2], args[4], args[5]); err != nil {
+				return "", "", err
+			}
+			return args[4], args[5], nil
+		}
+	}
 	parentPID, err := strconv.Atoi(args[3])
 	if err != nil || parentPID <= 1 {
+		reportFailure(errors.New("invalid update parent"))
 		fmt.Fprintln(os.Stderr, "invalid update parent")
 		os.Exit(1)
 	}
@@ -64,6 +80,7 @@ func RunUpdateCommand(args []string) bool {
 		return waitProcessExit(ctx, parentPID, parentIdentity)
 	}
 	if err := applyRuntimeUpdate(ctx, args[2], ops); err != nil {
+		reportFailure(err)
 		fmt.Fprintln(os.Stderr, "Solomon update failed:", err)
 		os.Exit(1)
 	}

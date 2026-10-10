@@ -33,7 +33,7 @@ Solomon espone alcune funzioni nella GUI e altre nel terminale. Questa pagina in
 | Impostazioni di chat, modelli e documentazione | GUI | Condivisa | `/settings`; sezione `[gui]` |
 | Esportare una chat in Markdown | Prevista | Terminale | `/export` |
 | Configurare retry e timeout API | Prevista | Terminale | `config.toml`, sezione `[api_resilience]` |
-| Aggiornare Solomon | Prevista | Terminale | `/update`, `/upgrade`, `/autoupdate` |
+| Aggiornare Solomon | GUI | Condivisa | Pulsante Update nel footer del pannello delle chat; `/update`, `/upgrade`, `/autoupdate` |
 
 ## GUI
 
@@ -52,6 +52,8 @@ Le impostazioni si aprono dal side panel all'indirizzo `/settings`. Chat, modell
 Le chat persistite vengono lette e aggiornate dal daemon locale: la selezione nella sidebar apre la sessione Solomon esistente, il primo invio in un nuovo progetto crea la sessione e il turno viene trasmesso alla GUI con eventi incrementali. Se la GUI viene ricaricata durante un turno, il daemon continua l'esecuzione e la GUI si riaggancia alla sessione tramite replay degli eventi.
 
 La sezione Docs, dentro `/settings`, carica i file Markdown inclusi nella cartella `docs/` e li rende navigabili e leggibili senza uscire dall'applicazione.
+
+Quando è disponibile una nuova release, nel footer del pannello delle chat, tra il nome utente e le impostazioni, compare il pulsante con l'icona del razzo. Il tooltip **Download update** indica che il primo clic scarica la release e ne verifica l'integrità mantenendo aperta la GUI. Quando il download è pronto, il tooltip diventa **Restart to update**: il secondo clic installa la release e riavvia il daemon e i client desktop; la GUI web si riconnette e si ricarica quando il daemon torna disponibile. Il riavvio interrompe i turni e i comandi di terminale in corso, quindi avvialo quando sei pronto. Gli errori vengono mostrati sopra il pulsante e consentono di riprovare.
 
 ## Transcript osservabile nella GUI
 

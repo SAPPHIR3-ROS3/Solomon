@@ -179,6 +179,26 @@ func PrepareInstall(ctx context.Context, tag string, progress io.Writer) (staged
 	return tmpPath, target, nil
 }
 
+// VerifyPreparedInstall checks the handoff again before stopping the runtime.
+func VerifyPreparedInstall(ctx context.Context, tag, staged, target string) error {
+	expectedTarget, err := installTargetPath()
+	if err != nil {
+		return err
+	}
+	info, err := os.Lstat(staged)
+	if err != nil {
+		return err
+	}
+	if target != expectedTarget || !info.Mode().IsRegular() || info.Size() == 0 || filepath.Dir(staged) != filepath.Dir(target) || !strings.HasPrefix(filepath.Base(staged), ".solomon-update-") {
+		return fmt.Errorf("invalid prepared update")
+	}
+	asset, err := releaseAssetName(tag)
+	if err != nil {
+		return err
+	}
+	return verifyReleaseAsset(ctx, tag, asset, staged, io.Discard)
+}
+
 func Install(ctx context.Context, tag string, progress io.Writer) error {
 	if progress == nil {
 		progress = io.Discard

@@ -240,6 +240,9 @@ func Run(ctx context.Context, options Options) error {
 	projectAPI := newProjectAPI()
 	customizationAPI := newCustomizationAPI()
 	modelAPI := newModelAPI()
+	updateAPI := newUpdateAPI(serviceCtx, state)
+	defer updateAPI.close()
+	mux.HandleFunc("/__solomon/update", updateAPI.handle)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, Health{
 			OK: true, Server: state, Now: time.Now().UTC(), Uptime: time.Since(state.StartedAt).Round(time.Second).String(),

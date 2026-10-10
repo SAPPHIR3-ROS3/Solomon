@@ -1,0 +1,27 @@
+.solomon-update-control {
+  --wails-draggable: no-drag;
+  position: relative;
+  flex: 0 0 36px;
+}
+
+.solomon-update-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-crown-gold);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.side-panel-user .solomon-update-button { color: var(--color-crown-gold); }
+.solomon-update-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.solomon-update-button:disabled { cursor: wait; opacity: 0.7; }
+.solomon-update-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.solomon-update-error { position: absolute; bottom: calc(100% + 8px); right: 0; width: min(200px, calc(100vw - 64px)); padding: 10px; border-radius: 7px; background: var(--color-surface-raised); color: var(--color-text); font-size: 12px; box-shadow: 0 4px 16px #0004; overflow-wrap: anywhere; }

@@ -14,6 +14,15 @@ import (
 
 // A detached coordinator must outlive the daemon-owned PTY requesting /upgrade.
 func launchCoordinatedUpdate(tag string) error {
+	return launchUpdateCoordinator(tag, "", "")
+}
+
+// LaunchPreparedUpdate hands a verified download to the detached coordinator.
+func LaunchPreparedUpdate(tag, staged, target string) error {
+	return launchUpdateCoordinator(tag, staged, target)
+}
+
+func launchUpdateCoordinator(tag, staged, target string) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return err
@@ -64,6 +73,9 @@ func launchCoordinatedUpdate(tag string) error {
 		executable = copy.Name()
 	}
 	args := []string{"__upgrade-runtime", tag, strconv.Itoa(os.Getpid())}
+	if staged != "" && target != "" {
+		args = append(args, staged, target)
+	}
 	command := exec.Command(executable, args...)
 	command.Env = append(os.Environ(), "SOLOMON_BINARY="+installedCLI)
 	command.Stdout, command.Stderr = log, log
