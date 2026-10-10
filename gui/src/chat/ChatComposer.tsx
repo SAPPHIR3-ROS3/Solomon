@@ -178,6 +178,11 @@ export function ChatComposer({
   async function submit() {
     const content = draft.trim();
     if (isSending || modeSwitchPending || (!content && images.length === 0) || !onSend) return;
+    if ((content === "/agent" || content === "/chat") && !images.length && !clips.length) {
+      setMode(content === "/agent" ? "agent" : "chat");
+      setDraft("");
+      return;
+    }
     await onSend(content, images, clips);
     setDraft("");
     setImages([]);

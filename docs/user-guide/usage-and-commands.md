@@ -28,6 +28,8 @@ You need network access and credentials for an **OpenAI-compatible** HTTPS API (
 
 Install first: [Installation and PATH](installation.md). Provider and engine knobs: [Configuration](configuration.md).
 
+In the web and desktop GUI, type `/` at the start of a message for command and installed-skill suggestions, or `@` for files in the selected project. Use the arrow keys to select, Tab or Enter to complete, and Escape to close the menu. Send the completed command to run it through the same dispatcher as the TUI; command output appears in the chat. `/agent` and `/chat` use the composer's mode control. Commands that manage the terminal session or require terminal setup, such as `/terminal`, `/resume`, and `/onboard`, remain available in the TUI.
+
 ## Features
 
 - Interactive readline REPL plus one-shot runs: [`exec`](../../cmd/solomon/main.go), [`temp exec`](../../cmd/solomon/main.go)

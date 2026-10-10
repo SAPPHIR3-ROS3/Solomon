@@ -272,6 +272,10 @@ func Run(ctx context.Context, options Options) error {
 	})
 	mux.HandleFunc("/__solomon/format-go", handleFormatGo)
 	mux.HandleFunc("/__solomon/fast-mode", chatAPI.handleFastMode)
+	mux.HandleFunc("/__solomon/slash-commands", func(w http.ResponseWriter, r *http.Request) {
+		root, _ := os.UserHomeDir()
+		chatAPI.handleProjectSlashCommands(w, r, "", root)
+	})
 	mux.HandleFunc("/__solomon/home-directories", projectAPI.handleHomeDirectoryEntries)
 	mux.HandleFunc("/__solomon/filesystem-directories", projectAPI.handleFilesystemDirectoryEntries)
 	mux.HandleFunc("/__solomon/home-git-branches", projectAPI.handleHomeBranches)

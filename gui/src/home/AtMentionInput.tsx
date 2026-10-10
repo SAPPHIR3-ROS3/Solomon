@@ -1,7 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "../chat/composerTypes";
 import { fetchProjectAtMentionSuggestions, type ProjectAtMentionSuggestion } from "../projects/projects";
+import { fetchProjectSlashCommands } from "../projects/projects";
+import { suggestionContext, insertSuggestion, type SuggestionContext } from "./composerSuggestions";
 
 export type { ComposerImageAttachment } from "../chat/composerTypes";
 
@@ -19,7 +21,7 @@ type AtMentionInputProps = {
   value: string;
 };
 
-type MentionContext = { start: number; query: string };
+type InputSuggestion = ProjectAtMentionSuggestion & { description?: string };
 type ImageTagPosition = { id: number; left: number; top: number; text: string; width: number };
 type CaretPosition = { height: number; left: number; top: number };
 type LightboxTool = "color" | "cursor" | "eraser" | "sketch" | "text";
@@ -61,6 +63,7 @@ type SelectionTool = typeof selectionTools[number]["value"];
 // atmention package. This component only supplies the GUI equivalent of the
 // terminal picker and its coloured rendering.
 export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips = [], images = [], onChange, onClipsChange, onImagesChange, onKeyDown, placeholder, projectID, value }: AtMentionInputProps) {
+  const pickerID = useId();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef(0);
@@ -68,7 +71,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   const imagePickerRef = useRef<HTMLInputElement>(null);
   const previousImagesRef = useRef<ComposerImageAttachment[]>([]);
   const recoveredImageIDsRef = useRef(new Set<number>());
-  const [suggestions, setSuggestions] = useState<ProjectAtMentionSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<InputSuggestion[]>([]);
   const [selected, setSelected] = useState(0);
   const [pickerPosition, setPickerPosition] = useState<{ left: number; top: number } | null>(null);
   const [imageTagPositions, setImageTagPositions] = useState<ImageTagPosition[]>([]);
@@ -81,15 +84,28 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   const [selectedSelectionTool, setSelectedSelectionTool] = useState<SelectionTool>("move");
   const [textSize, setTextSize] = useState(16);
   const [selectedToolColor, setSelectedToolColor] = useState<string>(lightboxColors[1].value);
-  const contextRef = useRef<MentionContext | null>(null);
+  const contextRef = useRef<SuggestionContext | null>(null);
   const selectedImage = images.find((image) => image.id === selectedImageID);
   const selectedImageIndex = images.findIndex((image) => image.id === selectedImageID);
 
   useEffect(() => {
+    requestRef.current += 1;
     setSuggestions([]);
     setSelected(0);
     contextRef.current = null;
   }, [projectID]);
+
+  useLayoutEffect(() => {
+    if (!value) {
+      requestRef.current += 1;
+      contextRef.current = null;
+      setSuggestions([]);
+    }
+  }, [value]);
+
+  useEffect(() => {
+    shellRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
 
   useLayoutEffect(() => {
     const input = inputRef.current;
@@ -148,17 +164,24 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   }, [images, selectedImageID]);
 
   function updateSuggestions(nextValue: string, cursor: number) {
-    const context = atMentionContext(nextValue, cursor);
+    const context = suggestionContext(nextValue, cursor);
+    const previousContext = contextRef.current;
     contextRef.current = context;
     const request = ++requestRef.current;
-    if (!context || !projectID) {
+    if (!context || (context.kind === "file" && !projectID)) {
       setSuggestions([]);
       setSelected(0);
       setPickerPosition(null);
       return;
     }
     setPickerPosition(pickerPositionFor(inputRef.current, shellRef.current, context.start));
-    const loadSuggestions = fetchProjectAtMentionSuggestions(projectID, context.query);
+    if (previousContext?.kind !== context.kind || previousContext.query !== context.query) {
+      setSuggestions([]);
+      setSelected(0);
+    }
+    const loadSuggestions = context.kind === "command"
+      ? fetchProjectSlashCommands(projectID, context.query).then((commands) => commands.map((command) => ({ ...command, path: command.tag, isDirectory: false })))
+      : fetchProjectAtMentionSuggestions(projectID!, context.query);
     void loadSuggestions
       .then((next) => {
         if (request !== requestRef.current) return;
@@ -170,13 +193,13 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
       });
   }
 
-  function selectSuggestion(suggestion: ProjectAtMentionSuggestion) {
+  function selectSuggestion(suggestion: InputSuggestion) {
     const input = inputRef.current;
     const context = contextRef.current;
     if (!input || !context) return;
-    const cursor = input.selectionStart ?? value.length;
-    const nextValue = `${value.slice(0, context.start)}${suggestion.tag} ${value.slice(cursor)}`;
-    const nextCursor = context.start + suggestion.tag.length + 1;
+    const insertion = insertSuggestion(value, context, suggestion.tag);
+    const nextValue = insertion.value;
+    const nextCursor = insertion.cursor;
     onChange(nextValue);
     contextRef.current = null;
     setSuggestions([]);
@@ -308,6 +331,9 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
       </> : null}
       <textarea
         aria-label={ariaLabel}
+        aria-autocomplete="list"
+        aria-controls={suggestions.length ? pickerID : undefined}
+        aria-activedescendant={suggestions.length ? `${pickerID}-${selected}` : undefined}
         className={`${className} at-mention-input`.trim()}
         onChange={(event) => {
           const nextValue = event.target.value;
@@ -325,6 +351,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
           scheduleVisualCaret(event.currentTarget);
         }}
         onFocus={(event) => {
+          updateSuggestions(value, event.currentTarget.selectionStart ?? value.length);
           syncVisualCaret(event.currentTarget);
           scheduleVisualCaret(event.currentTarget);
         }}
@@ -338,12 +365,12 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
           if (suggestions.length) {
             if (event.key === "ArrowDown") { event.preventDefault(); setSelected((current) => Math.min(current + 1, suggestions.length - 1)); return; }
             if (event.key === "ArrowUp") { event.preventDefault(); setSelected((current) => Math.max(current - 1, 0)); return; }
-            if (event.key === "Tab" || event.key === "Enter") {
+            if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
               event.preventDefault();
               selectSuggestion(suggestions[selected]);
               return;
             }
-            if (event.key === "Escape") { event.preventDefault(); setSuggestions([]); return; }
+            if (event.key === "Escape") { event.preventDefault(); requestRef.current += 1; setSuggestions([]); contextRef.current = null; return; }
           }
           const input = event.currentTarget;
           if (input.selectionStart === input.selectionEnd) {
@@ -368,6 +395,9 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
           onKeyDown?.(event);
         }}
         onPaste={pasteImages}
+        onKeyUp={(event) => {
+          if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) updateSuggestions(value, event.currentTarget.selectionStart);
+        }}
         onScroll={() => {
           setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
           syncVisualCaret(inputRef.current);
@@ -376,7 +406,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
           snapSelectionOutsideImageTag(event.currentTarget, value, overlayTags(images, clips));
           scheduleVisualCaret(event.currentTarget);
         }}
-        onBlur={() => setCaretPosition(null)}
+        onBlur={() => { setCaretPosition(null); requestRef.current += 1; setSuggestions([]); contextRef.current = null; }}
         placeholder={placeholder}
         ref={inputRef}
         rows={3}
@@ -396,17 +426,19 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
         <span aria-hidden="true" className="composer-image-caret" style={caretPosition} />
       ) : null}
       {suggestions.length ? (
-        <div aria-label="File suggestions" className="at-mention-picker" role="listbox" style={pickerPosition ? { left: pickerPosition.left, top: pickerPosition.top } satisfies CSSProperties : undefined}>
+        <div id={pickerID} aria-label={contextRef.current?.kind === "command" ? "Command suggestions" : "File suggestions"} className="at-mention-picker" role="listbox" style={pickerPosition ? { left: pickerPosition.left, bottom: pickerPosition.top } satisfies CSSProperties : undefined}>
           {suggestions.map((suggestion, index) => (
             <button
               aria-selected={index === selected}
+              id={`${pickerID}-${index}`}
+              tabIndex={-1}
               className={`at-mention-picker-item${index === selected ? " is-selected" : ""}`}
               key={suggestion.path}
               onMouseDown={(event) => { event.preventDefault(); selectSuggestion(suggestion); }}
               role="option"
               type="button"
             >
-              <span>{`@${suggestion.path.split("/").at(-1)}`}</span><small>{suggestion.isDirectory ? `${suggestion.path}/` : suggestion.path}</small>
+              <span>{suggestion.description ? suggestion.tag : `@${suggestion.path.split("/").at(-1)}`}</span><small>{suggestion.description ?? (suggestion.isDirectory ? `${suggestion.path}/` : suggestion.path)}</small>
             </button>
           ))}
         </div>
@@ -813,14 +845,6 @@ function LightboxToolIcon({ tool }: { tool: "arrow" | "color" | "crop" | "cursor
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 19 1.4-4.6L16.7 4.1a1.8 1.8 0 0 1 2.5 0l.7.7a1.8 1.8 0 0 1 0 2.5L9.6 17.6 5 19Z" /><path d="m13.8 7.1 3.1 3.1" /></svg>;
 }
 
-function atMentionContext(value: string, cursor: number): MentionContext | null {
-  const beforeCursor = value.slice(0, cursor);
-  const start = beforeCursor.lastIndexOf("@");
-  if (start < 0) return null;
-  const query = beforeCursor.slice(start + 1);
-  return /\s|@/.test(query) ? null : { query, start };
-}
-
 function pickerPositionFor(input: HTMLTextAreaElement | null, shell: HTMLDivElement | null, position: number) {
   if (!input || !shell) return null;
   const computed = getComputedStyle(input);
@@ -836,8 +860,8 @@ function pickerPositionFor(input: HTMLTextAreaElement | null, shell: HTMLDivElem
   const shellRect = shell.getBoundingClientRect();
   mirror.remove();
   return {
-    left: Math.max(0, markerRect.left - shellRect.left - input.scrollLeft),
-    top: markerRect.bottom - shellRect.top - input.scrollTop + 6,
+    left: Math.max(0, Math.min(markerRect.left - shellRect.left - input.scrollLeft, shellRect.width - 320)),
+    top: shellRect.bottom - markerRect.top + input.scrollTop + 6,
   };
 }
 

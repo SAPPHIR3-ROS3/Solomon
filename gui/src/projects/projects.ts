@@ -558,3 +558,9 @@ export async function operateProjectFile(projectID: string, operation: ProjectFi
   }
   window.dispatchEvent(new CustomEvent<ProjectFilesChanged>(PROJECT_FILES_CHANGED_EVENT, { detail: { ...operation, projectID } }));
 }
+export async function fetchProjectSlashCommands(projectID: string | undefined, query: string): Promise<Array<{ tag: string; description: string }>> {
+  const path = projectID ? `/__solomon/projects/${encodeURIComponent(projectID)}/slash-commands` : "/__solomon/slash-commands";
+  const response = await fetch(await serverEndpoint(`${path}?query=${encodeURIComponent(query)}`));
+  if (!response.ok) throw new Error(`Unable to read project commands: ${response.status}`);
+  return response.json();
+}
