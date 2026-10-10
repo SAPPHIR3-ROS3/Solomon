@@ -51,10 +51,10 @@ func main() {
 			err = prepareInstall(os.Args[2])
 		}
 	case "deploy-install":
-		if len(os.Args) != 3 {
-			err = fmt.Errorf("usage: cursor_bundler deploy-install <staging-directory>")
+		if len(os.Args) != 3 && (len(os.Args) != 4 || os.Args[3] != "--progress") {
+			err = fmt.Errorf("usage: cursor_bundler deploy-install <staging-directory> [--progress]")
 		} else {
-			err = deployInstall(os.Args[2])
+			err = deployInstall(os.Args[2], len(os.Args) == 4)
 		}
 	default:
 		usage()
@@ -194,7 +194,7 @@ func prepareInstall(stage string) error {
 	return nil
 }
 
-func deployInstall(stage string) error {
+func deployInstall(stage string, showProgress ...bool) error {
 	dir, err := cursorInstallDir()
 	if err != nil {
 		return err
@@ -204,8 +204,15 @@ func deployInstall(stage string) error {
 			return fmt.Errorf("prepared Cursor integration is incomplete: %w", err)
 		}
 	}
+	progress := len(showProgress) > 0 && showProgress[0]
+	if progress {
+		fmt.Println("\n── 8/9 Stop Cursor sidecar ──")
+	}
 	if err := cmdStop(); err != nil {
 		return err
+	}
+	if progress {
+		fmt.Println("\n── 9/9 Deploy Cursor integration ──")
 	}
 	if err := updater.CommitDirectoryInstall(stage, dir); err != nil {
 		return err

@@ -400,7 +400,7 @@ func reachableAddresses(listenerAddr *net.TCPAddr, port int) []ReachableAddress 
 	}
 	if !listenerIP.IsUnspecified() {
 		appendAddress(listenerIP, interfaceNameForIP(listenerIP))
-		return addresses
+		return appendTailscaleMagicDNS(addresses, port)
 	}
 
 	interfaces, err := net.Interfaces()
@@ -408,6 +408,9 @@ func reachableAddresses(listenerAddr *net.TCPAddr, port int) []ReachableAddress 
 		return nil
 	}
 	for _, networkInterface := range interfaces {
+		if networkInterface.Flags&net.FlagUp == 0 || isContainerInterface(networkInterface.Name) {
+			continue
+		}
 		interfaceAddrs, err := networkInterface.Addrs()
 		if err != nil {
 			continue
@@ -417,6 +420,7 @@ func reachableAddresses(listenerAddr *net.TCPAddr, port int) []ReachableAddress 
 		}
 	}
 
+	addresses = appendTailscaleMagicDNS(addresses, port)
 	sort.Slice(addresses, func(i, j int) bool {
 		if addresses[i].Kind != addresses[j].Kind {
 			return addresses[i].Kind == "local"
@@ -427,6 +431,17 @@ func reachableAddresses(listenerAddr *net.TCPAddr, port int) []ReachableAddress 
 		return addresses[i].URL < addresses[j].URL
 	})
 	return addresses
+}
+
+// Container bridges and virtual Ethernet pairs are not useful client URLs.
+// Keep LAN interfaces and VPNs (including WireGuard and Tailscale) visible.
+func isContainerInterface(name string) bool {
+	for _, prefix := range []string{"docker", "br-", "veth", "cni", "flannel", "podman"} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func interfaceIPv4(address net.Addr) net.IP {

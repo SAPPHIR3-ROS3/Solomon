@@ -104,12 +104,21 @@ gui-deps:
 
 # Stage the production UI for both the local web server and Wails.
 gui-build: gui-deps
-	npm --prefix gui run build
+	npm --prefix gui run build -- --logLevel warn
 	go run scripts/gui_bundle.go
+	@echo "GUI build complete."
 
 # Native Linux builds require GTK 3 and WebKitGTK 4.1 development packages.
 ifeq ($(GOOS),linux)
+DESKTOP_DEVLIBS ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)/solomon/desktop-devlibs
+DESKTOP_PKGCONFIG := $(DESKTOP_DEVLIBS)/usr/lib/$(shell $(CC) -print-multiarch)/pkgconfig
+ifneq ($(wildcard $(DESKTOP_PKGCONFIG)/webkit2gtk-4.1.pc),)
+export PKG_CONFIG_PATH := $(DESKTOP_PKGCONFIG)$(if $(PKG_CONFIG_PATH),:$(PKG_CONFIG_PATH))
+# Include the local root in CGO's cache key as well as pkg-config's search path.
+export CGO_CPPFLAGS := $(CGO_CPPFLAGS) -I$(DESKTOP_DEVLIBS)/usr/include
+endif
 desktop-build: gui-build
+	@pkg-config --exists gtk+-3.0 webkit2gtk-4.1 || { echo "Missing desktop development packages: install libgtk-3-dev and libwebkit2gtk-4.1-dev." >&2; exit 1; }
 	mkdir -p gui/desktop/build/bin
 	CGO_ENABLED=1 go build -tags production,webkit2_41 $(BUILD_FLAGS) -o gui/desktop/build/bin/solomon-desktop ./gui/desktop
 
@@ -191,21 +200,21 @@ install-prepare:
 	@$(FIX_TTY)
 	@$(PRINT_BLANK)
 	@$(call PRINT_LINE,=== Prepare Solomon installation ($(VERSION)) ===)
-	$(call INSTALL_STEP,1/5 Build Cursor proxy,$(CURSOR_BUNDLER) build --force)
-	$(call INSTALL_STEP,2/5 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
-	$(call INSTALL_STEP,3/5 Build production GUI and native desktop,$(MAKE) gui-build desktop-build)
-	$(call INSTALL_STEP,4/5 Build staged CLI,go build $(BUILD_FLAGS) -o "$(OUT)" ./cmd/solomon)
+	$(call INSTALL_STEP,1/9 Build Cursor proxy,$(CURSOR_BUNDLER) build --force)
+	$(call INSTALL_STEP,2/9 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
+	$(call INSTALL_STEP,3/9 Build production GUI and native desktop,$(MAKE) gui-build desktop-build)
+	$(call INSTALL_STEP,Build staged CLI,go build $(BUILD_FLAGS) -o "$(OUT)" ./cmd/solomon)
 ifneq ($(CLOAK_BROWSER_READY),1)
-	$(call INSTALL_STEP,5/5 Provision CloakBrowser,$(MAKE) cloak-install)
+	$(call INSTALL_STEP,4/9 Provision CloakBrowser,$(MAKE) cloak-install)
 else
-	$(call INSTALL_STEP_SKIPPED,5/5 Provision CloakBrowser)
+	$(call INSTALL_STEP_SKIPPED,4/9 Provision CloakBrowser)
 	@bash -c 'source scripts/install.sh; configure_runtime_defaults' >/dev/null
 endif
 
 # Called only by the coordinator, with both installed executables backed up.
 install-deploy:
-	"$(INSTALL_BIN)" templates install
-	$(CURSOR_BUNDLER) deploy-install "$(CURSOR_STAGE)"
+	$(call INSTALL_STEP,7/9 Install prompt templates,"$(INSTALL_BIN)" templates install)
+	$(CURSOR_BUNDLER) deploy-install "$(CURSOR_STAGE)" --progress
 	@$(FIX_TTY)
 	@$(PRINT_BLANK)
 	@$(call PRINT_LINE,solomon -> $(INSTALL_BIN))

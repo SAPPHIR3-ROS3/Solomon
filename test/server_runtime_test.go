@@ -95,6 +95,7 @@ func TestServerRuntime_defaultAdvertisesReachableIPv4Addresses(t *testing.T) {
 	if len(server.Addresses) == 0 {
 		t.Fatal("default server did not advertise any network addresses")
 	}
+	t.Logf("advertised addresses: %+v", server.Addresses)
 	serverURL, err := url.Parse(server.URL)
 	if err != nil {
 		t.Fatalf("invalid server URL %q: %v", server.URL, err)
@@ -105,6 +106,11 @@ func TestServerRuntime_defaultAdvertisesReachableIPv4Addresses(t *testing.T) {
 	}
 
 	for _, address := range server.Addresses {
+		for _, prefix := range []string{"docker", "br-", "veth", "cni", "flannel", "podman"} {
+			if strings.HasPrefix(address.Interface, prefix) {
+				t.Fatalf("container interface %q advertised as a client URL: %s", address.Interface, address.URL)
+			}
+		}
 		parsed, err := url.Parse(address.URL)
 		if err != nil {
 			t.Fatalf("invalid advertised URL %q: %v", address.URL, err)
@@ -117,6 +123,9 @@ func TestServerRuntime_defaultAdvertisesReachableIPv4Addresses(t *testing.T) {
 			t.Fatalf("advertised URL %q uses port %s, want %s", address.URL, advertisedPort, serverPort)
 		}
 		ip := net.ParseIP(host).To4()
+		if ip == nil && address.Kind == "tailscale" && strings.HasSuffix(host, ".ts.net") {
+			continue
+		}
 		if ip == nil || ip.IsLoopback() {
 			t.Fatalf("advertised URL %q is not a non-loopback IPv4 address", address.URL)
 		}
@@ -137,6 +146,16 @@ func hasNonLoopbackIPv4Interface(t *testing.T) bool {
 		return false
 	}
 	for _, networkInterface := range interfaces {
+		if networkInterface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		containerInterface := false
+		for _, prefix := range []string{"docker", "br-", "veth", "cni", "flannel", "podman"} {
+			containerInterface = containerInterface || strings.HasPrefix(networkInterface.Name, prefix)
+		}
+		if containerInterface {
+			continue
+		}
 		addresses, err := networkInterface.Addrs()
 		if err != nil {
 			continue

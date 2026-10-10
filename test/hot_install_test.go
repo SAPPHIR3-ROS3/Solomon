@@ -146,7 +146,9 @@ func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool) {
 			}
 		}()
 	}
-	err = lifecycle.HotInstall(ctx, target, "unused-default-gui", func() error {
+	var progress []string
+	err = lifecycle.HotInstallWithProgress(ctx, target, "unused-default-gui", func() error {
+		progress = append(progress, "install")
 		if cancelDuringStop {
 			t.Error("installation ran after cancellation during shutdown")
 		}
@@ -154,7 +156,7 @@ func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool) {
 			t.Error("install ran while old processes were still alive")
 		}
 		return updater.CommitInstall(staged, target)
-	})
+	}, func(phase string) { progress = append(progress, phase) })
 	// Clean up only fixture client processes, including the reopened client.
 	t.Cleanup(func() {
 		clients, _ := lifecycle.UpdateClientsForTest(desktop)
@@ -168,6 +170,13 @@ func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool) {
 	}
 	if !cancelDuringStop && err != nil {
 		t.Fatal(err)
+	}
+	wantProgress := []string{"stop", "install", "start"}
+	if cancelDuringStop {
+		wantProgress = []string{"stop"}
+	}
+	if !reflect.DeepEqual(progress, wantProgress) {
+		t.Fatalf("progress=%v want=%v", progress, wantProgress)
 	}
 	updated, err := serverruntime.LoadState()
 	if err != nil {

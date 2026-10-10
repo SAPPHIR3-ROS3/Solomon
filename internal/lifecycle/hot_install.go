@@ -19,6 +19,11 @@ import (
 // HotInstall replaces the local installation while its daemon and native clients
 // are stopped, then starts fresh processes in the daemon's previous mode.
 func HotInstall(ctx context.Context, target, defaultDevDir string, install func() error) error {
+	return HotInstallWithProgress(ctx, target, defaultDevDir, install, nil)
+}
+
+// HotInstallWithProgress reports shutdown and restart when those phases begin.
+func HotInstallWithProgress(ctx context.Context, target, defaultDevDir string, install func() error, progress func(string)) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -64,6 +69,17 @@ func HotInstall(ctx context.Context, target, defaultDevDir string, install func(
 		defaultState.Mode, defaultState.DevDir = "dev", defaultDevDir
 	}
 	ops := platformRuntimeUpdateOps(ctx, "", defaultState)
+	if progress != nil {
+		stop, start := ops.stop, ops.start
+		ops.stop = func(target string) error {
+			progress("stop")
+			return stop(target)
+		}
+		ops.start = func(target string) error {
+			progress("start")
+			return start(target)
+		}
+	}
 	restore := ops.restore
 	restored := false
 	installAttempted := false

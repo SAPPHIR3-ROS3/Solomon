@@ -190,6 +190,13 @@ sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 make desktop-install
 ```
 
+For a local development-package installation, Make also checks
+`${XDG_DATA_HOME:-~/.local/share}/solomon/desktop-devlibs` (override with
+`DESKTOP_DEVLIBS`). Its `usr/lib/<multiarch>/pkgconfig` files must point to the
+local headers and libraries, and library symlinks must resolve to installed
+runtime libraries. Keep this directory outside `/tmp` so cleanup does not break
+later builds. The local include path also invalidates stale CGO cache entries.
+
 This installs `solomon` and `solomon-desktop` in `BIN_DIR` (the Go binary
 directory by default), plus the Solomon icon and launcher under
 `${XDG_DATA_HOME:-~/.local/share}`. Open **Solomon** from **Show Applications**.
@@ -205,6 +212,12 @@ success. Chat history and settings remain saved. It builds the native client bef
 stopping the daemon; missing GTK/WebKit development packages abort the command
 while the existing daemon keeps running. Use `make desktop-install` for a desktop
 update that preserves the running daemon.
+
+The progress output retains the original nine numbered steps, reordered so
+compilation and dependency preparation finish before shutdown. Staged CLI
+compilation, Cursor dependency preparation, and restart with verification are
+shown as unnumbered status messages. An already installed CloakBrowser still
+appears as a skipped step.
 
 For separate builds:
 

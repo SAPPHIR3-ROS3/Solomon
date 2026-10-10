@@ -78,6 +78,7 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 		return err
 	}
 	defer os.RemoveAll(cursorStage)
+	fmt.Println("\nPreparing Cursor integration dependencies...")
 	if err := run("go", "run", "scripts/cursor_bundler.go", "prepare-install", cursorStage); err != nil {
 		return fmt.Errorf("prepare Cursor dependencies (running service preserved): %w", err)
 	}
@@ -91,7 +92,8 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 	if version == "" {
 		version = "dev"
 	}
-	return lifecycle.HotInstall(ctx, target, filepath.Join(root, "gui"), func() error {
+	return lifecycle.HotInstallWithProgress(ctx, target, filepath.Join(root, "gui"), func() error {
+		step(6, "Install Solomon CLI and native desktop")
 		if err := updater.CommitInstall(stagedCLI, target); err != nil {
 			return err
 		}
@@ -99,7 +101,18 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 			return err
 		}
 		return run(os.Args[2], "install-deploy", "BIN_DIR="+os.Args[3], "CURSOR_STAGE="+cursorStage)
+	}, func(phase string) {
+		switch phase {
+		case "stop":
+			step(5, "Stop Solomon server and native clients")
+		case "start":
+			fmt.Println("\nRestarting and verifying Solomon server and native clients...")
+		}
 	})
+}
+
+func step(number int, label string) {
+	fmt.Printf("\n── %d/9 %s ──\n", number, label)
 }
 
 func fail(err error) {

@@ -51,3 +51,8 @@ func (a *UpdateAPIForTest) SetStatus(phase, latest, staged string) {
 	a.api.staged = staged
 	a.api.checked = time.Now()
 }
+
+// TailscaleMagicDNSAddressForTest exposes status parsing to tests in test/.
+func TailscaleMagicDNSAddressForTest(addresses []ReachableAddress, port int, data []byte) (ReachableAddress, bool) {
+	return tailscaleMagicDNSAddress(addresses, port, data)
+}
