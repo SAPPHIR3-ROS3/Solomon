@@ -356,6 +356,12 @@
   top: var(--chat-composer-surface-top);
   z-index: 0;
 }
+.chat-scroll-to-bottom { align-items: center; appearance: none; background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 50%; bottom: calc(100% + 12px); box-shadow: 0 4px 14px rgb(0 0 0 / 24%); color: var(--color-text); cursor: pointer; display: flex; height: 40px; justify-content: center; left: 50%; opacity: 0; padding: 0; pointer-events: none; position: absolute; transform: translate(-50%, 8px) scale(.9); transition: opacity 180ms ease, transform 180ms ease, visibility 180ms, background-color 140ms ease, border-color 140ms ease; visibility: hidden; width: 40px; z-index: 2; }
+.chat-scroll-to-bottom.is-visible { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); visibility: visible; }
+@media (prefers-reduced-motion: reduce) { .chat-scroll-to-bottom { transition: none; } }
+.chat-scroll-to-bottom:hover { background: var(--color-surface); border-color: var(--color-text-muted); }
+.chat-scroll-to-bottom:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.chat-scroll-to-bottom svg { fill: none; height: 20px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 20px; }
 .chat-composer { position: relative; z-index: 1; }
 .chat-pending-messages { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; position: relative; z-index: 1; }
 .chat-pending-turn { width: 100%; }

@@ -83,7 +83,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
   const visibleMessages = indexedMessages.filter(({ message }) => !pendingUserMessageIDs.has(message.id));
   const liveWorkedFor = isChatWorking ? liveWorkedForSeconds(chat, clockNow) : undefined;
-  const { messagesRef, messagesShellRef, onMessagesKeyDown, onMessagesPointerDown, onMessagesScroll, onMessagesWheel } = useChatScroll({
+  const { isAwayFromBottom, messagesRef, messagesShellRef, onMessagesKeyDown, onMessagesPointerDown, onMessagesScroll, onMessagesWheel, scrollToBottom } = useChatScroll({
     bottomInset,
     chatID: chat.id,
     composerDockRef,
@@ -244,6 +244,9 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
       </div>
 		{openSubagentTool && openSubchatID ? <SubagentChatPanel isLoading={isSubchatLoading} messages={subchatMessages ?? undefined} onCollapse={() => { setOpenSubagent(null); setForcedSubagent(null); }} tool={openSubagentTool} /> : null}
       <div className="welcome-composer-dock chat-composer-dock" ref={composerDockRef}>
+        <button aria-hidden={!isAwayFromBottom} aria-label="Scroll to bottom" className={`chat-scroll-to-bottom${isAwayFromBottom ? " is-visible" : ""}`} disabled={!isAwayFromBottom} onClick={scrollToBottom} tabIndex={isAwayFromBottom ? 0 : -1} title="Scroll to bottom" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14m-6-6 6 6 6-6" /></svg>
+        </button>
         {pendingMessages.length ? (
           <div className="chat-pending-messages">
             {pendingMessages.map(({ message }) => (
