@@ -213,6 +213,14 @@ func Log(currentLogLevel int, message string, options ...LogOptions) {
 	logMu.Lock()
 	defer logMu.Unlock()
 
+	if currentLogLevel == ERROR_LOG_LEVEL || currentLogLevel == WARNING_LOG_LEVEL {
+		text := message
+		if parameters != nil {
+			text += f.Sprintf(" | %v", parameters)
+		}
+		recordNotificationLocked(notification(date, strings.ToLower(logLevel[currentLogLevel]), text))
+	}
+
 	if writeConsole {
 		f.Println(consoleMessage)
 	}

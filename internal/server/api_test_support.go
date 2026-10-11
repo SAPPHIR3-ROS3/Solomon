@@ -56,3 +56,7 @@ func (a *UpdateAPIForTest) SetStatus(phase, latest, staged string) {
 func TailscaleMagicDNSAddressForTest(addresses []ReachableAddress, port int, data []byte) (ReachableAddress, bool) {
 	return tailscaleMagicDNSAddress(addresses, port, data)
 }
+
+func NotificationsHandlerForTest() http.HandlerFunc { return handleNotifications }
+
+func SlashChatOutputForTest(output string) string { return slashChatOutput(output) }
