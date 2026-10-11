@@ -44,17 +44,45 @@ async function openSubagents(characteristics = ["reasoning"]) {
 
 test("GUI creates a subagent with model, description and table scores", async () => {
   const { page, submitted } = await openSubagents();
+  const description = "Explorer: " + "A detailed description of this subagent. ".repeat(12) + "\nKeeps line breaks.";
   const form = page.getByRole("form", { name: "New subagent" });
   await form.getByRole("combobox", { name: "Provider", exact: true }).click();
   await form.getByRole("option", { name: "p", exact: true }).click();
   await form.getByRole("combobox", { name: "Model", exact: true }).click();
   await form.getByRole("option", { name: "m", exact: true }).click();
-  await form.getByLabel("Description (optional)").fill("Explorer");
+  await form.getByLabel("Description (optional)").fill(description);
   await form.getByLabel("Reasoning").fill("80");
   await form.getByRole("button", { name: "Create", exact: true }).click();
   await form.waitFor({ state: "detached" });
-  assert.deepEqual(submitted(), { provider: "p", model: "m", detail: "Explorer", scores: [{ id: "reasoning", value: 80 }] });
-  await page.getByText("Explorer", { exact: true }).waitFor();
+  assert.deepEqual(submitted(), { provider: "p", model: "m", detail: description, scores: [{ id: "reasoning", value: 80 }] });
+  const row = page.locator(".customization-rule").filter({ has: page.getByText("m", { exact: true }) });
+  const toggle = row.locator(".customization-rule-main");
+  const details = row.locator(".customization-subagent-details");
+  assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+  assert.equal(await details.isVisible(), false);
+  await toggle.click();
+  assert.equal(await toggle.getAttribute("aria-expanded"), "true");
+  assert.equal(await details.isVisible(), true);
+  assert.equal(await details.getAttribute("id"), await toggle.getAttribute("aria-controls"));
+  assert.equal(await details.locator(".customization-subagent-description").textContent(), description);
+  assert.equal(await details.locator("dt").textContent(), "Reasoning");
+  assert.equal(await details.locator("dd").textContent(), "80 / 100");
+  const descriptionStyle = await details.locator("p").evaluate(element => getComputedStyle(element).whiteSpace);
+  assert.equal(descriptionStyle, "pre-wrap");
+  await row.getByRole("button", { name: "More options for subagent m", exact: true }).click();
+  await row.getByRole("menuitem", { name: "Edit", exact: true }).waitFor();
+  assert.equal(await toggle.getAttribute("aria-expanded"), "true");
+  await toggle.click();
+  assert.equal(await details.isVisible(), false);
+  await toggle.press("Enter");
+  assert.equal(await details.isVisible(), true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await details.isVisible(), true);
+  const bounds = await details.boundingBox();
+  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
+  await toggle.press("Space");
+  assert.equal(await details.isVisible(), false);
+  await page.close();
 });
 
 test("GUI explains missing table and allows cancellation", async () => {

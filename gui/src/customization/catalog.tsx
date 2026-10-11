@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useId, useState, type RefObject } from "react";
 import { ScoreInput } from "./ScoreInput";
 import {
   fetchRolesTable,
@@ -251,6 +251,9 @@ export function EditableCatalogList({
   onStartEdit: (item: CustomizationCatalogItem) => void;
   query: string;
 }) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const detailsPrefix = useId();
+
   return (
     <div className="customization-rules">
       {items.map((item) => {
@@ -289,13 +292,31 @@ export function EditableCatalogList({
           );
         }
 
+        const isExpanded = expandedIds.has(item.id);
+        const detailsId = `${detailsPrefix}-${item.id}`;
         return (
           <div className="customization-rule" key={item.id} onDoubleClick={() => onStartEdit(item)}>
-            <button className="customization-rule-main" type="button">
-              <span aria-hidden="true" className="customization-rule-icon"><RuleIcon /></span>
+            <button
+              aria-controls={detailsId}
+              aria-expanded={isExpanded}
+              className="customization-rule-main"
+              onClick={() => {
+                onMenuToggle(null);
+                setExpandedIds((current) => {
+                  const next = new Set(current);
+                  if (next.has(item.id)) next.delete(item.id);
+                  else next.add(item.id);
+                  return next;
+                });
+              }}
+              type="button"
+            >
+              <span aria-hidden="true" className={`customization-rule-icon customization-subagent-chevron${isExpanded ? " is-expanded" : ""}`}>
+                <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
+              </span>
               <span className="customization-catalog-text">
                 <CatalogItemHeading item={item} />
-                {item.detail ? <span className="customization-catalog-detail">{item.detail}</span> : null}
+                {!isExpanded && item.detail ? <span className="customization-catalog-detail">{item.detail}</span> : null}
               </span>
             </button>
             <div className="customization-rule-more-wrap" onDoubleClick={(event) => event.stopPropagation()} ref={menuId === item.id ? menuRef : undefined}>
@@ -318,6 +339,19 @@ export function EditableCatalogList({
                   <button className="is-danger" disabled={isDeleting} onClick={() => onDelete(item)} role="menuitem" type="button">Delete</button>
                 </div>
               ) : null}
+            </div>
+            <div className="customization-subagent-details" hidden={!isExpanded} id={detailsId}>
+              {item.detail ? <p className="customization-subagent-description">{item.detail}</p> : null}
+              {item.scores?.length ? (
+                <dl aria-label={`Stats for ${item.title}`} className="customization-subagent-stats">
+                  {item.scores.map((score) => (
+                    <div key={score.id}>
+                      <dt>{score.label}</dt>
+                      <dd>{score.value}<span> / 100</span></dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : <p className="customization-subagent-description">No stats configured.</p>}
             </div>
           </div>
         );
