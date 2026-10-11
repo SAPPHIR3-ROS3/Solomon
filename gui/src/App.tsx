@@ -33,7 +33,6 @@ const MAX_COMPOSER_WIDTH = 960;
 const TEXTBOX_SIDE_PANEL_GAP = 36;
 const LEFT_SIDE_PANEL_WIDTH_KEY = "solomon.left-side-panel-width";
 const RIGHT_SIDE_PANEL_WIDTH_KEY = "solomon.right-side-panel-width";
-const EMPTY_MESSAGE_IDS = new Set<string>();
 
 export function App() {
   useEffect(() => watchDaemonLifecycle(() => window.location.reload()), []);
@@ -76,7 +75,7 @@ export function App() {
     isLoading: isChatLoading,
     error: chatError,
     streamingChatIDs,
-    pendingMessageIDs,
+    queuedMessages,
   } = chatRuntime;
 
   useEffect(() => {
@@ -546,7 +545,7 @@ export function App() {
           onStopTool={chatRuntime.stopTool}
           onStopStreaming={chatRuntime.stopChat}
           openSubagentRequest={openSubagentRequest}
-          pendingUserMessageIDs={pendingMessageIDs.get(selectedChat.id) ?? EMPTY_MESSAGE_IDS}
+          queuedMessages={queuedMessages.get(selectedChat.id)}
           branch={selectedChat.branch}
           worktree={selectedChat.worktree}
           workspaceName={selectedChat.workspaceName ?? selectedWorkspace?.name}

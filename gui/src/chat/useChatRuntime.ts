@@ -15,7 +15,7 @@ export type ChatRuntime = {
   error: string;
   streamingChatIDs: ReadonlySet<string>;
   unreadCompletedChatIDs: ReadonlySet<string>;
-  pendingMessageIDs: ReadonlyMap<string, ReadonlySet<string>>;
+  queuedMessages: ReadonlyMap<string, readonly ChatMessage[]>;
   clearSelection: () => void;
   openProjectChat: (project: Project, chatID: string) => Promise<void>;
   sendNewProjectMessage: (project: Project, content: string, images?: ComposerImageAttachment[], clips?: ComposerTerminalClip[]) => Promise<void>;
@@ -35,7 +35,8 @@ export function useChatRuntime(): ChatRuntime {
   const [error, setError] = useState("");
   const [streamingChatIDs, setStreamingChatIDs] = useState<Set<string>>(() => new Set());
   const [unreadCompletedChatIDs, setUnreadCompletedChatIDs] = useState<Set<string>>(getUnreadCompletedChatIDs);
-  const [pendingMessageIDs, setPendingMessageIDs] = useState<Map<string, Set<string>>>(() => new Map());
+  const [queuedMessages, setQueuedMessages] = useState<Map<string, ChatMessage[]>>(() => new Map());
+  const messageQueues = useRef(new Map<string, ChatMessage[]>());
   const streams = useRef(new Map<string, AbortController>());
   const streamRetryTimers = useRef(new Map<string, number>());
   const streamRetryAttempts = useRef(new Map<string, number>());
@@ -93,16 +94,8 @@ export function useChatRuntime(): ChatRuntime {
     });
   }, []);
 
-  const markMessagePending = useCallback((chatID: string, messageID: string, pending: boolean) => {
-    setPendingMessageIDs((current) => {
-      const next = new Map(current);
-      const messageIDs = new Set(next.get(chatID));
-      if (pending) messageIDs.add(messageID);
-      else messageIDs.delete(messageID);
-      if (messageIDs.size) next.set(chatID, messageIDs);
-      else next.delete(chatID);
-      return next;
-    });
+  const publishMessageQueues = useCallback(() => {
+    setQueuedMessages(new Map(messageQueues.current));
   }, []);
 
   const attachDaemonStream = useCallback((
@@ -144,14 +137,6 @@ export function useChatRuntime(): ChatRuntime {
         selectedChatID: selectedChatIDRef.current,
       })) {
         setUnreadCompletedChatIDs((current) => markChatCompletionUnread(current, chat.id));
-      }
-      if (event.type === "assistant_start" || event.type === "error" || event.type === "run_end") {
-        setPendingMessageIDs((current) => {
-          if (!current.has(chat.id)) return current;
-          const next = new Map(current);
-          next.delete(chat.id);
-          return next;
-        });
       }
       if (event.type === "notification" && !replay && typeof event.message === "string") {
         notifyNotification(event.message, typeof event.level === "string" ? event.level : "system");
@@ -201,7 +186,6 @@ export function useChatRuntime(): ChatRuntime {
     forgetChatStreamCursor(chat.projectID, chat.id);
     const isCommand = message.content.trimStart().startsWith("/");
     updateChat(chat.id, (current) => ({ ...current, messages: isCommand ? current.messages : [...current.messages, message], runStartedAt: Date.now(), status: "running" }));
-    if (!isCommand) markMessagePending(chat.id, message.id, true);
     setError("");
     attachDaemonStream(chat, (signal, onEvent) => streamLiveChatMessage(
       chat.projectID!,
@@ -212,7 +196,7 @@ export function useChatRuntime(): ChatRuntime {
       signal,
       onEvent,
     ), (signal, onEvent) => streamLiveChatEvents(chat.projectID!, chat.id, getChatStreamCursor(chat.projectID!, chat.id), signal, onEvent));
-  }, [attachDaemonStream, markMessagePending]);
+  }, [attachDaemonStream]);
 
   const reconnectDaemonStream = useCallback((chat: Chat) => {
     if (!chat.projectID || streams.current.has(chat.id)) return;
@@ -227,11 +211,38 @@ export function useChatRuntime(): ChatRuntime {
     reconnectDaemonStream(selectedChat);
   }, [reconnectDaemonStream, selectedChat]);
 
+  const sendNextQueuedMessage = useCallback((chat: Chat) => {
+    const queue = messageQueues.current.get(chat.id);
+    if (!queue?.length) return;
+    const [message, ...remaining] = queue;
+    if (remaining.length) messageQueues.current.set(chat.id, remaining);
+    else messageQueues.current.delete(chat.id);
+    publishMessageQueues();
+    sendDaemonMessage(chat, message);
+  }, [publishMessageQueues, sendDaemonMessage]);
+
   const sendMessage = useCallback((chatID: string, message: ChatMessage) => {
     const chat = getChat(chatID);
     if (!chat?.projectID) return;
+    const isRunning = streams.current.has(chatID) || chat.status === "running";
+    if (isRunning || messageQueues.current.has(chatID)) {
+      messageQueues.current.set(chatID, [...(messageQueues.current.get(chatID) ?? []), message]);
+      publishMessageQueues();
+      if (!isRunning) sendNextQueuedMessage(chat);
+      return;
+    }
     sendDaemonMessage(chat, message);
-  }, [sendDaemonMessage]);
+  }, [publishMessageQueues, sendDaemonMessage, sendNextQueuedMessage]);
+
+  useEffect(() => {
+    for (const chatID of messageQueues.current.keys()) {
+      const chat = getChat(chatID);
+      // Wait for the stream and its final snapshot before starting the next turn.
+      // Failed or interrupted runs leave the queue visible until another send.
+      if (!chat?.projectID || streams.current.has(chatID) || (chat.status !== "success" && chat.status !== undefined)) continue;
+      sendNextQueuedMessage(chat);
+    }
+  }, [chats, streamingChatIDs, queuedMessages, sendNextQueuedMessage]);
 
   const sendNewProjectMessage = useCallback(async (project: Project, content: string, composerImages: ComposerImageAttachment[] = [], composerClips: ComposerTerminalClip[] = []) => {
     if (createController.current) return;
@@ -370,6 +381,8 @@ export function useChatRuntime(): ChatRuntime {
       streamRetryAttempts.current.delete(chatID);
       forgetChatStreamCursor(projectID, chatID);
       setUnreadCompletedChatIDs((current) => markChatCompletionRead(current, chatID));
+      messageQueues.current.delete(chatID);
+      publishMessageQueues();
       removeChat(chatID);
       if (selectedChatIDRef.current === chatID) {
         cancelPendingRequests();
@@ -385,7 +398,7 @@ export function useChatRuntime(): ChatRuntime {
       setError(message);
       throw reason instanceof Error ? reason : new Error(message);
     }
-  }, [cancelPendingRequests]);
+  }, [cancelPendingRequests, publishMessageQueues]);
 
   const stopChat = useCallback((chatID: string) => {
     const chat = getChat(chatID);
@@ -436,7 +449,7 @@ export function useChatRuntime(): ChatRuntime {
     error,
     streamingChatIDs,
     unreadCompletedChatIDs,
-    pendingMessageIDs,
+    queuedMessages,
     clearSelection,
     openProjectChat,
     sendNewProjectMessage,

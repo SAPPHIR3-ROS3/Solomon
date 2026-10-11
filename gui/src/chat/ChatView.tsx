@@ -40,14 +40,14 @@ type ChatViewProps = {
   onStopStreaming: (chatID: string) => void;
   openSubagentRequest?: OpenSubagentRequest | null;
   loadSubchat?: (subchatID: string) => Promise<ChatMessage[]>;
-  pendingUserMessageIDs?: ReadonlySet<string>;
+  queuedMessages?: readonly ChatMessage[];
   branch?: string;
   worktree?: string;
   workspaceName?: string;
   workspacePath?: string;
 };
 
-export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onSend, onStopTool, onStopStreaming, openSubagentRequest, pendingUserMessageIDs = new Set(), worktree, workspaceName, workspacePath }: ChatViewProps) {
+export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onSend, onStopTool, onStopStreaming, openSubagentRequest, queuedMessages = [], worktree, workspaceName, workspacePath }: ChatViewProps) {
   const [composerMenu, setComposerMenu] = useState<ChatComposerMenu>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
   const [composerMode, setComposerMode] = useState<"agent" | "chat">(chat.modeSwitchTarget ? "chat" : "agent");
@@ -68,7 +68,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const lastMessageStatus = chat.messages.at(-1)?.status ?? "";
   const lastMessageThoughtFor = chat.messages.at(-1)?.thoughtFor ?? null;
   const lastMessageWorkedFor = chat.messages.at(-1)?.workedFor ?? null;
-  const pendingMessageKey = [...pendingUserMessageIDs].join("-");
+  const pendingMessageKey = queuedMessages.map((message) => message.id).join("-");
   const isChatWorking = chat.status === "running" || (isStreaming && chat.status === undefined);
   const scrollContentKey = [
     chat.messages.length,
@@ -80,8 +80,6 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
     pendingMessageKey,
   ].join("\u0000");
   const indexedMessages = indexChatMessages(chat.messages);
-  const pendingMessages = indexedMessages.filter(({ message }) => pendingUserMessageIDs.has(message.id));
-  const visibleMessages = indexedMessages.filter(({ message }) => !pendingUserMessageIDs.has(message.id));
   const liveWorkedFor = isChatWorking ? liveWorkedForSeconds(chat, clockNow) : undefined;
   const { isAwayFromBottom, messagesRef, messagesShellRef, onMessagesKeyDown, onMessagesPointerDown, onMessagesScroll, onMessagesWheel, scrollToBottom } = useChatScroll({
     bottomInset,
@@ -234,7 +232,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
             <ChatMessageGroups
               isWorking={isChatWorking}
               liveWorkedFor={liveWorkedFor}
-              messages={visibleMessages}
+              messages={indexedMessages}
               onOpenSubagent={(messageID, toolID) => setOpenSubagent({ messageID, toolID })}
               onRequestDelete={setDeleteTarget}
               onStopTool={(messageID, toolID) => onStopTool(chat.id, messageID, toolID)}
@@ -247,9 +245,9 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
         <button aria-hidden={!isAwayFromBottom} aria-label="Scroll to bottom" className={`chat-scroll-to-bottom${isAwayFromBottom ? " is-visible" : ""}`} disabled={!isAwayFromBottom} onClick={scrollToBottom} tabIndex={isAwayFromBottom ? 0 : -1} title="Scroll to bottom" type="button">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14m-6-6 6 6 6-6" /></svg>
         </button>
-        {pendingMessages.length ? (
-          <div className="chat-pending-messages">
-            {pendingMessages.map(({ message }) => (
+        {queuedMessages.length ? (
+          <div aria-label="Queued messages" aria-live="polite" className="chat-pending-messages">
+            {queuedMessages.map((message) => (
               <div className="chat-pending-turn chat-turn is-user" key={message.id}>
               <article className="chat-message chat-pending-message is-user">
                 {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
