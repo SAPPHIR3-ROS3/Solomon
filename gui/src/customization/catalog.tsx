@@ -1,4 +1,5 @@
 import { useEffect, useState, type RefObject } from "react";
+import { ScoreInput } from "./ScoreInput";
 import {
   fetchRolesTable,
   saveRolesTable,
@@ -270,13 +271,9 @@ export function EditableCatalogList({
                   {editingScores.map((score) => (
                     <label className="customization-subagent-score" key={score.id}>
                       <span>{score.label}</span>
-                      <input
+                      <ScoreInput
                         disabled={isSaving}
-                        inputMode="numeric"
-                        max={100}
-                        min={0}
-                        onChange={(event) => onEditingScoreChange(score.id, Number(event.target.value))}
-                        type="number"
+                        onChange={(value) => onEditingScoreChange(score.id, value)}
                         value={score.value}
                       />
                     </label>

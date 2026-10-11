@@ -84,14 +84,26 @@ export function SystemPromptsPanel({ query }: { query: string }) {
       setLeftFade(Math.min(1, scrollport.scrollLeft / FILTERS_FADE_DISTANCE));
       setRightFade(Math.min(1, Math.max(0, scrollableWidth - scrollport.scrollLeft) / FILTERS_FADE_DISTANCE));
     };
+    const scrollFilters = (event: WheelEvent) => {
+      if (event.ctrlKey || event.deltaX !== 0 || event.deltaY === 0) return;
+      const maximum = scrollport.scrollWidth - scrollport.clientWidth;
+      const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? scrollport.clientWidth : 1;
+      const next = Math.max(0, Math.min(maximum, scrollport.scrollLeft + event.deltaY * unit));
+      if (next === scrollport.scrollLeft) return;
+      event.preventDefault();
+      scrollport.scrollLeft = next;
+    };
     const resizeObserver = new ResizeObserver(updateFades);
     resizeObserver.observe(scrollport);
     if (scrollport.firstElementChild) resizeObserver.observe(scrollport.firstElementChild);
     scrollport.addEventListener("scroll", updateFades, { passive: true });
+    scrollport.addEventListener("wheel", scrollFilters, { passive: false });
     updateFades();
     return () => {
       resizeObserver.disconnect();
       scrollport.removeEventListener("scroll", updateFades);
+      scrollport.removeEventListener("wheel", scrollFilters);
     };
   }, [visibleItems.length]);
 

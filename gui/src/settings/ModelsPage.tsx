@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { Select } from "../Select";
 import {
   cacheModelVisibility,
   connectProvider,
@@ -383,9 +384,7 @@ function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: 
         <>
           <label>
             <span>Provider type</span>
-            <select onChange={(event) => setKind(Number(event.target.value) as ProviderKind)} value={kind}>
-              {providerKinds.map((provider) => <option key={provider.kind} value={provider.kind}>{provider.label}</option>)}
-            </select>
+            <Select label="Provider type" value={String(kind)} onChange={(value) => setKind(Number(value) as ProviderKind)} options={providerKinds.map((provider) => ({ value: String(provider.kind), label: provider.label }))} />
           </label>
           {needsName ? <label><span>Display name</span><input onChange={(event) => setName(event.target.value)} placeholder="My provider" required value={name} /></label> : null}
         </>

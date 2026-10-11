@@ -1,9 +1,11 @@
-import { readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
+import { readModelCatalog } from "./modelsPlugin";
 import {
   acceptPromptTemplate,
+  createSubagentRole,
   deleteSubagentRole,
   readPromptTemplate,
   readPromptTemplates,
@@ -285,6 +287,28 @@ function attachReorderRulesEndpoint(server: { middlewares: { use: (route: string
   });
 }
 
+function attachCreateRulesEndpoint(server: Parameters<typeof attachUpdateRulesEndpoint>[0]) {
+  server.middlewares.use(rulesEndpoint, (request, response, next) => {
+    if (request.method !== "POST") { next(); return; }
+    void readJsonBody(request, 65_536).then(async (payload) => {
+      if (!payload || typeof payload !== "object" || !("text" in payload) || typeof payload.text !== "string" || !payload.text.trim()) throw new Error("Rule text is required");
+      const directory = path.join(solomonHome(), "rules");
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      const names = await readdir(directory);
+      const ids = names.map(name => /^rule_(\d+)\.txt$/.exec(name)).filter(match => match !== null).map(match => Number(match[1]));
+      const id = Math.max(0, ...ids) + 1;
+      await writeFile(path.join(directory, `rule_${String(id).padStart(2, "0")}.txt`), payload.text.trim(), { encoding: "utf8", mode: 0o600, flag: "wx" });
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json; charset=utf-8");
+      response.end(JSON.stringify({ rules: await readGlobalRules() }));
+    }).catch(() => {
+      response.statusCode = 400;
+      response.setHeader("Content-Type", "application/json; charset=utf-8");
+      response.end(JSON.stringify({ error: "Could not create rule" }));
+    });
+  });
+}
+
 function attachUpdateRulesEndpoint(server: { middlewares: { use: (route: string, handler: (request: ReorderRequest, response: { end: (body: string) => void; setHeader: (name: string, value: string) => void; statusCode: number }, next: () => void) => void) => void } }) {
   server.middlewares.use(updateRulesEndpoint, (request, response, next) => {
     if (request.method !== "POST") {
@@ -339,6 +363,32 @@ function attachDeleteRulesEndpoint(server: { middlewares: { use: (route: string,
 }
 
 function attachSubagentMutationEndpoints(server: { middlewares: { use: (route: string, handler: (request: ReorderRequest, response: { end: (body: string) => void; setHeader: (name: string, value: string) => void; statusCode: number }, next: () => void) => void) => void } }) {
+  let pendingCreation = Promise.resolve();
+  server.middlewares.use(subagentsEndpoint, (request, response, next) => {
+    if (request.method !== "POST") { next(); return; }
+    void readJsonBody(request, 262144).then((payload) => {
+      const creation = pendingCreation.then(async () => {
+        const entry = payload as { provider?: unknown; model?: unknown; detail?: unknown; scores?: unknown } | null;
+        if (!entry || typeof entry.provider !== "string" || typeof entry.model !== "string" || typeof entry.detail !== "string" || !Array.isArray(entry.scores)
+          || !entry.scores.every((score) => score && typeof score.id === "string" && typeof score.value === "number" && Number.isInteger(score.value))) throw new Error("Invalid subagent");
+        const provider = entry.provider.trim();
+        const model = entry.model.trim();
+        const catalog = await readModelCatalog(solomonHome());
+        if (!catalog.providers.some((item) => item.provider === provider && item.models.includes(model))) throw new Error("Choose a model from a configured provider");
+        return createSubagentRole(provider, model, entry.detail, entry.scores);
+      });
+      pendingCreation = creation.then(() => {}, () => {});
+      return creation;
+    }).then((subagents) => {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json; charset=utf-8");
+      response.end(JSON.stringify({ subagents }));
+    }).catch((error) => {
+      response.statusCode = 400;
+      response.setHeader("Content-Type", "application/json; charset=utf-8");
+      response.end(JSON.stringify({ error: error instanceof Error ? error.message : "Could not create this subagent" }));
+    });
+  });
   server.middlewares.use(updateSubagentsEndpoint, (request, response, next) => {
     if (request.method !== "POST") {
       next();
@@ -496,6 +546,7 @@ export function customizationPlugin(): Plugin {
   return {
     configurePreviewServer(server) {
       attachMcpMutationEndpoint(server);
+      attachCreateRulesEndpoint(server);
       attachRulesEndpoint(server);
       attachReorderRulesEndpoint(server);
       attachUpdateRulesEndpoint(server);
@@ -507,6 +558,7 @@ export function customizationPlugin(): Plugin {
     },
     configureServer(server) {
       attachMcpMutationEndpoint(server);
+      attachCreateRulesEndpoint(server);
       attachRulesEndpoint(server);
       attachReorderRulesEndpoint(server);
       attachUpdateRulesEndpoint(server);

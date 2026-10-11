@@ -82,6 +82,16 @@ export async function reorderCustomizationRules(ruleIds: number[]): Promise<Cust
   return payload.rules.filter(isCustomizationRule);
 }
 
+export async function createCustomizationRule(text: string): Promise<CustomizationRule[]> {
+  const response = await fetch(await serverEndpoint("/__solomon/rules"), {
+    body: JSON.stringify({ text }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Unable to create rule: ${response.status}`);
+  return customizationRulesFromPayload(await response.json());
+}
+
 export async function updateCustomizationRule(ruleId: number, text: string): Promise<CustomizationRule[]> {
   const response = await fetch(await serverEndpoint("/__solomon/rules/update"), {
     body: JSON.stringify({ id: ruleId, text }),
@@ -127,6 +137,19 @@ export async function setCustomizationMcpDisabled(id: string, disabled: boolean)
 
 export async function fetchCustomizationSubagents(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
   return fetchCatalogItems("subagents", signal);
+}
+
+export async function createCustomizationSubagent(provider: string, model: string, detail: string, scores: Array<{ id: string; value: number }>): Promise<CustomizationCatalogItem[]> {
+  const response = await fetch(await serverEndpoint("/__solomon/subagents"), {
+    body: JSON.stringify({ provider, model, detail, scores }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(typeof payload?.error === "string" ? payload.error : "Could not create this subagent.");
+  }
+  return catalogItemsFromPayload(await response.json(), "subagents");
 }
 
 export async function fetchCustomizationPromptTemplates(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {

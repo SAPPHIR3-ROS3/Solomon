@@ -107,13 +107,32 @@ func (a *customizationAPI) handleGlobalAgents(w http.ResponseWriter, r *http.Req
 }
 
 func (a *customizationAPI) handleRules(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
 		return
 	}
+	var request struct {
+		Text string `json:"text"`
+	}
+	if r.Method == http.MethodPost {
+		if err := decodeJSONBody(w, r, &request, 64<<10); err != nil {
+			writeAPIError(w, http.StatusBadRequest, err)
+			return
+		}
+		if strings.TrimSpace(request.Text) == "" {
+			writeAPIError(w, http.StatusBadRequest, errors.New("rule text is required"))
+			return
+		}
+	}
 	a.mu.Lock()
+	defer a.mu.Unlock()
+	if r.Method == http.MethodPost {
+		if _, err := instructions.AddRule(instructions.ScopeGlobal, "", request.Text); err != nil {
+			writeAPIError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
 	rules, err := listGlobalRules()
-	a.mu.Unlock()
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, err)
 		return
@@ -288,6 +307,10 @@ func setMCPDisabled(id string, disabled bool) error {
 }
 
 func (a *customizationAPI) handleSubagents(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		a.handleCreateSubagent(w, r)
+		return
+	}
 	if r.Method == http.MethodGet {
 		items, err := loadSubagents()
 		if err != nil {
@@ -298,6 +321,61 @@ func (a *customizationAPI) handleSubagents(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
+}
+
+func (a *customizationAPI) handleCreateSubagent(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Provider string                 `json:"provider"`
+		Model    string                 `json:"model"`
+		Detail   string                 `json:"detail"`
+		Scores   []apiScorePatchRequest `json:"scores"`
+	}
+	if err := decodeJSONBody(w, r, &request, 256<<10); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	cfg, err := config.Load()
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	entry := config.SubagentRoleConfig{
+		Provider:    strings.TrimSpace(request.Provider),
+		Model:       strings.TrimSpace(request.Model),
+		Description: strings.TrimSpace(request.Detail),
+		Scores:      map[string]int{},
+	}
+	for _, score := range request.Scores {
+		id := strings.TrimSpace(score.ID)
+		if _, exists := entry.Scores[id]; exists {
+			writeAPIError(w, http.StatusBadRequest, fmt.Errorf("duplicate characteristic %q", id))
+			return
+		}
+		entry.Scores[id] = score.Value
+	}
+	for _, id := range cfg.Roles.Table.Characteristics {
+		if _, exists := entry.Scores[id]; !exists {
+			writeAPIError(w, http.StatusBadRequest, fmt.Errorf("score required for %q", id))
+			return
+		}
+	}
+	cfg.Roles.Subagent = append(cfg.Roles.Subagent, entry)
+	if err := config.ValidateRoles(r.Context(), cfg); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := config.Save(cfg); err != nil {
+		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	items, err := loadSubagents()
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"subagents": items})
 }
 
 func (a *customizationAPI) handleUpdateSubagent(w http.ResponseWriter, r *http.Request) {

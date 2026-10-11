@@ -207,7 +207,7 @@ function runDesktopModelCatalog(forceRefresh = false): Promise<ModelCatalog> {
   });
 }
 
-async function readModelCatalog(home: string, forceRefresh = false): Promise<ModelCatalog> {
+export async function readModelCatalog(home: string, forceRefresh = false): Promise<ModelCatalog> {
   if (forceRefresh && modelCatalogInFlight) await modelCatalogInFlight.catch(() => {});
   if (!forceRefresh && modelCatalogCache && Date.now() - modelCatalogCache.createdAt < 60_000) return modelCatalogCache.catalog;
   if (modelCatalogInFlight) return modelCatalogInFlight;

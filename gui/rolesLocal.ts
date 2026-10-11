@@ -116,6 +116,33 @@ export async function readSubagentRoles(): Promise<CatalogItem[]> {
   return splitSubagentBlocks(config).blocks.map((block, index) => subagentItemFromBlock(block, index, table));
 }
 
+export async function createSubagentRole(provider: string, model: string, detail: string, scores: Array<{ id: string; value: number }>): Promise<CatalogItem[]> {
+  provider = provider.trim();
+  model = model.trim();
+  if (!provider || !model) throw new Error("Provider and model are required");
+  const configPath = path.join(solomonHome(), "config.toml");
+  const config = await readFile(configPath, "utf8");
+  const table = parseRolesTableCharacteristics(config);
+  if (!table.length) throw new Error("Configure the reference table before adding subagents");
+  const { blocks } = splitSubagentBlocks(config);
+  if (blocks.some((block, index) => {
+    const item = subagentItemFromBlock(block, index, table);
+    return item.badge === provider && item.title === model;
+  })) throw new Error("This provider and model already have a subagent role");
+  const values: Record<string, number> = {};
+  for (const score of scores) {
+    const id = score.id.trim();
+    if (!rolesTableCatalog.some((entry) => entry.id === id)) throw new Error(`Unknown characteristic ${id}`);
+    if (Object.hasOwn(values, id)) throw new Error(`Duplicate characteristic ${id}`);
+    if (!Number.isInteger(score.value) || score.value < 0 || score.value > 100) throw new Error(`Invalid score for ${id}`);
+    values[id] = score.value;
+  }
+  if (table.some((id) => !Object.hasOwn(values, id))) throw new Error("A score is required for every table characteristic");
+  const block = writeScoresIntoBlock(`provider = ${JSON.stringify(provider)}\nmodel = ${JSON.stringify(model)}\ndescription = ${JSON.stringify(detail.trim())}\n`, values);
+  await writeFile(configPath, `${config.trimEnd()}\n\n[[roles.subagent]]\n${block}`, { encoding: "utf8", mode: 0o600 });
+  return readSubagentRoles();
+}
+
 export async function updateSubagentDetail(id: string, detail: string, scores: Array<{ id: string; value: number }> = []): Promise<CatalogItem[]> {
   const index = subagentIndexFromId(id);
   const configPath = path.join(solomonHome(), "config.toml");

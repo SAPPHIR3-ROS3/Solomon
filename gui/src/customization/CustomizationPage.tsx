@@ -2,7 +2,9 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { CatalogList, EditableCatalogList, RulesList, SearchIcon, catalogMatches, useRolesTableEditor } from "./catalog";
 import { SystemPromptsPanel } from "./prompts";
 import { GlobalAgentsPanel } from "./globalAgents";
+import { NewSubagentPanel } from "./NewSubagentPanel";
 import {
+  createCustomizationRule,
   deleteCustomizationRule,
   deleteCustomizationSubagent,
   fetchCustomizationMcps,
@@ -31,6 +33,10 @@ type DropIndicator = {
 export function CustomizationPage() {
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("System Prompts");
   const [query, setQuery] = useState("");
+  const [isCreatingRule, setIsCreatingRule] = useState(false);
+  const [newRuleText, setNewRuleText] = useState("");
+  const [newRuleError, setNewRuleError] = useState("");
+  const [isSavingNewRule, setIsSavingNewRule] = useState(false);
   const [rules, setRules] = useState<CustomizationRule[]>([]);
   const [skills, setSkills] = useState<CustomizationCatalogItem[]>([]);
   const [mcps, setMcps] = useState<CustomizationCatalogItem[]>([]);
@@ -56,6 +62,7 @@ export function CustomizationPage() {
   const [isSavingSubagent, setIsSavingSubagent] = useState(false);
   const [isDeletingSubagent, setIsDeletingSubagent] = useState(false);
   const [subagentEditError, setSubagentEditError] = useState("");
+  const [isCreatingSubagent, setIsCreatingSubagent] = useState(false);
   const interactionLock = useRef(false);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -68,8 +75,8 @@ export function CustomizationPage() {
   const visibleSkills = skills.filter((item) => catalogMatches(item, normalizedQuery));
   const visibleMcps = mcps.filter((item) => catalogMatches(item, normalizedQuery));
   const visibleSubagents = subagents.filter((item) => catalogMatches(item, normalizedQuery));
-  const canReorderRules = !isSavingRuleOrder && !query.trim() && editingRuleId === null && !isDeletingRule;
-  interactionLock.current = isSavingMcp || draggedRuleId !== null || isSavingRuleOrder || editingRuleId !== null || isSavingRuleText || isDeletingRule || editingSubagentId !== null || isSavingSubagent || isDeletingSubagent || rolesTable.isBusy;
+  const canReorderRules = !isCreatingRule && !isSavingRuleOrder && !query.trim() && editingRuleId === null && !isDeletingRule;
+  interactionLock.current = isCreatingRule || isCreatingSubagent || isSavingMcp || draggedRuleId !== null || isSavingRuleOrder || editingRuleId !== null || isSavingRuleText || isDeletingRule || editingSubagentId !== null || isSavingSubagent || isDeletingSubagent || rolesTable.isBusy;
 
   useEffect(() => {
     const scrollport = filtersScrollRef.current;
@@ -79,14 +86,26 @@ export function CustomizationPage() {
       setFiltersLeftFade(Math.min(1, scrollport.scrollLeft / FILTERS_FADE_DISTANCE));
       setFiltersRightFade(Math.min(1, Math.max(0, scrollableWidth - scrollport.scrollLeft) / FILTERS_FADE_DISTANCE));
     };
+    const scrollFilters = (event: WheelEvent) => {
+      if (event.ctrlKey || event.deltaX !== 0 || event.deltaY === 0) return;
+      const maximum = scrollport.scrollWidth - scrollport.clientWidth;
+      const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? scrollport.clientWidth : 1;
+      const next = Math.max(0, Math.min(maximum, scrollport.scrollLeft + event.deltaY * unit));
+      if (next === scrollport.scrollLeft) return;
+      event.preventDefault();
+      scrollport.scrollLeft = next;
+    };
     const resizeObserver = new ResizeObserver(updateFades);
     resizeObserver.observe(scrollport);
     if (scrollport.firstElementChild) resizeObserver.observe(scrollport.firstElementChild);
     scrollport.addEventListener("scroll", updateFades, { passive: true });
+    scrollport.addEventListener("wheel", scrollFilters, { passive: false });
     updateFades();
     return () => {
       resizeObserver.disconnect();
       scrollport.removeEventListener("scroll", updateFades);
+      scrollport.removeEventListener("wheel", scrollFilters);
     };
   }, []);
 
@@ -215,6 +234,22 @@ export function CustomizationPage() {
       setRuleOrderError("Could not save the new rule order.");
     } finally {
       setIsSavingRuleOrder(false);
+    }
+  }
+
+  async function saveNewRule() {
+    if (isSavingNewRule || !newRuleText.trim()) return;
+    setIsSavingNewRule(true);
+    setNewRuleError("");
+    try {
+      setRules(await createCustomizationRule(newRuleText));
+      setQuery("");
+      setIsCreatingRule(false);
+      setNewRuleText("");
+    } catch {
+      setNewRuleError("Could not create this rule. Please try again.");
+    } finally {
+      setIsSavingNewRule(false);
     }
   }
 
@@ -380,6 +415,7 @@ export function CustomizationPage() {
             <nav aria-label="Customization sections" className="customization-filters" role="tablist">
               {filters.map((filter) => (
                 <button
+                  disabled={isCreatingSubagent}
                   aria-selected={activeFilter === filter}
                   className={`customization-filter${activeFilter === filter ? " is-active" : ""}`}
                   key={filter}
@@ -404,12 +440,25 @@ export function CustomizationPage() {
                 {activeFilter}
                 {activeCount !== null ? <span className="customization-list-count">{activeCount}</span> : null}
               </h1>
-              {rolesTable.button}
+              {!isCreatingSubagent ? rolesTable.button : null}
             </div>
-            {activeFilter === "Rules" ? <button className="customization-new" type="button">+ New</button> : null}
+            {activeFilter === "Rules" ? <button className="customization-new" disabled={interactionLock.current} onClick={() => { setMenuRuleId(null); setNewRuleText(""); setNewRuleError(""); setIsCreatingRule(true); }} type="button">+ New</button> : null}
+            {activeFilter === "Subagents" ? <button className="customization-new" disabled={isCreatingSubagent || interactionLock.current} onClick={() => { setMenuSubagentId(null); setIsCreatingSubagent(true); }} type="button">+ New</button> : null}
           </div>
         ) : null}
         {rolesTable.panel}
+        {activeFilter === "Subagents" && isCreatingSubagent ? <NewSubagentPanel onCancel={() => setIsCreatingSubagent(false)} onCreated={(items) => { setSubagents(items); setQuery(""); setIsCreatingSubagent(false); }} /> : null}
+        {activeFilter === "Rules" && isCreatingRule ? (
+          <form aria-label="New rule" className="customization-rule-editor" onSubmit={(event) => { event.preventDefault(); void saveNewRule(); }}>
+            <h2>New rule</h2>
+            <textarea aria-label="Rule text" autoFocus disabled={isSavingNewRule} value={newRuleText} onChange={(event) => setNewRuleText(event.target.value)} />
+            <div className="customization-rule-editor-actions">
+              <button className="customization-rule-cancel" disabled={isSavingNewRule} onClick={() => setIsCreatingRule(false)} type="button">Cancel</button>
+              <button className="customization-rule-save" disabled={isSavingNewRule || !newRuleText.trim()} type="submit">{isSavingNewRule ? "Creating..." : "Create"}</button>
+            </div>
+            {newRuleError ? <p className="customization-rule-error" role="alert">{newRuleError}</p> : null}
+          </form>
+        ) : null}
         {activeFilter === "System Prompts" ? <SystemPromptsPanel query={query} /> : null}
         {activeFilter === "Rules" ? (
           <RulesList
@@ -472,7 +521,7 @@ export function CustomizationPage() {
             {mcpError ? <p className="customization-rule-error" role="alert">{mcpError}</p> : null}
           </>
         ) : null}
-        {activeFilter === "Subagents" ? (
+        {activeFilter === "Subagents" && !isCreatingSubagent ? (
           <EditableCatalogList
             editError={subagentEditError}
             editingId={editingSubagentId}
