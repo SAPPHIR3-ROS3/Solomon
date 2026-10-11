@@ -34,6 +34,13 @@ function toolIntentClassName(tool: ChatToolCall) {
   return `chat-tool-intent${tool.intent?.trim() ? "" : " is-missing"}`;
 }
 
+function displaySubagentIntent(tool: ChatToolCall) {
+  const intent = displayToolIntent(tool).replace(/\s+/g, " ");
+  const words = intent.split(" ");
+  const brief = Array.from(words.slice(0, 8).join(" ")).slice(0, 80).join("").trimEnd();
+  return brief + (brief !== intent ? "…" : "");
+}
+
 
 export function ToolCallCard({ tool }: { tool: ChatToolCall }) {
   const startCollapsed = useStartToolCallsCollapsed();
@@ -358,7 +365,7 @@ export function SubagentCard({ onOpenSubagent, onStopTool, tool }: { onOpenSubag
             </button>
           ) : null}
         </div>
-        {tool.input ? <p className="chat-subagent-task">{tool.input}</p> : null}
+        <p className="chat-subagent-intent">{displaySubagentIntent(tool)}</p>
       </div>
     </section>
   );

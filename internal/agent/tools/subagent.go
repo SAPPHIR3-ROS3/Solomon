@@ -58,7 +58,7 @@ func subagentSysPromptPathDescription() string {
 func subagentOpenAI() openai.ChatCompletionToolUnionParam {
 	return nativeToolUnion("subagent", subagentToolSummary(), map[string]any{
 		"sysPromptPath":     map[string]any{"type": "string", "description": subagentSysPromptPathDescription()},
-		"task":              map[string]any{"type": "string", "description": "Concrete task for the nested run"},
+		"task":              map[string]any{"type": "string", "description": "Concrete task for the nested run. Put full instructions here; keep intent a short action label of 3–8 words, at most 80 characters, without repeating the task."},
 		"resume":            map[string]any{"type": "string", "description": "Subchat ID to resume"},
 		"interrupt":         map[string]any{"type": "boolean", "description": "Cancel the active run for resume before applying the new task"},
 		"run_in_background": map[string]any{"type": "boolean", "description": "Async: true = do not block parent (returns subchatId, status running). False/omit = sync: wait until done (returns output, status done)."},

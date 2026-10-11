@@ -386,6 +386,11 @@ function CollapsedCheckpointRail({ checkpoints }: { checkpoints: CheckpointMetad
 export function SubagentChatPanel({ isLoading = false, messages, onCollapse, tool }: { isLoading?: boolean; messages?: ChatMessage[]; onCollapse: () => void; tool: ChatToolCall }) {
   const status = subagentDisplayStatus(tool);
   const transcript = messages ?? [];
+  const normalizeTask = (content: string) => content.replace(/\r\n?/g, "\n").trim();
+  const task = normalizeTask(tool.input ?? "");
+  const taskInTranscript = !isLoading && Boolean(task) && transcript.some((message) => (
+    message.role === "user" && normalizeTask(message.content) === task
+  ));
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -413,10 +418,10 @@ export function SubagentChatPanel({ isLoading = false, messages, onCollapse, too
         </button>
       </header>
       <div className="chat-subchat-body">
-        <div className="chat-subchat-task">
+        {!taskInTranscript ? <div className="chat-subchat-task">
           <span className="chat-subchat-task-label">Task</span>
           <p>{tool.input ?? "No task provided."}</p>
-        </div>
+        </div> : null}
         <div className="chat-subchat-transcript">
           {isLoading ? <p className="chat-empty">Loading subchat…</p> : transcript.length ? <ChatMessageGroups isWorking={status === "running" || status === "queued"} messages={indexChatMessages(transcript)} /> : <p className="chat-empty">No subchat messages yet.</p>}
         </div>
