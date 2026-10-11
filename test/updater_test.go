@@ -59,6 +59,22 @@ func TestCheckWithSourceTree_requiresCurrentCommitAndPreReleaseInputs(t *testing
 	}
 }
 
+func TestCheckExplicitUpgradeReplacesDevelopmentBuild(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": "v2026.1011.0"})
+	}))
+	defer srv.Close()
+	restore := updater.SetLatestReleaseAPIURL(srv.URL)
+	defer restore()
+	for _, version := range []string{"dev", "v2026.1011.0-dev-aaaaaaa-dirty", "v2026.1012.0-dev-bbbbbbb", "v2026.1011.0"} {
+		res := updater.Check(context.Background(), version)
+		want := updater.IsDevelopmentVersion(version)
+		if res.Err != nil || res.Newer != want || (res.Notice() != nil) != want {
+			t.Fatalf("explicit upgrade from %s: %+v, want install=%v", version, res, want)
+		}
+	}
+}
+
 func TestIsNewerRelease_calendarSemver(t *testing.T) {
 	if !updater.IsNewerRelease("v2026.602.1", "v2026.527.2") {
 		t.Fatal("expected newer")

@@ -124,7 +124,7 @@ var httpGetLatest = func(ctx context.Context, url string) (*http.Response, error
 }
 
 func Check(ctx context.Context, currentVersion string) CheckResult {
-	return CheckWithCommitTime(ctx, currentVersion, "", time.Time{})
+	return checkWithSourceTree(ctx, currentVersion, "", time.Time{}, "", false)
 }
 
 func CheckWithCommit(ctx context.Context, currentVersion, localCommit string) CheckResult {
@@ -138,6 +138,10 @@ func CheckWithCommitTime(ctx context.Context, currentVersion, localCommit string
 // CheckWithSourceTree compares the current source commit and the input tree
 // captured before compiling assets, independently of the executable's bytes.
 func CheckWithSourceTree(ctx context.Context, currentVersion, localCommit string, localCommitTime time.Time, sourceTree string) CheckResult {
+	return checkWithSourceTree(ctx, currentVersion, localCommit, localCommitTime, sourceTree, true)
+}
+
+func checkWithSourceTree(ctx context.Context, currentVersion, localCommit string, localCommitTime time.Time, sourceTree string, protectDevelopment bool) CheckResult {
 	current := strings.TrimSpace(currentVersion)
 	localCommit = strings.TrimSpace(localCommit)
 	res := CheckResult{Current: current}
@@ -175,7 +179,7 @@ func CheckWithSourceTree(ctx context.Context, currentVersion, localCommit string
 		return res
 	}
 	res.LatestTag = tag
-	if IsDevelopmentVersion(current) {
+	if protectDevelopment && IsDevelopmentVersion(current) {
 		if localCommit == "" {
 			logging.Log(logging.WARNING_LOG_LEVEL, "updater missing development commit; refusing to replace development build")
 			return res

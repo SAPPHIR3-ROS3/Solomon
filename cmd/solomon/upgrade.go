@@ -34,15 +34,14 @@ func runUpgradeCLI() {
 		fmt.Fprintln(os.Stderr, "Solomon daemon is unavailable:", err)
 		os.Exit(1)
 	}
-	current, commit, commitTime, sourceTree := health.Server.Version, health.Server.Commit, health.Server.CommitTime, health.Server.SourceTree
-	res := updater.CheckWithSourceTree(ctx, current, commit, commitTime, sourceTree)
+	// Explicit upgrades install published binaries even when a development
+	// build has the same or newer sources. The daemon's displayed release
+	// version must not hide the installed binary's development status.
+	current := commands.LocalVersionString()
+	res := updater.Check(ctx, current)
 	if res.Err != nil {
 		fmt.Fprintln(os.Stderr, res.Err)
 		os.Exit(1)
-	}
-	if res.LocalCommitRelation == "ahead" || res.LocalCommitRelation == "identical" {
-		commands.SetEffectiveReleaseVersion(res.LatestTag, res.MatchesReleaseSource)
-		current = commands.VersionString()
 	}
 	if !res.Newer {
 		fmt.Fprintf(os.Stdout, "Solomon is up to date (%s)\n", current)

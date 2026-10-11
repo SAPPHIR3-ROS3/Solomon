@@ -85,6 +85,11 @@ Executable checksums still verify downloads, but do not determine development
 status. Builds made directly with `go build` lack this source snapshot and cannot
 be promoted to a release by the source-tree comparison.
 
+An explicit `solomon upgrade` checks the installed binary's version and replaces
+development builds with the latest published release, including dirty builds or
+builds at the same or a newer source commit. Source ancestry checks apply to
+automatic updates; they do not block this explicit request.
+
 The running daemon is the version authority for the desktop app, TUI and
 `solomon version`. Use `solomon version --binary` only to inspect the installed
 binary independently of the daemon. If no daemon is available, the normal
