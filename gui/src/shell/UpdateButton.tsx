@@ -75,11 +75,25 @@ export function UpdateButton() {
       <button className={`solomon-update-button${busy ? " is-busy" : ""}`} type="button"
         aria-label={label} disabled={busy} onClick={() => void act()}
         title={`${label}${status.latest ? ` (${status.latest})` : ""}`}>
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M14 5c2-2 5-2 5-2s0 3-2 5l-5 5-4-4 6-4Z" />
-          <path d="m8 9-4 1-1 4 5-1m4 0-1 5 4-1 1-4M6 16c-2 0-3 2-3 5 3 0 5-1 5-3" />
-          <circle cx="15" cy="7" r="1" />
-        </svg>
+        <span className="solomon-update-icon" aria-hidden="true">
+          {busy ? <svg className="solomon-update-spinner" viewBox="0 0 32 32">
+            <circle className="solomon-update-track" cx="16" cy="16" r="14" />
+            <circle className="solomon-update-arc" cx="16" cy="16" r="14" />
+          </svg> : null}
+          {status.phase === "ready" || status.phase === "restarting" ? <>
+            <svg viewBox="0 0 24 24">
+              <path d="M3 11a9 9 0 1 1 2.6 6.4M3 4v7h7" />
+            </svg>
+            {!busy ? <span className="solomon-update-check">
+              <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
+            </span> : null}
+          </> : <>
+            <svg viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            {!busy ? <span className="solomon-update-dot" /> : null}
+          </>}
+        </span>
       </button>
       {message ? <div className="solomon-update-error" role="alert">{message}</div> : null}
     </div>

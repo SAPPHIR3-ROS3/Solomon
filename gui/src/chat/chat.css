@@ -327,7 +327,8 @@
 .chat-message .chat-line-content { color: inherit; display: block; font: inherit; margin: 0; min-width: max-content; text-transform: none; }
 .chat-file-link { background: color-mix(in srgb, var(--color-accent) 22%, transparent); border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 2px 4px; text-decoration: none; }
 .chat-file-link:hover { background: color-mix(in srgb, var(--color-accent) 34%, transparent); }
-.chat-composer-dock {
+/* Override the shared Home dock regardless of stylesheet load order. */
+.chat-view .chat-composer-dock {
   background: transparent;
   border-radius: 0;
   bottom: 0;

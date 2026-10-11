@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { ImageLightbox } from "./ImageLightbox";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "../chat/composerTypes";
 import { fetchProjectAtMentionSuggestions, type ProjectAtMentionSuggestion } from "../projects/projects";
 import { fetchProjectSlashCommands, getCachedProjectSlashCommands } from "../projects/projects";
@@ -449,48 +450,14 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
         </div>
       ) : null}
       {selectedImage ? createPortal(
-        <div
-          aria-label={`Image preview: ${selectedImage.name}`}
-          aria-modal="true"
-          className={`composer-image-lightbox${isColorPaletteOpen ? " is-color-open" : ""}`}
-          onClick={() => setSelectedImageID(null)}
-          onMouseDown={(event) => event.stopPropagation()}
-          role="dialog"
+        <ImageLightbox key={selectedImage.id}
+          color={selectedToolColor} eraserTool={selectedEraserTool}
+          image={selectedImage} images={images} isColorPaletteOpen={isColorPaletteOpen}
+          onClose={() => setSelectedImageID(null)} onImagesChange={onImagesChange}
+          onRefresh={refreshImageSource} onSelectIndex={moveSelectedImage}
+          selectedIndex={selectedImageIndex} selectionTool={selectedSelectionTool}
+          sketchTool={selectedSketchTool} textSize={textSize} tool={selectedTool}
         >
-          <div aria-label="Image editing history" className="composer-image-lightbox-actions" onClick={(event) => event.stopPropagation()}>
-            <button aria-label="Undo" className="composer-image-lightbox-action" disabled title="Undo" type="button">
-              <LightboxHistoryIcon action="undo" />
-            </button>
-            <button aria-label="Redo" className="composer-image-lightbox-action" disabled title="Redo" type="button">
-              <LightboxHistoryIcon action="redo" />
-            </button>
-            <button aria-label="Reset" className="composer-image-lightbox-action" disabled title="Reset" type="button">
-              <LightboxHistoryIcon action="reset" />
-            </button>
-          </div>
-          {images.length > 1 ? (
-            <button
-              aria-label="Previous image"
-              className="composer-image-lightbox-nav is-previous"
-              onClick={(event) => { event.stopPropagation(); moveSelectedImage(-1); }}
-              type="button"
-            >
-              <LightboxArrowIcon direction="left" />
-            </button>
-          ) : null}
-          <div className="composer-image-lightbox-stage" onClick={(event) => event.stopPropagation()}>
-            <img alt={selectedImage.name} className="composer-image-lightbox-image" onError={() => refreshImageSource(selectedImage)} src={selectedImage.url} />
-          </div>
-          {images.length > 1 ? (
-            <button
-              aria-label="Next image"
-              className="composer-image-lightbox-nav is-next"
-              onClick={(event) => { event.stopPropagation(); moveSelectedImage(1); }}
-              type="button"
-            >
-              <LightboxArrowIcon direction="right" />
-            </button>
-          ) : null}
           <div aria-label="Image editing tools" className="composer-image-lightbox-tools" onClick={(event) => event.stopPropagation()}>
             {images.length > 1 ? <div aria-live="polite" className="composer-image-lightbox-count">{selectedImageIndex + 1} / {images.length}</div> : null}
             <div className="composer-image-lightbox-tool-row">
@@ -576,7 +543,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
                   className={`composer-image-lightbox-color-swatch${selectedToolColor === color.value ? " is-selected" : ""}`}
                   disabled={!isColorPaletteOpen}
                   key={color.value}
-                  onClick={() => setSelectedToolColor(color.value)}
+                  onClick={() => { setSelectedToolColor(color.value); setSelectedTool("sketch"); setIsColorPaletteOpen(false); }}
                   role="radio"
                   style={{ backgroundColor: color.value }}
                   title={color.label}
@@ -649,7 +616,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
             </div>
             </div>
           </div>
-        </div>,
+        </ImageLightbox>,
         document.body,
       ) : null}
     </div>
@@ -791,23 +758,6 @@ function copyTextareaStyles(computed: CSSStyleDeclaration, target: HTMLElement) 
 
 function RemoveImageIcon() {
   return <svg aria-hidden="true" viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" /></svg>;
-}
-
-function LightboxArrowIcon({ direction }: { direction: "left" | "right" }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d={direction === "left" ? "m14.5 5-7 7 7 7" : "m9.5 5 7 7-7 7"} />
-    </svg>
-  );
-}
-
-function LightboxHistoryIcon({ action }: { action: "redo" | "reset" | "undo" }) {
-  const path = action === "undo"
-    ? "M9 7H4m0 0 3-3M4 7c4.8-4.2 12-.8 12 4.5 0 2.2-1.8 4-4 4H9"
-    : action === "redo"
-      ? "M15 7h5m0 0-3-3m3 3c-4.8-4.2-12-.8-12 4.5 0 2.2 1.8 4 4 4h3"
-      : "M19 8a7 7 0 1 0 1 4m-1-8v4h-4";
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d={path} /></svg>;
 }
 
 function LightboxToolIcon({ tool }: { tool: "arrow" | "color" | "crop" | "cursor" | "ellipse" | "eraser" | "move" | "object-eraser" | "pen" | "rectangle" | "resize" | "sketch" | "text" }) {

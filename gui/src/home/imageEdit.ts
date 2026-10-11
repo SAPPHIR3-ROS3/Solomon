@@ -1,3 +1,6 @@
+export type ImageEditHistory = { crop?: { left: number; top: number; width: number; height: number }; strokes: Stroke[] };
+export type ImageEditState = { source: Blob; history: ImageEditHistory[]; index: number };
+
 export type Point = { x: number; y: number };
 export type StrokeKind = "arrow" | "ellipse" | "eraser" | "freehand" | "pen" | "rectangle" | "text";
 export type Stroke = { color: string; kind: StrokeKind; points: Point[]; size: number; text?: string };
@@ -66,6 +69,13 @@ export function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke, previe
   if (stroke.kind === "text" && stroke.text) {
     ctx.font = `600 ${stroke.size}px Geist, ui-sans-serif, sans-serif`;
     ctx.fillText(stroke.text, first.x, first.y);
+    ctx.restore();
+    return;
+  }
+  if (stroke.points.length === 1 && (stroke.kind === "freehand" || stroke.kind === "pen" || stroke.kind === "eraser")) {
+    ctx.beginPath();
+    ctx.arc(first.x, first.y, stroke.size / 2, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
     return;
   }

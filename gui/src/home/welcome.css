@@ -1099,3 +1099,15 @@
     margin-top: 8px;
   }
 }
+
+.composer-image-lightbox-stage { position: relative; }
+.composer-image-lightbox-stage > .composer-image-lightbox-image { display: none; }
+.composer-image-lightbox-canvas {
+  display: block;
+  max-width: 88vw;
+  max-height: calc(88vh - var(--composer-image-tools-space));
+  object-fit: contain;
+  touch-action: none;
+  cursor: crosshair;
+  box-shadow: 0 30px 90px rgb(0 0 0 / 50%);
+}

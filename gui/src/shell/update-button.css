@@ -12,16 +12,30 @@
   height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--color-crown-gold);
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
   font: inherit;
   font-size: 11px;
   cursor: pointer;
+  transition: background-color 150ms ease;
 }
 
-.side-panel-user .solomon-update-button { color: var(--color-crown-gold); }
+.side-panel-user .solomon-update-button { border-radius: 50%; background: var(--color-surface-raised); color: var(--color-text); }
+.solomon-update-button:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 10%, var(--color-surface-raised)); }
 .solomon-update-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .solomon-update-button:disabled { cursor: wait; opacity: 0.7; }
 .solomon-update-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.solomon-update-icon { position: relative; display: grid; place-items: center; width: 16px; height: 16px; }
+.solomon-update-dot { position: absolute; top: -2px; right: -2px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--color-surface-raised); }
+.solomon-update-check { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 10px; height: 10px; border-radius: 50%; background: var(--color-text); color: var(--color-surface-raised); box-shadow: 0 0 0 2px var(--color-surface-raised); }
+.solomon-update-check svg { width: 8px; height: 8px; stroke-width: 3; }
+.solomon-update-icon .solomon-update-spinner { position: absolute; width: 32px; height: 32px; animation: solomon-update-spin 1.2s linear infinite; }
+.solomon-update-track { opacity: 0.2; }
+.solomon-update-arc { stroke-dasharray: 24 64; }
+@keyframes solomon-update-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .solomon-update-button { transition: none; }
+  .solomon-update-icon .solomon-update-spinner { animation: none; }
+}
 .solomon-update-error { position: absolute; bottom: calc(100% + 8px); right: 0; width: min(200px, calc(100vw - 64px)); padding: 10px; border-radius: 7px; background: var(--color-surface-raised); color: var(--color-text); font-size: 12px; box-shadow: 0 4px 16px #0004; overflow-wrap: anywhere; }
