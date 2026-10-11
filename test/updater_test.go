@@ -123,27 +123,79 @@ func TestCheckWithCommit_doesNotUpdateAheadDevelopmentBuild(t *testing.T) {
 	}
 }
 
-func TestCheckWithCommit_doesUpdateBehindDevelopmentBuild(t *testing.T) {
-	latest := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": "v2026.909.1"})
-	}))
-	defer latest.Close()
-	compare := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "behind"})
-	}))
-	defer compare.Close()
-
-	restoreLatest := updater.SetLatestReleaseAPIURL(latest.URL)
-	defer restoreLatest()
-	restoreCompare := updater.SetCompareReleaseAPIURL(compare.URL)
-	defer restoreCompare()
-
-	res := updater.CheckWithCommit(context.Background(), "v2026.716.0-dev-f8bf95c", strings.Repeat("b", 40))
-	if res.Err != nil {
-		t.Fatal(res.Err)
+func TestCheckWithSourceTree_behindBuildRequiresBothChecks(t *testing.T) {
+	localCommit := strings.Repeat("b", 40)
+	committedTree := strings.Repeat("c", 40)
+	for _, tc := range []struct {
+		name, version, mergeBase, sourceTree, remoteTree string
+		wantUpdate                                       bool
+	}{
+		{"verified clean ancestor", "v2026.716.0-dev-bbbbbbb", localCommit, committedTree, committedTree, true},
+		{"reported dirty ancestor", "v2026.716.0-dev-bbbbbbb-dirty", localCommit, committedTree, committedTree, false},
+		{"changed source snapshot", "v2026.716.0-dev-bbbbbbb", localCommit, strings.Repeat("d", 40), committedTree, false},
+		{"missing source snapshot", "v2026.716.0-dev-bbbbbbb", localCommit, "", committedTree, false},
+		{"missing remote tree", "v2026.716.0-dev-bbbbbbb", localCommit, committedTree, "", false},
+		{"missing merge base", "v2026.716.0-dev-bbbbbbb", "", committedTree, committedTree, false},
+		{"wrong merge base", "v2026.716.0-dev-bbbbbbb", strings.Repeat("e", 40), committedTree, committedTree, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/latest" {
+					_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": "v2026.909.1"})
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status":            "behind",
+					"merge_base_commit": map[string]any{"sha": tc.mergeBase, "commit": map[string]any{"tree": map[string]string{"sha": tc.remoteTree}}},
+				})
+			}))
+			defer srv.Close()
+			restoreLatest := updater.SetLatestReleaseAPIURL(srv.URL + "/latest")
+			defer restoreLatest()
+			restoreCompare := updater.SetCompareReleaseAPIURL(srv.URL + "/compare")
+			defer restoreCompare()
+			res := updater.CheckWithSourceTree(context.Background(), tc.version, localCommit, time.Time{}, tc.sourceTree)
+			if res.Err != nil || res.Newer != tc.wantUpdate || (res.Notice() != nil) != tc.wantUpdate || res.LocalCommitRelation != "behind" {
+				t.Fatalf("two-check update decision: %+v, want update=%v", res, tc.wantUpdate)
+			}
+		})
 	}
-	if !res.Newer || res.Notice() == nil || res.LocalCommitRelation != "behind" {
-		t.Fatalf("behind development build should update: %+v", res)
+}
+
+func TestCheckWithSourceTree_unverifiedAncestryCannotAuthorizeReplacement(t *testing.T) {
+	for _, relation := range []string{"diverged", "unknown", "unavailable", "missing local commit"} {
+		t.Run(relation, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/latest":
+					_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": "v2026.909.1"})
+				case "/commits/v2026.909.1":
+					_ = json.NewEncoder(w).Encode(map[string]any{"commit": map[string]any{"committer": map[string]string{"date": "2026-09-09T16:00:00Z"}}})
+				default:
+					if relation == "unavailable" {
+						http.Error(w, "unavailable", http.StatusServiceUnavailable)
+						return
+					}
+					_ = json.NewEncoder(w).Encode(map[string]string{"status": relation})
+				}
+			}))
+			defer srv.Close()
+			restoreLatest := updater.SetLatestReleaseAPIURL(srv.URL + "/latest")
+			defer restoreLatest()
+			restoreCompare := updater.SetCompareReleaseAPIURL(srv.URL + "/compare")
+			defer restoreCompare()
+			restoreCommit := updater.SetReleaseCommitAPIURL(srv.URL + "/commits")
+			defer restoreCommit()
+			commit := strings.Repeat("a", 40)
+			if relation == "missing local commit" {
+				commit = ""
+			}
+			// An older timestamp must not turn uncertainty into permission.
+			res := updater.CheckWithSourceTree(context.Background(), "v2026.716.0-dev-aaaaaaa", commit, time.Date(2026, 9, 8, 1, 0, 0, 0, time.UTC), strings.Repeat("b", 40))
+			if res.Err != nil || res.Newer || res.Notice() != nil {
+				t.Fatalf("unverified development build should stay untouched: %+v", res)
+			}
+		})
 	}
 }
 

@@ -1,3 +1,5 @@
+import { NotificationToasts } from "./notifications/Notifications";
+import { notifyError, watchNotifications } from "./notifications/store";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { detectClient, initialClient } from "./platform";
 import { ActiveAgentsPage, prefetchActiveAgents, type ActiveAgentNode } from "./shell/ActiveAgentsPage";
@@ -16,7 +18,6 @@ import { hideSettings, isSettingsPath, SettingsPage, showSettings, subscribeSett
 import { createProjectFromFolder, fetchProjectSidebarData, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
 import { useChatRuntime } from "./chat/useChatRuntime";
-import { parseChatBannerError } from "./chat/chatMessageUtils";
 import { ChatTopbar, ChatView } from "./chat/ChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
 import { EditorPage } from "./editor/EditorPage";
@@ -316,6 +317,9 @@ export function App() {
     });
   }
 
+  useEffect(() => watchNotifications(), []);
+  useEffect(() => { if (chatError) notifyError(chatError); }, [chatError]);
+
   const preferredLeftWidth = isSidePanelOpen ? leftSidePanelWidth : 0;
   const preferredRightWidth = isRightSidePanelOpen && !isCustomizationOpen ? rightSidePanelWidth : 0;
   // Match --central-column-width, including before the composer is measured.
@@ -549,31 +553,11 @@ export function App() {
           workspacePath={selectedChat.workspacePath ?? selectedWorkspace?.path}
         />
       ) : null}
-      {isChatLoading ? <div aria-live="polite" className="app-chat-loading">Loading chat…</div> : null}
-      {chatError ? <ChatErrorBanner message={chatError} /> : null}
+      <NotificationToasts />
       {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedResearch ? (
         <ResearchReportView bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} project={selectedResearch.project} research={selectedResearch.research} />
       ) : null}
     </main>
-  );
-}
-
-function ChatErrorBanner({ message }: { message: string }) {
-  const error = parseChatBannerError(message);
-  return (
-    <div aria-live="assertive" className="app-chat-error" role="alert">
-      <span aria-hidden="true" className="app-chat-error-mark" />
-      <div className="app-chat-error-body">
-        <div className="app-chat-error-title-row">
-          <strong className="app-chat-error-label">{error.title}</strong>
-          {error.source ? <span className="app-chat-error-chip">{error.source}</span> : null}
-          {error.plan ? <span className="app-chat-error-chip is-plan">{error.plan}</span> : null}
-        </div>
-        {error.message ? <p className="app-chat-error-message">{error.message}</p> : null}
-        {error.resetLabel ? <p className="app-chat-error-reset">{error.resetLabel}</p> : null}
-        {error.hint ? <p className="app-chat-error-hint">{error.hint}</p> : null}
-      </div>
-    </div>
   );
 }
 

@@ -43,6 +43,8 @@ var errUserStopGeneration = errors.New("user stopped generation")
 const cliMsgGenerationStopped = "Generation stopped"
 
 type Runtime struct {
+	commandOnly bool
+
 	RL *readline.Instance
 
 	Client  openai.Client
@@ -119,8 +121,8 @@ type Runtime struct {
 	replSessFileLockID string
 }
 
-func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
-	rt := &Runtime{
+func newRuntimeState(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
+	return &Runtime{
 		RL:                        rl,
 		Model:                     cfg.Current.Model,
 		Cfg:                       cfg,
@@ -133,8 +135,12 @@ func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, 
 		Out:                       os.Stdout,
 		ToolOut:                   tooloutput.NewService(projHex, tooloutput.LimitsFromConfig(cfg)),
 		Instructions:              instructions.NewLoader(),
-		providerReady:             make(chan struct{}),
 	}
+}
+
+func NewRuntime(rl *readline.Instance, cfg *config.Root, prov *config.Provider, projHex, projRoot string, sess *chatstore.Session) *Runtime {
+	rt := newRuntimeState(rl, cfg, prov, projHex, projRoot, sess)
+	rt.providerReady = make(chan struct{})
 	if err := tooloutput.Startup(os.Getpid()); err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "tool output instance register failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 	}

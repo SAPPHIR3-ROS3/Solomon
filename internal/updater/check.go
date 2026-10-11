@@ -76,6 +76,14 @@ type compareJSON struct {
 			} `json:"tree"`
 		} `json:"commit"`
 	} `json:"base_commit"`
+	MergeBaseCommit struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Tree struct {
+				SHA string `json:"sha"`
+			} `json:"tree"`
+		} `json:"commit"`
+	} `json:"merge_base_commit"`
 }
 
 type commitJSON struct {
@@ -167,7 +175,11 @@ func CheckWithSourceTree(ctx context.Context, currentVersion, localCommit string
 		return res
 	}
 	res.LatestTag = tag
-	if IsDevelopmentVersion(current) && localCommit != "" {
+	if IsDevelopmentVersion(current) {
+		if localCommit == "" {
+			logging.Log(logging.WARNING_LOG_LEVEL, "updater missing development commit; refusing to replace development build")
+			return res
+		}
 		comparison, err := compareLocalCommit(cctx, tag, localCommit)
 		relation := comparison.Status
 		res.LocalCommitRelation = relation
@@ -193,9 +205,19 @@ func CheckWithSourceTree(ctx context.Context, currentVersion, localCommit string
 				logging.Log(logging.INFO_LOG_LEVEL, "updater local development build commit is newer than latest release", logging.LogOptions{Params: map[string]any{"current": current, "latest": tag, "relation": "ahead"}})
 				return res
 			}
+			// Timestamps can protect a newer unpublished commit, but cannot
+			// prove ancestry or authorize replacing a divergent/unknown build.
+			logging.Log(logging.WARNING_LOG_LEVEL, "updater development ancestry unverified; refusing to replace development build", logging.LogOptions{Params: map[string]any{"tag": tag, "commit": localCommit, "relation": relation}})
+			return res
 		}
-		if err != nil {
-			logging.Log(logging.WARNING_LOG_LEVEL, "updater commit comparison failed; using version comparison", logging.LogOptions{Params: map[string]any{"tag": tag, "commit": localCommit, "err": err.Error()}})
+		// For a behind commit, the merge base must be the local revision.
+		// Require its committed tree to match the pre-build source snapshot:
+		// ancestry alone says nothing about uncommitted local changes.
+		if strings.HasSuffix(current, "-dirty") || len(localCommit) != 40 ||
+			comparison.MergeBaseCommit.SHA != localCommit || len(sourceTree) != 40 ||
+			comparison.MergeBaseCommit.Commit.Tree.SHA != sourceTree {
+			logging.Log(logging.WARNING_LOG_LEVEL, "updater development source inputs unverified or modified; refusing to replace development build", logging.LogOptions{Params: map[string]any{"tag": tag, "commit": localCommit}})
+			return res
 		}
 	}
 	res.Newer = IsNewerRelease(tag, current)

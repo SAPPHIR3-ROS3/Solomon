@@ -1,3 +1,4 @@
+import { notifyNotification } from "../notifications/store";
 import { serverEndpoint } from "../platform";
 import type { ComposerImageAttachment } from "./composerTypes";
 import type { Chat, ChatImage, ChatMessage, ChatStats, ChatTodoItem, ChatToolCall, ChatToolResult } from "./chatTypes";
@@ -41,6 +42,22 @@ export async function createLiveChat(projectID: string, title = "", signal?: Abo
   });
   const payload = await readResponsePayload(response, "Unable to create chat");
   return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
+}
+
+export async function sendProjectCommand(projectID: string, content: string, signal?: AbortSignal): Promise<void> {
+  const response = await fetch(await serverEndpoint(projectID ? `${projectChatsPath(projectID).replace(/\/chats$/, "")}/commands` : "/__solomon/commands"), {
+    body: JSON.stringify({ content }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+    signal,
+  });
+  const payload = objectValue(await readResponsePayload(response, "Unable to run command"));
+  if (Array.isArray(payload.notifications)) {
+    for (const item of payload.notifications) {
+      const notification = objectValue(item);
+      if (typeof notification.message === "string") notifyNotification(notification.message, stringValue(notification.level) || "system");
+    }
+  }
 }
 
 export async function renameLiveChat(projectID: string, chatID: string, title: string): Promise<LiveChat> {
@@ -207,7 +224,8 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
     const runStartedAt = chat.runStartedAt ?? eventTimeMilliseconds(event);
     if (!replay || !event.chat) return { ...chat, runStartedAt, status: "running" };
     const base = liveChatFromPayload(event.chat, chat.projectID, imageOrigin);
-    const user = messageFromPayload(event.user, base.messages.length, imageOrigin);
+    const incomingUser = messageFromPayload(event.user, base.messages.length, imageOrigin);
+    const user = incomingUser?.content.trimStart().startsWith("/") ? null : incomingUser;
     return {
       ...base,
       messages: user ? [...base.messages, user] : base.messages,
@@ -366,6 +384,7 @@ function messageFromPayload(payload: unknown, index: number, imageOrigin: string
   const record = objectValue(payload);
   const role = stringValue(record.role);
   if (role !== "user" && role !== "assistant") return null;
+  if (record.guiHidden === true || (role === "user" && stringValue(record.content).trimStart().startsWith("/"))) return null;
   const message: ChatMessage = {
     checkpointBranch: stringValue(record.checkpointBranch) || undefined,
     checkpointSeq: numberValue(record.checkpointSeq, undefined),

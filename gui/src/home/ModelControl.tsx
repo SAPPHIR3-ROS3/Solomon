@@ -8,6 +8,7 @@ import {
   type ModelChoice,
 } from "../projects/projects";
 import "./welcome-model.css";
+import { modelLabel } from "../projects/modelLabels";
 
 const recentProvider = "__recent__";
 const emptyCatalog: ModelCatalog = { current: { provider: "", model: "" }, providers: [], recent: [] };
@@ -42,7 +43,7 @@ function modelSupportsFast(provider: { fastModels?: string[]; supportsFastMode: 
 }
 
 function modelMatchesQuery(provider: string, model: string, needle: string): boolean {
-  const haystack = (provider + " " + model).toLowerCase();
+  const haystack = (provider + " " + model + " " + modelLabel(model)).toLowerCase();
   if (haystack.includes(needle)) return true;
   const compactNeedle = needle.replace(/[.-]/g, "");
   const compactHaystack = haystack.replace(/[.-]/g, "");
@@ -183,7 +184,7 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
         }}
         type="button"
       >
-        <span>{selected.model || "Select model"}</span>
+        <span>{modelLabel(selected.model) || "Select model"}</span>
         <ChevronIcon className={isOpen ? "is-open" : undefined} />
       </button>
       {isOpen ? (
@@ -253,7 +254,7 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
                   >
                     <span className="welcome-model-copy">
                       <span className="welcome-model-title">
-                        <strong>{choice.model}</strong>
+                        <strong>{modelLabel(choice.model)}</strong>
                         <InputModeIcons modes={choice.info?.input ?? []} />
                       </span>
                       <small>{choice.provider}</small>

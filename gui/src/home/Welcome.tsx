@@ -1,3 +1,4 @@
+import { NotificationControl } from "../notifications/Notifications";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
 import asciiColors from "../../../internal/logo/colors.txt?raw";
@@ -372,6 +373,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
                 open={openMenu === "worktree"}
                 project={selectedProject}
               />
+              <NotificationControl open={openMenu === "notifications"} onOpenChange={(open) => setOpenMenu(open ? "notifications" : null)} />
             </div>
           </div>
         ) : null}

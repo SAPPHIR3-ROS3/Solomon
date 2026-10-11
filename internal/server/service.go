@@ -254,6 +254,7 @@ func Run(ctx context.Context, options Options) error {
 		cancelService()
 		go func() { _ = httpServer.Shutdown(context.Background()) }()
 	})
+	mux.HandleFunc("GET /__solomon/notifications", handleNotifications)
 	mux.HandleFunc(chatAPIPath, chatAPI.handleProjects)
 	mux.HandleFunc(chatAPIPath+"/", func(w http.ResponseWriter, r *http.Request) {
 		if chatAPI.handlesProjectRoute(r.URL.Path) {
@@ -272,6 +273,10 @@ func Run(ctx context.Context, options Options) error {
 	})
 	mux.HandleFunc("/__solomon/format-go", handleFormatGo)
 	mux.HandleFunc("/__solomon/fast-mode", chatAPI.handleFastMode)
+	mux.HandleFunc("/__solomon/commands", func(w http.ResponseWriter, r *http.Request) {
+		root, _ := os.UserHomeDir()
+		chatAPI.handleProjectCommand(w, r, "", root)
+	})
 	mux.HandleFunc("/__solomon/slash-commands", func(w http.ResponseWriter, r *http.Request) {
 		root, _ := os.UserHomeDir()
 		chatAPI.handleProjectSlashCommands(w, r, "", root)

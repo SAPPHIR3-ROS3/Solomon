@@ -86,7 +86,7 @@
 .editor-code { grid-row:4; }
 .editor-code .cm-gutters { width:56px!important;min-width:56px!important;flex:0 0 56px!important;background:#0f151a!important;border-right:1px solid #182129;color:#52616a; }
 .editor-code .cm-gutterElement { width:100%;padding-right:12px!important;text-align:right; }.editor-code .cm-content{padding:14px 0 130px 8px;caret-color:#82aaff}
-.editor-welcome .welcome-ascii-banner,.editor-empty .welcome-ascii-banner { font-size:clamp(9px,1.25vw,17px);opacity:.62;filter:drop-shadow(0 0 18px #e6b25622); }
+.editor-welcome .welcome-ascii-banner,.editor-empty .welcome-ascii-banner { font-size:clamp(9px,1.25vw,18px);opacity:.62;filter:drop-shadow(0 0 18px #e6b25622); }
 .editor-welcome { grid-row:1/4;gap:12px; }.editor-welcome strong{font:500 14px "Geist",sans-serif}.editor-save-message{position:absolute;right:18px;top:54px;padding:4px 7px;border:1px solid #22303a;border-radius:6px;background:#111920df;color:#849198;font-size:9px}
 .editor-status { height:24px;display:flex;gap:16px;padding:0 12px;background:#0d1217;border-color:#182129;color:#627078;font:9px "Geist Mono",ui-monospace,monospace; }
 .editor-status-branch { color:#8da29a!important; }.editor-status-branch svg{color:#6fd39c}.editor-status-spacer{flex:1}

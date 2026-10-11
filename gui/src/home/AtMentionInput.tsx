@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties
 import { createPortal } from "react-dom";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "../chat/composerTypes";
 import { fetchProjectAtMentionSuggestions, type ProjectAtMentionSuggestion } from "../projects/projects";
-import { fetchProjectSlashCommands } from "../projects/projects";
+import { fetchProjectSlashCommands, getCachedProjectSlashCommands } from "../projects/projects";
 import { suggestionContext, insertSuggestion, type SuggestionContext } from "./composerSuggestions";
 
 export type { ComposerImageAttachment } from "../chat/composerTypes";
@@ -93,6 +93,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     setSuggestions([]);
     setSelected(0);
     contextRef.current = null;
+    void fetchProjectSlashCommands(projectID, "").catch(() => {});
   }, [projectID]);
 
   useLayoutEffect(() => {
@@ -178,6 +179,10 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     if (previousContext?.kind !== context.kind || previousContext.query !== context.query) {
       setSuggestions([]);
       setSelected(0);
+    }
+    if (context.kind === "command") {
+      const cached = getCachedProjectSlashCommands(projectID, context.query);
+      if (cached) setSuggestions(cached.map((command) => ({ ...command, path: command.tag, isDirectory: false })));
     }
     const loadSuggestions = context.kind === "command"
       ? fetchProjectSlashCommands(projectID, context.query).then((commands) => commands.map((command) => ({ ...command, path: command.tag, isDirectory: false })))

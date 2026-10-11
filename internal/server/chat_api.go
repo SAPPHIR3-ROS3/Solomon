@@ -25,6 +25,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -85,6 +86,11 @@ func newChatRun(parent context.Context) *chatRun {
 }
 
 func (r *chatRun) Emit(ev cievents.Event) {
+	if ev["type"] == "error" {
+		if message, ok := ev["error"].(string); ok {
+			logging.RecordNotification("error", message)
+		}
+	}
 	r.stateMu.Lock()
 	if r.finished {
 		r.stateMu.Unlock()
@@ -391,6 +397,10 @@ func (a *chatAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) {
 		a.handleProjectAtMentions(w, r, root)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "commands" {
+		a.handleProjectCommand(w, r, projectID, root)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "slash-commands" {
 		a.handleProjectSlashCommands(w, r, projectID, root)
 		return
@@ -474,7 +484,7 @@ func (a *chatAPI) handlesProjectRoute(path string) bool {
 		return false
 	}
 	switch parts[1] {
-	case "at-mentions", "slash-commands", "chats", "subchats":
+	case "at-mentions", "slash-commands", "commands", "chats", "subchats":
 		return true
 	default:
 		return false
@@ -1272,10 +1282,10 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 }
 
 func isHiddenSessionMessage(message chatstore.Message) bool {
-	if message.Role == "tool" {
+	if message.GUIHidden || message.Role == "tool" {
 		return true
 	}
-	return message.Role == "user" && strings.HasPrefix(strings.TrimSpace(message.Content), "tool_result(")
+	return message.Role == "user" && (strings.HasPrefix(strings.TrimSpace(message.Content), "tool_result(") || strings.HasPrefix(strings.TrimSpace(message.Content), "/"))
 }
 
 func normalizedMessageRole(role string) string {
@@ -2032,6 +2042,7 @@ func writeAPIError(w http.ResponseWriter, status int, err error) {
 	if err != nil {
 		message = err.Error()
 	}
+	logging.RecordNotification("error", message)
 	writeJSON(w, status, map[string]string{"error": message})
 }
 

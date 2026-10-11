@@ -15,6 +15,7 @@ import {
   type ProviderQuota,
 } from "../projects/projects";
 import { InputModeIcons, ProviderIcon } from "../home/ModelControl";
+import { modelLabel } from "../projects/modelLabels";
 
 type ProviderKind = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -41,7 +42,7 @@ const emptyCatalog: ModelCatalog = {
 };
 
 function modelMatchesQuery(provider: string, model: string, needle: string): boolean {
-  const haystack = (provider + " " + model).toLocaleLowerCase();
+  const haystack = (provider + " " + model + " " + modelLabel(model)).toLocaleLowerCase();
   if (haystack.includes(needle)) return true;
   const compactNeedle = needle.replace(/[.-]/g, "");
   const compactHaystack = haystack.replace(/[.-]/g, "");
@@ -336,7 +337,7 @@ function ProviderModelGroup({
               <button aria-current={selected ? "true" : undefined} className="settings-model-select" disabled={Boolean(isSavingModel)} onClick={() => void onSelectModel(provider.provider, model)} type="button">
                 <span className="settings-model-row-copy">
                   <span className="settings-model-row-title">
-                    <strong>{model}</strong>
+                    <strong>{modelLabel(model)}</strong>
                     <InputModeIcons modes={provider.metadata[model]?.input ?? []} />
                   </span>
                 </span>
@@ -344,7 +345,7 @@ function ProviderModelGroup({
               </button>
               <button
                 aria-checked={enabled}
-                aria-label={`${enabled ? "Hide" : "Show"} ${model} in the chat model selector`}
+                aria-label={`${enabled ? "Hide" : "Show"} ${modelLabel(model)} in the chat model selector`}
                 className={`settings-model-toggle${enabled ? " is-enabled" : ""}`}
                 onClick={() => void onToggleModel(provider.provider, model, !enabled)}
                 role="switch"

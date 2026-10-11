@@ -1,6 +1,7 @@
+import { NotificationControl } from "../notifications/Notifications";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import type { Chat, ChatMessage, ChatToolCall } from "./chatTypes";
-import { ChatComposer } from "./ChatComposer";
+import { ChatComposer, type ChatComposerMenu } from "./ChatComposer";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
 import { snapshotComposerImages } from "./chatClient";
 import { useChatScroll } from "./useChatScroll";
@@ -47,6 +48,7 @@ type ChatViewProps = {
 };
 
 export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onSend, onStopTool, onStopStreaming, openSubagentRequest, pendingUserMessageIDs = new Set(), worktree, workspaceName, workspacePath }: ChatViewProps) {
+  const [composerMenu, setComposerMenu] = useState<ChatComposerMenu>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
   const [composerMode, setComposerMode] = useState<"agent" | "chat">(chat.modeSwitchTarget ? "chat" : "agent");
   const [isModeSwitchPending, setIsModeSwitchPending] = useState(Boolean(chat.modeSwitchTarget));
@@ -268,6 +270,8 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
           <ChatComposer
             aria-label="Message"
             formRef={composerRef}
+            openMenu={composerMenu === "notifications" ? null : composerMenu}
+            onOpenMenuChange={setComposerMenu}
             initialMode={composerMode}
             mode={composerMode}
             modeSwitchPending={isModeSwitchPending}
@@ -281,10 +285,11 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
             isStreaming={isStreaming}
           />
         </div>
-        <div aria-label="Read-only Git context" className="welcome-git-controls">
+        <div aria-label="Git context and notifications" className="welcome-git-controls">
           {workspaceName ? <span className="chat-readonly-control is-workspace" title={workspacePath}><FolderIcon />{workspaceName}</span> : null}
           <span className="chat-readonly-control"><BranchIcon />{branch ?? chat.branch ?? "main"}</span>
           <span className="chat-readonly-control"><WorktreeIcon />{worktree ?? chat.worktree ?? "Worktree"}</span>
+          <NotificationControl open={composerMenu === "notifications"} onOpenChange={(open) => setComposerMenu(open ? "notifications" : null)} />
         </div>
       </div>
       {deleteTarget ? (

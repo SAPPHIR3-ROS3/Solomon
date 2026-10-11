@@ -46,12 +46,14 @@
 }
 
 .welcome-ascii-banner {
+  /* Four dot pitches per row keep the Braille spacing continuous. */
+  --braille-row-height: 1.111111em;
   filter: drop-shadow(0 0 18px #e6b2562b);
   font-family: "Geist Mono", ui-monospace, monospace;
-  font-size: clamp(15px, 2vw, 26px);
+  font-size: clamp(10px, 1.25vw, 18px);
   font-weight: 450;
   letter-spacing: 0;
-  line-height: 0.86;
+  line-height: 0;
   margin: 0 auto;
   white-space: pre;
   width: max-content;
@@ -59,18 +61,21 @@
 
 .welcome-ascii-row {
   display: block;
-  height: 0.86em;
+  height: var(--braille-row-height);
   white-space: nowrap;
 }
 
 .welcome-ascii-cell {
-  display: inline-block;
+  align-items: center;
+  display: inline-flex;
   font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "Apple Symbols", sans-serif;
   font-size: 1em;
-  line-height: 1;
+  height: var(--braille-row-height);
+  justify-content: center;
+  line-height: inherit;
   text-align: center;
   vertical-align: top;
-  width: 0.7em;
+  width: 1em;
 }
 
 .welcome-title {
@@ -770,8 +775,13 @@
   border-radius: 999px;
 }
 
+.welcome-composer-dock:has(.at-mention-picker) { z-index: 16; }
+.welcome-composer:has(.at-mention-picker) { z-index: 16; }
+
 .at-mention-picker {
   background: var(--color-surface-raised);
+  opacity: 1;
+  backdrop-filter: none;
   border: 1px solid var(--color-border);
   border-radius: 10px;
   box-shadow: 0 12px 30px #0005;
@@ -801,7 +811,7 @@
 
 .at-mention-picker-item.is-selected,
 .at-mention-picker-item:hover {
-  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface-raised));
 }
 
 .at-mention-picker-item span { color: #fff; }

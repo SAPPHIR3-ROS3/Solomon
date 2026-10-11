@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -278,6 +279,7 @@ func FormatSystemBlock(message string) string {
 
 func WriteSystem(w io.Writer, message string) {
 	if s := FormatSystemBlock(message); s != "" {
+		logging.RecordNotification("system", message)
 		_, _ = io.WriteString(w, s)
 	}
 }

@@ -42,7 +42,7 @@
     white-space: normal;
     overflow-wrap: anywhere;
   }
-  .welcome-ascii-banner { font-size: clamp(7px, 2vw, 15px); }
+  .welcome-ascii-banner { font-size: clamp(6px, 1.5vw, 10px); }
   .welcome-toolbar, .welcome-toolbar-modes, .welcome-meta-row { flex-wrap: wrap; }
   .welcome-toolbar-left { flex: 1 1 200px; }
   .welcome-toolbar > .welcome-send { margin-left: auto; }

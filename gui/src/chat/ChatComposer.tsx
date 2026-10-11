@@ -1,3 +1,5 @@
+import { sendProjectCommand } from "./chatClient";
+import { notifyError } from "../notifications/store";
 import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import { fetchProjectSidebarData, normalizeReasoningEffort, saveFastMode, saveReasoningEffort, type ReasoningEffort } from "../projects/projects";
 import { AtMentionInput } from "../home/AtMentionInput";
@@ -37,7 +39,7 @@ export type ChatComposerProps = {
   resetKey?: unknown;
 };
 
-export type ChatComposerMenu = "model" | "reasoning" | null;
+export type ChatComposerMenu = "model" | "reasoning" | "notifications" | null;
 
 export function ChatComposer({
   "aria-label": ariaLabel,
@@ -177,13 +179,21 @@ export function ChatComposer({
 
   async function submit() {
     const content = draft.trim();
-    if (isSending || modeSwitchPending || (!content && images.length === 0) || !onSend) return;
+    const isCommand = content.startsWith("/");
+    if (isSending || modeSwitchPending || (!content && images.length === 0) || (!onSend && !isCommand)) return;
     if ((content === "/agent" || content === "/chat") && !images.length && !clips.length) {
       setMode(content === "/agent" ? "agent" : "chat");
-      setDraft("");
+    }
+    try {
+      if (onSend) await onSend(content, images, clips);
+      else {
+        if (images.length || clips.length) throw new Error("Send attachments separately from slash commands");
+        await sendProjectCommand(projectID ?? "", content);
+      }
+    } catch (reason) {
+      notifyError(reason instanceof Error ? reason.message : "Unable to run command");
       return;
     }
-    await onSend(content, images, clips);
     setDraft("");
     setImages([]);
     setClips([]);
@@ -263,7 +273,7 @@ export function ChatComposer({
             <ComposerStopIcon />
           </button>
         ) : (
-          <button aria-label="Send" className="welcome-send" disabled={isSending || modeSwitchPending || (!draft.trim() && images.length === 0) || !onSend} type="submit">
+          <button aria-label="Send" className="welcome-send" disabled={isSending || modeSwitchPending || (!draft.trim() && images.length === 0) || (!onSend && !draft.trimStart().startsWith("/"))} type="submit">
             <ComposerSendIcon />
           </button>
         )}

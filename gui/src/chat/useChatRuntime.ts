@@ -1,5 +1,6 @@
+import { notifyNotification } from "../notifications/store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { applyLiveStreamEvent, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, deleteLiveChatMessage, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type ChatStreamEventHandler, type LiveChat } from "./chatClient";
+import { sendProjectCommand, applyLiveStreamEvent, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, deleteLiveChatMessage, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type ChatStreamEventHandler, type LiveChat } from "./chatClient";
 import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, getUnreadCompletedChatIDs, rememberActiveChat, saveUnreadCompletedChatIDs, removeChat, saveChat, saveChatStreamCursor, updateChat, useChatStore } from "./chatStore";
 import type { Chat, ChatMessage } from "./chatTypes";
 import { markChatCompletionRead, markChatCompletionUnread, shouldMarkChatCompletionUnread } from "./unreadCompletion";
@@ -152,6 +153,9 @@ export function useChatRuntime(): ChatRuntime {
           return next;
         });
       }
+      if (event.type === "notification" && !replay && typeof event.message === "string") {
+        notifyNotification(event.message, typeof event.level === "string" ? event.level : "system");
+      }
       if (event.type === "error") {
         receivedStreamError = true;
         setError(streamErrorMessage(event));
@@ -195,8 +199,9 @@ export function useChatRuntime(): ChatRuntime {
   const sendDaemonMessage = useCallback((chat: Chat, message: ChatMessage) => {
     if (!chat.projectID || streams.current.has(chat.id)) return;
     forgetChatStreamCursor(chat.projectID, chat.id);
-    updateChat(chat.id, (current) => ({ ...current, messages: [...current.messages, message], runStartedAt: Date.now(), status: "running" }));
-    markMessagePending(chat.id, message.id, true);
+    const isCommand = message.content.trimStart().startsWith("/");
+    updateChat(chat.id, (current) => ({ ...current, messages: isCommand ? current.messages : [...current.messages, message], runStartedAt: Date.now(), status: "running" }));
+    if (!isCommand) markMessagePending(chat.id, message.id, true);
     setError("");
     attachDaemonStream(chat, (signal, onEvent) => streamLiveChatMessage(
       chat.projectID!,
@@ -237,6 +242,12 @@ export function useChatRuntime(): ChatRuntime {
     setIsLoading(true);
     setError("");
     try {
+      if (content.trimStart().startsWith("/")) {
+        if (composerImages.length || composerClips.length) throw new Error("Send attachments separately from slash commands");
+        await sendProjectCommand(project.id, content, controller.signal);
+        window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
+        return;
+      }
       const images = await snapshotComposerImages(composerImages);
       if (controller.signal.aborted || requestID !== createRequest.current) return;
       const [chat, projectContext] = await Promise.all([
