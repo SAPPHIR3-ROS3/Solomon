@@ -44,3 +44,22 @@ type ManagerOptions struct {
 	// lost response can otherwise duplicate side effects.
 	RetryToolCall func(serverName, toolName string, definition *sdkmcp.Tool, cause error) bool
 }
+
+func NewManagerForTest(cfg *Config, options *ManagerOptions) *Manager {
+	return newManager(cfg, nil, options)
+}
+
+func (m *Manager) FirstSessionForTest() *sdkmcp.ClientSession {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if len(m.servers) == 0 {
+		return nil
+	}
+	return m.servers[0].currentSession()
+}
+
+func (m *Manager) ServerCountForTest() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.servers)
+}

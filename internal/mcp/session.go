@@ -328,6 +328,9 @@ func (m *Manager) hydrateServer(ctx context.Context, ss *serverSession, session 
 		return
 	}
 	if err := m.registerServerCatalog(ctx, ss); err != nil {
+		if m.closed.Load() || ctx.Err() != nil {
+			return
+		}
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP server catalog hydration failed", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "err": err.Error()}})
 	}
 	if err := m.restoreSubscriptions(ctx, ss); err != nil {

@@ -2,6 +2,9 @@ package mcp
 
 import (
 	"context"
+	"fmt"
+	"github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"io"
 	"net/http"
 	"os"
@@ -123,4 +126,103 @@ func httpClientWithHeaders(headers map[string]string) *http.Client {
 		return http.DefaultClient
 	}
 	return &http.Client{Transport: &headerTransport{base: base, headers: headers}}
+}
+
+func (m *Manager) transportFor(ctx context.Context, sc ServerConfig, stderr io.Writer) (sdkmcp.Transport, error) {
+	if sc.Type == TransportStreamableHTTP {
+		oauthHandler, err := m.oauthHandlerFor(ctx, sc)
+		if err != nil {
+			return nil, err
+		}
+		transport := &sdkmcp.StreamableClientTransport{
+			Endpoint:   sc.URL,
+			HTTPClient: httpClientWithHeaders(sc.Headers),
+			MaxRetries: 5,
+		}
+		if oauthHandler != nil {
+			transport.OAuthHandler = oauthHandler
+		}
+		return transport, nil
+	}
+	if sc.Type == TransportSSE {
+		return &persistentSSETransport{
+			transport: sdkmcp.SSEClientTransport{
+				Endpoint:   sc.URL,
+				HTTPClient: httpClientWithHeaders(sc.Headers),
+			},
+		}, nil
+	}
+	return &commandTransport{
+		command: sc.Command,
+		args:    sc.Args,
+		cwd:     sc.CWD,
+		env:     sc.Env,
+		stderr:  stderr,
+	}, nil
+}
+
+// oauthHandlerFor returns one handler per configured server. The handler owns
+// the token source, including refresh state, so reconnecting an MCP session
+// does not restart the OAuth flow. Persistence across Solomon processes stays
+// with the host-provided handler/factory and is never written to mcp.json.
+func (m *Manager) oauthHandlerFor(ctx context.Context, sc ServerConfig) (auth.OAuthHandler, error) {
+	if m == nil || (m.options.OAuthHandler == nil && sc.OAuth == nil) {
+		return nil, nil
+	}
+	m.oauthMu.Lock()
+	defer m.oauthMu.Unlock()
+	if m.oauthReady[sc.Name] {
+		return m.oauthHandlers[sc.Name], nil
+	}
+	var (
+		h   auth.OAuthHandler
+		err error
+	)
+	if m.options.OAuthHandler != nil {
+		h, err = m.options.OAuthHandler(ctx, sc)
+	} else {
+		h, err = m.oauthHandler(ctx, sc)
+	}
+	if err != nil {
+		return nil, err
+	}
+	m.oauthHandlers[sc.Name] = h
+	m.oauthReady[sc.Name] = true
+	return h, nil
+}
+
+func (m *Manager) oauthHandler(_ context.Context, sc ServerConfig) (auth.OAuthHandler, error) {
+	if sc.OAuth == nil {
+		return nil, nil
+	}
+	if m.options.AuthorizationCodeFetcher == nil {
+		return nil, fmt.Errorf("MCP server %q declares OAuth but no AuthorizationCodeFetcher was configured", sc.Name)
+	}
+	oauthCfg := sc.OAuth
+	handlerCfg := &auth.AuthorizationCodeHandlerConfig{
+		RedirectURL:              oauthCfg.RedirectURL,
+		AuthorizationCodeFetcher: m.options.AuthorizationCodeFetcher,
+		RequestRefreshToken:      oauthCfg.RequestRefresh,
+		Client:                   m.options.OAuthHTTPClient,
+	}
+	if oauthCfg.ClientIDMetadataURL != "" {
+		handlerCfg.ClientIDMetadataDocumentConfig = &auth.ClientIDMetadataDocumentConfig{URL: oauthCfg.ClientIDMetadataURL}
+	}
+	if oauthCfg.ClientID != "" {
+		handlerCfg.PreregisteredClient = &oauthex.ClientCredentials{ClientID: oauthCfg.ClientID, ClientSecretAuth: nil}
+		if oauthCfg.ClientSecret != "" {
+			handlerCfg.PreregisteredClient.ClientSecretAuth = &oauthex.ClientSecretAuth{ClientSecret: oauthCfg.ClientSecret}
+		}
+	}
+	if len(oauthCfg.RedirectURIs) > 0 {
+		handlerCfg.DynamicClientRegistrationConfig = &auth.DynamicClientRegistrationConfig{
+			Metadata: &oauthex.ClientRegistrationMetadata{
+				RedirectURIs: oauthCfg.RedirectURIs,
+				ClientName:   oauthCfg.ClientName,
+				ClientURI:    oauthCfg.ClientURI,
+				Scope:        oauthCfg.Scope,
+			},
+		}
+	}
+	return auth.NewAuthorizationCodeHandler(handlerCfg)
 }

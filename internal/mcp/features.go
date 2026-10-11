@@ -2,10 +2,8 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -103,19 +101,31 @@ func (m *Manager) registerServerCatalog(ctx context.Context, ss *serverSession) 
 	// Never make tools/list a prerequisite for establishing the session.
 	if supportsFeature(ss, "tools") {
 		if err := m.refreshTools(ctx, ss); err != nil {
+			if m.closed.Load() || ctx.Err() != nil {
+				return err
+			}
 			logging.Log(logging.WARNING_LOG_LEVEL, "MCP server tools/list failed", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "err": err.Error()}})
 		}
 	}
 	if supportsFeature(ss, "resources") {
 		if err := m.refreshResources(ctx, ss); err != nil {
+			if m.closed.Load() || ctx.Err() != nil {
+				return err
+			}
 			logging.Log(logging.WARNING_LOG_LEVEL, "MCP server resources/list failed", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "err": err.Error()}})
 		}
 		if err := m.refreshResourceTemplates(ctx, ss); err != nil {
+			if m.closed.Load() || ctx.Err() != nil {
+				return err
+			}
 			logging.Log(logging.WARNING_LOG_LEVEL, "MCP server resources/templates/list failed", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "err": err.Error()}})
 		}
 	}
 	if supportsFeature(ss, "prompts") {
 		if err := m.refreshPrompts(ctx, ss); err != nil {
+			if m.closed.Load() || ctx.Err() != nil {
+				return err
+			}
 			logging.Log(logging.WARNING_LOG_LEVEL, "MCP server prompts/list failed", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "err": err.Error()}})
 		}
 	}
@@ -149,249 +159,6 @@ func supportsFeatureSession(session *sdkmcp.ClientSession, feature string) bool 
 	default:
 		return true
 	}
-}
-
-func (m *Manager) refreshTools(ctx context.Context, ss *serverSession) error {
-	_, err := withSessionCall(m, ctx, ss, "tools/list", func(session *sdkmcp.ClientSession) (struct{}, error) {
-		if !ss.ownsSession(session) {
-			return struct{}{}, sdkmcp.ErrConnectionClosed
-		}
-		if !supportsFeatureSession(session, "tools") {
-			m.replaceServerTools(ss, nil)
-			return struct{}{}, nil
-		}
-		var all []*sdkmcp.Tool
-		cursor := ""
-		for {
-			listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
-			res, err := session.ListTools(listCtx, &sdkmcp.ListToolsParams{Cursor: cursor})
-			cancel()
-			if err != nil {
-				return struct{}{}, err
-			}
-			all = append(all, res.Tools...)
-			if strings.TrimSpace(res.NextCursor) == "" {
-				break
-			}
-			cursor = res.NextCursor
-		}
-		if !ss.ownsSession(session) {
-			return struct{}{}, sdkmcp.ErrConnectionClosed
-		}
-		tools := make([]RemoteTool, 0, len(all))
-		for _, tool := range all {
-			if tool == nil || !ss.cfg.ToolAllowed(tool.Name) {
-				if tool != nil {
-					logging.Log(logging.INFO_LOG_LEVEL, "MCP tool filtered", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "tool": tool.Name}})
-				}
-				continue
-			}
-			rt, err := AdaptTool(ss.cfg.Name, tool)
-			if err != nil {
-				logging.Log(logging.WARNING_LOG_LEVEL, "MCP tool schema skipped", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "tool": tool.Name, "err": err.Error()}})
-				continue
-			}
-			tools = append(tools, rt)
-		}
-		m.replaceServerTools(ss, tools)
-		return struct{}{}, nil
-	})
-	return err
-}
-
-func (m *Manager) refreshResources(ctx context.Context, ss *serverSession) error {
-	_, err := withSessionCall(m, ctx, ss, "resources/list", func(session *sdkmcp.ClientSession) (struct{}, error) {
-		if !ss.ownsSession(session) {
-			return struct{}{}, sdkmcp.ErrConnectionClosed
-		}
-		if !supportsFeatureSession(session, "resources") {
-			m.replaceServerResources(ss, nil)
-			return struct{}{}, nil
-		}
-		var resources []*sdkmcp.Resource
-		cursor := ""
-		for {
-			listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
-			res, err := session.ListResources(listCtx, &sdkmcp.ListResourcesParams{Cursor: cursor})
-			cancel()
-			if err != nil {
-				return struct{}{}, err
-			}
-			resources = append(resources, res.Resources...)
-			if strings.TrimSpace(res.NextCursor) == "" {
-				break
-			}
-			cursor = res.NextCursor
-		}
-		if !ss.ownsSession(session) {
-			return struct{}{}, sdkmcp.ErrConnectionClosed
-		}
-		out := make([]RemoteResource, 0, len(resources))
-		for _, resource := range resources {
-			if resource != nil {
-				out = append(out, RemoteResource{ServerName: ss.cfg.Name, Definition: resource})
-			}
-		}
-		m.replaceServerResources(ss, out)
-		return struct{}{}, nil
-	})
-	return err
-}
-
-func (m *Manager) refreshResourceTemplates(ctx context.Context, ss *serverSession) error {
-	_, err := withSessionCall(m, ctx, ss, "resources/templates/list", func(session *sdkmcp.ClientSession) (struct{}, error) {
-		if !ss.ownsSession(session) {
-			return struct{}{}, sdkmcp.ErrConnectionClosed
-		}
-		if !supportsFeatureSession(session, "resources") {
-			m.replaceServerResourceTemplates(ss, nil)
-			return struct{}{}, nil
-		}
-		var templates []*sdkmcp.ResourceTemplate
-		cursor := ""
-		for {
-			listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
-			res, err := session.ListResourceTemplates(listCtx, &sdkmcp.ListResourceTemplatesParams{Cursor: cursor})
-			cancel()
-			if err != nil {
-				return struct{}{}, err
-			}
-			templates = append(templates, res.ResourceTemplates...)
-			if strings.TrimSpace(res.NextCursor) == "" {
-				break
-			}
-			cursor = res.NextCursor
-		}
-		if !ss.ownsSession(session) {
-			return struct{}{}, sdkmcp.ErrConnectionClosed
-		}
-		out := make([]RemoteResourceTemplate, 0, len(templates))
-		for _, template := range templates {
-			if template != nil {
-				out = append(out, RemoteResourceTemplate{ServerName: ss.cfg.Name, Definition: template})
-			}
-		}
-		m.replaceServerResourceTemplates(ss, out)
-		return struct{}{}, nil
-	})
-	return err
-}
-
-func (m *Manager) refreshPrompts(ctx context.Context, ss *serverSession) error {
-	_, err := withSessionCall(m, ctx, ss, "prompts/list", func(session *sdkmcp.ClientSession) (struct{}, error) {
-		if !ss.ownsSession(session) {
-			return struct{}{}, sdkmcp.ErrConnectionClosed
-		}
-		if !supportsFeatureSession(session, "prompts") {
-			m.replaceServerPrompts(ss, nil)
-			return struct{}{}, nil
-		}
-		var prompts []*sdkmcp.Prompt
-		cursor := ""
-		for {
-			listCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, defaultConnectTimeout))
-			res, err := session.ListPrompts(listCtx, &sdkmcp.ListPromptsParams{Cursor: cursor})
-			cancel()
-			if err != nil {
-				return struct{}{}, err
-			}
-			prompts = append(prompts, res.Prompts...)
-			if strings.TrimSpace(res.NextCursor) == "" {
-				break
-			}
-			cursor = res.NextCursor
-		}
-		if !ss.ownsSession(session) {
-			return struct{}{}, sdkmcp.ErrConnectionClosed
-		}
-		out := make([]RemotePrompt, 0, len(prompts))
-		for _, prompt := range prompts {
-			if prompt != nil {
-				out = append(out, RemotePrompt{ServerName: ss.cfg.Name, Definition: prompt})
-			}
-		}
-		m.replaceServerPrompts(ss, out)
-		return struct{}{}, nil
-	})
-	return err
-}
-
-func (m *Manager) replaceServerTools(ss *serverSession, tools []RemoteTool) {
-	if m == nil || ss == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for name, binding := range m.registry {
-		if binding.server == ss {
-			delete(m.registry, name)
-		}
-	}
-	combined := make([]RemoteTool, 0, len(m.tools)+len(tools))
-	for _, existing := range m.tools {
-		if existing.ServerName != ss.cfg.Name {
-			combined = append(combined, existing)
-		}
-	}
-	used := make(map[string]bool, len(combined))
-	for _, existing := range combined {
-		used[existing.OpenAIName] = true
-	}
-	for _, tool := range tools {
-		tool.OpenAIName = UniqueToolName(ExposedToolName(tool.ServerName, tool.ToolName), used)
-		combined = append(combined, tool)
-		m.registry[tool.OpenAIName] = &remoteBinding{server: ss, tool: tool}
-	}
-	m.tools = combined
-	ss.tools = append([]RemoteTool(nil), tools...)
-}
-
-func (m *Manager) replaceServerResources(ss *serverSession, resources []RemoteResource) {
-	if m == nil || ss == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	combined := make([]RemoteResource, 0, len(m.resources)+len(resources))
-	for _, existing := range m.resources {
-		if existing.ServerName != ss.cfg.Name {
-			combined = append(combined, existing)
-		}
-	}
-	m.resources = append(combined, resources...)
-	ss.resources = append([]RemoteResource(nil), resources...)
-}
-
-func (m *Manager) replaceServerResourceTemplates(ss *serverSession, templates []RemoteResourceTemplate) {
-	if m == nil || ss == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	combined := make([]RemoteResourceTemplate, 0, len(m.templates)+len(templates))
-	for _, existing := range m.templates {
-		if existing.ServerName != ss.cfg.Name {
-			combined = append(combined, existing)
-		}
-	}
-	m.templates = append(combined, templates...)
-	ss.templates = append([]RemoteResourceTemplate(nil), templates...)
-}
-
-func (m *Manager) replaceServerPrompts(ss *serverSession, prompts []RemotePrompt) {
-	if m == nil || ss == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	combined := make([]RemotePrompt, 0, len(m.prompts)+len(prompts))
-	for _, existing := range m.prompts {
-		if existing.ServerName != ss.cfg.Name {
-			combined = append(combined, existing)
-		}
-	}
-	m.prompts = append(combined, prompts...)
-	ss.prompts = append([]RemotePrompt(nil), prompts...)
 }
 
 func (m *Manager) sessionFor(ctx context.Context, serverName string) (*serverSession, error) {
@@ -607,253 +374,6 @@ func (m *Manager) Complete(ctx context.Context, serverName string, params *sdkmc
 		return session.Complete(callCtx, params)
 	})
 	return result, err
-}
-
-// Subscribe subscribes to updates for a resource. For MCP July servers the
-// SDK maps this to subscriptions/listen; for legacy servers it uses the
-// resources/subscribe request.
-func (m *Manager) Subscribe(ctx context.Context, serverName, uri string) error {
-	uri = strings.TrimSpace(uri)
-	if uri == "" {
-		return fmt.Errorf("MCP resource subscription requires a URI")
-	}
-	ss, err := m.sessionFor(ctx, serverName)
-	if err != nil {
-		return err
-	}
-	ss.markSubscriptionDesired(uri)
-	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-	defer cancel()
-	if usesModernProtocol(ss) {
-		if err := m.subscribeModern(callCtx, ss, uri); err != nil {
-			if !isSessionFailure(err) {
-				ss.unmarkSubscriptionDesired(uri)
-			}
-			return err
-		}
-		return nil
-	}
-	_, err = withSessionCall(m, callCtx, ss, "resources/subscribe", func(session *sdkmcp.ClientSession) (struct{}, error) {
-		return struct{}{}, session.Subscribe(callCtx, &sdkmcp.SubscribeParams{URI: uri})
-	})
-	if err != nil && !errors.Is(err, ErrServerUnavailable) {
-		ss.unmarkSubscriptionDesired(uri)
-	}
-	return err
-}
-
-// Unsubscribe stops a resource subscription.
-func (m *Manager) Unsubscribe(ctx context.Context, serverName, uri string) error {
-	uri = strings.TrimSpace(uri)
-	ss, err := m.sessionFor(ctx, serverName)
-	if err != nil {
-		return err
-	}
-	ss.unmarkSubscriptionDesired(uri)
-	callCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-	defer cancel()
-	if usesModernProtocol(ss) {
-		return m.unsubscribeModern(callCtx, ss, uri)
-	}
-	_, err = withSessionCall(m, callCtx, ss, "resources/unsubscribe", func(session *sdkmcp.ClientSession) (struct{}, error) {
-		return struct{}{}, session.Unsubscribe(callCtx, &sdkmcp.UnsubscribeParams{URI: uri})
-	})
-	return err
-}
-
-func (m *Manager) subscribeModern(ctx context.Context, ss *serverSession, uri string) error {
-	uri = strings.TrimSpace(uri)
-	if uri == "" {
-		return fmt.Errorf("MCP resource subscription requires a URI")
-	}
-	if !ss.subscriptionDesired(uri) {
-		return nil
-	}
-	ss.subscriptionsMu.Lock()
-	if ss.subscriptions == nil {
-		ss.subscriptions = make(map[string]*resourceSubscription)
-	}
-	if _, ok := ss.subscriptions[uri]; ok {
-		ss.subscriptionsMu.Unlock()
-		return nil
-	}
-	ss.subscriptionsMu.Unlock()
-
-	clientOptions := m.subscriptionClientOptions(ss)
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "solomon", Version: "dev", Title: "Solomon"}, &clientOptions)
-	for _, root := range m.rootsSnapshot() {
-		if root != nil {
-			client.AddRoots(root)
-		}
-	}
-	transport, err := m.transportFor(ctx, ss.cfg, m.stderr)
-	if err != nil {
-		return err
-	}
-	session, err := client.Connect(ctx, transport, nil)
-	if err != nil {
-		return err
-	}
-	if err := session.Subscribe(ctx, &sdkmcp.SubscribeParams{URI: uri}); err != nil {
-		_ = session.Close()
-		return err
-	}
-	if !ss.subscriptionDesired(uri) {
-		_ = session.Close()
-		return nil
-	}
-
-	subscription := &resourceSubscription{client: client, session: session}
-	ss.subscriptionsMu.Lock()
-	if _, ok := ss.subscriptions[uri]; ok {
-		ss.subscriptionsMu.Unlock()
-		_ = session.Close()
-		return nil
-	}
-	ss.subscriptions[uri] = subscription
-	ss.subscriptionsMu.Unlock()
-	go m.watchSubscription(ss, uri, session)
-	return nil
-}
-
-func (m *Manager) unsubscribeModern(ctx context.Context, ss *serverSession, uri string) error {
-	ss.subscriptionsMu.Lock()
-	subscription, ok := ss.subscriptions[uri]
-	if ok {
-		delete(ss.subscriptions, uri)
-	}
-	ss.subscriptionsMu.Unlock()
-	if !ok {
-		return nil
-	}
-
-	// Closing the dedicated client cancels its subscriptions/listen stream and
-	// leaves the main session's catalog listener untouched. Unsubscribe is
-	// still issued first so servers that observe the explicit cancellation can
-	// release their resource-side state promptly.
-	var errs []error
-	if err := subscription.session.Unsubscribe(ctx, &sdkmcp.UnsubscribeParams{URI: uri}); err != nil {
-		errs = append(errs, err)
-	}
-	if err := subscription.session.Close(); err != nil {
-		errs = append(errs, err)
-	}
-	return errors.Join(errs...)
-}
-
-func (m *Manager) restoreSubscriptions(ctx context.Context, ss *serverSession) error {
-	if m == nil || ss == nil || ss.currentSession() == nil {
-		return nil
-	}
-	uris := ss.desiredSubscriptionURIs()
-	if len(uris) == 0 {
-		return nil
-	}
-	if usesModernProtocol(ss) {
-		stale := ss.takeSubscriptions()
-		var errs []error
-		for _, subscription := range stale {
-			if subscription != nil && subscription.session != nil {
-				if err := subscription.session.Close(); err != nil {
-					errs = append(errs, err)
-				}
-			}
-		}
-		for _, uri := range uris {
-			if !ss.subscriptionDesired(uri) {
-				continue
-			}
-			subscribeCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-			err := m.subscribeModern(subscribeCtx, ss, uri)
-			cancel()
-			if err != nil {
-				errs = append(errs, err)
-			}
-		}
-		return errors.Join(errs...)
-	}
-
-	session := ss.currentSession()
-	var errs []error
-	for _, uri := range uris {
-		if !ss.subscriptionDesired(uri) || session == nil {
-			continue
-		}
-		subscribeCtx, cancel := context.WithTimeout(ctx, timeoutFor(ss.cfg, m.callTimeout))
-		err := session.Subscribe(subscribeCtx, &sdkmcp.SubscribeParams{URI: uri})
-		cancel()
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func (m *Manager) watchSubscription(ss *serverSession, uri string, session *sdkmcp.ClientSession) {
-	if ss == nil || session == nil {
-		return
-	}
-	err := session.Wait()
-	if m == nil || m.closed.Load() {
-		return
-	}
-	if !ss.removeSubscriptionIf(uri, session) {
-		return
-	}
-	params := map[string]any{"server": ss.cfg.Name, "uri": uri}
-	if err != nil {
-		params["err"] = err.Error()
-	}
-	logging.Log(logging.WARNING_LOG_LEVEL, "MCP resource subscription lost", logging.LogOptions{Params: params})
-	if ss.subscriptionDesired(uri) {
-		go m.recoverSubscription(ss, uri)
-	}
-}
-
-func (m *Manager) recoverSubscription(ss *serverSession, uri string) {
-	delay := time.Second
-	for attempt := 0; ; attempt++ {
-		if m == nil || m.closed.Load() || !ss.subscriptionDesired(uri) {
-			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), timeoutFor(ss.cfg, m.callTimeout))
-		err := func() error {
-			if _, err := m.ensureSession(ctx, ss); err != nil {
-				return err
-			}
-			return m.subscribeModern(ctx, ss, uri)
-		}()
-		cancel()
-		if err == nil {
-			return
-		}
-		if attempt == 0 || attempt%5 == 0 {
-			logging.Log(logging.WARNING_LOG_LEVEL, "MCP resource subscription recovery failed", logging.LogOptions{Params: map[string]any{"server": ss.cfg.Name, "uri": uri, "err": err.Error()}})
-		}
-		if !waitForSessionRecovery(m, delay) {
-			return
-		}
-		if delay < 30*time.Second {
-			delay *= 2
-			if delay > 30*time.Second {
-				delay = 30 * time.Second
-			}
-		}
-	}
-}
-
-func waitForSessionRecovery(m *Manager, delay time.Duration) bool {
-	if m == nil {
-		return false
-	}
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return !m.closed.Load()
-	case <-m.done:
-		return false
-	}
 }
 
 // Ping checks the connection to one MCP server.

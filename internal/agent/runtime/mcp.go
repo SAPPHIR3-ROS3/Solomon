@@ -110,6 +110,9 @@ func (r *Runtime) connectMCPBackground(ctx context.Context, mgr *solomonmcp.Mana
 	}
 	servers, tools, err := mgr.Connect(ctx)
 	if err != nil {
+		if errors.Is(err, solomonmcp.ErrManagerClosed) || ctx.Err() != nil {
+			return
+		}
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP connect failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return
 	}
@@ -122,6 +125,9 @@ func (r *Runtime) connectMCPBackground(ctx context.Context, mgr *solomonmcp.Mana
 
 func (r *Runtime) Close() error {
 	r.releaseReplSessionFileLock()
+	if r.commandOnly {
+		return nil
+	}
 	var closeErrors []error
 	if r != nil && r.MCP != nil {
 		if err := r.MCP.Close(); err != nil {
