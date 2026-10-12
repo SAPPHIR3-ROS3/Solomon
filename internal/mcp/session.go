@@ -305,7 +305,7 @@ func (m *Manager) ensureSession(ctx context.Context, ss *serverSession) (*sdkmcp
 	if err != nil {
 		return nil, err
 	}
-	if created {
+	if created && !m.lazyAdapter(ss.cfg) {
 		go m.hydrateServer(context.WithoutCancel(ctx), ss, session)
 	}
 	current := ss.currentSession()

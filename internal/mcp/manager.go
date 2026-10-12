@@ -48,6 +48,8 @@ type Manager struct {
 	oauthMu       sync.Mutex
 	oauthHandlers map[string]auth.OAuthHandler
 	oauthReady    map[string]bool
+	rateMu        sync.Mutex
+	rateLimits    map[string]time.Time
 }
 
 type remoteBinding struct {
@@ -225,6 +227,14 @@ func (m *Manager) connectServer(ctx context.Context, sc ServerConfig, stderr io.
 		return
 	}
 	ss := newServerSession(sc)
+	if m.lazyAdapter(sc) {
+		m.mu.Lock()
+		if !m.closed.Load() {
+			m.servers = append(m.servers, ss)
+		}
+		m.mu.Unlock()
+		return
+	}
 	session, err := m.openAndInstallSession(ctx, ss, stderr)
 	if err != nil {
 		if m.closed.Load() || ctx.Err() != nil {
@@ -238,6 +248,10 @@ func (m *Manager) connectServer(ctx context.Context, sc ServerConfig, stderr io.
 		return
 	}
 	logging.Log(logging.INFO_LOG_LEVEL, "MCP server connected", logging.LogOptions{Params: map[string]any{"server": sc.Name, "transport": sc.Type}})
+}
+
+func (m *Manager) lazyAdapter(sc ServerConfig) bool {
+	return m.options.LazyInternalAdapters && sc.Internal && (sc.Adapter == "exa" || sc.Adapter == "parallel")
 }
 
 func (m *Manager) openAndInstallSession(ctx context.Context, ss *serverSession, stderr io.Writer) (*sdkmcp.ClientSession, error) {

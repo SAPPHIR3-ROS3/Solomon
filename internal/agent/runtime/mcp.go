@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/cloak"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	sandboxparent "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
@@ -22,7 +23,10 @@ import (
 )
 
 func (r *Runtime) InitMCP(ctx context.Context) {
-	options := &solomonmcp.ManagerOptions{}
+	options := &solomonmcp.ManagerOptions{LazyInternalAdapters: true}
+	if home, err := paths.SolomonHome(); err == nil {
+		options.InternalRateLimitPath = filepath.Join(home, "web-adapter-cooldowns.json")
+	}
 	if r != nil && r.ProjRoot != "" {
 		if rootPath, err := filepath.Abs(r.ProjRoot); err == nil {
 			options.Roots = []*sdkmcp.Root{{

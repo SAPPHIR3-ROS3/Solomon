@@ -67,7 +67,7 @@ func (m *Manager) clientOptions(ss *serverSession) sdkmcp.ClientOptions {
 			userResourceUpdated(ctx, req)
 		}
 	}
-	if m.options.DisableCatalogSubscriptions {
+	if m.options.DisableCatalogSubscriptions || (ss != nil && m.lazyAdapter(ss.cfg)) {
 		opts.ToolListChangedHandler = nil
 		opts.PromptListChangedHandler = nil
 		opts.ResourceListChangedHandler = nil

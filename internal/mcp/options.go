@@ -17,6 +17,14 @@ import (
 type ManagerOptions struct {
 	ClientOptions sdkmcp.ClientOptions
 
+	// LazyInternalAdapters connects Exa/Parallel only for an adapter call and
+	// skips their catalogs and catalog subscriptions; their tool names are fixed.
+	LazyInternalAdapters bool
+
+	// InternalRateLimitPath persists adapter cooldowns across short-lived GUI
+	// runtimes. Empty disables persistence (cooldowns still apply in memory).
+	InternalRateLimitPath string
+
 	// Roots are advertised to MCP servers that request roots/list. They can be
 	// changed later with AddRoots and RemoveRoots.
 	Roots []*sdkmcp.Root

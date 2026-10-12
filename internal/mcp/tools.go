@@ -100,7 +100,7 @@ func (m *Manager) CallTool(ctx context.Context, name string, raw json.RawMessage
 // remote tool names. Internal adapter calls deliberately bypass the
 // model-facing MCP catalog, but still use the Manager's session lifecycle,
 // retry policy, and logging.
-func (m *Manager) CallInternalTool(ctx context.Context, serverName, toolName, intent string, args map[string]any) (any, error) {
+func (m *Manager) CallInternalTool(ctx context.Context, serverName, toolName, intent string, args map[string]any) (result any, callErr error) {
 	if m == nil {
 		return nil, fmt.Errorf("MCP manager unavailable")
 	}
@@ -117,6 +117,26 @@ func (m *Manager) CallInternalTool(ctx context.Context, serverName, toolName, in
 	if err := m.WaitReady(ctx); err != nil {
 		return nil, err
 	}
+	key := m.internalRateLimitKey(serverName)
+	if err := m.checkInternalRateLimit(ctx, key); err != nil {
+		return nil, err
+	}
+	defer func() {
+		message := ""
+		if callErr != nil {
+			message = callErr.Error()
+		} else if value, ok := result.(map[string]any); ok {
+			if failure, ok := value["error"]; ok {
+				message = fmt.Sprint(failure)
+			}
+		}
+		if isRateLimit(message) {
+			m.recordInternalRateLimit(ctx, key)
+			if callErr == nil {
+				result, callErr = nil, fmt.Errorf("MCP adapter rate limit: %s", message)
+			}
+		}
+	}()
 	binding, err := m.internalToolBinding(ctx, serverName, toolName)
 	if err != nil {
 		return nil, err
@@ -152,6 +172,16 @@ func (m *Manager) internalToolBinding(ctx context.Context, serverName, toolName 
 	if !server.cfg.Internal {
 		return nil, fmt.Errorf("MCP server %q is not internal", serverName)
 	}
+	if m.lazyAdapter(server.cfg) {
+		if !server.cfg.ToolAllowed(toolName) || !adapterToolAllowed(server.cfg.Adapter, toolName) {
+			return nil, fmt.Errorf("internal MCP tool %q is not allowed on server %q", toolName, serverName)
+		}
+		tool, err := AdaptTool(serverName, &sdkmcp.Tool{Name: toolName, InputSchema: map[string]any{"type": "object"}})
+		if err != nil {
+			return nil, err
+		}
+		return &remoteBinding{server: server, tool: tool}, nil
+	}
 	if _, err := m.ensureSession(ctx, server); err != nil {
 		return nil, unavailableError(serverName, "internal tools/call", err)
 	}
@@ -177,6 +207,16 @@ func (m *Manager) internalToolBinding(ctx context.Context, serverName, toolName 
 		return binding, nil
 	}
 	return nil, fmt.Errorf("unknown internal MCP tool %q on server %q", toolName, serverName)
+}
+
+func adapterToolAllowed(adapter, tool string) bool {
+	switch adapter {
+	case "parallel":
+		return tool == "web_search" || tool == "web_fetch"
+	case "exa":
+		return tool == "web_search_exa" || tool == "web_fetch_exa"
+	}
+	return false
 }
 
 func (m *Manager) callToolBinding(ctx context.Context, name string, binding *remoteBinding, raw json.RawMessage) (any, error) {
