@@ -25,7 +25,7 @@ func handleGUISettings(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, http.StatusBadRequest, err)
 			return
 		}
-		if request.Chat.AutoCloseToolCalls == nil && request.Chat.StartToolCallsCollapsed == nil {
+		if request.Chat.AutoCloseToolCalls == nil && request.Chat.StartToolCallsCollapsed == nil && request.Chat.StartReasoningCollapsed == nil {
 			writeAPIError(w, http.StatusBadRequest, errors.New("at least one chat preference is required"))
 			return
 		}

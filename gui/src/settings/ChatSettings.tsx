@@ -1,4 +1,4 @@
-import { setAutoCollapseToolCalls, setStartToolCallsCollapsed, useGUIChatPreferencesState, refreshChatPreferences } from "./chatPreferences";
+import { setAutoCollapseToolCalls, setStartToolCallsCollapsed, setStartReasoningCollapsed, useGUIChatPreferencesState, refreshChatPreferences } from "./chatPreferences";
 import "./chat-settings.css";
 
 export function ChatSettings({ query }: { query: string }) {
@@ -6,6 +6,13 @@ export function ChatSettings({ query }: { query: string }) {
   const autoCollapse = preferences.chat.autoCloseToolCalls;
   const startCollapsed = preferences.chat.startToolCallsCollapsed;
   const settings = [
+    {
+      id: "start-reasoning-collapsed",
+      label: "Start reasoning collapsed",
+      description: "Show model reasoning collapsed by default. Click to expand it at any time.",
+      enabled: preferences.chat.startReasoningCollapsed,
+      setEnabled: setStartReasoningCollapsed,
+    },
     {
       id: "auto-close-tool-calls",
       label: "Auto-close tool calls",

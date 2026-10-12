@@ -106,7 +106,7 @@
   width: 100%;
 }
 .chat-assistant-segment + .chat-assistant-segment { margin-top: 14px; }
-.chat-reasoning { color: var(--color-thinking); cursor: default; font: 17px/1.55 "Geist", sans-serif; margin: 0; padding: 0 0 4px; user-select: none; white-space: pre-wrap; }
+.chat-reasoning { color: var(--color-thinking); cursor: text; font: 17px/1.55 "Geist", sans-serif; margin: 0; padding: 0 0 4px; -webkit-user-select: text; user-select: text; white-space: pre-wrap; }
 .chat-reasoning-copy { color: inherit; }
 .chat-thought-for { color: var(--color-thinking); font: 400 17px/1.55 "Geist", sans-serif; margin-top: 8px; }
 .chat-reasoning.is-collapsed .chat-thought-for { margin-top: 0; }

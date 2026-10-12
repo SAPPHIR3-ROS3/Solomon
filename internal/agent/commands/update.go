@@ -62,10 +62,16 @@ func AutoUpdate(d Deps, parts []string) error {
 }
 
 func Upgrade(d Deps) error {
-	if d.CheckForUpdate == nil {
+	if d.CheckForUpgrade == nil && d.CheckForUpdate == nil {
 		return fmt.Errorf("/upgrade unavailable")
 	}
-	notice, err := d.CheckForUpdate(true)
+	var notice *updater.Notice
+	var err error
+	if d.CheckForUpgrade != nil {
+		notice, err = d.CheckForUpgrade()
+	} else {
+		notice, err = d.CheckForUpdate(true)
+	}
 	if printUpToDateIfCurrent(d, notice, err) {
 		return nil
 	}

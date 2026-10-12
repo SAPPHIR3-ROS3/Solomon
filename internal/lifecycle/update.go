@@ -176,7 +176,7 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 		startCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		args := []string{"server", "start"}
-		if !requireVersion && oldState.Mode == "dev" {
+		if oldState.Mode == "dev" {
 			args = append(args, "dev", oldState.DevDir)
 		}
 		command := exec.CommandContext(startCtx, target, args...)

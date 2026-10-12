@@ -10,6 +10,8 @@ export interface ClientInfo {
 
 type WailsEnvironment = {
   Environment?: () => Promise<unknown>;
+  BrowserOpenURL?: (url: string) => void;
+  ClipboardSetText?: (text: string) => Promise<boolean>;
 };
 
 type WailsServerBridge = {

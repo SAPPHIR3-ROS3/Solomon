@@ -22,6 +22,7 @@ type GUISettings struct {
 type GUIChatSettings struct {
 	AutoCloseToolCalls      *bool `toml:"auto_close_tool_calls,omitempty" json:"autoCloseToolCalls,omitempty"`
 	StartToolCallsCollapsed *bool `toml:"start_tool_calls_collapsed,omitempty" json:"startToolCallsCollapsed,omitempty"`
+	StartReasoningCollapsed *bool `toml:"start_reasoning_collapsed,omitempty" json:"startReasoningCollapsed,omitempty"`
 }
 
 type GUIModelSettings struct {
@@ -168,7 +169,7 @@ func updateGUISettings(mutate func(*GUISettings, map[string]any) error) (GUISett
 }
 
 func UpdateGUIChatSettings(patch GUIChatSettings) (GUISettings, error) {
-	if patch.AutoCloseToolCalls == nil && patch.StartToolCallsCollapsed == nil {
+	if patch.AutoCloseToolCalls == nil && patch.StartToolCallsCollapsed == nil && patch.StartReasoningCollapsed == nil {
 		return GUISettings{}, fmt.Errorf("at least one chat preference is required")
 	}
 	return updateGUISettings(func(gui *GUISettings, _ map[string]any) error {
@@ -177,6 +178,9 @@ func UpdateGUIChatSettings(patch GUIChatSettings) (GUISettings, error) {
 		}
 		if patch.StartToolCallsCollapsed != nil {
 			gui.Chat.StartToolCallsCollapsed = patch.StartToolCallsCollapsed
+		}
+		if patch.StartReasoningCollapsed != nil {
+			gui.Chat.StartReasoningCollapsed = patch.StartReasoningCollapsed
 		}
 		return nil
 	})

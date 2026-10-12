@@ -17,20 +17,16 @@ INSTALL_BIN := $(BIN_DIR)/$(INSTALL_NAME)
 export CGO_ENABLED := 0
 
 ifeq ($(GOOS),windows)
-EXACT_TAG := $(shell git describe --tags --exact-match --match "v*" 2>NUL)
-BASE_TAG := $(shell git describe --tags --abbrev=0 --match "v*" 2>NUL)
-WORKTREE_DIRTY := $(shell git status --porcelain 2>NUL)
-VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG)),$(if $(BASE_TAG),$(BASE_TAG)-dev,dev))
 COMMIT ?= $(shell git rev-parse HEAD 2>NUL || echo unknown)
 COMMIT_TIME ?= $(shell git show -s --format=%%cI HEAD 2>NUL || echo unknown)
 else
-EXACT_TAG := $(shell git describe --tags --exact-match --match 'v*' 2>/dev/null)
-BASE_TAG := $(shell git describe --tags --abbrev=0 --match 'v*' 2>/dev/null)
-WORKTREE_DIRTY := $(shell git status --porcelain 2>/dev/null)
-VERSION ?= $(if $(EXACT_TAG),$(if $(WORKTREE_DIRTY),$(EXACT_TAG)-dev,$(EXACT_TAG)),$(if $(BASE_TAG),$(BASE_TAG)-dev,dev))
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 COMMIT_TIME ?= $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 endif
+# Resolve once before recursive Make calls so CLI and desktop share a stamp.
+# Installation also checks the latest published release, with an offline fallback.
+VERSION_RELEASE_FLAG := $(if $(filter install hot-install desktop-install install-prepare,$(MAKECMDGOALS)),--latest,)
+VERSION ?= $(shell go run ./scripts/build_version "$(INSTALL_BIN)" $(VERSION_RELEASE_FLAG))
 ifeq ($(origin VERSION),file)
 VERSION := $(VERSION)
 endif

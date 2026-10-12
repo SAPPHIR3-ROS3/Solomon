@@ -22,6 +22,7 @@ import { ChatTopbar, ChatView } from "./chat/ChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
 import { EditorPage } from "./editor/EditorPage";
 import { watchDaemonLifecycle } from "./daemonLifecycle";
+import { watchExternalLinks } from "./externalLinks";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
 const MIN_TERMINAL_PANEL_HEIGHT = 120;
@@ -35,6 +36,7 @@ const LEFT_SIDE_PANEL_WIDTH_KEY = "solomon.left-side-panel-width";
 const RIGHT_SIDE_PANEL_WIDTH_KEY = "solomon.right-side-panel-width";
 
 export function App() {
+  useEffect(watchExternalLinks, []);
   useEffect(() => watchDaemonLifecycle(() => window.location.reload()), []);
   const [client, setClient] = useState(initialClient);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);

@@ -127,6 +127,19 @@ func Check(ctx context.Context, currentVersion string) CheckResult {
 	return checkWithSourceTree(ctx, currentVersion, "", time.Time{}, "", false)
 }
 
+// CheckForNewerRelease advertises an update only when the published release
+// exceeds the local build's release baseline. Check remains available for an
+// explicit request to replace a development build with the official release.
+func CheckForNewerRelease(ctx context.Context, currentVersion string) CheckResult {
+	base := strings.TrimSpace(currentVersion)
+	if marker := strings.Index(base, "-dev"); marker > 0 {
+		base = base[:marker]
+	}
+	result := checkWithSourceTree(ctx, base, "", time.Time{}, "", false)
+	result.Current = strings.TrimSpace(currentVersion)
+	return result
+}
+
 func CheckWithCommit(ctx context.Context, currentVersion, localCommit string) CheckResult {
 	return CheckWithCommitTime(ctx, currentVersion, localCommit, time.Time{})
 }

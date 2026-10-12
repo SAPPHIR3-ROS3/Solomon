@@ -1,15 +1,15 @@
 import { useSyncExternalStore } from "react";
 import { serverEndpoint } from "../platform";
 
-type ChatPreferences = { autoCloseToolCalls: boolean; startToolCallsCollapsed: boolean };
+type ChatPreferences = { autoCloseToolCalls: boolean; startToolCallsCollapsed: boolean; startReasoningCollapsed: boolean };
 type PreferenceState = { chat: ChatPreferences; ready: boolean; saving: boolean; error: string | null };
 type GUISettingsPayload = { chat?: Partial<ChatPreferences> };
-const initialState: PreferenceState = { chat: { autoCloseToolCalls: false, startToolCallsCollapsed: false }, ready: false, saving: false, error: null };
+const initialState: PreferenceState = { chat: { autoCloseToolCalls: false, startToolCallsCollapsed: false, startReasoningCollapsed: false }, ready: false, saving: false, error: null };
 let state = initialState;
 let loading: Promise<void> | undefined;
 let writes: Promise<void> = Promise.resolve();
 const listeners = new Set<() => void>();
-const oldKeys: Record<keyof ChatPreferences, string> = {
+const oldKeys = {
   autoCloseToolCalls: "solomon.chat.auto-collapse-tool-calls",
   startToolCallsCollapsed: "solomon.chat.start-tool-calls-collapsed",
 };
@@ -52,7 +52,7 @@ async function fetchSettings(patch: Partial<ChatPreferences> | undefined, signal
 }
 
 function resolvedChat(payload: GUISettingsPayload): ChatPreferences {
-  return { autoCloseToolCalls: payload.chat?.autoCloseToolCalls === true, startToolCallsCollapsed: payload.chat?.startToolCallsCollapsed === true };
+  return { autoCloseToolCalls: payload.chat?.autoCloseToolCalls === true, startToolCallsCollapsed: payload.chat?.startToolCallsCollapsed === true, startReasoningCollapsed: payload.chat?.startReasoningCollapsed === true };
 }
 
 export function refreshChatPreferences(): Promise<void> {
@@ -61,7 +61,7 @@ export function refreshChatPreferences(): Promise<void> {
     try {
       let payload = await requestSettings();
       const migration: Partial<ChatPreferences> = {};
-      for (const key of Object.keys(oldKeys) as Array<keyof ChatPreferences>) {
+      for (const key of Object.keys(oldKeys) as Array<keyof typeof oldKeys>) {
         if (typeof payload.chat?.[key] !== "boolean") {
           try { migration[key] = window.localStorage.getItem(oldKeys[key]) === "true"; }
           catch { migration[key] = false; }
@@ -114,6 +114,7 @@ function onFocus() { if (!state.saving) void refreshChatPreferences(); }
 
 export function setAutoCollapseToolCalls(enabled: boolean) { return setPreference("autoCloseToolCalls", enabled); }
 export function setStartToolCallsCollapsed(enabled: boolean) { return setPreference("startToolCallsCollapsed", enabled); }
+export function setStartReasoningCollapsed(enabled: boolean) { return setPreference("startReasoningCollapsed", enabled); }
 export function useGUIChatPreferencesState() { return useSyncExternalStore(subscribe, () => state, () => initialState); }
 export function useAutoCollapseToolCalls() { return useGUIChatPreferencesState().chat.autoCloseToolCalls; }
 export function useStartToolCallsCollapsed() { return useGUIChatPreferencesState().chat.startToolCallsCollapsed; }

@@ -70,9 +70,12 @@ ancestry checks prevent replacement. Commit timestamps can protect a newer local
 build, but never authorize replacement on their own.
 A release version can be supplied
 explicitly with `VERSION=vYYYY.MDD.N make build` when needed.
-The default base version comes from the checkout's Git tags, without a GitHub
-API request, and is shared with recursive Make invocations. Run `git fetch --tags`
-to refresh those tags before building when needed.
+The default base version uses the newest local release tag or installed CLI
+version. Installation targets also check the latest published release, falling
+back to local information when offline. The resolver runs once and shares its
+result with recursive Make invocations, keeping CLI and desktop versions aligned.
+Development builds retain their source commit and `-dirty` marker even when the
+release baseline advances.
 
 Makefile and release builds also embed the Git source-tree hash captured before
 compilation and version stamping. The update check displays the release tag only
@@ -98,7 +101,8 @@ version command reports that fact instead of substituting a binary version.
 On Linux, Windows and macOS, `solomon upgrade` and TUI updates use a detached coordinator. It
 downloads and verifies the release before interrupting work, closes the native
 Solomon clients, stops the daemon and its PTYs/workers, replaces the binary, and
-starts the daemon with the release's bundled production UI. Desktop windows are
+starts the daemon in its previous mode. In normal mode it serves the release's
+bundled UI; in dev mode it restarts Vite in the previous GUI directory. Desktop windows are
 reopened and attached TUIs re-enter through the installed CLI. The desktop shell
 loads UI assets and API data from the daemon, so it does not retain a separate
 frontend version. A failed installation restores the previous binary and restarts

@@ -7,6 +7,7 @@ type UpdateStatus = {
   latest?: string;
   phase: "idle" | "checking" | "available" | "downloading" | "ready" | "restarting";
   error?: string;
+  notice?: string;
 };
 
 export function UpdateButton() {
@@ -74,7 +75,7 @@ export function UpdateButton() {
     <div className="solomon-update-control">
       <button className={`solomon-update-button${busy ? " is-busy" : ""}`} type="button"
         aria-label={label} disabled={busy} onClick={() => void act()}
-        title={`${label}${status.latest ? ` (${status.latest})` : ""}`}>
+        title={`${label}${status.latest ? ` (${status.latest})` : ""}${status.notice ? `\n${status.notice}` : ""}`}>
         <span className="solomon-update-icon" aria-hidden="true">
           {busy ? <svg className="solomon-update-spinner" viewBox="0 0 32 32">
             <circle className="solomon-update-track" cx="16" cy="16" r="14" />

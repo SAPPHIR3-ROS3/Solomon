@@ -17,6 +17,7 @@ type updateStatus struct {
 	Latest  string `json:"latest,omitempty"`
 	Phase   string `json:"phase"`
 	Error   string `json:"error,omitempty"`
+	Notice  string `json:"notice,omitempty"`
 }
 
 type updateAPI struct {
@@ -32,10 +33,16 @@ type updateAPI struct {
 }
 
 func newUpdateAPI(ctx context.Context, build State) *updateAPI {
+	status := updateStatus{Current: build.Version, Phase: "idle"}
+	if updater.IsDevelopmentVersion(build.Version) {
+		status.Notice = "Local development build. Updating installs the official release; local source files are kept."
+	}
 	return &updateAPI{
-		ctx: ctx, status: updateStatus{Current: build.Version, Phase: "idle"},
+		ctx: ctx, status: status,
 		check: func(ctx context.Context) updater.CheckResult {
-			return updater.CheckWithSourceTree(ctx, build.Version, build.Commit, build.CommitTime, build.SourceTree)
+			// A local dev suffix alone is not an update. Offer only a release
+			// newer than the build baseline; installation remains explicit.
+			return updater.CheckForNewerRelease(ctx, build.Version)
 		},
 		prepare: updater.PrepareInstall, launch: updater.LaunchPreparedUpdate,
 	}

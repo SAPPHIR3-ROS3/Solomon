@@ -92,7 +92,28 @@ func TestServerRuntime_GUISettingsArePersistedAndDoNotExposeSecrets(t *testing.T
 	if gui.Chat.StartToolCallsCollapsed == nil || *gui.Chat.StartToolCallsCollapsed {
 		t.Fatal("false preference did not round trip")
 	}
-	for _, body := range []string{`{"chat":{}}`, `{"chat":{"autoCloseToolCalls":"true"}}`, `{"chat":{"autoCloseToolCalls":null}}`} {
+	for _, enabled := range []bool{true, false} {
+		body, err := json.Marshal(map[string]any{"chat": map[string]bool{"startReasoningCollapsed": enabled}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response = patch(string(body))
+		decodeServerTestJSON(t, response, &gui)
+		if gui.Chat.StartReasoningCollapsed == nil || *gui.Chat.StartReasoningCollapsed != enabled {
+			t.Fatal("reasoning preference did not round trip")
+		}
+		persisted, err := config.ReadGUISettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if persisted.Chat.StartReasoningCollapsed == nil || *persisted.Chat.StartReasoningCollapsed != enabled {
+			t.Fatal("reasoning preference was not persisted")
+		}
+		if persisted.Chat.AutoCloseToolCalls == nil || !*persisted.Chat.AutoCloseToolCalls || persisted.Chat.StartToolCallsCollapsed == nil || *persisted.Chat.StartToolCallsCollapsed {
+			t.Fatal("reasoning update changed other chat preferences")
+		}
+	}
+	for _, body := range []string{`{"chat":{}}`, `{"chat":{"autoCloseToolCalls":"true"}}`, `{"chat":{"autoCloseToolCalls":null}}`, `{"chat":{"startReasoningCollapsed":"true"}}`, `{"chat":{"startReasoningCollapsed":null}}`} {
 		response := patch(body)
 		response.Body.Close()
 		if response.StatusCode != http.StatusBadRequest {

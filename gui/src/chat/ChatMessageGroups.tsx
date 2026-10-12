@@ -258,21 +258,25 @@ function ChatMessageTurn({ checkpoint, index, message, onOpenSubagent, onRequest
 }
 
 function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagent, onStopTool, toolActivity }: { checkpoint?: CheckpointMetadata; isWorking?: boolean; message: ChatMessage; onOpenSubagent?: (tool: ChatToolCall) => void; onStopTool?: (toolID: string) => void; toolActivity?: ToolActivityControl }) {
-  const [isReasoningCollapsed, setIsReasoningCollapsed] = useState(false);
+  const preferences = useGUIChatPreferencesState();
+  const [reasoningCollapsedOverride, setReasoningCollapsedOverride] = useState<boolean | undefined>(undefined);
+  const isReasoningCollapsed = reasoningCollapsedOverride ?? preferences.chat.startReasoningCollapsed;
+  const toggleReasoning = () => setReasoningCollapsedOverride(!isReasoningCollapsed);
   const thoughtFor = message.thoughtFor ?? message.stats?.ttftSeconds;
   const canCollapseReasoning = message.role === "assistant" && Boolean(message.reasoning || (thoughtFor !== undefined && thoughtFor > 0));
 
   function handleMessageClick(event: MouseEvent<HTMLElement>) {
     if (!canCollapseReasoning) return;
+    if (window.getSelection()?.toString()) return;
     if (event.target instanceof HTMLElement && event.target.closest("a, button, input, textarea, select, summary")) return;
-    setIsReasoningCollapsed((current) => !current);
+    toggleReasoning();
   }
 
   return (
     <article className={"chat-message is-" + message.role} onClick={canCollapseReasoning ? handleMessageClick : undefined}>
       {checkpoint && !(message.role === "assistant" && message.toolCalls?.length) ? <CheckpointLabel label={checkpoint.label} /> : null}
       {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
-      {canCollapseReasoning && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={() => setIsReasoningCollapsed((current) => !current)} /> : null}
+      {canCollapseReasoning && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} /> : null}
       {message.toolCalls?.length ? (
         <ToolActivity
           isCollapsed={toolActivity?.isCollapsed}

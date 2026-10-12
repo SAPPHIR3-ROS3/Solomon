@@ -9,7 +9,7 @@ import "./math.css";
 import { rehypeImageTags } from "./rehypeImageTags";
 import "./imageTags.css";
 import { CheckIcon, CopyIcon } from "./ChatIcons";
-import { copyTextFallback } from "./chatClipboard";
+import { copyText } from "./chatClipboard";
 
 export function MarkdownContent({ content }: { content: string }) {
   return (
@@ -42,21 +42,11 @@ function CodeBlock({ children }: { children?: ReactNode }) {
 
   async function copyCode() {
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(code);
-      } else {
-        copyTextFallback(code);
-      }
+      await copyText(code);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1400);
     } catch {
-      try {
-        copyTextFallback(code);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1400);
-      } catch {
-        // Clipboard access can be unavailable in a restricted webview.
-      }
+      // Leave the button available so the user can retry.
     }
   }
 

@@ -65,8 +65,9 @@ type Deps struct {
 
 	PrintWelcomeBanner func()
 
-	CheckForUpdate func(force bool) (*updater.Notice, error)
-	InstallUpdate  func(tag string) error
+	CheckForUpdate  func(force bool) (*updater.Notice, error)
+	CheckForUpgrade func() (*updater.Notice, error)
+	InstallUpdate   func(tag string) error
 
 	CheckpointGoto   func(*checkpoint.FullCheckpointID) error
 	CheckpointRewind func(*checkpoint.RewindPlan) error

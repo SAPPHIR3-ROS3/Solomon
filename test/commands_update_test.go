@@ -11,6 +11,25 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
+func TestUpgradeUsesExplicitCheckInsteadOfAutomaticDevelopmentProtection(t *testing.T) {
+	var out bytes.Buffer
+	installed := ""
+	err := commands.Upgrade(commands.Deps{
+		Out: &out,
+		CheckForUpdate: func(bool) (*updater.Notice, error) {
+			t.Fatal("explicit upgrade used the protected automatic check")
+			return nil, nil
+		},
+		CheckForUpgrade: func() (*updater.Notice, error) {
+			return &updater.Notice{Current: "v2026.1009.0-dev-f1ba29a-dirty", Latest: "v2026.1011.2"}, nil
+		},
+		InstallUpdate: func(tag string) error { installed = tag; return nil },
+	})
+	if err != nil || installed != "v2026.1011.2" {
+		t.Fatal(installed, err)
+	}
+}
+
 func TestUpdateDoesNotInstall(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer

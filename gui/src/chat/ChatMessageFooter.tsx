@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage, ChatStats } from "./chatTypes";
 import { CheckIcon, CloseIcon, CopyIcon, InfoIcon } from "./ChatIcons";
-import { copyTextFallback } from "./chatClipboard";
+import { copyText } from "./chatClipboard";
 
 export function MessageFooter({ index, message, onRequestDelete }: { index: number; message: ChatMessage; onRequestDelete?: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -32,18 +32,11 @@ export function MessageFooter({ index, message, onRequestDelete }: { index: numb
 
   async function copyMessage() {
     try {
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(message.content);
-      else copyTextFallback(message.content);
+      await copyText(message.content);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1400);
     } catch {
-      try {
-        copyTextFallback(message.content);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1400);
-      } catch {
-        // Clipboard access can be unavailable in a restricted webview.
-      }
+      // Leave the button available so the user can retry.
     }
   }
 
@@ -140,6 +133,7 @@ export function ReasoningBlock({ isCollapsed, isLive = false, message, onToggle 
       className={`chat-reasoning${isCollapsed ? " is-collapsed" : ""}${isCollapsed && isLive ? " is-live" : ""}`}
       onClick={(event) => {
         event.stopPropagation();
+        if (window.getSelection()?.toString()) return;
         onToggle();
       }}
       onKeyDown={(event) => {

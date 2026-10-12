@@ -104,6 +104,10 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		CheckForUpdate: func(force bool) (*updater.Notice, error) {
 			return r.refreshUpdateCheck(ctx, force)
 		},
+		CheckForUpgrade: func() (*updater.Notice, error) {
+			result := updater.Check(ctx, commands.LocalVersionString())
+			return result.Notice(), result.Err
+		},
 		InstallUpdate: func(tag string) error {
 			r.setPendingUpdateTag(tag)
 			return updater.RunSystemInstall(ctx, tag, nil)

@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -15,6 +16,71 @@ import (
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
+
+func TestGUIUpdateOffersOfficialReleaseForModifiedDevelopmentBuild(t *testing.T) {
+	const tag = "v2026.1011.2"
+	release := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": tag})
+	}))
+	defer release.Close()
+	restore := updater.SetLatestReleaseAPIURL(release.URL)
+	defer restore()
+	for _, tc := range []struct {
+		version   string
+		available bool
+	}{
+		{"v2026.1009.0-dev-f1ba29a-dirty", true},
+		{tag + "-dev-f1ba29a-dirty", false},
+		{tag + "-dev-f1ba29a", false},
+		{tag + "-dev", false},
+		{"v2026.1012.0-dev-f1ba29a", false},
+		{tag, false},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			version := tc.version
+			a := serverruntime.NewUpdateAPIForTest(context.Background(), serverruntime.State{Version: version})
+			prepares, launches := 0, 0
+			a.SetPrepare(func(context.Context, string, io.Writer) (string, string, error) {
+				prepares++
+				return "staged", "target", nil
+			})
+			a.SetLaunch(func(string, string, string) error { launches++; return nil })
+			updateRequest(a, http.MethodGet, "")
+			phase := "idle"
+			if tc.available {
+				phase = "available"
+			}
+			waitUpdatePhase(t, a, phase)
+			response := updateRequest(a, http.MethodGet, "")
+			var status struct{ Current, Latest, Notice string }
+			if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
+				t.Fatal(err)
+			}
+			if status.Current != version || status.Latest != tag || (updater.IsDevelopmentVersion(version) && !strings.Contains(status.Notice, "local source files are kept")) {
+				t.Fatalf("incorrect release offer: %s", response.Body.String())
+			}
+			if prepares != 0 || launches != 0 {
+				t.Fatal("background check replaced the development build")
+			}
+			if !tc.available {
+				if w := updateRequest(a, http.MethodPost, `{"action":"download"}`); w.Code != http.StatusConflict {
+					t.Fatal("same or older release advertised as an update", w.Code)
+				}
+				return
+			}
+			if w := updateRequest(a, http.MethodPost, `{"action":"download"}`); w.Code != http.StatusAccepted {
+				t.Fatal(w.Code)
+			}
+			waitUpdatePhase(t, a, "ready")
+			if launches != 0 {
+				t.Fatal("download installed without an explicit restart")
+			}
+			if w := updateRequest(a, http.MethodPost, `{"action":"install"}`); w.Code != http.StatusAccepted || launches != 1 {
+				t.Fatal(w.Code, launches)
+			}
+		})
+	}
+}
 
 func updateRequest(a *serverruntime.UpdateAPIForTest, method, body string) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()

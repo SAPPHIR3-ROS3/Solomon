@@ -96,6 +96,17 @@ func TestCoordinatedUpdateInstallsBeforeRestartAndRollsBackFailures(t *testing.T
 }
 
 func TestCoordinatedUpdateRestartsAnIsolatedDaemonAndNotifiesItsTerminal(t *testing.T) {
+	for _, mode := range []string{"normal", "dev"} {
+		t.Run(mode, func(t *testing.T) { testCoordinatedDaemonUpdate(t, mode) })
+	}
+}
+
+func testCoordinatedDaemonUpdate(t *testing.T, mode string) {
+	if mode == "dev" {
+		if _, err := exec.LookPath("node"); err != nil {
+			t.Skip("dev frontend fixture requires Node")
+		}
+	}
 	dir := t.TempDir()
 	t.Setenv("SOLOMON_HOME", filepath.Join(dir, "home"))
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -145,7 +156,29 @@ func TestCoordinatedUpdateRestartsAnIsolatedDaemonAndNotifiesItsTerminal(t *test
 	if err := os.WriteFile(staged, data, 0700); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command(target, "server", "start")
+	args := []string{"server", "start"}
+	devDir := ""
+	if mode == "dev" {
+		devDir = filepath.Join(dir, "gui")
+		if err := os.MkdirAll(filepath.Join(devDir, "src"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		entry := filepath.Join(devDir, "node_modules", "vite", "bin", "vite.js")
+		if err := os.MkdirAll(filepath.Dir(entry), 0700); err != nil {
+			t.Fatal(err)
+		}
+		// An isolated HTTP frontend exercises dev process restart without npm
+		// dependencies or access to the user's actual development server.
+		fixture := `require('node:http').createServer((req,res) => res.end('dev fixture')).listen(Number(process.argv[process.argv.indexOf('--port')+1]), '127.0.0.1');`
+		if err := os.WriteFile(entry, []byte(fixture), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(devDir, "package.json"), []byte(`{}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		args = append(args, "dev", devDir)
+	}
+	command := exec.Command(target, args...)
 	command.Dir = dir
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("start fixture: %v %s", err, output)
@@ -206,8 +239,11 @@ func TestCoordinatedUpdateRestartsAnIsolatedDaemonAndNotifiesItsTerminal(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.PID == state.PID || updated.Version != tag || updated.Mode != "normal" {
+	if updated.PID == state.PID || updated.Version != tag || updated.Mode != mode || updated.DevDir != devDir {
 		t.Fatalf("runtime not replaced: %+v", updated)
+	}
+	if mode == "dev" && (updated.VitePID == 0 || updated.VitePID == state.VitePID) {
+		t.Fatalf("dev frontend not restarted: before=%+v after=%+v", state, updated)
 	}
 	if got := serverruntime.RunningVersion(); got != tag {
 		t.Fatalf("daemon version=%q", got)
