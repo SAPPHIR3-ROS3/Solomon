@@ -154,8 +154,8 @@ function normalizeCodeBlocks(content: string) {
       fence = { marker: delimiter[1][0], length: delimiter[1].length };
       continue;
     }
-    // Recupera solo blocchi autonomi con un'etichetta testuale esplicita.
-    if (!/^ {0,3}`(?:text|plaintext|tree|dirtree)\s*$/i.test(line)) continue;
+    // Recover only standalone blocks with an explicit, known language label.
+    if (!/^ {0,3}`(?:text|plaintext|tree|dirtree|python|py|bash|sh|shell|css|go|html|javascript|js|json|jsx|markdown|md|sql|ts|tsx|typescript|yaml|yml)\s*$/i.test(line)) continue;
     let end = index + 1;
     while (end < lines.length && !/^ {0,3}`\s*$/.test(lines[end])) {
       if (lines[end].includes("`")) break;

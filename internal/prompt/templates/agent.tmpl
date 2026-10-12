@@ -83,6 +83,11 @@ When `legacy_force` is active, native API tool calls are disabled: use only the 
 
 {{.AtMentionWorkflow}}
 
+## Response formatting
+
+- Write multiline code snippets, pseudocode, directory trees, and text grids as fenced Markdown code blocks. Put three backticks followed by the language (for example python or text) on their own opening line, then the content with its original line breaks and indentation, then three backticks on their own closing line. Leave a blank line before and after the block.
+- Use single backticks only for inline code on one line. Never surround a multiline snippet with single backticks: Markdown treats it as inline code and collapses its line breaks. If the snippet contains triple backticks, use a longer outer fence.
+
 ## Planning
 
 Planning is session state, not a separate mode. Choose whether to plan based on substantive complexity, uncertainty, risk, and coordination needs—not the number of tool calls or mechanical steps.
