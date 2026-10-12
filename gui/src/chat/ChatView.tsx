@@ -59,6 +59,8 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const [isSubchatLoading, setIsSubchatLoading] = useState(false);
   const [isSubagentIndicatorExpanded, setIsSubagentIndicatorExpanded] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const currentBranch = branch ?? chat.branch;
+  const currentWorktree = worktree ?? chat.worktree;
   const viewRef = useRef<HTMLElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
@@ -288,8 +290,8 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
         </div>
         <div aria-label="Git context and notifications" className="welcome-git-controls">
           {workspaceName ? <span className="chat-readonly-control is-workspace" title={workspacePath}><FolderIcon />{workspaceName}</span> : null}
-          <span className="chat-readonly-control"><BranchIcon />{branch ?? chat.branch ?? "main"}</span>
-          <span className="chat-readonly-control"><WorktreeIcon />{worktree ?? chat.worktree ?? "Worktree"}</span>
+          {currentBranch ? <span className="chat-readonly-control"><BranchIcon />{currentBranch}</span> : null}
+          {currentWorktree ? <span className="chat-readonly-control"><WorktreeIcon />{currentWorktree}</span> : null}
           <NotificationControl open={composerMenu === "notifications"} onOpenChange={(open) => setComposerMenu(open ? "notifications" : null)} />
         </div>
       </div>
