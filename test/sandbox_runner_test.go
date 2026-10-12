@@ -173,7 +173,10 @@ func main() {
 	for i := 0; i < 2; i++ {
 		select {
 		case <-started:
-		case <-time.After(30 * time.Second):
+		// Each worker compiles WASM before reaching the host. Race builds
+		// can take more than 30 seconds on slower machines; the barrier still
+		// requires both host calls to overlap before either is released.
+		case <-time.After(90 * time.Second):
 			t.Fatal("concurrent orchestrations did not reach host calls together")
 		}
 	}
