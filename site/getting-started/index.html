@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install Solomon AI agent — Quickstart for Linux, macOS &amp; Windows</title>
+  <meta name="description" content="Install Solomon on Linux, macOS or Windows and connect a cloud or local model for research, automation and coding in terminal, desktop, web or CI.">
+  <link rel="canonical" href="https://sapphir3-ros3.github.io/Solomon/getting-started/">
+  <link rel="sitemap" type="application/xml" href="../sitemap.xml">
+  <meta name="theme-color" content="#061c3b">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Solomon">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="Install Solomon AI agent — Quickstart">
+  <meta property="og:description" content="Install Solomon on Linux, macOS or Windows, connect a cloud or local model, and start your first agent session.">
+  <meta property="og:url" content="https://sapphir3-ros3.github.io/Solomon/getting-started/">
+  <meta property="og:image" content="https://sapphir3-ros3.github.io/Solomon/assets/icon.png">
+  <meta property="og:image:alt" content="Solomon AI agent logo">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Install Solomon AI agent — Quickstart">
+  <meta name="twitter:description" content="Install Solomon on Linux, macOS or Windows, connect a cloud or local model, and start your first agent session.">
+  <meta name="twitter:image" content="https://sapphir3-ros3.github.io/Solomon/assets/icon.png">
+  <meta name="twitter:image:alt" content="Solomon AI agent logo">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebPage",
+          "@id": "https://sapphir3-ros3.github.io/Solomon/getting-started/#page",
+          "url": "https://sapphir3-ros3.github.io/Solomon/getting-started/",
+          "name": "Install Solomon AI agent — Quickstart",
+          "description": "Install Solomon on Linux, macOS or Windows, connect a cloud or local model, and start your first agent session.",
+          "inLanguage": "en",
+          "about": {"@id": "https://sapphir3-ros3.github.io/Solomon/#software"},
+          "breadcrumb": {"@id": "https://sapphir3-ros3.github.io/Solomon/getting-started/#breadcrumbs"}
+        },
+        {
+          "@type": "BreadcrumbList",
+          "@id": "https://sapphir3-ros3.github.io/Solomon/getting-started/#breadcrumbs",
+          "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Solomon", "item": "https://sapphir3-ros3.github.io/Solomon/"},
+            {"@type": "ListItem", "position": 2, "name": "Get started", "item": "https://sapphir3-ros3.github.io/Solomon/getting-started/"}
+          ]
+        }
+      ]
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+  <link rel="stylesheet" href="../styles/base.css">
+  <link rel="stylesheet" href="../styles/sections.css">
+  <link rel="stylesheet" href="../styles/guide.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="../" aria-label="Solomon home">
+        <img src="../assets/icon.svg" alt="" width="28" height="28">
+        <span>Solomon</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="../#features">Features</a>
+        <a href="./" aria-current="page">Get started</a>
+        <a href="https://github.com/SAPPHIR3-ROS3/Solomon/tree/main/docs">Docs</a>
+      </nav>
+      <a class="btn btn-ghost btn-sm" href="https://github.com/SAPPHIR3-ROS3/Solomon">GitHub</a>
+    </div>
+  </header>
+  <main class="wrap guide">
+    <nav aria-label="Breadcrumb"><a href="../">Solomon</a> / <span>Get started</span></nav>
+    <article>
+      <header>
+        <p class="kicker">Installation and quickstart</p>
+        <h1>Get started with the Solomon AI agent</h1>
+        <p class="section-lede">Install Solomon, choose a model and open a project. Use the open-source, local-first AI agent for research, file tasks, automation and coding from your terminal, a native desktop window, a browser or a CI pipeline.</p>
+        <p>Solomon is early release software under the MIT license. APIs, behavior and data formats may change.</p>
+      </header>
+      <nav class="guide-toc" aria-label="On this page">
+        <a href="#install">Install</a>
+        <a href="#first-session">First session</a>
+        <a href="#models">Models</a>
+        <a href="#interfaces">Desktop, web and CI</a>
+        <a href="#next">Next steps</a>
+      </nav>
+      <section id="install">
+        <h2>Install on Linux, macOS or Windows</h2>
+        <h3>macOS and Linux</h3>
+        <pre class="surface-snippet"><code>curl -fsSL https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh | bash</code></pre>
+        <h3>Windows PowerShell</h3>
+        <pre class="surface-snippet"><code>irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex</code></pre>
+        <p>The installers set up required dependencies and the desktop application. On macOS, the installer uses Homebrew and may ask for administrator credentials. See the <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/installation.md">full installation guide</a> for dependency and PATH details.</p>
+        <h3>Install the CLI with Go</h3>
+        <p>If you already have Go 1.25 or newer, use:</p>
+        <pre class="surface-snippet"><code>go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest</code></pre>
+        <p>Make sure Go's binary directory is on your PATH. This method installs the CLI; the first normal launch downloads and registers the matching desktop application. It does not provision the optional internal web-search backend.</p>
+        <h3>Verify the installation</h3>
+        <p>Reload your terminal, then check that Solomon is available:</p>
+        <pre class="surface-snippet"><code>solomon version</code></pre>
+      </section>
+      <section id="first-session">
+        <h2>Start your first AI agent session</h2>
+        <p>Open the project you want to work on and launch Solomon:</p>
+        <pre class="surface-snippet"><code>cd /path/to/your/project
+solomon .</code></pre>
+        <p>The first run guides you through provider, credentials and model setup. Then describe a task. For example, ask it to work with local documents:</p>
+        <pre class="surface-snippet"><code>Read the documents in this folder and create a summary of the decisions and open questions.</code></pre>
+        <p>For research, try <code>/chat</code> and ask a question that needs web sources. For coding, ask the agent to explain a codebase or implement a change and run its tests. Solomon can read and edit files and run shell commands. Configuration, sessions, plans, skills and logs are stored under <code>~/.solomon</code>, partitioned by workspace.</p>
+      </section>
+      <section id="models">
+        <h2>Connect a cloud provider or a local model</h2>
+        <p>Solomon supports OpenAI-compatible APIs, the native Anthropic Messages API and integrations with existing ChatGPT, Claude and Cursor accounts. Add a provider with <code>/connect</code> and switch the active model with <code>/models</code>.</p>
+        <p>For local models, connect a runtime that exposes an OpenAI-compatible endpoint. Once the runtime, model and Solomon are installed, local file, coding and shell tasks can work offline. Cloud models, web search and downloads need a network connection.</p>
+        <p>Local-first refers to where Solomon stores its state. When you select a cloud provider, prompts and relevant project context are sent to that provider. The <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/configuration.md">configuration guide</a> covers provider settings and credentials.</p>
+      </section>
+      <section id="interfaces">
+        <h2>Use the desktop app, web interface or CI runner</h2>
+        <h3>Native desktop application</h3>
+        <pre class="surface-snippet"><code>solomon desktop</code></pre>
+        <p>Open the native GUI with chat, editor and terminal panels over the same engine and local sessions.</p>
+        <h3>Local web interface</h3>
+        <pre class="surface-snippet"><code>solomon server</code></pre>
+        <p>Start the local server and open its GUI in a browser. See the <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/usage-and-commands.md">usage guide</a> for network access and server options.</p>
+        <h3>Headless automation and CI</h3>
+        <pre class="surface-snippet"><code>solomon exec --jsonl --fail-on-tool-error "run the project tests and fix failures"</code></pre>
+        <p>Automate a file task, run a coding check or execute another agent prompt without the interactive REPL, with JSONL events and stable exit codes. Use the <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/development/ci-github-actions.example.yml">GitHub Actions example</a> to integrate Solomon into a pipeline.</p>
+      </section>
+      <section id="next">
+        <h2>Commands and next steps</h2>
+        <dl class="ledger">
+          <div><dt><code>/agent</code></dt><dd>Use agent mode with tool discovery, Go code orchestration and subagents.</dd></div>
+          <div><dt><code>/chat</code></dt><dd>Use chat mode for questions, web search, documentation and research.</dd></div>
+          <div><dt><code>/help</code></dt><dd>List the available commands.</dd></div>
+        </dl>
+        <p>Continue with the <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/usage-and-commands.md">complete command reference</a>, configure <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/project-instructions.md">AGENTS.md and project rules</a>, or explore <a href="../#features">checkpoints, skills and MCP support</a>.</p>
+      </section>
+    </article>
+  </main>
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <a class="brand" href="../"><img src="../assets/icon.svg" alt="" width="22" height="22"><span>Solomon</span></a>
+      <nav aria-label="Footer">
+        <a href="../">Home</a>
+        <a href="https://github.com/SAPPHIR3-ROS3/Solomon">GitHub</a>
+        <a href="https://github.com/SAPPHIR3-ROS3/Solomon/tree/main/docs">Docs</a>
+      </nav>
+      <p class="muted">MIT License &middot; early release software</p>
+    </div>
+  </footer>
+</body>
+</html>

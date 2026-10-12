@@ -18,6 +18,7 @@
 </p>
 
 <p align="center">
+  <a href="https://sapphir3-ros3.github.io/Solomon/">Website</a> ·
   <a href="#quickstart">Quickstart</a> ·
   <a href="#features">Features</a> ·
   <a href="#what-makes-it-different">What makes it different</a> ·
