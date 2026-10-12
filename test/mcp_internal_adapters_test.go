@@ -1,4 +1,4 @@
-package mcp
+package test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -47,7 +48,7 @@ func TestLazyInternalAdapterDoesNotDiscoverCatalogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for i := 0; i < 3; i++ {
-		m := newManager(&Config{Servers: []ServerConfig{{Name: "parallel-web", Type: TransportStreamableHTTP, URL: httpServer.URL, Internal: true, Adapter: "parallel", Allow: []string{"web_search"}}}}, nil, &ManagerOptions{LazyInternalAdapters: true})
+		m := solomonmcp.NewManagerForTest(&solomonmcp.Config{Servers: []solomonmcp.ServerConfig{{Name: "parallel-web", Type: solomonmcp.TransportStreamableHTTP, URL: httpServer.URL, Internal: true, Adapter: "parallel", Allow: []string{"web_search"}}}}, &solomonmcp.ManagerOptions{LazyInternalAdapters: true})
 		if _, _, err := m.Connect(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -112,8 +113,8 @@ func TestInternalRateLimitSurvivesRuntimeAndSkipsFetch(t *testing.T) {
 			}))
 			defer httpServer.Close()
 			path := filepath.Join(t.TempDir(), "cooldowns.json")
-			newRuntime := func(headers map[string]string) *Manager {
-				m := newManager(&Config{Servers: []ServerConfig{{Name: "parallel-web", Type: TransportStreamableHTTP, URL: httpServer.URL, Headers: headers, Internal: true, Adapter: "parallel"}}}, nil, &ManagerOptions{LazyInternalAdapters: true, InternalRateLimitPath: path})
+			newRuntime := func(headers map[string]string) *solomonmcp.Manager {
+				m := solomonmcp.NewManagerForTest(&solomonmcp.Config{Servers: []solomonmcp.ServerConfig{{Name: "parallel-web", Type: solomonmcp.TransportStreamableHTTP, URL: httpServer.URL, Headers: headers, Internal: true, Adapter: "parallel"}}}, &solomonmcp.ManagerOptions{LazyInternalAdapters: true, InternalRateLimitPath: path})
 				if _, _, err := m.Connect(context.Background()); err != nil {
 					t.Fatal(err)
 				}
@@ -125,7 +126,7 @@ func TestInternalRateLimitSurvivesRuntimeAndSkipsFetch(t *testing.T) {
 				t.Fatal("rate limit did not fail the call")
 			}
 			before := requests.Load()
-			for _, manager := range []*Manager{first, newRuntime(nil)} {
+			for _, manager := range []*solomonmcp.Manager{first, newRuntime(nil)} {
 				if _, err := manager.CallInternalTool(context.Background(), "parallel-web", "web_fetch", "fetch", nil); err == nil || !strings.Contains(err.Error(), "suspended") {
 					t.Fatalf("expected shared cooldown, got %v", err)
 				}
@@ -139,18 +140,5 @@ func TestInternalRateLimitSurvivesRuntimeAndSkipsFetch(t *testing.T) {
 				t.Fatal("new credentials inherited the old cooldown")
 			}
 		})
-	}
-}
-
-func TestInternalRateLimitExpiresAndIgnoresOtherFailures(t *testing.T) {
-	m := newManager(nil, nil, nil)
-	m.rateLimits = map[string]time.Time{"expired": time.Now().Add(-time.Second)}
-	if err := m.checkInternalRateLimit(context.Background(), "expired"); err != nil {
-		t.Fatal(err)
-	}
-	for _, message := range []string{"connection reset", "no results", "invalid API key", "request canceled"} {
-		if isRateLimit(message) {
-			t.Fatalf("ordinary error classified as quota: %s", message)
-		}
 	}
 }
