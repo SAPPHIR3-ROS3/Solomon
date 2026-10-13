@@ -112,8 +112,8 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   font: 500 13px/1 var(--mono);
-  color: var(--muted);
-  background: rgba(8, 42, 84, 0.5);
+  color: var(--text);
+  background: var(--surface);
 }
 
 .dot {
@@ -181,6 +181,7 @@
 
 .install-cmd code {
   flex: 1;
+  min-width: 0;
   padding: 0;
   background: none;
   color: var(--text);

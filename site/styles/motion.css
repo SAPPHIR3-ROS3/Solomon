@@ -14,6 +14,13 @@ html, body { overflow-x: clip; }
 
 .dotfield canvas { display: block; }
 
+@media (hover: none), (pointer: coarse) {
+  .dotfield {
+    background-image: radial-gradient(rgba(134, 201, 242, 0.2) 1px, transparent 1px);
+    background-size: 34px 34px;
+  }
+}
+
 /* Rotating word in the headline */
 
 .rotator {
@@ -21,6 +28,8 @@ html, body { overflow-x: clip; }
   position: relative;
   white-space: nowrap;
   vertical-align: bottom;
+  inline-size: 5.8em;
+  text-align: left;
 }
 
 .rotator .ch { display: inline-block; will-change: transform, opacity; }

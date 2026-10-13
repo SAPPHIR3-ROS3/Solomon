@@ -1,0 +1,30 @@
+/* Latin WOFF2 subsets, served locally under their SIL Open Font Licenses.
+   Optional display keeps the first paint immediate and avoids late font swaps. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: optional;
+  src: url("../assets/fonts/inter-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: optional;
+  src: url("../assets/fonts/instrument-serif-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: italic;
+  font-weight: 400;
+  font-display: optional;
+  src: url("../assets/fonts/instrument-serif-italic-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: optional;
+  src: url("../assets/fonts/jetbrains-mono-latin.woff2") format("woff2");
+}

@@ -41,33 +41,19 @@
       "featureList": ["Bring your own cloud or local model", "Terminal, desktop, web and CI interfaces", "Local session storage", "Go code mode in a WASM sandbox", "Checkpoint rewind", "Web search and deep research", "Shell and workflow automation", "Skills and MCP servers"]
     }
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-  <link rel="stylesheet" href="styles/base.css" data-dev>
-  <link rel="stylesheet" href="styles/hero.css" data-dev>
-  <link rel="stylesheet" href="styles/sections.css" data-dev>
-  <link rel="stylesheet" href="styles/motion.css" data-dev>
-  <script src="https://cdn.jsdelivr.net/npm/animejs@4.1.4/lib/anime.iife.min.js" crossorigin="anonymous"></script>
-  <script>
-    (function () {
-      var dev = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
-      var stamp = dev ? "?t=" + Date.now() : "";
-      if (dev) {
-        var links = document.querySelectorAll("link[data-dev]");
-        for (var i = 0; i < links.length; i++) links[i].href = links[i].getAttribute("href") + stamp;
-      }
-      ["main.js", "motion.js"].forEach(function (src) {
-        var s = document.createElement("script");
-        s.src = src + stamp;
-        s.async = false;
-        s.defer = true;
-        document.head.appendChild(s);
-      });
-    })();
-  </script>
+  <link rel="preload" href="assets/fonts/instrument-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles/fonts.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/hero.css">
+  <link rel="stylesheet" href="styles/sections.css">
+  <link rel="stylesheet" href="styles/motion.css">
+  <link rel="stylesheet" href="styles/responsive.css">
+  <script src="main.js" defer></script>
+  <script src="assets/vendor/anime.iife.min.js" defer></script>
+  <script src="motion.js" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="nav">
     <div class="wrap nav-inner">
       <a class="brand" href="./" aria-label="Solomon home">
@@ -89,7 +75,7 @@
     </div>
   </header>
 
-  <main>
+  <main id="main-content">
     <section class="hero" id="top">
       <div class="glows" aria-hidden="true">
         <span class="glow glow-blue"></span>
@@ -99,16 +85,17 @@
       <div class="dotfield" aria-hidden="true" data-dotfield></div>
       <div class="wrap hero-inner">
         <p class="eyebrow reveal"><span class="dot"></span> Early release &middot; Open source &middot; MIT</p>
-        <h1 class="reveal" data-words>Solomon: the AI agent<br>on <em class="rotator" data-rotate="your terms|your machine|your models|your rules">your terms</em>.</h1>
+        <h1 class="reveal">Solomon: the AI agent<br>on <em class="rotator" data-rotate="your terms.|your machine.|your models.|your rules.">your terms.</em></h1>
         <p class="lede reveal">Solomon is a local-first AI agent for coding, research and automation, built in Go. Use your cloud or local models to work with files, run commands, search the web and build plans. Keep every session, plan and log on your own machine.</p>
 
         <div class="install reveal" data-install>
+          <span class="sr-only" role="status" aria-live="polite" data-copy-status></span>
           <div class="install-tabs" role="tablist" aria-label="Install method">
-            <button role="tab" aria-selected="true" data-cmd="curl -fsSL https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh | bash">macOS / Linux</button>
-            <button role="tab" aria-selected="false" data-cmd="irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex">Windows</button>
-            <button role="tab" aria-selected="false" data-cmd="go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest">Go</button>
+            <button type="button" id="install-tab-unix" role="tab" aria-controls="install-command" aria-selected="true" tabindex="0" data-cmd="curl -fsSL https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh | bash">macOS / Linux</button>
+            <button type="button" id="install-tab-windows" role="tab" aria-controls="install-command" aria-selected="false" tabindex="-1" data-cmd="irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex">Windows</button>
+            <button type="button" id="install-tab-go" role="tab" aria-controls="install-command" aria-selected="false" tabindex="-1" data-cmd="go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest">Go</button>
           </div>
-          <div class="install-cmd">
+          <div class="install-cmd" role="tabpanel" id="install-command" aria-labelledby="install-tab-unix">
             <span class="prompt" aria-hidden="true">$</span>
             <code data-cmd-target>curl -fsSL https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh | bash</code>
             <button class="copy" type="button" data-copy aria-label="Copy install command">
@@ -223,7 +210,7 @@ You: /goto 001
           </div>
           <div class="orbit reveal" data-orbit aria-hidden="true">
             <div class="orbit-ring"></div>
-            <img class="orbit-core" src="assets/icon.svg" alt="" width="96" height="96">
+            <img class="orbit-core" src="assets/icon.svg" alt="" width="96" height="96" loading="lazy" decoding="async">
             <div class="orbit-nodes">
               <span class="orbit-node" data-angle="270">Terminal</span>
               <span class="orbit-node" data-angle="330">Desktop</span>
@@ -440,7 +427,7 @@ You: /goto 001
         <span class="glow glow-gold glow-low-gold"></span>
       </div>
       <div class="wrap closing-inner reveal">
-        <img class="closing-mark" src="assets/icon.svg" alt="" width="96" height="96">
+        <img class="closing-mark" src="assets/icon.svg" alt="" width="96" height="96" loading="lazy" decoding="async">
         <h2>Your model. Your machine.<br><em>Your agent.</em></h2>
         <div class="hero-cta">
           <a class="btn btn-primary" href="#top" data-scroll-install data-magnet>Install Solomon</a>

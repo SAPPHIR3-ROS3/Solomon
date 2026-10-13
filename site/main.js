@@ -14,13 +14,34 @@
     var tabs = install.querySelectorAll("[data-cmd]");
     var target = install.querySelector("[data-cmd-target]");
     var copyBtn = install.querySelector("[data-copy]");
+    var panel = install.querySelector("[role='tabpanel']");
+    var copyStatus = install.querySelector("[data-copy-status]");
 
-    tabs.forEach(function (tab) {
+    function selectTab(tab) {
+      tabs.forEach(function (t) {
+        var selected = t === tab;
+        t.setAttribute("aria-selected", String(selected));
+        t.tabIndex = selected ? 0 : -1;
+      });
+      panel.setAttribute("aria-labelledby", tab.id);
+      target.textContent = tab.getAttribute("data-cmd");
+      if (M.onTab) M.onTab(target);
+    }
+
+    tabs.forEach(function (tab, index) {
       tab.addEventListener("click", function () {
-        tabs.forEach(function (t) { t.setAttribute("aria-selected", "false"); });
-        tab.setAttribute("aria-selected", "true");
-        target.textContent = tab.getAttribute("data-cmd");
-        if (M.onTab) M.onTab(target);
+        selectTab(tab);
+      });
+      tab.addEventListener("keydown", function (event) {
+        var next;
+        if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+        else if (event.key === "ArrowLeft") next = (index + tabs.length - 1) % tabs.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        selectTab(tabs[next]);
+        tabs[next].focus();
       });
     });
 
@@ -28,11 +49,14 @@
       var text = target.textContent;
       var done = function () {
         copyBtn.classList.add("done");
+        copyStatus.textContent = "Install command copied.";
         if (M.onCopy) M.onCopy(copyBtn);
         setTimeout(function () { copyBtn.classList.remove("done"); }, 1600);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(done, function () {});
+        navigator.clipboard.writeText(text).then(done, function () {
+          copyStatus.textContent = "Could not copy. Select and copy the command manually.";
+        });
       } else {
         var area = document.createElement("textarea");
         area.value = text;
@@ -55,7 +79,6 @@
   // Reveal on scroll. The observer decides *when*; if motion.js registered a
   // hook it decides *how*, otherwise the CSS transition in base.css runs.
   var reveals = Array.prototype.slice.call(document.querySelectorAll(".reveal"));
-  var headline = document.querySelector("[data-words]");
 
   function show(els, group) {
     if (M.onReveal && !reduceMotion) {
@@ -84,10 +107,10 @@
     }, { rootMargin: "0px 0px -8% 0px" });
     groups.forEach(function (g) { io.observe(g[0]); });
     reveals.forEach(function (el) {
-      if (grouped.indexOf(el) !== -1 || el === headline) return;
+      if (el.closest(".hero")) { el.classList.add("in"); return; }
+      if (grouped.indexOf(el) !== -1) return;
       io.observe(el);
     });
-    if (headline) headline.classList.add("in");
   } else {
     reveals.forEach(function (el) { el.classList.add("in"); });
   }

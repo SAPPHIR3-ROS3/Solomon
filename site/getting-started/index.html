@@ -48,14 +48,15 @@
       ]
     }
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+  <link rel="preload" href="../assets/fonts/instrument-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../styles/fonts.css">
   <link rel="stylesheet" href="../styles/base.css">
   <link rel="stylesheet" href="../styles/sections.css">
   <link rel="stylesheet" href="../styles/guide.css">
+  <link rel="stylesheet" href="../styles/responsive.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="nav">
     <div class="wrap nav-inner">
       <a class="brand" href="../" aria-label="Solomon home">
@@ -70,7 +71,7 @@
       <a class="btn btn-ghost btn-sm" href="https://github.com/SAPPHIR3-ROS3/Solomon">GitHub</a>
     </div>
   </header>
-  <main class="wrap guide">
+  <main class="wrap guide" id="main-content">
     <nav aria-label="Breadcrumb"><a href="../">Solomon</a> / <span>Get started</span></nav>
     <article>
       <header>

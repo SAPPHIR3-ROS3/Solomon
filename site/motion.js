@@ -42,44 +42,11 @@
     return chars;
   }
 
-  function splitWords(el) {
-    var words = [];
-    Array.prototype.slice.call(el.childNodes).forEach(function (node) {
-      if (node.nodeType === 3) {
-        var frag = document.createDocumentFragment();
-        node.textContent.split(/(\s+)/).forEach(function (piece) {
-          if (!piece) return;
-          if (/^\s+$/.test(piece)) { frag.appendChild(document.createTextNode(piece)); return; }
-          var w = document.createElement("span");
-          w.className = "wd";
-          w.textContent = piece;
-          words.push(w);
-          frag.appendChild(w);
-        });
-        el.replaceChild(frag, node);
-      } else if (node.nodeType === 1 && node.nodeName !== "BR") {
-        node.classList.add("wd");
-        words.push(node);
-      }
-    });
-    return words;
-  }
-
   /* ---------- hero: headline + rotating word ---------- */
 
-  var headline = document.querySelector("[data-words]");
+  // Keep the heading intact and visible during the first paint.
+  var headline = document.querySelector("h1");
   if (headline) {
-    var words = splitWords(headline);
-    animate(words, {
-      opacity: [0, 1],
-      y: ["0.5em", "0em"],
-      rotate: [2, 0],
-      filter: ["blur(8px)", "blur(0px)"],
-      duration: 1000,
-      delay: stagger(90, { start: 150 }),
-      ease: EASE
-    });
-
     var rotator = headline.querySelector("[data-rotate]");
     if (rotator) {
       var phrases = rotator.getAttribute("data-rotate").split("|");
@@ -121,7 +88,7 @@
   // Quiet dots at rest. Near the pointer they swell a little and link to their
   // neighbours, so a patch of grid appears under the cursor and fades behind it.
   var field = document.querySelector("[data-dotfield]");
-  if (field) {
+  if (field && finePointer) {
     var canvas = document.createElement("canvas");
     field.appendChild(canvas);
     var ctx = canvas.getContext("2d");
@@ -207,31 +174,11 @@
     }
   }
 
-  /* ---------- hero: parallax ---------- */
-
-  var heroInner = document.querySelector(".hero-inner");
-  var terminal = document.querySelector(".terminal");
-  if (heroInner) {
-    var ticking = false;
-    window.addEventListener("scroll", function () {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(function () {
-        ticking = false;
-        var y = window.scrollY;
-        if (y > 1200) return;
-        heroInner.style.transform = "translate3d(0, " + (y * 0.18).toFixed(1) + "px, 0)";
-        heroInner.style.opacity = String(Math.max(0, 1 - y / 700));
-        if (terminal) terminal.style.setProperty("--lift", (y * -0.06).toFixed(1) + "px");
-      });
-    }, { passive: true });
-  }
-
   /* ---------- reveals ---------- */
 
   // Pre-split section headings so their characters can cascade in.
   var headings = {};
-  document.querySelectorAll(".section-head h2, .closing h2").forEach(function (h2, i) {
+  document.querySelectorAll(".section-head.reveal h2, .closing .reveal h2").forEach(function (h2, i) {
     var chars = splitChars(h2);
     chars.forEach(function (c) { c.style.opacity = "0"; });
     headings[i] = chars;
