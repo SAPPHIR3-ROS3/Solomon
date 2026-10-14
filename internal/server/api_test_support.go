@@ -60,3 +60,22 @@ func TailscaleMagicDNSAddressForTest(addresses []ReachableAddress, port int, dat
 func NotificationsHandlerForTest() http.HandlerFunc { return handleNotifications }
 
 func SlashChatOutputForTest(output string) string { return slashChatOutput(output) }
+
+// BackgroundAPIForTest allows power-management tests to use fake inhibitors.
+type BackgroundAPIForTest struct{ api *backgroundAPI }
+
+func NewBackgroundAPIForTest(acquire func() (func(), error), save func(bool) error) *BackgroundAPIForTest {
+	return &BackgroundAPIForTest{api: &backgroundAPI{acquire: acquire, save: save}}
+}
+
+func (a *BackgroundAPIForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.api.handle(w, r)
+}
+
+func (a *BackgroundAPIForTest) Close() { a.api.close() }
+
+func (a *BackgroundAPIForTest) Enabled() bool {
+	a.api.mu.Lock()
+	defer a.api.mu.Unlock()
+	return a.api.release != nil
+}

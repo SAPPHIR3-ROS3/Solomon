@@ -1,6 +1,7 @@
-package config
+package test
 
 import (
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,21 +15,21 @@ func TestGUIBackgroundPersistsAcrossOtherPreferences(t *testing.T) {
 	if err := os.WriteFile(path, []byte("user_name = 'Fixture'\n[gui.background]\nfuture = 'preserve'\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := UpdateGUIBackgroundSettings(true); err != nil {
+	if err := config.UpdateGUIBackgroundSettings(true); err != nil {
 		t.Fatal(err)
 	}
 	yes := true
-	if _, err := UpdateGUIChatSettings(GUIChatSettings{AutoCloseToolCalls: &yes}); err != nil {
+	if _, err := config.UpdateGUIChatSettings(config.GUIChatSettings{AutoCloseToolCalls: &yes}); err != nil {
 		t.Fatal(err)
 	}
-	settings, err := ReadGUISettings()
+	settings, err := config.ReadGUISettings()
 	if err != nil || !settings.Background.KeepAwake {
 		t.Fatalf("keep awake lost: %+v %v", settings.Background, err)
 	}
-	if err := UpdateGUIBackgroundSettings(false); err != nil {
+	if err := config.UpdateGUIBackgroundSettings(false); err != nil {
 		t.Fatal(err)
 	}
-	settings, err = ReadGUISettings()
+	settings, err = config.ReadGUISettings()
 	if err != nil || settings.Background.KeepAwake {
 		t.Fatal("disable did not persist")
 	}

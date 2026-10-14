@@ -1,8 +1,9 @@
-package clipboard
+package test
 
 import (
 	"context"
 	"errors"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/clipboard"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,9 +21,9 @@ func TestReadLinuxImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
-	data, err := ReadImage(context.Background())
+	data, err := clipboard.ReadImage(context.Background())
 	if err != nil || string(data) != "image-bytes" {
-		t.Fatalf("ReadImage = %q, %v", data, err)
+		t.Fatalf("clipboard.ReadImage = %q, %v", data, err)
 	}
 }
 
@@ -31,8 +32,8 @@ func TestReadLinuxClipboardWithoutImage(t *testing.T) {
 		t.Skip("Linux clipboard commands")
 	}
 	t.Setenv("PATH", t.TempDir())
-	_, err := ReadImage(context.Background())
-	if !errors.Is(err, ErrNoImage) {
+	_, err := clipboard.ReadImage(context.Background())
+	if !errors.Is(err, clipboard.ErrNoImage) {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -48,7 +49,7 @@ func TestReadLinuxClipboardTimeout(t *testing.T) {
 	t.Setenv("PATH", dir)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	_, err := ReadImage(ctx)
+	_, err := clipboard.ReadImage(ctx)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error = %v", err)
 	}

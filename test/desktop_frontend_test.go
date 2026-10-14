@@ -1,6 +1,7 @@
-package server
+package test
 
 import (
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -19,12 +20,12 @@ func TestDesktopFrontendSurvivesUnavailableDaemon(t *testing.T) {
 			closed := httptest.NewServer(nil)
 			address := closed.URL
 			closed.Close()
-			if err := SaveState(State{PID: 12345, URL: address, StartedAt: time.Now()}); err != nil {
+			if err := server.SaveState(server.State{PID: 12345, URL: address, StartedAt: time.Now()}); err != nil {
 				t.Fatal(err)
 			}
 		}
 		response := httptest.NewRecorder()
-		DesktopFrontend().ServeHTTP(response, httptest.NewRequest("GET", "/settings", nil))
+		server.DesktopFrontend().ServeHTTP(response, httptest.NewRequest("GET", "/settings", nil))
 		if response.Code != 200 || !strings.Contains(response.Body.String(), "<html") {
 			t.Fatalf("offline settings unavailable: %d %s", response.Code, response.Body.String())
 		}
@@ -32,7 +33,7 @@ func TestDesktopFrontendSurvivesUnavailableDaemon(t *testing.T) {
 	request := httptest.NewRequest("GET", "/settings", nil)
 	request.Header.Set("Origin", "https://untrusted.example")
 	response := httptest.NewRecorder()
-	DesktopFrontend().ServeHTTP(response, request)
+	server.DesktopFrontend().ServeHTTP(response, request)
 	if response.Code != 403 {
 		t.Fatal("offline fallback must keep origin validation")
 	}
