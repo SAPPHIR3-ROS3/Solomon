@@ -1,0 +1,1571 @@
+[
+  {
+    "id": "bat",
+    "extensions": [
+      ".bat",
+      ".cmd"
+    ],
+    "aliases": [
+      "Batch",
+      "bat"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.batchfile"
+  },
+  {
+    "id": "clojure",
+    "aliases": [
+      "Clojure",
+      "clojure"
+    ],
+    "extensions": [
+      ".clj",
+      ".cljs",
+      ".cljc",
+      ".cljx",
+      ".clojure",
+      ".edn"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.clojure"
+  },
+  {
+    "id": "coffeescript",
+    "extensions": [
+      ".coffee",
+      ".cson",
+      ".iced"
+    ],
+    "aliases": [
+      "CoffeeScript",
+      "coffeescript",
+      "coffee"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.coffee"
+  },
+  {
+    "id": "c",
+    "extensions": [
+      ".c",
+      ".i"
+    ],
+    "aliases": [
+      "C",
+      "c"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.c"
+  },
+  {
+    "id": "cpp",
+    "extensions": [
+      ".cpp",
+      ".cppm",
+      ".cc",
+      ".ccm",
+      ".cxx",
+      ".cxxm",
+      ".c++",
+      ".c++m",
+      ".hpp",
+      ".hh",
+      ".hxx",
+      ".h++",
+      ".h",
+      ".ii",
+      ".ino",
+      ".inl",
+      ".ipp",
+      ".ixx",
+      ".tpp",
+      ".txx",
+      ".hpp.in",
+      ".h.in"
+    ],
+    "aliases": [
+      "C++",
+      "Cpp",
+      "cpp"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.cpp.embedded.macro"
+  },
+  {
+    "id": "cuda-cpp",
+    "extensions": [
+      ".cu",
+      ".cuh"
+    ],
+    "aliases": [
+      "CUDA C++"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.cuda-cpp"
+  },
+  {
+    "id": "csharp",
+    "extensions": [
+      ".cs",
+      ".csx",
+      ".cake"
+    ],
+    "aliases": [
+      "C#",
+      "csharp"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.cs"
+  },
+  {
+    "id": "css",
+    "aliases": [
+      "CSS",
+      "css"
+    ],
+    "extensions": [
+      ".css"
+    ],
+    "mimetypes": [
+      "text/css"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.css"
+  },
+  {
+    "id": "worktree-typescript",
+    "aliases": [
+      "Worktree TypeScript"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.ts"
+    ],
+    "grammar": "cursor:source.worktree-typescript"
+  },
+  {
+    "id": "worktree-typescriptreact",
+    "aliases": [
+      "Worktree TSX"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.tsx"
+    ],
+    "grammar": "cursor:source.worktree-typescriptreact"
+  },
+  {
+    "id": "worktree-javascript",
+    "aliases": [
+      "Worktree JavaScript"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.js"
+    ],
+    "grammar": "cursor:source.worktree-javascript"
+  },
+  {
+    "id": "worktree-javascriptreact",
+    "aliases": [
+      "Worktree JSX"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.jsx"
+    ],
+    "grammar": "cursor:source.worktree-javascriptreact"
+  },
+  {
+    "id": "worktree-python",
+    "aliases": [
+      "Worktree Python"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.py"
+    ],
+    "grammar": "cursor:source.worktree-python"
+  },
+  {
+    "id": "worktree-go",
+    "aliases": [
+      "Worktree Go"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.go"
+    ],
+    "grammar": "cursor:source.worktree-go"
+  },
+  {
+    "id": "worktree-rust",
+    "aliases": [
+      "Worktree Rust"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.rs"
+    ],
+    "grammar": "cursor:source.worktree-rust"
+  },
+  {
+    "id": "worktree-java",
+    "aliases": [
+      "Worktree Java"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.java"
+    ],
+    "grammar": "cursor:source.worktree-java"
+  },
+  {
+    "id": "worktree-c",
+    "aliases": [
+      "Worktree C"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.c"
+    ],
+    "grammar": "cursor:source.worktree-c"
+  },
+  {
+    "id": "worktree-cpp",
+    "aliases": [
+      "Worktree C++"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.cpp",
+      "**/.cursor/worktrees/**/*.h",
+      "**/.cursor/worktrees/**/*.hpp"
+    ],
+    "grammar": "cursor:source.worktree-cpp"
+  },
+  {
+    "id": "worktree-php",
+    "aliases": [
+      "Worktree PHP"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.php"
+    ],
+    "grammar": "cursor:source.worktree-php"
+  },
+  {
+    "id": "worktree-ruby",
+    "aliases": [
+      "Worktree Ruby"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.rb"
+    ],
+    "grammar": "cursor:source.worktree-ruby"
+  },
+  {
+    "id": "worktree-html",
+    "aliases": [
+      "Worktree HTML"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.html"
+    ],
+    "grammar": "cursor:source.worktree-html"
+  },
+  {
+    "id": "worktree-css",
+    "aliases": [
+      "Worktree CSS"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.css"
+    ],
+    "grammar": "cursor:source.worktree-css"
+  },
+  {
+    "id": "worktree-json",
+    "aliases": [
+      "Worktree JSON"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.json"
+    ],
+    "grammar": "cursor:source.worktree-json"
+  },
+  {
+    "id": "worktree-yaml",
+    "aliases": [
+      "Worktree YAML"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.yaml",
+      "**/.cursor/worktrees/**/*.yml"
+    ],
+    "grammar": "cursor:source.worktree-yaml"
+  },
+  {
+    "id": "worktree-sql",
+    "aliases": [
+      "Worktree SQL"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.sql"
+    ],
+    "grammar": "cursor:source.worktree-sql"
+  },
+  {
+    "id": "worktree-swift",
+    "aliases": [
+      "Worktree Swift"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.swift"
+    ],
+    "grammar": "cursor:source.worktree-swift"
+  },
+  {
+    "id": "worktree-shellscript",
+    "aliases": [
+      "Worktree Shell Script"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.sh",
+      "**/.cursor/worktrees/**/*.bash"
+    ],
+    "grammar": "cursor:source.worktree-shellscript"
+  },
+  {
+    "id": "worktree-protobuf",
+    "aliases": [
+      "Worktree Protobuf"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.proto"
+    ],
+    "grammar": "cursor:source.worktree-protobuf"
+  },
+  {
+    "id": "worktree-hcl",
+    "aliases": [
+      "Worktree HCL"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.hcl"
+    ],
+    "grammar": "cursor:source.worktree-hcl"
+  },
+  {
+    "id": "worktree-terraform",
+    "aliases": [
+      "Worktree Terraform"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.tf"
+    ],
+    "grammar": "cursor:source.worktree-terraform"
+  },
+  {
+    "id": "worktree-terraform-vars",
+    "aliases": [
+      "Worktree Terraform Vars"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.tfvars"
+    ],
+    "grammar": "cursor:source.worktree-terraform-vars"
+  },
+  {
+    "id": "worktree-terraform-stack",
+    "aliases": [
+      "Worktree Terraform Stack"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.tfstack.hcl",
+      "**/.cursor/worktrees/**/*.tfcomponent.hcl"
+    ],
+    "grammar": "cursor:source.worktree-terraform-stack"
+  },
+  {
+    "id": "worktree-terraform-deploy",
+    "aliases": [
+      "Worktree Terraform Deploy"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.tfdeploy.hcl"
+    ],
+    "grammar": "cursor:source.worktree-terraform-deploy"
+  },
+  {
+    "id": "worktree-terraform-test",
+    "aliases": [
+      "Worktree Terraform Test"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.tftest.hcl"
+    ],
+    "grammar": "cursor:source.worktree-terraform-test"
+  },
+  {
+    "id": "worktree-terraform-mock",
+    "aliases": [
+      "Worktree Terraform Mock"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.tfmock.hcl"
+    ],
+    "grammar": "cursor:source.worktree-terraform-mock"
+  },
+  {
+    "id": "worktree-terraform-search",
+    "aliases": [
+      "Worktree Terraform Search"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/worktrees/**/*.tfquery.hcl"
+    ],
+    "grammar": "cursor:source.worktree-terraform-search"
+  },
+  {
+    "id": "dart",
+    "extensions": [
+      ".dart"
+    ],
+    "aliases": [
+      "Dart"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.dart"
+  },
+  {
+    "id": "diff",
+    "aliases": [
+      "Diff",
+      "diff"
+    ],
+    "extensions": [
+      ".diff",
+      ".patch",
+      ".rej"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.diff"
+  },
+  {
+    "id": "dockerfile",
+    "extensions": [
+      ".dockerfile",
+      ".containerfile"
+    ],
+    "filenames": [
+      "Dockerfile",
+      "Containerfile"
+    ],
+    "filenamePatterns": [
+      "Dockerfile.*",
+      "Containerfile.*"
+    ],
+    "aliases": [
+      "Docker",
+      "Dockerfile",
+      "Containerfile"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.dockerfile"
+  },
+  {
+    "id": "dotenv",
+    "extensions": [
+      ".env"
+    ],
+    "filenames": [
+      ".env",
+      ".flaskenv",
+      "user-dirs.dirs"
+    ],
+    "filenamePatterns": [
+      ".env.*"
+    ],
+    "aliases": [
+      "Dotenv"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.dotenv"
+  },
+  {
+    "id": "fsharp",
+    "extensions": [
+      ".fs",
+      ".fsi",
+      ".fsx",
+      ".fsscript"
+    ],
+    "aliases": [
+      "F#",
+      "FSharp",
+      "fsharp"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.fsharp"
+  },
+  {
+    "id": "git-commit",
+    "aliases": [
+      "Git Commit Message",
+      "git-commit"
+    ],
+    "filenames": [
+      "COMMIT_EDITMSG",
+      "MERGE_MSG"
+    ],
+    "configuration": "./languages/git-commit.language-configuration.json",
+    "grammar": "cursor:text.git-commit"
+  },
+  {
+    "id": "git-rebase",
+    "aliases": [
+      "Git Rebase Message",
+      "git-rebase"
+    ],
+    "filenames": [
+      "git-rebase-todo"
+    ],
+    "filenamePatterns": [
+      "**/rebase-merge/done"
+    ],
+    "configuration": "./languages/git-rebase.language-configuration.json",
+    "grammar": "cursor:text.git-rebase"
+  },
+  {
+    "id": "ignore",
+    "aliases": [
+      "Ignore",
+      "ignore"
+    ],
+    "extensions": [
+      ".gitignore_global",
+      ".gitignore",
+      ".git-blame-ignore-revs"
+    ],
+    "configuration": "./languages/ignore.language-configuration.json",
+    "grammar": "cursor:source.ignore"
+  },
+  {
+    "id": "go",
+    "extensions": [
+      ".go"
+    ],
+    "aliases": [
+      "Go"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.go"
+  },
+  {
+    "id": "groovy",
+    "aliases": [
+      "Groovy",
+      "groovy"
+    ],
+    "extensions": [
+      ".groovy",
+      ".gvy",
+      ".gradle",
+      ".jenkinsfile",
+      ".nf"
+    ],
+    "filenames": [
+      "Jenkinsfile"
+    ],
+    "filenamePatterns": [
+      "Jenkinsfile*"
+    ],
+    "firstLine": "^#!.*\\bgroovy\\b",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.groovy"
+  },
+  {
+    "id": "handlebars",
+    "extensions": [
+      ".handlebars",
+      ".hbs",
+      ".hjs"
+    ],
+    "aliases": [
+      "Handlebars",
+      "handlebars"
+    ],
+    "mimetypes": [
+      "text/x-handlebars-template"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:text.html.handlebars"
+  },
+  {
+    "id": "hlsl",
+    "extensions": [
+      ".hlsl",
+      ".hlsli",
+      ".fx",
+      ".fxh",
+      ".vsh",
+      ".psh",
+      ".cginc",
+      ".compute"
+    ],
+    "aliases": [
+      "HLSL",
+      "hlsl"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.hlsl"
+  },
+  {
+    "id": "html",
+    "extensions": [
+      ".html",
+      ".htm",
+      ".shtml",
+      ".xhtml",
+      ".xht",
+      ".mdoc",
+      ".jsp",
+      ".asp",
+      ".aspx",
+      ".jshtm",
+      ".volt",
+      ".ejs"
+    ],
+    "aliases": [
+      "HTML",
+      "htm",
+      "html",
+      "xhtml"
+    ],
+    "mimetypes": [
+      "text/html",
+      "text/x-jshtm",
+      "text/template",
+      "text/ng-template",
+      "application/xhtml+xml"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:text.html.derivative"
+  },
+  {
+    "id": "ini",
+    "extensions": [
+      ".ini"
+    ],
+    "aliases": [
+      "Ini",
+      "ini"
+    ],
+    "configuration": "./ini.language-configuration.json",
+    "grammar": "cursor:source.ini"
+  },
+  {
+    "id": "properties",
+    "extensions": [
+      ".conf",
+      ".properties",
+      ".cfg",
+      ".directory",
+      ".gitattributes",
+      ".gitconfig",
+      ".gitmodules",
+      ".editorconfig",
+      ".repo"
+    ],
+    "filenames": [
+      "gitconfig"
+    ],
+    "filenamePatterns": [
+      "**/.config/git/config",
+      "**/.git/config"
+    ],
+    "aliases": [
+      "Properties",
+      "properties"
+    ],
+    "configuration": "./properties.language-configuration.json",
+    "grammar": "cursor:source.ini"
+  },
+  {
+    "id": "java",
+    "extensions": [
+      ".java",
+      ".jav"
+    ],
+    "aliases": [
+      "Java",
+      "java"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.java"
+  },
+  {
+    "id": "javascriptreact",
+    "aliases": [
+      "JavaScript JSX",
+      "JavaScript React",
+      "jsx"
+    ],
+    "extensions": [
+      ".jsx"
+    ],
+    "configuration": "./javascript-language-configuration.json",
+    "grammar": "cursor:source.js.jsx"
+  },
+  {
+    "id": "javascript",
+    "aliases": [
+      "JavaScript",
+      "javascript",
+      "js"
+    ],
+    "extensions": [
+      ".js",
+      ".es6",
+      ".mjs",
+      ".cjs",
+      ".pac"
+    ],
+    "filenames": [
+      "jakefile"
+    ],
+    "firstLine": "^#!.*\\bnode",
+    "mimetypes": [
+      "text/javascript"
+    ],
+    "configuration": "./javascript-language-configuration.json",
+    "grammar": "cursor:source.js"
+  },
+  {
+    "id": "json",
+    "aliases": [
+      "JSON",
+      "json"
+    ],
+    "extensions": [
+      ".json",
+      ".bowerrc",
+      ".jscsrc",
+      ".webmanifest",
+      ".js.map",
+      ".css.map",
+      ".ts.map",
+      ".har",
+      ".jslintrc",
+      ".jsonld",
+      ".geojson",
+      ".ipynb",
+      ".vuerc"
+    ],
+    "filenames": [
+      "composer.lock",
+      ".watchmanconfig"
+    ],
+    "mimetypes": [
+      "application/json",
+      "application/manifest+json"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.json"
+  },
+  {
+    "id": "jsonc",
+    "aliases": [
+      "JSON with Comments"
+    ],
+    "extensions": [
+      ".jsonc",
+      ".eslintrc",
+      ".eslintrc.json",
+      ".jsfmtrc",
+      ".jshintrc",
+      ".swcrc",
+      ".hintrc",
+      ".babelrc",
+      ".toolset.jsonc"
+    ],
+    "filenames": [
+      "babel.config.json",
+      "bun.lock",
+      ".babelrc.json",
+      ".ember-cli",
+      "typedoc.json"
+    ],
+    "filenamePatterns": [
+      "**/.github/hooks/*.json"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.json.comments"
+  },
+  {
+    "id": "jsonl",
+    "aliases": [
+      "JSON Lines"
+    ],
+    "extensions": [
+      ".jsonl",
+      ".ndjson"
+    ],
+    "filenames": [],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.json.lines"
+  },
+  {
+    "id": "snippets",
+    "aliases": [
+      "Code Snippets"
+    ],
+    "extensions": [
+      ".code-snippets"
+    ],
+    "filenamePatterns": [
+      "**/User/snippets/*.json",
+      "**/User/profiles/*/snippets/*.json",
+      "**/snippets*.json"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.json.comments.snippets"
+  },
+  {
+    "id": "julia",
+    "aliases": [
+      "Julia",
+      "julia"
+    ],
+    "extensions": [
+      ".jl"
+    ],
+    "firstLine": "^#!\\s*/.*\\bjulia[0-9.-]*\\b",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.julia"
+  },
+  {
+    "id": "tex",
+    "aliases": [
+      "TeX",
+      "tex"
+    ],
+    "extensions": [
+      ".sty",
+      ".cls",
+      ".bbx",
+      ".cbx"
+    ],
+    "configuration": "latex-language-configuration.json",
+    "grammar": "cursor:text.tex"
+  },
+  {
+    "id": "latex",
+    "aliases": [
+      "LaTeX",
+      "latex"
+    ],
+    "extensions": [
+      ".tex",
+      ".ltx",
+      ".ctx"
+    ],
+    "configuration": "latex-language-configuration.json",
+    "grammar": "cursor:text.tex.latex"
+  },
+  {
+    "id": "bibtex",
+    "aliases": [
+      "BibTeX",
+      "bibtex"
+    ],
+    "extensions": [
+      ".bib"
+    ],
+    "grammar": "cursor:text.bibtex"
+  },
+  {
+    "id": "cpp_embedded_latex",
+    "configuration": "latex-cpp-embedded-language-configuration.json",
+    "aliases": [],
+    "grammar": "cursor:source.cpp.embedded.latex"
+  },
+  {
+    "id": "markdown_latex_combined",
+    "configuration": "markdown-latex-combined-language-configuration.json",
+    "aliases": [],
+    "grammar": "cursor:text.tex.markdown_latex_combined"
+  },
+  {
+    "id": "less",
+    "aliases": [
+      "Less",
+      "less"
+    ],
+    "extensions": [
+      ".less"
+    ],
+    "mimetypes": [
+      "text/x-less",
+      "text/less"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.css.less"
+  },
+  {
+    "id": "log",
+    "extensions": [
+      ".log",
+      "*.log.?"
+    ],
+    "aliases": [
+      "Log"
+    ],
+    "grammar": "cursor:text.log"
+  },
+  {
+    "id": "lua",
+    "extensions": [
+      ".lua"
+    ],
+    "aliases": [
+      "Lua",
+      "lua"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.lua"
+  },
+  {
+    "id": "makefile",
+    "aliases": [
+      "Makefile",
+      "makefile"
+    ],
+    "extensions": [
+      ".mak",
+      ".mk"
+    ],
+    "filenames": [
+      "Makefile",
+      "makefile",
+      "GNUmakefile",
+      "OCamlMakefile"
+    ],
+    "firstLine": "^#!\\s*/usr/bin/make",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.makefile"
+  },
+  {
+    "id": "markdown",
+    "aliases": [
+      "Markdown",
+      "markdown"
+    ],
+    "extensions": [
+      ".md",
+      ".mdc",
+      ".mkd",
+      ".mkdn",
+      ".mdwn",
+      ".mdown",
+      ".markdown",
+      ".markdn",
+      ".mdtxt",
+      ".mdtext",
+      ".litcoffee",
+      ".ron",
+      ".ronn",
+      ".workbook"
+    ],
+    "filenamePatterns": [
+      "**/.cursor/**/*.mdc"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:text.html.markdown"
+  },
+  {
+    "id": "markdown-math",
+    "aliases": [],
+    "grammar": "cursor:text.html.markdown.math"
+  },
+  {
+    "id": "wat",
+    "extensions": [
+      ".wat",
+      ".wasm"
+    ],
+    "aliases": [
+      "WebAssembly Text Format"
+    ],
+    "firstLine": "^\\(module",
+    "mimetypes": [
+      "text/wat"
+    ],
+    "grammar": "cursor:text.wat"
+  },
+  {
+    "id": "objective-c",
+    "extensions": [
+      ".m"
+    ],
+    "aliases": [
+      "Objective-C"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.objc"
+  },
+  {
+    "id": "objective-cpp",
+    "extensions": [
+      ".mm"
+    ],
+    "aliases": [
+      "Objective-C++"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.objcpp"
+  },
+  {
+    "id": "ocaml",
+    "aliases": [
+      "Ocaml",
+      "ocaml"
+    ],
+    "extensions": [
+      ".ml"
+    ],
+    "firstLine": "^#!\\s*/.*\\bocaml[0-9.-]*\\b",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.ocaml"
+  },
+  {
+    "id": "perl",
+    "aliases": [
+      "Perl",
+      "perl"
+    ],
+    "extensions": [
+      ".pl",
+      ".pm",
+      ".pod",
+      ".t",
+      ".PL",
+      ".psgi"
+    ],
+    "firstLine": "^#!.*\\bperl\\b",
+    "configuration": "./perl.language-configuration.json",
+    "grammar": "cursor:source.perl"
+  },
+  {
+    "id": "raku",
+    "aliases": [
+      "Raku",
+      "Perl6",
+      "perl6"
+    ],
+    "extensions": [
+      ".raku",
+      ".rakumod",
+      ".rakutest",
+      ".rakudoc",
+      ".nqp",
+      ".p6",
+      ".pl6",
+      ".pm6"
+    ],
+    "firstLine": "(^#!.*\\bperl6\\b)|use\\s+v6|raku|=begin\\spod|my\\sclass",
+    "configuration": "./perl6.language-configuration.json",
+    "grammar": "cursor:source.perl.6"
+  },
+  {
+    "id": "php",
+    "extensions": [
+      ".php",
+      ".php4",
+      ".php5",
+      ".phtml",
+      ".ctp"
+    ],
+    "aliases": [
+      "PHP",
+      "php"
+    ],
+    "firstLine": "^#!\\s*/.*\\bphp\\b",
+    "mimetypes": [
+      "application/x-php"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.php"
+  },
+  {
+    "id": "powershell",
+    "extensions": [
+      ".ps1",
+      ".psm1",
+      ".psd1",
+      ".pssc",
+      ".psrc"
+    ],
+    "aliases": [
+      "PowerShell",
+      "powershell",
+      "ps",
+      "ps1",
+      "pwsh"
+    ],
+    "firstLine": "^#!\\s*/.*\\bpwsh\\b",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.powershell"
+  },
+  {
+    "id": "protobuf",
+    "extensions": [
+      ".proto"
+    ],
+    "aliases": [
+      "Protocol Buffers",
+      "Protobuf",
+      "protobuf"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.proto"
+  },
+  {
+    "id": "jade",
+    "extensions": [
+      ".pug",
+      ".jade"
+    ],
+    "aliases": [
+      "Pug",
+      "Jade",
+      "jade"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:text.pug"
+  },
+  {
+    "id": "python",
+    "extensions": [
+      ".py",
+      ".rpy",
+      ".pyw",
+      ".cpy",
+      ".gyp",
+      ".gypi",
+      ".pyi",
+      ".ipy",
+      ".pyt"
+    ],
+    "aliases": [
+      "Python",
+      "py"
+    ],
+    "filenames": [
+      "SConstruct",
+      "SConscript"
+    ],
+    "firstLine": "^#!\\s*/?.*\\bpython[0-9.-]*\\b",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.python"
+  },
+  {
+    "id": "r",
+    "extensions": [
+      ".R",
+      ".Rhistory",
+      ".Rprofile",
+      ".rt"
+    ],
+    "aliases": [
+      "R",
+      "r"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.r"
+  },
+  {
+    "id": "razor",
+    "extensions": [
+      ".cshtml",
+      ".razor"
+    ],
+    "aliases": [
+      "Razor",
+      "razor"
+    ],
+    "mimetypes": [
+      "text/x-cshtml"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:text.html.cshtml"
+  },
+  {
+    "id": "restructuredtext",
+    "aliases": [
+      "reStructuredText"
+    ],
+    "configuration": "./language-configuration.json",
+    "extensions": [
+      ".rst"
+    ],
+    "grammar": "cursor:source.rst"
+  },
+  {
+    "id": "ruby",
+    "extensions": [
+      ".rb",
+      ".rbx",
+      ".rjs",
+      ".gemspec",
+      ".rake",
+      ".ru",
+      ".podspec",
+      ".rbi"
+    ],
+    "filenames": [
+      "rakefile",
+      "gemfile",
+      "guardfile",
+      "podfile",
+      "capfile",
+      "cheffile",
+      "hobofile",
+      "vagrantfile",
+      "appraisals",
+      "rantfile",
+      "berksfile",
+      "berksfile.lock",
+      "thorfile",
+      "puppetfile",
+      "dangerfile",
+      "brewfile",
+      "fastfile",
+      "appfile",
+      "deliverfile",
+      "matchfile",
+      "scanfile",
+      "snapfile",
+      "gymfile"
+    ],
+    "aliases": [
+      "Ruby",
+      "rb"
+    ],
+    "firstLine": "^#!\\s*/.*\\bruby\\b",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.ruby"
+  },
+  {
+    "id": "erb",
+    "extensions": [
+      ".erb",
+      ".rhtml"
+    ],
+    "aliases": [
+      "ERB",
+      "Embedded Ruby"
+    ],
+    "configuration": "./erb-language-configuration.json",
+    "grammar": "cursor:text.html.erb"
+  },
+  {
+    "id": "rust",
+    "extensions": [
+      ".rs"
+    ],
+    "aliases": [
+      "Rust",
+      "rust"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.rust"
+  },
+  {
+    "id": "scss",
+    "aliases": [
+      "SCSS",
+      "scss"
+    ],
+    "extensions": [
+      ".scss"
+    ],
+    "mimetypes": [
+      "text/x-scss",
+      "text/scss"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.css.scss"
+  },
+  {
+    "id": "search-result",
+    "extensions": [
+      ".code-search"
+    ],
+    "aliases": [
+      "Search Result"
+    ],
+    "grammar": "cursor:text.searchResult"
+  },
+  {
+    "id": "shaderlab",
+    "extensions": [
+      ".shader"
+    ],
+    "aliases": [
+      "ShaderLab",
+      "shaderlab"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.shaderlab"
+  },
+  {
+    "id": "shellscript",
+    "aliases": [
+      "Shell Script",
+      "shellscript",
+      "bash",
+      "fish",
+      "sh",
+      "zsh",
+      "ksh",
+      "csh"
+    ],
+    "extensions": [
+      ".sh",
+      ".bash",
+      ".bashrc",
+      ".bash_aliases",
+      ".bash_profile",
+      ".bash_login",
+      ".ebuild",
+      ".eclass",
+      ".profile",
+      ".bash_logout",
+      ".xprofile",
+      ".xsession",
+      ".xsessionrc",
+      ".Xsession",
+      ".zsh",
+      ".zshrc",
+      ".zprofile",
+      ".zlogin",
+      ".zlogout",
+      ".zshenv",
+      ".zsh-theme",
+      ".fish",
+      ".ksh",
+      ".csh",
+      ".cshrc",
+      ".tcshrc",
+      ".yashrc",
+      ".yash_profile"
+    ],
+    "filenames": [
+      "APKBUILD",
+      "PKGBUILD",
+      ".envrc",
+      ".hushlogin",
+      "zshrc",
+      "zshenv",
+      "zlogin",
+      "zprofile",
+      "zlogout",
+      "bashrc_Apple_Terminal",
+      "zshrc_Apple_Terminal"
+    ],
+    "firstLine": "^#!.*\\b(bash|fish|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+    "configuration": "./language-configuration.json",
+    "mimetypes": [
+      "text/x-shellscript"
+    ],
+    "grammar": "cursor:source.shell"
+  },
+  {
+    "id": "sql",
+    "extensions": [
+      ".sql",
+      ".dsql"
+    ],
+    "aliases": [
+      "MS SQL",
+      "T-SQL"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.sql"
+  },
+  {
+    "id": "swift",
+    "aliases": [
+      "Swift",
+      "swift"
+    ],
+    "extensions": [
+      ".swift"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.swift"
+  },
+  {
+    "id": "typescript",
+    "aliases": [
+      "TypeScript",
+      "ts",
+      "typescript"
+    ],
+    "extensions": [
+      ".ts",
+      ".cts",
+      ".mts"
+    ],
+    "firstLine": "^#!.*\\b(deno|bun|ts-node)\\b",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.ts"
+  },
+  {
+    "id": "typescriptreact",
+    "aliases": [
+      "TypeScript JSX",
+      "TypeScript React",
+      "tsx"
+    ],
+    "extensions": [
+      ".tsx"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.tsx"
+  },
+  {
+    "id": "vb",
+    "extensions": [
+      ".vb",
+      ".brs",
+      ".vbs",
+      ".bas",
+      ".vba"
+    ],
+    "aliases": [
+      "Visual Basic",
+      "vb"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.asp.vb.net"
+  },
+  {
+    "id": "xml",
+    "extensions": [
+      ".xml",
+      ".xsd",
+      ".ascx",
+      ".atom",
+      ".axml",
+      ".axaml",
+      ".bpmn",
+      ".cpt",
+      ".csl",
+      ".csproj",
+      ".csproj.user",
+      ".dita",
+      ".ditamap",
+      ".dtd",
+      ".ent",
+      ".mod",
+      ".dtml",
+      ".fsproj",
+      ".fxml",
+      ".iml",
+      ".isml",
+      ".jmx",
+      ".launch",
+      ".menu",
+      ".mxml",
+      ".nuspec",
+      ".opml",
+      ".owl",
+      ".proj",
+      ".props",
+      ".pt",
+      ".publishsettings",
+      ".pubxml",
+      ".pubxml.user",
+      ".rbxlx",
+      ".rbxmx",
+      ".rdf",
+      ".rng",
+      ".rss",
+      ".shproj",
+      ".slnx",
+      ".storyboard",
+      ".svg",
+      ".targets",
+      ".tld",
+      ".tmx",
+      ".vbproj",
+      ".vbproj.user",
+      ".vcxproj",
+      ".vcxproj.filters",
+      ".wixproj",
+      ".wsdl",
+      ".wxi",
+      ".wxl",
+      ".wxs",
+      ".xaml",
+      ".xbl",
+      ".xib",
+      ".xlf",
+      ".xliff",
+      ".xpdl",
+      ".xul",
+      ".xoml"
+    ],
+    "firstLine": "(\\<\\?xml.*)|(\\<svg)|(\\<\\!doctype\\s+svg)",
+    "aliases": [
+      "XML",
+      "xml"
+    ],
+    "configuration": "./xml.language-configuration.json",
+    "grammar": "cursor:text.xml"
+  },
+  {
+    "id": "xsl",
+    "extensions": [
+      ".xsl",
+      ".xslt"
+    ],
+    "aliases": [
+      "XSL",
+      "xsl"
+    ],
+    "configuration": "./xsl.language-configuration.json",
+    "grammar": "cursor:text.xml.xsl"
+  },
+  {
+    "id": "dockercompose",
+    "aliases": [
+      "Compose",
+      "compose"
+    ],
+    "filenamePatterns": [
+      "compose.yml",
+      "compose.yaml",
+      "compose.*.yml",
+      "compose.*.yaml",
+      "*docker*compose*.yml",
+      "*docker*compose*.yaml"
+    ],
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.yaml"
+  },
+  {
+    "id": "yaml",
+    "aliases": [
+      "YAML",
+      "yaml"
+    ],
+    "extensions": [
+      ".yaml",
+      ".yml",
+      ".eyaml",
+      ".eyml",
+      ".cff",
+      ".yaml-tmlanguage",
+      ".yaml-tmpreferences",
+      ".yaml-tmtheme",
+      ".winget"
+    ],
+    "firstLine": "^#cloud-config",
+    "configuration": "./language-configuration.json",
+    "grammar": "cursor:source.yaml"
+  }
+]

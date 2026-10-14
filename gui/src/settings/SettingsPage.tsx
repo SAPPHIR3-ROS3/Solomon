@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { prefetchProviderQuotas } from "../projects/projects";
 import { DocsViewer } from "./DocsViewer";
 import { ModelsPage } from "./ModelsPage";
+import { AdvancedSettings } from "./AdvancedSettings";
+import { GeneralSettings } from "./GeneralSettings";
 import { ChatSettings } from "./ChatSettings";
 
 type SettingsPageProps = {
   onHome: () => void;
 };
 
-type SettingsSection = "" | "chat" | "models" | "docs";
+type SettingsSection = "general" | "chat" | "models" | "advanced" | "docs";
 
 const locationEvent = "solomon-settings-location";
 
@@ -46,7 +48,7 @@ export function hideSettings() {
 
 export function SettingsPage({ onHome }: SettingsPageProps) {
   const [query, setQuery] = useState("");
-  const [section, setSection] = useState<SettingsSection>("");
+  const [section, setSection] = useState<SettingsSection>("general");
   const isSearching = query.trim().length > 0;
 
   useEffect(() => {
@@ -74,6 +76,15 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
 
         <nav aria-label="Settings sections" className="settings-navigation">
           <button
+            aria-current={section === "general" ? "page" : undefined}
+            className="settings-section-link"
+            onClick={() => setSection("general")}
+            type="button"
+          >
+            <GeneralIcon />
+            <span>General</span>
+          </button>
+          <button
             aria-current={section === "chat" ? "page" : undefined}
             className="settings-section-link"
             onClick={() => setSection("chat")}
@@ -90,6 +101,15 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
           >
             <ModelsIcon />
             <span>Models</span>
+          </button>
+          <button
+            aria-current={section === "advanced" ? "page" : undefined}
+            className="settings-section-link"
+            onClick={() => setSection("advanced")}
+            type="button"
+          >
+            <ModelsIcon />
+            <span>Advanced</span>
           </button>
           <button
             aria-current={section === "docs" ? "page" : undefined}
@@ -111,7 +131,9 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
       </aside>
 
       <main aria-label="Settings content" className="settings-main">
+        {isSearching || section === "general" ? <GeneralSettings query={query} /> : null}
         {isSearching || section === "chat" ? <ChatSettings query={query} /> : null}
+        {isSearching || section === "advanced" ? <AdvancedSettings query={query} /> : null}
         {!isSearching && section === "models" ? <ModelsPage /> : null}
         {!isSearching && section === "docs" ? <DocsViewer /> : null}
       </main>
@@ -161,6 +183,17 @@ function ModelsIcon() {
       <circle cx="9" cy="6" r="2" />
       <circle cx="15" cy="12" r="2" />
       <circle cx="11" cy="18" r="2" />
+    </svg>
+  );
+}
+
+function GeneralIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
     </svg>
   );
 }

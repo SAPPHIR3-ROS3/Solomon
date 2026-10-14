@@ -301,7 +301,7 @@ test("a stalled save times out, releases both switches, and can be retried", asy
     // Leave the write unanswered to reproduce a connection that never settles.
   });
   await auto.click();
-  await page.getByRole("alert").filter({ hasText: "Saving chat settings timed out" }).waitFor();
+  await page.getByRole("alert").filter({ hasText: "Saving settings timed out" }).waitFor();
   await waitForSwitch(page, auto, true);
   assert.equal(await readFile(configPath, "utf8"), before);
   const styles = await page.locator(".settings-chat-error").evaluate(element => ({
@@ -315,4 +315,187 @@ test("a stalled save times out, releases both switches, and can be retried", asy
   await page.getByRole("alert").waitFor({ state: "detached" });
   await changeSwitch(page, auto);
   assert.match(await readFile(configPath, "utf8"), /auto_close_tool_calls = false/);
+});
+
+
+test("general fields autosave in order, survive reload, and retry failures", async () => {
+  await writeFile(configPath, baseConfig);
+  const page = await browser.newPage();
+  after(() => page.close());
+  page.setDefaultTimeout(10000);
+  await page.route("**/__tool_fixture", route => route.fulfill({
+    contentType: "text/html",
+    body: '<div id="settings"></div><div id="chat"></div><script type="module" src="/__tool_fixture.js"></script>',
+  }));
+  await page.goto(`${server.resolvedUrls.local[0]}__tool_fixture`);
+  const general = page.getByRole("region", { name: "General settings", exact: true });
+  const name = page.getByRole("textbox", { name: "User name", exact: true });
+  const language = page.getByRole("combobox", { name: "Response language", exact: true });
+  await page.waitForFunction(() => document.getElementById("response-language")?.value === "English");
+  assert.deepEqual(await general.locator('label').allTextContents(), ["User name", "Response language"]);
+  assert.equal(await page.getByRole("button", { name: "Save", exact: true }).count(), 0);
+  await name.fill("New name");
+  await language.fill("Italian");
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('[aria-label="General settings"] .settings-save-status')).every(element => element.textContent === ""));
+  assert.equal(await page.getByText("Saved", { exact: true }).count(), 0);
+  const document = await readFile(configPath, "utf8");
+  assert.match(document, /^user_name = 'New name'/m);
+  assert.match(document, /^response_language = 'Italian'/m);
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById("response-language")?.value === "Italian");
+  assert.equal(await name.inputValue(), "New name");
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Search settings" }).fill("response language");
+  await language.waitFor();
+  assert.equal(await language.inputValue(), "Italian");
+  failNextWrite = true;
+  await language.fill("French");
+  await general.getByRole("alert").filter({ hasText: "Fixture write failed" }).waitFor();
+  assert.equal(await language.inputValue(), "French");
+  assert.match(await readFile(configPath, "utf8"), /^response_language = 'Italian'/m);
+  await general.getByRole("button", { name: "Retry", exact: true }).click();
+  try {
+    await page.waitForFunction(() => document.querySelector('[aria-label="General settings"] .settings-save-status')?.textContent === "");
+  } catch (error) {
+    const diagnostics = await general.evaluate(node => ({ status: node.querySelector('.settings-save-status')?.textContent, value: node.querySelector('input')?.value, error: node.querySelector('[role="alert"]')?.textContent }));
+    throw new Error(`${error.message}; ${JSON.stringify(diagnostics)}; persisted=${(await readFile(configPath, "utf8")).match(/^response_language.*$/m)?.[0]}`);
+  }
+  assert.match(await readFile(configPath, "utf8"), /^response_language = 'French'/m);
+});
+
+test("advanced settings autosave valid numbers and preserve nested config", async () => {
+  await writeFile(configPath, baseConfig + "[tool_output]\nmax_bytes=65536\nmax_lines=2048\nfuture_key='keep'\n");
+  const page = await browser.newPage();
+  after(() => page.close());
+  page.setDefaultTimeout(10000);
+  await page.route("**/__tool_fixture", route => route.fulfill({
+    contentType: "text/html",
+    body: '<div id="settings"></div><div id="chat"></div><script type="module" src="/__tool_fixture.js"></script>',
+  }));
+  await page.goto(`${server.resolvedUrls.local[0]}__tool_fixture`);
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
+  const timeout = page.getByRole("spinbutton", { name: "Subagent timeout", exact: true });
+  await page.waitForFunction(() => document.getElementById("advanced-subagent_timeout_minutes")?.value === "20");
+  await timeout.fill("0");
+  await timeout.blur();
+  assert.equal(await timeout.getAttribute("aria-invalid"), "true");
+  assert.doesNotMatch(await readFile(configPath, "utf8"), /^subagent_timeout_minutes/m);
+  await timeout.fill("35");
+  const output = page.getByRole("spinbutton", { name: "Tool output line limit", exact: true });
+  await output.fill("512");
+  const level = page.getByRole("combobox", { name: "Log level", exact: true });
+  await level.click();
+  await page.getByRole("option", { name: "debug", exact: true }).click();
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('[aria-label="Advanced settings"] .settings-save-status')).every(element => element.textContent === ""));
+  assert.equal(await page.getByText("Saved", { exact: true }).count(), 0);
+  const document = await readFile(configPath, "utf8");
+  assert.match(document, /^subagent_timeout_minutes = 35/m);
+  assert.match(document, /^log_level = 'debug'/m);
+  assert.match(document, /^max_lines = 512/m);
+  assert.match(document, /^max_bytes = 65536/m);
+  assert.match(document, /^future_key = 'keep'/m);
+  assert.match(document, /api_key = 'secret-fixture'/);
+  await page.reload();
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
+  await page.waitForFunction(() => document.getElementById("advanced-subagent_timeout_minutes")?.value === "35");
+  assert.equal(await output.inputValue(), "512");
+  assert.equal((await level.textContent()).trim(), "debug");
+});
+
+
+test("dev server controls autosave all three preferences and keep running servers untouched", async () => {
+  const sourceDirectory = join(home, "dev-gui");
+  await (await import("node:fs/promises")).mkdir(join(sourceDirectory, "src"), { recursive: true });
+  await writeFile(join(sourceDirectory, "package.json"), "{}");
+  await writeFile(configPath, baseConfig);
+  const page = await browser.newPage();
+  after(() => page.close());
+  page.setDefaultTimeout(10000);
+  await page.route("**/__tool_fixture", route => route.fulfill({
+    contentType: "text/html",
+    body: '<div id="settings"></div><div id="chat"></div><script type="module" src="/__tool_fixture.js"></script>',
+  }));
+  await page.goto(`${server.resolvedUrls.local[0]}__tool_fixture`);
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
+  const dev = page.getByRole("switch", { name: "Dev server", exact: true });
+  const directory = page.getByRole("textbox", { name: "GUI source directory", exact: true });
+  const port = page.getByRole("spinbutton", { name: "Server port", exact: true });
+  await page.waitForFunction(() => document.getElementById("advanced-server_port")?.value === "64000");
+  assert.equal(await dev.isDisabled(), true);
+  await directory.fill(sourceDirectory);
+  await directory.blur();
+  await page.waitForFunction(() => !document.querySelector('[aria-labelledby="dev-server-label"]').disabled);
+  await dev.click();
+  await page.waitForFunction(() => document.querySelector('[aria-labelledby="dev-server-label"]').getAttribute("aria-checked") === "true");
+  await port.fill("64500");
+  await port.blur();
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('[aria-label="Advanced settings"] .settings-save-status')).every(element => element.textContent === ""));
+  const document = await readFile(configPath, "utf8");
+  assert.match(document, /^server_port = 64500/m);
+  assert.match(document, /^dev_mode = true/m);
+  assert.ok(document.includes(`dev_directory = '${sourceDirectory}'`));
+  assert.equal(await page.getByText("Saved", { exact: true }).count(), 0);
+  await page.reload();
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[aria-labelledby="dev-server-label"]').getAttribute("aria-checked") === "true");
+  assert.equal(await directory.inputValue(), sourceDirectory);
+  assert.equal(await port.inputValue(), "64500");
+  await dev.click();
+  await page.waitForFunction(() => document.querySelector('[aria-labelledby="dev-server-label"]').getAttribute("aria-checked") === "false");
+  await directory.fill("");
+  await directory.blur();
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('[aria-label="Advanced settings"] .settings-save-status')).every(element => element.textContent === ""));
+  assert.match(await readFile(configPath, "utf8"), /^dev_mode = false/m);
+  assert.match(await readFile(configPath, "utf8"), /^dev_directory = ''/m);
+});
+
+
+test("settings use themed menus and number controls with keyboard access and autosave", async () => {
+  await writeFile(configPath, baseConfig);
+  const page = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
+  after(() => page.close());
+  page.setDefaultTimeout(10000);
+  await page.route("**/__tool_fixture", route => route.fulfill({
+    contentType: "text/html",
+    body: '<div class="app-shell" id="settings" style="--settings-panel-width:280px"></div><div id="chat"></div><script type="module" src="/__tool_fixture.js"></script>',
+  }));
+  await page.goto(`${server.resolvedUrls.local[0]}__tool_fixture`);
+  await page.addStyleTag({ url: `${server.resolvedUrls.local[0]}src/styles.css?direct` });
+  await page.addStyleTag({ url: `${server.resolvedUrls.local[0]}src/theme/themes.css?direct` });
+  await page.addStyleTag({ url: `${server.resolvedUrls.local[0]}src/typography.css?direct` });
+  const language = page.getByRole("combobox", { name: "Response language", exact: true });
+  await page.waitForFunction(() => document.getElementById("response-language")?.value === "English");
+  assert.equal(await page.locator("select, datalist, input[list]").count(), 0);
+  await language.click();
+  await page.getByRole("listbox", { name: "Response language suggestions" }).waitFor();
+  await page.getByRole("option", { name: "French", exact: true }).click();
+  assert.equal(await language.inputValue(), "French");
+  assert.equal(await language.getAttribute("aria-expanded"), "false");
+  await language.fill("Esperanto");
+  await language.blur();
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('[aria-label="General settings"] .settings-save-status')).every(element => element.textContent === ""));
+  assert.match(await readFile(configPath, "utf8"), /^response_language = 'Esperanto'/m);
+  await page.screenshot({ path: "/tmp/solomon-general-controls.png" });
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
+  const level = page.getByRole("combobox", { name: "Log level", exact: true });
+  await level.press("ArrowDown");
+  await level.press("ArrowDown");
+  await level.press("Enter");
+  assert.equal((await level.textContent()).trim(), "debug");
+  const timeout = page.getByRole("spinbutton", { name: "Subagent timeout", exact: true });
+  await timeout.fill("35");
+  await page.getByRole("button", { name: "Increase subagent timeout", exact: true }).click();
+  assert.equal(await timeout.inputValue(), "36");
+  await page.getByRole("button", { name: "Decrease subagent timeout", exact: true }).click();
+  assert.equal(await timeout.inputValue(), "35");
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('[aria-label="Advanced settings"] .settings-save-status')).every(element => element.textContent === ""));
+  assert.match(await readFile(configPath, "utf8"), /^log_level = 'debug'/m);
+  assert.match(await readFile(configPath, "utf8"), /^subagent_timeout_minutes = 35/m);
+  const styles = await timeout.evaluate(element => ({ background: getComputedStyle(element).backgroundColor, appearance: getComputedStyle(element).appearance }));
+  assert.equal(styles.appearance, "textfield");
+  assert.equal(await page.getByText("Saved", { exact: true }).count(), 0);
+  await level.click();
+  await page.screenshot({ path: "/tmp/solomon-advanced-controls.png" });
+  await level.press("Escape");
+  assert.equal(await level.getAttribute("aria-expanded"), "false");
 });

@@ -7,7 +7,7 @@
 .notification-menu { position: absolute; right: 0; bottom: calc(100% + 12px); width: min(380px, calc(100vw - 40px)); border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-raised); box-shadow: 0 12px 36px #0005; color: var(--color-text); z-index: 60; overflow: hidden; }
 .notification-menu > header { display: flex; justify-content: space-between; padding: 14px 16px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--color-border); }
 .notification-menu > header span { color: var(--color-text-muted); }
-.notification-history { max-height: min(440px, 55dvh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.notification-history { max-height: min(440px, 55dvh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: var(--app-scrollbar-width, thin); }
 .notification-entry { padding: 12px 16px; min-height: 88px; box-sizing: border-box; border-bottom: 1px solid var(--color-border); }
 .notification-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; }
 .notification-meta time { color: var(--color-text-muted); font-size: 10px; }

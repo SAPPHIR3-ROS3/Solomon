@@ -6,7 +6,9 @@ const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const helper = fileURLToPath(new URL("./desktop/gui_settings.go", import.meta.url));
 
 export type GUISettings = {
-  chat: { autoCloseToolCalls?: boolean; startToolCallsCollapsed?: boolean };
+  general: { userName: string; responseLanguage: string };
+  advanced: Record<string, string | number | boolean>;
+  chat: { autoCloseToolCalls?: boolean; startToolCallsCollapsed?: boolean; startReasoningCollapsed?: boolean };
   models: { hiddenModels: Record<string, string[]> };
   docs: Record<string, never>;
 };
@@ -42,15 +44,24 @@ function attach(server: ViteDevServer | PreviewServer) {
       let body = "";
       request.on("data", chunk => { body += String(chunk); });
       request.on("end", () => {
-        let payload: { chat?: object };
+        let payload: { chat?: object; general?: { userName?: string; responseLanguage?: string }; advanced?: Record<string, unknown> };
         try {
           if (body.length > 4096) throw new Error("Request body is too large");
           payload = JSON.parse(body);
-          if (!payload?.chat || typeof payload.chat !== "object" || Array.isArray(payload.chat)) throw new Error("Chat preferences are required");
-          const entries = Object.entries(payload.chat);
-          if (!entries.length || entries.some(([key, value]) => !["autoCloseToolCalls", "startToolCallsCollapsed"].includes(key) || typeof value !== "boolean")) throw new Error("Invalid chat preference");
+          if (!payload || typeof payload !== "object" || Array.isArray(payload) || (!payload.chat && !payload.general && !payload.advanced)) throw new Error("Preferences are required");
+          if (payload.chat !== undefined) {
+            if (!payload.chat || typeof payload.chat !== "object" || Array.isArray(payload.chat)) throw new Error("Invalid chat preferences");
+            const entries = Object.entries(payload.chat);
+            if (!entries.length || entries.some(([key, value]) => !["autoCloseToolCalls", "startToolCallsCollapsed", "startReasoningCollapsed"].includes(key) || typeof value !== "boolean")) throw new Error("Invalid chat preference");
+          }
+          if (payload.general !== undefined) {
+            if (!payload.general || typeof payload.general !== "object" || Array.isArray(payload.general)) throw new Error("Invalid general preferences");
+            const entries = Object.entries(payload.general);
+            if (!entries.length || entries.some(([key, value]) => !["userName", "responseLanguage"].includes(key) || typeof value !== "string" || !value.trim() || Buffer.byteLength(value.trim()) > 256 || /[\r\n\0]/.test(value.trim()))) throw new Error("Invalid general preference");
+          }
+          if (payload.advanced !== undefined && (!payload.advanced || typeof payload.advanced !== "object" || Array.isArray(payload.advanced) || !Object.keys(payload.advanced).length)) throw new Error("Invalid advanced preferences");
         } catch (error) { respond(400, { error: error instanceof Error ? error.message : "Invalid JSON" }); return; }
-        void runGUISettings({ action: "patch", chat: payload.chat }).then(settings => respond(200, settings)).catch(error => respond(500, { error: error.message }));
+        void runGUISettings({ action: "patch", ...payload }).then(settings => respond(200, settings)).catch(error => respond(500, { error: error.message }));
       });
     } else { respond(405, { error: "Method not allowed" }); }
   });

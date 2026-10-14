@@ -494,7 +494,7 @@ export function App() {
         />
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "editor" ? (
-        <EditorPage onInitialFileOpened={() => setEditorFile(null)} initialFile={editorFile?.projectID === selectedWorkspace?.id ? editorFile?.entry : null} bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} onHome={goHome} project={selectedWorkspace} />
+        <EditorPage key={selectedWorkspace?.id ?? "no-project"} onInitialFileOpened={() => setEditorFile(null)} initialFile={editorFile?.projectID === selectedWorkspace?.id ? editorFile?.entry : null} bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} onHome={goHome} project={selectedWorkspace} />
       ) : null}
       {isSettingsOpen ? <SettingsPage onHome={goHome} /> : null}
       {!isSettingsOpen && isActiveAgentsOpen ? (

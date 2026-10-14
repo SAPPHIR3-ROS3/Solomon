@@ -105,6 +105,7 @@ type Root struct {
 	DocSearchMinNorm          *float64             `toml:"doc_search_min_normalized_score,omitempty"`
 	DocSearchFullArticleScore *float64             `toml:"doc_search_full_article_score,omitempty"`
 	WebSearchEngine           string               `toml:"web_search_engine,omitempty"`
+	Server                    ServerSettings       `toml:"server,omitempty"`
 	ServerPort                int                  `toml:"server_port,omitempty"`
 	WebSearchAPIKey           string               `toml:"web_search_api_key,omitempty"`
 	WebSearchBaseURL          string               `toml:"web_search_base_url,omitempty"`

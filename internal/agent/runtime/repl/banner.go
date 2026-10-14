@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 
@@ -17,58 +16,16 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/skills"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
+	"github.com/charmbracelet/x/ansi"
 	"golang.org/x/term"
 )
 
-var reStripANSI = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
-
 func displayCells(s string) int {
-	n := 0
-	for _, r := range s {
-		n += runeDisplayWidth(r)
-	}
-	return n
-}
-
-func runeDisplayWidth(r rune) int {
-	switch {
-	case r == 0 || r < 0x20:
-		return 0
-	case (r >= 0x1100 && r <= 0x115F) || (r >= 0x2329 && r <= 0x232A):
-		return 2
-	case r >= 0x2E80 && r <= 0x303E:
-		return 2
-	case r >= 0x3040 && r <= 0x3247:
-		return 2
-	case r >= 0x3250 && r <= 0x4DBF:
-		return 2
-	case r >= 0x4E00 && r <= 0x9FFF:
-		return 2
-	case r >= 0xA000 && r <= 0xA4C6:
-		return 2
-	case r >= 0xAC00 && r <= 0xD7A3:
-		return 2
-	case r >= 0xF900 && r <= 0xFAFF:
-		return 2
-	case r >= 0xFE10 && r <= 0xFE19:
-		return 2
-	case r >= 0xFE30 && r <= 0xFE6F:
-		return 2
-	case r >= 0xFF00 && r <= 0xFF60:
-		return 2
-	case r >= 0xFFE0 && r <= 0xFFE6:
-		return 2
-	case r >= 0x20000 && r <= 0x2FFFD:
-		return 2
-	case r >= 0x30000 && r <= 0x3FFFD:
-		return 2
-	default:
-		return 1
-	}
+	return ansi.StringWidth(s)
 }
 
 func visibleCells(s string) int {
-	return displayCells(reStripANSI.ReplaceAllString(s, ""))
+	return ansi.StringWidth(s)
 }
 
 func writerWidth(out io.Writer) int {
@@ -81,7 +38,7 @@ func writerWidth(out io.Writer) int {
 		return 0
 	}
 	w, _, err := term.GetSize(fd)
-	if err != nil || w < 20 {
+	if err != nil || w <= 0 {
 		return 0
 	}
 	return w
@@ -91,26 +48,7 @@ func ellipsizeVisible(s string, max int) string {
 	if max <= 0 {
 		return ""
 	}
-	plain := reStripANSI.ReplaceAllString(s, "")
-	if displayCells(plain) <= max {
-		return s
-	}
-	if max == 1 {
-		return "…"
-	}
-	target := max - 1
-	var b strings.Builder
-	n := 0
-	for _, r := range plain {
-		w := runeDisplayWidth(r)
-		if n+w > target {
-			break
-		}
-		b.WriteRune(r)
-		n += w
-	}
-	b.WriteRune('…')
-	return b.String()
+	return ansi.Truncate(s, max, "…")
 }
 
 func clampBannerColumns(innerW, colLeftW, termW int) (int, int, int) {
@@ -118,8 +56,8 @@ func clampBannerColumns(innerW, colLeftW, termW int) (int, int, int) {
 		return innerW, colLeftW, innerW - colLeftW - 1
 	}
 	maxInner := termW - 2
-	if maxInner < 8 {
-		maxInner = 8
+	if maxInner < 3 {
+		maxInner = 3
 	}
 	if innerW > maxInner {
 		innerW = maxInner
@@ -156,6 +94,10 @@ func PrintWelcomeBannerSized(out io.Writer, termW int, cfg *config.Root, model, 
 }
 
 func printWelcomeBanner(out io.Writer, termW int, cfg *config.Root, model, projHex, projRoot string, replShellFirst bool, updateNotice *updater.Notice) {
+	if termW > 0 && termW < 5 {
+		fmt.Fprintln(out, ellipsizeVisible("Solomon", termW))
+		return
+	}
 	welcomeOut := termcolor.WrapWhite("Welcome to ") + termcolor.WrapBoldGold("Solomon")
 	wWel := visibleCells(welcomeOut)
 	logoLines := logo.WelcomeLogoLines()
@@ -224,11 +166,11 @@ func printWelcomeBanner(out io.Writer, termW int, cfg *config.Root, model, projH
 	for i := range right {
 		right[i] = ellipsizeVisible(right[i], colRightW)
 	}
-	padL := colLeftW - 1 - wWel
+	padL := colLeftW - 1 - visibleCells(ellipsizeVisible(welcomeOut, colLeftW-1))
 	if padL < 0 {
 		padL = 0
 	}
-	fmt.Fprintln(out, borderPaint("┌")+borderPaint("─")+welcomeOut+borderPaint(strings.Repeat("─", padL)+"┬"+strings.Repeat("─", colRightW)+"┐"))
+	fmt.Fprintln(out, borderPaint("┌")+borderPaint("─")+ellipsizeVisible(welcomeOut, colLeftW-1)+borderPaint(strings.Repeat("─", padL)+"┬"+strings.Repeat("─", colRightW)+"┐"))
 	maxH := len(logoLines)
 	if len(right) > maxH {
 		maxH = len(right)
@@ -237,8 +179,8 @@ func printWelcomeBanner(out io.Writer, termW int, cfg *config.Root, model, projH
 		left := ""
 		lw := 0
 		if i < len(logoLines) {
-			left = logoLines[i].ANSI
-			lw = logoDisplayWidth(logoLines[i].Plain)
+			left = ansi.Truncate(logoLines[i].ANSI, colLeftW, "")
+			lw = visibleCells(left)
 		}
 		rpart := ""
 		if i < len(right) {

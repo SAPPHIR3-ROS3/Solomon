@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
@@ -585,7 +587,7 @@ func TestSlashRewind_cancelled(t *testing.T) {
 	if rewound {
 		t.Fatal("rewind should not run when cancelled")
 	}
-	out := buf.String()
+	out := ansi.Strip(buf.String())
 	if !strings.Contains(out, "rewind cancelled") {
 		t.Fatalf("output=%q", out)
 	}

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { go } from "@codemirror/lang-go";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { EditorView as CodeMirrorView, lineNumbers } from "@codemirror/view";
-import { tags } from "@lezer/highlight";
+import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
+import { cursorForeground } from "../syntax/cursorSyntax";
 import type { ChatToolCall, ChatToolResult } from "./chatTypes";
 import { CheckpointLabel } from "./ChatMessageParts";
 import { HammerIcon } from "./ChatIcons";
@@ -14,16 +13,7 @@ import { useStartToolCallsCollapsed } from "../settings/chatPreferences";
 
 const MISSING_TOOL_INTENT_LABEL = "Intent missing";
 
-const codeModeHighlightStyle = HighlightStyle.define([
-  { tag: [tags.keyword, tags.controlKeyword, tags.modifier, tags.operatorKeyword], color: "#77ddd1" },
-  { tag: [tags.typeName, tags.className, tags.namespace, tags.definition(tags.typeName)], color: "#7ee0d5" },
-  { tag: [tags.function(tags.variableName), tags.labelName], color: "#e8aa76" },
-  { tag: [tags.string, tags.special(tags.string)], color: "#e79be1" },
-  { tag: [tags.number, tags.bool, tags.null], color: "#e7c15f" },
-  { tag: tags.comment, color: "#7f8981" },
-  { tag: [tags.propertyName, tags.variableName], color: "#e1e4db" },
-  { tag: [tags.operator, tags.punctuation], color: "#eed85b" },
-]);
+
 
 
 function displayToolIntent(tool: ChatToolCall) {
@@ -256,11 +246,10 @@ function CodeModeSource({ source }: { source: string }) {
           CodeMirrorView.lineWrapping,
           EditorState.readOnly.of(true),
           CodeMirrorView.editable.of(false),
-          syntaxHighlighting(codeModeHighlightStyle, { fallback: true }),
-          go(),
+          ...cursorEditorHighlighting("go"),
           CodeMirrorView.theme(
             {
-              "&": { background: "transparent", color: "#dce6e9", height: "100%" },
+              "&": { background: "transparent", color: cursorForeground, height: "100%" },
               ".cm-scroller": { fontFamily: '\"Geist Mono\", \"SFMono-Regular\", \"Cascadia Code\", ui-monospace, monospace', overflow: "auto" },
               ".cm-content": { caretColor: "transparent", padding: "10px 0 11px" },
               ".cm-line": { padding: "0 12px 0 8px" },

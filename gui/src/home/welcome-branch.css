@@ -103,7 +103,7 @@
   padding: 6px;
   position: absolute;
   scrollbar-color: #34414a transparent;
-  scrollbar-width: thin;
+  scrollbar-width: var(--app-scrollbar-width, thin);
   width: 250px;
   z-index: 14;
 }

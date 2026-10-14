@@ -1,3 +1,4 @@
+import { fileIconName } from "../fileIcons";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, stageProjectChanges, unstageProjectChanges, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 import { useFileContextMenu } from "./FileContextMenu";
@@ -373,8 +374,8 @@ export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDire
       <div className="right-side-panel-file" key={entry.path}>
         <button
           aria-expanded={entry.isDirectory ? isExpanded : undefined}
-          aria-current={!entry.isDirectory && entry.path === selectedPath ? "page" : undefined}
-          className={`right-side-panel-file-row${!entry.isDirectory && entry.path === selectedPath ? " is-active" : ""}${status ? ` status-${status}` : ""}`}
+          aria-current={entry.path === selectedPath ? "true" : undefined}
+          className={`right-side-panel-file-row${entry.path === selectedPath ? " is-active" : ""}${status ? ` status-${status}` : ""}`}
           data-depth={depth}
           onClick={() => entry.isDirectory ? onToggleDirectory(entry) : onOpenFile?.(entry)}
           onContextMenu={(event) => contextMenu.open(event, entry)}
@@ -1068,134 +1069,6 @@ function ChatFolderIcon({ isOpen }: { isOpen: boolean }) {
   );
 }
 
-const fileIconsByExtension: Record<string, string> = {
-  "7z": "file_type_zip",
-  aac: "file_type_audio",
-  ai: "file_type_image",
-  aif: "file_type_audio",
-  aiff: "file_type_audio",
-  avif: "file_type_image",
-  avi: "file_type_video",
-  bash: "shell",
-  bmp: "file_type_image",
-  bz2: "file_type_zip",
-  c: "c",
-  cc: "cpp",
-  cjs: "javascript",
-  coffee: "javascript",
-  cpp: "cpp",
-  css: "css",
-  cs: "csharp",
-  csh: "shell",
-  csx: "csharp",
-  cts: "typescript",
-  cxx: "cpp",
-  csv: "file_type_excel",
-  dart: "dart",
-  db: "file_type_db",
-  doc: "file_type_word",
-  docx: "file_type_word",
-  flac: "file_type_audio",
-  gif: "file_type_image",
-  gz: "file_type_zip",
-  h: "c",
-  htm: "html",
-  html: "html",
-  hpp: "cpp",
-  hxx: "cpp",
-  heic: "file_type_image",
-  ico: "file_type_image",
-  jpeg: "file_type_image",
-  jpg: "file_type_image",
-  java: "java",
-  jl: "julia",
-  js: "javascript",
-  jsx: "javascript",
-  key: "file_type_powerpoint",
-  kt: "kotlin",
-  kts: "kotlin",
-  lua: "lua",
-  m4a: "file_type_audio",
-  m4v: "file_type_video",
-  mkv: "file_type_video",
-  mov: "file_type_video",
-  mjs: "javascript",
-  mts: "typescript",
-  mp3: "file_type_mp3",
-  mp4: "file_type_video",
-  ods: "file_type_excel",
-  odt: "file_type_word",
-  ogg: "file_type_audio",
-  pdf: "file_type_pdf",
-  php: "php",
-  phtml: "php",
-  png: "file_type_image",
-  ppt: "file_type_powerpoint",
-  pptx: "file_type_powerpoint",
-  psd: "file_type_image",
-  py: "python",
-  pyi: "python",
-  pyw: "python",
-  pyx: "python",
-  ps1: "shell",
-  rar: "file_type_zip",
-  rake: "ruby",
-  rb: "ruby",
-  rs: "rust",
-  sass: "css",
-  scss: "css",
-  sql: "file_type_db",
-  sqlite: "file_type_sqlite",
-  sqlite3: "file_type_sqlite",
-  svg: "file_type_image",
-  sh: "shell",
-  zsh: "shell",
-  ksh: "shell",
-  fish: "shell",
-  swift: "swift",
-  svelte: "svelte",
-  ts: "typescript",
-  tsx: "typescript",
-  vue: "vue",
-  xhtml: "html",
-  tar: "file_type_zip",
-  tiff: "file_type_image",
-  txt: "file_type_text",
-  wav: "file_type_audio",
-  webm: "file_type_video",
-  webp: "file_type_image",
-  xls: "file_type_excel",
-  xlsx: "file_type_excel",
-  xml: "file_type_xml",
-  xz: "file_type_zip",
-  yaml: "file_type_yaml",
-  yml: "file_type_yaml",
-  zip: "file_type_zip",
-};
-
-const fileIconsByName: Record<string, string> = {
-  ".gitignore": "git",
-  "go.mod": "go_package",
-  "go.sum": "go_package",
-  gnumakefile: "makefile",
-  licence: "license",
-  "licence.md": "license",
-  "licence.txt": "license",
-  license: "license",
-  "license.md": "license",
-  "license.txt": "license",
-  makefile: "makefile",
-};
-
 function FileIcon({ fileName }: { fileName: string }) {
-  const normalizedFileName = fileName.toLowerCase();
-  const extension = normalizedFileName.split(".").at(-1) ?? "";
-  const icon = fileIconsByName[normalizedFileName]
-    ?? (normalizedFileName.endsWith(".go") ? "go" : undefined)
-    ?? (normalizedFileName.endsWith(".json") ? "json" : undefined)
-    ?? (normalizedFileName.endsWith(".md") ? "markdown" : undefined)
-    ?? (normalizedFileName.endsWith(".env") || normalizedFileName === ".env" ? "env" : undefined)
-    ?? fileIconsByExtension[extension]
-    ?? "file";
-  return <img aria-hidden="true" className="right-side-panel-file-icon" src={`/vscode-icons/${icon}.svg`} />;
+  return <img aria-hidden="true" className="right-side-panel-file-icon" src={`/vscode-icons/${fileIconName(fileName)}.svg`} />;
 }

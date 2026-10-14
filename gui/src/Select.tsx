@@ -1,8 +1,13 @@
+import "./Select.css";
 import { useEffect, useId, useRef, useState } from "react";
 
 type Option = { value: string; label: string };
 
-export function Select({ label, value, options, placeholder, disabled = false, onChange }: {
+export function Select({ label, value, options, placeholder, disabled = false, onChange, id: controlID, describedBy, invalid, onBlur }: {
+  id?: string;
+  describedBy?: string;
+  invalid?: boolean;
+  onBlur?: () => void;
   label: string;
   value: string;
   options: Option[];
@@ -35,9 +40,9 @@ export function Select({ label, value, options, placeholder, disabled = false, o
   };
   return (
     <span className="shared-select" ref={root}>
-      <button ref={trigger} className="shared-select-trigger" type="button" role="combobox" aria-label={label} aria-expanded={open && !disabled} aria-haspopup="listbox" aria-controls={id} aria-activedescendant={open ? `${id}-option-${active}` : undefined} disabled={disabled}
+      <button id={controlID} aria-describedby={describedBy} aria-invalid={invalid} ref={trigger} className="shared-select-trigger" type="button" role="combobox" aria-label={label} aria-expanded={open && !disabled} aria-haspopup="listbox" aria-controls={id} aria-activedescendant={open ? `${id}-option-${active}` : undefined} disabled={disabled}
         onClick={() => { setActive(Math.max(0, selected)); setOpen(!open); }}
-        onBlur={(event) => { if (!root.current?.contains(event.relatedTarget)) setOpen(false); }}
+        onBlur={(event) => { if (!root.current?.contains(event.relatedTarget)) { setOpen(false); onBlur?.(); } }}
         onKeyDown={(event) => {
           if (event.key === "Escape") { event.preventDefault(); setOpen(false); }
           else if (event.key === "ArrowDown" || event.key === "ArrowUp") {

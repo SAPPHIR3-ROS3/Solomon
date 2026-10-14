@@ -18,20 +18,22 @@ func handleGUISettings(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, gui)
 	case http.MethodPatch:
-		var request struct {
-			Chat config.GUIChatSettings `json:"chat"`
-		}
+		var request config.GUISettingsPatch
 		if err := decodeJSONBody(w, r, &request, 4096); err != nil {
 			writeAPIError(w, http.StatusBadRequest, err)
 			return
 		}
-		if request.Chat.AutoCloseToolCalls == nil && request.Chat.StartToolCallsCollapsed == nil && request.Chat.StartReasoningCollapsed == nil {
-			writeAPIError(w, http.StatusBadRequest, errors.New("at least one chat preference is required"))
+		if err := request.Validate(); err != nil {
+			writeAPIError(w, http.StatusBadRequest, err)
 			return
 		}
-		gui, err := config.UpdateGUIChatSettings(request.Chat)
+		gui, err := config.UpdateGUIPreferences(request)
 		if err != nil {
-			writeAPIError(w, http.StatusInternalServerError, err)
+			status := http.StatusInternalServerError
+			if errors.Is(err, config.ErrInvalidServerDevelopment) {
+				status = http.StatusBadRequest
+			}
+			writeAPIError(w, status, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, gui)

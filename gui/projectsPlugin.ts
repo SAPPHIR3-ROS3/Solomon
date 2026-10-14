@@ -1058,8 +1058,17 @@ export function projectsPlugin(): Plugin {
 
 async function projectFileOperation(projectID: string, payload: unknown) {
   const request = payload as { action?: string; path?: string; destination?: string } | null;
-  if (!request || !["rename", "delete", "copy", "move"].includes(request.action ?? "") || typeof request.path !== "string") throw new Error("Invalid file action");
+  if (!request || !["rename", "delete", "copy", "move", "create-file", "create-folder"].includes(request.action ?? "") || typeof request.path !== "string") throw new Error("Invalid file action");
   const root = await projectFilePath(projectID, ".");
+  if (request.action === "create-file" || request.action === "create-folder") {
+    const name = path.normalize(request.path);
+    if (!request.path.trim() || path.isAbsolute(name) || name === "." || name === ".." || name.startsWith(`..${path.sep}`)) throw new Error("Invalid new entry path");
+    const parent = await projectFilePath(projectID, path.dirname(name));
+    const target = path.join(parent, path.basename(name));
+    if (request.action === "create-folder") await mkdir(target);
+    else await writeFile(target, "", { flag: "wx" });
+    return;
+  }
   await projectFilePath(projectID, request.path);
   const source = path.resolve(root, request.path);
   if (source === root) throw new Error("Cannot modify workspace root");

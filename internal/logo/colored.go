@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/rivo/uniseg"
 )
 
 const (
@@ -27,10 +28,15 @@ type LogoLine struct {
 }
 
 func WelcomeLogoLines() []LogoLine {
-	raw := strings.ReplaceAll(ASCII, "\r\n", "\n")
+	raw, colors := welcomeSource()
+	return renderLogoLines(raw, colors)
+}
+
+func renderLogoLines(raw, colors string) []LogoLine {
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 	txtParts := strings.Split(strings.TrimRight(raw, "\n"), "\n")
 
-	colorRaw := strings.ReplaceAll(ColorsRaw, "\r\n", "\n")
+	colorRaw := strings.ReplaceAll(colors, "\r\n", "\n")
 	colorParts := strings.Split(strings.TrimRight(colorRaw, "\n"), "\n")
 
 	out := make([]LogoLine, len(txtParts))
@@ -38,16 +44,22 @@ func WelcomeLogoLines() []LogoLine {
 		plainTrimmed := strings.TrimRightFunc(txtLine, func(r rune) bool {
 			return r == '\u2800' || r == ' '
 		})
-		runes := []rune(plainTrimmed)
-		hexes := parseColorRow(colorParts[i])
+		var hexes []string
+		if i < len(colorParts) {
+			hexes = parseColorRow(colorParts[i])
+		}
 
 		var ab strings.Builder
-		for j, r := range runes {
+		graphemes := uniseg.NewGraphemes(plainTrimmed)
+		j := 0
+		for graphemes.Next() {
 			if j < len(hexes) && hexes[j] != "" {
 				r2, g2, b2 := enhanceLogoRGB(parseHexRGB(hexes[j]))
 				ab.WriteString(termcolor.ForegroundRGB(r2, g2, b2))
 			}
-			ab.WriteRune(r)
+			// Keep combining marks and emoji sequences together for terminal width.
+			ab.WriteString(graphemes.Str())
+			j += len(graphemes.Runes())
 		}
 
 		out[i] = LogoLine{Plain: plainTrimmed, ANSI: ab.String() + termcolor.ResetSeq()}

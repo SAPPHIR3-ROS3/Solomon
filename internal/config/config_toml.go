@@ -59,7 +59,8 @@ type rootLegacyFile struct {
 
 	CompactionThresholdTokens int64 `toml:"compaction_threshold_tokens"`
 
-	ServerPort int `toml:"server_port,omitempty"`
+	Server     ServerSettings `toml:"server,omitempty"`
+	ServerPort int            `toml:"server_port,omitempty"`
 
 	SkillSearchMinNorm *float64 `toml:"skill_search_min_normalized_score,omitempty"`
 
@@ -128,7 +129,8 @@ type rootFile struct {
 
 	CompactionThresholdTokens int64 `toml:"compaction_threshold_tokens"`
 
-	ServerPort int `toml:"server_port,omitempty"`
+	Server     ServerSettings `toml:"server,omitempty"`
+	ServerPort int            `toml:"server_port,omitempty"`
 
 	SkillSearchMinNorm *float64 `toml:"skill_search_min_normalized_score,omitempty"`
 
@@ -223,6 +225,7 @@ func rootFromFile(f *rootFile) *Root {
 
 		CompactionThresholdTokens: f.CompactionThresholdTokens,
 
+		Server:     f.Server,
 		ServerPort: f.ServerPort,
 
 		SkillSearchMinNorm: f.SkillSearchMinNorm,
@@ -312,6 +315,7 @@ func rootToFile(r *Root) *rootFile {
 
 		CompactionThresholdTokens: r.CompactionThresholdTokens,
 
+		Server: r.Server,
 		ServerPort: func() int {
 			if r.ServerPort == 0 {
 				return DefaultServerPort
@@ -442,6 +446,7 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 
 		CompactionThresholdTokens: f.CompactionThresholdTokens,
 
+		Server:     f.Server,
 		ServerPort: f.ServerPort,
 
 		SkillSearchMinNorm: f.SkillSearchMinNorm,

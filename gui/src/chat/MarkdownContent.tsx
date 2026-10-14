@@ -1,4 +1,6 @@
-import { isValidElement, type ReactNode, useState } from "react";
+import { highlightCursorCode, cursorForeground } from "../syntax/cursorSyntax";
+import type { ThemedToken } from "@shikijs/types";
+import { isValidElement, type ReactNode, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -39,6 +41,15 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   const code = textFromNode(children);
   const codeLines = code.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
   const language = codeLanguageFromNode(children);
+  const [highlighted, setHighlighted] = useState<{ source: string; language: string; tokens: ThemedToken[][] }>();
+  useEffect(() => {
+    let cancelled = false;
+    void highlightCursorCode(code.replace(/\r\n/g, "\n").replace(/\n$/, ""), language ?? "text").then(tokens => {
+      if (!cancelled) setHighlighted({ source: code, language: language ?? "text", tokens });
+    }).catch(error => console.error("Unable to highlight code snippet", error));
+    return () => { cancelled = true; };
+  }, [code, language]);
+  const tokens = highlighted?.source === code && highlighted.language === (language ?? "text") ? highlighted.tokens : undefined;
 
   async function copyCode() {
     try {
@@ -69,7 +80,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           {codeLines.map((line, index) => (
             <span className="chat-code-line" key={index}>
               <span aria-hidden="true" className="chat-line-number">{index + 1}</span>
-              <span className="chat-line-content">{line || " "}</span>
+              <span className="chat-line-content">{tokens?.[index]?.length ? tokens[index].map((token, tokenIndex) => <span key={tokenIndex} style={{ color: token.color ?? cursorForeground, fontStyle: (token.fontStyle ?? 0) & 1 ? "italic" : "normal", fontWeight: (token.fontStyle ?? 0) & 2 ? 700 : 400, textDecoration: (token.fontStyle ?? 0) & 4 ? "underline" : "none" }}>{token.content}</span>) : line || " "}</span>
             </span>
           ))}
         </code>

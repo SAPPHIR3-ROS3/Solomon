@@ -1,0 +1,1 @@
+{"name":"cursor:source.ignore","scopeName":"source.ignore","patterns":[{"match":"^#.*","name":"comment.line.number-sign.ignore"}]}

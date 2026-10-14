@@ -13,11 +13,11 @@ import (
 
 func main() {
 	var request struct {
-		Action   string                 `json:"action"`
-		Chat     config.GUIChatSettings `json:"chat"`
-		Provider string                 `json:"provider"`
-		Model    string                 `json:"model"`
-		Enabled  *bool                  `json:"enabled"`
+		Action string `json:"action"`
+		config.GUISettingsPatch
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+		Enabled  *bool  `json:"enabled"`
 	}
 	if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
 		fail(err)
@@ -28,7 +28,7 @@ func main() {
 	case "read":
 		settings, err = config.ReadGUISettings()
 	case "patch":
-		settings, err = config.UpdateGUIChatSettings(request.Chat)
+		settings, err = config.UpdateGUIPreferences(request.GUISettingsPatch)
 	case "visibility":
 		if request.Enabled == nil {
 			fail(fmt.Errorf("enabled is required"))

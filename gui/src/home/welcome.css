@@ -199,7 +199,7 @@
   padding: 6px;
   position: absolute;
   scrollbar-color: var(--color-border) transparent;
-  scrollbar-width: thin;
+  scrollbar-width: var(--app-scrollbar-width, thin);
   top: calc(100% + 8px);
   width: 304px;
   z-index: 3;
@@ -713,7 +713,7 @@
   overflow-y: hidden;
   position: relative;
   scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  scrollbar-width: var(--app-scrollbar-width, thin);
   z-index: 1;
 }
 

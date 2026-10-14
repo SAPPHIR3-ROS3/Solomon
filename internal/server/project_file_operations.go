@@ -33,12 +33,31 @@ func (a *projectAPI) handleProjectFileOperation(w http.ResponseWriter, r *http.R
 }
 
 func performProjectFileOperation(root string, request projectFileOperation) error {
-	if request.Action != "rename" && request.Action != "delete" && request.Action != "copy" && request.Action != "move" {
+	if request.Action != "rename" && request.Action != "delete" && request.Action != "copy" && request.Action != "move" && request.Action != "create-file" && request.Action != "create-folder" {
 		return errors.New("invalid file action")
 	}
 	root, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return err
+	}
+	if request.Action == "create-file" || request.Action == "create-folder" {
+		name := filepath.Clean(request.Path)
+		if strings.TrimSpace(request.Path) == "" || filepath.IsAbs(name) || name == "." || name == ".." || strings.HasPrefix(name, ".."+string(filepath.Separator)) {
+			return errors.New("invalid new entry path")
+		}
+		parent, err := safeWorkspacePath(root, filepath.Dir(name))
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(parent, filepath.Base(name))
+		if request.Action == "create-folder" {
+			return os.Mkdir(target, 0755)
+		}
+		file, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		if err != nil {
+			return err
+		}
+		return file.Close()
 	}
 	source, err := safeWorkspacePath(root, request.Path)
 	if err != nil {

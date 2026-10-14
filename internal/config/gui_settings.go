@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/gofrs/flock"
@@ -14,9 +15,52 @@ import (
 // GUISettings follows the sections in the Settings page. Provider credentials
 // and runtime model selection remain in their existing backend sections.
 type GUISettings struct {
-	Chat   GUIChatSettings  `toml:"chat" json:"chat"`
-	Models GUIModelSettings `toml:"models" json:"models"`
-	Docs   struct{}         `toml:"docs" json:"docs"`
+	General  GUIGeneralSettings `toml:"-" json:"general"`
+	Advanced map[string]any     `toml:"-" json:"advanced"`
+	Chat     GUIChatSettings    `toml:"chat" json:"chat"`
+	Models   GUIModelSettings   `toml:"models" json:"models"`
+	Docs     struct{}           `toml:"docs" json:"docs"`
+}
+
+// General settings expose runtime preferences without duplicating their TOML storage.
+type GUIGeneralSettings struct {
+	UserName         string `json:"userName"`
+	ResponseLanguage string `json:"responseLanguage"`
+}
+
+type GUIGeneralPatch struct {
+	UserName         *string `json:"userName"`
+	ResponseLanguage *string `json:"responseLanguage"`
+}
+
+type GUISettingsPatch struct {
+	Advanced map[string]json.RawMessage `json:"advanced"`
+	General  *GUIGeneralPatch           `json:"general"`
+	Chat     GUIChatSettings            `json:"chat"`
+}
+
+func (patch GUISettingsPatch) Validate() error {
+	if patch.General != nil {
+		if patch.General.UserName == nil && patch.General.ResponseLanguage == nil {
+			return fmt.Errorf("at least one general preference is required")
+		}
+		for name, value := range map[string]*string{"user name": patch.General.UserName, "response language": patch.General.ResponseLanguage} {
+			if value == nil {
+				continue
+			}
+			text := strings.TrimSpace(*value)
+			if text == "" || len(text) > 256 || strings.ContainsAny(text, "\r\n\x00") {
+				return fmt.Errorf("%s requires a nonempty single-line string of at most 256 bytes", name)
+			}
+		}
+	}
+	if err := validateGUIAdvancedSettings(patch.Advanced); err != nil {
+		return err
+	}
+	if patch.General == nil && len(patch.Advanced) == 0 && patch.Chat.AutoCloseToolCalls == nil && patch.Chat.StartToolCallsCollapsed == nil && patch.Chat.StartReasoningCollapsed == nil {
+		return fmt.Errorf("at least one preference is required")
+	}
+	return nil
 }
 
 type GUIChatSettings struct {
@@ -81,10 +125,16 @@ func guiSettingsFromBytes(data []byte) (GUISettings, error) {
 	if file.GUI.Models.HiddenModels == nil {
 		file.GUI.Models.HiddenModels = map[string][]string{}
 	}
+	var runtime Root
+	if err := toml.Unmarshal(data, &runtime); err != nil {
+		return GUISettings{}, err
+	}
+	file.GUI.General = GUIGeneralSettings{UserName: runtime.UserName, ResponseLanguage: runtime.EffectiveResponseLanguage()}
+	file.GUI.Advanced = guiAdvancedValues(&runtime)
 	return file.GUI, nil
 }
 
-// updateGUISettings changes only the GUI subtree and preserves unknown backend
+// updateGUISettings applies targeted preferences and preserves unknown backend
 // keys. It shares the lock with other targeted config writers.
 func updateGUISettings(mutate func(*GUISettings, map[string]any) error) (GUISettings, error) {
 	path, err := paths.ConfigPath()
@@ -169,18 +219,75 @@ func updateGUISettings(mutate func(*GUISettings, map[string]any) error) (GUISett
 }
 
 func UpdateGUIChatSettings(patch GUIChatSettings) (GUISettings, error) {
-	if patch.AutoCloseToolCalls == nil && patch.StartToolCallsCollapsed == nil && patch.StartReasoningCollapsed == nil {
-		return GUISettings{}, fmt.Errorf("at least one chat preference is required")
+	return UpdateGUIPreferences(GUISettingsPatch{Chat: patch})
+}
+
+func UpdateGUIPreferences(patch GUISettingsPatch) (GUISettings, error) {
+	if err := patch.Validate(); err != nil {
+		return GUISettings{}, err
 	}
-	return updateGUISettings(func(gui *GUISettings, _ map[string]any) error {
-		if patch.AutoCloseToolCalls != nil {
-			gui.Chat.AutoCloseToolCalls = patch.AutoCloseToolCalls
+	return updateGUISettings(func(gui *GUISettings, document map[string]any) error {
+		if patch.General != nil {
+			if patch.General.ResponseLanguage != nil {
+				language := strings.TrimSpace(*patch.General.ResponseLanguage)
+				document["response_language"] = language
+				gui.General.ResponseLanguage = language
+			}
+			if patch.General.UserName != nil {
+				name := strings.TrimSpace(*patch.General.UserName)
+				document["user_name"] = name
+				gui.General.UserName = name
+			}
 		}
-		if patch.StartToolCallsCollapsed != nil {
-			gui.Chat.StartToolCallsCollapsed = patch.StartToolCallsCollapsed
+		for key, raw := range patch.Advanced {
+			var value any
+			if key == "server.dev_mode" {
+				var enabled bool
+				_ = json.Unmarshal(raw, &enabled)
+				value = enabled
+			} else if key == "server.dev_directory" {
+				var directory string
+				_ = json.Unmarshal(raw, &directory)
+				directory = strings.TrimSpace(directory)
+
+				value = directory
+			} else if key == "log_level" {
+				var level string
+				_ = json.Unmarshal(raw, &level)
+				value = strings.ToLower(strings.TrimSpace(level))
+			} else {
+				var number int64
+				_ = json.Unmarshal(raw, &number)
+				value = number
+			}
+			if strings.Contains(key, ".") {
+				section, field, _ := strings.Cut(key, ".")
+				subtree, _ := document[section].(map[string]any)
+				if subtree == nil {
+					subtree = map[string]any{}
+				}
+				subtree[field] = value
+				document[section] = subtree
+			} else {
+				document[key] = value
+			}
+			gui.Advanced[key] = value
 		}
-		if patch.StartReasoningCollapsed != nil {
-			gui.Chat.StartReasoningCollapsed = patch.StartReasoningCollapsed
+		_, modeChanged := patch.Advanced["server.dev_mode"]
+		_, directoryChanged := patch.Advanced["server.dev_directory"]
+		if (modeChanged || directoryChanged) && gui.Advanced["server.dev_mode"] == true {
+			if _, err := ValidateDevDirectory(gui.Advanced["server.dev_directory"].(string)); err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidServerDevelopment, err)
+			}
+		}
+		if patch.Chat.AutoCloseToolCalls != nil {
+			gui.Chat.AutoCloseToolCalls = patch.Chat.AutoCloseToolCalls
+		}
+		if patch.Chat.StartToolCallsCollapsed != nil {
+			gui.Chat.StartToolCallsCollapsed = patch.Chat.StartToolCallsCollapsed
+		}
+		if patch.Chat.StartReasoningCollapsed != nil {
+			gui.Chat.StartReasoningCollapsed = patch.Chat.StartReasoningCollapsed
 		}
 		return nil
 	})

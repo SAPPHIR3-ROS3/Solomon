@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server/detach"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
@@ -52,6 +53,11 @@ func Run(args []string) error {
 		if state, err := serverruntime.LoadRunningState(context.Background()); err == nil {
 			mode, devDir = state.Mode, state.DevDir
 		}
+		var err error
+		mode, devDir, err = config.ResolveServerDevelopment(mode, devDir)
+		if err != nil {
+			return err
+		}
 		if err := stop(); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
@@ -75,10 +81,13 @@ func usage() {
 
 func parseStart(args []string) (string, string, error) {
 	if len(args) == 0 {
+		return config.ResolveServerDevelopment("normal", "")
+	}
+	if len(args) == 1 && args[0] == "normal" {
 		return "normal", "", nil
 	}
 	if len(args) != 2 || args[0] != "dev" {
-		return "", "", fmt.Errorf("usage: solomon server start [dev <gui-directory>]")
+		return "", "", fmt.Errorf("usage: solomon server start [normal|dev <gui-directory>]")
 	}
 	directory, err := validateDevDirectory(args[1])
 	if err != nil {
@@ -89,6 +98,9 @@ func parseStart(args []string) (string, string, error) {
 
 func parseRun(args []string) (string, string, error) {
 	if len(args) == 0 {
+		return config.ResolveServerDevelopment("normal", "")
+	}
+	if len(args) == 1 && args[0] == "normal" {
 		return "normal", "", nil
 	}
 	if len(args) == 2 && args[0] == "dev" {
@@ -98,17 +110,7 @@ func parseRun(args []string) (string, string, error) {
 }
 
 func validateDevDirectory(raw string) (string, error) {
-	directory, err := filepath.Abs(raw)
-	if err != nil {
-		return "", err
-	}
-	for _, required := range []string{"package.json", "src"} {
-		info, err := os.Stat(filepath.Join(directory, required))
-		if err != nil || (required == "src" && !info.IsDir()) {
-			return "", fmt.Errorf("development GUI directory is invalid: missing %s in %s", required, directory)
-		}
-	}
-	return directory, nil
+	return config.ValidateDevDirectory(raw)
 }
 
 func start(mode, devDir string) error {
@@ -140,6 +142,8 @@ func start(mode, devDir string) error {
 	args := []string{"server", "run"}
 	if mode == "dev" {
 		args = append(args, "dev", devDir)
+	} else {
+		args = append(args, "normal")
 	}
 	cmd := exec.Command(executable, args...)
 	cmd.Stdin = nil

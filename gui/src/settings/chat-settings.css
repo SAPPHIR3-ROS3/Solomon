@@ -1,3 +1,130 @@
+.settings-language-row {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.settings-language-row > .settings-model-row-copy {
+  flex: 1 1 240px;
+}
+
+.settings-language-controls {
+  align-items: center;
+  display: flex;
+  flex: 0 1 220px;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 100%;
+  width: 220px;
+}
+
+.settings-language-controls > .settings-input {
+  flex: 0 1 220px;
+  min-width: 0;
+  width: 220px;
+  max-width: 100%;
+  position: relative;
+}
+
+.settings-input > input,
+.settings-input .shared-select-trigger {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-sizing: border-box;
+  color: var(--color-text);
+  font: 13px/1.4 "Geist", ui-sans-serif, system-ui, sans-serif;
+  height: 34px;
+  min-width: 0;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.settings-input > input:hover,
+.settings-input .shared-select-trigger:hover {
+  border-color: var(--color-text-muted);
+}
+
+.settings-input > input:focus-visible,
+.settings-input .shared-select-trigger:focus-visible {
+  border-color: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.settings-input > input:disabled {
+  opacity: .6;
+}
+
+.settings-input.has-suggestions > input {
+  padding-right: 32px;
+}
+
+.settings-input.is-numeric > input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  padding-right: 68px;
+}
+
+.settings-input > input::-webkit-inner-spin-button,
+.settings-input > input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.settings-input-action {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 26px;
+  justify-content: center;
+  padding: 0;
+  width: 26px;
+}
+
+.settings-input-action:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.settings-input-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.settings-input-action:disabled {
+  cursor: default;
+  opacity: .4;
+}
+
+.settings-input-action svg {
+  fill: none;
+  height: 14px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  width: 14px;
+}
+
+.settings-input-expand,
+.settings-input-stepper {
+  align-items: center;
+  display: flex;
+  gap: 2px;
+  position: absolute;
+  right: 4px;
+  top: 4px;
+}
+
 .settings-chat-error {
   align-items: center;
   background: var(--color-surface-raised);
@@ -42,4 +169,23 @@
 .settings-chat-retry:disabled {
   cursor: wait;
   opacity: .6;
+}
+
+.settings-save-status {
+  color: var(--color-text-muted);
+  font: 11px/1.4 "Geist", sans-serif;
+  max-width: 190px;
+}
+
+.settings-save-status:empty {
+  display: none;
+}
+
+.settings-language-row {
+  padding: 12px 0;
+}
+
+.settings-input > input[aria-invalid="true"],
+.settings-input .shared-select-trigger[aria-invalid="true"] {
+  border-color: var(--color-text-muted);
 }

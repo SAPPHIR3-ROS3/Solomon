@@ -47,6 +47,23 @@ test("development API copies, renames, moves and deletes files without overwriti
   assert.equal(await readFile(path.join(workspace, "original.txt"), "utf8"), "content");
 });
 
+test("development API creates entries without overwriting or escaping the workspace", async () => {
+  assert.equal((await operate({ action: "create-folder", path: "new-folder" })).status, 200);
+  assert.equal((await operate({ action: "create-file", path: "new-folder/new.txt" })).status, 200);
+  const file = path.join(workspace, "new-folder", "new.txt");
+  assert.equal(await readFile(file, "utf8"), "");
+  await writeFile(file, "preserve");
+  const outside = path.join(fixture, "creation-outside");
+  await mkdir(outside);
+  await symlink(outside, path.join(workspace, "creation-escape"), "dir");
+  for (const action of ["create-file", "create-folder"]) {
+    for (const entryPath of ["new-folder/new.txt", "new-folder", ".", "..", "../escape.txt", path.join(outside, "absolute.txt"), "missing/new.txt", "creation-escape/new.txt"]) {
+      assert.equal((await operate({ action, path: entryPath })).status, 400, `${action}: ${entryPath}`);
+    }
+  }
+  assert.equal(await readFile(file, "utf8"), "preserve");
+});
+
 test("development API rejects workspace deletion and escaping destinations", async () => {
   for (const operation of [
     { action: "delete", path: "." },

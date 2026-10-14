@@ -14,7 +14,7 @@
 .editor-root>svg { color:var(--color-accent); }
 .editor-root span { min-width:0;margin-left:auto;display:flex;align-items:center;gap:4px;overflow:hidden;text-overflow:ellipsis;color:var(--color-text-muted);font-size:9px; }
 .editor-root span svg { color:var(--color-success); }
-.editor-tree { min-height:0;flex:1;overflow:auto;padding:2px 8px 12px;scrollbar-width:thin;scrollbar-color:var(--color-border) transparent; }
+.editor-tree { min-height:0;flex:1;overflow:auto;padding:2px 8px 12px;scrollbar-width: var(--app-scrollbar-width, thin);scrollbar-color:var(--color-border) transparent; }
 .editor-tree-row { width:100%;height:27px;padding-right:7px;display:flex;align-items:center;gap:6px;border:0;border-radius:5px;background:transparent;color:color-mix(in srgb,var(--color-text) 80%,var(--color-text-muted));font-size:10px;text-align:left; }
 .editor-tree-row:hover { background:color-mix(in srgb,var(--color-surface-raised) 70%,transparent);color:var(--color-text); }
 .editor-tree-row>span:not(.tree-spacer) { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
@@ -72,8 +72,10 @@
 .editor-tree-row svg:nth-child(2) { color:inherit; }
 .editor-tree-row>i.status-modified,.editor-git i.status-modified { color:#e6b256; }.editor-tree-row>i.status-added,.editor-git i.status-added { color:#6fd39c; }.editor-tree-row>i.status-deleted,.editor-git i.status-deleted { color:#ff8179; }.editor-tree-row>i.status-renamed,.editor-git i.status-renamed { color:#8ebcf2; }
 .editor-workbench { grid-template-rows:10px 46px 36px minmax(0,1fr);background:#0b0f13; }
-.editor-tabs-shell { grid-row:2; height:46px;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:transparent transparent;background:linear-gradient(to bottom,transparent 36px,#111820 36px); }
+.editor-tabs-shell { grid-row:2; height:46px;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width: var(--app-scrollbar-width, thin);scrollbar-color:transparent transparent;background:linear-gradient(to bottom,transparent 36px,#111820 36px); }
 .editor-tabs-shell:hover { scrollbar-color:#2c3942 transparent; }
+.editor-tabs-shell::-webkit-scrollbar-thumb { background-color:transparent; }
+.editor-tabs-shell:hover::-webkit-scrollbar-thumb { background-color:var(--color-border); }
 .editor-tabs { width:max-content;min-width:100%;height:36px;padding:0 12px;align-items:stretch;overflow:visible;border:0;background:transparent; }
 .editor-tab { position:relative;min-width:142px;max-width:238px;height:36px;flex:0 0 auto;display:flex;align-items:stretch;overflow:hidden;border:0!important;border-radius:5px 5px 0 0;color:#74818a; }
 .editor-tab:hover { background:#ffffff08;color:#c7d2d8; }.editor-tab.active { background:#111820!important;color:#f0f5f6;box-shadow:inset 0 2px var(--color-accent); }
@@ -235,6 +237,11 @@
 .editor-root { color:var(--color-text); }
 .editor-root-identity > svg { color:var(--color-text-muted); }
 .editor-root-identity:hover { color:var(--color-text); }
+.editor-create-actions { display:flex; flex:none; align-items:center; gap:2px; }
+.editor-create-actions button { display:grid; place-items:center; width:24px; height:24px; padding:0; border:0; border-radius:4px; background:transparent; color:var(--color-text-muted); cursor:pointer; }
+.editor-create-actions button:hover { background:var(--color-surface-raised); color:var(--color-text); }
+.editor-create-actions button:focus-visible { outline:2px solid var(--focus-ring); outline-offset:1px; }
+.editor-create-actions button svg { width:16px; height:16px; }
 .editor-branch { color:var(--color-text-muted); }
 .editor-branch:hover { border-color:var(--color-border); background:var(--color-surface-raised); color:var(--color-text); }
 .editor-branch svg:first-child { color:var(--color-success); }
@@ -295,7 +302,7 @@
 .editor-git-graph li { color:var(--color-text); }
 .editor-git-graph li>svg { stroke:var(--color-success); }.editor-git-graph li>svg circle { fill:var(--color-surface); }
 .editor-git-graph li>small { color:var(--color-text-muted); }.editor-git-graph li>small.branch { background:var(--color-info); color:var(--color-text); }
-.editor-file-list { display:block; flex:1; min-height:0; overflow-x:hidden; overflow-y:auto; padding:4px 8px 12px; scrollbar-color:var(--color-border) transparent; scrollbar-width:thin; }
+.editor-file-list { display:block; flex:1; min-height:0; overflow-x:hidden; overflow-y:auto; padding:4px 8px 12px; scrollbar-color:var(--color-border) transparent; scrollbar-width: var(--app-scrollbar-width, thin); }
 .editor-file-list .right-side-panel-file-children { border-left-color:var(--color-border); }
 .editor-git-host { display:flex; flex:1; min-height:0; overflow:hidden; background:var(--color-surface); }
 .editor-git-host .right-side-panel-history { width:100%; }
@@ -324,34 +331,37 @@
   padding:0 10px;
   gap:8px;
 }
-.editor-side-panel-files-shell { min-height:0; }
+.editor-sidebar { min-width:0; }
+.editor-side-panel-files-shell { min-width:0; min-height:0; }
 .editor-file-list {
   height:100%;
   margin:0;
   padding:4px 8px 12px;
   scrollbar-gutter:stable;
 }
-.editor-folder-row { box-sizing:border-box; height:33px; min-height:33px; margin:0 10px; padding:0 6px; }
-.editor-root-identity { min-width:0; display:flex; align-items:center; gap:7px; padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; }
+.editor-folder-row { box-sizing:border-box; height:33px; min-height:33px; min-width:0; flex:none; margin:0 8px; padding:0; }
+.editor-root-identity { min-width:0; flex:1; display:flex; align-items:center; gap:7px; padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; }
 .editor-root-identity > svg { width:12px; color:var(--color-text-muted); transition:transform .14s ease; }
 .editor-root-identity > svg.open { transform:rotate(90deg); }
 .editor-root-identity strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .editor-root-identity:hover { color:var(--color-text); }
-.editor-branch-control { position:relative; min-width:0; margin-left:auto; }
-.editor-branch { max-width:150px; height:24px; padding:0 6px; display:flex; align-items:center; gap:7px; overflow:hidden; border:1px solid transparent; border-radius:5px; background:transparent; color:var(--color-text-muted); cursor:pointer; font:9px "Geist Mono",ui-monospace,monospace; }
+.editor-branch-control { position:relative; min-width:0; max-width:min(50%, 300px); flex:0 1 auto; margin-left:0; }
+.editor-branch { width:100%; min-width:0; max-width:150px; height:24px; padding:0 2px; display:flex; align-items:center; gap:7px; overflow:hidden; border:1px solid transparent; border-radius:5px; background:transparent; color:var(--color-text-muted); cursor:pointer; font:9px "Geist Mono",ui-monospace,monospace; }
 .editor-branch:hover,.editor-branch[aria-expanded="true"] { border-color:var(--color-border); background:var(--color-surface-raised); color:var(--color-text); }
 .editor-branch:disabled { cursor:wait; opacity:.7; }
 .editor-branch svg:first-child { width:14px; height:14px; color:var(--color-success); stroke-width:1.7; flex:none; }
 .editor-branch svg:last-child { width:11px; height:11px; margin-left:-3px; color:var(--color-text-muted); transition:transform .14s ease; flex:none; }
 .editor-branch svg:last-child.open { transform:rotate(180deg); }
 .editor-branch span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.editor-branch-menu { position:absolute; z-index:14; top:31px; left:0; width:max-content; min-width:100%; padding:5px; border:1px solid var(--color-border); border-radius:9px; background:var(--color-canvas); box-shadow:0 14px 32px rgb(0 0 0 / 45%); backdrop-filter:blur(22px); }
-.editor-branch-menu button { width:max-content; min-width:100%; height:30px; padding:0 7px; display:grid; grid-template-columns:16px max-content 13px; align-items:center; gap:6px; border:0; border-radius:6px; background:transparent; color:var(--color-text-muted); cursor:pointer; font:10px "Geist Mono",ui-monospace,monospace; text-align:left; }
+.editor-status .editor-branch { max-width:100%; height:22px; margin:0; }
+.editor-status .editor-branch > span { display:block; color:inherit; }
+.editor-branch-menu { position:absolute; z-index:14; bottom:calc(100% + 5px); left:0; width:max-content; min-width:100%; max-width:calc(100vw - 24px); max-height:min(320px, calc(100dvh - 80px)); overflow:auto; scrollbar-width:var(--app-scrollbar-width, thin); padding:5px; border:1px solid var(--color-border); border-radius:9px; background:var(--color-canvas); box-shadow:0 14px 32px rgb(0 0 0 / 45%); backdrop-filter:blur(22px); }
+.editor-branch-menu button { width:100%; height:30px; padding:0 7px; display:grid; grid-template-columns:16px minmax(0,1fr) 13px; align-items:center; gap:6px; border:0; border-radius:6px; background:transparent; color:var(--color-text-muted); cursor:pointer; font:10px "Geist Mono",ui-monospace,monospace; text-align:left; }
 .editor-branch-menu button:hover { background:var(--color-surface-raised); color:var(--color-text); }
 .editor-branch-menu button[aria-selected="true"] { background:color-mix(in srgb,var(--color-accent) 18%,var(--color-surface)); color:var(--color-text); }
 .editor-branch-menu button svg { width:13px; height:13px; color:var(--color-success); stroke-width:1.7; }
 .editor-branch-menu button svg:last-child { color:var(--color-accent); }
-.editor-branch-menu button span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.editor-status .editor-branch-menu button span { display:block; justify-self:stretch; color:inherit; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .editor-branch-menu button b { color:var(--color-success); font-weight:600; text-align:right; }
 .editor-branch-menu > span { display:block; padding:5px 7px; color:var(--color-text-muted); font:10px "Geist Mono",ui-monospace,monospace; white-space:nowrap; }
 .editor-tab-trigger { cursor:pointer; }

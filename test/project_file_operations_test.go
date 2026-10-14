@@ -86,6 +86,33 @@ func TestProjectFileOperations(t *testing.T) {
 	}
 }
 
+func TestProjectFileCreation(t *testing.T) {
+	root := t.TempDir()
+	endpoint := projectFileOperationEndpoint(t, root)
+	runProjectFileOperation(t, endpoint, projectFileOperationRequest{Action: "create-folder", Path: "new-folder"}, http.StatusOK)
+	runProjectFileOperation(t, endpoint, projectFileOperationRequest{Action: "create-file", Path: "new-folder/new.txt"}, http.StatusOK)
+	file := filepath.Join(root, "new-folder", "new.txt")
+	if content, err := os.ReadFile(file); err != nil || len(content) != 0 {
+		t.Fatalf("new file: %q, %v", content, err)
+	}
+	if err := os.WriteFile(file, []byte("preserve"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range []string{"create-file", "create-folder"} {
+		for _, path := range []string{"new-folder/new.txt", "new-folder", ".", "..", "../escape.txt", filepath.Join(t.TempDir(), "absolute.txt"), "missing/new.txt"} {
+			runProjectFileOperation(t, endpoint, projectFileOperationRequest{Action: action, Path: path}, http.StatusBadRequest)
+		}
+		outside := t.TempDir()
+		link := "escape-" + action
+		if err := os.Symlink(outside, filepath.Join(root, link)); err == nil {
+			runProjectFileOperation(t, endpoint, projectFileOperationRequest{Action: action, Path: link + "/new.txt"}, http.StatusBadRequest)
+		}
+	}
+	if content, err := os.ReadFile(file); err != nil || string(content) != "preserve" {
+		t.Fatalf("existing file changed: %q, %v", content, err)
+	}
+}
+
 func TestProjectFileOperationsRejectUnsafePaths(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()

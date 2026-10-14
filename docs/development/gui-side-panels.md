@@ -41,6 +41,12 @@ folder.
 
 ## File explorer data
 
+The editor stores its open tabs, drafts, expanded folders, and root collapse
+state separately for each project. Edits autosave after 500 ms of inactivity
+and flush when the editor unmounts or the page is hidden. Writes to the same
+file run in order, including across Editor / Agent navigation. Failed saves
+retain a local draft; restored clean tabs read their current contents from disk.
+
 The web development endpoint and the Wails desktop bridge both take a
 registered project ID plus a relative directory path. They reject paths that
 escape the registered project root.

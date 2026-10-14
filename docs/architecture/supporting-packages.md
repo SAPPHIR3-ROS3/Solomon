@@ -19,7 +19,7 @@ Map of `internal/` packages that support the REPL, tools, auth, and UX but are n
 | `clipboard` | `internal/clipboard/` | Cross-platform image paste for REPL |
 | `title` | `internal/title/` | Chat title slug and LLM title refinement |
 | `modelsapi` | `internal/modelsapi/` | List models from provider API (picker, `/models`) |
-| `logo` | `internal/logo/` | ASCII logo in welcome banner |
+| `logo` | `internal/logo/` | Embedded welcome crown; validated user logo/color overrides for the terminal banner |
 | `atmention` | `internal/atmention/` | `@` tag parsing, shortest unique tags, picker query scoring |
 | `instructions` | `internal/instructions/` | Load and cache `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (global + repo) |
 | `auth/openai/codex` | `internal/auth/openai/codex/` | ChatGPT Sub OAuth (PKCE), token refresh, JWT, Codex HTTP middleware |

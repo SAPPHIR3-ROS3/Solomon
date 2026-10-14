@@ -1,104 +1,22 @@
+import { fileIconName } from "../fileIcons";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { EditorState, RangeSetBuilder } from "@codemirror/state";
-import { Decoration, EditorView, keymap, lineNumbers, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
-import { HighlightStyle, StreamLanguage, syntaxHighlighting, syntaxTree, type StreamParser, type StringStream } from "@codemirror/language";
-import { go } from "@codemirror/lang-go";
-import { shell } from "@codemirror/legacy-modes/mode/shell";
-import { powerShell } from "@codemirror/legacy-modes/mode/powershell";
-import { tags } from "@lezer/highlight";
+import { EditorState } from "@codemirror/state";
+import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
+import { cursorForeground } from "../syntax/cursorSyntax";
 import { copyTextFallback } from "../chat/chatClipboard";
 import { AsciiBanner } from "../home/Welcome";
 import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon, SearchIcon } from "../shell/RightSidePanel";
 import { SidePanelToggle } from "../shell/SidePanelToggle";
-import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, saveProjectFile, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
+import { CreateEntryActions } from "./CreateEntryActions";
+import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 
-type OpenFile = { id: string; path: string; content: string; saved: string };
+import { loadEditorSession, storeEditorSession, saveEditorFile, waitForEditorSaves, type OpenFile, type EditorSession } from "./editorSession";
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
 const EMPTY_HISTORY: ProjectGitHistory = { commits: [], current: "", isRepo: false };
 
-type ShellFunctionState = {
-  tokens: unknown[];
-  expectFunctionName: boolean;
-  functionNames: Set<string>;
-};
-
-// The legacy shell mode knows the shell keywords and commands, but it treats
-// function declarations as ordinary words. Keep its tokenizer intact and add
-// the small bit of context needed for `name() { ... }`, `function name`, and
-// subsequent calls to a function declared earlier in the file.
-const shellWithFunctions: StreamParser<ShellFunctionState> = {
-  name: shell.name,
-  startState: () => {
-    const base = shell.startState?.(2) as { tokens: unknown[] };
-    return { ...base, expectFunctionName: false, functionNames: new Set<string>() };
-  },
-  copyState: (state) => ({ ...state, tokens: state.tokens.slice(), functionNames: new Set(state.functionNames) }),
-  blankLine: (state) => { state.expectFunctionName = false; },
-  token: (stream: StringStream, state: ShellFunctionState) => {
-    if (state.expectFunctionName && stream.sol() && stream.pos === 0) state.expectFunctionName = false;
-    const style = shell.token(stream, state);
-    const token = stream.current();
-    const isIdentifier = /^[A-Za-z_][A-Za-z0-9_-]*$/.test(token);
-
-    if (state.expectFunctionName) {
-      if (isIdentifier) {
-        state.expectFunctionName = false;
-        state.functionNames.add(token);
-        return "def";
-      }
-      if (!/^\s*$/.test(token)) state.expectFunctionName = false;
-    }
-
-    if (style === "keyword" && token === "function") {
-      state.expectFunctionName = true;
-      return style;
-    }
-
-    if (isIdentifier) {
-      const followedByOpeningParen = /^\s*\(/.test(stream.string.slice(stream.pos));
-      if (followedByOpeningParen) {
-        state.functionNames.add(token);
-        return "def";
-      }
-      if (state.functionNames.has(token)) return "variableName.function";
-    }
-
-    return style;
-  },
-  languageData: shell.languageData,
-};
-
-const shellLanguage = StreamLanguage.define(shellWithFunctions);
-const powerShellLanguage = StreamLanguage.define(powerShell);
-
-const goMethodCallMark = Decoration.mark({ class: "cm-go-method-call" });
-const goMethodCallDecorations = ViewPlugin.fromClass(class {
-  decorations: DecorationSet;
-
-  constructor(view: EditorView) {
-    this.decorations = buildGoMethodCallDecorations(view);
-  }
-
-  update(update: ViewUpdate) {
-    if (update.docChanged || update.viewportChanged || update.transactions.length) {
-      this.decorations = buildGoMethodCallDecorations(update.view);
-    }
-  }
-}, { decorations: (value) => value.decorations });
-
-function buildGoMethodCallDecorations(view: EditorView): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
-  syntaxTree(view.state).iterate({
-    enter: (node) => {
-      if (node.name === "FieldName" && node.matchContext(["CallExpr", "SelectorExpr"])) {
-        builder.add(node.from, node.to, goMethodCallMark);
-      }
-    },
-  });
-  return builder.finish();
-}
-
 export function EditorPage({ bottomInset, onHome, project, initialFile, onInitialFileOpened }: { onInitialFileOpened?: () => void; initialFile?: ProjectDirectoryEntry | null; bottomInset: number; onHome: () => void; project: Project | null }) {
+  const [restoredSession] = useState(() => loadEditorSession(project?.id));
   const [sideView, setSideView] = useState<"files" | "git">("files");
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const [sideWidth, setSideWidth] = useState(248);
@@ -107,13 +25,14 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const [children, setChildren] = useState<Record<string, ProjectDirectoryEntry[]>>({});
   const childrenRef = useRef(children);
   childrenRef.current = children;
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [rootCollapsed, setRootCollapsed] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(restoredSession.expanded));
+  const [rootCollapsed, setRootCollapsed] = useState(restoredSession.rootCollapsed);
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [files, setFiles] = useState<OpenFile[]>([]);
-  const [activeTabId, setActiveTabId] = useState("");
+  const [files, setFiles] = useState<OpenFile[]>(restoredSession.files);
+  const [activeTabId, setActiveTabId] = useState(restoredSession.activeTabId);
   const activePath = files.find((file) => file.id === activeTabId)?.path ?? "";
-  const nextTabId = useRef(0);
+  const nextTabId = useRef(Math.max(-1, ...restoredSession.files.map((file) => Number(file.id.replace("editor-tab-", "")) || 0)) + 1);
   const pendingFileReads = useRef(new Map<string, Promise<string>>());
   const draggedTab = useRef<string | null>(null);
   const [git, setGit] = useState<ProjectGitStatus>(EMPTY_GIT);
@@ -121,20 +40,100 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const [branch, setBranch] = useState("");
   const [branchOptions, setBranchOptions] = useState<string[]>([]);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const branchControlRef = useRef<HTMLDivElement>(null);
   const [branchLoading, setBranchLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const openFileTimer = useRef<number | undefined>(undefined);
 
+  const sessionRef = useRef<EditorSession>(restoredSession);
+  sessionRef.current = { files, activeTabId, expanded: [...expanded], rootCollapsed };
+
   useEffect(() => {
-    setEntries([]); setChildren({}); setExpanded(new Set()); setRootCollapsed(false); setFiles([]); setActiveTabId(""); setBranchOptions([]); setBranchMenuOpen(false); setMessage("");
+    if (project) storeEditorSession(project.id, sessionRef.current);
+  }, [project?.id, files, activeTabId, expanded, rootCollapsed]);
+
+  useEffect(() => {
     if (!project) return;
+    let cancelled = false;
     void Promise.all([fetchProjectDirectoryEntries(project.id), fetchProjectGitStatus(project.id), fetchProjectBranches(project.id), fetchProjectGitHistory(project.id)])
-      .then(([nextEntries, status, branches, nextHistory]) => { setEntries(nextEntries); setGit(status); setBranch(branches.current); setBranchOptions(branches.branches); setHistory(nextHistory); })
-      .catch(() => setMessage("Unable to read this folder."));
+      .then(([nextEntries, status, branches, nextHistory]) => {
+        if (cancelled) return;
+        setEntries(nextEntries); setGit(status); setBranch(branches.current); setBranchOptions(branches.branches); setHistory(nextHistory);
+      })
+      .catch(() => { if (!cancelled) setMessage("Unable to read this folder."); });
+    void Promise.all(restoredSession.expanded.map(async (path) => {
+      try { return [path, await fetchProjectDirectoryEntries(project.id, path)] as const; }
+      catch { return [path, []] as const; }
+    })).then((loaded) => { if (!cancelled) setChildren(Object.fromEntries(loaded)); });
+    void waitForEditorSaves(project.id).then(async () => {
+      const loaded = new Map(await Promise.all(restoredSession.files.map(async (file) => {
+        try { return [file.id, await fetchProjectFile(project.id, file.path)] as const; }
+        catch { return [file.id, null] as const; }
+      })));
+      if (cancelled) return;
+      setFiles((current) => current.flatMap((file) => {
+        if (!loaded.has(file.id)) return [file];
+        const content = loaded.get(file.id);
+        if (content === null || content === undefined) return file.content !== file.saved ? [file] : [];
+        return [{ ...file, content: file.content !== file.saved ? file.content : content, saved: content }];
+      }));
+    });
+    return () => { cancelled = true; };
   }, [project?.id]);
 
+  useEffect(() => {
+    if (!project) return;
+    const flush = () => {
+      storeEditorSession(project.id, sessionRef.current);
+      for (const file of new Map(sessionRef.current.files.map((file) => [file.path, file])).values()) {
+        if (file.content !== file.saved) void saveEditorFile(project.id, file.path, file.content).catch(() => undefined);
+      }
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      flush();
+    };
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (!project || !files.some((file) => file.content !== file.saved)) return;
+    const timer = window.setTimeout(() => {
+      for (const file of new Map(sessionRef.current.files.map((file) => [file.path, file])).values()) {
+        if (file.content !== file.saved) void saveFile(file.path, file.content);
+      }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [project?.id, files]);
+
   useEffect(() => () => window.clearTimeout(openFileTimer.current), []);
+
+  useEffect(() => {
+    if (!branchMenuOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (event.target instanceof Node && !branchControlRef.current?.contains(event.target)) setBranchMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setBranchMenuOpen(false);
+      branchControlRef.current?.querySelector("button")?.focus();
+    };
+    window.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutsideClick);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [branchMenuOpen]);
+
+
+  useEffect(() => {
+    setSelectedFolderPath(null);
+  }, [project?.id, activeTabId]);
 
   useEffect(() => {
     if (!project) return;
@@ -159,6 +158,12 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       const change = (event as CustomEvent<ProjectFilesChanged>).detail;
       if (change.projectID !== project.id) return;
       const affected = (path: string) => path === change.path || path.startsWith(`${change.path}/`);
+      setSelectedFolderPath((path) => {
+        if (path === null || !affected(path)) return path;
+        if (change.action === "delete") return null;
+        if ((change.action === "rename" || change.action === "move") && change.destination) return change.destination + path.slice(change.path.length);
+        return path;
+      });
       if (change.action === "delete") {
         setFiles((current) => current.filter((file) => !affected(file.path)));
       } else if ((change.action === "rename" || change.action === "move") && change.destination) {
@@ -189,12 +194,29 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   }, [files, activeTabId]);
 
   async function toggleFolder(entry: ProjectDirectoryEntry) {
+    window.clearTimeout(openFileTimer.current);
+    setSelectedFolderPath(entry.path);
     if (expanded.has(entry.path)) { setExpanded((current) => without(current, entry.path)); return; }
     if (!children[entry.path] && project) {
       try { const loaded = await fetchProjectDirectoryEntries(project.id, entry.path); setChildren((current) => ({ ...current, [entry.path]: loaded })); }
       catch { setMessage(`Unable to open ${entry.name}.`); return; }
     }
     setExpanded((current) => new Set(current).add(entry.path));
+  }
+
+  async function revealCreatedEntry(entry: ProjectDirectoryEntry) {
+    if (!project) return;
+    setRootCollapsed(false);
+    const parent = entry.path.split("/").slice(0, -1).join("/");
+    try {
+      const loaded = await fetchProjectDirectoryEntries(project.id, parent);
+      if (parent) {
+        setChildren((current) => ({ ...current, [parent]: loaded }));
+        setExpanded((current) => new Set(current).add(parent));
+      } else setEntries(loaded);
+      if (entry.isDirectory) setSelectedFolderPath(entry.path);
+      else { setSelectedFolderPath(null); await openFile(entry, "new"); }
+    } catch { setMessage(`Created ${entry.name}, but could not refresh the explorer.`); }
   }
 
   async function openFile(entry: ProjectDirectoryEntry, mode: "replace" | "new" = "replace", isCurrent: () => boolean = () => true) {
@@ -216,10 +238,13 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       }
       const content = await request;
       if (!isCurrent()) return;
+      const replacing = mode === "replace" ? sessionRef.current.files.find((file) => file.id === sessionRef.current.activeTabId) : undefined;
+      if (replacing && replacing.content !== replacing.saved && !await saveFile(replacing.path, replacing.content)) return;
+      if (replacing && sessionRef.current.files.find((file) => file.id === replacing.id)?.content !== replacing.content) return;
       const nextFile = { id: `editor-tab-${nextTabId.current++}`, path: entry.path, content, saved: content };
       setFiles((current) => {
-        if (mode === "new" || !activePath) return [...current, nextFile];
-        const activeIndex = current.findIndex((file) => file.id === activeTabId);
+        if (mode === "new" || !replacing) return [...current, nextFile];
+        const activeIndex = current.findIndex((file) => file.id === replacing.id);
         if (activeIndex < 0) return [...current, nextFile];
         return current.map((file, index) => index === activeIndex ? nextFile : file);
       });
@@ -237,20 +262,26 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   }, [project?.id, initialFile]);
 
   function scheduleOpenFile(entry: ProjectDirectoryEntry) {
+    setSelectedFolderPath(null);
     window.clearTimeout(openFileTimer.current);
     openFileTimer.current = window.setTimeout(() => void openFile(entry), 220);
   }
 
   function openFileInNewTab(entry: ProjectDirectoryEntry) {
+    setSelectedFolderPath(null);
     window.clearTimeout(openFileTimer.current);
     void openFile(entry, "new");
   }
 
-  function closeFile(id: string) {
-    const index = files.findIndex((file) => file.id === id);
-    const remaining = files.filter((file) => file.id !== id);
+  async function closeFile(id: string) {
+    const closing = files.find((file) => file.id === id);
+    if (closing && closing.content !== closing.saved && !await saveFile(closing.path, closing.content)) return;
+    if (closing && sessionRef.current.files.find((file) => file.id === id)?.content !== closing.content) return;
+    const current = sessionRef.current.files;
+    const index = current.findIndex((file) => file.id === id);
+    const remaining = current.filter((file) => file.id !== id);
     setFiles(remaining);
-    if (activeTabId === id) setActiveTabId(remaining[Math.min(index, remaining.length - 1)]?.id ?? "");
+    if (sessionRef.current.activeTabId === id) setActiveTabId(remaining[Math.min(index, remaining.length - 1)]?.id ?? "");
   }
 
   function duplicateFile(file: OpenFile) {
@@ -281,6 +312,13 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     setBranchLoading(true);
     setMessage("Switching branch…");
     try {
+      const dirty = files.filter((file) => file.content !== file.saved);
+      await Promise.all(dirty.map((file) => saveEditorFile(project.id, file.path, file.content)));
+      if (dirty.some((file) => sessionRef.current.files.find((current) => current.id === file.id)?.content !== file.content)) throw new Error("Files changed while saving");
+      setFiles((current) => current.map((file) => {
+        const saved = dirty.find((savedFile) => savedFile.path === file.path);
+        return saved ? { ...file, saved: saved.content } : file;
+      }));
       const nextBranches = await checkoutProjectBranch(project.id, nextBranch);
       const [nextEntries, nextStatus, nextHistory] = await Promise.all([
         fetchProjectDirectoryEntries(project.id),
@@ -303,11 +341,19 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     }
   }
 
-  async function saveFile(path: string, content: string) {
-    if (!project) return;
+  async function saveFile(path: string, content: string): Promise<boolean> {
+    if (!project) return false;
     setMessage("Saving…");
-    try { await saveProjectFile(project.id, path, content); setFiles((current) => current.map((file) => file.path === path ? { ...file, saved: content } : file)); setGit(await fetchProjectGitStatus(project.id)); setMessage("Saved"); window.setTimeout(() => setMessage(""), 1200); }
-    catch { setMessage("Unable to save this file."); }
+    try {
+      await saveEditorFile(project.id, path, content);
+      setFiles((current) => current.map((file) => file.path === path ? { ...file, saved: content } : file));
+      setMessage("");
+      void fetchProjectGitStatus(project.id).then(setGit).catch(() => undefined);
+      return true;
+    } catch {
+      setMessage("Autosave failed. Your changes are kept in this editor; try saving again.");
+      return false;
+    }
   }
 
   function startSideResize(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -359,17 +405,12 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
           <input aria-label="Search files or folders" placeholder="Search files or folders" type="search" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
         <header className="editor-root editor-folder-row">
-          <button className="editor-root-identity" aria-expanded={!rootCollapsed} aria-label={`${workspaceName} folder`} onClick={() => setRootCollapsed((collapsed) => !collapsed)} type="button"><Chevron open={!rootCollapsed} /><FolderIcon name={project.name} open={!rootCollapsed} root /><strong>{workspaceName}</strong></button>
-          {git.isRepo ? <div className="editor-branch-control">
-            <button aria-expanded={branchMenuOpen} aria-haspopup="listbox" aria-label={`Current branch: ${branch || "HEAD"}. Select branch`} className="editor-branch" disabled={branchLoading} onClick={() => setBranchMenuOpen((open) => !open)} type="button"><GitBranchIcon /><span>{branch || "HEAD"}</span><Chevron open={branchMenuOpen} /></button>
-            {branchMenuOpen ? <div aria-label="Branches" className="editor-branch-menu" role="listbox">
-              {branchOptions.length ? branchOptions.map((option) => <button aria-selected={option === branch} key={option} onClick={() => void selectBranch(option)} role="option" type="button"><GitBranchIcon /><span>{option}</span>{option === branch ? <CheckIcon /> : null}</button>) : <span>No local branches.</span>}
-            </div> : null}
-          </div> : null}
+          <button className="editor-root-identity" aria-expanded={!rootCollapsed} aria-label={`${workspaceName} folder`} onClick={() => setRootCollapsed((collapsed) => !collapsed)} title={workspaceName} type="button"><Chevron open={!rootCollapsed} /><strong>{workspaceName}</strong></button>
+          <CreateEntryActions key={project.id} projectID={project.id} parentPath={selectedFolderPath ?? activePath.split("/").slice(0, -1).join("/")} onCreated={(entry) => void revealCreatedEntry(entry)} />
         </header>
         <div className="right-side-panel-files-shell editor-side-panel-files-shell">
           <nav aria-label={`${workspaceName} files`} className="right-side-panel-files editor-file-list" id="editor-files" role="tabpanel">
-            {!rootCollapsed ? <FileEntries projectID={project.id} rootPath={project.path} depth={0} entries={entryMap} expandedDirectories={expanded} fileStatus={fileStatus} nameFilter={query.trim().toLowerCase()} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} onToggleDirectory={toggleFolder} parentPath="" selectedPath={activePath} /> : null}
+            {!rootCollapsed ? <FileEntries projectID={project.id} rootPath={project.path} depth={0} entries={entryMap} expandedDirectories={expanded} fileStatus={fileStatus} nameFilter={query.trim().toLowerCase()} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} onToggleDirectory={toggleFolder} parentPath="" selectedPath={selectedFolderPath ?? activePath} /> : null}
           </nav>
         </div>
       </> : <div className="editor-git-host"><GitHistoryView error="" gitStatus={git} gitStatusError="" gitStatusLoading={false} history={history} loading={false} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} project={project} /></div>}
@@ -380,29 +421,33 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div><CodeEditor file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} /></> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
-    <footer className="editor-status"><span className="editor-status-branch"><GitBranchIcon />{branch || "No repository"}</span><span className="editor-status-spacer"/><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span></footer>
+    <footer className="editor-status">
+      {git.isRepo ? <div className="editor-branch-control" ref={branchControlRef}>
+        <button aria-expanded={branchMenuOpen} aria-haspopup="listbox" aria-controls="editor-branch-menu" aria-label={`Current branch: ${branch || "HEAD"}. Select branch`} className="editor-branch" disabled={branchLoading} onClick={() => setBranchMenuOpen((open) => !open)} type="button"><GitBranchIcon /><span>{branch || "HEAD"}</span><Chevron open={branchMenuOpen} /></button>
+        {branchMenuOpen ? <div id="editor-branch-menu" aria-label="Branches" className="editor-branch-menu" role="listbox">
+          {branchOptions.length ? branchOptions.map((option) => <button aria-selected={option === branch} key={option} onClick={() => void selectBranch(option)} role="option" type="button"><GitBranchIcon /><span>{option}</span>{option === branch ? <CheckIcon /> : null}</button>) : <span>No local branches.</span>}
+        </div> : null}
+      </div> : <span className="editor-status-branch">No repository</span>}
+      <span className="editor-status-spacer"/><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span>
+    </footer>
   </section></>;
 }
 
-// Keep token colors in lockstep with the v5 editor. The surrounding Solomon
-// chrome keeps its own palette; only source-code tokens use this syntax set.
-const solomonHighlightStyle = HighlightStyle.define([
-  { tag: [tags.keyword, tags.controlKeyword, tags.modifier, tags.operatorKeyword], color: "#77ddd1" },
-  { tag: tags.meta, color: "#77ddd1" },
-  { tag: [tags.typeName, tags.className, tags.namespace, tags.definition(tags.typeName)], color: "#7ee0d5" },
-  { tag: [tags.function(tags.variableName), tags.definition(tags.variableName), tags.labelName], color: "#e8aa76" },
-  { tag: [tags.string, tags.special(tags.string)], color: "#e79be1" },
-  { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "#e7c15f" },
-  { tag: tags.comment, color: "#7f8981" },
-  { tag: tags.standard(tags.variableName), color: "#7ee0d5" },
-  { tag: [tags.propertyName, tags.variableName], color: "#e1e4db" },
-  { tag: [tags.operator, tags.punctuation], color: "#eed85b" },
-]);
+
+function insertEditorLineBreak(editor: EditorView) {
+  editor.dispatch(editor.state.replaceSelection("\n"), { scrollIntoView: true, userEvent: "input" });
+  return true;
+}
 
 function CodeEditor({ file, onChange, onCursor, onSave }: { file: OpenFile; onChange: (content: string) => void; onCursor: (cursor: {line:number;column:number}) => void; onSave: (path: string, content: string) => void }) {
+  const viewRef = useRef<EditorView | null>(null);
   const host = useRef<HTMLDivElement>(null); const changeRef = useRef(onChange); const saveRef = useRef(onSave); const cursorRef=useRef(onCursor);
   changeRef.current = onChange; saveRef.current = onSave; cursorRef.current=onCursor;
-  useEffect(() => { if (!host.current) return; const isGo = file.path.toLowerCase().endsWith(".go"); const isPowerShell = isPowerShellFile(file.path); const isShell = isShellFile(file.path); const view = new EditorView({ parent: host.current, state: EditorState.create({ doc: file.content, extensions: [lineNumbers(), syntaxHighlighting(solomonHighlightStyle, { fallback: true }), ...(isGo ? [go(), goMethodCallDecorations] : []), ...(isPowerShell ? [powerShellLanguage] : isShell ? [shellLanguage] : []), EditorView.lineWrapping, EditorView.updateListener.of((update) => { if (update.docChanged) changeRef.current(update.state.doc.toString()); if(update.selectionSet||update.docChanged){const pos=update.state.selection.main.head;const line=update.state.doc.lineAt(pos);cursorRef.current({line:line.number,column:pos-line.from+1});} }), keymap.of([{ key: "Mod-s", preventDefault: true, run: (editor) => { saveRef.current(file.path, editor.state.doc.toString()); return true; } }]), EditorView.theme({ "&": { height: "100%", background: "transparent", color: "#dce6e9" }, ".cm-scroller": { overflow: "auto", fontFamily: '"Geist Mono", "SFMono-Regular", "Cascadia Code", ui-monospace, monospace' }, ".cm-content": { padding: "24px 0 130px", caretColor: "#82aaff" }, ".cm-line": { padding: "0 28px 0 8px" }, ".cm-gutters": { minWidth: "64px", background: "transparent", border: "none", color: "#52616a" }, ".cm-gutterElement": { transform: null }, "&.cm-focused": { outline: "none" }, ".cm-go-method-call": { color: "#e8aa76 !important" }, ".cm-go-method-call *": { color: "#e8aa76 !important" }, ".cm-selectionBackground, ::selection": { background: "#82aaff55 !important" } }, { dark: true })] }) }); return () => view.destroy(); }, [file.path]);
+  useEffect(() => { if (!host.current) return; const view = new EditorView({ parent: host.current, state: EditorState.create({ doc: file.content, extensions: [lineNumbers(), ...cursorEditorHighlighting(file.path), EditorView.lineWrapping, EditorView.updateListener.of((update) => { if (update.docChanged) changeRef.current(update.state.doc.toString()); if(update.selectionSet||update.docChanged){const pos=update.state.selection.main.head;const line=update.state.doc.lineAt(pos);cursorRef.current({line:line.number,column:pos-line.from+1});} }), keymap.of([{ key: "Enter", preventDefault: true, run: insertEditorLineBreak, shift: insertEditorLineBreak }, { key: "Mod-s", preventDefault: true, run: (editor) => { saveRef.current(file.path, editor.state.doc.toString()); return true; } }]), EditorView.theme({ "&": { height: "100%", background: "transparent", color: cursorForeground }, ".cm-scroller": { overflow: "auto", fontFamily: '"Geist Mono", "SFMono-Regular", "Cascadia Code", ui-monospace, monospace' }, ".cm-content": { padding: "24px 0 130px", caretColor: "#82aaff" }, ".cm-line": { padding: "0 28px 0 8px" }, ".cm-gutters": { minWidth: "64px", background: "transparent", border: "none", color: "#52616a" }, ".cm-gutterElement": { transform: null }, "&.cm-focused": { outline: "none" }, ".cm-selectionBackground, ::selection": { background: "#82aaff55 !important" } }, { dark: true })] }) }); viewRef.current = view; return () => { viewRef.current = null; view.destroy(); }; }, [file.path]);
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view && view.state.doc.toString() !== file.content) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: file.content } });
+  }, [file.content]);
   return <div className="editor-code" ref={host} />;
 }
 
@@ -415,8 +460,7 @@ function displayWorkspaceName(name:string){return name && name === name.toUpperC
 function abbreviateHomePath(path:string){const normalized=path.replace(/\\/g,"/");const home=normalized.match(/^\/(?:Users|home)\/[^/]+(?=\/|$)/)?.[0];return home ? `~${normalized.slice(home.length)}` : path;}
 function folderType(name:string,root=false){return root?"default_root_folder":name===".github"?"folder_type_github":name===".solomon"?"folder_type_config":name==="docs"?"folder_type_docs":name==="internal"?"folder_type_src":name==="scripts"?"folder_type_tools":name==="test"?"folder_type_test":"default_folder"}
 function FolderIcon({name="",open=false,root=false}:{name?:string;open?:boolean;root?:boolean}){return <img className="workspace-folder-icon" src={`/vscode-icons/${folderType(name,root)}${open?"_opened":""}.svg`} alt=""/>}
-function normalizedFileBase(fileName:string){const normalized=fileName.replace(/\\/g,"/").toLowerCase();return normalized.split("/").at(-1)??normalized;}
-function isPowerShellFile(fileName:string){return normalizedFileBase(fileName).endsWith(".ps1");}
-function isShellFile(fileName:string){const base=normalizedFileBase(fileName);return [".sh",".bash",".zsh",".ksh",".csh",".fish"].some((extension)=>base.endsWith(extension))||[".bashrc",".zshrc",".profile",".bash_profile",".zprofile"].includes(base);}
-function FileIcon({fileName}:{fileName:string}){const icon=isShellFile(fileName)||isPowerShellFile(fileName)?"shell.svg":fileName.endsWith(".go")?"go.svg":fileName.endsWith(".json")?"json.svg":fileName.endsWith(".md")?"markdown.svg":fileName===".gitignore"?"git.svg":fileName.endsWith(".env")||fileName===".env"?"env.svg":fileName==="Makefile"?"makefile.svg":"file.svg";return <img className="workspace-file-icon" src={`/vscode-icons/${icon}`} alt=""/>}
+function FileIcon({ fileName }: { fileName: string }) {
+  return <img className="workspace-file-icon" src={`/vscode-icons/${fileIconName(fileName)}.svg`} alt="" />;
+}
 function GitBranchIcon(){return <svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10M8 11h5a5 5 0 005-4"/></svg>} function CheckIcon(){return <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>} function CopyIcon(){return <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>} function Chevron({open}:{open:boolean}){return <svg className={open?"open":""} viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>}

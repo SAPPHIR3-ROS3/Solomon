@@ -555,7 +555,7 @@ function readProjectSidebarCache(): ProjectSidebarData | null {
 }
 
 export const PROJECT_FILES_CHANGED_EVENT = "solomon:project-files-changed";
-export type ProjectFileOperation = { action: "rename" | "delete" | "copy" | "move"; path: string; destination?: string };
+export type ProjectFileOperation = { action: "rename" | "delete" | "copy" | "move" | "create-file" | "create-folder"; path: string; destination?: string };
 export type ProjectFilesChanged = ProjectFileOperation & { projectID: string };
 export async function operateProjectFile(projectID: string, operation: ProjectFileOperation): Promise<void> {
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/file-operation`), {

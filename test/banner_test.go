@@ -2,13 +2,53 @@ package test
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/charmbracelet/x/ansi"
 )
+
+func TestWelcomeBannerCustomLogoFitsTerminal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	for _, dir := range []string{"ascii", "colors"} {
+		if err := os.MkdirAll(filepath.Join(home, "banner", dir), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var colorOut bytes.Buffer
+	termcolor.Init(termcolor.InitOptions{Out: &colorOut, ForceColor: true})
+	t.Cleanup(func() { termcolor.Init(termcolor.InitOptions{Out: &colorOut, NoColor: true}) })
+	for _, art := range []string{"CUSTOM\nLOGO\nEND", strings.Repeat("X", 160), strings.Repeat("王", 80), strings.Repeat("e\u0301", 160), strings.Repeat("👩‍💻", 80), strings.Repeat("X\n", 64)} {
+		if err := os.WriteFile(filepath.Join(home, "banner", "ascii", "logo.txt"), []byte(art), 0600); err != nil {
+			t.Fatal(err)
+		}
+		var colorRows []string
+		for _, row := range strings.Split(strings.TrimRight(art, "\n"), "\n") {
+			colorRows = append(colorRows, strings.TrimSpace(strings.Repeat("FF0000 ", len([]rune(row)))))
+		}
+		if err := os.WriteFile(filepath.Join(home, "banner", "colors", "colors.txt"), []byte(strings.Join(colorRows, "\n")), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for _, width := range []int{1, 4, 5, 10, 20, 40, 72, 120, 240} {
+			var buf bytes.Buffer
+			repl.PrintWelcomeBannerSized(&buf, width, nil, "model", "test-project", home, false, nil)
+			for _, line := range strings.Split(buf.String(), "\n") {
+				if got := ansi.StringWidth(line); got > width {
+					t.Fatalf("banner line %d cells exceeds terminal width %d: %q", got, width, line)
+				}
+			}
+			if width == 240 && strings.HasPrefix(art, "CUSTOM") && !strings.Contains(ansi.Strip(buf.String()), "END") {
+				t.Fatal("banner should include every custom logo row")
+			}
+		}
+	}
+}
 
 func TestWelcomeBannerFitsBufferWidth(t *testing.T) {
 	t.Parallel()

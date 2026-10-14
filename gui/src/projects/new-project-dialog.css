@@ -235,7 +235,7 @@
   overflow-y: auto;
   max-height: 440px;
   scrollbar-color: var(--color-border) transparent;
-  scrollbar-width: thin;
+  scrollbar-width: var(--app-scrollbar-width, thin);
 }
 
 .new-project-dialog-folder-row {

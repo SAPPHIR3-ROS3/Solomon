@@ -113,7 +113,79 @@ func TestServerRuntime_GUISettingsArePersistedAndDoNotExposeSecrets(t *testing.T
 			t.Fatal("reasoning update changed other chat preferences")
 		}
 	}
-	for _, body := range []string{`{"chat":{}}`, `{"chat":{"autoCloseToolCalls":"true"}}`, `{"chat":{"autoCloseToolCalls":null}}`, `{"chat":{"startReasoningCollapsed":"true"}}`, `{"chat":{"startReasoningCollapsed":null}}`} {
+	response = patch(`{"general":{"responseLanguage":" Italian "}}`)
+	decodeServerTestJSON(t, response, &gui)
+	if gui.General.ResponseLanguage != "Italian" {
+		t.Fatalf("language did not round trip: %+v", gui.General)
+	}
+	document := guiConfigDocument(t, path)
+	if document["response_language"] != "Italian" {
+		t.Fatal("language was not saved in runtime config")
+	}
+	if _, exists := document["gui"].(map[string]any)["general"]; exists {
+		t.Fatal("language duplicated in GUI config")
+	}
+	if document["providers"].(map[string]any)["OpenAI"].(map[string]any)["api_key"] != "fixture-secret" {
+		t.Fatal("language update changed credentials")
+	}
+	if gui.Chat.AutoCloseToolCalls == nil || !*gui.Chat.AutoCloseToolCalls {
+		t.Fatal("language update changed chat settings")
+	}
+	response, err = http.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decodeServerTestJSON(t, response, &gui)
+	if gui.General.ResponseLanguage != "Italian" {
+		t.Fatal("language did not survive reread")
+	}
+	response = patch(`{"general":{"userName":"New name"},"advanced":{"subagent_timeout_minutes":30,"tool_output.max_lines":512}}`)
+	decodeServerTestJSON(t, response, &gui)
+	if gui.General.UserName != "New name" || gui.General.ResponseLanguage != "Italian" {
+		t.Fatal("name update changed language")
+	}
+	persisted, err = config.ReadGUISettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Advanced["subagent_timeout_minutes"] != 30 || persisted.Advanced["tool_output.max_lines"] != 512 {
+		t.Fatalf("advanced API values did not persist: %+v", persisted.Advanced)
+	}
+	directory := filepath.Join(t.TempDir(), "gui")
+	if err := os.MkdirAll(filepath.Join(directory, "src"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "package.json"), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	response = patch(`{"advanced":{"server.dev_mode":true}}`)
+	response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatal("dev mode without a directory was not rejected as bad input")
+	}
+	body, err := json.Marshal(map[string]any{"advanced": map[string]any{"server.dev_mode": true, "server.dev_directory": directory, "server_port": 64500}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response = patch(string(body))
+	decodeServerTestJSON(t, response, &gui)
+	if gui.Advanced["server.dev_mode"] != true || gui.Advanced["server.dev_directory"] != directory || gui.Advanced["server_port"] != float64(64500) {
+		t.Fatalf("missing server API values: %#v", gui.Advanced)
+	}
+	persisted, err = config.ReadGUISettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Advanced["server.dev_mode"] != true || persisted.Advanced["server_port"] != 64500 {
+		t.Fatal("server settings did not persist")
+	}
+	// The API server remains on its original address until restarted.
+	response, err = http.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decodeServerTestJSON(t, response, &gui)
+	for _, body := range []string{`{"advanced":{"server_port":0}}`, `{"advanced":{"server.dev_mode":null}}`, `{"advanced":{"server.dev_directory":""}}`, `{"advanced":{"server.dev_directory":"/missing/gui"}}`, `{"advanced":{"subagent_timeout_minutes":0}}`, `{"advanced":{"log_level":"invalid"}}`, `{"advanced":{"api_key":"secret"}}`, `{"general":{"userName":null}}`, `{"general":{"userName":" "}}`, `{"general":{}}`, `{"general":{"responseLanguage":null}}`, `{"general":{"responseLanguage":" "}}`, `{"general":{"responseLanguage":"Italian\nEnglish"}}`, `{"general":{"responseLanguage":true}}`, `{"chat":{}}`, `{"chat":{"autoCloseToolCalls":"true"}}`, `{"chat":{"autoCloseToolCalls":null}}`, `{"chat":{"startReasoningCollapsed":"true"}}`, `{"chat":{"startReasoningCollapsed":null}}`} {
 		response := patch(body)
 		response.Body.Close()
 		if response.StatusCode != http.StatusBadRequest {

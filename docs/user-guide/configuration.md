@@ -4,6 +4,12 @@ Solomon stores user settings in `~/.solomon/config.toml`. MCP servers use a sepa
 
 ## Main file
 
+The terminal welcome logo can be customized with `~/.solomon/banner/ascii/logo.txt`
+and an optional `~/.solomon/banner/colors/colors.txt`, without changing the
+configuration or recompiling.
+See [Custom welcome logo](terminal-setup.md#custom-welcome-logo) for the format,
+size limits, and fallback behavior.
+
 Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/config.go).
 
 | Field | Role |
@@ -27,6 +33,7 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 | `web_search_engine` | Default engine for the **`webSearch`** tool and native `fetchWeb` backend selection (omit for `duckduckgo`) |
 | `research_max_rounds`, `research_max_urls_per_round`, `research_max_content_chars` | Deep-research limits; defaults `8`, `3`, and `15000` |
 | `[web_fetch]` | HTTP fetch headers, blocked domains, and redirect cap (optional) |
+| `[server].dev_mode`, `[server].dev_directory` | Default server development mode and GUI source directory; editable in Advanced, applied at the next server start/restart |
 | `server_port` | Stable TCP port for the local Solomon server (default `64000`; `SOLOMON_SERVER_PORT` overrides and is persisted) |
 | `fast_mode` | Cursor fast mode when the active provider supports it (default on; toggle with `/fast`) |
 | `autoupdate` | At REPL startup, auto-install a newer release when the GitHub check finds one, then restart in the same terminal (toggle with `/autoupdate`). A development build whose commit is ahead of the latest release is neither replaced nor reported as needing an update. |
@@ -39,10 +46,38 @@ Path: `~/.solomon/config.toml`. Schema: [`config.Root`](../../internal/config/co
 ### GUI preferences
 
 The `gui` section belongs to the graphical interface and follows its Settings
-sections. The page lives at `/settings`; chat, models, and docs stay on that page.
+sections. The page lives at `/settings`; General, Chat, Models, Advanced, and Docs stay on that page.
 The daemon reads and writes it through `GET /__solomon/gui-settings` and
 `PATCH /__solomon/gui-settings`; changes persist in this same file, including for the
-native client. GUI writes preserve backend settings and do not contact providers.
+native client. Settings writes preserve unrelated backend settings and do not contact providers.
+
+General contains **User name** (`user_name`) followed by **Response language**
+(`response_language`). Advanced exposes `compaction_threshold_tokens`,
+`subagent_timeout_minutes`, `log_level`, the three `research_max_*` limits,
+and `tool_output.max_bytes` / `tool_output.max_lines`. These settings remain in
+their existing runtime TOML locations; they are not duplicated under `gui`.
+General and Advanced save valid edits automatically after a short typing pause
+or when leaving a field. Save failures retain the entered value and offer Retry.
+Log level changes take effect at the next application startup.
+
+Advanced also contains **Dev server**, **Server port**, and **GUI source directory**.
+The dev switch and source path are stored under `[server]`; the port remains at
+root `server_port`. Configure a GUI directory containing `package.json` and `src`
+before enabling development mode. Source paths must be absolute or start with `~/`.
+Saving these settings does not restart the running server. The next
+`solomon server start`, `solomon server run`, or `solomon server restart` applies
+the saved mode. Explicit `start normal` or `start dev <gui-directory>` arguments
+override the saved mode for that invocation. `SOLOMON_SERVER_PORT` still takes
+precedence over the saved port.
+
+```toml
+server_port = 64000
+
+[server]
+dev_mode = true
+dev_directory = "/path/to/Solomon/gui"
+```
+
 
 ```toml
 [gui.chat]

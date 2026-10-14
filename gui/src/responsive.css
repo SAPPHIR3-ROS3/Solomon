@@ -60,6 +60,8 @@
   .editor-page::before { width: min(var(--editor-side-width, 248px), 40vw); }
   .editor-top-wordmark, .editor-top-path { display: none; }
   .editor-breadcrumb, .editor-status { min-width: 0; overflow: hidden; }
+  .editor-status { overflow: visible; gap: 8px; }
+  .editor-status > span { min-width: 0; overflow: hidden; white-space: nowrap; }
 }
 
 @media (max-width: 640px) {

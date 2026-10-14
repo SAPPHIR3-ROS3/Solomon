@@ -96,7 +96,10 @@ Solomon clients and restarts the server in its previous mode, preserving saved
 chats and settings. A running development server
 loads source changes through Vite.
 
-For GUI development, pass the GUI project directory explicitly. The server
+For GUI development, configure the dev switch and GUI source directory in
+Settings → Advanced, or pass the GUI project directory explicitly. Saved server
+preferences take effect at the next start or restart; `solomon server start normal`
+selects normal mode for one invocation. The server
 launches Vite as its child and proxies it at its advertised local URL, so browser
 and Wails desktop development use the same frontend and daemon API.
 

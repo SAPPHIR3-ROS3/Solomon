@@ -22,6 +22,44 @@ Solomon does not verify or enforce a font name at runtime.
 
 Assistant and tool output may include emoji or Unicode symbols. Solomon does not adjust grapheme width or alignment for them. Minor visual misalignment is expected and does not affect chat content or persistence.
 
+## Custom welcome logo
+
+Create `~/.solomon/banner/ascii/logo.txt` to replace the crown in the terminal welcome banner,
+without source code or recompilation. If `SOLOMON_HOME` is set, put the file in
+the same `banner/ascii/` subdirectory of that root instead. Solomon creates
+the `banner/ascii/` and `banner/colors/` directories when loading the welcome
+logo. The file is read whenever a welcome banner is printed.
+Removing it restores the embedded crown. The application icon is unchanged.
+
+Use UTF-8 text with LF or CRLF line endings. ASCII, Braille, and other printable
+Unicode characters are supported. Limits are **160 terminal cells per row**,
+**64 rows**, and **64 KiB**. Empty drawings, invalid UTF-8, tabs, ANSI escapes,
+and other terminal control characters are rejected; Solomon uses its default
+crown if the file is missing, unreadable, or invalid.
+
+For example:
+
+```text
+ /\
+/__\
+SOLOMON
+```
+
+The logo is monochrome by default. For colors, add `~/.solomon/banner/colors/colors.txt` with
+the same number of rows and one whitespace-separated six-digit RGB hex value
+per Unicode code point, including spaces (no `#` prefix). A combining-character
+or emoji sequence uses the color of its first code point. For a row `ABC`, use
+`FF0000 00FF00 0000FF`. The color file is limited to 256 KiB. A present but
+invalid or unreadable color file restores the default crown and its colors;
+delete the color file to use a monochrome custom drawing. Custom colors receive
+the same saturation and contrast adjustment as the crown and respect the
+terminal's color settings.
+
+The banner follows the drawing's width and height. On narrow terminals it clips
+the logo to its column and abbreviates the information text, keeping the frame
+within the available width. It does not scale the drawing or redraw an already
+printed banner when the terminal window is resized.
+
 ## Colors
 
 Styling is handled by [`internal/termcolor`](../../internal/termcolor/) on top of [lipgloss](https://github.com/charmbracelet/lipgloss) and [termenv](https://github.com/muesli/termenv). The palette is fixed for **dark** backgrounds; there is no light-theme mode.

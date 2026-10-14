@@ -1,0 +1,596 @@
+{
+  "cursorVersion": "3.24.12",
+  "theme": "https://github.com/ryokun6/cursor-themes",
+  "grammars": [
+    {
+      "scope": "source.batchfile",
+      "source": "bat/./syntaxes/batchfile.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.clojure",
+      "source": "clojure/./syntaxes/clojure.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.coffee",
+      "source": "coffeescript/./syntaxes/coffeescript.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.c",
+      "source": "cpp/./syntaxes/c.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.cpp.embedded.macro",
+      "source": "cpp/./syntaxes/cpp.embedded.macro.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.cpp",
+      "source": "cpp/./syntaxes/cpp.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.c.platform",
+      "source": "cpp/./syntaxes/platform.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.cuda-cpp",
+      "source": "cpp/./syntaxes/cuda-cpp.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.cs",
+      "source": "csharp/./syntaxes/csharp.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.css",
+      "source": "css/./syntaxes/css.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.worktree-typescript",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-typescript.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-typescriptreact",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-typescriptreact.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-javascript",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-javascript.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-javascriptreact",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-javascriptreact.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-python",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-python.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-go",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-go.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-rust",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-rust.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-java",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-java.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-c",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-c.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-cpp",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-cpp.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-php",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-php.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-ruby",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-ruby.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-html",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-html.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-css",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-css.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-json",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-json.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-yaml",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-yaml.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-sql",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-sql.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-swift",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-swift.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-shellscript",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-shellscript.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-protobuf",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-protobuf.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-hcl",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-terraform.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-terraform",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-terraform.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-terraform-vars",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-terraform-vars.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-terraform-stack",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-terraform-stack.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-terraform-deploy",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-terraform-deploy.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-terraform-test",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-terraform-test.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-terraform-mock",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-terraform-mock.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.worktree-terraform-search",
+      "source": "cursor-worktree-textmate/./syntaxes/worktree-terraform-search.tmLanguage.json",
+      "license": "See Cursor distribution notices"
+    },
+    {
+      "scope": "source.dart",
+      "source": "dart/./syntaxes/dart.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.diff",
+      "source": "diff/./syntaxes/diff.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.dockerfile",
+      "source": "docker/./syntaxes/docker.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.dotenv",
+      "source": "dotenv/./syntaxes/dotenv.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.fsharp",
+      "source": "fsharp/./syntaxes/fsharp.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.git-commit",
+      "source": "git-base/./syntaxes/git-commit.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.git-rebase",
+      "source": "git-base/./syntaxes/git-rebase.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.ignore",
+      "source": "git-base/./syntaxes/ignore.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.go",
+      "source": "go/./syntaxes/go.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.groovy",
+      "source": "groovy/./syntaxes/groovy.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.html.handlebars",
+      "source": "handlebars/./syntaxes/Handlebars.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.hlsl",
+      "source": "hlsl/./syntaxes/hlsl.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.html.basic",
+      "source": "html/./syntaxes/html.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.html.derivative",
+      "source": "html/./syntaxes/html-derivative.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.ini",
+      "source": "ini/./syntaxes/ini.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.ini",
+      "source": "ini/./syntaxes/ini.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.java",
+      "source": "java/./syntaxes/java.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.js.jsx",
+      "source": "javascript/./syntaxes/JavaScriptReact.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.js",
+      "source": "javascript/./syntaxes/JavaScript.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.js.regexp",
+      "source": "javascript/./syntaxes/Regular Expressions (JavaScript).tmLanguage",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.json",
+      "source": "json/./syntaxes/JSON.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.json.comments",
+      "source": "json/./syntaxes/JSONC.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.json.lines",
+      "source": "json/./syntaxes/JSONL.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.json.comments.snippets",
+      "source": "json/./syntaxes/snippets.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.julia",
+      "source": "julia/./syntaxes/julia.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.tex",
+      "source": "latex/./syntaxes/TeX.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.tex.latex",
+      "source": "latex/./syntaxes/LaTeX.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.bibtex",
+      "source": "latex/./syntaxes/Bibtex.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.tex.markdown_latex_combined",
+      "source": "latex/./syntaxes/markdown-latex-combined.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.cpp.embedded.latex",
+      "source": "latex/./syntaxes/cpp-grammar-bailout.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.css.less",
+      "source": "less/./syntaxes/less.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.log",
+      "source": "log/./syntaxes/log.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.lua",
+      "source": "lua/./syntaxes/lua.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.makefile",
+      "source": "make/./syntaxes/make.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.html.markdown",
+      "source": "markdown-basics/./syntaxes/markdown.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.html.markdown.math",
+      "source": "markdown-math/./syntaxes/md-math.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "markdown.math.block",
+      "source": "markdown-math/./syntaxes/md-math-block.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "markdown.math.inline",
+      "source": "markdown-math/./syntaxes/md-math-inline.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "markdown.math.codeblock",
+      "source": "markdown-math/./syntaxes/md-math-fence.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.wat",
+      "source": "ms-vscode.js-debug/./src/ui/basic-wat.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.objc",
+      "source": "objective-c/./syntaxes/objective-c.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.objcpp",
+      "source": "objective-c/./syntaxes/objective-c++.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.ocaml",
+      "source": "ocaml/./syntaxes/ocaml.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.perl",
+      "source": "perl/./syntaxes/perl.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.perl.6",
+      "source": "perl/./syntaxes/perl6.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.php",
+      "source": "php/./syntaxes/php.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.html.php",
+      "source": "php/./syntaxes/html.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.powershell",
+      "source": "powershell/./syntaxes/powershell.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.proto",
+      "source": "protobuf/./syntaxes/proto3.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "markdown.protobuf.codeblock",
+      "source": "protobuf/./syntaxes/protobuf.markdown.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.pug",
+      "source": "pug/./syntaxes/pug.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.python",
+      "source": "python/./syntaxes/MagicPython.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.regexp.python",
+      "source": "python/./syntaxes/MagicRegExp.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.r",
+      "source": "r/./syntaxes/r.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.html.cshtml",
+      "source": "razor/./syntaxes/cshtml.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.rst",
+      "source": "restructuredtext/./syntaxes/rst.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.ruby",
+      "source": "ruby/./syntaxes/ruby.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.html.erb",
+      "source": "ruby/./syntaxes/erb.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.rust",
+      "source": "rust/./syntaxes/rust.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.css.scss",
+      "source": "scss/./syntaxes/scss.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.sassdoc",
+      "source": "scss/./syntaxes/sassdoc.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.searchResult",
+      "source": "search-result/./syntaxes/searchResult.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.shaderlab",
+      "source": "shaderlab/./syntaxes/shaderlab.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.shell",
+      "source": "shellscript/./syntaxes/shell-unix-bash.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.sql",
+      "source": "sql/./syntaxes/sql.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.swift",
+      "source": "swift/./syntaxes/swift.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.ts",
+      "source": "typescript-basics/./syntaxes/TypeScript.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.tsx",
+      "source": "typescript-basics/./syntaxes/TypeScriptReact.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "documentation.injection.ts",
+      "source": "typescript-basics/./syntaxes/jsdoc.ts.injection.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "documentation.injection.js.jsx",
+      "source": "typescript-basics/./syntaxes/jsdoc.js.injection.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.asp.vb.net",
+      "source": "vb/./syntaxes/asp-vb-net.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.xml",
+      "source": "xml/./syntaxes/xml.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "text.xml.xsl",
+      "source": "xml/./syntaxes/xsl.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.yaml",
+      "source": "yaml/./syntaxes/yaml.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.yaml.1.3",
+      "source": "yaml/./syntaxes/yaml-1.3.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.yaml.1.2",
+      "source": "yaml/./syntaxes/yaml-1.2.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.yaml.1.1",
+      "source": "yaml/./syntaxes/yaml-1.1.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.yaml.1.0",
+      "source": "yaml/./syntaxes/yaml-1.0.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.yaml.embedded",
+      "source": "yaml/./syntaxes/yaml-embedded.tmLanguage.json",
+      "license": "MIT"
+    },
+    {
+      "scope": "source.yaml",
+      "source": "yaml/./syntaxes/yaml.tmLanguage.json",
+      "license": "MIT"
+    }
+  ]
+}

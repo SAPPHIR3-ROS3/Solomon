@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -327,7 +329,7 @@ func TestWriteLabeledTranscriptRendersToolsNotXML(t *testing.T) {
 		{Role: "assistant", Content: sampleMultiLegacyToolCalls},
 	}
 	commands.WriteLabeledTranscript(&buf, msgs, "gpt-5", false)
-	out := buf.String()
+	out := ansi.Strip(buf.String())
 	if strings.Contains(out, "<tool_calls>") {
 		t.Fatalf("transcript should not show raw XML: %s", out)
 	}
