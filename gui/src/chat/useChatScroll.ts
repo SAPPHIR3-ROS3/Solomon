@@ -5,6 +5,21 @@ const USER_SCROLL_INTENT_TIMEOUT_MS = 250;
 const SCROLL_POSITION_EPSILON_PX = 0.01;
 const SCROLL_TO_BOTTOM_DURATION_MS = 320;
 
+type ChatScrollPosition = { top: number; following: boolean };
+const positions = new Map<string, ChatScrollPosition>();
+const positionKey = (chatID: string) => `solomon.chat-scroll.v1.${chatID}`;
+function readPosition(chatID: string): ChatScrollPosition | undefined {
+  if (positions.has(chatID)) return positions.get(chatID);
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(positionKey(chatID)) ?? "null");
+    if (value && Number.isFinite(value.top) && value.top >= 0 && typeof value.following === "boolean") return value;
+  } catch { /* Scroll restoration remains available in memory. */ }
+}
+function writePosition(chatID: string, position: ChatScrollPosition) {
+  positions.set(chatID, position);
+  try { window.sessionStorage.setItem(positionKey(chatID), JSON.stringify(position)); } catch { /* Retain the position in memory. */ }
+}
+
 type NullableRef<T> = RefObject<T | null>;
 
 type UseChatScrollOptions = {
@@ -36,6 +51,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
   const scrollFrameRef = useRef<number | null>(null);
   const isAnimatingScrollRef = useRef(false);
   const userScrollIntentRef = useRef(false);
+  const restoringRef = useRef(false);
   const userScrollIntentTimerRef = useRef<number | null>(null);
 
   const cancelScheduledScroll = useCallback(() => {
@@ -73,6 +89,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
     const shell = messagesShellRef.current;
     if (!shell) return;
 
+    if (restoringRef.current) return;
     const currentScrollTop = shell.scrollTop;
     const movedUp = currentScrollTop < lastScrollTopRef.current - SCROLL_POSITION_EPSILON_PX;
     const distanceFromBottom = shell.scrollHeight - currentScrollTop - shell.clientHeight;
@@ -89,8 +106,9 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
       isFollowingBottomRef.current = true;
     }
     lastScrollTopRef.current = currentScrollTop;
+    writePosition(chatID, { top: currentScrollTop, following: isFollowingBottomRef.current });
     shell.style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, currentScrollTop / 18)));
-  }, [cancelScheduledScroll]);
+  }, [cancelScheduledScroll, chatID]);
 
   const scrollToBottom = useCallback(() => {
     cancelScheduledScroll();
@@ -139,15 +157,37 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
 
   useLayoutEffect(() => {
     cancelScheduledScroll();
-    setIsAwayFromBottom(false);
-    isFollowingBottomRef.current = true;
+    const saved = readPosition(chatID);
+    isFollowingBottomRef.current = saved?.following ?? true;
+    restoringRef.current = Boolean(saved && !saved.following);
     userScrollIntentRef.current = false;
     if (userScrollIntentTimerRef.current !== null) {
       window.clearTimeout(userScrollIntentTimerRef.current);
       userScrollIntentTimerRef.current = null;
     }
-    lastScrollTopRef.current = messagesShellRef.current?.scrollTop ?? 0;
-    scheduleScrollToBottom();
+    const shell = messagesShellRef.current;
+    const restore = () => {
+      if (shell && saved && !saved.following) {
+        shell.scrollTop = saved.top;
+        lastScrollTopRef.current = shell.scrollTop;
+        shell.style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, shell.scrollTop / 18)));
+      }
+      restoringRef.current = false;
+      setIsAwayFromBottom(Boolean(shell && !isFollowingBottomRef.current && shell.scrollHeight - shell.scrollTop - shell.clientHeight > FOLLOW_BOTTOM_THRESHOLD_PX));
+      scheduleScrollToBottom();
+    };
+    if (restoringRef.current) {
+      if (shell) shell.scrollTop = saved!.top;
+      // Composer measurement changes the bottom padding before this frame.
+      scrollFrameRef.current = window.requestAnimationFrame(() => {
+        scrollFrameRef.current = null;
+        restore();
+      });
+    } else restore();
+    return () => {
+      writePosition(chatID, { top: restoringRef.current && saved ? saved.top : lastScrollTopRef.current, following: isFollowingBottomRef.current });
+      cancelScheduledScroll();
+    };
   }, [cancelScheduledScroll, chatID, scheduleScrollToBottom]);
 
   useLayoutEffect(() => {

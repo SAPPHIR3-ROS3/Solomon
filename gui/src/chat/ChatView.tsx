@@ -1,3 +1,4 @@
+import { composerDraftKey } from "./composerDrafts";
 import { NotificationControl } from "../notifications/Notifications";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import type { Chat, ChatMessage, ChatToolCall } from "./chatTypes";
@@ -35,7 +36,7 @@ type ChatViewProps = {
   isStreaming?: boolean;
   onDeleteMessage: (chatID: string, messageID: string) => void;
   onOpenedSubagentRequest?: () => void;
-  onSend: (chatID: string, message: ChatMessage) => void;
+  onSend: (chatID: string, message: ChatMessage) => void | Promise<void>;
   onStopTool: (chatID: string, messageID: string, toolID: string) => void;
   onStopStreaming: (chatID: string) => void;
   openSubagentRequest?: OpenSubagentRequest | null;
@@ -85,7 +86,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const liveWorkedFor = isChatWorking ? liveWorkedForSeconds(chat, clockNow) : undefined;
   const { isAwayFromBottom, messagesRef, messagesShellRef, onMessagesKeyDown, onMessagesPointerDown, onMessagesScroll, onMessagesWheel, scrollToBottom } = useChatScroll({
     bottomInset,
-    chatID: chat.id,
+    chatID: composerDraftKey(chat.projectID, chat.id),
     composerDockRef,
     composerRef,
     contentKey: scrollContentKey,
@@ -210,7 +211,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
 
   async function sendFromComposer(content: string, composerImages: ComposerImageAttachment[], composerClips: ComposerTerminalClip[] = []) {
     const messageImages = await snapshotComposerImages(composerImages);
-    onSend(chat.id, {
+    await onSend(chat.id, {
       content,
       createdAt: Date.now(),
       clips: composerClips,
@@ -284,6 +285,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
             onSend={sendFromComposer}
             onStopStreaming={() => onStopStreaming(chat.id)}
             projectID={chat.projectID}
+            draftKey={composerDraftKey(chat.projectID, chat.id)}
             resetKey={chat.id}
             isStreaming={isStreaming}
           />

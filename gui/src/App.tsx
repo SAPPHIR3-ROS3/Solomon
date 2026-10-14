@@ -537,6 +537,7 @@ export function App() {
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedChat ? (
         <ChatView
+          key={JSON.stringify([selectedChat.projectID, selectedChat.id])}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           chat={selectedChat}
           isStreaming={streamingChatIDs.has(selectedChat.id)}

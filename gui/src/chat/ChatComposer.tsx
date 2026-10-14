@@ -1,3 +1,4 @@
+import { composerDraftKey, useComposerDraft } from "./composerDrafts";
 import { sendProjectCommand } from "./chatClient";
 import { notifyError } from "../notifications/store";
 import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
@@ -37,6 +38,7 @@ export type ChatComposerProps = {
   onReasoningChange?: (effort: ReasoningEffort) => void;
   projectID?: string;
   resetKey?: unknown;
+  draftKey?: string;
 };
 
 export type ChatComposerMenu = "model" | "reasoning" | "notifications" | null;
@@ -61,11 +63,11 @@ export function ChatComposer({
   onStopStreaming,
   projectID,
   resetKey,
+  draftKey,
 }: ChatComposerProps) {
   const composerRef = useRef<HTMLFormElement>(null);
-  const [draft, setDraft] = useState("");
-  const [images, setImages] = useState<ComposerImageAttachment[]>([]);
-  const [clips, setClips] = useState<ComposerTerminalClip[]>([]);
+  const key = draftKey ?? composerDraftKey(projectID);
+  const { draft, images, clips, setDraft, setImages, setClips, clearSentDraft } = useComposerDraft(key);
   const [reasoning, setReasoning] = useState<ReasoningEffort>(initialReasoning);
   const [fastOn, setFastOn] = useState(initialFastMode);
   const [fastModeAvailable, setFastModeAvailable] = useState(false);
@@ -110,11 +112,8 @@ export function ChatComposer({
   }, []);
 
   useEffect(() => {
-    setDraft("");
-    setImages([]);
-    setClips([]);
     setOpenMenu(null);
-  }, [resetKey]);
+  }, [resetKey, key]);
 
   useEffect(() => {
     return onTerminalClip((clip) => {
@@ -125,7 +124,7 @@ export function ChatComposer({
         return `${current}${prefix}${clip.tag} `;
       });
     });
-  }, []);
+  }, [key]);
 
   useEffect(() => {
     const addReference = (event: Event) => {
@@ -136,7 +135,7 @@ export function ChatComposer({
     };
     window.addEventListener(ADD_FILE_TO_CHAT_EVENT, addReference);
     return () => window.removeEventListener(ADD_FILE_TO_CHAT_EVENT, addReference);
-  }, [projectID]);
+  }, [projectID, key]);
 
   function setMode(nextMode: "agent" | "chat") {
     setInternalMode(nextMode);
@@ -194,9 +193,7 @@ export function ChatComposer({
       notifyError(reason instanceof Error ? reason.message : "Unable to run command");
       return;
     }
-    setDraft("");
-    setImages([]);
-    setClips([]);
+    clearSentDraft();
   }
 
   return (
@@ -214,6 +211,7 @@ export function ChatComposer({
       }}
     >
       <AtMentionInput
+        key={key}
         aria-label={ariaLabel}
         className="welcome-input"
         clips={clips}

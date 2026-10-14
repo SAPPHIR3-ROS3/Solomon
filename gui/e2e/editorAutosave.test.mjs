@@ -242,3 +242,55 @@ test("editor highlights language files using the Cursor Dark TextMate colors", a
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
+
+test("Enter retains indentation and brackets auto-close, skip and delete as pairs", async () => {
+  await writeFile(filePath(), "");
+  const { page, context, errors } = await editorPage();
+  try {
+    await openDraft(page);
+    await typeText(page, "    first");await page.keyboard.press("Enter");await page.keyboard.insertText("second");
+    await waitForDisk("    first\n    second");
+    await typeText(page, "\tfirst");await waitForDisk("\tfirst");
+    await page.locator('#agent').click();await page.locator('#editor').click();
+    await page.locator('.cm-content').click();await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');await page.keyboard.insertText('second');await waitForDisk("\tfirst\n\tsecond");
+    for (const [open, close] of [['(',')'],['[',']'],['{','}'],['"','"'],["'","'"]]) {
+      await typeText(page, "");await page.keyboard.type(open);await waitForDisk(open+close);
+      await page.keyboard.type(close);await waitForDisk(open+close);
+      await page.keyboard.press('ArrowLeft');await page.keyboard.press('Backspace');await waitForDisk("");
+    }
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test("editor tabs restore their own scroll and cursor across Agent switches and reload", async () => {
+  const text=Array.from({length:260},(_,index)=>`Line ${index+1}`).join('\n');
+  await writeFile(filePath(),text);await writeFile(path.join(workspace,'another.txt'),text);
+  const {page,context,errors}=await editorPage();
+  try {
+    await openDraft(page);await page.locator('.cm-content').click();await page.keyboard.press('Control+End');
+    const shell=page.locator('.cm-scroller');
+    await page.waitForFunction(()=>document.querySelector('.cm-scroller').scrollTop>2000 && document.querySelector('.editor-status').textContent.includes('Ln 260'));
+    await page.evaluate(()=>document.fonts.ready);
+    const settle=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))));
+    await shell.evaluate(node=>{node.scrollTop=1300});await settle();
+    const top=await shell.evaluate(node=>node.scrollTop);
+    const before = await page.evaluate(id=>JSON.parse(localStorage.getItem(`solomon.editor-session.v1.${id}`)),projectA.id);
+    await page.locator('#agent').click();
+    const hidden = await page.evaluate(id=>JSON.parse(localStorage.getItem(`solomon.editor-session.v1.${id}`)),projectA.id);
+    await page.locator('#editor').click();
+    try { await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller').scrollTop-top)<2,top); }
+    catch(error){throw new Error(error.message+'; top='+top+'; before='+JSON.stringify(before.views)+'; hidden='+JSON.stringify(hidden.views)+'; now='+JSON.stringify(await page.evaluate(id=>({top:document.querySelector('.cm-scroller')?.scrollTop,session:JSON.parse(localStorage.getItem(`solomon.editor-session.v1.${id}`))?.views}),projectA.id)));}
+    assert.ok((await page.locator('.editor-status').innerText()).includes('Ln 260'));
+    await page.locator('#editor-files button[title="another.txt"]').dblclick();
+    await page.waitForFunction(()=>document.querySelector('.editor-breadcrumb')?.textContent.includes('another.txt'));
+    await shell.evaluate(node=>{node.scrollTop=700});await settle();
+    const topB=await shell.evaluate(node=>node.scrollTop);
+    await page.locator('.editor-tab-trigger').filter({hasText:'draft.txt'}).click();
+    await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller').scrollTop-top)<2,top);
+    await page.locator('.editor-tab-trigger').filter({hasText:'another.txt'}).click();
+    await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller').scrollTop-top)<2,topB);
+    await page.reload();await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller')?.scrollTop-top)<2,topB);
+    assert.deepEqual(errors,[]);
+  } finally {await context.close();}
+});

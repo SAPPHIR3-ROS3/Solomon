@@ -68,9 +68,8 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef(0);
-  const nextImageIDRef = useRef(0);
+  const nextImageIDRef = useRef(Math.max(-1, ...images.map(image => image.id)) + 1);
   const imagePickerRef = useRef<HTMLInputElement>(null);
-  const previousImagesRef = useRef<ComposerImageAttachment[]>([]);
   const recoveredImageIDsRef = useRef(new Set<number>());
   const [suggestions, setSuggestions] = useState<InputSuggestion[]>([]);
   const [selected, setSelected] = useState(0);
@@ -125,13 +124,6 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     window.addEventListener("resize", reposition);
     return () => window.removeEventListener("resize", reposition);
   }, [clips, images, value]);
-
-  useEffect(() => {
-    for (const previous of previousImagesRef.current) {
-      if (!images.some((image) => image.url === previous.url)) URL.revokeObjectURL(previous.url);
-    }
-    previousImagesRef.current = images;
-  }, [images]);
 
   useEffect(() => {
     if (selectedImageID !== null && !selectedImage) setSelectedImageID(null);

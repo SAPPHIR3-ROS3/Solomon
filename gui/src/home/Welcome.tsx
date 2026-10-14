@@ -1,3 +1,4 @@
+import { composerDraftKey } from "../chat/composerDrafts";
 import { NotificationControl } from "../notifications/Notifications";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import asciiBanner from "../../../internal/logo/logo.txt?raw";
@@ -347,6 +348,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
               onSend={onSend}
               openMenu={openMenu === "model" || openMenu === "reasoning" ? openMenu : null}
               projectID={selectedProject?.id}
+              draftKey={composerDraftKey(isTemporaryWorkspaceActive ? temporaryWorkspace?.path : (workspaceFocus?.project ?? selectedProject)?.name === "Home" ? undefined : (workspaceFocus?.project ?? selectedProject)?.id)}
               resetKey={resetToken}
             />
             <div className="welcome-git-controls">

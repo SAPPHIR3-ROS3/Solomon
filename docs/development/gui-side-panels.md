@@ -42,7 +42,10 @@ folder.
 ## File explorer data
 
 The editor stores its open tabs, drafts, expanded folders, and root collapse
-state separately for each project. Edits autosave after 500 ms of inactivity
+state separately for each project. Each tab also restores its cursor, selection,
+and scroll viewport when switching views or reopening the page. Enter keeps
+the current indentation, and bracket/quote pairs close automatically without
+a language server. Edits autosave after 500 ms of inactivity
 and flush when the editor unmounts or the page is hidden. Writes to the same
 file run in order, including across Editor / Agent navigation. Failed saves
 retain a local draft; restored clean tabs read their current contents from disk.
@@ -50,3 +53,12 @@ retain a local draft; restored clean tabs read their current contents from disk.
 The web development endpoint and the Wails desktop bridge both take a
 registered project ID plus a relative directory path. They reject paths that
 escape the registered project root.
+
+## Chat navigation
+
+Each project/chat has its own composer draft. Unsent text and terminal clips
+are saved in browser local storage; attached images remain available while
+navigating within the current page. A completed send clears only its original
+draft, and leaves newer edits and other chats untouched. Chat reading positions
+are retained in browser session storage, including whether the view was
+following the latest message or scrolled up to read earlier content.

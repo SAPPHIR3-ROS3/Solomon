@@ -1,5 +1,8 @@
 import { fileIconName } from "../fileIcons";
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import { defaultKeymap, insertNewlineAndIndent } from "@codemirror/commands";
+import { indentUnit } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
@@ -11,7 +14,7 @@ import { SidePanelToggle } from "../shell/SidePanelToggle";
 import { CreateEntryActions } from "./CreateEntryActions";
 import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 
-import { loadEditorSession, storeEditorSession, saveEditorFile, waitForEditorSaves, type OpenFile, type EditorSession } from "./editorSession";
+import { loadEditorSession, storeEditorSession, saveEditorFile, waitForEditorSaves, type OpenFile, type EditorSession, type EditorViewState } from "./editorSession";
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
 const EMPTY_HISTORY: ProjectGitHistory = { commits: [], current: "", isRepo: false };
 
@@ -46,8 +49,9 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const openFileTimer = useRef<number | undefined>(undefined);
 
+  const viewsRef = useRef(restoredSession.views ?? {});
   const sessionRef = useRef<EditorSession>(restoredSession);
-  sessionRef.current = { files, activeTabId, expanded: [...expanded], rootCollapsed };
+  sessionRef.current = { files, activeTabId, expanded: [...expanded], rootCollapsed, views: viewsRef.current };
 
   useEffect(() => {
     if (project) storeEditorSession(project.id, sessionRef.current);
@@ -418,7 +422,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     </aside>
     <main className="editor-workbench">
       {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to duplicate" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onDoubleClick={() => duplicateFile(file)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
-      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div><CodeEditor file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} /></> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
+      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div><CodeEditor key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} /></> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
     <footer className="editor-status">
@@ -434,16 +438,95 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
 }
 
 
-function insertEditorLineBreak(editor: EditorView) {
-  editor.dispatch(editor.state.replaceSelection("\n"), { scrollIntoView: true, userEvent: "input" });
-  return true;
-}
-
-function CodeEditor({ file, onChange, onCursor, onSave }: { file: OpenFile; onChange: (content: string) => void; onCursor: (cursor: {line:number;column:number}) => void; onSave: (path: string, content: string) => void }) {
+function CodeEditor({ file, onChange, onCursor, onSave, viewState, onViewState }: {
+  file: OpenFile;
+  onChange: (content: string) => void;
+  onCursor: (cursor: { line: number; column: number }) => void;
+  onSave: (path: string, content: string) => void;
+  viewState?: EditorViewState;
+  onViewState: (state: EditorViewState) => void;
+}) {
   const viewRef = useRef<EditorView | null>(null);
-  const host = useRef<HTMLDivElement>(null); const changeRef = useRef(onChange); const saveRef = useRef(onSave); const cursorRef=useRef(onCursor);
-  changeRef.current = onChange; saveRef.current = onSave; cursorRef.current=onCursor;
-  useEffect(() => { if (!host.current) return; const view = new EditorView({ parent: host.current, state: EditorState.create({ doc: file.content, extensions: [lineNumbers(), ...cursorEditorHighlighting(file.path), EditorView.lineWrapping, EditorView.updateListener.of((update) => { if (update.docChanged) changeRef.current(update.state.doc.toString()); if(update.selectionSet||update.docChanged){const pos=update.state.selection.main.head;const line=update.state.doc.lineAt(pos);cursorRef.current({line:line.number,column:pos-line.from+1});} }), keymap.of([{ key: "Enter", preventDefault: true, run: insertEditorLineBreak, shift: insertEditorLineBreak }, { key: "Mod-s", preventDefault: true, run: (editor) => { saveRef.current(file.path, editor.state.doc.toString()); return true; } }]), EditorView.theme({ "&": { height: "100%", background: "transparent", color: cursorForeground }, ".cm-scroller": { overflow: "auto", fontFamily: '"Geist Mono", "SFMono-Regular", "Cascadia Code", ui-monospace, monospace' }, ".cm-content": { padding: "24px 0 130px", caretColor: "#82aaff" }, ".cm-line": { padding: "0 28px 0 8px" }, ".cm-gutters": { minWidth: "64px", background: "transparent", border: "none", color: "#52616a" }, ".cm-gutterElement": { transform: null }, "&.cm-focused": { outline: "none" }, ".cm-selectionBackground, ::selection": { background: "#82aaff55 !important" } }, { dark: true })] }) }); viewRef.current = view; return () => { viewRef.current = null; view.destroy(); }; }, [file.path]);
+  const host = useRef<HTMLDivElement>(null);
+  const callbacks = useRef({ onChange, onCursor, onSave, onViewState });
+  callbacks.current = { onChange, onCursor, onSave, onViewState };
+  useLayoutEffect(() => {
+    if (!host.current) return;
+    let restoring = Boolean(viewState);
+    let frame: number | undefined;
+    const saveView = (view: EditorView) => {
+      if (restoring) return;
+      const { anchor, head } = view.state.selection.main;
+      const snapshot = view.scrollSnapshot().value;
+      callbacks.current.onViewState({ top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft, anchor, head, scrollAnchor: snapshot.range.head, scrollOffset: snapshot.yMargin });
+    };
+    const view = new EditorView({ parent: host.current,
+      scrollTo: viewState?.scrollAnchor !== undefined ? EditorView.scrollIntoView(Math.min(file.content.length, viewState.scrollAnchor), { y: "start", yMargin: viewState.scrollOffset ?? 0, x: "start", xMargin: viewState.left }) : undefined,
+      state: EditorState.create({
+      doc: file.content,
+      selection: viewState ? { anchor: Math.min(file.content.length, viewState.anchor), head: Math.min(file.content.length, viewState.head) } : undefined,
+      extensions: [
+        lineNumbers(), ...cursorEditorHighlighting(file.path), EditorView.lineWrapping,
+        indentUnit.compute(["doc"], state => /^\t/m.test(state.doc.toString()) ? "\t" : "  "), closeBrackets(),
+        EditorView.scrollHandler.of((editor, range, options) => {
+          if (!restoring || viewState?.scrollAnchor === undefined || range.head !== Math.min(editor.state.doc.length, viewState.scrollAnchor) || options.y !== "start") return false;
+          // Restore the saved line block and pixel offset, rather than the
+          // text baseline used by a normal scrollIntoView request.
+          editor.scrollDOM.scrollTop = editor.lineBlockAt(range.head).top - (viewState.scrollOffset ?? 0);
+          editor.scrollDOM.scrollLeft = viewState.left;
+          return true;
+        }),
+        EditorView.domEventHandlers({ scroll: (_event, editor) => { saveView(editor); } }),
+        EditorView.updateListener.of(update => {
+          if (update.docChanged) callbacks.current.onChange(update.state.doc.toString());
+          if (update.selectionSet || update.docChanged) {
+            const pos = update.state.selection.main.head;
+            const line = update.state.doc.lineAt(pos);
+            callbacks.current.onCursor({ line: line.number, column: pos - line.from + 1 });
+            saveView(update.view);
+          }
+        }),
+        keymap.of([
+          ...closeBracketsKeymap,
+          { key: "Enter", preventDefault: true, run: insertNewlineAndIndent, shift: insertNewlineAndIndent },
+          { key: "Mod-s", preventDefault: true, run: editor => { callbacks.current.onSave(file.path, editor.state.doc.toString()); return true; } },
+          ...defaultKeymap,
+        ]),
+        EditorView.theme({
+          "&": { height: "100%", background: "transparent", color: cursorForeground },
+          ".cm-scroller": { overflow: "auto", fontFamily: '"Geist Mono", "SFMono-Regular", "Cascadia Code", ui-monospace, monospace' },
+          ".cm-content": { padding: "24px 0 130px", caretColor: "#82aaff" },
+          ".cm-line": { padding: "0 28px 0 8px" },
+          ".cm-gutters": { minWidth: "64px", background: "transparent", border: "none", color: "#52616a" },
+          ".cm-gutterElement": { transform: null },
+          "&.cm-focused": { outline: "none" },
+          ".cm-selectionBackground, ::selection": { background: "#82aaff55 !important" },
+        }, { dark: true }),
+      ],
+    }) });
+    viewRef.current = view;
+    const position = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(position);
+    callbacks.current.onCursor({ line: line.number, column: position - line.from + 1 });
+    if (viewState) {
+      frame = requestAnimationFrame(() => {
+        // Let CodeMirror measure its document before restoring the viewport.
+        frame = requestAnimationFrame(() => {
+          if (viewState.scrollAnchor === undefined) {
+            view.scrollDOM.scrollTop = viewState.top;
+            view.scrollDOM.scrollLeft = viewState.left;
+          }
+          restoring = false;
+        });
+      });
+    }
+    return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      saveView(view);
+      viewRef.current = null;
+      view.destroy();
+    };
+  }, [file.id, file.path]);
   useEffect(() => {
     const view = viewRef.current;
     if (view && view.state.doc.toString() !== file.content) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: file.content } });

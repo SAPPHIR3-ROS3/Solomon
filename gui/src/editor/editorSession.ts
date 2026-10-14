@@ -1,7 +1,8 @@
 import { saveProjectFile } from "../projects/projects";
 
 export type OpenFile = { id: string; path: string; content: string; saved: string };
-export type EditorSession = { files: OpenFile[]; activeTabId: string; expanded: string[]; rootCollapsed: boolean };
+export type EditorViewState = { top: number; left: number; anchor: number; head: number; scrollAnchor?: number; scrollOffset?: number };
+export type EditorSession = { files: OpenFile[]; activeTabId: string; expanded: string[]; rootCollapsed: boolean; views?: Record<string, EditorViewState> };
 const sessions = new Map<string, EditorSession>();
 const saves = new Map<string, { content: string; promise: Promise<void> }>();
 const storageKey = (projectID: string) => `solomon.editor-session.v1.${projectID}`;
@@ -15,7 +16,18 @@ export function loadEditorSession(projectID?: string): EditorSession {
     const value = JSON.parse(window.localStorage.getItem(storageKey(projectID)) ?? "null");
     if (!value || typeof value !== "object") return emptySession();
     const files = Array.isArray(value.files) ? value.files.filter((file: OpenFile) => file && typeof file.id === "string" && typeof file.path === "string" && typeof file.content === "string" && typeof file.saved === "string") : [];
-    return { files, activeTabId: typeof value.activeTabId === "string" ? value.activeTabId : "", expanded: Array.isArray(value.expanded) ? value.expanded.filter((path: unknown) => typeof path === "string") : [], rootCollapsed: value.rootCollapsed === true };
+    const views: Record<string, EditorViewState> = {};
+    if (value.views && typeof value.views === "object") {
+      for (const [id, state] of Object.entries(value.views)) {
+        const view = state as EditorViewState;
+        if (view && [view.top, view.left, view.anchor, view.head].every(number => Number.isFinite(number) && number >= 0)) {
+          views[id] = { top: view.top, left: view.left, anchor: Math.floor(view.anchor), head: Math.floor(view.head),
+            scrollAnchor: Number.isInteger(view.scrollAnchor) && view.scrollAnchor! >= 0 ? view.scrollAnchor : undefined,
+            scrollOffset: Number.isFinite(view.scrollOffset) ? view.scrollOffset : undefined };
+        }
+      }
+    }
+    return { views, files, activeTabId: typeof value.activeTabId === "string" ? value.activeTabId : "", expanded: Array.isArray(value.expanded) ? value.expanded.filter((path: unknown) => typeof path === "string") : [], rootCollapsed: value.rootCollapsed === true };
   } catch { return emptySession(); }
 }
 
