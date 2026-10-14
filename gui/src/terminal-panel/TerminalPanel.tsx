@@ -79,6 +79,7 @@ export function TerminalPanel({
   const [isResizing, setIsResizing] = useState(false);
   const [sessions, setSessions] = useState<Record<string, ProjectTerminalSession>>({});
   const draggedTab = useRef<{ projectId: string; tabId: string } | null>(null);
+  const terminateTabs = useRef(new Map<string, () => void>());
   const resizeCleanup = useRef<(() => void) | null>(null);
   const [resizingPane, setResizingPane] = useState(false);
   useEffect(() => () => resizeCleanup.current?.(), []);
@@ -221,6 +222,8 @@ export function TerminalPanel({
     const pane = session.panes.find((candidate) => candidate.id === paneId);
     if (!pane) return;
     const removesProjectSession = pane.tabs.length === 1 && session.panes.length === 1;
+
+    terminateTabs.current.get(`${targetProjectId}:${tabId}`)?.();
 
     setSessions((current) => {
       const latest = current[targetProjectId];
@@ -373,6 +376,11 @@ export function TerminalPanel({
                 <IntegratedShell
                   onCommandSubmit={() => markCommandRun(sessionProjectId, tab.id)}
                   onRunningChange={(running) => setTabRunning(sessionProjectId, tab.id, running)}
+                  onTerminateReady={(terminate) => {
+                    const key = `${sessionProjectId}:${tab.id}`;
+                    if (terminate) terminateTabs.current.set(key, terminate);
+                    else terminateTabs.current.delete(key);
+                  }}
                   tabId={`${sessionProjectId}:${tab.id}`}
                   visible={isActiveSession && tab.id === pane.activeTabId}
                   workingDirectory={isActiveSession ? workingDirectory : ""}

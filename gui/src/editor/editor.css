@@ -382,9 +382,8 @@
 .editor-resize:hover::before,
 .editor-sidebar.is-resizing .editor-resize::before { background:var(--focus-ring); }
 
-/* In the v5 layout the editor status strip remains the final row of the
-   window, below an open terminal rather than above it. */
-.app-shell[data-active-view="editor"] .terminal-panel { bottom:24px; }
+/* The terminal shares the editor's layer and occupies the space below it. */
+.app-shell[data-active-view="editor"] .terminal-panel { z-index:4; }
 
 /* The empty editor state belongs to the viewport, not to the remaining
    workbench column, so the Solomon mark stays centered when the explorer

@@ -34,7 +34,7 @@ func newTerminalAPI(manager *terminalManager) *terminalAPI {
 func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	a.clients.Add(1)
 	defer a.clients.Done()
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 		writeAPIError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
 		return
 	}
@@ -43,6 +43,19 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := r.URL.Query()
+	if r.Method == http.MethodDelete {
+		id := strings.TrimSpace(query.Get("session_id"))
+		if id == "" {
+			writeAPIError(w, http.StatusBadRequest, errors.New("terminal session id is required"))
+			return
+		}
+		if err := a.manager.Close(id); err != nil && !errors.Is(err, errTerminalSessionNotFound) {
+			writeAPIError(w, http.StatusInternalServerError, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	after, err := parseUintQuery(query.Get("after"))
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, errors.New("invalid terminal output cursor"))
@@ -238,6 +251,9 @@ func (a *terminalAPI) handleInput(session *terminalSession, data []byte) error {
 		case "resize":
 			return session.Resize(control.Cols, control.Rows)
 		case "close":
+			if err := a.manager.Close(session.Info().ID); err != nil {
+				return err
+			}
 			return errors.New("terminal session closed by client")
 		}
 	}

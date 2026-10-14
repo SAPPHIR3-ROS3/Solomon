@@ -1,5 +1,12 @@
 import { serverEndpoint } from "../platform";
 
+export async function terminateTerminalSession(sessionID: string) {
+  const query = new URLSearchParams({ session_id: sessionID });
+  const endpoint = await serverEndpoint(`/__solomon/terminal?${query}`);
+  const response = await fetch(endpoint, { method: "DELETE" });
+  if (!response.ok) throw new Error(`Failed to close terminal (${response.status})`);
+}
+
 export async function terminalSocketUrl(
   workingDirectory = "",
   sessionID = "",

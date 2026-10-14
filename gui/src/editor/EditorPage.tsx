@@ -386,7 +386,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const entryMap = useMemo(() => ({ "": entries, ...children }), [entries, children]);
   if (!project) return <>
     <SidePanelToggle isOpen={!sideCollapsed} onToggle={() => setSideCollapsed((current) => !current)} />
-    <section className={`editor-page editor-empty${sideCollapsed ? " side-collapsed" : ""}`} style={{ bottom: 0 }}><div><AsciiBanner /><strong>Open a folder to use the editor</strong></div></section>
+    <section className={`editor-page editor-empty${sideCollapsed ? " side-collapsed" : ""}`} style={{ bottom: bottomInset }}><div><AsciiBanner /><strong>Open a folder to use the editor</strong></div></section>
   </>;
   const workspaceName = displayWorkspaceName(project.name);
   const editorLayoutStyle = { "--editor-side-width": `${sideWidth}px` } as CSSProperties;
@@ -395,7 +395,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     <SidePanelToggle isOpen={!sideCollapsed} onToggle={() => setSideCollapsed((current) => !current)} />
     {!sideCollapsed ? <button aria-label="Go to home" className="editor-top-wordmark" onClick={onHome} style={editorLayoutStyle} type="button">SOLOMON</button> : null}
     <div className={`editor-top-path${sideCollapsed ? " is-collapsed" : ""}`} style={editorLayoutStyle} title={project.path}><span>{abbreviateHomePath(project.path)}</span><button aria-label="Copy project path" title="Copy project path" onClick={() => { if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(project.path).catch(() => copyTextFallback(project.path)); else copyTextFallback(project.path); }}><CopyIcon /></button></div>
-    <section className={`editor-page${sideCollapsed ? " side-collapsed" : ""}`} style={{ ...editorLayoutStyle, bottom: 0 }}>
+    <section className={`editor-page${sideCollapsed ? " side-collapsed" : ""}`} style={{ ...editorLayoutStyle, bottom: bottomInset }}>
     <aside className={`editor-sidebar${sideResizing ? " is-resizing" : ""}`} id="side-panel">
       <header aria-label="Explorer views" className="right-side-panel-head editor-side-panel-head">
         <div aria-label="Explorer view" className="right-side-panel-view-actions" role="tablist">

@@ -4,17 +4,19 @@ import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
 import { addTerminalClip } from "./clips";
 import { selectedTerminalText, selectionLineRange } from "./selection";
-import { terminalSocketUrl } from "./terminalSocket";
+import { terminalSocketUrl, terminateTerminalSession } from "./terminalSocket";
 
 export function IntegratedShell({
   onCommandSubmit,
   onRunningChange,
+  onTerminateReady,
   tabId,
   visible,
   workingDirectory,
 }: {
   onCommandSubmit: () => void;
   onRunningChange: (running: boolean) => void;
+  onTerminateReady?: (terminate: (() => void) | null) => void;
   tabId: string;
   visible: boolean;
   workingDirectory: string;
@@ -25,8 +27,15 @@ export function IntegratedShell({
   const visibleRef = useRef(visible);
   const commandSubmitRef = useRef(onCommandSubmit);
   const runningChangeRef = useRef(onRunningChange);
+  const terminateReadyRef = useRef(onTerminateReady);
+  const [initialDirectory, setInitialDirectory] = useState<string | null>(null);
   commandSubmitRef.current = onCommandSubmit;
   runningChangeRef.current = onRunningChange;
+  terminateReadyRef.current = onTerminateReady;
+
+  useEffect(() => {
+    if (visible) setInitialDirectory((current) => current ?? workingDirectory);
+  }, [visible, workingDirectory]);
 
   useEffect(() => {
     visibleRef.current = visible;
@@ -39,7 +48,7 @@ export function IntegratedShell({
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || !visible) return;
+    if (!host || initialDirectory === null) return;
 
     const term = new Terminal({
       cursorBlink: true,
@@ -71,19 +80,40 @@ export function IntegratedShell({
     let attempts = 0;
     let serverRejected = false;
     let disposed = false;
+    let closing = false;
     const storedSession = loadStoredTerminalSession(tabId);
     const sessionIDRef = { current: storedSession.id };
-    const outputSeqRef = { current: storedSession.seq };
+    // A new renderer has no scrollback, even when the daemon session survives.
+    // Only reconnects of this renderer may resume after its last output.
+    const outputSeqRef = { current: 0 };
+
+    terminateReadyRef.current?.(() => {
+      closing = true;
+      try {
+        window.localStorage.removeItem(terminalSessionStorageKey(tabId));
+      } catch {
+        // Process termination also works when browser storage is unavailable.
+      }
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      // A connecting socket may still be creating its PTY. Let it open and
+      // deliver the close control instead of abandoning that new process.
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "close" }));
+      } else if (sessionIDRef.current) {
+        void terminateTerminalSession(sessionIDRef.current).catch(console.error);
+      }
+    });
 
     const sendResize = () => {
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      if (disposed || !visibleRef.current) return;
       fitAddon.fit();
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
       socket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
     };
     resizeRef.current = sendResize;
 
     const scheduleRetry = () => {
-      if (disposed || retryTimer !== undefined) return;
+      if (disposed || closing || retryTimer !== undefined) return;
       const delay = Math.min(5000, 250 * (2 ** Math.min(attempts, 4)));
       attempts += 1;
       retryTimer = window.setTimeout(() => {
@@ -96,7 +126,7 @@ export function IntegratedShell({
       if (disposed) return;
       let endpoint: string;
       try {
-        endpoint = await terminalSocketUrl(workingDirectory, sessionIDRef.current, outputSeqRef.current, term.cols, term.rows);
+        endpoint = await terminalSocketUrl(initialDirectory, sessionIDRef.current, outputSeqRef.current, term.cols, term.rows);
       } catch {
         scheduleRetry();
         return;
@@ -107,6 +137,7 @@ export function IntegratedShell({
       nextSocket.binaryType = "arraybuffer";
 
       nextSocket.onmessage = (event) => {
+        if (disposed || closing) return;
         if (typeof event.data === "string") {
           if (event.data.startsWith("{")) {
             try {
@@ -148,6 +179,10 @@ export function IntegratedShell({
         term.write(new Uint8Array(event.data as ArrayBuffer));
       };
       nextSocket.onopen = () => {
+        if (closing) {
+          nextSocket.send(JSON.stringify({ type: "close" }));
+          return;
+        }
         attempts = 0;
         serverRejected = false;
         requestAnimationFrame(() => {
@@ -158,10 +193,12 @@ export function IntegratedShell({
       };
       nextSocket.onerror = () => nextSocket.close();
       nextSocket.onclose = () => {
+        if (disposed || closing) return;
         runningChangeRef.current(false);
         if (!disposed && !serverRejected && socket === nextSocket) scheduleRetry();
       };
     };
+    sendResize();
     void connect();
 
     const inputSubscription = term.onData((data) => {
@@ -175,16 +212,18 @@ export function IntegratedShell({
 
     return () => {
       disposed = true;
+      terminateReadyRef.current?.(null);
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       inputSubscription.dispose();
       selectionSub.dispose();
       observer.disconnect();
       termRef.current = null;
       resizeRef.current = null;
-      socket?.close();
+      if (!closing) socket?.close();
+      selectionHost.remove();
       term.dispose();
     };
-  }, [tabId, visible, workingDirectory]);
+  }, [tabId, initialDirectory]);
 
   const [selection, setSelection] = useState<{ end: number; start: number; text: string } | null>(null);
 
@@ -207,7 +246,7 @@ export function IntegratedShell({
       sub.dispose();
       host?.removeEventListener("mouseup", sync);
     };
-  }, [tabId, visible, workingDirectory]);
+  }, [tabId, visible, initialDirectory]);
 
   function addSelectionToChat() {
     if (!selection) return;
