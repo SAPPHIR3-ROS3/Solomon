@@ -232,6 +232,9 @@ func Run(ctx context.Context, options Options) error {
 	terminalAPI := newTerminalAPI(terminalManager)
 	httpServer := &http.Server{}
 	mux := http.NewServeMux()
+	background := newBackgroundAPI()
+	defer background.close()
+	mux.HandleFunc("/__solomon/background", background.handle)
 	guiStatus := "not configured"
 	if proxy != nil || guibundle.Ready() {
 		guiStatus = "ready"

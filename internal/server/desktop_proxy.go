@@ -33,15 +33,28 @@ func desktopProxy(frontend bool) http.Handler {
 		}
 		state, err := LoadState()
 		if err != nil {
+			if frontend && !isAPI {
+				productionFrontend().ServeHTTP(w, r)
+				return
+			}
 			http.Error(w, "Solomon daemon is unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		target, err := url.Parse(state.URL)
 		if err != nil || target.Host == "" {
+			if frontend && !isAPI {
+				productionFrontend().ServeHTTP(w, r)
+				return
+			}
 			http.Error(w, "invalid Solomon daemon URL", http.StatusServiceUnavailable)
 			return
 		}
 		proxy := httputil.NewSingleHostReverseProxy(target)
+		if frontend && !isAPI {
+			proxy.ErrorHandler = func(w http.ResponseWriter, request *http.Request, _ error) {
+				productionFrontend().ServeHTTP(w, request)
+			}
+		}
 		proxy.ModifyResponse = func(response *http.Response) error {
 			if origin != "" {
 				response.Header.Set("Access-Control-Allow-Origin", origin)

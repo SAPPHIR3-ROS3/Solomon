@@ -16,6 +16,8 @@ type WailsEnvironment = {
 
 type WailsServerBridge = {
   URL: () => Promise<string>;
+  DaemonRunning?: () => Promise<boolean>;
+  SetDaemonEnabled?: (enabled: boolean) => Promise<boolean>;
   ClipboardImage?: () => Promise<string>;
 };
 

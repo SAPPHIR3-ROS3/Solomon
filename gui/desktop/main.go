@@ -23,7 +23,7 @@ var appIcon []byte
 
 func main() {
 	if err := ensureDesktopServer(); err != nil {
-		log.Fatal(err)
+		log.Printf("daemon startup: %v", err)
 	}
 	bridge, closeProxy, err := startDesktopProxy()
 	if err != nil {

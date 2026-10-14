@@ -15,11 +15,24 @@ import (
 // GUISettings follows the sections in the Settings page. Provider credentials
 // and runtime model selection remain in their existing backend sections.
 type GUISettings struct {
-	General  GUIGeneralSettings `toml:"-" json:"general"`
-	Advanced map[string]any     `toml:"-" json:"advanced"`
-	Chat     GUIChatSettings    `toml:"chat" json:"chat"`
-	Models   GUIModelSettings   `toml:"models" json:"models"`
-	Docs     struct{}           `toml:"docs" json:"docs"`
+	Background GUIBackgroundSettings `toml:"background" json:"background"`
+	General    GUIGeneralSettings    `toml:"-" json:"general"`
+	Advanced   map[string]any        `toml:"-" json:"advanced"`
+	Chat       GUIChatSettings       `toml:"chat" json:"chat"`
+	Models     GUIModelSettings      `toml:"models" json:"models"`
+	Docs       struct{}              `toml:"docs" json:"docs"`
+}
+
+type GUIBackgroundSettings struct {
+	KeepAwake bool `toml:"keep_awake" json:"keepAwake"`
+}
+
+func UpdateGUIBackgroundSettings(enabled bool) error {
+	_, err := updateGUISettings(func(gui *GUISettings, _ map[string]any) error {
+		gui.Background.KeepAwake = enabled
+		return nil
+	})
+	return err
 }
 
 // General settings expose runtime preferences without duplicating their TOML storage.

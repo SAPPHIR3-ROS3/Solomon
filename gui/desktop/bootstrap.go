@@ -12,10 +12,10 @@ import (
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
-func ensureDesktopServer() error {
+func desktopCLI() (string, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return err
+		return "", err
 	}
 	name := "solomon"
 	if runtime.GOOS == "windows" {
@@ -27,8 +27,16 @@ func ensureDesktopServer() error {
 	} else if _, err := os.Stat(cli); err != nil {
 		cli, err = exec.LookPath(name)
 		if err != nil {
-			return fmt.Errorf("Solomon CLI is missing: install %s next to solomon-desktop or set SOLOMON_BINARY", name)
+			return "", fmt.Errorf("Solomon CLI is missing: install %s next to solomon-desktop or set SOLOMON_BINARY", name)
 		}
+	}
+	return cli, nil
+}
+
+func ensureDesktopServer() error {
+	cli, err := desktopCLI()
+	if err != nil {
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
