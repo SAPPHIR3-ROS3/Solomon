@@ -8,6 +8,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# The online installer is evaluated with iex, so this also permits npm.ps1/npx.ps1.
+# Local files must be launched with powershell -ExecutionPolicy Bypass -File.
+if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+}
+
 $GoRequired = '1.25.0'
 $NodeRequired = '20.0.0'
 $DefaultServerPort = 64000
@@ -484,9 +490,32 @@ function Add-UserPathEntry {
     }
 }
 
+function Update-InstallerProcessPath {
+    # WinGet updates the registry PATH, but this PowerShell process keeps its old copy.
+    # Preserve session-only entries (including a freshly installed local Go).
+    $parts = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($pathValue in @(
+        $env:Path,
+        [Environment]::GetEnvironmentVariable('Path', 'User'),
+        [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    )) {
+        foreach ($entry in ($pathValue -split ';')) {
+            if ([string]::IsNullOrWhiteSpace($entry)) { continue }
+            $expanded = [Environment]::ExpandEnvironmentVariables($entry.Trim())
+            if (-not ($parts | Where-Object { $_.TrimEnd('\') -ieq $expanded.TrimEnd('\') })) {
+                $parts.Add($expanded)
+            }
+        }
+    }
+    $env:Path = $parts -join ';'
+}
+
 function Ensure-Make {
+    Update-InstallerProcessPath
     $makeCmd = Get-Command make -ErrorAction SilentlyContinue
     if ($makeCmd) {
+        & make --version | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'GNU Make is on PATH but cannot run (make --version failed)' }
         Write-Host "make OK ($($makeCmd.Source))"
         return
     }
@@ -497,7 +526,10 @@ function Ensure-Make {
         throw 'winget not found; install GNU Make manually or install App Installer from the Microsoft Store'
     }
 
-    & winget install --id ezwinports.make -e --accept-source-agreements --accept-package-agreements
+    & winget install --id ezwinports.make -e --scope user --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) { throw "GNU Make installation via winget failed (exit code $LASTEXITCODE)" }
+
+    Update-InstallerProcessPath
 
     $wingetLinks = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links'
     if (Test-Path $wingetLinks) {
@@ -510,9 +542,11 @@ function Ensure-Make {
 
     $makeCmd = Get-Command make -ErrorAction SilentlyContinue
     if (-not $makeCmd) {
-        throw 'make install failed; restart the terminal or verify ezwinports.make is available in PATH'
+        throw 'winget completed but make.exe is unavailable in the updated PATH and WinGet Links directory'
     }
 
+    & make --version | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'GNU Make was installed but cannot run (make --version failed)' }
     Write-Host "make ready ($($makeCmd.Source))"
 }
 
