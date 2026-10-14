@@ -16,6 +16,7 @@ type WailsEnvironment = {
 
 type WailsServerBridge = {
   URL: () => Promise<string>;
+  ClipboardImage?: () => Promise<string>;
 };
 
 type WailsDesktopBridge = {

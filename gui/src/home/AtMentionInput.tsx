@@ -1,6 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { ImageLightbox } from "./ImageLightbox";
+import { clipboardImageFiles, readNativeClipboardImage } from "./clipboardImages";
+import { notifyError } from "../notifications/store";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "../chat/composerTypes";
 import { fetchProjectAtMentionSuggestions, type ProjectAtMentionSuggestion } from "../projects/projects";
 import { fetchProjectSlashCommands, getCachedProjectSlashCommands } from "../projects/projects";
@@ -71,6 +73,9 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   const nextImageIDRef = useRef(Math.max(-1, ...images.map(image => image.id)) + 1);
   const imagePickerRef = useRef<HTMLInputElement>(null);
   const recoveredImageIDsRef = useRef(new Set<number>());
+  const pasteRequestRef = useRef(0);
+  const latestComposerRef = useRef({ attach: (files: File[]) => attachImages(files), value, images });
+  latestComposerRef.current = { attach: (files) => attachImages(files), value, images };
   const [suggestions, setSuggestions] = useState<InputSuggestion[]>([]);
   const [selected, setSelected] = useState(0);
   const [pickerPosition, setPickerPosition] = useState<{ left: number; top: number } | null>(null);
@@ -211,12 +216,30 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   }
 
   function pasteImages(event: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const files = [...event.clipboardData.items]
-      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
-      .flatMap((item) => item.getAsFile() ?? []);
-    if (!files.length || !onImagesChange) return;
-    event.preventDefault();
-    attachImages(files);
+    if (!onImagesChange) return;
+    const files = clipboardImageFiles(event.clipboardData);
+    if (files.length) {
+      pasteRequestRef.current += 1;
+      event.preventDefault();
+      attachImages(files);
+    } else if (event.clipboardData.getData("text/plain")) {
+      pasteRequestRef.current += 1;
+    } else {
+      pasteNativeImage();
+    }
+  }
+
+  function pasteNativeImage() {
+    if (!onImagesChange || !window.go?.main?.ServerBridge?.ClipboardImage) return;
+    const request = ++pasteRequestRef.current;
+    const composer = latestComposerRef.current;
+    void readNativeClipboardImage().then((files) => {
+      if (request !== pasteRequestRef.current || !inputRef.current ||
+          composer.value !== latestComposerRef.current.value || composer.images !== latestComposerRef.current.images) return;
+      latestComposerRef.current.attach(files);
+    }).catch((error: unknown) => {
+      if (request === pasteRequestRef.current) notifyError(`Unable to paste image: ${String(error)}`);
+    });
   }
 
   function attachImages(files: File[]) {
@@ -360,6 +383,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
         onKeyDown={(event) => {
           // IME confirmation belongs to the keyboard, including mobile keyboards.
           if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+          if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "v") pasteNativeImage();
           if (suggestions.length) {
             if (event.key === "ArrowDown") { event.preventDefault(); setSelected((current) => Math.min(current + 1, suggestions.length - 1)); return; }
             if (event.key === "ArrowUp") { event.preventDefault(); setSelected((current) => Math.max(current - 1, 0)); return; }
