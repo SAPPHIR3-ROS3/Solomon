@@ -58,7 +58,7 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 	stagedCLI := filepath.Join(stage, filepath.Base(target))
 	gui := filepath.Join(root, "gui")
 	state, _ := serverruntime.LoadState()
-	stopBeforePrepare := needsStoppedPreparation(runtime.GOOS, gui, state, func() bool {
+	stopBeforePrepare := lifecycle.SourceInstallNeedsStoppedPreparation(runtime.GOOS, gui, state, func() bool {
 		command := exec.CommandContext(ctx, "npm", "ls", "--depth=0", "--silent")
 		command.Dir = gui
 		command.Stdout, command.Stderr = io.Discard, io.Discard
@@ -126,35 +126,7 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 	if stopBeforePrepare {
 		fmt.Println("\nGUI dependencies need repair; stopping the development runtime before npm ci to release Windows file locks.")
 	}
-	return coordinateInstall(stopBeforePrepare, prepare, deploy, handoff)
-}
-
-// Windows cannot unlink native npm modules loaded by the running Vite server.
-func needsStoppedPreparation(goos, gui string, state serverruntime.State, ready func() bool) bool {
-	if goos != "windows" || state.Mode != "dev" || state.PID <= 0 {
-		return false
-	}
-	devDir, err := filepath.Abs(state.DevDir)
-	if err != nil || !strings.EqualFold(filepath.Clean(gui), devDir) {
-		return false
-	}
-	return !ready()
-}
-
-func coordinateInstall(stopBeforePrepare bool, prepare, deploy func() error, handoff func(func() error) error) error {
-	if !stopBeforePrepare {
-		if err := prepare(); err != nil {
-			return fmt.Errorf("%w (running service preserved)", err)
-		}
-	}
-	return handoff(func() error {
-		if stopBeforePrepare {
-			if err := prepare(); err != nil {
-				return err
-			}
-		}
-		return deploy()
-	})
+	return lifecycle.PrepareAndInstallSource(stopBeforePrepare, prepare, deploy, handoff)
 }
 
 func step(number int, label string) {

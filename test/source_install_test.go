@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/lifecycle"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
@@ -27,7 +28,7 @@ func TestNeedsStoppedPreparation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := serverruntime.State{PID: tc.pid, Mode: tc.mode, DevDir: tc.dir}
-			if got := needsStoppedPreparation(tc.goos, gui, state, func() bool { return tc.ready }); got != tc.want {
+			if got := lifecycle.SourceInstallNeedsStoppedPreparation(tc.goos, gui, state, func() bool { return tc.ready }); got != tc.want {
 				t.Fatalf("needsStoppedPreparation = %v, want %v", got, tc.want)
 			}
 		})
@@ -48,7 +49,7 @@ func TestCoordinateInstallPreparationAndRecovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var steps []string
 			failure := errors.New("npm ci failed")
-			err := coordinateInstall(tc.stop, func() error {
+			err := lifecycle.PrepareAndInstallSource(tc.stop, func() error {
 				steps = append(steps, "prepare")
 				if tc.fail {
 					return failure
