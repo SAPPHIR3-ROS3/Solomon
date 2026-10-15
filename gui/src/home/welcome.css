@@ -342,10 +342,10 @@
 }
 
 .at-mention-input-shell {
-  margin-right: -13px;
   min-height: 72px;
+  min-width: 0;
   position: relative;
-  width: calc(100% + 13px);
+  width: 100%;
 }
 
 .composer-image-previews {
