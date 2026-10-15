@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-typescript","patterns":[{"include":"source.ts"}],"name":"cursor:source.worktree-typescript"}`}))();export{t as default};

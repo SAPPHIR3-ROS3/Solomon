@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";function t(){return window.runtime.Environment()}var n=e((()=>{}));export{n,t};
