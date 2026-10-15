@@ -167,10 +167,14 @@ if ($script:policyCalls -ne 1) { throw 'Bypass was not invoked' }
 # test process and verify the real policy changes only at Process scope on Windows.
 Remove-Item Function:Set-ExecutionPolicy
 if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+ # Run startup before querying policy: inherited PowerShell 7 module paths can
+ # otherwise break Windows PowerShell's own Security module in this fixture.
+ $bootstrap = @($ast.EndBlock.Statements | Where-Object { $_ -isnot [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Extent.StartOffset -lt $policyCommands[0].Extent.StartOffset })
+ foreach ($statement in $bootstrap) { Invoke-Expression $statement.Extent.Text }
+ if ($PSVersionTable.PSEdition -eq 'Desktop' -and ($env:PSModulePath -split ';')[0] -ne (Join-Path $PSHOME 'Modules')) { throw 'Host modules must precede inherited modules' }
  $user = Get-ExecutionPolicy -Scope CurrentUser
  $machine = Get-ExecutionPolicy -Scope LocalMachine
  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Restricted -Force
- $bootstrap = @($ast.EndBlock.Statements | Where-Object { $_ -isnot [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Extent.StartOffset -lt $policyCommands[0].Extent.StartOffset })
  foreach ($statement in $bootstrap) { Invoke-Expression $statement.Extent.Text }
  if ((Get-ExecutionPolicy -Scope Process) -ne 'Bypass') { throw 'Restricted process was not bypassed' }
  if ((Get-ExecutionPolicy -Scope CurrentUser) -ne $user -or (Get-ExecutionPolicy -Scope LocalMachine) -ne $machine) { throw 'Persistent policy changed' }

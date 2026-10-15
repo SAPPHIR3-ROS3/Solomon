@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/lifecycle"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
@@ -54,14 +56,14 @@ func main() {
 
 func install(ctx context.Context, target, root, stage string, run func(string, ...string) error) error {
 	stagedCLI := filepath.Join(stage, filepath.Base(target))
-	// Compilers, npm, browser downloads and configuration validation complete
-	// while the installed daemon and its clients are still available.
-	if err := run(os.Args[2], "install-prepare", "OUT="+stagedCLI); err != nil {
-		return fmt.Errorf("prepare installation (running service preserved): %w", err)
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+	gui := filepath.Join(root, "gui")
+	state, _ := serverruntime.LoadState()
+	stopBeforePrepare := needsStoppedPreparation(runtime.GOOS, gui, state, func() bool {
+		command := exec.CommandContext(ctx, "npm", "ls", "--depth=0", "--silent")
+		command.Dir = gui
+		command.Stdout, command.Stderr = io.Discard, io.Discard
+		return command.Run() == nil
+	})
 	cursorRoot := strings.TrimSpace(os.Getenv("SOLOMON_CURSOR_API_ROOT"))
 	if cursorRoot == "" {
 		home, err := paths.SolomonHome()
@@ -78,9 +80,18 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 		return err
 	}
 	defer os.RemoveAll(cursorStage)
-	fmt.Println("\nPreparing Cursor integration dependencies...")
-	if err := run("go", "run", "scripts/cursor_bundler.go", "prepare-install", cursorStage); err != nil {
-		return fmt.Errorf("prepare Cursor dependencies (running service preserved): %w", err)
+	prepare := func() error {
+		if err := run(os.Args[2], "install-prepare", "OUT="+stagedCLI); err != nil {
+			return fmt.Errorf("prepare installation: %w", err)
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		fmt.Println("\nPreparing Cursor integration dependencies...")
+		if err := run("go", "run", "scripts/cursor_bundler.go", "prepare-install", cursorStage); err != nil {
+			return fmt.Errorf("prepare Cursor dependencies: %w", err)
+		}
+		return nil
 	}
 	desktop := filepath.Join(root, "gui", "desktop", "build", "bin", "solomon-desktop")
 	if runtime.GOOS == "windows" {
@@ -92,7 +103,7 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 	if version == "" {
 		version = "dev"
 	}
-	return lifecycle.HotInstallWithProgress(ctx, target, filepath.Join(root, "gui"), func() error {
+	deploy := func() error {
 		step(6, "Install Solomon CLI and native desktop")
 		if err := updater.CommitInstall(stagedCLI, target); err != nil {
 			return err
@@ -101,13 +112,48 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 			return err
 		}
 		return run(os.Args[2], "install-deploy", "BIN_DIR="+os.Args[3], "CURSOR_STAGE="+cursorStage)
-	}, func(phase string) {
-		switch phase {
-		case "stop":
-			step(5, "Stop Solomon server and native clients")
-		case "start":
-			fmt.Println("\nRestarting and verifying Solomon server and native clients...")
+	}
+	handoff := func(install func() error) error {
+		return lifecycle.HotInstallWithProgress(ctx, target, gui, install, func(phase string) {
+			switch phase {
+			case "stop":
+				step(5, "Stop Solomon server and native clients")
+			case "start":
+				fmt.Println("\nRestarting and verifying Solomon server and native clients...")
+			}
+		})
+	}
+	if stopBeforePrepare {
+		fmt.Println("\nGUI dependencies need repair; stopping the development runtime before npm ci to release Windows file locks.")
+	}
+	return coordinateInstall(stopBeforePrepare, prepare, deploy, handoff)
+}
+
+// Windows cannot unlink native npm modules loaded by the running Vite server.
+func needsStoppedPreparation(goos, gui string, state serverruntime.State, ready func() bool) bool {
+	if goos != "windows" || state.Mode != "dev" || state.PID <= 0 {
+		return false
+	}
+	devDir, err := filepath.Abs(state.DevDir)
+	if err != nil || !strings.EqualFold(filepath.Clean(gui), devDir) {
+		return false
+	}
+	return !ready()
+}
+
+func coordinateInstall(stopBeforePrepare bool, prepare, deploy func() error, handoff func(func() error) error) error {
+	if !stopBeforePrepare {
+		if err := prepare(); err != nil {
+			return fmt.Errorf("%w (running service preserved)", err)
 		}
+	}
+	return handoff(func() error {
+		if stopBeforePrepare {
+			if err := prepare(); err != nil {
+				return err
+			}
+		}
+		return deploy()
 	})
 }
 

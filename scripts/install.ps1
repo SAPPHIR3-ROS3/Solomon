@@ -8,6 +8,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Make can inherit PowerShell 7's module path when launching Windows PowerShell.
+# Resolve built-in modules from this host before any incompatible inherited ones.
+if ($PSVersionTable.PSEdition -eq 'Desktop') {
+    $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
+}
+
 # The online installer is evaluated with iex, so this also permits npm.ps1/npx.ps1.
 # Local files must be launched with powershell -ExecutionPolicy Bypass -File.
 if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
