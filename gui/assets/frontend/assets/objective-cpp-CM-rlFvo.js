@@ -1,0 +1,1 @@
+import{n as e,t}from"./vendor~objective-cpp-CB4UpKjS.js";t();export{e as default};

@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-python","patterns":[{"include":"source.python"}],"name":"cursor:source.worktree-python"}`}))();export{t as default};

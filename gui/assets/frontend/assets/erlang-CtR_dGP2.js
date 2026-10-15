@@ -1,0 +1,1 @@
+import{n as e,t}from"./erlang-DVRW6rrx.js";e();export{t as default};
