@@ -1,0 +1,1 @@
+import{n as e,t}from"./shellscript-CmkdXzpr.js";t();export{e as default};

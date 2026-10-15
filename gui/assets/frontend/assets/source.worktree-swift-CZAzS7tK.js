@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-swift","patterns":[{"include":"source.swift"}],"name":"cursor:source.worktree-swift"}`}))();export{t as default};
