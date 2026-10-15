@@ -1,0 +1,1 @@
+import{n as e,t}from"./bat-DQRE8u6Y.js";e();export{t as default};
