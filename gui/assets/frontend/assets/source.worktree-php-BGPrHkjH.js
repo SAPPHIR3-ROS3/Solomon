@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-php","patterns":[{"include":"source.php"}],"name":"cursor:source.worktree-php"}`}))();export{t as default};

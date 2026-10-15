@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-terraform-deploy","patterns":[{"include":"source.hcl"}],"name":"cursor:source.worktree-terraform-deploy"}`}))();export{t as default};
