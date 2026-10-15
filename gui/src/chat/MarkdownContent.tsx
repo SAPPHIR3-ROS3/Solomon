@@ -1,7 +1,8 @@
 import { highlightCursorCode, cursorForeground } from "../syntax/cursorSyntax";
+import { currentNavigationID, measureNavigationHighlight } from "./navigationPerformance";
 import type { ThemedToken } from "@shikijs/types";
-import { isValidElement, type ReactNode, useEffect, useState } from "react";
-import Markdown from "react-markdown";
+import { isValidElement, memo, type ReactNode, useEffect, useState } from "react";
+import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -13,28 +14,30 @@ import "./imageTags.css";
 import { CheckIcon, CopyIcon } from "./ChatIcons";
 import { copyText } from "./chatClipboard";
 
-export function MarkdownContent({ content }: { content: string }) {
+const markdownComponents: Components = {
+  a: ({ children, href, ...props }) => (
+    <a {...props} className={`${props.className ?? ""}${isFileLink(href) ? " chat-file-link" : ""}`.trim()} href={href} rel="noreferrer" target="_blank">{children}</a>
+  ),
+  input: (props) => <input {...props} aria-label="Completed activity" className="chat-checkbox" disabled />,
+  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  table: ({ children, ...props }) => (
+    <div className="chat-table-wrap">
+      <table {...props}>{children}</table>
+    </div>
+  ),
+};
+
+export const MarkdownContent = memo(function MarkdownContent({ content }: { content: string }) {
   return (
     <Markdown
-      components={{
-        a: ({ children, href, ...props }) => (
-          <a {...props} className={`${props.className ?? ""}${isFileLink(href) ? " chat-file-link" : ""}`.trim()} href={href} rel="noreferrer" target="_blank">{children}</a>
-        ),
-        input: (props) => <input {...props} aria-label="Completed activity" className="chat-checkbox" disabled />,
-        pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-        table: ({ children, ...props }) => (
-          <div className="chat-table-wrap">
-            <table {...props}>{children}</table>
-          </div>
-        ),
-      }}
+      components={markdownComponents}
       remarkPlugins={[remarkGfm, remarkMath]}
       rehypePlugins={[rehypeImageTags, [rehypeKatex, { trust: false }]]}
     >
       {escapeImageTags(normalizeMathDelimiters(normalizeCodeBlocks(content)))}
     </Markdown>
   );
-}
+});
 
 function CodeBlock({ children }: { children?: ReactNode }) {
   const [copied, setCopied] = useState(false);
@@ -44,10 +47,14 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   const [highlighted, setHighlighted] = useState<{ source: string; language: string; tokens: ThemedToken[][] }>();
   useEffect(() => {
     let cancelled = false;
-    void highlightCursorCode(code.replace(/\r\n/g, "\n").replace(/\n$/, ""), language ?? "text").then(tokens => {
-      if (!cancelled) setHighlighted({ source: code, language: language ?? "text", tokens });
-    }).catch(error => console.error("Unable to highlight code snippet", error));
-    return () => { cancelled = true; };
+    const navigationID = currentNavigationID();
+    // During streaming keep plain code visible; tokenize once updates settle.
+    const timer = setTimeout(() => {
+      void measureNavigationHighlight(navigationID, () => highlightCursorCode(code.replace(/\r\n/g, "\n").replace(/\n$/, ""), language ?? "text")).then(tokens => {
+        if (!cancelled) setHighlighted({ source: code, language: language ?? "text", tokens });
+      }).catch(error => console.error("Unable to highlight code snippet", error));
+    }, 150);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [code, language]);
   const tokens = highlighted?.source === code && highlighted.language === (language ?? "text") ? highlighted.tokens : undefined;
 

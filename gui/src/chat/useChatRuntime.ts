@@ -1,4 +1,6 @@
 import { notifyNotification } from "../notifications/store";
+import { beginNavigation, cancelNavigation, failNavigation, markNavigationSelection, measureNavigation, measureNavigationSync, setNavigationCache } from "./navigationPerformance";
+import { createChatStreamBatch } from "./streamBatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sendProjectCommand, applyLiveStreamEvent, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, deleteLiveChatMessage, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type ChatStreamEventHandler, type LiveChat } from "./chatClient";
 import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, getUnreadCompletedChatIDs, rememberActiveChat, saveUnreadCompletedChatIDs, removeChat, saveChat, saveChatStreamCursor, updateChat, useChatStore } from "./chatStore";
@@ -17,7 +19,7 @@ export type ChatRuntime = {
   unreadCompletedChatIDs: ReadonlySet<string>;
   queuedMessages: ReadonlyMap<string, readonly ChatMessage[]>;
   clearSelection: () => void;
-  openProjectChat: (project: Project, chatID: string) => Promise<void>;
+  openProjectChat: (project: Project, chatID: string, navigationID?: number) => Promise<void>;
   sendNewProjectMessage: (project: Project, content: string, images?: ComposerImageAttachment[], clips?: ComposerTerminalClip[]) => Promise<void>;
   sendMessage: (chatID: string, message: ChatMessage) => void;
   renameChat: (projectID: string, chatID: string, title: string) => Promise<void>;
@@ -43,6 +45,7 @@ export function useChatRuntime(): ChatRuntime {
   const selectedChatIDRef = useRef<string | null>(null);
   const loadController = useRef<AbortController | null>(null);
   const loadRequest = useRef(0);
+  const navigationIDRef = useRef<number | undefined>(undefined);
   const createController = useRef<AbortController | null>(null);
   const createRequest = useRef(0);
 
@@ -60,6 +63,7 @@ export function useChatRuntime(): ChatRuntime {
   );
 
   const cancelPendingRequests = useCallback(() => {
+    cancelNavigation(navigationIDRef.current);
     loadRequest.current += 1;
     loadController.current?.abort();
     loadController.current = null;
@@ -125,38 +129,45 @@ export function useChatRuntime(): ChatRuntime {
     const controller = new AbortController();
     streams.current.set(chat.id, controller);
     markStreaming(chat.id, true);
-    const onEvent: ChatStreamEventHandler = (event, replay = false, imageOrigin = "") => {
-      const currentCursor = getChatStreamCursor(projectID, chat.id);
-      const eventSequence = typeof event.seq === "number" && Number.isFinite(event.seq) ? event.seq : undefined;
-      if (shouldMarkChatCompletionUnread({
-        chatID: chat.id,
-        currentCursor,
-        eventSequence,
-        eventType: typeof event.type === "string" ? event.type : "",
-        isReplay: replay,
-        selectedChatID: selectedChatIDRef.current,
-      })) {
-        setUnreadCompletedChatIDs((current) => markChatCompletionUnread(current, chat.id));
+    let currentCursor = getChatStreamCursor(projectID, chat.id);
+    const batch = createChatStreamBatch((events) => {
+      const previousCursor = currentCursor;
+      for (const { event, replay } of events) {
+        const eventSequence = typeof event.seq === "number" && Number.isFinite(event.seq) ? event.seq : undefined;
+        if (shouldMarkChatCompletionUnread({
+          chatID: chat.id,
+          currentCursor,
+          eventSequence,
+          eventType: typeof event.type === "string" ? event.type : "",
+          isReplay: replay,
+          selectedChatID: selectedChatIDRef.current,
+        })) {
+          setUnreadCompletedChatIDs((current) => markChatCompletionUnread(current, chat.id));
+        }
+        if (event.type === "notification" && !replay && typeof event.message === "string") {
+          notifyNotification(event.message, typeof event.level === "string" ? event.level : "system");
+        }
+        if (event.type === "error") {
+          receivedStreamError = true;
+          setError(streamErrorMessage(event));
+        } else if (event.type === "run_end") {
+          const exitCode = typeof event.exit_code === "number" && Number.isFinite(event.exit_code) ? event.exit_code : undefined;
+          if (exitCode !== undefined && exitCode !== 0 && !receivedStreamError) setError(runEndErrorMessage(event));
+        }
+        streamRetryAttempts.current.delete(chat.id);
+        if (eventSequence !== undefined && eventSequence > currentCursor) {
+          currentCursor = eventSequence;
+        }
+        if (event.type === "chat_title") window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
       }
-      if (event.type === "notification" && !replay && typeof event.message === "string") {
-        notifyNotification(event.message, typeof event.level === "string" ? event.level : "system");
-      }
-      if (event.type === "error") {
-        receivedStreamError = true;
-        setError(streamErrorMessage(event));
-      } else if (event.type === "run_end") {
-        const exitCode = typeof event.exit_code === "number" && Number.isFinite(event.exit_code) ? event.exit_code : undefined;
-        if (exitCode !== undefined && exitCode !== 0 && !receivedStreamError) setError(runEndErrorMessage(event));
-      }
-      streamRetryAttempts.current.delete(chat.id);
-      if (eventSequence !== undefined && eventSequence > currentCursor) {
-        saveChatStreamCursor(projectID, chat.id, eventSequence);
-      }
-      updateChat(chat.id, (current) => applyLiveStreamEvent(current as LiveChat, event, imageOrigin, replay));
-      if (event.type === "chat_title") window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
-    };
-    void open(controller.signal, onEvent)
+      updateChat(chat.id, (current) => events.reduce((next, { event, imageOrigin, replay }) => (
+        applyLiveStreamEvent(next, event, imageOrigin, replay)
+      ), current as LiveChat));
+      if (currentCursor > previousCursor) saveChatStreamCursor(projectID, chat.id, currentCursor);
+    });
+    void open(controller.signal, batch.push)
       .then(async () => {
+        batch.flush();
         const latest = await fetchLiveChat(projectID, chat.id);
         const current = getChat(chat.id);
         const merged = current ? preserveLiveWorkState(current, latest) : latest;
@@ -169,11 +180,13 @@ export function useChatRuntime(): ChatRuntime {
         }
       })
       .catch((reason: unknown) => {
+        batch.flush();
         if (isAbortError(reason)) return;
         setError(reason instanceof Error ? reason.message : "Chat stream failed");
         retryWhenDetached = true;
       })
       .finally(() => {
+        batch.flush();
         if (streams.current.get(chat.id) !== controller) return;
         streams.current.delete(chat.id);
         markStreaming(chat.id, false);
@@ -297,37 +310,63 @@ export function useChatRuntime(): ChatRuntime {
     }
   }, [sendMessage]);
 
-  const openProjectChat = useCallback(async (project: Project, chatID: string) => {
+  const openProjectChat = useCallback(async (project: Project, chatID: string, navigationID?: number) => {
     cancelPendingRequests();
+    const traceID = navigationID ?? beginNavigation(project.id, chatID);
+    navigationIDRef.current = traceID;
     const controller = new AbortController();
     const requestID = loadRequest.current;
     loadController.current = controller;
-    selectedChatIDRef.current = null;
-    setSelectedChatID(null);
+    const storedChat = getChat(chatID);
+    const cachedChat = storedChat?.projectID === project.id ? storedChat : null;
+    setNavigationCache(traceID, Boolean(cachedChat));
+    selectedChatIDRef.current = cachedChat?.id ?? null;
+    setSelectedChatID(cachedChat?.id ?? null);
     setError("");
-    setIsLoading(true);
+    setIsLoading(!cachedChat);
+    if (cachedChat) {
+      markNavigationSelection(traceID);
+      rememberActiveChat(project.id, chatID);
+      setUnreadCompletedChatIDs((current) => markChatCompletionRead(current, chatID));
+      if (cachedChat.status === "running") reconnectDaemonStream(cachedChat);
+    }
+    // Git metadata must not delay displaying the transcript.
+    const projectContextRequest = fetchProjectContext(project.id, controller.signal, traceID);
     try {
-      const [chat, projectContext] = await Promise.all([
-        fetchLiveChat(project.id, chatID, controller.signal),
-        fetchProjectContext(project.id, controller.signal),
-      ]);
+      const snapshot = await measureNavigation(traceID, "chat.total", () => fetchLiveChat(project.id, chatID, controller.signal, traceID));
       if (requestID !== loadRequest.current) return;
-      saveChat({
+      const current = getChat(chatID);
+      // A stream or user action may have updated the cache during the request.
+      // Keep those newer changes rather than replacing them with an older snapshot.
+      const chat = current && current !== cachedChat
+        ? current
+        : current ? preserveLiveWorkState(current, snapshot) : snapshot;
+      measureNavigationSync(traceID, "cache.save", () => saveChat({
         ...chat,
         runStartedAt: chat.status === "running" ? chat.runStartedAt ?? Date.now() : undefined,
-        branch: chat.branch ?? projectContext.branch,
+        branch: chat.branch ?? cachedChat?.branch,
+        worktree: chat.worktree ?? cachedChat?.worktree,
         workspaceName: project.name,
         workspacePath: project.path,
-        worktree: chat.worktree ?? projectContext.worktree,
-      });
+      }));
       rememberActiveChat(project.id, chat.id);
       setUnreadCompletedChatIDs((current) => markChatCompletionRead(current, chat.id));
       selectedChatIDRef.current = chat.id;
       setSelectedChatID(chat.id);
+      markNavigationSelection(traceID);
+      setIsLoading(false);
       const contextualChat = getChat(chat.id);
       if (contextualChat?.status === "running") reconnectDaemonStream(contextualChat);
+      const projectContext = await projectContextRequest;
+      if (requestID !== loadRequest.current) return;
+      updateChat(chat.id, (latest) => ({
+        ...latest,
+        branch: latest.branch ?? projectContext.branch,
+        worktree: latest.worktree ?? projectContext.worktree,
+      }));
     } catch (reason: unknown) {
       if (requestID !== loadRequest.current || isAbortError(reason)) return;
+      failNavigation(traceID);
       setError(reason instanceof Error ? reason.message : "Unable to load chat");
     } finally {
       if (requestID === loadRequest.current) {
@@ -463,10 +502,10 @@ export function useChatRuntime(): ChatRuntime {
   };
 }
 
-async function fetchProjectContext(projectID: string, signal: AbortSignal): Promise<{ branch?: string; worktree?: string }> {
+async function fetchProjectContext(projectID: string, signal: AbortSignal, navigationID?: number): Promise<{ branch?: string; worktree?: string }> {
   const [branches, worktrees] = await Promise.allSettled([
-    fetchProjectBranches(projectID, signal),
-    fetchProjectWorktrees(projectID, signal),
+    measureNavigation(navigationID, "git.branches", () => fetchProjectBranches(projectID, signal)),
+    measureNavigation(navigationID, "git.worktrees", () => fetchProjectWorktrees(projectID, signal)),
   ]);
   const branch = branches.status === "fulfilled" && branches.value.isRepo ? branches.value.current || undefined : undefined;
   if (worktrees.status !== "fulfilled") return { branch };

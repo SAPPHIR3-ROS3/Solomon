@@ -26,6 +26,8 @@ function fallbackHighlighter() {
 export async function cursorTokenizer(pathOrLanguage: string, firstLine = "") {
   const name = pathOrLanguage.replaceAll("\\", "/").split("/").at(-1)?.toLowerCase() ?? "";
   const labelAlias = name === "shell" ? "shellscript" : name;
+  // Plain code fences need neither the language catalog nor the WASM engine.
+  if (!labelAlias || ["plaintext", "txt", "text", "plain"].includes(labelAlias)) return { highlighter: undefined, language: "text" };
   const explicit = cursorLanguages.find(language => language.id === labelAlias || language.aliases?.some(alias => alias.toLowerCase() === labelAlias));
   const fileMatch = cursorLanguages.find(language => language.filenames?.some(file => file.toLowerCase() === name))
     ?? cursorLanguages.filter(language => language.extensions?.some(extension => name.endsWith(extension.toLowerCase())))
@@ -56,8 +58,8 @@ export async function cursorTokenizer(pathOrLanguage: string, firstLine = "") {
   const aliases: Record<string, string> = { ps1: "powershell", rs: "rust", rb: "ruby", kt: "kotlin", kts: "kotlin", cs: "csharp", env: "dotenv", ini: "ini", sh: "bash", zsh: "bash", fish: "fish", vue: "vue", svelte: "svelte" };
   const requested = name === ".env" || name.startsWith(".env.") ? "dotenv" : aliases[suffix] ?? suffix;
   const bundled = bundledLanguages.find(language => language.id === requested || language.aliases?.includes(requested));
+  if (!bundled) return { highlighter: undefined, language: "text" };
   const highlighter = await fallbackHighlighter();
-  if (!bundled) return { highlighter, language: "text" };
   if (!highlighter.getLoadedLanguages().includes(bundled.id)) {
     let pending = loading.get(bundled.id);
     if (!pending) {
@@ -77,5 +79,15 @@ export function cursorTokenStyle(token: Pick<ThemedToken, "color" | "fontStyle">
 
 export async function highlightCursorCode(source: string, pathOrLanguage: string): Promise<ThemedToken[][]> {
   const { highlighter, language } = await cursorTokenizer(pathOrLanguage, source.split(/\r?\n/, 1)[0]);
+  if (!highlighter) {
+    const parts = source.split(/(\r?\n)/);
+    const lines: ThemedToken[][] = [];
+    let offset = 0;
+    for (let index = 0; index < parts.length; index += 2) {
+      lines.push([{ content: parts[index], offset }]);
+      offset += parts[index].length + (parts[index + 1]?.length ?? 0);
+    }
+    return lines;
+  }
   return highlighter.codeToTokens(source, { lang: language, theme: "cursor-dark" }).tokens;
 }

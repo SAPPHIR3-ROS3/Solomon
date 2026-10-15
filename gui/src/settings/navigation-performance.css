@@ -1,0 +1,7 @@
+.navigation-performance p { font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+.navigation-performance-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.navigation-performance-actions button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--border-color, #666); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+.navigation-performance-table { overflow-x: auto; }
+.navigation-performance-table table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.navigation-performance-table th, .navigation-performance-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border-color, #666); }
+.navigation-performance-table caption { text-align: left; padding: 8px 0; color: var(--text-secondary); white-space: normal; }

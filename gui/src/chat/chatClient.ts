@@ -1,4 +1,5 @@
 import { notifyNotification } from "../notifications/store";
+import { measureNavigation, measureNavigationSync } from "./navigationPerformance";
 import { serverEndpoint } from "../platform";
 import type { ComposerImageAttachment } from "./composerTypes";
 import type { Chat, ChatImage, ChatMessage, ChatStats, ChatTodoItem, ChatToolCall, ChatToolResult } from "./chatTypes";
@@ -25,11 +26,11 @@ export type ChatStreamEvent = Record<string, unknown>;
 
 export type ChatStreamEventHandler = (event: ChatStreamEvent, replay?: boolean, imageOrigin?: string) => void;
 
-export async function fetchLiveChat(projectID: string, chatID: string, signal?: AbortSignal): Promise<LiveChat> {
-  const endpoint = await serverEndpoint(chatPath(projectID, chatID));
-  const response = await fetch(endpoint, { cache: "no-store", signal });
-  const payload = await readResponsePayload(response, "Unable to load chat");
-  return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
+export async function fetchLiveChat(projectID: string, chatID: string, signal?: AbortSignal, navigationID?: number): Promise<LiveChat> {
+  const endpoint = await measureNavigation(navigationID, "chat.endpoint", () => serverEndpoint(chatPath(projectID, chatID)));
+  const response = await measureNavigation(navigationID, "chat.headers", () => fetch(endpoint, { cache: "no-store", signal }));
+  const payload = await readResponsePayload(response, "Unable to load chat", navigationID);
+  return measureNavigationSync(navigationID, "chat.normalize", () => liveChatFromPayload(payload, projectID, assetOrigin(endpoint)));
 }
 
 export async function createLiveChat(projectID: string, title = "", signal?: AbortSignal): Promise<LiveChat> {
@@ -605,11 +606,11 @@ function parseSSEFrame(frame: string): ChatStreamEvent | null {
   }
 }
 
-async function readResponsePayload(response: Response, fallback: string): Promise<unknown> {
-  const text = await response.text();
+async function readResponsePayload(response: Response, fallback: string, navigationID?: number): Promise<unknown> {
+  const text = await measureNavigation(navigationID, "chat.body", () => response.text());
   let payload: unknown;
   try {
-    payload = text ? JSON.parse(text) : undefined;
+    payload = measureNavigationSync(navigationID, "chat.json", () => text ? JSON.parse(text) : undefined);
   } catch {
     payload = undefined;
   }

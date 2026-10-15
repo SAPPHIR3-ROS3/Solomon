@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { prefetchProviderQuotas } from "../projects/projects";
-import { DocsViewer } from "./DocsViewer";
 import { ModelsPage } from "./ModelsPage";
 import { AdvancedSettings } from "./AdvancedSettings";
+import { NavigationPerformanceSettings } from "./NavigationPerformanceSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { ChatSettings } from "./ChatSettings";
+
+// DocsViewer embeds the full manual; keep it out of the home/settings startup.
+const DocsViewer = lazy(() => import("./DocsViewer").then(module => ({ default: module.DocsViewer })));
 
 type SettingsPageProps = {
   onHome: () => void;
@@ -134,8 +137,11 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
         {isSearching || section === "general" ? <GeneralSettings query={query} /> : null}
         {isSearching || section === "chat" ? <ChatSettings query={query} /> : null}
         {isSearching || section === "advanced" ? <AdvancedSettings query={query} /> : null}
+        {isSearching || section === "advanced" ? <NavigationPerformanceSettings query={query} /> : null}
         {!isSearching && section === "models" ? <ModelsPage /> : null}
-        {!isSearching && section === "docs" ? <DocsViewer /> : null}
+        {!isSearching && section === "docs" ? (
+          <Suspense fallback={<p role="status">Loading documentation…</p>}><DocsViewer /></Suspense>
+        ) : null}
       </main>
     </section>
   );

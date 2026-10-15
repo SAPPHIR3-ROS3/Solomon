@@ -1,0 +1,18 @@
+{
+  "file": "src/chat/unreadCompletion.ts",
+  "test": "tests/chatCompletionIndicator.test.mjs",
+  "mutations": [
+    { "name": "accept non-completion events", "before": "event.eventType !== \"run_end\"", "after": "false" },
+    { "name": "mark selected chats unread", "before": "event.selectedChatID === event.chatID", "after": "false" },
+    { "name": "invert live event detection", "before": "!event.isReplay", "after": "event.isReplay" },
+    { "name": "reject live completion", "before": "if (!event.isReplay) return true;", "after": "if (!event.isReplay) return false;" },
+    { "name": "accept equal replay sequence", "before": "event.eventSequence > event.currentCursor", "after": "event.eventSequence >= event.currentCursor" },
+    { "name": "accept stale replay sequence", "before": "event.eventSequence > event.currentCursor", "after": "event.eventSequence !== event.currentCursor" },
+    { "name": "accept infinite replay sequence", "before": "Number.isFinite(event.eventSequence)", "after": "true" },
+    { "name": "accept empty chat ID", "before": "!chatID || current.has(chatID)", "after": "current.has(chatID)" },
+    { "name": "copy duplicate unread state", "before": "!chatID || current.has(chatID)", "after": "!chatID" },
+    { "name": "drop existing unread chats", "before": "new Set([...current, chatID])", "after": "new Set([chatID])" },
+    { "name": "mutate read state in place", "before": "const next = new Set(current);", "after": "const next = current;" },
+    { "name": "retain read chat", "before": "next.delete(chatID);", "after": "next.has(chatID);" }
+  ]
+}

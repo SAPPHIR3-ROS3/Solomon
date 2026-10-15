@@ -4,10 +4,16 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"os/exec"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
+
+// ViteCommandForTest exposes the dev launcher without starting the daemon.
+func ViteCommandForTest(directory string, port int) *exec.Cmd {
+	return viteCommand(directory, port)
+}
 
 // GlobalAgentsHandlerForTest exposes the handler to tests in test/.
 func GlobalAgentsHandlerForTest() http.HandlerFunc {

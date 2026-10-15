@@ -533,13 +533,23 @@ func startVite(directory string) (*url.URL, *exec.Cmd, error) {
 // fallback keeps the test harness and older installations working while their
 // dependencies are being prepared.
 func viteCommand(directory string, port int) *exec.Cmd {
+	var cmd *exec.Cmd
 	viteEntry := filepath.Join(directory, "node_modules", "vite", "bin", "vite.js")
 	if _, err := os.Stat(viteEntry); err == nil {
 		if node, lookErr := exec.LookPath("node"); lookErr == nil {
-			return exec.Command(node, viteEntry, "--host", "127.0.0.1", "--port", strconv.Itoa(port))
+			cmd = exec.Command(node, viteEntry, "--host", "127.0.0.1", "--port", strconv.Itoa(port))
 		}
 	}
-	return exec.Command("npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", strconv.Itoa(port))
+	if cmd == nil {
+		cmd = exec.Command("npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", strconv.Itoa(port))
+	}
+	// Rolldown otherwise creates a native worker per logical CPU. Limit the
+	// development server's retained allocator memory without limiting Go or builds.
+	cmd.Env = os.Environ()
+	if os.Getenv("RAYON_NUM_THREADS") == "" {
+		cmd.Env = append(cmd.Env, "RAYON_NUM_THREADS=2")
+	}
+	return cmd
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

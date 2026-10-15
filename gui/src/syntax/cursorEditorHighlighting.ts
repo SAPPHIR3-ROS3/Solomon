@@ -32,10 +32,10 @@ export function cursorEditorHighlighting(pathOrLanguage: string) {
     }
 
     schedule() {
-      if (!this.tokenizer || this.frame !== undefined) return;
+      if (!this.tokenizer?.highlighter || this.frame !== undefined) return;
       this.frame = requestAnimationFrame(() => {
         this.frame = undefined;
-        if (this.destroyed || !this.tokenizer) return;
+        if (this.destroyed || !this.tokenizer?.highlighter) return;
         const builder = new RangeSetBuilder<Decoration>();
         const { highlighter, language } = this.tokenizer;
         const tokens = highlighter.codeToTokens(this.view.state.doc.toString(), { lang: language, theme: "cursor-dark" }).tokens;

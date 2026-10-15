@@ -22,17 +22,23 @@ test("marks a new live completion unread only when its chat is not selected", ()
 test("accepts a replayed completion only when its sequence is newer than the stored cursor", () => {
   assert.equal(shouldMarkChatCompletionUnread({ ...base, isReplay: true }), true);
   assert.equal(shouldMarkChatCompletionUnread({ ...base, isReplay: true, eventSequence: 8 }), false);
+  for (const eventSequence of [7, 0, -1, Infinity, -Infinity, NaN]) {
+    assert.equal(shouldMarkChatCompletionUnread({ ...base, isReplay: true, eventSequence }), false);
+  }
   assert.equal(shouldMarkChatCompletionUnread({ ...base, isReplay: true, eventSequence: undefined }), false);
 });
 
 test("unread and read transitions are immutable and idempotent", () => {
   const initial = new Set(["other"]);
+  assert.equal(markChatCompletionUnread(initial, ""), initial);
   const unread = markChatCompletionUnread(initial, "chat-1");
+  assert.deepEqual([...unread], ["other", "chat-1"]);
   assert.equal(initial.has("chat-1"), false);
   assert.equal(markChatCompletionUnread(unread, "chat-1"), unread);
   const read = markChatCompletionRead(unread, "chat-1");
   assert.equal(unread.has("chat-1"), true);
   assert.equal(read.has("chat-1"), false);
+  assert.deepEqual([...read], ["other"]);
   assert.equal(markChatCompletionRead(read, "chat-1"), read);
 });
 

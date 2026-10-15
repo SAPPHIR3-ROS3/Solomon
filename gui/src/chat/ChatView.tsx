@@ -1,6 +1,7 @@
 import { composerDraftKey } from "./composerDrafts";
 import { NotificationControl } from "../notifications/Notifications";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { markNavigationCommit, navigationForChat } from "./navigationPerformance";
 import type { Chat, ChatMessage, ChatToolCall } from "./chatTypes";
 import { ChatComposer, type ChatComposerMenu } from "./ChatComposer";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
@@ -103,6 +104,9 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const openSubagentTool = matchedOpenTool ?? (forcedSubagent ? syntheticSubagentTool(forcedSubagent) : undefined);
   const openSubchatID = openSubagentTool?.result?.subchatId;
   const openSubagentState = openSubagentTool ? subagentStatus(openSubagentTool) : "";
+  const navigationID = navigationForChat(chat.projectID, chat.id);
+  useLayoutEffect(() => markNavigationCommit(navigationID, chat.messages.length,
+    chat.messages.reduce((total, message) => total + message.content.length + (message.reasoning?.length ?? 0), 0)), [navigationID]);
 
   useEffect(() => {
     setOpenSubagent(null);

@@ -18,6 +18,7 @@ import { hideSettings, isSettingsPath, SettingsPage, showSettings, subscribeSett
 import { createProjectFromFolder, fetchProjectSidebarData, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
 import { useChatRuntime } from "./chat/useChatRuntime";
+import { beginNavigation } from "./chat/navigationPerformance";
 import { ChatTopbar, ChatView } from "./chat/ChatView";
 import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/temporaryWorkspace";
 import { EditorPage } from "./editor/EditorPage";
@@ -261,6 +262,7 @@ export function App() {
   }
 
   const openProjectChat = useCallback(async (project: Project, chatID: string) => {
+    const navigationID = beginNavigation(project.id, chatID);
     closeMobilePanels();
     setWelcomeResetToken((current) => current + 1);
     setIsActiveAgentsOpen(false);
@@ -270,7 +272,7 @@ export function App() {
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedResearch(null);
-    await chatRuntime.openProjectChat(project, chatID);
+    await chatRuntime.openProjectChat(project, chatID, navigationID);
   }, [chatRuntime.openProjectChat, closeMobilePanels]);
 
   async function openActiveAgent(projectID: string, projectName: string, node: ActiveAgentNode) {

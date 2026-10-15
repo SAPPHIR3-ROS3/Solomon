@@ -79,7 +79,11 @@ export function updateChat(chatID: string, update: (chat: Chat) => Chat): Chat |
   if (!current) return null;
   const next = update(current);
   if (next === current) return current;
-  return saveChat(next);
+  // Updaters are immutable: retain unchanged message/tool references instead
+  // of deep-cloning the entire transcript on every streaming update.
+  chats = chats.map((chat) => chat.id === chatID ? next : chat);
+  notify();
+  return next;
 }
 
 export function removeChat(chatID: string): boolean {
