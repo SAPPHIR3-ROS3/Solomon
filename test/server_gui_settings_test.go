@@ -131,7 +131,7 @@ func TestServerRuntime_GUISettingsArePersistedAndDoNotExposeSecrets(t *testing.T
 			t.Fatal("floating letters update changed other preferences")
 		}
 	}
-	for _, density := range []string{"low", "medium", "high"} {
+	for _, density := range []string{"low", "medium", "high", "max"} {
 		response = patch(`{"chat":{"floatingLettersDensity":"` + density + `"}}`)
 		decodeServerTestJSON(t, response, &gui)
 		persisted, err := config.ReadGUISettings()

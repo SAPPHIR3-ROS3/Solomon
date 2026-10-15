@@ -69,9 +69,9 @@ func (patch GUISettingsPatch) Validate() error {
 	}
 	if patch.Chat.FloatingLettersDensity != nil {
 		switch *patch.Chat.FloatingLettersDensity {
-		case "low", "medium", "high":
+		case "low", "medium", "high", "max":
 		default:
-			return fmt.Errorf("floating letters density must be low, medium or high")
+			return fmt.Errorf("floating letters density must be low, medium, high or max")
 		}
 	}
 	if err := validateGUIAdvancedSettings(patch.Advanced); err != nil {

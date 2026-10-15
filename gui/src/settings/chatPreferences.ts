@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { serverEndpoint } from "../platform";
 
-export type FloatingLettersDensity = "low" | "medium" | "high";
+export type FloatingLettersDensity = "low" | "medium" | "high" | "max";
 
 type ChatPreferences = { floatingLettersDensity: FloatingLettersDensity; floatingLetters: boolean; autoCloseToolCalls: boolean; startToolCallsCollapsed: boolean; startReasoningCollapsed: boolean };
 type PreferenceState = { userName: string; responseLanguage: string; advanced: Record<string, string | number | boolean>; chat: ChatPreferences; ready: boolean; saving: boolean; error: string | null };
@@ -55,7 +55,7 @@ async function fetchSettings(patch: SettingsPatch | undefined, signal: AbortSign
 }
 
 function resolvedChat(payload: GUISettingsPayload): ChatPreferences {
-  return { floatingLettersDensity: payload.chat?.floatingLettersDensity === "low" || payload.chat?.floatingLettersDensity === "high" ? payload.chat.floatingLettersDensity : "medium", floatingLetters: payload.chat?.floatingLetters === true, autoCloseToolCalls: payload.chat?.autoCloseToolCalls === true, startToolCallsCollapsed: payload.chat?.startToolCallsCollapsed === true, startReasoningCollapsed: payload.chat?.startReasoningCollapsed === true };
+  return { floatingLettersDensity: payload.chat?.floatingLettersDensity === "low" || payload.chat?.floatingLettersDensity === "high" || payload.chat?.floatingLettersDensity === "max" ? payload.chat.floatingLettersDensity : "medium", floatingLetters: payload.chat?.floatingLetters === true, autoCloseToolCalls: payload.chat?.autoCloseToolCalls === true, startToolCallsCollapsed: payload.chat?.startToolCallsCollapsed === true, startReasoningCollapsed: payload.chat?.startReasoningCollapsed === true };
 }
 
 export function refreshChatPreferences(): Promise<void> {

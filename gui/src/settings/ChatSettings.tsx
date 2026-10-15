@@ -30,7 +30,7 @@ export function ChatSettings({ query }: { query: string }) {
     {
       id: "floating-letters",
       label: "Floating letters",
-      description: "Let letters drift through the chat and compose the model’s response token by token, even when it arrives in fast bursts. Choose a low, medium or high letter density. Respects reduced motion preferences.",
+      description: "Let letters drift through the chat and compose the model’s response token by token, even when it arrives in fast bursts. Choose a low, medium, high or max letter density. Respects reduced motion preferences.",
       enabled: preferences.chat.floatingLetters,
       setEnabled: setFloatingLetters,
     },
@@ -49,12 +49,12 @@ export function ChatSettings({ query }: { query: string }) {
               {id === "floating-letters" && enabled ? (
                 <fieldset className="settings-letter-density" disabled={!preferences.ready || preferences.saving || !enabled}>
                   <legend>Letter density</legend>
-                  {(["low", "medium", "high"] as const).map(density => (
+                  {(["low", "medium", "high", "max"] as const).map(density => (
                     <label key={density}>
                       <input type="radio" name="floating-letters-density" value={density}
                         checked={preferences.chat.floatingLettersDensity === density}
                         onChange={() => void setFloatingLettersDensity(density)} />
-                      <span>{density === "low" ? "Low" : density === "medium" ? "Medium" : "High"}</span>
+                      <span>{density === "low" ? "Low" : density === "medium" ? "Medium" : density === "high" ? "High" : "Max"}</span>
                     </label>
                   ))}
                 </fieldset>

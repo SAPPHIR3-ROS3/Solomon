@@ -85,7 +85,7 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
       }
     }
     function invalidateGeometry() { masksDirty = true; geometryDirty = true; }
-    const particles: Particle[] = Array.from({ length: { low: 16, medium: 32, high: 64 }[density] }, () => ({
+    const particles: Particle[] = Array.from({ length: { low: 16, medium: 32, high: 64, max: 128 }[density] }, () => ({
       x: Math.random(), y: Math.random(), phase: Math.random() * Math.PI * 2,
       glyph: alphabet[Math.floor(Math.random() * alphabet.length)],
     }));

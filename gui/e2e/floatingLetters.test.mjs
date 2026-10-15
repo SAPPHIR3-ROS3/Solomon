@@ -120,7 +120,7 @@ test("floating letters persist, converge into streamed Markdown, and clean up", 
     assert.deepEqual(patches, [{ chat: { floatingLetters: true } }]);
     assert.equal(await page.getByRole("radio", { name: "Medium", exact: true }).isChecked(), true);
     assert.equal(await highlightSize(), 0, "existing history must stay visible");
-    for (const [label, count] of [["Low", 16], ["Medium", 32], ["High", 64]]) {
+    for (const [label, count] of [["Low", 16], ["Medium", 32], ["High", 64], ["Max", 128]]) {
       await page.getByRole("radio", { name: label, exact: true }).click();
       await page.waitForFunction(value => document.querySelector(`input[name="floating-letters-density"][value="${value}"]`)?.checked, label.toLowerCase());
       await page.waitForFunction(expected => window.letterPaintCount === expected, count);
@@ -152,8 +152,8 @@ test("floating letters persist, converge into streamed Markdown, and clean up", 
     await page.reload();
     await page.locator("canvas").waitFor();
     assert.equal(await toggle.getAttribute("aria-checked"), "true");
-    assert.equal(await page.getByRole("radio", { name: "High", exact: true }).isChecked(), true);
-    await page.waitForFunction(() => window.letterPaintCount === 64);
+    assert.equal(await page.getByRole("radio", { name: "Max", exact: true }).isChecked(), true);
+    await page.waitForFunction(() => window.letterPaintCount === 128);
     assert.equal(await highlightSize(), 0);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
