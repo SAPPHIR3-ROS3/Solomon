@@ -186,6 +186,12 @@ test("the real ChatView animates new assistant text while the composer stays usa
     await page.goto(`${server.resolvedUrls.local[0]}__floating_view`);
     await page.locator("canvas.chat-floating-letters").waitFor();
     assert.equal(await page.locator("canvas").getAttribute("data-density"), "high");
+    assert.ok(await page.locator(".chat-background-crown .welcome-ascii-banner").isVisible());
+    assert.ok(await page.evaluate(() => {
+      const crown = getComputedStyle(document.querySelector(".chat-background-crown"));
+      const letters = getComputedStyle(document.querySelector(".chat-floating-letters"));
+      return Number(crown.opacity) > 0 && Number(crown.zIndex) < Number(letters.zIndex);
+    }), "the background crown remains visible beneath the floating letters");
     await page.evaluate(() => window.updateResponse('The letters form a **real response**.'));
     await page.waitForFunction(() => Array.from(CSS.highlights.values()).some(value => value.size > 0));
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("Next question");

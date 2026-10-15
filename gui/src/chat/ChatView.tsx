@@ -2,10 +2,11 @@ import { usePacedChatMessages } from "./usePacedChatMessages";
 import { chatPresentationKey } from "./chatPresentationKey";
 import { useChatHistoryWindow } from "./useChatHistoryWindow";
 import { FloatingLetters } from "./FloatingLetters";
+import { AsciiBanner } from "../home/Welcome";
 import { useGUIChatPreferencesState } from "../settings/chatPreferences";
 import { composerDraftKey } from "./composerDrafts";
 import { NotificationControl } from "../notifications/Notifications";
-import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { markNavigationCommit, navigationForChat } from "./navigationPerformance";
 import type { Chat, ChatMessage, ChatToolCall } from "./chatTypes";
 import { ChatComposer, type ChatComposerMenu } from "./ChatComposer";
@@ -25,6 +26,7 @@ import "./chat-compaction.css";
 
 const MODE_SWITCH_DURATION_MS = 5000;
 const WORKED_FOR_TICK_MS = 250;
+const BackgroundCrown = memo(AsciiBanner);
 export { ChatTopbar } from "./ChatTopbar";
 
 type OpenSubagentRequest = {
@@ -249,6 +251,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
 
   return (
     <section aria-label={`Chat: ${chat.title}`} className="chat-view" ref={viewRef} style={{ bottom: Math.max(0, bottomInset) } as CSSProperties}>
+      <div aria-hidden="true" className="chat-background-crown"><BackgroundCrown /></div>
       {chatPreferences.floatingLetters ? <FloatingLetters density={chatPreferences.floatingLettersDensity} key={chat.id} content={animatedMessage?.content ?? ""} messageID={animatedMessage?.role === "assistant" ? animatedMessage.id : undefined} responseKey={animatedMessage ? chatPresentationKey(animatedMessage) : undefined} working={isChatWorking || animationMessageID !== undefined} viewRef={viewRef} /> : null}
       <div aria-live="polite" className="chat-messages-shell" onKeyDown={onMessagesKeyDown} onPointerDown={onMessagesPointerDown} onScroll={handleMessagesScroll} onWheel={onMessagesWheel} ref={messagesShellRef} tabIndex={0}>
         <div className="chat-messages" ref={messagesRef}>

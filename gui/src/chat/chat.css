@@ -18,6 +18,19 @@
   z-index: 3;
 }
 
+.chat-background-crown {
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  opacity: .12;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  user-select: none;
+  z-index: 0;
+}
+
 .chat-topbar {
   align-items: center;
   display: flex;
