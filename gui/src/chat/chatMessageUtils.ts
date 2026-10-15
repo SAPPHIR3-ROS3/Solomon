@@ -1,18 +1,34 @@
 import type { Chat, ChatMessage, ChatStats, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 
+// Preserve historical entry identities while streaming changes only the tail.
+// The checkpoint context is part of the cache key because prepending/deleting
+// messages can change fallback sequence numbers without changing the message.
+const indexedEntries = new WeakMap<ChatMessage, { index: number; startSequence: number; startBranch: string; endSequence: number; endBranch: string; entry: IndexedChatMessage }>();
+
 export function indexChatMessages(messages: ChatMessage[]): IndexedChatMessage[] {
   let fallbackSequence = -1;
   let fallbackBranch = "";
 
   return messages.map((message, index) => {
+    const startSequence = fallbackSequence, startBranch = fallbackBranch;
+    const cached = indexedEntries.get(message);
+    if (cached && cached.index === index && cached.startSequence === startSequence && cached.startBranch === startBranch) {
+      fallbackSequence = cached.endSequence;
+      fallbackBranch = cached.endBranch;
+      return cached.entry;
+    }
+    const retain = (entry: IndexedChatMessage) => {
+      indexedEntries.set(message, { index, startSequence, startBranch, endSequence: fallbackSequence, endBranch: fallbackBranch, entry });
+      return entry;
+    };
     const toolMessageIDs = new Map<string, string>();
     if (message.role === "assistant") {
       for (const tool of message.toolCalls ?? []) toolMessageIDs.set(tool.id, message.id);
     }
 
     if (message.kind === "compaction") {
-      return { index, message, toolMessageIDs };
+      return retain({ index, message, toolMessageIDs });
     }
 
     const hasExplicitSequence = typeof message.checkpointSeq === "number" && Number.isFinite(message.checkpointSeq);
@@ -33,12 +49,12 @@ export function indexChatMessages(messages: ChatMessage[]): IndexedChatMessage[]
     )) ?? [];
     if (toolCheckpointSequences.length) fallbackSequence = Math.max(fallbackSequence, ...toolCheckpointSequences);
 
-    return {
+    return retain({
       checkpoint: { branch, label, sequence },
       index,
       message: displayMessage,
       toolMessageIDs,
-    };
+    });
   });
 }
 
@@ -92,17 +108,16 @@ export function liveWorkedForSeconds(chat: Chat, now: number): number | undefine
   const lastAssistantGroupIndex = groups.reduce((lastIndex, entries, groupIndex) => (
     entries[0]?.message.role === "assistant" ? groupIndex : lastIndex
   ), -1);
-  if (lastAssistantGroupIndex < 0) return undefined;
+  // A new user turn can be pending before assistant_start arrives. Its timer
+  // must not be attached to the preceding, already completed assistant turn.
+  if (lastAssistantGroupIndex < 0 || lastAssistantGroupIndex !== groups.length - 1) return undefined;
 
   const lastAssistantGroup = groups[lastAssistantGroupIndex];
   const startTimes = lastAssistantGroup
     .map(({ message }) => message.workStartedAt)
     .filter((value): value is number => value !== undefined && Number.isFinite(value));
   const assistantStartedAt = startTimes.length ? Math.min(...startTimes) : undefined;
-  const hasContentAfterAssistant = lastAssistantGroupIndex < groups.length - 1;
-  const startedAt = hasContentAfterAssistant
-    ? chat.runStartedAt ?? assistantStartedAt
-    : assistantStartedAt ?? chat.runStartedAt;
+  const startedAt = assistantStartedAt ?? chat.runStartedAt;
   if (startedAt === undefined || !Number.isFinite(startedAt)) return undefined;
   return Math.max(0, (now - startedAt) / 1000);
 }

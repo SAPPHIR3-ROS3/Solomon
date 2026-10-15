@@ -11,6 +11,10 @@
     "preview": "vite preview",
     "test:mutation": "node tests/mutation/runner.mjs",
     "benchmark:chat": "node scripts/benchmark-chat-navigation.mjs",
+    "test:desktop:linux": "node scripts/benchmark-chat-navigation.mjs --engine webkitgtk --floating-letters --tools --interactions --messages 100,300 --repeats 3 --max-cached-ms 750 --output /tmp/solomon-desktop-chat-performance.json",
+    "test:composer": "node --test e2e/composerInteractions.test.mjs",
+    "test:composer:desktop": "SOLOMON_TEST_ENGINE=webkitgtk node --test e2e/composerInteractions.test.mjs",
+    "test:animation:desktop": "node scripts/benchmark-chat-navigation.mjs --engine webkitgtk --floating-letters --tools --interactions --messages 100,300 --repeats 3 --animation-sample-ms 5000 --min-animation-fps 55 --max-animation-gap-ms 50 --output /tmp/solomon-animation-stability.json",
     "test:mobile": "node --test --test-concurrency=1 e2e/mobile.test.mjs"
   },
   "dependencies": {

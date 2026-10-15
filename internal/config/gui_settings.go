@@ -67,19 +67,28 @@ func (patch GUISettingsPatch) Validate() error {
 			}
 		}
 	}
+	if patch.Chat.FloatingLettersDensity != nil {
+		switch *patch.Chat.FloatingLettersDensity {
+		case "low", "medium", "high":
+		default:
+			return fmt.Errorf("floating letters density must be low, medium or high")
+		}
+	}
 	if err := validateGUIAdvancedSettings(patch.Advanced); err != nil {
 		return err
 	}
-	if patch.General == nil && len(patch.Advanced) == 0 && patch.Chat.AutoCloseToolCalls == nil && patch.Chat.StartToolCallsCollapsed == nil && patch.Chat.StartReasoningCollapsed == nil {
+	if patch.General == nil && len(patch.Advanced) == 0 && patch.Chat.AutoCloseToolCalls == nil && patch.Chat.StartToolCallsCollapsed == nil && patch.Chat.StartReasoningCollapsed == nil && patch.Chat.FloatingLetters == nil && patch.Chat.FloatingLettersDensity == nil {
 		return fmt.Errorf("at least one preference is required")
 	}
 	return nil
 }
 
 type GUIChatSettings struct {
-	AutoCloseToolCalls      *bool `toml:"auto_close_tool_calls,omitempty" json:"autoCloseToolCalls,omitempty"`
-	StartToolCallsCollapsed *bool `toml:"start_tool_calls_collapsed,omitempty" json:"startToolCallsCollapsed,omitempty"`
-	StartReasoningCollapsed *bool `toml:"start_reasoning_collapsed,omitempty" json:"startReasoningCollapsed,omitempty"`
+	FloatingLettersDensity  *string `toml:"floating_letters_density,omitempty" json:"floatingLettersDensity,omitempty"`
+	FloatingLetters         *bool   `toml:"floating_letters,omitempty" json:"floatingLetters,omitempty"`
+	AutoCloseToolCalls      *bool   `toml:"auto_close_tool_calls,omitempty" json:"autoCloseToolCalls,omitempty"`
+	StartToolCallsCollapsed *bool   `toml:"start_tool_calls_collapsed,omitempty" json:"startToolCallsCollapsed,omitempty"`
+	StartReasoningCollapsed *bool   `toml:"start_reasoning_collapsed,omitempty" json:"startReasoningCollapsed,omitempty"`
 }
 
 type GUIModelSettings struct {
@@ -298,6 +307,12 @@ func UpdateGUIPreferences(patch GUISettingsPatch) (GUISettings, error) {
 		}
 		if patch.Chat.StartToolCallsCollapsed != nil {
 			gui.Chat.StartToolCallsCollapsed = patch.Chat.StartToolCallsCollapsed
+		}
+		if patch.Chat.FloatingLettersDensity != nil {
+			gui.Chat.FloatingLettersDensity = patch.Chat.FloatingLettersDensity
+		}
+		if patch.Chat.FloatingLetters != nil {
+			gui.Chat.FloatingLetters = patch.Chat.FloatingLetters
 		}
 		if patch.Chat.StartReasoningCollapsed != nil {
 			gui.Chat.StartReasoningCollapsed = patch.Chat.StartReasoningCollapsed

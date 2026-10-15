@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
@@ -20,10 +20,16 @@ function rootIconPlugin(): Plugin {
     config() {
       // The desktop server can invoke Vite directly, so generate the icon here
       // before either the dev server or production build reads it.
-      execFileSync("go", ["run", "scripts/generate_icon.go"], {
-        cwd: repositoryRoot,
-        stdio: "inherit",
-      });
+      try {
+        execFileSync("go", ["run", "scripts/generate_icon.go"], {
+          cwd: repositoryRoot,
+          stdio: "inherit",
+        });
+      } catch (error) {
+        // Desktop launchers can have a smaller PATH than the user's shell.
+        // The tracked icon is ready to serve without a Go toolchain.
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT" || !existsSync(rootIconPath)) throw error;
+      }
     },
     configureServer(server) {
       server.middlewares.use("/icon.svg", (_request, response) => {
@@ -41,7 +47,9 @@ function rootIconPlugin(): Plugin {
 // Browser integration tests use a private dependency cache alongside their daemon.
 export default defineConfig({
   define: { __SOLOMON_GUI_BUILD_ID__: JSON.stringify(new Date().toISOString()) },
-  cacheDir: process.env.SOLOMON_VITE_CACHE_DIR || undefined,
+  // Keep browser-test configurations from invalidating the live desktop's
+  // optimized dependency URLs while tests run alongside the development app.
+  cacheDir: process.env.SOLOMON_VITE_CACHE_DIR || "node_modules/.vite-solomon-dev",
   plugins: [react(), guiSettingsPlugin(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin(), syntaxAssetsPlugin()],
   optimizeDeps: {
     // Avoid scanning/prebundling every lazy syntax grammar on startup.

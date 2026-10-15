@@ -8,6 +8,40 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const server = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: "automatic" } });
 const { ChatMessageGroups } = await server.ssrLoadModule("/src/chat/ChatMessageGroups.tsx");
+const { liveWorkedForSeconds, indexChatMessages } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
+
+test("streaming retains historical entries and recomputes checkpoints when their context changes", () => {
+  const user={id:'u',role:'user',content:'Question'};
+  const answer={id:'a',role:'assistant',content:'Answer',toolCalls:[{id:'t',name:'shell'}]};
+  const first=indexChatMessages([user,answer]);
+  const updated=indexChatMessages([user,answer,{id:'next',role:'assistant',content:'New token'}]);
+  assert.equal(first[0],updated[0]);
+  assert.equal(first[1],updated[1]);
+  const prefixed=[{id:'prefix',role:'user',content:'Previous question'},user,answer];
+  const shifted=indexChatMessages(prefixed);
+  assert.notEqual(shifted[2],first[1]);
+  assert.deepEqual(shifted,indexChatMessages(prefixed.map(message=>({...message}))));
+  assert.deepEqual(indexChatMessages([answer]),indexChatMessages([{...answer}]));
+});
+
+test("a pending user turn does not attach its live timer to the previous answer", () => {
+  const messages = [
+    {id:'old-user',role:'user',content:'Earlier question'},
+    {id:'old-answer',role:'assistant',content:'Earlier answer',workedFor:14,workStartedAt:1000},
+    {id:'new-user',role:'user',content:'Next question'},
+  ];
+  const chat = {id:'chat',title:'Chat',status:'running',runStartedAt:20000,messages};
+  assert.equal(liveWorkedForSeconds(chat,25000),undefined);
+  // Defend the renderer too, even if its caller passes a pending run timer.
+  const waiting = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages(messages),isWorking:true,liveWorkedFor:5}));
+  assert.doesNotMatch(waiting,/chat-worked-for is-live/);
+  assert.match(waiting,/worked for 14s/);
+  const running = {...chat,messages:[...messages,{id:'new-answer',role:'assistant',content:'',workStartedAt:22000}]};
+  assert.equal(liveWorkedForSeconds(running,25000),3);
+  const active = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages(running.messages),isWorking:true,liveWorkedFor:3}));
+  assert.equal((active.match(/chat-worked-for is-live/g)??[]).length,1);
+  assert.ok(active.indexOf('chat-worked-for is-live')>active.indexOf('Next question'));
+});
 
 test("groups intermediate assistant replies into expanded tool activity by default", () => {
   const tool = (id, checkpointSeq) => ({
@@ -38,7 +72,27 @@ test("groups intermediate assistant replies into expanded tool activity by defau
   assert.equal((html.match(/chat-tool-card/g) ?? []).length, 2);
 });
 
-const { MessageFooter, WorkedForCounter } = await server.ssrLoadModule("/src/chat/ChatMessageFooter.tsx");
+const { MessageFooter, WorkedForCounter, ReasoningBlock } = await server.ssrLoadModule("/src/chat/ChatMessageFooter.tsx");
+
+test("reasoning controls require actual text rather than first-token timing", () => {
+  for (const reasoning of [undefined, '', ' \n\t']) {
+    const message = {id:'no-reasoning',role:'assistant',content:'Answer',reasoning,thoughtFor:4,stats:{ttftSeconds:4}};
+    for (const isCollapsed of [false,true]) {
+      const html = renderToStaticMarkup(createElement(ReasoningBlock,{message,isCollapsed,onToggle:()=>{}}));
+      assert.match(html,/thought briefly/);
+      assert.doesNotMatch(html,/role="button"|tabindex|aria-expanded|thought for/);
+    }
+    const html = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages([message])}));
+    assert.match(html,/thought briefly/);
+    assert.doesNotMatch(html,/Model reasoning|thought for/);
+  }
+  for (const thoughtFor of [undefined,3]) {
+    const message = {id:'reasoning',role:'assistant',content:'Answer',reasoning:'Reasoning text',thoughtFor};
+    const html = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages([message])}));
+    assert.match(html,/chat-reasoning-copy/);
+    assert.match(html,/Reasoning text/);
+  }
+});
 
 test("il contatore illumina le lettere in onda durante il lavoro e diventa giallo alla fine", async () => {
   const active = renderToStaticMarkup(createElement(WorkedForCounter, { isLive: true, seconds: 12 }));

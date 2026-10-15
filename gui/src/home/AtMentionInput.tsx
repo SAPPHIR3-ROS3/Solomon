@@ -123,11 +123,26 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
 
   useEffect(() => {
     const reposition = () => {
+      resizeInput(inputRef.current);
       setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
       if (document.activeElement === inputRef.current) syncVisualCaret(inputRef.current);
     };
-    window.addEventListener("resize", reposition);
-    return () => window.removeEventListener("resize", reposition);
+    let width = inputRef.current?.clientWidth;
+    let frame = 0;
+    const sizing = new ResizeObserver(() => {
+      const nextWidth = inputRef.current?.clientWidth;
+      if (nextWidth === width) return;
+      width = nextWidth;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(reposition);
+    });
+    if (shellRef.current) sizing.observe(shellRef.current);
+    document.fonts.addEventListener("loadingdone", reposition);
+    return () => {
+      sizing.disconnect();
+      cancelAnimationFrame(frame);
+      document.fonts.removeEventListener("loadingdone", reposition);
+    };
   }, [clips, images, value]);
 
   useEffect(() => {
@@ -751,24 +766,31 @@ function positionCaret(input: HTMLTextAreaElement | null, shell: HTMLDivElement 
   copyTextareaStyles(computed, mirror);
   const inputRect = input.getBoundingClientRect();
   mirror.style.cssText += `;height:auto;left:${inputRect.left}px;overflow:hidden;position:fixed;top:${inputRect.top}px;visibility:hidden;width:${input.clientWidth}px;`;
-  mirror.textContent = value.slice(0, position);
-  const marker = document.createElement("span");
-  marker.textContent = "\u200b";
-  mirror.append(marker);
+  // Layout the whole value: a prefix alone can fit on the previous line even
+  // though the complete word wraps. A span at the caret can also introduce a
+  // break opportunity that the textarea's uninterrupted text does not have.
+  mirror.textContent = `${value}\u200b`;
   document.body.append(mirror);
-  const markerRect = marker.getBoundingClientRect();
+  const range = document.createRange();
+  const cursor = Math.max(0, Math.min(position, value.length));
+  range.setStart(mirror.firstChild!, cursor);
+  range.setEnd(mirror.firstChild!, cursor + (String.fromCodePoint(mirror.textContent.codePointAt(cursor)!).length));
+  const markerRect = range.getBoundingClientRect();
+  const mirrorRect = mirror.getBoundingClientRect();
   const shellRect = shell.getBoundingClientRect();
   const lineHeight = Number.parseFloat(computed.lineHeight) || 22;
+  const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+  const lineTop = paddingTop + Math.round((markerRect.top - mirrorRect.top - paddingTop) / lineHeight) * lineHeight;
   mirror.remove();
   return {
     height: lineHeight,
     left: markerRect.left - shellRect.left - input.scrollLeft,
-    top: markerRect.top - shellRect.top - input.scrollTop,
+    top: inputRect.top - shellRect.top + lineTop - input.scrollTop,
   };
 }
 
 function copyTextareaStyles(computed: CSSStyleDeclaration, target: HTMLElement) {
-  const copiedProperties = ["border", "boxSizing", "fontFamily", "fontSize", "fontWeight", "letterSpacing", "lineHeight", "padding", "tabSize", "textTransform", "whiteSpace", "wordBreak", "wordSpacing", "wordWrap"] as const;
+  const copiedProperties = ["border", "boxSizing", "direction", "fontFamily", "fontSize", "fontStyle", "fontWeight", "fontStretch", "fontVariant", "letterSpacing", "lineHeight", "padding", "tabSize", "textIndent", "textTransform", "whiteSpace", "wordBreak", "wordSpacing", "overflowWrap"] as const;
   for (const property of copiedProperties) target.style[property] = computed[property];
 }
 

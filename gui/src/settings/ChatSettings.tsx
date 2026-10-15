@@ -1,4 +1,4 @@
-import { setAutoCollapseToolCalls, setStartToolCallsCollapsed, setStartReasoningCollapsed, useGUIChatPreferencesState, refreshChatPreferences } from "./chatPreferences";
+import { setFloatingLettersDensity, setFloatingLetters, setAutoCollapseToolCalls, setStartToolCallsCollapsed, setStartReasoningCollapsed, useGUIChatPreferencesState, refreshChatPreferences } from "./chatPreferences";
 import "./chat-settings.css";
 
 export function ChatSettings({ query }: { query: string }) {
@@ -27,6 +27,13 @@ export function ChatSettings({ query }: { query: string }) {
       enabled: startCollapsed,
       setEnabled: setStartToolCallsCollapsed,
     },
+    {
+      id: "floating-letters",
+      label: "Floating letters",
+      description: "Let letters drift through the chat and compose the model’s response token by token, even when it arrives in fast bursts. Choose a low, medium or high letter density. Respects reduced motion preferences.",
+      enabled: preferences.chat.floatingLetters,
+      setEnabled: setFloatingLetters,
+    },
   ];
   const matches = settings.filter(({ label, description }) => `${label} ${description}`.toLowerCase().includes(query.trim().toLowerCase()));
 
@@ -39,6 +46,19 @@ export function ChatSettings({ query }: { query: string }) {
             <div className="settings-model-row-copy">
               <strong id={`${id}-label`}>{label}</strong>
               <small id={`${id}-description`}>{description}</small>
+              {id === "floating-letters" && enabled ? (
+                <fieldset className="settings-letter-density" disabled={!preferences.ready || preferences.saving || !enabled}>
+                  <legend>Letter density</legend>
+                  {(["low", "medium", "high"] as const).map(density => (
+                    <label key={density}>
+                      <input type="radio" name="floating-letters-density" value={density}
+                        checked={preferences.chat.floatingLettersDensity === density}
+                        onChange={() => void setFloatingLettersDensity(density)} />
+                      <span>{density === "low" ? "Low" : density === "medium" ? "Medium" : "High"}</span>
+                    </label>
+                  ))}
+                </fieldset>
+              ) : null}
             </div>
             <button
               aria-checked={enabled}

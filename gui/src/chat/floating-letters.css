@@ -1,0 +1,10 @@
+.chat-floating-letters {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-floating-letters { display: none; }
+}

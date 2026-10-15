@@ -332,8 +332,11 @@
   line-height: 22px;
   min-height: 72px;
   outline: none;
+  overflow-wrap: break-word;
   padding: 0;
   resize: none;
+  white-space: pre-wrap;
+  word-break: normal;
   width: 100%;
 }
 

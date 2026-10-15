@@ -27,16 +27,39 @@ const markdownComponents: Components = {
   ),
 };
 
+// Thread switches remount the transcript. Keep a bounded in-memory cache of
+// parsed trees so reopening a thread does not repeat Markdown/math processing.
+// These are React descriptions, never mounted DOM or component state.
+const markdownTrees = new Map<string, ReactNode>();
+const MAX_CACHED_TREES = 512;
+const MAX_CACHED_CHARS = 2_000_000;
+let cachedChars = 0;
+
 export const MarkdownContent = memo(function MarkdownContent({ content }: { content: string }) {
-  return (
-    <Markdown
-      components={markdownComponents}
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeImageTags, [rehypeKatex, { trust: false }]]}
-    >
-      {escapeImageTags(normalizeMathDelimiters(normalizeCodeBlocks(content)))}
-    </Markdown>
-  );
+  const cached = markdownTrees.get(content);
+  if (cached !== undefined) {
+    markdownTrees.delete(content);
+    markdownTrees.set(content, cached);
+    return cached;
+  }
+  // react-markdown's synchronous renderer has no hooks; CodeBlock and other
+  // stateful children remain React elements and keep their normal lifecycle.
+  const tree = Markdown({
+    components: markdownComponents,
+    remarkPlugins: [remarkGfm, remarkMath],
+    rehypePlugins: [rehypeImageTags, [rehypeKatex, { trust: false }]],
+    children: escapeImageTags(normalizeMathDelimiters(normalizeCodeBlocks(content))),
+  });
+  if (content.length <= MAX_CACHED_CHARS) {
+    markdownTrees.set(content, tree);
+    cachedChars += content.length;
+    while (markdownTrees.size > MAX_CACHED_TREES || cachedChars > MAX_CACHED_CHARS) {
+      const oldest = markdownTrees.keys().next().value!;
+      cachedChars -= oldest.length;
+      markdownTrees.delete(oldest);
+    }
+  }
+  return tree;
 });
 
 function CodeBlock({ children }: { children?: ReactNode }) {

@@ -56,3 +56,94 @@ change conversations. Temporary bundles are removed after the run. Set
 Synthetic results expose size-dependent rendering costs; they are not measurements
 of the installed desktop WebView or the user's real transcripts. Use the exported
 in-app report to validate the actual regression before choosing an optimization.
+
+## Linux desktop engine and interactions
+
+The native Wails client on Linux uses WebKitGTK, which can behave differently
+from Chromium. Run the production fixture in an isolated GTK WebView under Xvfb:
+
+```sh
+node gui/scripts/benchmark-chat-navigation.mjs --engine webkitgtk --floating-letters --tools --interactions --messages 100,300,1000 --repeats 6 --max-cached-ms 750 --output /tmp/desktop-chat-performance.json
+```
+
+Requires `xvfb-run`, `/usr/bin/python3`, PyGObject and the WebKit2 4.1 GI bindings.
+It uses the installed WebKitGTK engine and a desktop `ServerBridge` fixture;
+it does not attach to or restart the live Wails app and never writes real chats.
+The JSON report identifies the engine/version and includes cold and cached
+navigation timings. `--tools` adds tool cards; `--interactions` exercises draft
+restoration, tool expansion/collapse, scrolling during transcript updates,
+prepending older history without moving the reading anchor, returning to the
+bottom, returning from Editor, and rapid thread switches. It counts card geometry
+reads after the interface settles and fails if idle decoration repeatedly
+measures historical cards. Uncaught errors and rejected promises fail the run.
+`--engine chromium` runs the same fixture and assertions in Chromium.
+
+Only the recent 60 messages (extended to a complete turn) mount initially.
+Earlier history appears in pages when scrolling to the start or selecting
+**Load earlier messages**. The window and reading position survive
+thread and Editor switches, and are stored in session storage for reloads. Parsed Markdown trees use a bounded memory cache;
+no rendered DOM or component interaction state is shared between messages.
+
+`npm run test:desktop:linux` runs the WebKitGTK interaction checks with a 750 ms
+cached p95 budget. Reports are written before timing-budget failures are raised.
+
+`npm run test:animation:desktop` measures actual canvas draw cadence in isolated
+WebKitGTK at high letter density, with 100- and 300-message histories and tool
+cards. Each streaming sample lasts at least five seconds. It reports idle and
+streaming FPS, frame-gap p95/p99/maximum, frames exceeding 25/50 ms, draw-time p95
+and range measurements per frame. It fails below 55 average FPS or above a 50 ms
+maximum frame gap; the JSON report is written before a budget failure. These
+numbers describe the test host, not a guarantee for every desktop/GPU. Keep this
+timing run isolated from builds and other test workloads.
+
+Flight targets are cached until content, scrolling, fonts or layout changes.
+Highlights remain registered between frames and are removed as letters land;
+they are still rebound synchronously when Markdown replaces text nodes.
+Historical indexed entries retain identity through tail updates, including
+fallback checkpoint context, so unchanged user/assistant turns can skip React
+renders during token presentation. A browser regression verifies zero range
+measurements and zero highlight rebuilds across unchanged in-flight frames.
+
+`npm run test:composer` and `npm run test:composer:desktop` check the real ChatView
+in Chromium and isolated WebKitGTK. Sending a follow-up must leave the preceding
+answer's completed duration intact, with no live counter until the new assistant
+turn begins. Composer checks cover the final character moving a complete word
+to the next line, editing inside that word, deletion moving it back, explicit
+newlines, long unbroken input and width changes without another keystroke. They
+also reject page errors, including ResizeObserver feedback loops.
+
+These interaction checks also cover reasoning availability: first-token timings
+without reasoning text show a static "thought briefly" label with no expansion
+control, including collapsed tool activity. Actual reasoning remains expandable with or without a duration and
+appears when its streamed text arrives. Collapsed tool summaries aggregate only
+the durations of messages containing reasoning text.
+
+Floating-letter presentation has a separate queue: a visual token contains up to
+four Unicode graphemes and advances every 60 ms. Fast network chunks and dropped
+frames never reveal a full line to catch up. A finished stream drains its queue;
+disabling the effect or reduced-motion preference reveals the stored text
+immediately. Navigating away cancels the queue and reopening a thread does not
+replay its history. Native interaction checks include burst pacing, stream
+completion with queued tokens, and leaving the view during a queued response.
+
+Presentation identifies a response by its role and checkpoint sequence. The
+temporary streaming ID becomes a server ID in the final snapshot; treating that
+as a new response used to reset the visual queue and replay the settled text.
+The queue and canvas now share the checkpoint identity while message actions
+continue using the server ID. Browser and native checks replace IDs with a real
+`chat_snapshot` event during the queue and after landing, checking monotonic
+progress, small token steps and zero flights for already settled letters. A
+separate checkpoint containing identical text must still animate normally.
+
+The native checks also finish an incomplete bold span after its letters have
+landed and count subsequent flight paints. Closing Markdown syntax must produce
+zero new flights for existing glyphs. Text reconciliation keeps each response's
+rendered baseline, preserves retained glyph positions across formatting changes,
+and bounds the detailed diff so long rewrites cannot create quadratic work.
+
+Inline delimiter tests also close `**`, `*`, `__`, `_`, `~~` and backticks while
+letters are still flying. A MutationObserver samples highlight bindings in the
+same commit, before the next animation frame: each range must already reference
+the new formatted text. This catches a one-frame reveal/hide flash that checking
+only completed animations cannot detect. Rebound flights retain their original
+start time and update their font without restarting their trajectory.

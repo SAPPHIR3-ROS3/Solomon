@@ -125,6 +125,7 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
 export function ReasoningBlock({ isCollapsed, isLive = false, message, onToggle }: { isCollapsed: boolean; isLive?: boolean; message: ChatMessage; onToggle: () => void }) {
   const reasoning = message.reasoning?.trim();
   const thoughtFor = message.thoughtFor ?? message.stats?.ttftSeconds;
+  if (!reasoning) return message.content.trim() || message.toolCalls?.length || (thoughtFor !== undefined && thoughtFor > 0) ? <BriefThought /> : null;
 
   return (
     <div
@@ -152,6 +153,10 @@ export function ReasoningBlock({ isCollapsed, isLive = false, message, onToggle 
       ) : null}
     </div>
   );
+}
+
+export function BriefThought() {
+  return <div className="chat-reasoning chat-reasoning-brief is-collapsed"><div className="chat-thought-for">thought briefly</div></div>;
 }
 
 export function ReasoningSummaryBlock({ isLive = false, seconds }: { isLive?: boolean; seconds: number }) {

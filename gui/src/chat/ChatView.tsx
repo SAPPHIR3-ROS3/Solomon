@@ -1,6 +1,11 @@
+import { usePacedChatMessages } from "./usePacedChatMessages";
+import { chatPresentationKey } from "./chatPresentationKey";
+import { useChatHistoryWindow } from "./useChatHistoryWindow";
+import { FloatingLetters } from "./FloatingLetters";
+import { useGUIChatPreferencesState } from "../settings/chatPreferences";
 import { composerDraftKey } from "./composerDrafts";
 import { NotificationControl } from "../notifications/Notifications";
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { markNavigationCommit, navigationForChat } from "./navigationPerformance";
 import type { Chat, ChatMessage, ChatToolCall } from "./chatTypes";
 import { ChatComposer, type ChatComposerMenu } from "./ChatComposer";
@@ -50,12 +55,15 @@ type ChatViewProps = {
 };
 
 export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onSend, onStopTool, onStopStreaming, openSubagentRequest, queuedMessages = [], worktree, workspaceName, workspacePath }: ChatViewProps) {
+  const { chat: chatPreferences } = useGUIChatPreferencesState();
   const [composerMenu, setComposerMenu] = useState<ChatComposerMenu>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
   const [composerMode, setComposerMode] = useState<"agent" | "chat">(chat.modeSwitchTarget ? "chat" : "agent");
   const [isModeSwitchPending, setIsModeSwitchPending] = useState(Boolean(chat.modeSwitchTarget));
   const [modeSwitchProgress, setModeSwitchProgress] = useState(0);
   const [openSubagent, setOpenSubagent] = useState<{ messageID: string; toolID: string } | null>(null);
+  const openSubagentMessage = useCallback((messageID: string, toolID: string) => setOpenSubagent({ messageID, toolID }), []);
+  const stopMessageTool = useCallback((messageID: string, toolID: string) => onStopTool(chat.id, messageID, toolID), [chat.id, onStopTool]);
   const [forcedSubagent, setForcedSubagent] = useState<OpenSubagentRequest | null>(null);
   const [subchatMessages, setSubchatMessages] = useState<ChatMessage[] | null>(null);
   const [isSubchatLoading, setIsSubchatLoading] = useState(false);
@@ -67,13 +75,15 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const composerDockRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
-  const lastMessageContent = chat.messages.at(-1)?.content ?? "";
+  const isChatWorking = chat.status === "running" || (isStreaming && chat.status === undefined);
+  const { messages: displayedMessages, animationMessageID } = usePacedChatMessages(composerDraftKey(chat.projectID, chat.id), chat.messages, chatPreferences.floatingLetters);
+  const lastMessageContent = displayedMessages.at(-1)?.content ?? "";
+  const animatedMessage = displayedMessages.find(message => message.id === animationMessageID) ?? displayedMessages.at(-1);
   const lastMessageReasoning = chat.messages.at(-1)?.reasoning ?? "";
   const lastMessageStatus = chat.messages.at(-1)?.status ?? "";
   const lastMessageThoughtFor = chat.messages.at(-1)?.thoughtFor ?? null;
   const lastMessageWorkedFor = chat.messages.at(-1)?.workedFor ?? null;
   const pendingMessageKey = queuedMessages.map((message) => message.id).join("-");
-  const isChatWorking = chat.status === "running" || (isStreaming && chat.status === undefined);
   const scrollContentKey = [
     chat.messages.length,
     lastMessageContent,
@@ -83,7 +93,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
     lastMessageWorkedFor,
     pendingMessageKey,
   ].join("\u0000");
-  const indexedMessages = indexChatMessages(chat.messages);
+  const indexedMessages = indexChatMessages(displayedMessages);
   const liveWorkedFor = isChatWorking ? liveWorkedForSeconds(chat, clockNow) : undefined;
   const { isAwayFromBottom, messagesRef, messagesShellRef, onMessagesKeyDown, onMessagesPointerDown, onMessagesScroll, onMessagesWheel, scrollToBottom } = useChatScroll({
     bottomInset,
@@ -93,6 +103,12 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
     contentKey: scrollContentKey,
     viewRef,
   });
+  const history = useChatHistoryWindow(composerDraftKey(chat.projectID, chat.id), chat.messages, messagesShellRef);
+  function handleMessagesScroll() {
+    onMessagesScroll();
+    const shell = messagesShellRef.current;
+    if (shell && shell.scrollTop < 300 && shell.scrollHeight - shell.scrollTop - shell.clientHeight > 48) history.loadEarlier();
+  }
   const activeSubagents: ActiveSubagent[] = chat.messages.flatMap((message) => (
     (message.toolCalls ?? [])
       .filter((tool) => tool.name === "subagent" && !tool.sync && subagentIsActive(subagentStatus(tool)))
@@ -233,16 +249,18 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
 
   return (
     <section aria-label={`Chat: ${chat.title}`} className="chat-view" ref={viewRef} style={{ bottom: Math.max(0, bottomInset) } as CSSProperties}>
-      <div aria-live="polite" className="chat-messages-shell" onKeyDown={onMessagesKeyDown} onPointerDown={onMessagesPointerDown} onScroll={onMessagesScroll} onWheel={onMessagesWheel} ref={messagesShellRef} tabIndex={0}>
+      {chatPreferences.floatingLetters ? <FloatingLetters density={chatPreferences.floatingLettersDensity} key={chat.id} content={animatedMessage?.content ?? ""} messageID={animatedMessage?.role === "assistant" ? animatedMessage.id : undefined} responseKey={animatedMessage ? chatPresentationKey(animatedMessage) : undefined} working={isChatWorking || animationMessageID !== undefined} viewRef={viewRef} /> : null}
+      <div aria-live="polite" className="chat-messages-shell" onKeyDown={onMessagesKeyDown} onPointerDown={onMessagesPointerDown} onScroll={handleMessagesScroll} onWheel={onMessagesWheel} ref={messagesShellRef} tabIndex={0}>
         <div className="chat-messages" ref={messagesRef}>
+          {history.start > 0 ? <button className="chat-load-earlier" onClick={history.loadEarlier} type="button">Load earlier messages</button> : null}
           {chat.messages.length ? (
             <ChatMessageGroups
               isWorking={isChatWorking}
               liveWorkedFor={liveWorkedFor}
-              messages={indexedMessages}
-              onOpenSubagent={(messageID, toolID) => setOpenSubagent({ messageID, toolID })}
+              messages={indexedMessages.slice(history.start)}
+              onOpenSubagent={openSubagentMessage}
               onRequestDelete={setDeleteTarget}
-              onStopTool={(messageID, toolID) => onStopTool(chat.id, messageID, toolID)}
+              onStopTool={stopMessageTool}
             />
           ) : <p className="chat-empty">This chat is ready for the first message.</p>}
         </div>

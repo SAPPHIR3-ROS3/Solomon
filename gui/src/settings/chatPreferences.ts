@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from "react";
 import { serverEndpoint } from "../platform";
 
-type ChatPreferences = { autoCloseToolCalls: boolean; startToolCallsCollapsed: boolean; startReasoningCollapsed: boolean };
+export type FloatingLettersDensity = "low" | "medium" | "high";
+
+type ChatPreferences = { floatingLettersDensity: FloatingLettersDensity; floatingLetters: boolean; autoCloseToolCalls: boolean; startToolCallsCollapsed: boolean; startReasoningCollapsed: boolean };
 type PreferenceState = { userName: string; responseLanguage: string; advanced: Record<string, string | number | boolean>; chat: ChatPreferences; ready: boolean; saving: boolean; error: string | null };
 type GUISettingsPayload = { general?: { userName?: string; responseLanguage?: string }; advanced?: Record<string, string | number | boolean>; chat?: Partial<ChatPreferences> };
 type SettingsPatch = { chat?: Partial<ChatPreferences>; general?: { userName?: string; responseLanguage?: string }; advanced?: Record<string, string | number | boolean> };
-const initialState: PreferenceState = { userName: "", advanced: {}, responseLanguage: "", chat: { autoCloseToolCalls: false, startToolCallsCollapsed: false, startReasoningCollapsed: false }, ready: false, saving: false, error: null };
+const initialState: PreferenceState = { userName: "", advanced: {}, responseLanguage: "", chat: { floatingLettersDensity: "medium", floatingLetters: false, autoCloseToolCalls: false, startToolCallsCollapsed: false, startReasoningCollapsed: false }, ready: false, saving: false, error: null };
 let state = initialState;
 let loading: Promise<void> | undefined;
 let writes: Promise<void> = Promise.resolve();
@@ -53,7 +55,7 @@ async function fetchSettings(patch: SettingsPatch | undefined, signal: AbortSign
 }
 
 function resolvedChat(payload: GUISettingsPayload): ChatPreferences {
-  return { autoCloseToolCalls: payload.chat?.autoCloseToolCalls === true, startToolCallsCollapsed: payload.chat?.startToolCallsCollapsed === true, startReasoningCollapsed: payload.chat?.startReasoningCollapsed === true };
+  return { floatingLettersDensity: payload.chat?.floatingLettersDensity === "low" || payload.chat?.floatingLettersDensity === "high" ? payload.chat.floatingLettersDensity : "medium", floatingLetters: payload.chat?.floatingLetters === true, autoCloseToolCalls: payload.chat?.autoCloseToolCalls === true, startToolCallsCollapsed: payload.chat?.startToolCallsCollapsed === true, startReasoningCollapsed: payload.chat?.startReasoningCollapsed === true };
 }
 
 export function refreshChatPreferences(): Promise<void> {
@@ -125,3 +127,7 @@ export function setStartReasoningCollapsed(enabled: boolean) { return setPrefere
 export function useGUIChatPreferencesState() { return useSyncExternalStore(subscribe, () => state, () => initialState); }
 export function useAutoCollapseToolCalls() { return useGUIChatPreferencesState().chat.autoCloseToolCalls; }
 export function useStartToolCallsCollapsed() { return useGUIChatPreferencesState().chat.startToolCallsCollapsed; }
+
+export function setFloatingLetters(enabled: boolean) { return setPreference("floatingLetters", enabled).catch(() => {}); }
+
+export function setFloatingLettersDensity(density: FloatingLettersDensity) { return savePreferences({ chat: { floatingLettersDensity: density } }).catch(() => {}); }

@@ -113,6 +113,38 @@ func TestServerRuntime_GUISettingsArePersistedAndDoNotExposeSecrets(t *testing.T
 			t.Fatal("reasoning update changed other chat preferences")
 		}
 	}
+	for _, enabled := range []bool{true, false} {
+		body, err := json.Marshal(map[string]any{"chat": map[string]bool{"floatingLetters": enabled}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response = patch(string(body))
+		decodeServerTestJSON(t, response, &gui)
+		persisted, err := config.ReadGUISettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gui.Chat.FloatingLetters == nil || *gui.Chat.FloatingLetters != enabled || persisted.Chat.FloatingLetters == nil || *persisted.Chat.FloatingLetters != enabled {
+			t.Fatal("floating letters preference did not persist and round trip")
+		}
+		if persisted.Chat.AutoCloseToolCalls == nil || !*persisted.Chat.AutoCloseToolCalls {
+			t.Fatal("floating letters update changed other preferences")
+		}
+	}
+	for _, density := range []string{"low", "medium", "high"} {
+		response = patch(`{"chat":{"floatingLettersDensity":"` + density + `"}}`)
+		decodeServerTestJSON(t, response, &gui)
+		persisted, err := config.ReadGUISettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gui.Chat.FloatingLettersDensity == nil || *gui.Chat.FloatingLettersDensity != density || persisted.Chat.FloatingLettersDensity == nil || *persisted.Chat.FloatingLettersDensity != density {
+			t.Fatal("floating letters density did not persist and round trip")
+		}
+		if persisted.Chat.AutoCloseToolCalls == nil || !*persisted.Chat.AutoCloseToolCalls || persisted.Chat.FloatingLetters == nil || *persisted.Chat.FloatingLetters {
+			t.Fatal("density update changed other preferences")
+		}
+	}
 	response = patch(`{"general":{"responseLanguage":" Italian "}}`)
 	decodeServerTestJSON(t, response, &gui)
 	if gui.General.ResponseLanguage != "Italian" {
@@ -185,7 +217,7 @@ func TestServerRuntime_GUISettingsArePersistedAndDoNotExposeSecrets(t *testing.T
 		t.Fatal(err)
 	}
 	decodeServerTestJSON(t, response, &gui)
-	for _, body := range []string{`{"advanced":{"server_port":0}}`, `{"advanced":{"server.dev_mode":null}}`, `{"advanced":{"server.dev_directory":""}}`, `{"advanced":{"server.dev_directory":"/missing/gui"}}`, `{"advanced":{"subagent_timeout_minutes":0}}`, `{"advanced":{"log_level":"invalid"}}`, `{"advanced":{"api_key":"secret"}}`, `{"general":{"userName":null}}`, `{"general":{"userName":" "}}`, `{"general":{}}`, `{"general":{"responseLanguage":null}}`, `{"general":{"responseLanguage":" "}}`, `{"general":{"responseLanguage":"Italian\nEnglish"}}`, `{"general":{"responseLanguage":true}}`, `{"chat":{}}`, `{"chat":{"autoCloseToolCalls":"true"}}`, `{"chat":{"autoCloseToolCalls":null}}`, `{"chat":{"startReasoningCollapsed":"true"}}`, `{"chat":{"startReasoningCollapsed":null}}`} {
+	for _, body := range []string{`{"advanced":{"server_port":0}}`, `{"advanced":{"server.dev_mode":null}}`, `{"advanced":{"server.dev_directory":""}}`, `{"advanced":{"server.dev_directory":"/missing/gui"}}`, `{"advanced":{"subagent_timeout_minutes":0}}`, `{"advanced":{"log_level":"invalid"}}`, `{"advanced":{"api_key":"secret"}}`, `{"general":{"userName":null}}`, `{"general":{"userName":" "}}`, `{"general":{}}`, `{"general":{"responseLanguage":null}}`, `{"general":{"responseLanguage":" "}}`, `{"general":{"responseLanguage":"Italian\nEnglish"}}`, `{"general":{"responseLanguage":true}}`, `{"chat":{}}`, `{"chat":{"autoCloseToolCalls":"true"}}`, `{"chat":{"autoCloseToolCalls":null}}`, `{"chat":{"startReasoningCollapsed":"true"}}`, `{"chat":{"startReasoningCollapsed":null}}`, `{"chat":{"floatingLetters":null}}`, `{"chat":{"floatingLetters":"true"}}`, `{"chat":{"floatingLettersDensity":"ultra"}}`, `{"chat":{"floatingLettersDensity":""}}`, `{"chat":{"floatingLettersDensity":true}}`, `{"chat":{"floatingLettersDensity":2}}`, `{"chat":{"floatingLettersDensity":null}}`} {
 		response := patch(body)
 		response.Body.Close()
 		if response.StatusCode != http.StatusBadRequest {

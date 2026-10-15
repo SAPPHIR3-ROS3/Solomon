@@ -75,7 +75,7 @@ body { font-size: 17px; }
 .welcome-model-list > button strong { font-size: 12px; }
 .welcome-model-list > button small { font-size: 9px; }
 
-.chat-message { font-size: 15px; }
+.chat-message, .chat-reasoning-brief { font-size: 15px; }
 .chat-message h1 { font-size: 24px; line-height: 1.333; }
 .chat-message h2 { font-size: 20px; line-height: 1.4; }
 .chat-message h3 { font-size: 18px; line-height: 1.55; }

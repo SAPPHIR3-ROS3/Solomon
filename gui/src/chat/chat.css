@@ -110,6 +110,7 @@
 .chat-reasoning-copy { color: inherit; }
 .chat-thought-for { color: var(--color-thinking); font: 400 17px/1.55 "Geist", sans-serif; margin-top: 8px; }
 .chat-reasoning.is-collapsed .chat-thought-for { margin-top: 0; }
+.chat-reasoning-brief .chat-thought-for { font: inherit; }
 .chat-tool-activity { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 18px; padding-left: 9px; position: relative; }
 .chat-tool-activity::before { background: color-mix(in srgb, var(--color-border) 72%, var(--color-accent)); bottom: 16px; content: ""; left: 9px; pointer-events: none; position: absolute; top: 19px; width: 1px; }
 .chat-tool-activity.is-collapsed::before { display: none; }
@@ -459,3 +460,18 @@
   .chat-delete-dialog-actions { flex-direction: column-reverse; }
   .chat-delete-dialog-actions button { width: 100%; }
 }
+
+.chat-load-earlier {
+  align-self: center;
+  appearance: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: 13px/1.4 "Geist", sans-serif;
+  margin: 8px 0 16px;
+  padding: 8px 12px;
+}
+.chat-load-earlier:hover { color: var(--color-text); }
+.chat-load-earlier:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
