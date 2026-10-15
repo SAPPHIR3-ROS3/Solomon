@@ -24,6 +24,7 @@ import type { LocalFolderSelection, TemporaryWorkspace } from "./projects/tempor
 import { EditorPage } from "./editor/EditorPage";
 import { watchDaemonLifecycle } from "./daemonLifecycle";
 import { watchExternalLinks } from "./externalLinks";
+import { LinkContextMenu } from "./shell/LinkContextMenu";
 
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
 const MIN_TERMINAL_PANEL_HEIGHT = 120;
@@ -558,6 +559,7 @@ export function App() {
         />
       ) : null}
       <NotificationToasts />
+      <LinkContextMenu />
       {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedResearch ? (
         <ResearchReportView bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} project={selectedResearch.project} research={selectedResearch.research} />
       ) : null}

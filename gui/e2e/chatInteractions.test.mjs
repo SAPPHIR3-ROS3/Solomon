@@ -19,6 +19,7 @@ import { createRoot } from "react-dom/client";
 import { MarkdownContent } from '/src/chat/MarkdownContent.tsx';
 import { MessageFooter, ReasoningBlock } from '/src/chat/ChatMessageFooter.tsx';
 import { watchExternalLinks } from '/src/externalLinks.ts';
+import { LinkContextMenu } from '/src/shell/LinkContextMenu.tsx';
 import '/src/styles.css';
 import '/src/chat/chat.css';
 window.opened = []; window.copied = [];
@@ -32,7 +33,8 @@ function Fixture() {
       React.createElement(ReasoningBlock, { message, isCollapsed: collapsed, onToggle: () => setCollapsed(value => !value) }),
       React.createElement(MarkdownContent, { content: message.content }),
       React.createElement(MessageFooter, { message, index: 0 })),
-    React.createElement('textarea', { 'aria-label': 'Message input' })));
+    React.createElement('textarea', { 'aria-label': 'Message input' }),
+    React.createElement(LinkContextMenu)));
 }
 createRoot(document.getElementById('root')).render(React.createElement(Fixture));
 `;
@@ -59,6 +61,29 @@ test("chat selection, external links, message copy and paste", async () => {
     await page.getByRole('link', { name: 'link', exact: true }).click();
     assert.deepEqual(await page.evaluate(() => window.opened), ['https://example.com/doc']);
     assert.ok(page.url().endsWith('/__chat_fixture'));
+    const link = page.getByRole('link', { name: 'link', exact: true });
+    await link.click({ button: 'right' });
+    assert.deepEqual(await page.evaluate(() => window.opened), ['https://example.com/doc']);
+    await page.getByRole('menuitem', { name: 'Copy link address', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.copied), ['https://example.com/doc']);
+    await link.click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Open in browser', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.opened), ['https://example.com/doc', 'https://example.com/doc']);
+    await link.focus();
+    await page.keyboard.press('Shift+F10');
+    await page.getByRole('menu', { name: 'Link actions' }).waitFor();
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.getByRole('menuitem', { name: 'Copy link address' }).evaluate(node => node === document.activeElement), true);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('menu').count(), 0);
+    assert.equal(await link.evaluate(node => node === document.activeElement), true);
+    await link.click({ button: 'right' });
+    await page.getByRole('textbox', { name: 'Message input' }).click();
+    assert.equal(await page.getByRole('menu').count(), 0);
+    await page.evaluate(() => { window.copied = []; delete window.runtime; });
+    await link.dispatchEvent('contextmenu');
+    assert.equal(await page.getByRole('menu').count(), 0);
+    await page.evaluate(() => { window.runtime = { BrowserOpenURL: url => window.opened.push(url), ClipboardSetText: async text => { window.copied.push(text); return true; } }; });
     await page.getByRole('button', { name: 'Copy message', exact: true }).click();
     await page.getByRole('button', { name: 'Message copied', exact: true }).waitFor();
     assert.deepEqual(await page.evaluate(() => window.copied), ['Testo della chat con [link](https://example.com/doc).']);
