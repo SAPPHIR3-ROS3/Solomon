@@ -3,6 +3,7 @@ import { notifyError, watchNotifications } from "./notifications/store";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { detectClient, initialClient } from "./platform";
 import { ActiveAgentsPage, prefetchActiveAgents, type ActiveAgentNode } from "./shell/ActiveAgentsPage";
+import { useAppUpdate } from "./shell/useAppUpdate";
 import { SidePanel } from "./shell/SidePanel";
 import { SidePanelToggle } from "./shell/SidePanelToggle";
 import { RightSidePanel } from "./shell/RightSidePanel";
@@ -38,6 +39,7 @@ const LEFT_SIDE_PANEL_WIDTH_KEY = "solomon.left-side-panel-width";
 const RIGHT_SIDE_PANEL_WIDTH_KEY = "solomon.right-side-panel-width";
 
 export function App() {
+  const appUpdate = useAppUpdate();
   useEffect(watchExternalLinks, []);
   useEffect(() => watchDaemonLifecycle(() => window.location.reload()), []);
   const [client, setClient] = useState(initialClient);
@@ -451,6 +453,7 @@ export function App() {
       ) : null}
       {!isSettingsOpen && activeView !== "editor" && isSidePanelOpen ? (
         <SidePanel
+          appUpdate={appUpdate}
           armedTerminalProjectIds={armedTerminalProjectIds}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
           isActiveAgentsOpen={isActiveAgentsOpen}

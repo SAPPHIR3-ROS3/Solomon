@@ -3,6 +3,7 @@ import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCac
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 import { fetchActiveAgentChatIDs } from "./ActiveAgentsPage";
+import type { AppUpdate } from "./useAppUpdate";
 import { UpdateButton } from "./UpdateButton";
 
 const INITIAL_CHAT_LIMIT = 5;
@@ -40,6 +41,7 @@ type ProjectRemovalDialog = {
 };
 
 type SidePanelProps = {
+  appUpdate: AppUpdate;
   armedTerminalProjectIds: string[];
   bottomInset: number;
   isActiveAgentsOpen: boolean;
@@ -63,6 +65,7 @@ type SidePanelProps = {
 };
 
 export function SidePanel({
+  appUpdate,
   armedTerminalProjectIds,
   bottomInset,
   isActiveAgentsOpen,
@@ -644,7 +647,7 @@ export function SidePanel({
             <button className="side-panel-user-name" onDoubleClick={beginUserNameEdit} title="Double-click to edit" type="button">
               {userName || "Unnamed user"}
             </button>
-            <UpdateButton />
+            <UpdateButton update={appUpdate} />
             <button aria-label="User settings" className="side-panel-user-settings" onClick={onOpenSettings} title="User settings" type="button">
               <SettingsIcon />
             </button>
