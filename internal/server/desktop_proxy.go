@@ -5,6 +5,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 )
 
 // DesktopProxy connects the native WebView to the shared daemon. It adapts the
@@ -19,6 +21,24 @@ func DesktopProxy() http.Handler {
 // Reloading a client after an update loads the daemon's matching frontend.
 func DesktopFrontend() http.Handler { return desktopProxy(true) }
 
+func isDesktopOrigin(origin string) bool {
+	switch strings.TrimSpace(origin) {
+	case "wails://wails", "http://wails.localhost", "https://wails.localhost":
+		return true
+	}
+	return false
+}
+
+func clientSurface(r *http.Request, requested string) string {
+	if s := strings.TrimSpace(requested); s != "" {
+		return prompt.NormalizeSurface(s)
+	}
+	if r != nil && isDesktopOrigin(r.Header.Get("Origin")) {
+		return prompt.SurfaceDesktop
+	}
+	return prompt.SurfaceWeb
+}
+
 func desktopProxy(frontend bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		isAPI := strings.HasPrefix(r.URL.Path, "/__solomon/") || r.URL.Path == "/health"
@@ -27,7 +47,7 @@ func desktopProxy(frontend bool) http.Handler {
 			return
 		}
 		origin := r.Header.Get("Origin")
-		if origin != "" && origin != "wails://wails" && origin != "http://wails.localhost" && origin != "https://wails.localhost" {
+		if origin != "" && !isDesktopOrigin(origin) {
 			http.Error(w, "request origin is not allowed", http.StatusForbidden)
 			return
 		}

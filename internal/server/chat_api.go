@@ -299,6 +299,7 @@ type sendChatRequest struct {
 	Content string          `json:"content"`
 	Images  []incomingImage `json:"images,omitempty"`
 	Clips   []incomingClip  `json:"clips,omitempty"`
+	Surface string          `json:"surface,omitempty"`
 }
 
 type incomingClip struct {
@@ -662,10 +663,11 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 			writeAPIError(w, http.StatusBadRequest, errors.New("send attachments as a message, separately from slash commands"))
 			return
 		}
-		a.handleSendSlashCommand(w, r, projectID, projectRoot, chatID, sess, content)
+		a.handleSendSlashCommand(w, r, projectID, projectRoot, chatID, sess, content, clientSurface(r, req.Surface))
 		return
 	}
 	titleInput := chatTitleInput(req.Content, len(req.Images) > 0)
+	surface := clientSurface(r, req.Surface)
 	cfg, prov, err := loadChatRuntimeConfig()
 	if err != nil {
 		writeAPIError(w, http.StatusServiceUnavailable, err)
@@ -707,6 +709,7 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 		rt := agentruntime.NewRuntime(nil, cfg, prov, projectID, projectRoot, sess)
 		rt.Out = io.Discard
 		rt.EventSink = run
+		rt.Surface = surface
 		rt.InitMCP(run.ctx)
 
 		// Start title generation only after the assistant request is on the

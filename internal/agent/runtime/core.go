@@ -85,6 +85,8 @@ type Runtime struct {
 	EventSink       cievents.Sink
 	FailOnToolError bool
 
+	Surface string
+
 	ciPrompt       string
 	ciTurn         int
 	ciToolErr      bool
@@ -376,6 +378,7 @@ func (r *Runtime) systemPrompt(disableThinking bool) (string, error) {
 		DisableThinking:       disableThinking,
 		WorkspaceAbsolutePath: absWorkspace,
 		Anonymize:             anonymize,
+		Surface:               r.promptSurface(),
 	}
 	if r.Session != nil {
 		d.PlanningActive = r.Session.PlanningActive
@@ -418,6 +421,7 @@ func (r *Runtime) systemPromptBtw(disableThinking bool) (string, error) {
 		DisableThinking:       disableThinking,
 		WorkspaceAbsolutePath: absWorkspace,
 		Anonymize:             anonymize,
+		Surface:               r.promptSurface(),
 	}
 	if r.Session != nil {
 		d.PlanningActive = r.Session.PlanningActive

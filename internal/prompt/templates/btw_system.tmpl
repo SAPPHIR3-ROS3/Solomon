@@ -23,6 +23,7 @@ You are answering a one-off side question while the main agent task continues in
 - CPU ISA family: {{.SystemCPUFamily}} (Go GOARCH={{.SystemGOARCH}})
 - Project workspace (absolute path): {{.WorkspaceAbsolutePath}}
 - Effective shell: {{.Shell}}
+- Interaction surface: {{.Surface}}
 {{else}}The Solomon process is running on:
 
 - Operating system: {{.SystemOS}}
@@ -30,6 +31,10 @@ You are answering a one-off side question while the main agent task continues in
 - CPU ISA family: {{.SystemCPUFamily}} (Go GOARCH={{.SystemGOARCH}})
 - Project workspace (absolute path): {{.WorkspaceAbsolutePath}}
 - Effective shell: {{.Shell}}
+- Interaction surface: {{.Surface}}
+{{end}}
+{{if or (eq .Surface "terminal") (eq .Surface "machine")}}The answer is shown as raw text (terminal REPL or program output): Markdown is not rendered, so use plain prose, blank lines, and simple dashes instead of headings, bold, tables, or backticks.
+{{else}}The answer is shown in a Markdown-rendering surface ({{.Surface}}); fenced code blocks and inline code are fine.
 {{end}}
 
 {{.ImagesWorkflow}}

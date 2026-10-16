@@ -44,7 +44,7 @@ func (a *chatAPI) handleProjectSlashCommands(w http.ResponseWriter, r *http.Requ
 
 var slashANSI = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
 
-func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request, projectID, root, chatID string, sess *chatstore.Session, content string) {
+func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request, projectID, root, chatID string, sess *chatstore.Session, content, surface string) {
 	cfg, prov, err := loadChatRuntimeConfig()
 	if err != nil {
 		// Informational commands also work before a model is configured.
@@ -68,6 +68,7 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		var output bytes.Buffer
 		rt.Out = &output
 		rt.EventSink = run
+		rt.Surface = surface
 		before := len(sess.Messages)
 		startedAt := time.Now().UTC()
 		commandErr := rt.RunGUISlash(run.ctx, content)

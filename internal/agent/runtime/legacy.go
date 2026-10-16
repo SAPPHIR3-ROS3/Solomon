@@ -7,6 +7,7 @@ import (
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
@@ -16,6 +17,22 @@ func (r *Runtime) cursorLegacyToolsActive() bool {
 
 func (r *Runtime) externalToolBridge() bool {
 	return r.cursorLegacyToolsActive()
+}
+
+func (r *Runtime) promptSurface() string {
+	if r == nil {
+		return prompt.SurfaceTerminal
+	}
+	if r.externalToolBridge() {
+		return prompt.SurfaceCursor
+	}
+	if s := strings.TrimSpace(r.Surface); s != "" {
+		return prompt.NormalizeSurface(s)
+	}
+	if r.RL == nil && r.EventSink != nil {
+		return prompt.SurfaceMachine
+	}
+	return prompt.SurfaceTerminal
 }
 
 func (r *Runtime) legacyToolsForcedInPrompt() bool {

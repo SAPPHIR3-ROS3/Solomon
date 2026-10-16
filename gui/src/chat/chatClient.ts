@@ -1,6 +1,6 @@
 import { notifyNotification } from "../notifications/store";
 import { measureNavigation, measureNavigationSync } from "./navigationPerformance";
-import { serverEndpoint } from "../platform";
+import { initialClient, serverEndpoint } from "../platform";
 import type { ComposerImageAttachment } from "./composerTypes";
 import type { Chat, ChatImage, ChatMessage, ChatStats, ChatTodoItem, ChatToolCall, ChatToolResult } from "./chatTypes";
 
@@ -47,7 +47,7 @@ export async function createLiveChat(projectID: string, title = "", signal?: Abo
 
 export async function sendProjectCommand(projectID: string, content: string, signal?: AbortSignal): Promise<void> {
   const response = await fetch(await serverEndpoint(projectID ? `${projectChatsPath(projectID).replace(/\/chats$/, "")}/commands` : "/__solomon/commands"), {
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, surface: initialClient().surface }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
     signal,
@@ -118,7 +118,7 @@ export async function streamLiveChatMessage(
 ): Promise<void> {
   const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/messages`);
   const response = await fetch(endpoint, {
-    body: JSON.stringify({ content, images, clips }),
+    body: JSON.stringify({ content, images, clips, surface: initialClient().surface }),
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
     method: "POST",
     signal,

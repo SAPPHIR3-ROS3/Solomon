@@ -74,6 +74,7 @@ func (a *chatAPI) handleProjectCommand(w http.ResponseWriter, r *http.Request, p
 	var output bytes.Buffer
 	rt.Out = &output
 	rt.EventSink = run
+	rt.Surface = clientSurface(r, req.Surface)
 	commandErr := rt.RunGUISlash(run.ctx, content)
 	text := strings.TrimSpace(slashANSI.ReplaceAllString(output.String(), ""))
 	if commandErr != nil {

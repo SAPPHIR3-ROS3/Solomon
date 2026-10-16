@@ -99,6 +99,31 @@ type Data struct {
 	PlanImplementing bool
 
 	Anonymize bool
+
+	Surface string
+}
+
+const (
+	SurfaceTerminal = "terminal"
+	SurfaceDesktop  = "desktop"
+	SurfaceWeb      = "web"
+	SurfaceCursor   = "cursor"
+	SurfaceMachine  = "machine"
+)
+
+func NormalizeSurface(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case SurfaceDesktop, "app", "native", "wails":
+		return SurfaceDesktop
+	case SurfaceWeb, "browser", "gui":
+		return SurfaceWeb
+	case SurfaceCursor, "bridge", "ide":
+		return SurfaceCursor
+	case SurfaceMachine, "ci", "headless", "jsonl":
+		return SurfaceMachine
+	default:
+		return SurfaceTerminal
+	}
 }
 
 type TitleData struct {
@@ -388,6 +413,7 @@ func RenderBtw(d BtwData) (string, error) {
 
 func RenderBtwSystem(d Data) (string, error) {
 	applyRuntimeSystem(&d)
+	d.Surface = NormalizeSurface(d.Surface)
 	d.Shell = EffectiveShell()
 	d.ImagesWorkflow = ImagesWorkflowSection()
 	d.AtMentionWorkflow = AtMentionWorkflowSection()
@@ -407,6 +433,7 @@ func RenderBtwSystem(d Data) (string, error) {
 
 func render(name string, d Data) (string, error) {
 	applyRuntimeSystem(&d)
+	d.Surface = NormalizeSurface(d.Surface)
 	d.Shell = EffectiveShell()
 	d.ImagesWorkflow = ImagesWorkflowSection()
 	d.AtMentionWorkflow = AtMentionWorkflowSection()
