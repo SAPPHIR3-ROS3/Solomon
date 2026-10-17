@@ -111,7 +111,7 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
             onClick={() => setSection("advanced")}
             type="button"
           >
-            <ModelsIcon />
+            <AdvancedIcon />
             <span>Advanced</span>
           </button>
           <button
@@ -189,6 +189,14 @@ function ModelsIcon() {
       <circle cx="9" cy="6" r="2" />
       <circle cx="15" cy="12" r="2" />
       <circle cx="11" cy="18" r="2" />
+    </svg>
+  );
+}
+
+function AdvancedIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M14.7 6.3a5.5 5.5 0 0 0-7 7L3 18a2.1 2.1 0 0 0 3 3l4.7-4.7a5.5 5.5 0 0 0 7-7L14 13l-3-3 3.7-3.7Z" />
     </svg>
   );
 }
