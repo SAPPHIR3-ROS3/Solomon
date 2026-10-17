@@ -109,6 +109,9 @@ func TestRunAgentTurns_simpleAssistantReply(t *testing.T) {
 	if len(rt.Session.Messages) != 2 {
 		t.Fatalf("messages=%d", len(rt.Session.Messages))
 	}
+	if message := rt.Session.Messages[1]; message.Provider != "test" || message.Model != "test-model" {
+		t.Fatalf("assistant target=%+v", message)
+	}
 	if rt.Session.Messages[1].Role != "assistant" || rt.Session.Messages[1].Content != "hello back" {
 		t.Fatalf("assistant=%+v", rt.Session.Messages[1])
 	}

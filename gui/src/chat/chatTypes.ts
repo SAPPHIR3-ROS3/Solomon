@@ -7,6 +7,8 @@ export type ChatImage = {
 };
 
 export type ChatStats = {
+  provider?: string;
+  model?: string;
   contextTokens: number;
   outputTokensPerSecond: number;
   promptTokensPerSecond: number;

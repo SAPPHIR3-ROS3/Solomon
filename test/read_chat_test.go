@@ -18,7 +18,7 @@ import (
 const readChatFixture = `{"id":"reference-chat","title":"Prior decisions","created_at":"2026-10-01T12:00:00Z","messages":[
  {"role":"system","content":"hidden system instructions"},
  {"role":"user","content":"Requirements","created_at":"2026-10-01T12:00:01Z","user_prompt_tokens":12},
- {"role":"assistant","content":"<think>hidden reasoning</think>Checking","api_content":"hidden api content","reasoning_text":"hidden reasoning","tool_calls":[{"id":"call-1","name":"shell","arguments":"{\"command\":\"pwd\"}"}],"prompt_tokens":9007199254740993,"cached_prompt_tokens":90,"reasoning_tokens":3,"response_tokens":7,"turn_total_tokens":110,"output_tps":4.5,"ttft_secs":0.2,"turn_wall_secs":1.2,"turn_display_saved":true,"turn_context_tokens":100,"turn_context_est":false,"turn_total_display":110},
+ {"role":"assistant","provider":"test-provider","model":"test-model","content":"<think>hidden reasoning</think>Checking","api_content":"hidden api content","reasoning_text":"hidden reasoning","tool_calls":[{"id":"call-1","name":"shell","arguments":"{\"command\":\"pwd\"}"}],"prompt_tokens":9007199254740993,"cached_prompt_tokens":90,"reasoning_tokens":3,"response_tokens":7,"turn_total_tokens":110,"output_tps":4.5,"ttft_secs":0.2,"turn_wall_secs":1.2,"turn_display_saved":true,"turn_context_tokens":100,"turn_context_est":false,"turn_total_display":110},
  {"role":"tool","tool_call_id":"call-1","content":"tool output","turn_wall_secs":0.1},
  {"role":"assistant","content":"Decision: use X"}
  ],"branches":[{"fork_at":1,"messages":[{"role":"user","content":"hidden branch"}]}],"uncompactedRaw":[{"messages":[{"role":"user","content":"hidden archive"}]}]}`
@@ -122,6 +122,9 @@ func TestReadChatFlagsAndCrossProject(t *testing.T) {
 						var stats map[string]json.RawMessage
 						if err := json.Unmarshal(msgs[1]["stats"], &stats); err != nil {
 							t.Fatal(err)
+						}
+						if string(stats["provider"]) != `"test-provider"` || string(stats["model"]) != `"test-model"` {
+							t.Fatalf("recorded target lost: %s", stats)
 						}
 						if string(stats["prompt_tokens"]) != "9007199254740993" || string(stats["ttft_secs"]) != "0.2" || string(stats["turn_context_est"]) != "false" {
 							t.Fatalf("statistics changed: %s", stats)

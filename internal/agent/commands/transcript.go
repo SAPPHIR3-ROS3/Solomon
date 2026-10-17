@@ -44,6 +44,7 @@ func writeStoredUsageLine(out io.Writer, msgs []chatstore.Message, start, end in
 
 func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, model string) {
 	m := msgs[idx]
+	model = transcriptAssistantLabel(m, model)
 	prefix := ""
 	if chatstore.MessageCheckpointTagVisible(m) {
 		prefix = checkpoint.FormatLinePrefix(m.CheckpointSeq, m.CheckpointBranchKey)
@@ -137,4 +138,19 @@ func toolNameForResult(msgs []chatstore.Message, toolIdx int) string {
 		}
 	}
 	return ""
+}
+
+// Prefer the recorded target when replaying a conversation after model changes.
+func transcriptAssistantLabel(m chatstore.Message, fallback string) string {
+	model := strings.TrimSpace(m.Model)
+	if model == "" {
+		model = strings.TrimSpace(fallback)
+	}
+	if model == "" {
+		model = "Assistant"
+	}
+	if provider := strings.TrimSpace(m.Provider); provider != "" {
+		model += " (" + provider + ")"
+	}
+	return model
 }

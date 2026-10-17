@@ -40,6 +40,8 @@ type ToolCall struct {
 }
 
 type Message struct {
+	Provider      string     `json:"provider,omitempty"`
+	Model         string     `json:"model,omitempty"`
 	GUIHidden     bool       `json:"gui_hidden,omitempty"`
 	CreatedAt     time.Time  `json:"created_at,omitempty"`
 	Role          string     `json:"role"`

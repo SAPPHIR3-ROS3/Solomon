@@ -193,6 +193,7 @@ func formatExportWorkedDuration(secs float64) string {
 
 func writeMarkdownMessage(out io.Writer, msgs []chatstore.Message, idx int, model string) {
 	m := msgs[idx]
+	model = transcriptAssistantLabel(m, model)
 	cpTag := ""
 	if chatstore.MessageCheckpointTagVisible(m) {
 		cpTag = checkpoint.FormatCheckpointTag(m.CheckpointSeq, m.CheckpointBranchKey)

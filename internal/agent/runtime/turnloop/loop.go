@@ -107,6 +107,10 @@ func Run(ctx context.Context, h Host) error {
 			toolDefs = llm.ToolDefsFromOpenAI(tools)
 		}
 		msgs, imageFiles := h.SessionMessagesSnapshot()
+		provider := h.Config().Current.Provider
+		if p := h.Provider(); p != nil && p.Name != "" {
+			provider = p.Name
+		}
 		turnReq := llm.TurnRequest{
 			Cfg:                   h.Config(),
 			Model:                 h.ModelName(),
@@ -221,7 +225,7 @@ func Run(ctx context.Context, h Host) error {
 				proxyCorrection = fallback
 			}
 		}
-		ast := chatstore.Message{CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
+		ast := chatstore.Message{Provider: provider, Model: turnReq.Model, CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}

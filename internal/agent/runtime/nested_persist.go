@@ -124,6 +124,13 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	for iteration := 0; iteration < 512; iteration++ {
 		dur := time.Duration(config.SubagentTimeout(r.Cfg)) * time.Minute
 		roundCtx, cancel := context.WithDeadline(ctx, time.Now().Add(dur))
+		provider, model := r.Cfg.Current.Provider, r.Model
+		if r.Prov != nil && r.Prov.Name != "" {
+			provider = r.Prov.Name
+		}
+		if cfg.RoleModel != "" {
+			provider, model = cfg.RoleProvider, cfg.RoleModel
+		}
 		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable, effort, cfg)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -179,7 +186,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		transcript.WriteString(turn.Content)
 		transcript.WriteByte('\n')
 		nestedCheckpointSeq++
-		ast := chatstore.Message{Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
+		ast := chatstore.Message{Provider: provider, Model: model, Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
 		stampNestedMessageCheckpoint(&ast, nestedCheckpointSeq)
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})

@@ -155,6 +155,8 @@ function aggregateAssistantStats(messages: ChatMessage[]): ChatStats | undefined
   const totalTokens = contextTokens + userTokens + reasoningTokens + responseTokens;
 
   return {
+    provider: [...new Set(stats.map((current) => current.provider).filter(Boolean))].join(", ") || undefined,
+    model: [...new Set(stats.map((current) => current.model).filter(Boolean))].join(", ") || undefined,
     contextTokens,
     outputTokensPerSecond,
     promptTokensPerSecond,

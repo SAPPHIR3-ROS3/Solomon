@@ -96,6 +96,8 @@ export function WorkedForCounter({ isLive, seconds }: { isLive: boolean; seconds
 
 function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: ChatStats; workedFor?: number }) {
   const rows = [
+    ["provider", stats.provider || "—"],
+    ["model", stats.model || "—"],
     ["context", formatStatsTokenCount(stats.contextTokens)],
     ["user", formatStatsTokenCount(stats.userTokens)],
     ["reasoning", formatStatsTokenCount(stats.reasoningTokens)],

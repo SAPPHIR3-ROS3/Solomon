@@ -186,6 +186,7 @@ func decodeReadChat(data []byte, projectID string, a readChatArgs) (*readChatRes
 }
 
 var readChatStatKeys = []string{
+	"provider", "model",
 	"user_prompt_tokens", "reasoning_tokens", "response_tokens", "turn_total_tokens", "prompt_tokens", "cached_prompt_tokens",
 	"output_tps", "ttft_secs", "prompt_tps", "turn_wall_secs", "turn_display_saved", "turn_context_tokens", "turn_context_est",
 	"turn_user_tokens", "turn_reason_tokens", "turn_resp_tokens", "turn_total_display", "turn_output_tps", "turn_ttft_secs", "turn_prompt_tps", "turn_wall_display_secs",

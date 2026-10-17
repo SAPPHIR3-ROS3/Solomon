@@ -499,6 +499,8 @@ function todoItemFromPayload(payload: unknown): ChatTodoItem[] {
 function statsFromPayload(payload: unknown): ChatStats {
   const record = objectValue(payload);
   return {
+    provider: stringValue(record.provider) || undefined,
+    model: stringValue(record.model) || undefined,
     contextTokens: numberValue(record.contextTokens, 0) ?? 0,
     outputTokensPerSecond: numberValue(record.outputTokensPerSecond, 0) ?? 0,
     promptTokensPerSecond: numberValue(record.promptTokensPerSecond, 0) ?? 0,

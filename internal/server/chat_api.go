@@ -248,6 +248,8 @@ type apiImage struct {
 }
 
 type apiStats struct {
+	Provider              string  `json:"provider,omitempty"`
+	Model                 string  `json:"model,omitempty"`
 	ContextTokens         int64   `json:"contextTokens"`
 	OutputTokensPerSecond float64 `json:"outputTokensPerSecond"`
 	PromptTokensPerSecond float64 `json:"promptTokensPerSecond"`
@@ -1402,7 +1404,7 @@ func chatTitleInput(content string, hasImages bool) string {
 }
 
 func apiStatsFromMessage(message chatstore.Message) *apiStats {
-	if !message.TurnDisplaySaved && message.PromptTokens == 0 && message.UserPromptTokens == 0 && message.ReasoningTokens == 0 && message.ResponseTokens == 0 && message.TurnTotalTokens == 0 && message.TurnWallSecs == 0 {
+	if message.Provider == "" && message.Model == "" && !message.TurnDisplaySaved && message.PromptTokens == 0 && message.UserPromptTokens == 0 && message.ReasoningTokens == 0 && message.ResponseTokens == 0 && message.TurnTotalTokens == 0 && message.TurnWallSecs == 0 {
 		return nil
 	}
 	contextTokens := message.TurnContextTokens
@@ -1438,6 +1440,7 @@ func apiStatsFromMessage(message chatstore.Message) *apiStats {
 		promptTPS = message.PromptTPS
 	}
 	return &apiStats{
+		Provider: message.Provider, Model: message.Model,
 		ContextTokens: contextTokens, OutputTokensPerSecond: outputTPS, PromptTokensPerSecond: promptTPS,
 		ReasoningTokens: reasoningTokens, ResponseTokens: responseTokens, TotalTokens: totalTokens,
 		TTFTSeconds: ttft, UserTokens: userTokens,

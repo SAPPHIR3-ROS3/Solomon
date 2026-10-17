@@ -302,10 +302,10 @@
 .chat-stats-popover { background: color-mix(in srgb, var(--color-surface) 96%, #000); border: 1px solid color-mix(in srgb, var(--color-border) 84%, var(--color-text-muted)); border-radius: 10px; bottom: calc(100% + 8px); box-shadow: 0 16px 36px rgb(0 0 0 / 38%), 0 0 0 1px rgb(255 255 255 / 4%); color: var(--color-text); right: 0; max-width: calc(100vw - 32px); min-width: 236px; padding: 12px 14px; position: absolute; width: 252px; z-index: 20; }
 .chat-stats-title { color: var(--color-text); font: 650 13px/1.2 "Geist", sans-serif; margin-bottom: 8px; }
 .chat-stats-popover dl { margin: 0; }
-.chat-stats-row { align-items: baseline; display: grid; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; gap: 18px; grid-template-columns: minmax(0, 1fr) auto; padding: 3px 0; }
+.chat-stats-row { align-items: baseline; display: grid; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; gap: 18px; grid-template-columns: auto minmax(0, 1fr); padding: 3px 0; }
 .chat-stats-row + .chat-stats-row { border-top: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent); }
 .chat-stats-row dt { color: var(--color-text-muted); }
-.chat-stats-row dd { color: var(--color-text); margin: 0; text-align: right; }
+.chat-stats-row dd { color: var(--color-text); margin: 0; overflow-wrap: anywhere; text-align: right; }
 .chat-stats-row.is-total { font-weight: 650; padding-top: 6px; }
 .chat-stats-row.is-total dt, .chat-stats-row.is-total dd { color: var(--color-text); }
 .chat-delete-message { align-items: center; appearance: none; background: transparent; border: 0; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: 26px; justify-content: center; margin-left: 2px; padding: 0; width: 26px; }
