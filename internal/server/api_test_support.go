@@ -4,11 +4,30 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
+
+type DevelopmentFrontendForTest struct{ frontend *developmentFrontend }
+
+func NewDevelopmentFrontendForTest(state State, handler http.Handler) *DevelopmentFrontendForTest {
+	return &DevelopmentFrontendForTest{frontend: &developmentFrontend{state: state, handler: handler}}
+}
+
+func (d *DevelopmentFrontendForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	d.frontend.ServeHTTP(w, r)
+}
+func (d *DevelopmentFrontendForTest) Change(ctx context.Context, mode, directory string) (State, error) {
+	return d.frontend.change(ctx, mode, directory)
+}
+func (d *DevelopmentFrontendForTest) Snapshot() State                { return d.frontend.snapshot() }
+func (d *DevelopmentFrontendForTest) Close()                         { d.frontend.close() }
+func ExportGUISourcesForTest() (string, error)                       { return exportGUISources() }
+func StartViteForTest(directory string) (*url.URL, *exec.Cmd, error) { return startVite(directory) }
+func StopViteForTest(command *exec.Cmd)                              { stopManagedProcess(command) }
 
 // ViteCommandForTest exposes the dev launcher without starting the daemon.
 func ViteCommandForTest(directory string, port int) *exec.Cmd {

@@ -210,9 +210,13 @@ func Run(ctx context.Context, options Options) error {
 		state.DevDir = options.DevDir
 		proxy = httputil.NewSingleHostReverseProxy(viteURL)
 	}
-	defer func() {
-		stopManagedProcess(vite)
-	}()
+	frontend := &developmentFrontend{state: state, process: vite}
+	if proxy != nil {
+		frontend.handler = proxy
+	} else if guibundle.Ready() {
+		frontend.handler = productionFrontend()
+	}
+	defer frontend.close()
 	if err := SaveState(state); err != nil {
 		_ = listener.Close()
 		return err
@@ -227,16 +231,18 @@ func Run(ctx context.Context, options Options) error {
 
 	serviceCtx, cancelService := context.WithCancel(ctx)
 	defer cancelService()
+	frontend.ctx = serviceCtx
 	terminalManager := newTerminalManager(serviceCtx.Done())
 	defer terminalManager.CloseAll()
 	terminalAPI := newTerminalAPI(terminalManager)
 	httpServer := &http.Server{}
 	mux := http.NewServeMux()
+	mux.HandleFunc("/__solomon/development", frontend.handle)
 	background := newBackgroundAPI()
 	defer background.close()
 	mux.HandleFunc("/__solomon/background", background.handle)
 	guiStatus := "not configured"
-	if proxy != nil || guibundle.Ready() {
+	if guibundle.Ready() {
 		guiStatus = "ready"
 	}
 	chatAPI := newChatAPI(serviceCtx)
@@ -247,9 +253,14 @@ func Run(ctx context.Context, options Options) error {
 	defer updateAPI.close()
 	mux.HandleFunc("/__solomon/update", updateAPI.handle)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		current := frontend.snapshot()
+		currentGUI := guiStatus
+		if current.Mode == "dev" {
+			currentGUI = "ready"
+		}
 		writeJSON(w, http.StatusOK, Health{
-			OK: true, Server: state, Now: time.Now().UTC(), Uptime: time.Since(state.StartedAt).Round(time.Second).String(),
-			API: "ready", GUI: guiStatus, Workers: "ready",
+			OK: true, Server: current, Now: time.Now().UTC(), Uptime: time.Since(state.StartedAt).Round(time.Second).String(),
+			API: "ready", GUI: currentGUI, Workers: "ready",
 		})
 	})
 	mux.HandleFunc("POST /_solomon/stop", func(w http.ResponseWriter, _ *http.Request) {
@@ -268,8 +279,8 @@ func Run(ctx context.Context, options Options) error {
 			projectAPI.handleProjectRoute(w, r)
 			return
 		}
-		if proxy != nil {
-			proxy.ServeHTTP(w, r)
+		if frontend.snapshot().Mode == "dev" {
+			frontend.ServeHTTP(w, r)
 			return
 		}
 		writeAPIError(w, http.StatusNotFound, os.ErrNotExist)
@@ -315,11 +326,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/provider-quotas", modelAPI.handleQuotas)
 	mux.HandleFunc("/__solomon/provider-quotas/reset", modelAPI.handleQuotaReset)
 	mux.HandleFunc("/__solomon/terminal", terminalAPI.handleWebSocket)
-	if proxy != nil {
-		mux.Handle("/", proxy)
-	} else if guibundle.Ready() {
-		mux.Handle("/", productionFrontend())
-	}
+	mux.Handle("/", frontend)
 	httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" || r.URL.Path == "/__solomon" || strings.HasPrefix(r.URL.Path, "/__solomon/") {
 			origin := strings.TrimSpace(r.Header.Get("Origin"))

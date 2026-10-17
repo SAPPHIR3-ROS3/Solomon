@@ -491,7 +491,7 @@ test("advanced settings autosave valid numbers and preserve nested config", asyn
 });
 
 
-test("dev server controls autosave all three preferences and keep running servers untouched", async () => {
+test("dev server controls prepare selected folders and switch the frontend without a restart", async () => {
   const sourceDirectory = join(home, "dev-gui");
   await (await import("node:fs/promises")).mkdir(join(sourceDirectory, "src"), { recursive: true });
   await writeFile(join(sourceDirectory, "package.json"), "{}");
@@ -499,6 +499,19 @@ test("dev server controls autosave all three preferences and keep running server
   const page = await browser.newPage();
   after(() => page.close());
   page.setDefaultTimeout(10000);
+  const transitions = [];
+  await page.route("**/__solomon/development", async route => {
+    const request = route.request().postDataJSON();
+    transitions.push(request.mode);
+    if (request.mode === "prepare") {
+      await route.fulfill({ json: { directory: sourceDirectory } });
+      return;
+    }
+    const result = await page.request.patch(`${server.resolvedUrls.local[0]}__solomon/gui-settings`, {
+      data: { advanced: { "server.dev_mode": request.mode === "dev", "server.dev_directory": sourceDirectory } },
+    });
+    await route.fulfill({ status: result.status(), json: await result.json() });
+  });
   await page.route("**/__tool_fixture", route => route.fulfill({
     contentType: "text/html",
     body: '<div id="settings"></div><div id="chat"></div><script type="module" src="/__tool_fixture.js"></script>',
@@ -510,15 +523,14 @@ test("dev server controls autosave all three preferences and keep running server
   const port = page.getByRole("spinbutton", { name: "Server port", exact: true });
   await page.waitForFunction(() => document.getElementById("advanced-server_port")?.value === "64000");
   await page.evaluate(() => import('/src/styles.css'));
-  assert.equal(await dev.isDisabled(), true);
+  assert.equal(await dev.isDisabled(), false);
   await dev.hover({ force: true });
   assert.equal(await dev.getAttribute("aria-busy"), "false");
-  assert.equal(await dev.evaluate(node => getComputedStyle(node).cursor), "default");
   assert.equal(await page.locator('[aria-label="Advanced settings"] .settings-model-row').first().getByText("Dev server", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Saving…", { exact: true }).count(), 0);
   await directory.fill(`"${sourceDirectory}"`);
-  await directory.blur();
-  await page.waitForFunction(() => !document.querySelector('[aria-labelledby="dev-server-label"]').disabled);
+  await page.getByRole("button", { name: "Use folder", exact: true }).click();
+  await page.waitForFunction(expected => document.getElementById("gui-source-directory")?.value === expected, sourceDirectory);
   assert.equal(await directory.inputValue(), sourceDirectory);
   await dev.click();
   await page.waitForFunction(() => document.querySelector('[aria-labelledby="dev-server-label"]').getAttribute("aria-checked") === "true");
@@ -537,11 +549,12 @@ test("dev server controls autosave all three preferences and keep running server
   assert.equal(await port.inputValue(), "64500");
   await dev.click();
   await page.waitForFunction(() => document.querySelector('[aria-labelledby="dev-server-label"]').getAttribute("aria-checked") === "false");
-  await directory.fill("");
-  await directory.blur();
-  await page.waitForFunction(() => Array.from(document.querySelectorAll('[aria-label="Advanced settings"] .settings-save-status')).every(element => element.textContent === ""));
   assert.match(await readFile(configPath, "utf8"), /^dev_mode = false/m);
-  assert.match(await readFile(configPath, "utf8"), /^dev_directory = ''/m);
+  assert.ok((await readFile(configPath, "utf8")).includes(`dev_directory = '${sourceDirectory}'`));
+  assert.deepEqual(transitions, ["prepare", "dev", "normal"]);
+  await page.getByRole("button", { name: "Browse…", exact: true }).click();
+  await page.getByRole("dialog", { name: "Select GUI source folder", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Close folder picker", exact: true }).click();
 });
 
 

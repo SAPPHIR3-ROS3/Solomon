@@ -21,7 +21,7 @@ type Result struct {
 func CanRunConcurrently(invs []tooling.Invocation) bool {
 	for _, inv := range invs {
 		switch inv.Name {
-		case "subagent", "switchMode", "settings":
+		case "subagent", "switchMode", "settings", "customizeUI":
 			return false
 		}
 	}

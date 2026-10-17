@@ -10,7 +10,8 @@ import { guiSettingsPlugin } from "./guiSettingsPlugin";
 import { modelsPlugin } from "./modelsPlugin";
 import { syntaxAssetsPlugin } from "./syntaxAssetsPlugin";
 
-const rootIconPath = fileURLToPath(new URL("../icon.svg", import.meta.url));
+const localIconPath = fileURLToPath(new URL("./icon.svg", import.meta.url));
+const rootIconPath = existsSync(localIconPath) ? localIconPath : fileURLToPath(new URL("../icon.svg", import.meta.url));
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 
 function rootIconPlugin(): Plugin {
@@ -18,6 +19,8 @@ function rootIconPlugin(): Plugin {
   return {
     name: "solomon-root-icon",
     config() {
+      // Exported customization sources include their own ready-to-serve icon.
+      if (existsSync(localIconPath)) return;
       // The desktop server can invoke Vite directly, so generate the icon here
       // before either the dev server or production build reads it.
       try {

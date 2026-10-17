@@ -44,6 +44,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `deepResearch`, `researchStatus` | chat native; deferred in agent mode (orchestrate / legacy XML) |
 | `searchTools`, `orchestrate`, `switchMode` | agent |
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
+| `customizeUI` | agent and chat; prepare and switch Solomon's frontend without restarting the daemon |
 
 `subagent` is a native function tool in agent mode. It accepts `run_in_background` for a persisted asynchronous run, `reasoningEffort` for a per-run override, and `interrupt` together with `resume` to cancel the active run before adding a new task. `/subagent stop` and `/subagent cancel` also cancel the live background context before persisting its final status.
 

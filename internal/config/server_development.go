@@ -18,7 +18,8 @@ type ServerSettings struct {
 	DevDirectory string `toml:"dev_directory,omitempty"`
 }
 
-func ValidateDevDirectory(raw string) (string, error) {
+// NormalizeDevDirectory expands a source path without requiring existing files.
+func NormalizeDevDirectory(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	// Windows' Copy as path includes surrounding quotes.
 	if len(raw) >= 2 && ((raw[0] == '"' && raw[len(raw)-1] == '"') || (raw[0] == '\'' && raw[len(raw)-1] == '\'')) {
@@ -39,6 +40,14 @@ func ValidateDevDirectory(raw string) (string, error) {
 		}
 	}
 	directory, err := filepath.Abs(raw)
+	if err != nil {
+		return "", err
+	}
+	return directory, nil
+}
+
+func ValidateDevDirectory(raw string) (string, error) {
+	directory, err := NormalizeDevDirectory(raw)
 	if err != nil {
 		return "", err
 	}

@@ -1,0 +1,198 @@
+.settings-dev-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  container-type: inline-size;
+  margin-bottom: 24px;
+  min-width: 0;
+}
+
+.settings-dev-panel .settings-dev-header {
+  align-items: center;
+  border: 0;
+  gap: 20px;
+  min-height: 0;
+  padding: 20px;
+}
+
+.settings-dev-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-dev-header .settings-dev-heading > strong {
+  color: var(--color-text);
+  font: 500 14px/1.4 "Geist", ui-sans-serif, system-ui, sans-serif;
+}
+
+.settings-dev-header .settings-model-row-copy {
+  flex: 1;
+  gap: 7px;
+}
+
+.settings-dev-header small {
+  font: 12px/1.6 "Geist", ui-sans-serif, system-ui, sans-serif;
+}
+
+.settings-dev-state {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  font: 11px/1.5 "Geist", ui-sans-serif, system-ui, sans-serif;
+  gap: 5px;
+  padding: 2px 7px;
+}
+
+.settings-dev-state.is-live::before {
+  background: var(--color-accent);
+  border-radius: 50%;
+  content: "";
+  height: 5px;
+  width: 5px;
+}
+
+.settings-dev-toggle {
+  align-items: flex-end;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-dev-directory {
+  border-top: 1px solid var(--color-border);
+  padding: 18px 20px 20px;
+}
+
+.settings-dev-directory:first-child { border-top: 0; }
+
+.settings-dev-directory-label {
+  color: var(--color-text);
+  font: 12px/1.5 "Geist", ui-sans-serif, system-ui, sans-serif;
+  margin-bottom: 9px;
+}
+
+.settings-dev-directory-label strong { font-weight: 500; }
+
+.settings-dev-folder-controls {
+  align-items: stretch;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-dev-path {
+  align-items: center;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  display: flex;
+  flex: 1;
+  gap: 9px;
+  min-width: 0;
+  padding: 4px 4px 4px 11px;
+}
+
+.settings-dev-path:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 15%, transparent);
+}
+
+.settings-dev-path > svg {
+  color: var(--color-text-muted);
+  fill: none;
+  flex: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  width: 16px;
+}
+
+.settings-dev-path input {
+  background: transparent;
+  border: 0;
+  color: var(--color-text);
+  flex: 1;
+  font: 12px/1.5 "Geist Mono", ui-monospace, monospace;
+  min-width: 0;
+  outline: none;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.settings-dev-path input::placeholder { color: var(--color-text-muted); }
+
+.settings-dev-browse,
+.settings-dev-apply {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  flex: none;
+  font: 500 12px/1.5 "Geist", ui-sans-serif, system-ui, sans-serif;
+  min-height: 30px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.settings-dev-browse {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.settings-dev-browse:hover:not(:disabled) { color: var(--color-text); }
+
+.settings-dev-apply {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+  color: var(--color-text);
+  padding-inline: 15px;
+}
+
+.settings-dev-apply:hover:not(:disabled) { border-color: var(--color-text-muted); }
+
+.settings-dev-browse:focus-visible,
+.settings-dev-apply:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.settings-dev-folder-controls button:disabled,
+.settings-dev-path input:disabled {
+  cursor: default;
+  opacity: .45;
+}
+
+.settings-dev-hint {
+  color: var(--color-text-muted);
+  font: 11px/1.6 "Geist", ui-sans-serif, system-ui, sans-serif;
+  margin: 9px 0 0;
+}
+
+.settings-dev-panel .settings-dev-error {
+  color: var(--color-text);
+  font: 12px/1.6 "Geist", ui-sans-serif, system-ui, sans-serif;
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .settings-dev-panel .settings-dev-header { gap: 12px; padding: 16px; }
+  .settings-dev-directory { padding: 16px; }
+  .settings-dev-folder-controls { flex-wrap: wrap; }
+  .settings-dev-path { flex-basis: 100%; }
+  .settings-dev-apply { margin-left: auto; min-height: 34px; }
+}
+
+@container (max-width: 420px) {
+  .settings-dev-folder-controls { flex-wrap: wrap; }
+  .settings-dev-path { flex-basis: 100%; }
+  .settings-dev-apply { margin-left: auto; min-height: 34px; }
+}

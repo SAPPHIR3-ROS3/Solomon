@@ -39,7 +39,15 @@ make gui-deps
 solomon server status
 ```
 
-If no daemon is running, start `solomon server start dev /absolute/path/to/Solomon/gui`. If one is running, finish active work before stopping or restarting it; the daemon owns chats and terminal processes. Open the URL printed by `solomon server status`. `make desktop-dev` connects Wails to the running development server.
+If no daemon is running, start `solomon server start dev /absolute/path/to/Solomon/gui`. If one is running, the same explicit command switches its frontend at runtime while preserving chats and terminal processes. Missing frontend dependencies are installed automatically before activation. Open the URL printed by `solomon server status`. `make desktop-dev` connects Wails to the running development server.
+
+For interface personalization from an installed binary, ask Solomon in chat to
+customize its interface. The `customizeUI` tool prepares version-matched sources
+under `SOLOMON_HOME/customization/gui`, installs dependencies, and enables hot
+reload without restarting the daemon. The equivalent CLI command is
+`solomon server customize`. Existing source edits are preserved. Node.js and npm
+are prerequisites. Use `solomon server start normal` to restore the bundled UI;
+the editable sources remain on disk.
 
 For a production frontend check, run `make gui-build`; direct `go build` does not refresh staged frontend assets. Use `make desktop-build` when changing the native client.
 

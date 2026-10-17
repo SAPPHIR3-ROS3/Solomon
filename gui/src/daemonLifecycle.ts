@@ -4,9 +4,9 @@ import { serverEndpoint } from "./platform";
 export function daemonRestartTracker(): (payload: unknown) => boolean {
   let generation = "";
   return (payload) => {
-    const health = payload as { ok?: boolean; server?: { pid?: number; started_at?: string; version?: string } } | null;
+    const health = payload as { ok?: boolean; server?: { pid?: number; started_at?: string; version?: string; mode?: string; vite_url?: string; dev_directory?: string } } | null;
     if (!health?.ok || typeof health.server?.pid !== "number" || typeof health.server.started_at !== "string" || typeof health.server.version !== "string") return false;
-    const next = `${health.server.pid}:${health.server.started_at}:${health.server.version}`;
+    const next = JSON.stringify([health.server.pid, health.server.started_at, health.server.version, health.server.mode ?? "normal", health.server.vite_url ?? "", health.server.dev_directory ?? ""]);
     const changed = generation !== "" && next !== generation;
     generation = next;
     return changed;

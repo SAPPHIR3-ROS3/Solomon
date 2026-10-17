@@ -15,6 +15,7 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 			researchStatusOpenAI(),
 			switchModeOpenAI(),
 			settingsOpenAI(),
+			customizeUIOpenAI(),
 		}
 	default:
 		tools = []openai.ChatCompletionToolUnionParam{
@@ -26,6 +27,7 @@ func NativeToolParams(mode string) ([]openai.ChatCompletionToolUnionParam, error
 			listSubAgentsOpenAI(),
 			switchModeOpenAI(),
 			settingsOpenAI(),
+			customizeUIOpenAI(),
 		}
 	}
 	return EnsureUniversalTools(tools), nil

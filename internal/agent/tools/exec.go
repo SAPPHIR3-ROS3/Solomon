@@ -82,7 +82,7 @@ func isInternalToolName(name string) bool {
 		"createPlan", "editPlan", "buildPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
 		"shell", "readFile", "editFile", "find", "listDir", "tree", "subagent", "fetchWeb", "webSearch",
 		"deepResearch", "researchStatus",
-		"searchTools", "orchestrate", "settings", "switchMode", "listSubAgents":
+		"searchTools", "orchestrate", "settings", "customizeUI", "switchMode", "listSubAgents":
 		return true
 	default:
 		return false
@@ -102,7 +102,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 			return true
 		}
 		switch tool {
-		case "searchTools", "orchestrate", "settings", "switchMode", "subagent":
+		case "searchTools", "orchestrate", "settings", "customizeUI", "switchMode", "subagent":
 			return false
 		default:
 			return isInternalToolName(tool) || isSkillToolName(tool)
@@ -112,7 +112,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 	switch m {
 	case "agent":
 		switch tool {
-		case "searchTools", "orchestrate", "settings", "switchMode", "loadSkill", "searchSkill", "subagent", "listSubAgents":
+		case "searchTools", "orchestrate", "settings", "customizeUI", "switchMode", "loadSkill", "searchSkill", "subagent", "listSubAgents":
 			return true
 		default:
 			if isPlanTool(tool) {
@@ -122,7 +122,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 		}
 	case "chat":
 		switch tool {
-		case "fetchWeb", "webSearch", "settings", "switchMode", "deepResearch", "researchStatus":
+		case "fetchWeb", "webSearch", "settings", "customizeUI", "switchMode", "deepResearch", "researchStatus":
 			return true
 		default:
 			return false
@@ -193,6 +193,8 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 		return execOrchestrate(ctx, env, inv.Args)
 	case "settings":
 		return execSettings(ctx, env, inv.Args, toolCallLogParams(env, mode, inv))
+	case "customizeUI":
+		return execCustomizeUI(ctx, inv.Args)
 	case "switchMode":
 		return execSwitchMode(ctx, env, inv.Args)
 	case "listSubAgents":

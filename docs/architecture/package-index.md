@@ -21,6 +21,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `cmd/solomon/server/` | Detached local server lifecycle commands and log reader | [Local server](server.md) |
 | `cmd/solomon/server/detach/` | Platform-specific process detachment for the local server | [Local server](server.md) |
 | `internal/server/` | Local HTTP host: health, Vite reverse proxy, process lifecycle | [Local server](server.md) |
+| `internal/guicustom/` | Local daemon client for chat-driven GUI customization without restarting sessions | [Local server](server.md#development-frontend) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |
 | `internal/agent/runtime/` | REPL, turns, session I/O, MCP init, Cursor hooks | [Runtime hub](runtime.md) |
 | `internal/agent/runtime/btw/` | Transient `/btw` side questions and output buffering | [Agent turn pipeline](agent-turn-pipeline.md#btw-side-stream) |

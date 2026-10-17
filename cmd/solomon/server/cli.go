@@ -16,6 +16,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server/detach"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/guicustom"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
@@ -27,12 +28,26 @@ func Run(args []string) error {
 		return fmt.Errorf("missing server subcommand")
 	}
 	switch args[0] {
+	case "customize":
+		if len(args) > 2 {
+			return fmt.Errorf("usage: solomon server customize [gui-directory]")
+		}
+		directory := ""
+		if len(args) == 2 {
+			directory = args[1]
+		}
+		result, err := guicustom.Request(context.Background(), "dev", directory)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("GUI customization ready\nurl: %v\nsource: %v\n", result["url"], result["dev_directory"])
+		return nil
 	case "start":
 		mode, devDir, err := parseStart(args[1:])
 		if err != nil {
 			return err
 		}
-		return start(mode, devDir)
+		return start(mode, devDir, len(args) > 1)
 	case "run":
 		mode, devDir, err := parseRun(args[1:])
 		if err != nil {
@@ -62,7 +77,7 @@ func Run(args []string) error {
 		if err := stop(); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		return start(mode, devDir)
+		return start(mode, devDir, false)
 	case "logs":
 		interactive := len(args) == 2 && args[1] == "interactive"
 		if len(args) > 2 || (len(args) == 2 && !interactive) {
@@ -77,7 +92,7 @@ func Run(args []string) error {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: solomon server <start|status|stop|restart|logs>")
+	fmt.Fprintln(os.Stderr, "usage: solomon server <start|customize|status|stop|restart|logs>")
 }
 
 func parseStart(args []string) (string, string, error) {
@@ -111,18 +126,33 @@ func parseRun(args []string) (string, string, error) {
 }
 
 func validateDevDirectory(raw string) (string, error) {
-	return config.ValidateDevDirectory(raw)
+	return serverruntime.PrepareGUIWorkspace(raw)
 }
 
-func start(mode, devDir string) error {
+func start(mode, devDir string, switchRunning bool) error {
 	if err := loadDotEnv(devDir); err != nil {
 		return err
 	}
 	if state, err := serverruntime.LoadRunningState(context.Background()); err == nil {
+		if switchRunning && (mode != state.Mode || (mode == "dev" && devDir != state.DevDir)) {
+			_, err := guicustom.Request(context.Background(), mode, devDir)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("frontend switched to %s without restarting at %s\n", mode, state.URL)
+			return nil
+		}
 		fmt.Printf("server already running at %s\n", state.URL)
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
+	}
+	if mode == "dev" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := serverruntime.PrepareGUIDependencies(ctx, devDir); err != nil {
+			return err
+		}
 	}
 	logPath, err := serverruntime.LogPath()
 	if err != nil {
@@ -157,7 +187,7 @@ func start(mode, devDir string) error {
 	startedPID := cmd.Process.Pid
 	exited := make(chan error, 1)
 	go func() { exited <- cmd.Wait() }()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if state, err := serverruntime.LoadState(); err == nil && state.PID == startedPID && healthy(state) {
 			fmt.Printf("server started\nurl: %s\nlocalhost: %s\n", state.URL, state.LocalURL)

@@ -4,6 +4,9 @@ import type { LocalFolderSelection } from "./temporaryWorkspace";
 import "./new-project-dialog.css";
 
 type NewProjectDialogProps = {
+  folderOnly?: boolean;
+  initialPath?: string;
+  title?: string;
   isOpen: boolean;
   onConfirmLocalFolder: (selection: LocalFolderSelection) => void | Promise<void>;
   onClose: () => void;
@@ -24,7 +27,7 @@ const projectSources = [
   },
 ] as const;
 
-export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewProjectDialogProps) {
+export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folderOnly = false, initialPath = "~", title }: NewProjectDialogProps) {
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [folderEntries, setFolderEntries] = useState<ProjectDirectoryEntry[]>([]);
@@ -57,10 +60,10 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
     setActiveSourceId(null);
     setFolderEntries([]);
     setFolderError("");
-    setFolderPath("~");
+    setFolderPath(folderOnly ? initialPath : "~");
     setHomePath("");
-    setFolderInput("~");
-    setIsFolderPickerOpen(false);
+    setFolderInput(folderOnly ? initialPath : "~");
+    setIsFolderPickerOpen(folderOnly);
     setIsConfirming(false);
     setIsCreatingFolder(false);
     setNewFolderName("");
@@ -72,7 +75,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [isOpen]);
+  }, [isOpen, folderOnly, initialPath]);
 
   useEffect(() => {
     if (!isOpen || !isFolderPickerOpen) return;
@@ -215,17 +218,17 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose }: NewP
 
   return (
     <div
-      aria-label="Project source picker"
+      aria-label={title ?? "Project source picker"}
       className="new-project-dialog-backdrop"
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
       role="presentation"
     >
-      <section aria-label="Project sources" aria-modal="true" className="new-project-dialog" role="dialog">
+      <section aria-label={title ?? "Project sources"} aria-modal="true" className="new-project-dialog" role="dialog">
         <div className={`new-project-dialog-search${isFolderPickerOpen ? " is-folder-picker" : ""}`}>
           {isFolderPickerOpen ? (
-            <button aria-label="Back to project sources" disabled={isFolderCreatePending} className="new-project-dialog-search-back" onClick={goBackFromFolderPicker} type="button">
+            <button aria-label={folderOnly ? "Close folder picker" : "Back to project sources"} disabled={isFolderCreatePending} className="new-project-dialog-search-back" onClick={folderOnly ? onClose : goBackFromFolderPicker} type="button">
               <ChevronLeftIcon />
             </button>
           ) : null}

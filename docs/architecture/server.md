@@ -64,7 +64,9 @@ Closing the desktop window closes this gateway, while daemon-owned work continue
 | Command | Behavior |
 |---|---|
 | `solomon server start` | Start the detached server in normal mode. |
-| `solomon server start dev <gui-directory>` | Start development mode with the specified GUI project. The directory must contain `package.json` and `src/`. |
+| `solomon server start dev <gui-directory>` | Start or switch to development mode. Reuse existing GUI sources, or initialize a base inside an empty/new chosen folder. |
+| `solomon server customize [gui-directory]` | Prepare GUI sources and dependencies, then switch the running daemon to hot reload without interrupting chats or terminals. Omit the directory to export sources from the installed binary. |
+| `solomon server start normal` | Start with the bundled frontend, or restore it on the running daemon without a restart. |
 | `solomon server status` | Print the PID, local and network URLs, mode, version, Vite status, development GUI source directory when in dev/HMR mode, and start time. |
 | `solomon server stop` | POST `/_solomon/stop`, wait for shutdown, then remove runtime state. If health fails or the process does not exit in time, the CLI force-stops the recorded server and Vite process groups and clears stale `state.json`. |
 | `solomon server restart` | Preserve the prior mode and development directory, then restart. |
@@ -97,6 +99,36 @@ reports API and workers as `ready`, and GUI as `ready` when a compiled bundle
 or development frontend is available.
 
 ## Development frontend
+
+When asked to personalize Solomon's interface in chat, the agent uses the native
+`customizeUI` tool with `action=dev`. It exports the installed version's frontend,
+shared welcome logo and documentation under `SOLOMON_HOME/customization`, installs
+dependencies with `npm ci --include=dev` (or `npm install --include=dev` when no
+lockfile exists), and starts Vite before replacing the frontend handler. Node.js
+and npm must be installed; a preparation failure leaves the working interface
+and saved startup preferences intact. Existing customization files are reused
+without overwriting them. The tool returns the source directory for subsequent
+file edits and HMR.
+
+`GET /__solomon/development` reports the live frontend. `POST` accepts
+`{"mode":"dev","directory":"optional GUI path"}` or `{"mode":"normal"}`.
+Advanced settings provide a folder browser and a **Use folder** action. An empty
+or new selected folder receives a complete base from the installed interface,
+with `gui/`, shared logo inputs and documentation inside that folder. Existing
+GUI projects are reused; unrelated nonempty folders are rejected without writes.
+`POST {"mode":"prepare","directory":"chosen folder"}` prepares this base and
+returns its GUI directory without changing the active frontend. Enabling the
+dev switch prepares dependencies and activates that directory immediately.
+Transitions are serialized and preserve the daemon PID, URL, active chat runs,
+and PTYs. The client lifecycle watcher reloads the frontend when the active GUI
+changes; chats reconnect to the existing run. Successful transitions save the
+mode and source directory for future startups. `customizeUI(action=normal)`
+restores the bundled frontend and retains the editable source files. Agents
+must not stop or restart their own daemon to personalize its frontend.
+
+Explicit `server start dev <directory>` and `server start normal` also switch
+the frontend of an already-running daemon. Plain `server start` keeps reusing
+the active daemon.
 
 In `dev` mode the server uses the configured Solomon port, then starts the local Vite entrypoint through Node in the supplied GUI directory. If the local dependency is unavailable, it falls back to `npm run dev -- --host 127.0.0.1 --port <free-port>` while dependencies are being prepared. The Vite process stays private on its own random loopback port; the Solomon server reverse-proxies it at the stable URL advertised in runtime state, including WebSocket traffic required by hot reload. The Vite process-group leader PID is persisted so a later lifecycle command can reclaim the complete frontend tree after an interrupted or forced shutdown.
 

@@ -24,3 +24,13 @@ test("a reused PID still identifies a new daemon generation", () => {
   assert.equal(restarted(health(123)), false);
   assert.equal(restarted(health(123, "v2026.1003.0", "2026-10-03T01:00:00Z")), true);
 });
+
+test("frontend transitions reload clients without requiring a daemon restart", () => {
+  const changed = daemonRestartTracker();
+  const normal = { ...health(123), server: { ...health(123).server, mode: "normal" } };
+  const dev = { ...normal, server: { ...normal.server, mode: "dev", vite_url: "http://127.0.0.1:4567", dev_directory: "/custom/gui" } };
+  assert.equal(changed(normal), false);
+  assert.equal(changed(dev), true);
+  assert.equal(changed(dev), false);
+  assert.equal(changed(normal), true);
+});
