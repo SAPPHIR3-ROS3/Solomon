@@ -6,6 +6,7 @@ How to build, test, and tag Solomon from source.
 
 | Article | Summary |
 |---------|---------|
+| [contributing.md](contributing.md) | First contribution, local setup and pre-PR checks |
 | [building-and-releases.md](building-and-releases.md) | `go vet`, build, release workflow, CI |
 | [testing.md](testing.md) | Test layout, pyramid, helpers, when to mock |
 | [chat-performance.md](chat-performance.md) | In-app thread timings and reproducible navigation benchmark |
@@ -16,11 +17,12 @@ How to build, test, and tag Solomon from source.
 
 **Contributor**
 
-1. [Building and releases — Development checks](building-and-releases.md#development-checks)
-2. [Testing](testing.md)
-3. [Cookbook](cookbook.md) — for the kind of change you are making
-4. [Overview](../architecture/overview.md) — package map
-5. Architecture article for the area (see [architecture portal](../architecture/README.md))
+1. [Contributing](contributing.md)
+2. [Building and releases — Development checks](building-and-releases.md#development-checks)
+3. [Testing](testing.md)
+4. [Cookbook](cookbook.md) — for the kind of change you are making
+5. [Overview](../architecture/overview.md) — package map
+6. Architecture article for the area (see [architecture portal](../architecture/README.md))
 
 ## See also
 

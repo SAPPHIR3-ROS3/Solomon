@@ -6,6 +6,8 @@ Welcome to the in-repo wiki for Solomon. Articles are grouped by topic into **po
 
 | If you want to… | Start here |
 |-----------------|------------|
+| Diagnose startup, login or update failures | [Troubleshooting](user-guide/troubleshooting.md) |
+| Contribute a change | [Contributing](development/contributing.md) |
 | Install Solomon | [Installation and PATH](user-guide/installation.md) |
 | First run and REPL basics | [Usage and commands — Quickstart](user-guide/usage-and-commands.md#quickstart) |
 | Configure providers, MCP, web search | [Configuration](user-guide/configuration.md) |
@@ -48,6 +50,8 @@ Development: [Testing](development/testing.md), [Cookbook](development/cookbook.
 3. [Agent turn pipeline — Legacy XML](architecture/agent-turn-pipeline.md#legacy-xml-tool-calling)
 
 **Contributor or debugger**
+
+Start with [Contributing](development/contributing.md) for setup and the pre-PR checklist.
 
 1. [Package index](architecture/package-index.md) — every `internal/` and `cmd/` package
 2. [Overview](architecture/overview.md) — design tenets and dependency graph

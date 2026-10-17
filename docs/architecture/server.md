@@ -71,7 +71,7 @@ Closing the desktop window closes this gateway, while daemon-owned work continue
 | `solomon server logs` | Print the recent server log. |
 | `solomon server logs interactive` | Continue streaming the server log until interrupted. |
 
-`make install` stops any running local server (via `go run ./cmd/solomon server stop`) before replacing the binary.
+`make install`, `make hot-install` and `make desktop-install` prepare the CLI, frontend and native client before the coordinated runtime handoff. Deployment stops the daemon and clients, replaces the installation, then restarts the prior mode and reopens clients; preparation failures leave the existing runtime running.
 
 `solomon server status` reports `stopped` when `state.json` is missing or `/health` fails. After a crash or interrupted shutdown, the next `start`/`stop` reclaims the recorded server and Vite process groups before clearing stale state.
 

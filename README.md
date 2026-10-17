@@ -182,7 +182,8 @@ make install   # full local install with integrations
 | Configuration | [Providers, web search, tools](docs/user-guide/configuration.md) |
 | Project instructions | [AGENTS.md and custom rules](docs/user-guide/project-instructions.md) |
 | Architecture | [Overview](docs/architecture/overview.md) · [Package index](docs/architecture/package-index.md) |
-| Contributing | [Cookbook](docs/development/cookbook.md) · [Testing](docs/development/testing.md) |
+| Troubleshooting | [Common problems and diagnostics](docs/user-guide/troubleshooting.md) |
+| Contributing | [Contributor guide](docs/development/contributing.md) · [Cookbook](docs/development/cookbook.md) · [Testing](docs/development/testing.md) |
 | Roadmap | [Planned features](docs/features.md#planned-features-in-the-future) |
 
 ## License

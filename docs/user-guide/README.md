@@ -6,6 +6,7 @@ Practical guides for running Solomon, configuring providers, and understanding w
 
 | Article | Summary |
 |---------|---------|
+| [troubleshooting.md](troubleshooting.md) | Startup, GUI, authentication, MCP, updates and safe diagnostics |
 | [installation.md](installation.md) | Install script, `go install`, `make build`, PATH setup |
 | [configuration.md](configuration.md) | `~/.solomon/config.toml`, web search engines, logs, `[tools]` legacy XML |
 | [usage-and-commands.md](usage-and-commands.md) | CLI modes, features, slash commands (incl. `/research`, `/export`, `/legacytools`, `/cursortools`) |

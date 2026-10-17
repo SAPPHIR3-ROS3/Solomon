@@ -203,7 +203,7 @@ later builds. The local include path also invalidates stale CGO cache entries.
 This installs `solomon` and `solomon-desktop` in `BIN_DIR` (the Go binary
 directory by default), plus the Solomon icon and launcher under
 `${XDG_DATA_HOME:-~/.local/share}`. Open **Solomon** from **Show Applications**.
-`desktop-install` preserves a running daemon, including its development mode.
+`desktop-install` uses the coordinated runtime handoff and preserves the daemon's prior mode after restart.
 The desktop gateway adapts native WebView requests for older running daemons.
 
 On Linux, `make hot-install` updates the CLI, web frontend, integrations and
@@ -213,8 +213,8 @@ and reopens those clients using the installed binaries. The command verifies the
 daemon's build and waits for each reopened client to register before reporting
 success. Chat history and settings remain saved. It builds the native client before
 stopping the daemon; missing GTK/WebKit development packages abort the command
-while the existing daemon keeps running. Use `make desktop-install` for a desktop
-update that preserves the running daemon.
+while the existing daemon keeps running. `make desktop-install` uses the same coordinated restart rather than preserving
+the running daemon process.
 
 The progress output retains the original nine numbered steps, reordered so
 compilation and dependency preparation finish before shutdown. Staged CLI
