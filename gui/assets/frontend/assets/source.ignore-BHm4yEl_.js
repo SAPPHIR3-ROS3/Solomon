@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"name":"cursor:source.ignore","scopeName":"source.ignore","patterns":[{"match":"^#.*","name":"comment.line.number-sign.ignore"}]}`}))();export{t as default};

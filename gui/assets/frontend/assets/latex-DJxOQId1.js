@@ -1,0 +1,1 @@
+import{n as e,t}from"./vendor~typst~org~latex-dQ9BScZs.js";t();export{e as default};
