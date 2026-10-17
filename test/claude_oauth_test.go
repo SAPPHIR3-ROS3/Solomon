@@ -24,7 +24,7 @@ func TestClaudeOAuthBuildAuthorizeURL(t *testing.T) {
 		"client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e",
 		"redirect_uri=http%3A%2F%2Flocalhost%3A53692%2Fcallback",
 		"code_challenge_method=S256",
-		"state=" + pkce.Verifier,
+		"state=" + pkce.State,
 	} {
 		if !strings.Contains(u, want) {
 			t.Fatalf("authorize URL missing %q: %s", want, u)

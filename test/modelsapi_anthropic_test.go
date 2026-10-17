@@ -11,6 +11,7 @@ import (
 
 func TestListAnthropic_MockHTTP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodGet {
 			t.Fatalf("method: %s", r.Method)
 		}
@@ -51,6 +52,7 @@ func TestListAnthropic_MockHTTP(t *testing.T) {
 
 func TestListAnthropic_OAuthBearer_MockHTTP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		if got := r.Header.Get("Authorization"); got != "Bearer oat-test" {
 			t.Fatalf("Authorization: got %q", got)
 		}

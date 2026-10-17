@@ -7,20 +7,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/claudecode"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 )
 
 func TestClaudeCodeVersion_FallbackWithoutCache(t *testing.T) {
-	claudecode.ResetVersionCacheForTest()
+	claude.ResetVersionCacheForTest()
 	home := t.TempDir()
 	t.Setenv("SOLOMON_HOME", home)
-	if got := claudecode.Version(); got != claudecode.FallbackVersion {
-		t.Fatalf("version: got %q want fallback %q", got, claudecode.FallbackVersion)
+	if got := claude.Version(); got != claude.FallbackVersion {
+		t.Fatalf("version: got %q want fallback %q", got, claude.FallbackVersion)
 	}
 }
 
 func TestClaudeCodeVersion_UsesFreshCache(t *testing.T) {
-	claudecode.ResetVersionCacheForTest()
+	claude.ResetVersionCacheForTest()
 	home := t.TempDir()
 	t.Setenv("SOLOMON_HOME", home)
 	cachePath := filepath.Join(home, "cache", "claude-code-version.json")
@@ -37,13 +37,13 @@ func TestClaudeCodeVersion_UsesFreshCache(t *testing.T) {
 	if err := os.WriteFile(cachePath, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := claudecode.Version(); got != "9.9.9" {
+	if got := claude.Version(); got != "9.9.9" {
 		t.Fatalf("version: got %q want 9.9.9", got)
 	}
 }
 
 func TestClaudeCodeVersion_StaleCacheFallsBackWithoutNetwork(t *testing.T) {
-	claudecode.ResetVersionCacheForTest()
+	claude.ResetVersionCacheForTest()
 	home := t.TempDir()
 	t.Setenv("SOLOMON_HOME", home)
 	cachePath := filepath.Join(home, "cache", "claude-code-version.json")
@@ -60,8 +60,8 @@ func TestClaudeCodeVersion_StaleCacheFallsBackWithoutNetwork(t *testing.T) {
 	if err := os.WriteFile(cachePath, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got := claudecode.Version()
-	if got != "8.8.8" && got != claudecode.FallbackVersion {
+	got := claude.Version()
+	if got != "8.8.8" && got != claude.FallbackVersion {
 		t.Fatalf("version: got %q want stale cache or fallback", got)
 	}
 }

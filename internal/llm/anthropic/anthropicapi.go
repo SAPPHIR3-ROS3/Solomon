@@ -3,19 +3,42 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
+	sdk "github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
 type Backend struct {
-	baseURL    string
-	auth       Auth
-	httpClient *http.Client
+	baseURL       string
+	auth          Auth
+	httpClient    *http.Client
+	tokenProvider func(context.Context) (string, error)
+}
+
+// WithTokenProvider renews subscription credentials before each request, including
+// requests made by a long-lived runtime. Each request uses its own auth snapshot.
+func (b *Backend) WithTokenProvider(provider func(context.Context) (string, error)) *Backend {
+	b.tokenProvider = provider
+	return b
+}
+
+func (b *Backend) forRequest(ctx context.Context) (*Backend, error) {
+	if b.tokenProvider == nil {
+		return b, nil
+	}
+	token, err := b.tokenProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	copy := *b
+	copy.auth.Token = token
+	copy.tokenProvider = nil
+	return &copy, nil
 }
 
 func NewBackend(baseURL string, auth Auth) *Backend {
@@ -24,42 +47,51 @@ func NewBackend(baseURL string, auth Auth) *Backend {
 
 func NewBackendWithClient(baseURL string, auth Auth, client *http.Client) *Backend {
 	if client == nil {
-		client = httpDefault()
+		client = &http.Client{}
 	}
 	return &Backend{baseURL: strings.TrimSpace(baseURL), auth: auth, httpClient: client}
 }
 
 func (b *Backend) Protocol() apitype.Protocol { return apitype.ProtocolAnthropic }
 
-func (b *Backend) CompleteText(ctx context.Context, req apitype.SimpleCompletionRequest) (string, error) {
-	body := b.buildSimpleBody(req, false)
+// sdkParams keeps Solomon's message/image/tool mapping while letting the SDK
+// validate and serialize the Anthropic parameter unions.
+func sdkParams(body map[string]any) (sdk.MessageNewParams, error) {
+	if system, ok := body["system"].(string); ok {
+		body["system"] = []contentBlock{{"type": "text", "text": system}}
+	}
+	delete(body, "stream")
 	raw, err := json.Marshal(body)
 	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "anthropic complete marshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		return "", err
+		return sdk.MessageNewParams{}, err
 	}
-	httpReq, err := httpNew(ctx, MessagesURLForAuth(b.baseURL, b.auth), raw, b.auth, false)
+	var params sdk.MessageNewParams
+	err = json.Unmarshal(raw, &params)
+	return params, err
+}
+
+func (b *Backend) client() sdk.Client {
+	return claude.NewClient(b.baseURL, b.auth.Token, b.auth.OAuth(), b.httpClient)
+}
+
+func (b *Backend) CompleteText(ctx context.Context, req apitype.SimpleCompletionRequest) (string, error) {
+	current, err := b.forRequest(ctx)
 	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "anthropic complete request build failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
-	resp, err := b.httpClient.Do(httpReq)
+	b = current
+	params, err := sdkParams(b.buildSimpleBody(req, false))
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return "", httpError(resp, bb)
+	client := b.client()
+	opts := []option.RequestOption{option.WithJSONSet("stream", false)}
+	if b.auth.OAuth() {
+		opts = append(opts, option.WithQuery("beta", "true"), option.WithHeader("anthropic-beta", OAuthBeta))
 	}
-	var msg struct {
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&msg); err != nil {
-		return "", err
+	msg, err := client.Messages.New(ctx, params, opts...)
+	if err != nil {
+		return "", claude.SDKError(err)
 	}
 	var parts []string
 	for _, c := range msg.Content {
@@ -71,8 +103,13 @@ func (b *Backend) CompleteText(ctx context.Context, req apitype.SimpleCompletion
 }
 
 func (b *Backend) ListModels(ctx context.Context) ([]string, error) {
+	current, err := b.forRequest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b = current
 	oauth := b.auth.Kind == AuthOAuthBearer
-	ids, err := modelsapi.ListAnthropic(b.baseURL, b.auth.Token, oauth)
+	ids, err := modelsapi.ListAnthropicWithClient(ctx, b.baseURL, b.auth.Token, oauth, b.httpClient)
 	if err != nil {
 		return nil, err
 	}

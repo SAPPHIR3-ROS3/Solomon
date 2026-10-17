@@ -1,23 +1,18 @@
 package modelsapi
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/claudecode"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
+	sdk "github.com/anthropics/anthropic-sdk-go"
 )
-
-const anthropicAPIVersion = "2023-06-01"
-
-const anthropicOAuthBeta = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14"
 
 var claudeSubPriorityKeywords = []string{"mythos", "fable", "opus", "sonnet", "haiku"}
 
@@ -100,81 +95,38 @@ func modelVersionKey(model string) []int {
 	return key
 }
 
-func anthropicModelsURL(base string) string {
-	base = strings.TrimSuffix(strings.TrimSpace(base), "/")
-	if strings.HasSuffix(base, "/v1/models") {
-		return base
-	}
-	if strings.HasSuffix(base, "/v1") {
-		return base + "/models"
-	}
-	return base + "/v1/models"
-}
-
-type anthropicListResp struct {
-	Data []struct {
-		ID string `json:"id"`
-	} `json:"data"`
-	HasMore bool   `json:"has_more"`
-	LastID  string `json:"last_id"`
-}
-
 func ListAnthropic(baseURL, token string, oauthBearer bool) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	return ListAnthropicWithClient(ctx, baseURL, token, oauthBearer, nil)
+}
+
+// ListAnthropicWithClient uses the same SDK authentication and transport as inference.
+func ListAnthropicWithClient(ctx context.Context, baseURL, token string, oauthBearer bool, httpClient *http.Client) ([]string, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, fmt.Errorf("empty anthropic token")
 	}
-	cli := &http.Client{Timeout: 60 * time.Second}
+	client := claude.NewClient(baseURL, token, oauthBearer, httpClient)
+	params := sdk.ModelListParams{Limit: sdk.Int(1000)}
 	var out []string
-	afterID := ""
 	for page := 0; page < 32; page++ {
-		u := anthropicModelsURL(baseURL)
-		q := url.Values{}
-		q.Set("limit", "1000")
-		if afterID != "" {
-			q.Set("after_id", afterID)
-		}
-		u += "?" + q.Encode()
-		req, err := http.NewRequest(http.MethodGet, u, nil)
+		result, err := client.Models.List(ctx, params)
 		if err != nil {
-			return nil, err
+			return nil, claude.SDKError(err)
 		}
-		req.Header.Set("anthropic-version", anthropicAPIVersion)
-		if oauthBearer {
-			req.Header.Set("Authorization", "Bearer "+token)
-			req.Header.Set("anthropic-beta", anthropicOAuthBeta)
-			req.Header.Set("Accept", "application/json")
-			req.Header.Set("user-agent", "claude-cli/"+claudecode.Version())
-			req.Header.Set("x-app", "cli")
-			req.Header.Set("anthropic-dangerous-direct-browser-access", "true")
-		} else {
-			req.Header.Set("x-api-key", token)
-		}
-		resp, err := cli.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		b, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, err
-		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("anthropic models API: %s: %s", resp.Status, strings.TrimSpace(string(b)))
-		}
-		var lr anthropicListResp
-		if err := json.Unmarshal(b, &lr); err != nil {
-			return nil, err
-		}
-		for _, e := range lr.Data {
-			if id := strings.TrimSpace(e.ID); id != "" {
+		for _, model := range result.Data {
+			if id := strings.TrimSpace(model.ID); id != "" {
 				out = append(out, id)
 			}
 		}
-		if !lr.HasMore || lr.LastID == "" {
+		if !result.HasMore || result.LastID == "" {
 			break
 		}
-		afterID = lr.LastID
+		if params.AfterID.Value == result.LastID {
+			return nil, fmt.Errorf("anthropic models API: pagination did not advance")
+		}
+		params.AfterID = sdk.String(result.LastID)
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("anthropic models API: empty model list")

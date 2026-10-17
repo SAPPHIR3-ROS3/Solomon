@@ -188,6 +188,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		nestedCheckpointSeq++
 		ast := chatstore.Message{Provider: provider, Model: model, Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
 		stampNestedMessageCheckpoint(&ast, nestedCheckpointSeq)
+		ast.AnthropicThinking = turn.AnthropicThinking
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}

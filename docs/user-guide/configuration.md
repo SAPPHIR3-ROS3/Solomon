@@ -274,6 +274,8 @@ You can edit the file directly, use first-run or `/onboard` (OpenAI or Anthropic
 | `/connect` → Cursor Sub | `openai` | Browser sign-in; direct subscription Agent endpoint, no Cursor app or CLI dependency |
 | `/connect` → Cursor API | `openai` | Optional sidecar; see [Cursor integration](#cursor-integration-tool-execution) |
 
+Claude Sub opens your browser and returns automatically through a local callback. If port 53692 is occupied, Solomon selects another available local port. If the browser does not open, copy the displayed sign-in URL into a browser on the same machine. Each sign-in attempt has its own URL; complete the attempt you just started. Credentials refresh automatically during long sessions and remain in the private Solomon configuration file. This integration still needs verification with a real Claude subscription; the optional account-backed test is described in [LLM layer](../architecture/llm-layer.md#claude-sub-and-the-anthropic-sdk).
+
 Provider block fields: `base_url`, `api_key`, optional `api_protocol` (`openai` | `anthropic`). Anthropic official base: `https://api.anthropic.com` (normalized on save).
 
 For ChatGPT Sub, Solomon automatically reads the stable `latest` version of

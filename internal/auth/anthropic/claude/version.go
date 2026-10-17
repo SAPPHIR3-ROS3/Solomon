@@ -1,4 +1,4 @@
-package claudecode
+package claude
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ type versionCache struct {
 }
 
 var (
-	versionMu      sync.Mutex
+	versionMu       sync.Mutex
 	resolvedVersion string
 )
 

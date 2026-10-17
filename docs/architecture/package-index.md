@@ -100,14 +100,13 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/logging/` | File logs under `~/.solomon/logs` | [Supporting packages](supporting-packages.md) |
 | `internal/termcolor/` | Lipgloss palette, usage line, `NO_COLOR` | [Supporting packages](supporting-packages.md) |
 | `internal/clipboard/` | Cross-platform image paste in REPL | [Supporting packages](supporting-packages.md) |
-| `internal/claudecode/` | Claude Code version lookup (GitHub releases, disk cache) for OAuth headers | [LLM layer](llm-layer.md) |
 | `internal/desktopgit/` | Machine-readable Git history and status parsing for the desktop bridge | [Supporting packages](supporting-packages.md) |
 | `internal/title/` | Chat title slug and LLM refinement | [Supporting packages](supporting-packages.md) |
 | `internal/modelsapi/` | List models from provider API | [Supporting packages](supporting-packages.md) |
 | `internal/modelcatalogcache/` | Persistent cache for provider model catalog lookups | [Supporting packages](supporting-packages.md) |
 | `internal/modelsdev/` | Development model catalog source and normalization | [Supporting packages](supporting-packages.md) |
 | `internal/logo/` | ASCII banner | [Supporting packages](supporting-packages.md) |
-| `internal/auth/anthropic/claude/` | Claude Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
+| `internal/auth/anthropic/claude/` | Claude Sub OAuth, token refresh, shared SDK client and Claude Code version lookup/cache | [LLM layer](llm-layer.md) |
 | `internal/auth/openai/codex/` | ChatGPT Sub OAuth, token refresh | [LLM layer](llm-layer.md) |
 | `internal/auth/openai/codex/chat/` | Codex chat request shaping | [LLM layer](llm-layer.md) |
 | `internal/auth/cursor/` | Cursor Sub OAuth, model catalog, direct Agent endpoint | [LLM layer](llm-layer.md#cursor-sub-direct-agent-connection) |
@@ -174,7 +173,6 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/chatstore/` | Core |
 | `internal/checkpoint/` | Feature |
 | `internal/checkpoint/staging/` | Feature |
-| `internal/claudecode/` | Support |
 | `internal/clipboard/` | Support |
 | `internal/config/` | Core |
 | `internal/desktopgit/` | Support |

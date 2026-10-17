@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/claudecode"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/anthropic"
 )
@@ -83,14 +83,11 @@ func TestAnthropicAuth_applyTo(t *testing.T) {
 	if got := req.Header.Get("anthropic-beta"); got != llm.AnthropicOAuthBeta {
 		t.Fatalf("anthropic-beta: got %q want %q", got, llm.AnthropicOAuthBeta)
 	}
-	if got := req.Header.Get("user-agent"); got != "claude-cli/"+claudecode.Version() {
+	if got := req.Header.Get("user-agent"); got != "claude-cli/"+claude.Version() {
 		t.Fatalf("user-agent: got %q", got)
 	}
 	if got := req.Header.Get("x-app"); got != "cli" {
 		t.Fatalf("x-app: got %q", got)
-	}
-	if got := req.Header.Get("x-stainless-lang"); got != "js" {
-		t.Fatalf("x-stainless-lang: got %q", got)
 	}
 	if got := req.Header.Get("x-api-key"); got != "" {
 		t.Fatalf("x-api-key should be empty for oauth bearer, got %q", got)

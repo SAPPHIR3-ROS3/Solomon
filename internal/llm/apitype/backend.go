@@ -2,6 +2,7 @@ package apitype
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -74,7 +75,9 @@ type UsageStats struct {
 type AssistantTurnResult struct {
 	Content       string
 	ReasoningText string
-	ToolCalls     []AssistantToolCall
+	// Opaque signed provider blocks must survive tool continuations unchanged.
+	AnthropicThinking []json.RawMessage
+	ToolCalls         []AssistantToolCall
 	// FinishReason is the provider's normalized reason for ending this
 	// assistant generation. It is empty when the provider does not report one.
 	FinishReason        string

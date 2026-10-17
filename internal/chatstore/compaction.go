@@ -1,6 +1,7 @@
 package chatstore
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -13,6 +14,13 @@ func cloneMessages(msgs []Message) []Message {
 	out := make([]Message, len(msgs))
 	copy(out, msgs)
 	for i := range out {
+		if len(out[i].AnthropicThinking) > 0 {
+			blocks := make([]json.RawMessage, len(out[i].AnthropicThinking))
+			for j, block := range out[i].AnthropicThinking {
+				blocks[j] = append(json.RawMessage(nil), block...)
+			}
+			out[i].AnthropicThinking = blocks
+		}
 		if len(out[i].ToolCalls) > 0 {
 			out[i].ToolCalls = append([]ToolCall(nil), out[i].ToolCalls...)
 		}

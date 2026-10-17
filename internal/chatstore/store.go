@@ -40,16 +40,17 @@ type ToolCall struct {
 }
 
 type Message struct {
-	Provider      string     `json:"provider,omitempty"`
-	Model         string     `json:"model,omitempty"`
-	GUIHidden     bool       `json:"gui_hidden,omitempty"`
-	CreatedAt     time.Time  `json:"created_at,omitempty"`
-	Role          string     `json:"role"`
-	Content       string     `json:"content"`
-	APIContent    string     `json:"api_content,omitempty"`
-	ToolCallID    string     `json:"tool_call_id,omitempty"`
-	ToolCalls     []ToolCall `json:"tool_calls,omitempty"`
-	ReasoningText string     `json:"reasoning_text,omitempty"`
+	Provider          string            `json:"provider,omitempty"`
+	Model             string            `json:"model,omitempty"`
+	GUIHidden         bool              `json:"gui_hidden,omitempty"`
+	CreatedAt         time.Time         `json:"created_at,omitempty"`
+	Role              string            `json:"role"`
+	Content           string            `json:"content"`
+	APIContent        string            `json:"api_content,omitempty"`
+	ToolCallID        string            `json:"tool_call_id,omitempty"`
+	ToolCalls         []ToolCall        `json:"tool_calls,omitempty"`
+	ReasoningText     string            `json:"reasoning_text,omitempty"`
+	AnthropicThinking []json.RawMessage `json:"anthropic_thinking,omitempty"`
 
 	CheckpointSeq       int    `json:"cp_seq,omitempty"`
 	CpSeqSet            bool   `json:"cp_set,omitempty"`

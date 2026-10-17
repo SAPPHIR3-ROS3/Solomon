@@ -49,7 +49,13 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 		if p.UsesAnthropicOAuthBearer() {
 			auth = anthropic.AuthFromOAuthBearer(bearer)
 		}
-		inner = anthropic.NewBackendWithClient(p.BaseURL, auth, httpClient)
+		backend := anthropic.NewBackendWithClient(p.BaseURL, auth, httpClient)
+		if p.IsClaudeSub() {
+			backend.WithTokenProvider(func(ctx context.Context) (string, error) {
+				return config.ResolveProviderBearer(ctx, cfg, p)
+			})
+		}
+		inner = backend
 	default:
 		client, err := newOpenAIClient(ctx, cfg, p, httpClient)
 		if err != nil {

@@ -353,34 +353,6 @@ func resolveChatGPTOAuthBearer(ctx context.Context, r *Root, p *Provider) (strin
 	return tokens.AccessToken, nil
 }
 
-func resolveClaudeOAuthBearer(ctx context.Context, r *Root, p *Provider) (string, error) {
-	now := time.Now()
-	if !p.oauthAccessExpired(now) {
-		tok := strings.TrimSpace(p.OAuthAccessToken)
-		if tok != "" {
-			return tok, nil
-		}
-	}
-	refresh := strings.TrimSpace(p.OAuthRefreshToken)
-	if refresh == "" {
-		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub OAuth refresh token missing", logging.LogOptions{Params: map[string]any{"provider": p.Name}})
-		return "", errors.New("Claude Sub: missing OAuth tokens; run /connect")
-	}
-	tokens, err := claude.Refresh(ctx, refresh)
-	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub OAuth token refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
-		return "", fmt.Errorf("Claude Sub token refresh: %w", err)
-	}
-	ApplyClaudeOAuthTokens(p, tokens)
-	if r != nil {
-		if err := Save(r); err != nil {
-			logging.Log(logging.ERROR_LOG_LEVEL, "save config after Claude OAuth refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
-			return "", err
-		}
-	}
-	return tokens.AccessToken, nil
-}
-
 func ApplyCursorOAuthTokens(p *Provider, t cursorauth.TokenSet) {
 	keepKey := strings.TrimSpace(p.APIKey)
 	if strings.TrimSpace(t.APIKey) != "" {

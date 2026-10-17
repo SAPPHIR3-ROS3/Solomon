@@ -1,45 +1,48 @@
 package anthropic
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"net/http"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/streamio"
+	sdk "github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 )
 
 type streamState struct {
-	content    strings.Builder
-	reasoning  strings.Builder
-	toolNames  map[int]string
-	toolArgs   map[int]*strings.Builder
-	toolIDs    map[int]string
-	usage      UsagePayload
-	stopReason string
+	content     strings.Builder
+	reasoning   strings.Builder
+	toolNames   map[int]string
+	toolArgs    map[int]*strings.Builder
+	toolIDs     map[int]string
+	toolInitial map[int]string
+	usage       UsagePayload
+	stopReason  string
+	stopped     bool
+	thinking    map[int]contentBlock
 }
 
-func (b *Backend) postStream(ctx context.Context, body map[string]any) (*http.Response, error) {
-	raw, err := json.Marshal(body)
+func (b *Backend) postStream(ctx context.Context, body map[string]any) (*ssestream.Stream[sdk.MessageStreamEventUnion], error) {
+	params, err := sdkParams(body)
 	if err != nil {
 		return nil, err
 	}
-	req, err := httpNew(ctx, MessagesURLForAuth(b.baseURL, b.auth), raw, b.auth, true)
-	if err != nil {
-		return nil, err
+	opts := []option.RequestOption{option.WithHeader("Accept", "text/event-stream")}
+	if b.auth.OAuth() {
+		opts = append(opts, option.WithQuery("beta", "true"), option.WithHeader("anthropic-beta", OAuthBeta), option.WithHeader("x-stainless-helper-method", "stream"))
 	}
-	req.Header.Set("Accept", "text/event-stream")
-	cli := b.httpClient
-	if cli == nil {
-		cli = httpDefault()
-	}
-	return cli.Do(req)
+	client := b.client()
+	return client.Messages.NewStreaming(ctx, params, opts...), nil
 }
 
 func maxTokens(cfg *config.Root) int64 {
@@ -83,96 +86,107 @@ func (b *Backend) buildSimpleBody(req apitype.SimpleCompletionRequest, stream bo
 }
 
 func (b *Backend) StreamTurn(ctx context.Context, req apitype.TurnRequest, contentOut io.Writer, opts apitype.StreamOpts) (apitype.AssistantTurnResult, error) {
+	current, err := b.forRequest(ctx)
+	if err != nil {
+		return apitype.AssistantTurnResult{}, err
+	}
+	b = current
 	resp, err := b.postStream(ctx, b.buildBody(req, true))
 	if err != nil {
 		return apitype.AssistantTurnResult{}, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return apitype.AssistantTurnResult{}, httpError(resp, bb)
+	defer resp.Close()
+	turn, err := readStreamTurn(resp, contentOut, opts)
+	if b.auth.OAuth() {
+		restoreOAuthToolNames(&turn, req.Tools)
 	}
-	return readStreamTurn(resp.Body, contentOut, opts)
+	return turn, err
 }
 
 func (b *Backend) StreamText(ctx context.Context, req apitype.SimpleCompletionRequest, contentOut io.Writer, opts apitype.StreamOpts) (string, apitype.UsageStats, error) {
+	current, err := b.forRequest(ctx)
+	if err != nil {
+		return "", apitype.UsageStats{}, err
+	}
+	b = current
 	resp, err := b.postStream(ctx, b.buildSimpleBody(req, true))
 	if err != nil {
 		return "", apitype.UsageStats{}, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bb, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		return "", apitype.UsageStats{}, httpError(resp, bb)
-	}
-	turn, err := readStreamTurn(resp.Body, contentOut, opts)
+	defer resp.Close()
+	turn, err := readStreamTurn(resp, contentOut, opts)
 	if err != nil {
 		return "", apitype.UsageStats{}, err
 	}
 	return turn.Content, turn.Usage, nil
 }
 
-func readStreamTurn(body io.Reader, contentOut io.Writer, opts apitype.StreamOpts) (apitype.AssistantTurnResult, error) {
+func readStreamTurn(stream *ssestream.Stream[sdk.MessageStreamEventUnion], contentOut io.Writer, opts apitype.StreamOpts) (apitype.AssistantTurnResult, error) {
 	reasonSink := opts.ReasoningSink
 	if reasonSink == nil {
 		reasonSink = io.Discard
 	}
 	tStart := time.Now()
-	st := &streamState{toolNames: map[int]string{}, toolArgs: map[int]*strings.Builder{}, toolIDs: map[int]string{}}
+	st := &streamState{toolNames: map[int]string{}, toolArgs: map[int]*strings.Builder{}, toolIDs: map[int]string{}, thinking: map[int]contentBlock{}, toolInitial: map[int]string{}}
 	var tTTFT, tFirstVisible time.Time
 	var legacyStopped bool
-	sc := bufio.NewScanner(body)
-	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	var dataBuf string
-	flushEvent := func() error {
-		if dataBuf == "" || dataBuf == "[DONE]" {
-			dataBuf = ""
-			return nil
-		}
-		var ev map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(dataBuf), &ev); err != nil {
-			dataBuf = ""
-			return nil
-		}
-		dataBuf = ""
-		return applyStreamEvent(st, ev, contentOut, reasonSink, opts, &tTTFT, &tFirstVisible, tStart)
-	}
-	for sc.Scan() {
-		line := sc.Text()
-		if strings.HasPrefix(line, "data: ") {
-			_ = flushEvent()
-			dataBuf = strings.TrimPrefix(line, "data: ")
-			continue
-		}
-		if line == "" {
-			if err := flushEvent(); err != nil {
-				if errors.Is(err, streamio.ErrLegacyEarlyStop) {
-					legacyStopped = true
-					goto legacyDone
-				}
-				return apitype.AssistantTurnResult{}, err
+	for stream.Next() {
+		ev := stream.Current()
+		if err := applyStreamEvent(st, ev, contentOut, reasonSink, opts, &tTTFT, &tFirstVisible, tStart); err != nil {
+			if errors.Is(err, streamio.ErrLegacyEarlyStop) {
+				legacyStopped = true
+				break
 			}
-		}
-	}
-	if err := flushEvent(); err != nil {
-		if errors.Is(err, streamio.ErrLegacyEarlyStop) {
-			legacyStopped = true
-		} else {
 			return apitype.AssistantTurnResult{}, err
 		}
+		if st.stopped {
+			break
+		}
 	}
-legacyDone:
+	if !legacyStopped {
+		if err := stream.Err(); err != nil {
+			return apitype.AssistantTurnResult{}, claude.SDKError(err)
+		}
+		if !st.stopped {
+			return apitype.AssistantTurnResult{}, fmt.Errorf("Anthropic stream ended before message_stop: %w", io.ErrUnexpectedEOF)
+		}
+	}
 	var out apitype.AssistantTurnResult
 	out.Content = streamio.TruncatedContent(contentOut, strings.TrimSpace(st.content.String()))
+	thinkingIndices := make([]int, 0, len(st.thinking))
+	for index := range st.thinking {
+		thinkingIndices = append(thinkingIndices, index)
+	}
+	sort.Ints(thinkingIndices)
+	for _, index := range thinkingIndices {
+		block := st.thinking[index]
+		if block["type"] == "thinking" && block["signature"] == "" {
+			continue
+		}
+		raw, err := json.Marshal(block)
+		if err != nil {
+			return apitype.AssistantTurnResult{}, err
+		}
+		out.AnthropicThinking = append(out.AnthropicThinking, raw)
+	}
 	out.ReasoningText = strings.TrimSpace(streamio.NormalizeReasoningWhitespace(st.reasoning.String()))
 	out.FinishReason = normalizeFinishReason(st.stopReason)
 	out.Usage = NormalizeUsage(st.usage)
 	fillTiming(&out.Usage, tStart, tTTFT, tFirstVisible, time.Now())
 	if !legacyStopped {
-		for idx, name := range st.toolNames {
-			args := ""
-			if argB := st.toolArgs[idx]; argB != nil {
+		indices := make([]int, 0, len(st.toolNames))
+		for idx := range st.toolNames {
+			indices = append(indices, idx)
+		}
+		sort.Ints(indices)
+		for _, idx := range indices {
+			name := st.toolNames[idx]
+			args := st.toolInitial[idx]
+			if argB := st.toolArgs[idx]; argB != nil && argB.Len() > 0 {
 				args = argB.String()
+			}
+			if !json.Valid([]byte(args)) {
+				return apitype.AssistantTurnResult{}, fmt.Errorf("Anthropic tool %s returned invalid JSON arguments", name)
 			}
 			out.ToolCalls = append(out.ToolCalls, apitype.AssistantToolCall{
 				ID:        st.toolIDs[idx],
@@ -200,70 +214,57 @@ func normalizeFinishReason(reason string) string {
 	}
 }
 
-func applyStreamEvent(st *streamState, ev map[string]json.RawMessage, contentOut, reasonSink io.Writer, opts apitype.StreamOpts, tTTFT, tFirstVisible *time.Time, tStart time.Time) error {
-	var typ string
-	if v, ok := ev["type"]; ok {
-		_ = json.Unmarshal(v, &typ)
-	}
-	switch typ {
+func applyStreamEvent(st *streamState, ev sdk.MessageStreamEventUnion, contentOut, reasonSink io.Writer, opts apitype.StreamOpts, tTTFT, tFirstVisible *time.Time, tStart time.Time) error {
+	switch ev.Type {
 	case "message_start":
-		var wrap struct {
-			Message struct {
-				Usage UsagePayload `json:"usage"`
-			} `json:"message"`
-		}
-		if raw, ok := ev["message"]; ok {
-			_ = json.Unmarshal(raw, &wrap.Message)
-		} else {
-			_ = json.Unmarshal(mustMarshal(ev), &wrap)
-		}
-		st.usage.InputTokens += wrap.Message.Usage.InputTokens
-		st.usage.CacheReadInputTokens += wrap.Message.Usage.CacheReadInputTokens
-		st.usage.CacheCreationInputTokens += wrap.Message.Usage.CacheCreationInputTokens
+		u := ev.Message.Usage
+		st.usage = UsagePayload{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheReadInputTokens: u.CacheReadInputTokens, CacheCreationInputTokens: u.CacheCreationInputTokens}
 	case "message_delta":
-		var wrap struct {
-			Usage UsagePayload `json:"usage"`
-			Delta struct {
-				StopReason string `json:"stop_reason"`
-			} `json:"delta"`
+		u := ev.Usage
+		if u.JSON.OutputTokens.Valid() {
+			st.usage.OutputTokens = u.OutputTokens
 		}
-		_ = json.Unmarshal(mustMarshal(ev), &wrap)
-		st.usage.OutputTokens = wrap.Usage.OutputTokens
-		if wrap.Usage.InputTokens > 0 {
-			st.usage.InputTokens = wrap.Usage.InputTokens
+		if u.JSON.InputTokens.Valid() {
+			st.usage.InputTokens = u.InputTokens
 		}
-		st.usage.CacheReadInputTokens = wrap.Usage.CacheReadInputTokens
-		st.usage.CacheCreationInputTokens = wrap.Usage.CacheCreationInputTokens
-		st.stopReason = wrap.Delta.StopReason
+		if u.JSON.CacheReadInputTokens.Valid() {
+			st.usage.CacheReadInputTokens = u.CacheReadInputTokens
+		}
+		if u.JSON.CacheCreationInputTokens.Valid() {
+			st.usage.CacheCreationInputTokens = u.CacheCreationInputTokens
+		}
+		if ev.Delta.StopReason != "" {
+			st.stopReason = string(ev.Delta.StopReason)
+		}
+	case "message_stop":
+		st.stopped = true
 	case "content_block_start":
-		var wrap struct {
-			Index   int `json:"index"`
-			Content struct {
-				Type string `json:"type"`
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"content_block"`
+		if ev.ContentBlock.Type == "thinking" || ev.ContentBlock.Type == "redacted_thinking" {
+			var block contentBlock
+			if err := json.Unmarshal([]byte(ev.ContentBlock.RawJSON()), &block); err != nil {
+				return err
+			}
+			st.thinking[int(ev.Index)] = block
 		}
-		_ = json.Unmarshal(mustMarshal(ev), &wrap)
-		if wrap.Content.Type == "tool_use" {
-			st.toolNames[wrap.Index] = wrap.Content.Name
-			st.toolIDs[wrap.Index] = wrap.Content.ID
-			st.toolArgs[wrap.Index] = &strings.Builder{}
+		if ev.ContentBlock.Type == "tool_use" {
+			idx := int(ev.Index)
+			st.toolNames[idx] = ev.ContentBlock.Name
+			st.toolIDs[idx] = ev.ContentBlock.ID
+			st.toolArgs[idx] = &strings.Builder{}
+			if ev.ContentBlock.Input != nil {
+				raw, err := json.Marshal(ev.ContentBlock.Input)
+				if err != nil {
+					return err
+				}
+				st.toolInitial[idx] = string(raw)
+			} else {
+				st.toolInitial[idx] = "{}"
+			}
 		}
 	case "content_block_delta":
-		var wrap struct {
-			Index int `json:"index"`
-			Delta struct {
-				Type        string `json:"type"`
-				Text        string `json:"text"`
-				PartialJSON string `json:"partial_json"`
-				Thinking    string `json:"thinking"`
-			} `json:"delta"`
-		}
-		_ = json.Unmarshal(mustMarshal(ev), &wrap)
-		switch wrap.Delta.Type {
+		switch ev.Delta.Type {
 		case "text_delta":
-			if wrap.Delta.Text != "" {
+			if text := ev.Delta.Text; text != "" {
 				if tTTFT.IsZero() {
 					*tTTFT = time.Now()
 				}
@@ -271,34 +272,44 @@ func applyStreamEvent(st *streamState, ev map[string]json.RawMessage, contentOut
 					*tFirstVisible = time.Now()
 				}
 				if opts.OnDelta != nil {
-					opts.OnDelta("content", wrap.Delta.Text)
+					opts.OnDelta("content", text)
 				}
-				st.content.WriteString(wrap.Delta.Text)
-				if stopped, err := streamio.WriteContentLegacy(contentOut, wrap.Delta.Text); err != nil {
+				st.content.WriteString(text)
+				if stopped, err := streamio.WriteContentLegacy(contentOut, text); err != nil {
 					return err
 				} else if stopped {
 					return streamio.ErrLegacyEarlyStop
 				}
 			}
 		case "input_json_delta":
-			if argB := st.toolArgs[wrap.Index]; argB != nil {
-				argB.WriteString(wrap.Delta.PartialJSON)
+			if args := st.toolArgs[int(ev.Index)]; args != nil {
+				args.WriteString(ev.Delta.PartialJSON)
+			}
+		case "signature_delta":
+			if block := st.thinking[int(ev.Index)]; block != nil {
+				current, _ := block["signature"].(string)
+				block["signature"] = current + ev.Delta.Signature
 			}
 		case "thinking_delta":
-			if wrap.Delta.Thinking != "" {
-				st.reasoning.WriteString(wrap.Delta.Thinking)
+			if block := st.thinking[int(ev.Index)]; block != nil {
+				current, _ := block["thinking"].(string)
+				block["thinking"] = current + ev.Delta.Thinking
+			}
+			if text := ev.Delta.Thinking; text != "" {
+				if tTTFT.IsZero() {
+					*tTTFT = time.Now()
+				}
+				st.reasoning.WriteString(text)
+				if opts.OnDelta != nil {
+					opts.OnDelta("reasoning", text)
+				}
 				if opts.ShowThinking {
-					streamio.WriteReasoningDelta(reasonSink, wrap.Delta.Thinking)
+					streamio.WriteReasoningDelta(reasonSink, text)
 				}
 			}
 		}
 	}
 	return nil
-}
-
-func mustMarshal(v any) []byte {
-	b, _ := json.Marshal(v)
-	return b
 }
 
 func fillTiming(u *apitype.UsageStats, tStart, tTTFT, tFirstVisible, tEnd time.Time) {

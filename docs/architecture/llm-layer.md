@@ -9,7 +9,7 @@ Translate `chatstore` messages into provider API requests, stream assistant outp
 | Protocol | Implementation | API surface |
 |----------|----------------|-------------|
 | `openai` (default) | `OpenAIBackend` | OpenAI Chat Completions (`openai-go`) |
-| `anthropic` | `AnthropicBackend` | Anthropic Messages API (HTTP + SSE) |
+| `anthropic` | `AnthropicBackend` | Anthropic Messages API (`anthropic-sdk-go`) |
 
 Runtime holds `CompletionBackend` (`NewCompletionBackend` in [`internal/llm/factory.go`](../../internal/llm/factory.go)). OpenAI-compatible and ChatGPT Sub providers use `openai`; Anthropic Compatible API providers use `anthropic`.
 
@@ -32,6 +32,24 @@ Subscription providers use the OpenAI backend with Codex-oriented middleware ins
 | Setup UX | `internal/providersetup/`, `commands/connect/` | `/connect` wizard and provider blocks in TOML |
 
 Tokens are stored in `config.toml` today (secure vault is planned — see [TODO.md](../../TODO.md)). Tests: [`test/provider_auth_test.go`](../../test/provider_auth_test.go), [`test/codex_upstream_error_test.go`](../../test/codex_upstream_error_test.go).
+
+## Claude Sub and the Anthropic SDK
+
+Both Anthropic API keys and Claude Sub use the official Go SDK (`github.com/anthropics/anthropic-sdk-go`, pinned in `go.mod`) for messages, SSE decoding and model discovery. [`internal/auth/anthropic/claude/client.go`](../../internal/auth/anthropic/claude/client.go) configures explicit credentials, API bases and HTTP error conversion. SDK environment credential defaults and SDK retries are disabled; Solomon supplies the credentials and owns retries. API key requests send `x-api-key`; subscription requests send Bearer auth and Claude Code compatibility headers. The existing OAuth system-prefix/billing shaping remains in the Anthropic mapper, and tool casing is mapped reversibly in requests, history and responses.
+
+The login in [`internal/auth/anthropic/claude/`](../../internal/auth/anthropic/claude/) is independent of the SDK. It opens the browser, uses authorization-code PKCE with an independent state, and receives the browser redirect on a loopback listener. Port 53692 is preferred; an available port is used if it is occupied. Each attempt closes its own listener after completion or cancellation. The browser reports success only after token exchange succeeds. An unavailable browser launcher leaves a URL to open manually.
+
+Claude Sub tokens are resolved before each inference/catalog request, including in a long-lived backend. Refresh holds the shared config lock across rereading, rotating and saving the token, adopting credentials another process already renewed. Writes preserve the latest config rather than an old runtime snapshot. A rotation whose config write fails is retained in process memory for a persistence retry; restarting after such a failure may require `/connect` again. Credentials remain in the existing private `config.toml`; Solomon does not borrow or modify Claude Code's credential store.
+
+Thinking and redacted-thinking blocks are stored as opaque provider JSON in `Message.AnthropicThinking`, separately from display text. Signatures and original thinking text survive persistence and are replayed before tool calls. Stream errors, malformed events and missing `message_stop` abort the turn; legacy XML early-stop remains intentional. Cache usage from `message_start` is retained when later deltas omit those fields.
+
+Deterministic tests cover browser redirects, PKCE/state validation, token exchange failures, cancellation, port conflicts, refresh coordination and failed persistence, signed-thinking tool continuation, credential isolation, retry headers and stream failures. A real subscription has **not** been used to validate this implementation. Once available, run the opt-in browser/catalog/inference smoke test:
+
+```sh
+SOLOMON_CLAUDE_LOGIN_LIVE=1 go test ./test -run '^TestClaudeBrowserLoginLive$' -v -timeout 12m
+```
+
+This explicitly opens a browser and makes one short model request, without overwriting saved credentials. The OAuth client ID and request compatibility behavior follow the implementations inspected in [Pi](https://github.com/earendil-works/pi/blob/main/packages/ai/src/auth/oauth/anthropic.ts) and [Hermes](https://github.com/NousResearch/hermes-agent/blob/main/agent/anthropic_credentials.py); server acceptance still needs that account-backed verification.
 
 ## Cursor Sub direct Agent connection
 
@@ -61,7 +79,8 @@ Deterministic request, stream, tool, image, and auth tests run with `go test ./.
 | `internal/llm/types_alias.go` | Re-exports `CompletionBackend`, `TurnRequest`, `ToolDef` from `apitype` |
 | `internal/llm/apitype/backend.go` | Shared LLM protocol types and `CompletionBackend` interface |
 | `internal/llm/openai_backend.go` | OpenAI adapter |
-| `internal/llm/anthropic_*.go` | Anthropic mapper, stream, usage |
+| `internal/llm/anthropic/` | Anthropic SDK adapter, mapper, stream and usage |
+| `internal/auth/anthropic/claude/client.go` | Shared Anthropic SDK credentials, URL and error configuration |
 | `internal/llm/stream/completion.go` | OpenAI completion streaming (`StreamText`, `StreamAssistantTurn`) |
 | `internal/llm/stream/helpers.go` | Stream I/O helpers and chunk JSON parsers |
 | `internal/llm/stream_api.go` | `llm` package facade over `stream` |
@@ -71,7 +90,7 @@ Deterministic request, stream, tool, image, and auth tests run with `go test ./.
 | `internal/llm/resilient_backend.go` | `ResilientBackend` decorator (retry full turn) |
 | `internal/modelsapi/` | Provider model-list HTTP helpers and Anthropic model ordering |
 
-Runtime wraps every `CompletionBackend` from `NewCompletionBackend` in `ResilientBackend`. OpenAI SDK retries are disabled (`WithMaxRetries(0)`); Solomon handles retries at turn level.
+Runtime wraps every `CompletionBackend` from `NewCompletionBackend` in `ResilientBackend`. OpenAI and Anthropic SDK retries are disabled (`WithMaxRetries(0)`); Solomon handles retries at turn level.
 
 ## API resilience
 
@@ -97,8 +116,8 @@ Tests: [`test/api_resilience_test.go`](../../test/api_resilience_test.go), [`tes
 ## Reasoning and thinking
 
 - **Display:** `ReasoningText` in session; `show_thinking` / `reasoning_effort` (OpenAI path).
-- **API history:** only the **last** assistant message may include reasoning toward the model (`MessagesForAPI`).
-- **Anthropic extended thinking:** disabled in v1 (no `thinking` blocks in requests).
+- **API history:** only the **last** assistant message retains display `ReasoningText` (`MessagesForAPI`). Anthropic signed provider blocks are stored separately and replayed unchanged across tool continuations.
+- **Anthropic extended thinking:** Claude Sub enables adaptive thinking for recognized model families and honors the reasoning override. Signed thinking and redacted blocks are persisted separately from display text; ordinary API-key thinking configuration remains a separate follow-up.
 - **Compaction:** `/summarize` transcript and retained tail omit reasoning text.
 
 ## Usage stats

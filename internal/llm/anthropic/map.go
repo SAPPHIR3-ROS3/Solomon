@@ -5,11 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/claudecode"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
@@ -66,6 +67,12 @@ func buildMessages(msgs []chatstore.Message, imageFiles map[int]string) []messag
 			i++
 		case "assistant":
 			var blocks []contentBlock
+			for _, raw := range m.AnthropicThinking {
+				var block contentBlock
+				if json.Unmarshal(raw, &block) == nil && (block["type"] == "thinking" || block["type"] == "redacted_thinking") {
+					blocks = append(blocks, block)
+				}
+			}
 			if c := strings.TrimSpace(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content)); c != "" {
 				blocks = append(blocks, contentBlock{"type": "text", "text": c})
 			}
@@ -167,6 +174,7 @@ func shapeOAuthBody(body map[string]any, req apitype.TurnRequest, auth Auth) {
 	if uid := oauthUserID(auth.Token); uid != "" {
 		body["metadata"] = map[string]any{"user_id": uid}
 	}
+	applyOAuthToolNames(body)
 	applyOAuthFastMode(body, req.Cfg)
 	applyOAuthThinking(body, req)
 }
@@ -224,10 +232,10 @@ func buildBillingHeader(messages []messageParam) string {
 			sampled.WriteByte('0')
 		}
 	}
-	suffixInput := billingHeaderSalt + sampled.String() + claudecode.Version()
+	suffixInput := billingHeaderSalt + sampled.String() + claude.Version()
 	suffixSum := sha256.Sum256([]byte(suffixInput))
 	suffix := hex.EncodeToString(suffixSum[:])[:3]
-	return "x-anthropic-billing-header: cc_version=" + claudecode.Version() + "." + suffix + "; cc_entrypoint=" + claudeCodeOAuthEntrypoint + "; cch=" + cch + ";"
+	return "x-anthropic-billing-header: cc_version=" + claude.Version() + "." + suffix + "; cc_entrypoint=" + claudeCodeOAuthEntrypoint + "; cch=" + cch + ";"
 }
 
 func firstUserText(messages []messageParam) string {
@@ -305,5 +313,64 @@ func oauthEffortFromConfig(cfg *config.Root, override string) string {
 		return "max"
 	default:
 		return "high"
+	}
+}
+
+// Match Claude Code's casing where names coincide, as Pi does. Keep the mapping
+// reversible, including when a tool registry contains names differing only in case.
+func oauthToolNames(defs []apitype.ToolDef) map[string]string {
+	canonical := map[string]string{}
+	for _, name := range []string{"Read", "Write", "Edit", "Bash", "Grep", "Glob", "AskUserQuestion", "Skill", "Task", "TaskOutput", "TodoWrite", "WebFetch", "WebSearch"} {
+		canonical[strings.ToLower(name)] = name
+	}
+	names := map[string]string{}
+	counts := map[string]int{}
+	for _, def := range defs {
+		name := def.Name
+		if c := canonical[strings.ToLower(name)]; c != "" {
+			name = c
+		}
+		names[def.Name] = name
+		counts[name]++
+	}
+	for original, wire := range names {
+		if counts[wire] > 1 {
+			names[original] = original
+		}
+	}
+	return names
+}
+
+func applyOAuthToolNames(body map[string]any) {
+	tools, _ := body["tools"].([]toolParam)
+	defs := make([]apitype.ToolDef, len(tools))
+	for i, tool := range tools {
+		defs[i].Name = tool.Name
+	}
+	names := oauthToolNames(defs)
+	for i := range tools {
+		tools[i].Name = names[tools[i].Name]
+	}
+	messages, _ := body["messages"].([]messageParam)
+	for _, message := range messages {
+		for _, block := range message.Content {
+			if block["type"] == "tool_use" {
+				if wire := names[fmt.Sprint(block["name"])]; wire != "" {
+					block["name"] = wire
+				}
+			}
+		}
+	}
+}
+
+func restoreOAuthToolNames(turn *apitype.AssistantTurnResult, defs []apitype.ToolDef) {
+	reverse := map[string]string{}
+	for original, wire := range oauthToolNames(defs) {
+		reverse[wire] = original
+	}
+	for i := range turn.ToolCalls {
+		if original := reverse[turn.ToolCalls[i].Name]; original != "" {
+			turn.ToolCalls[i].Name = original
+		}
 	}
 }

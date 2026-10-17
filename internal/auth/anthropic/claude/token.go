@@ -16,6 +16,9 @@ import (
 
 var tokenEndpoint = TokenURL
 
+// Token POSTs must never follow redirects to another origin.
+var tokenClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
 type TokenSet struct {
 	AccessToken  string
 	RefreshToken string
@@ -42,26 +45,23 @@ func Refresh(ctx context.Context, refreshToken string) (TokenSet, error) {
 	})
 }
 
-func exchangeAuthorizationCode(ctx context.Context, code, state, verifier string) (TokenSet, error) {
-	code = strings.TrimSpace(code)
-	if code == "" {
-		return TokenSet{}, errors.New("authorization code is empty")
-	}
-	state = strings.TrimSpace(state)
-	if state == "" {
-		state = verifier
-	}
+func exchangeCode(ctx context.Context, code, state, verifier, redirect string) (TokenSet, error) {
 	return postToken(ctx, map[string]string{
 		"grant_type":    "authorization_code",
 		"client_id":     ClientID,
 		"code":          code,
 		"state":         state,
-		"redirect_uri": RedirectURI,
+		"redirect_uri":  redirect,
 		"code_verifier": verifier,
 	})
 }
 
 func postToken(ctx context.Context, body map[string]string) (TokenSet, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return TokenSet{}, err
@@ -73,13 +73,13 @@ func postToken(ctx context.Context, body map[string]string) (TokenSet, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := tokenClient.Do(req)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "Claude OAuth token request failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return TokenSet{}, err
 	}
@@ -87,14 +87,18 @@ func postToken(ctx context.Context, body map[string]string) (TokenSet, error) {
 		var tr tokenResponse
 		if json.Unmarshal(respBody, &tr) == nil && tr.Error != "" {
 			msg := tr.Error
-			if tr.ErrorDesc != "" {
-				msg = msg + ": " + tr.ErrorDesc
+			// Do not echo arbitrary response bodies or token material.
+			switch msg {
+			case "invalid_grant", "invalid_token":
+				msg += "; authorization expired or was already used; run /connect"
+			default:
+				msg = "Claude OAuth token request rejected"
 			}
 			err := fmt.Errorf("%s", msg)
 			logging.Log(logging.ERROR_LOG_LEVEL, "Claude OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
 			return TokenSet{}, err
 		}
-		err := fmt.Errorf("token endpoint: %s: %s", resp.Status, string(respBody))
+		err := fmt.Errorf("Claude OAuth token endpoint: HTTP %d; start sign-in again if authorization has expired", resp.StatusCode)
 		logging.Log(logging.ERROR_LOG_LEVEL, "Claude OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
 		return TokenSet{}, err
 	}
@@ -109,13 +113,17 @@ func postToken(ctx context.Context, body map[string]string) (TokenSet, error) {
 	if tr.ExpiresIn > 0 {
 		expires = time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second)
 	}
-	expires = expires.Add(-5 * time.Minute)
+	// Config refreshes proactively; store the actual expiry once, without
+	// subtracting a second safety margin here.
 	refresh := strings.TrimSpace(tr.RefreshToken)
 	if refresh == "" {
 		refresh = strings.TrimSpace(body["refresh_token"])
 	}
+	if refresh == "" {
+		return TokenSet{}, errors.New("Claude OAuth response missing refresh_token; run /connect")
+	}
 	return TokenSet{
-		AccessToken:  tr.AccessToken,
+		AccessToken:  strings.TrimSpace(tr.AccessToken),
 		RefreshToken: refresh,
 		ExpiresAt:    expires,
 	}, nil

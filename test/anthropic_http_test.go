@@ -23,10 +23,12 @@ func anthropicSSEBody(events ...map[string]any) string {
 		if err != nil {
 			panic(err)
 		}
+		b.WriteString("event: " + fmt.Sprint(ev["type"]) + "\n")
 		b.WriteString("data: ")
 		b.Write(raw)
 		b.WriteString("\n\n")
 	}
+	b.WriteString("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 	return b.String()
 }
 
