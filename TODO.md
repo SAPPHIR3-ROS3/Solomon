@@ -6,7 +6,7 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 1 — Deep research (stile Odysseus)
 
-- **Stato:** **MVP parziale in corso** — presenti `internal/research` (loop multi-round), tool `deepResearch` / `researchStatus`, slash `/research` (`list`, `status`, `stop`, `delete`, `resume`), job JSON persistiti in `projects/<id>/research/`, report HTML con TLDR, progress in REPL, pause su errore LLM e resume, tracking fallimenti URL/search (no silenziosi), stats in list. Fonti **solo web** (via `webfetch` + `internal/search`). Fetch web migliorato (UA browser, retry 429/503, cookie jar, `[web_fetch]` in config).
+- **Stato:** MVP parziale; fonti attualmente solo web.
 - **Cosa manca:** integrazione **file progetto** e **MCP** oltre al web; budget **token/tempo** più esplicito in UX e config; stima costi vs `usage` API più chiara; qualità estrazione (readability, meno `low_quality`); retry URL fallite al resume; eventuale `robots.txt` / delay per host; polish report HTML; test end-to-end su job lunghi con LLM locale.
 - **Dipende da:** credenziali ricerca web più sane dopo **§2** vault, ma non bloccante per un MVP.
 
@@ -17,7 +17,7 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 3 — LSP
 
-- **Stato:** nessun aggancio LSP; Solomon resta **solo terminale** + tool file/shell/MCP.
+- **Stato:** nessun aggancio LSP.
 - **Cosa manca (se lo vorrai):** un client LSP (anche minimale) che alimenti il contesto: diagnostiche, simboli, "go to definition", errori di compilazione nel buffer del workspace — senza dover aprire l'IDE.
 - **Nota:** è un ampliamento netto di superficie (processo server, protocollo, caching); utile soprattutto per **errori e navigazione**, non per sostituire l'IDE.
 
@@ -29,15 +29,12 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 ## 5 — Sicurezza
 
 - **Stato:** `shell` è **comando reale** sulla macchina, nella working directory del progetto; `readFile`/`editFile` risolvono path senza **path jail** forte (path assoluti possono uscire dalla root; symlink/`..` non sono trattati come "cage" del workspace). MCP ha allow/deny per nome tool sul server, ma l'host resta potente.
-- **Integrità stream SSE (fail-closed):** in [`internal/llm/stream/completion.go`](internal/llm/stream/completion.go), `StreamText` e `StreamAssistantTurn` abortiscono il turno se `ChatCompletionAccumulator.AddChunk` rifiuta un chunk (tipicamente `id` completion incoerente nello stesso stream). Nessun salvage di `ReasoningText`, content o usage in sessione — possibile forgery / jailbreak surface, stessa filosofia del rifiuto delle completion forgiate lato provider. Errore: `llm.ErrStreamAccumulatorRejected`. Test: [`test/stream_integrity_test.go`](test/stream_integrity_test.go). Output già stampato sul terminale prima dell'abort può restare visibile ma non viene persistito.
 - **Cosa manca (tipico desiderata):** sandbox o policy (whitelist comandi, blocchi per operazioni distruttive, conferme dove serve); **vincolo percorsi** sotto `ProjRoot` risolvendo e verificando prefisso; limiti più chiari per output sensibili.
 - **`intent`** su shell/edit è **solo metadati per il modello**, non un sistema di approvazioni.
 
 ---
 
 ## LOW PRIORITY
-
-- **Web UI:** da progettare da zero insieme alla nuova GUI. Non esiste al momento un backend HTTP né un comando di servizio dedicato.
 
 - **`chzyer/readline` su Windows — sequenze ANSI estese nel prompt:** il parser ANSI di readline v1.5.1 (`ansi_windows.go`) tratta erroneamente i codici SGR `38`/`48` (true color / 256 color) come indici colore base 30–37 e va in panic (`index out of range [8]`). Workaround attuale: `termcolor.WrapUserReadline` usa solo sequenze basic (`\033[96m`) nei prompt passati a readline su Windows. **Cosa manca (opzionale):** patch upstream o fork di readline con supporto `38;2;…` / `38;5;…`, oppure sostituire readline con una libreria TTY cross-platform che gestisca il true color; finché resta readline, evitare lipgloss/true color su qualsiasi stringa che passa da `SetPrompt` / `Readline` su Windows.
 
@@ -59,7 +56,7 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 - **Chat mode — playbook/persona (tool dedicati, distinti da skill agent):** in **chat mode** potrebbero servire tool per cercare e caricare playbook conversazionali (persona, tono, formato risposta) senza riusare `searchSkill`/`loadSkill` dell'agent: le skill installate possono includere istruzioni orientate a tool/implementazione. **Cosa manca (opzionale):** pair dedicato in superficie chat (es. `searchPersona`/`loadPersona` o `searchPlaybook`/`loadPlaybook`), stesso registry `SKILL.md` sotto con filtro/tag frontmatter (`mode: chat | agent | both`) o criterio equivalente; dump/prompt chat; slash opzionale simmetrico se serve. Fuori scope chat: orchestrate e deferred build.
 
-- **Wiki (`docs/`) — ampliamenti opzionali:** base consegnata e allineata al codice ([`docs/README.md`](docs/README.md), portali `user-guide/` / `architecture/` / `development/`, catalogo [`docs/features.md`](docs/features.md), README snellito). Per dopo, solo se serve: troubleshooting, contributing, GitHub Pages / MkDocs, check automatico documentazione ↔ codice in CI.
+- **Wiki (`docs/`) — ampliamenti opzionali:** troubleshooting, contributing, eventuale adozione di MkDocs e controlli di coerenza documentazione ↔ codice oltre alla verifica dei percorsi già presente in CI.
 - **`applyPatch` / unified diff (git diff):** Cursor `ApplyPatch` applica patch unified-diff (`@@` hunks) o contenuto intero; Solomon `editFile` fa replace singolo / write / delete / rename — il bridge rifiuta i diff con `@@`. **Cosa manca (opzionale):** tool dedicato (es. `applyPatch`) che parse unified diff e applichi hunks sul workspace, esposto via orchestrate SDK; fino ad allora il proxy Composer blocca `ApplyPatch` e redirige a `sdk.ReplaceInFile` / `sdk.WriteFile`. Vedi [`CURSOR-PROXY-FIX.md`](CURSOR-PROXY-FIX.md).
 
 - **`generateImage` (Solomon-native, non pipeline Cursor):** Cursor salva asset in `assets/` e li mostra inline in chat IDE. **Cosa manca (opzionale):** tool Solomon che genera immagini da descrizione (provider TBD), salva su path progetto e restituisce path nel risultato tool — adatto al REPL terminale, senza meccanismo inline Cursor. Fino ad allora il proxy blocca `GenerateImage`. Vedi [`CURSOR-PROXY-FIX.md`](CURSOR-PROXY-FIX.md).
