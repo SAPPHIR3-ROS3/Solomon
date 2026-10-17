@@ -79,6 +79,19 @@ export function ModelsPage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const timer = window.setInterval(() => {
+      void fetchProviderQuotas().then((quotas) => {
+        if (active) setState((current) => ({ ...current, quotas }));
+      }).catch(() => {});
+    }, 2 * 60 * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   async function loadCatalog(forceRefresh = false) {
     setState((current) => ({ ...current, error: "", loading: true }));
     void fetchProviderQuotas().then((quotas) => setState((current) => ({ ...current, quotas }))).catch(() => {});
