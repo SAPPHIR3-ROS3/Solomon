@@ -135,7 +135,7 @@ const AssistantTurn = memo(function AssistantTurn({
   return (
     <div className="chat-turn is-assistant">
       <div className={timelineClassName}>
-        {(!hasToolCalls || !isToolActivityCollapsed) ? activityEntries.map((entry) => {
+        {(!hasToolCalls || !isToolActivityCollapsed) ? activityEntries.map((entry, entryIndex) => {
           const actions = messageActions(entry, { onOpenSubagent, onStopTool });
           const toolActivity = hasToolCalls ? {
             isCollapsed: isToolActivityCollapsed,
@@ -149,6 +149,7 @@ const AssistantTurn = memo(function AssistantTurn({
               message={entry.message}
               onOpenSubagent={actions.onOpenSubagent}
               onStopTool={actions.onStopTool}
+              suppressBriefThought={isRepeatedBriefThought(activityEntries, entryIndex)}
               toolActivity={toolActivity}
             />
           );
@@ -248,10 +249,23 @@ function activityCheckpointLabel(sequence: number, branch: string) {
   return "[#" + String(sequence).padStart(3, "0") + branch + "]";
 }
 
-function AssistantMessageBlock({ checkpoint, isWorking = false, message, onOpenSubagent, onStopTool, toolActivity }: { checkpoint?: CheckpointMetadata; isWorking?: boolean; message: ChatMessage; onOpenSubagent?: (tool: ChatToolCall) => void; onStopTool?: (toolID: string) => void; toolActivity?: ToolActivityControl }) {
+function isEmptyBriefThought(message: ChatMessage) {
+  if (message.reasoning?.trim()) return false;
+  const thoughtFor = message.thoughtFor ?? message.stats?.ttftSeconds;
+  return Boolean(message.content.trim() || message.toolCalls?.length || (thoughtFor !== undefined && thoughtFor > 0));
+}
+
+function isRepeatedBriefThought(entries: IndexedChatMessage[], index: number) {
+  const message = entries[index]?.message;
+  if (!message || !isEmptyBriefThought(message)) return false;
+  const previous = entries[index - 1]?.message;
+  return previous !== undefined && isEmptyBriefThought(previous);
+}
+
+function AssistantMessageBlock({ checkpoint, isWorking = false, message, onOpenSubagent, onStopTool, suppressBriefThought = false, toolActivity }: { checkpoint?: CheckpointMetadata; isWorking?: boolean; message: ChatMessage; onOpenSubagent?: (tool: ChatToolCall) => void; onStopTool?: (toolID: string) => void; suppressBriefThought?: boolean; toolActivity?: ToolActivityControl }) {
   return (
     <div className={message.toolCalls?.length ? "chat-assistant-segment has-tool-activity" : "chat-assistant-segment"}>
-      <ChatMessageBody checkpoint={checkpoint} isWorking={isWorking} message={message} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} toolActivity={toolActivity} />
+      <ChatMessageBody checkpoint={checkpoint} isWorking={isWorking} message={message} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} suppressBriefThought={suppressBriefThought} toolActivity={toolActivity} />
       {message.status === "interrupted" ? <InterruptedGenerationMarker /> : null}
     </div>
   );
@@ -267,7 +281,7 @@ function ChatMessageTurn({ checkpoint, index, message, onOpenSubagent, onRequest
   );
 }
 
-function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagent, onStopTool, toolActivity }: { checkpoint?: CheckpointMetadata; isWorking?: boolean; message: ChatMessage; onOpenSubagent?: (tool: ChatToolCall) => void; onStopTool?: (toolID: string) => void; toolActivity?: ToolActivityControl }) {
+function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagent, onStopTool, suppressBriefThought = false, toolActivity }: { checkpoint?: CheckpointMetadata; isWorking?: boolean; message: ChatMessage; onOpenSubagent?: (tool: ChatToolCall) => void; onStopTool?: (toolID: string) => void; suppressBriefThought?: boolean; toolActivity?: ToolActivityControl }) {
   const preferences = useGUIChatPreferencesState();
   const [reasoningCollapsedOverride, setReasoningCollapsedOverride] = useState<boolean | undefined>(undefined);
   const isReasoningCollapsed = reasoningCollapsedOverride ?? preferences.chat.startReasoningCollapsed;
@@ -285,7 +299,7 @@ function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagen
     <article className={"chat-message is-" + message.role} onClick={canCollapseReasoning ? handleMessageClick : undefined}>
       {checkpoint && !(message.role === "assistant" && message.toolCalls?.length) ? <CheckpointLabel label={checkpoint.label} /> : null}
       {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
-      {message.role === "assistant" && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} /> : null}
+      {message.role === "assistant" && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} suppressBriefThought={suppressBriefThought} /> : null}
       {message.toolCalls?.length ? (
         <ToolActivity
           isCollapsed={toolActivity?.isCollapsed}

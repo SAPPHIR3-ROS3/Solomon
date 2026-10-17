@@ -269,6 +269,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 				transcript.WriteString(line + "\n")
 			}
 			prepared[i] = preparedToolCall{inv: inv, toolID: toolID, checkpointSeq: nestedCheckpointSeq}
+			if inv.Name == "subagent" && toolID != "" {
+				r.ciEmit(cievents.ToolStart(0, toolID, inv.Name, inv.Args, nestedCheckpointSeq, ""))
+			}
 		}
 
 		execInvs := make([]tooling.Invocation, len(prepared))
@@ -301,6 +304,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 				b = []byte(`{"error":"marshal"}`)
 			}
 			payload := string(b)
+			if inv.Name == "subagent" && toolID != "" {
+				r.ciEmit(cievents.ToolResult(0, toolID, inv.Name, b, ""))
+			}
 			if id := toolID; id != "" {
 				toolResult := chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
 				stampNestedMessageCheckpoint(&toolResult, toolResultSeq)

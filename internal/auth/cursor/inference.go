@@ -14,6 +14,40 @@ import (
 	"time"
 )
 
+func modelOffersFast(value any) bool {
+	switch typed := value.(type) {
+	case []any:
+		for _, item := range typed {
+			if modelOffersFast(item) {
+				return true
+			}
+		}
+	case map[string]any:
+		if id, _ := typed["id"].(string); strings.EqualFold(strings.TrimSpace(id), "fast") {
+			switch v := typed["value"].(type) {
+			case bool:
+				return v
+			case string:
+				return strings.EqualFold(strings.TrimSpace(v), "true")
+			}
+		}
+		for _, key := range []string{"legacySlug", "variantStringRepresentation"} {
+			if text, _ := typed[key].(string); strings.Contains(strings.ToLower(text), "fast") {
+				return true
+			}
+		}
+		for key, child := range typed {
+			low := strings.ToLower(key)
+			if strings.Contains(low, "variant") || low == "parametervalues" || low == "parameters" {
+				if modelOffersFast(child) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 type inferenceParameter struct {
 	ID    string `json:"id"`
 	Value string `json:"value"`

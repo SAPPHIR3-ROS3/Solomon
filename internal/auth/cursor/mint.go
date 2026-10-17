@@ -80,7 +80,7 @@ func ListAvailableModelFlags(ctx context.Context, accessToken string) ([]ModelFl
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, modelsEndpoint, strings.NewReader("{}"))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, modelsEndpoint, strings.NewReader(`{"useModelParameters":true}`))
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func parseAvailableModelFlags(body []byte) []ModelFlag {
 		out = append(out, ModelFlag{
 			ID:             name,
 			Raw:            full,
-			Fast:           strings.Contains(strings.ToLower(full), "fast") || modelTreeHasKeyword(item, "fast"),
+			Fast:           strings.Contains(strings.ToLower(full), "fast") || modelTreeHasKeyword(item, "fast") || modelOffersFast(item),
 			Thinking:       thinkingHas(full) || modelTreeHasKeyword(item, "thinking"),
 			ThinkingLevels: thinkingHasLevels(full) || modelTreeHasKeyword(item, "thinking-low", "thinking-medium", "thinking-high"),
 		})

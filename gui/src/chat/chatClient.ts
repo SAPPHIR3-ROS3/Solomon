@@ -470,7 +470,7 @@ function normalizeToolResult(payload: unknown, error = ""): ChatToolResult {
   if (typeof record.summary === "string") result.summary = record.summary;
   if (typeof record.subchatId === "string") result.subchatId = record.subchatId;
   if (typeof record.subchat_id === "string") result.subchatId = record.subchat_id;
-  const subchatStatus = record.subagentStatus ?? record.subchatStatus;
+  const subchatStatus = record.subagentStatus ?? record.subchatStatus ?? (result.subchatId ? record.status : undefined);
   if (typeof subchatStatus === "string" && ["cancelled", "done", "paused", "queued", "running"].includes(subchatStatus)) {
     result.subchatStatus = subchatStatus as ChatToolResult["subchatStatus"];
   }

@@ -23,7 +23,7 @@ export function ChatSettings({ query }: { query: string }) {
     {
       id: "start-tool-calls-collapsed",
       label: "Start tool calls collapsed",
-      description: "Show new tool calls closed from the start. Turn this off to display them open while the model works.",
+      description: "Collapse the whole tool-call sequence from the start. Each call still opens only its intent until you expand it.",
       enabled: startCollapsed,
       setEnabled: setStartToolCallsCollapsed,
     },

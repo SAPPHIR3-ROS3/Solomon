@@ -1267,7 +1267,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 	}
 	if role == "assistant" {
 		value.Reasoning = reasoning
-		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive)
+		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive, true)
 		value.Stats = apiStatsFromMessage(message)
 		value.ThoughtFor = message.TurnTTFTSecs
 		if value.ThoughtFor == 0 {
@@ -1447,7 +1447,7 @@ func apiStatsFromMessage(message chatstore.Message) *apiStats {
 	}
 }
 
-func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstore.Message, messageIndex int, runActive bool) []apiToolCall {
+func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstore.Message, messageIndex int, runActive bool, includeNested bool) []apiToolCall {
 	message := messages[messageIndex]
 	if len(message.ToolCalls) == 0 {
 		return nil
@@ -1571,6 +1571,32 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 			}
 		}
 		out = append(out, tool)
+		if includeNested && call.Name == "subagent" && subchat != nil {
+			out = append(out, nestedSubagentToolCalls(projectID, parentChatID, subchat, map[string]bool{}, runActive)...)
+		}
+	}
+	return out
+}
+
+func nestedSubagentToolCalls(projectID, parentChatID string, subchat *chatstore.SubSession, seen map[string]bool, runActive bool) []apiToolCall {
+	if subchat == nil || seen[subchat.ID] {
+		return nil
+	}
+	seen[subchat.ID] = true
+	live := runActive || chatstore.SubSessionRunning(subchat.Status)
+	var out []apiToolCall
+	for index := range subchat.Messages {
+		for _, call := range apiToolCallsFromMessage(projectID, parentChatID, subchat.Messages, index, live, false) {
+			if call.Name != "subagent" {
+				continue
+			}
+			out = append(out, call)
+			if childID := stringField(call.Result, "subchatId"); childID != "" && !seen[childID] {
+				if child, err := chatstore.FindSubSessionByID(projectID, childID); err == nil {
+					out = append(out, nestedSubagentToolCalls(projectID, parentChatID, child, seen, live)...)
+				}
+			}
+		}
 	}
 	return out
 }

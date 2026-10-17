@@ -4,6 +4,7 @@ import { createChatStreamBatch } from "./streamBatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sendProjectCommand, applyLiveStreamEvent, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, deleteLiveChatMessage, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type ChatStreamEventHandler, type LiveChat } from "./chatClient";
 import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, getUnreadCompletedChatIDs, rememberActiveChat, saveUnreadCompletedChatIDs, removeChat, saveChat, saveChatStreamCursor, updateChat, useChatStore } from "./chatStore";
+import { subagentIsActive, subagentStatus } from "./ChatToolActivity";
 import type { Chat, ChatMessage } from "./chatTypes";
 import { markChatCompletionRead, markChatCompletionUnread, shouldMarkChatCompletionUnread } from "./unreadCompletion";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
@@ -61,6 +62,37 @@ export function useChatRuntime(): ChatRuntime {
     () => chats.find((chat) => chat.id === selectedChatID) ?? null,
     [chats, selectedChatID],
   );
+  const selectedSubagentsActive = selectedChat?.messages.some((message) => (
+    message.toolCalls?.some((tool) => tool.name === "subagent" && subagentIsActive(subagentStatus(tool)))
+  )) ?? false;
+
+  useEffect(() => {
+    if (!selectedChat?.projectID || !selectedSubagentsActive) return;
+    const projectID = selectedChat.projectID;
+    const chatID = selectedChat.id;
+    const workspace = {
+      workspaceName: selectedChat.workspaceName,
+      workspacePath: selectedChat.workspacePath,
+      branch: selectedChat.branch,
+      worktree: selectedChat.worktree,
+    };
+    let cancelled = false;
+    const refresh = () => {
+      void fetchLiveChat(projectID, chatID)
+        .then((latest) => {
+          if (cancelled) return;
+          const current = getChat(chatID);
+          const merged = current ? preserveLiveWorkState(current, latest) : latest;
+          saveChat({ ...merged, ...workspace });
+        })
+        .catch(() => undefined);
+    };
+    const timer = window.setInterval(refresh, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [selectedChat?.id, selectedChat?.projectID, selectedChat?.workspaceName, selectedChat?.workspacePath, selectedChat?.branch, selectedChat?.worktree, selectedSubagentsActive]);
 
   const cancelPendingRequests = useCallback(() => {
     cancelNavigation(navigationIDRef.current);

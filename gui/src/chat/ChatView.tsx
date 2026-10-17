@@ -115,7 +115,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   }
   const activeSubagents: ActiveSubagent[] = chat.messages.flatMap((message) => (
     (message.toolCalls ?? [])
-      .filter((tool) => tool.name === "subagent" && !tool.sync && subagentIsActive(subagentStatus(tool)))
+      .filter((tool) => tool.name === "subagent" && subagentIsActive(subagentStatus(tool)))
       .map((tool) => ({ messageID: message.id, tool }))
   ));
   const matchedOpenTool = openSubagent

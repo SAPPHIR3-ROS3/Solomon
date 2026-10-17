@@ -94,6 +94,103 @@ func TestServerRuntime_chatSnapshotDoesNotResurrectRejectedIntentCall(t *testing
 	}
 }
 
+func TestServerRuntime_chatSnapshotIncludesNestedSubagents(t *testing.T) {
+	server, stop := startServerForTest(t, serverruntime.Options{})
+	defer stop()
+
+	projectRoot := t.TempDir()
+	projectResponse := postJSONForServerTest(t, server.URL+"/__solomon/projects", map[string]string{"path": projectRoot})
+	var created struct {
+		Project struct {
+			ID string `json:"id"`
+		} `json:"project"`
+	}
+	decodeServerTestJSON(t, projectResponse, &created)
+	chatResponse := postJSONForServerTest(t, server.URL+"/__solomon/projects/"+created.Project.ID+"/chats", map[string]string{})
+	var createdChat struct {
+		ID string `json:"id"`
+	}
+	decodeServerTestJSON(t, chatResponse, &createdChat)
+
+	sess, err := chatstore.ReadSession(created.Project.ID, createdChat.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess.Messages = []chatstore.Message{{
+		Role: "assistant",
+		ToolCalls: []chatstore.ToolCall{{
+			ID:        "parent-call",
+			Name:      "subagent",
+			Arguments: `{"intent":"run outer","task":"outer","run_in_background":true}`,
+		}},
+	}}
+	if err := chatstore.WriteSession(created.Project.ID, sess); err != nil {
+		t.Fatal(err)
+	}
+	outer := &chatstore.SubSession{
+		ID:               "sub-outer",
+		Origin:           chatstore.SubOriginParent,
+		ParentChatID:     createdChat.ID,
+		ParentToolCallID: "parent-call",
+		ProjectHex:       created.Project.ID,
+		Status:           chatstore.SubStatusRunning,
+		Messages: []chatstore.Message{
+			{
+				Role: "assistant",
+				ToolCalls: []chatstore.ToolCall{{
+					ID:        "child-call",
+					Name:      "subagent",
+					Arguments: `{"intent":"run inner","task":"inner","run_in_background":true}`,
+				}},
+			},
+			{Role: "tool", ToolCallID: "child-call", Content: `{"ok":true,"subchatId":"sub-inner","status":"running"}`},
+		},
+	}
+	inner := &chatstore.SubSession{
+		ID:               "sub-inner",
+		Origin:           chatstore.SubOriginParent,
+		ParentChatID:     createdChat.ID,
+		ParentToolCallID: "child-call",
+		ProjectHex:       created.Project.ID,
+		Status:           chatstore.SubStatusRunning,
+	}
+	if err := chatstore.WriteSubSession(created.Project.ID, outer); err != nil {
+		t.Fatal(err)
+	}
+	if err := chatstore.WriteSubSession(created.Project.ID, inner); err != nil {
+		t.Fatal(err)
+	}
+
+	response, err := http.Get(server.URL + "/__solomon/projects/" + created.Project.ID + "/chats/" + createdChat.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var opened struct {
+		Messages []struct {
+			ToolCalls []struct {
+				ID     string         `json:"id"`
+				Name   string         `json:"name"`
+				Status string         `json:"status"`
+				Result map[string]any `json:"result"`
+			} `json:"toolCalls"`
+		} `json:"messages"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&opened); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened.Messages) != 1 || len(opened.Messages[0].ToolCalls) != 2 {
+		t.Fatalf("tool calls = %+v", opened.Messages)
+	}
+	parent, child := opened.Messages[0].ToolCalls[0], opened.Messages[0].ToolCalls[1]
+	if parent.ID != "parent-call" || parent.Status != "running" || child.ID != "child-call" || child.Name != "subagent" || child.Status != "running" {
+		t.Fatalf("nested subagent missing: %+v", opened.Messages[0].ToolCalls)
+	}
+	if child.Result["subagentStatus"] != "running" {
+		t.Fatalf("child status = %+v", child.Result)
+	}
+}
+
 func TestServerRuntime_chatProjectAndChatLifecycle(t *testing.T) {
 	server, stop := startServerForTest(t, serverruntime.Options{})
 	defer stop()

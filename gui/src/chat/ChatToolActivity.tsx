@@ -9,8 +9,6 @@ import { HammerIcon } from "./ChatIcons";
 import { EditFileDiffCard, ToolResultCard } from "./ChatToolResults";
 import { toolCheckpoint } from "./chatMessageUtils";
 import { serverEndpoint } from "../platform";
-import { useStartToolCallsCollapsed } from "../settings/chatPreferences";
-
 const MISSING_TOOL_INTENT_LABEL = "Intent missing";
 
 
@@ -33,7 +31,6 @@ function displaySubagentIntent(tool: ChatToolCall) {
 
 
 export function ToolCallCard({ tool }: { tool: ChatToolCall }) {
-  const startCollapsed = useStartToolCallsCollapsed();
   if (tool.name === "orchestrate") {
     return <OrchestrateToolCard tool={tool} />;
   }
@@ -84,7 +81,7 @@ export function ToolCallCard({ tool }: { tool: ChatToolCall }) {
     (isDeletePlan && status === "success") ||
     (isFetchWeb && status === "success")
   );
-  const [isOpen, setIsOpen] = useState(() => tool.defaultOpen ?? !startCollapsed);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <div className={`chat-tool-card is-${status}`} data-checkpoint={checkpoint?.label}>
@@ -157,10 +154,9 @@ export function ToolCallCard({ tool }: { tool: ChatToolCall }) {
 }
 
 function OrchestrateToolCard({ tool }: { tool: ChatToolCall }) {
-  const startCollapsed = useStartToolCallsCollapsed();
   const status = tool.status ?? tool.result?.status ?? "running";
   const checkpoint = toolCheckpoint(tool);
-  const [isOpen, setIsOpen] = useState(() => tool.defaultOpen ?? !startCollapsed);
+  const [isOpen, setIsOpen] = useState(false);
   const [isSourceOpen, setIsSourceOpen] = useState(false);
   const result = tool.result;
   const sdkCalls = result?.sdkCalls;

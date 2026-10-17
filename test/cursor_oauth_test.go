@@ -124,6 +124,28 @@ func TestCursorListAvailableModels(t *testing.T) {
 	}
 }
 
+func TestCursorParameterizedCatalogMarksGrokFast(t *testing.T) {
+	body := []byte(`{"models":[{"name":"grok-4.7","variants":[{"legacySlug":"cursor-grok-4.7-high","parameterValues":[{"id":"effort","value":"high"},{"id":"fast","value":"false"}]},{"legacySlug":"cursor-grok-4.7-high-fast","parameterValues":[{"id":"effort","value":"high"},{"id":"fast","value":"true"}]}]},{"name":"composer-2.5","variants":[{"legacySlug":"composer-2.5","parameterValues":[{"id":"fast","value":"false"}]}]}]}`)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(raw), "useModelParameters") {
+			t.Errorf("body=%s", raw)
+		}
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+	old := cursorauth.SetModelsEndpointForTest(srv.URL)
+	defer old()
+	flags, err := cursorauth.ListAvailableModelFlags(context.Background(), "access-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	caps := cursorauth.DedupeVariantFlags(flags)
+	if strings.Join(caps.Fast, ",") != "cursor-grok-4.7" {
+		t.Fatalf("fast=%v ids=%v", caps.Fast, caps.IDs)
+	}
+}
+
 func TestCursorKeepsCursorModelPrefix(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{

@@ -11,8 +11,8 @@ type Props = {
   working: boolean;
   viewRef: RefObject<HTMLElement | null>;
 };
-type Particle = { x: number; y: number; phase: number; glyph: string; rotation: number };
-type Flight = { messageID: string; offset: number; range: Range; glyph: string; x: number; y: number; targetX: number; targetY: number; visible: boolean; start: number; font: string; color: string };
+type Particle = { x: number; y: number; phase: number; glyph: string; rotation: number; heading: number; alpha: number; hidden: boolean };
+type Flight = { messageID: string; offset: number; range: Range; glyph: string; x: number; y: number; targetX: number; targetY: number; visible: boolean; start: number; font: string; color: string; particle?: Particle };
 type HighlightAPI = {
   Highlight?: new (...ranges: Range[]) => { add(range: Range): void; delete(range: Range): void; clear(): void };
   CSS: typeof CSS & { highlights?: Map<string, { add(range: Range): void; delete(range: Range): void; clear(): void }> };
@@ -88,11 +88,14 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
       }
     }
     function invalidateGeometry() { masksDirty = true; geometryDirty = true; }
-    const particles: Particle[] = Array.from({ length: { low: 16, medium: 32, high: 64, max: 128 }[density] }, () => ({
+    const freshParticle = (alpha: number): Particle => ({
       x: Math.random(), y: Math.random(), phase: Math.random() * Math.PI * 2,
       glyph: alphabet[Math.floor(Math.random() * alphabet.length)],
       rotation: (Math.random() - 0.5) * (Math.PI * 0.7),
-    }));
+      heading: Math.random() * Math.PI * 2, alpha, hidden: false,
+    });
+    const particles: Particle[] = Array.from({ length: { low: 16, medium: 32, high: 64, max: 128 }[density] }, () => freshParticle(1));
+    const replaceParticle = (particle: Particle) => Object.assign(particle, freshParticle(0));
     let ambientColor = getComputedStyle(view).getPropertyValue("--color-text-muted").trim() || "#888";
 
     function resize() {
@@ -145,7 +148,12 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
       renderedResponses.delete(id);
       renderedResponses.set(id, text);
       while (renderedResponses.size > 128) renderedResponses.delete(renderedResponses.keys().next().value!);
-      if (!animate) { flights = []; highlight?.clear(); return; }
+      if (!animate) {
+        for (const flight of flights) if (flight.particle?.hidden) replaceParticle(flight.particle);
+        flights = [];
+        highlight?.clear();
+        return;
+      }
       const changes = reconcileFloatingText(previousText, text);
       const additions = new Set(changes.addedOffsets);
       const offset = changes.addedOffsets[0] ?? text.length;
@@ -175,7 +183,10 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
         return cached;
       };
       flights = flights.filter(flight => {
-        if (now >= flight.start + DURATION) return false;
+        if (now >= flight.start + DURATION) {
+          if (flight.particle) replaceParticle(flight.particle);
+          return false;
+        }
         if (flight.messageID !== id) return flight.range.startContainer.isConnected;
         const offset = changes.retainedOffset(flight.offset);
         if (offset === undefined) return false;
@@ -206,12 +217,13 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
             range.setEnd(node, end);
             const rect = range.getBoundingClientRect();
             if (rect.width && rect.bottom > bounds.top && rect.top < bounds.bottom && rect.right > bounds.left && rect.left < bounds.right) {
-              const source = particles[Math.floor(Math.random() * particles.length)];
+              const free = particles.filter(particle => !particle.hidden);
+              const source = free[Math.floor(Math.random() * free.length)];
               const style = glyphStyle(node.parentElement!);
-              flights.push({ messageID: id, offset: position + index, range, glyph, x: source.x * width, y: source.y * height,
+              if (source) source.hidden = true;
+              flights.push({ messageID: id, offset: position + index, range, glyph, x: (source?.x ?? Math.random()) * width, y: (source?.y ?? Math.random()) * height,
                 targetX: rect.left - bounds.left, targetY: rect.top - bounds.top, visible: true,
-                start: now + launched++ * 9, font: style.font, color: style.color });
-              source.glyph = glyph;
+                start: now + launched++ * 9, font: style.font, color: style.color, particle: source });
               highlight?.add(range);
             }
           }
@@ -269,20 +281,24 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
       context!.textBaseline = "top";
       context!.font = '15px "Geist Mono", monospace';
       context!.fillStyle = ambientColor;
-      context!.globalAlpha = 0.16;
       for (const particle of particles) {
-        particle.x = (particle.x + Math.cos(now / 4000 + particle.phase) * delta * 0.012 + 1) % 1;
-        particle.y = (particle.y + Math.sin(now / 5000 + particle.phase) * delta * 0.016 + 1) % 1;
+        if (particle.hidden) continue;
+        particle.alpha = Math.min(1, particle.alpha + delta / 0.4);
+        particle.heading += Math.sin(now / 7000 + particle.phase) * delta * 0.45;
+        particle.x = (particle.x + Math.cos(particle.heading) * delta * 0.02 + 1) % 1;
+        particle.y = (particle.y + Math.sin(particle.heading) * delta * 0.02 + 1) % 1;
         const x = particle.x * width, y = particle.y * height;
         context!.save();
+        context!.globalAlpha = 0.16 * particle.alpha;
         context!.translate(x, y);
-        context!.rotate(particle.rotation);
+        context!.rotate(particle.heading + particle.rotation);
         context!.fillText(particle.glyph, 0, 0);
         context!.restore();
       }
       flights = flights.filter(flight => {
         const progress = Math.max(0, (now - flight.start) / DURATION);
         if (progress >= 1 || !flight.visible || !flight.range.startContainer.isConnected) {
+          if (flight.particle) replaceParticle(flight.particle);
           highlight?.delete(flight.range);
           return false;
         }
@@ -323,6 +339,7 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
     }
     function restart() {
       cancelAnimationFrame(frame);
+      for (const flight of flights) if (flight.particle?.hidden) replaceParticle(flight.particle);
       flights = [];
       highlight?.clear();
       context!.clearRect(0, 0, width, height);
