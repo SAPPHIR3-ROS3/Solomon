@@ -3,6 +3,10 @@
   gap: 16px;
 }
 
+.settings-model-toggle[aria-busy="false"]:disabled {
+  cursor: default;
+}
+
 .settings-language-row > .settings-model-row-copy {
   flex: 1 1 240px;
 }

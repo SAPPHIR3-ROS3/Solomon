@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -106,7 +107,9 @@ func (r *Runtime) streamNestedAssistant(ctx context.Context, out io.Writer, syst
 	}
 	turn, err := backend.StreamTurn(ctx, turnReq, contentOut, r.streamOptsWithRetry(r.Cfg.ShowThinking, out))
 	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "nested subagent stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		if !errors.Is(err, context.Canceled) {
+			logging.Log(logging.ERROR_LOG_LEVEL, "nested subagent stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
 		return turn, legacySW, err
 	}
 	fmt.Fprintln(out)

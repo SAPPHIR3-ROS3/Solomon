@@ -161,8 +161,8 @@ func BackoffDelay(policy config.APIResiliencePolicy, attempt int, retryAfter tim
 }
 
 type CircuitRegistry struct {
-	mu    sync.Mutex
-	open  map[string]time.Time
+	mu   sync.Mutex
+	open map[string]time.Time
 }
 
 func NewCircuitRegistry() *CircuitRegistry {
@@ -234,6 +234,9 @@ func logAPIRetry(hostKey, protocol string, attempt, max int, status int, wait ti
 }
 
 func logAPIFailure(hostKey, protocol string, attempt, max int, status int, err error) {
+	if errors.Is(err, context.Canceled) {
+		return
+	}
 	logging.Log(logging.ERROR_LOG_LEVEL, "LLM API request failed", logging.LogOptions{Params: map[string]any{
 		"provider_host": hostKey,
 		"protocol":      protocol,

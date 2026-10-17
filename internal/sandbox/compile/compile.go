@@ -92,7 +92,8 @@ func BuildWASM(opts Options) ([]byte, error) {
 			msg = err.Error()
 		}
 		compileErr := fmt.Errorf("compile: %s", clarifyCompileError(opts.Source, msg))
-		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": compileErr.Error()}})
+		// The orchestrate caller reports this recoverable tool error once.
+		logging.Log(logging.DEBUG_LOG_LEVEL, "sandbox orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": compileErr.Error()}})
 		return nil, compileErr
 	}
 	wasm, err := os.ReadFile(outPath)

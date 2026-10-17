@@ -64,11 +64,20 @@ Advanced also contains **Dev server**, **Server port**, and **GUI source directo
 The dev switch and source path are stored under `[server]`; the port remains at
 root `server_port`. Configure a GUI directory containing `package.json` and `src`
 before enabling development mode. Source paths must be absolute or start with `~/`.
+The repository root is also accepted and resolves to its `gui` directory. Windows
+paths copied with surrounding quotes are accepted and saved without the quotes.
 Saving these settings does not restart the running server. The next
 `solomon server start`, `solomon server run`, or `solomon server restart` applies
 the saved mode. Explicit `start normal` or `start dev <gui-directory>` arguments
 override the saved mode for that invocation. `SOLOMON_SERVER_PORT` still takes
 precedence over the saved port.
+
+Provider quotas are available in Models settings and through the horizontal quota
+bars to the left of the notification bell in Home and chat. When ChatGPT reports
+available banked resets, **Use available reset** opens a confirmation before
+consuming one. **Cancel** or Escape leaves the reset unused. After confirmation,
+Solomon refreshes the quota windows and available count; failed requests can be
+retried without consuming the same reset twice.
 
 ```toml
 server_port = 64000

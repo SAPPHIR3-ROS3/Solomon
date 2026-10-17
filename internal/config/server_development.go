@@ -20,6 +20,10 @@ type ServerSettings struct {
 
 func ValidateDevDirectory(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
+	// Windows' Copy as path includes surrounding quotes.
+	if len(raw) >= 2 && ((raw[0] == '"' && raw[len(raw)-1] == '"') || (raw[0] == '\'' && raw[len(raw)-1] == '\'')) {
+		raw = raw[1 : len(raw)-1]
+	}
 	if raw == "" {
 		return "", fmt.Errorf("set a GUI source directory before enabling the dev server")
 	}
@@ -37,6 +41,12 @@ func ValidateDevDirectory(raw string) (string, error) {
 	directory, err := filepath.Abs(raw)
 	if err != nil {
 		return "", err
+	}
+	// Accept the repository folder as well as its GUI subdirectory.
+	if info, err := os.Stat(filepath.Join(directory, "gui", "package.json")); err == nil && !info.IsDir() {
+		if info, err := os.Stat(filepath.Join(directory, "gui", "src")); err == nil && info.IsDir() {
+			directory = filepath.Join(directory, "gui")
+		}
 	}
 	for _, required := range []string{"package.json", "src"} {
 		info, err := os.Stat(filepath.Join(directory, required))

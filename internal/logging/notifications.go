@@ -55,6 +55,7 @@ func recordNotificationLocked(entry Notification) {
 }
 
 var notificationLogPattern = regexp.MustCompile(`^\[([^]]+)\]\[(ERROR|WARNING|SYSTEM)\]\[[^]]*\]\[[^]]*\] (.*)$`)
+var logEntryPattern = regexp.MustCompile(`^\[[^]]+\]\[[A-Z]+\]\[[^]]*\]\[[^]]*\] `)
 
 // ReadNotifications includes every available historical log, not just today's file.
 func ReadNotifications() ([]Notification, error) {
@@ -96,7 +97,7 @@ func ReadNotifications() ([]Notification, error) {
 					flush()
 					entry := notification(match[1], strings.ToLower(match[2]), match[3])
 					pending = &entry
-				} else if strings.HasPrefix(line, "[") {
+				} else if logEntryPattern.MatchString(line) {
 					flush()
 				} else if pending != nil {
 					pending.Message += "\n" + line

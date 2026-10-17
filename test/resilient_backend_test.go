@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
@@ -20,6 +21,39 @@ type mockCompletionBackend struct {
 	protocol    llm.Protocol
 	streamCalls atomic.Int32
 	failUntil   int32
+}
+
+type notificationFailureBackend struct {
+	mockCompletionBackend
+	err error
+}
+
+func (m *notificationFailureBackend) StreamTurn(context.Context, llm.TurnRequest, io.Writer, llm.StreamOpts) (llm.AssistantTurnResult, error) {
+	return llm.AssistantTurnResult{}, m.err
+}
+
+func TestResilientBackend_CancellationDoesNotCreateErrorNotification(t *testing.T) {
+	t.Cleanup(logging.IsolateNotificationsForTest(t.TempDir()))
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantCount int
+	}{
+		{"canceled", fmt.Errorf("request stopped: %w", context.Canceled), 0},
+		{"real failure", errors.New("authentication rejected"), 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rb := llm.NewResilientBackend(&notificationFailureBackend{err: tc.err}, "mock.test", config.APIResiliencePolicy{MaxRetries: 1}, llm.NewCircuitRegistry())
+			_, err := rb.StreamTurn(context.Background(), llm.TurnRequest{}, io.Discard, llm.StreamOpts{})
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("error was not propagated: %v", err)
+			}
+			entries, err := logging.ReadNotifications()
+			if err != nil || len(entries) != tc.wantCount {
+				t.Fatalf("unexpected notifications: %#v, %v", entries, err)
+			}
+		})
+	}
 }
 
 func (m *mockCompletionBackend) Protocol() llm.Protocol { return m.protocol }
@@ -48,10 +82,10 @@ func TestResilientBackend_StreamTurn_RetriesThenSucceeds(t *testing.T) {
 	inner := &mockCompletionBackend{protocol: llm.ProtocolAnthropic, failUntil: 2}
 	circuits := llm.NewCircuitRegistry()
 	policy := config.APIResiliencePolicy{
-		MaxRetries: 3,
-		BaseDelay:  1 * time.Millisecond,
-		MaxDelay:   5 * time.Millisecond,
-		Jitter:     false,
+		MaxRetries:  3,
+		BaseDelay:   1 * time.Millisecond,
+		MaxDelay:    5 * time.Millisecond,
+		Jitter:      false,
 		CircuitOpen: time.Minute,
 	}
 	rb := llm.NewResilientBackend(inner, "mock.test", policy, circuits)

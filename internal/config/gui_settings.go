@@ -271,7 +271,13 @@ func UpdateGUIPreferences(patch GUISettingsPatch) (GUISettings, error) {
 				var directory string
 				_ = json.Unmarshal(raw, &directory)
 				directory = strings.TrimSpace(directory)
-
+				if directory != "" {
+					var err error
+					directory, err = ValidateDevDirectory(directory)
+					if err != nil {
+						return err
+					}
+				}
 				value = directory
 			} else if key == "log_level" {
 				var level string

@@ -24,11 +24,33 @@ const fixtureSource = `
         import { createRoot } from 'react-dom/client';
         import { SettingsPage } from '/src/settings/SettingsPage.tsx';
         import { ChatMessageGroups } from '/src/chat/ChatMessageGroups.tsx';
+        import { SubagentChatPanel } from '/src/chat/ChatMessageGroups.tsx';
         import { indexChatMessages } from '/src/chat/chatMessageUtils.ts';
         import { liveChatFromPayload, applyLiveStreamEvent } from '/src/chat/chatClient.ts';
         import { setAutoCollapseToolCalls, setStartToolCallsCollapsed } from '/src/settings/chatPreferences.ts';
         const settings = createRoot(document.getElementById('settings'));
         const chat = createRoot(document.getElementById('chat'));
+        window.renderQuota = async () => {
+          const { ProviderQuotaControl } = await import('/src/home/ProviderQuotaControl.tsx');
+          document.getElementById('settings').style.display = 'none';
+          document.getElementById('chat').style.cssText = 'position:fixed;bottom:20px;right:20px;width:34px;height:30px';
+          chat.render(createElement(ProviderQuotaControl, {provider: 'ChatGPT Sub', open: true, onOpenChange() {}}));
+        };
+        window.renderSubagent = async () => {
+          await import('/src/styles.css');
+          await import('/src/chat/chat.css');
+          await import('/src/chat/chat-timeline.css');
+          document.getElementById('settings').style.display = 'none';
+          chat.render(createElement(SubagentChatPanel, { onCollapse() {},
+            tool: { id: 'subagent', name: 'subagent', input: 'Inspect the project', status: 'success' },
+            messages: [
+              { id: 'task', role: 'user', content: 'Inspect the project', checkpointSeq: 0 },
+              { id: 'tools', role: 'assistant', content: '', checkpointSeq: 1,
+                toolCalls: Array.from({length: 94}, (_, index) => ({id: 'tool-' + index, name: 'shell', intent: 'Inspect file', checkpointSeq: index + 2, status: 'success', result: {status: 'success', output: 'done'}})) },
+              { id: 'response', role: 'assistant', content: 'Inspection complete', checkpointSeq: 96 },
+            ],
+          }));
+        };
         settings.render(createElement(SettingsPage, { onHome() {} }));
         window.renderChat = (isWorking, name = 'shell', final = true, interrupted = false, turn = 'tool-message') => {
           const messages = [{ id: turn, role: 'assistant', content: '',
@@ -96,6 +118,72 @@ const executablePath = process.env.SOLOMON_TEST_BROWSER || ["/usr/bin/chromium",
 assert.ok(executablePath, "Install Chromium or set SOLOMON_TEST_BROWSER");
 const browser = await chromium.launch({ executablePath, headless: true, args: ["--no-sandbox"] });
 after(() => browser.close());
+
+test("banked reset retries reuse the request key and refresh the available count", async () => {
+  const page = await browser.newPage();
+  after(() => page.close());
+  page.setDefaultTimeout(10000);
+  const requests = [];
+  let available = 1;
+  await page.route("**/__solomon/provider-quotas", route => route.fulfill({ json: {providers: [{provider: 'ChatGPT Sub', bars: [{label: 'Banked resets', hidePercent: true, detail: available + ' available', availableResets: available}]}]} }));
+  await page.route("**/__solomon/provider-quotas/reset", async route => {
+    requests.push(route.request().postDataJSON());
+    if (requests.length === 1) await route.fulfill({status: 502, json: {error: 'Temporary failure'}});
+    else { available = 0; await route.fulfill({json: {code: 'reset'}}); }
+  });
+  await page.route("**/__tool_fixture", route => route.fulfill({contentType: 'text/html', body: '<div id="settings"></div><div id="chat"></div><script type="module" src="/__tool_fixture.js"></script>'}));
+  await page.goto(`${server.resolvedUrls.local[0]}__tool_fixture`);
+  await page.evaluate(() => window.renderQuota());
+  const useReset = page.getByRole('button', {name: 'Use available reset', exact: true});
+  await useReset.click();
+  await page.getByRole('group', {name: 'Confirm use of banked reset'}).waitFor();
+  assert.equal(requests.length, 0);
+  await page.getByRole('button', {name: 'Cancel', exact: true}).click();
+  assert.equal(await page.getByRole('group', {name: 'Confirm use of banked reset'}).count(), 0);
+  assert.equal(requests.length, 0);
+  await useReset.click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.getByRole('group', {name: 'Confirm use of banked reset'}).count(), 0);
+  assert.equal(requests.length, 0);
+  await useReset.click();
+  await page.getByRole('button', {name: 'Confirm reset', exact: true}).click();
+  await page.getByRole('alert').getByText('Temporary failure', {exact: true}).waitFor();
+  await useReset.click();
+  assert.equal(requests.length, 1);
+  await page.getByRole('button', {name: 'Confirm reset', exact: true}).click();
+  await page.getByText('0 available', {exact: true}).waitFor();
+  assert.equal(await useReset.count(), 0);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].provider, 'ChatGPT Sub');
+  assert.ok(requests[0].idempotencyKey);
+  assert.equal(requests[0].idempotencyKey, requests[1].idempotencyKey);
+});
+
+test("subagent checkpoints stay hidden without horizontal overflow when tool calls collapse", async () => {
+  await writeFile(configPath, baseConfig);
+  const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+  after(() => page.close());
+  page.setDefaultTimeout(10000);
+  await page.route("**/__tool_fixture", route => route.fulfill({
+    contentType: "text/html",
+    body: `<div id="settings"></div><div id="chat" class="chat-view" style="--top-bar-height:0px;--chat-composer-dock-height:100px"></div><script type="module" src="/__tool_fixture.js"></script>`,
+  }));
+  await page.goto(`${server.resolvedUrls.local[0]}__tool_fixture`);
+  await page.evaluate(async () => { await window.setPreferences(true, false); await window.renderSubagent(); });
+  const panel = page.getByRole("dialog", { name: "Subagent chat" });
+  const show = panel.getByRole("button", { name: "Show 94 tool calls", exact: true });
+  await show.waitFor();
+  assert.ok(await panel.locator(".chat-tool-checkpoints-collapsed").count() > 0);
+  for (const width of [1000, 600]) {
+    await page.setViewportSize({ width, height: 800 });
+    assert.equal(await panel.locator(".chat-checkpoint-label:visible, .chat-tool-checkpoints-collapsed:visible").count(), 0);
+    assert.ok(await panel.locator(".chat-subchat-body").evaluate(node => node.scrollWidth <= node.clientWidth));
+  }
+  await show.click();
+  await panel.getByRole("button", { name: "Collapse tool calls", exact: true }).waitFor();
+  assert.equal(await panel.locator(".chat-checkpoint-label:visible").count(), 0);
+  assert.ok(await panel.locator(".chat-subchat-body").evaluate(node => node.scrollWidth <= node.clientWidth));
+});
 
 test("auto-close waits for completion, allows reopening, and persists the setting", async () => {
   const page = await browser.newPage();
@@ -421,10 +509,17 @@ test("dev server controls autosave all three preferences and keep running server
   const directory = page.getByRole("textbox", { name: "GUI source directory", exact: true });
   const port = page.getByRole("spinbutton", { name: "Server port", exact: true });
   await page.waitForFunction(() => document.getElementById("advanced-server_port")?.value === "64000");
+  await page.evaluate(() => import('/src/styles.css'));
   assert.equal(await dev.isDisabled(), true);
-  await directory.fill(sourceDirectory);
+  await dev.hover({ force: true });
+  assert.equal(await dev.getAttribute("aria-busy"), "false");
+  assert.equal(await dev.evaluate(node => getComputedStyle(node).cursor), "default");
+  assert.equal(await page.locator('[aria-label="Advanced settings"] .settings-model-row').first().getByText("Dev server", { exact: true }).count(), 1);
+  assert.equal(await page.getByText("Saving…", { exact: true }).count(), 0);
+  await directory.fill(`"${sourceDirectory}"`);
   await directory.blur();
   await page.waitForFunction(() => !document.querySelector('[aria-labelledby="dev-server-label"]').disabled);
+  assert.equal(await directory.inputValue(), sourceDirectory);
   await dev.click();
   await page.waitForFunction(() => document.querySelector('[aria-labelledby="dev-server-label"]').getAttribute("aria-checked") === "true");
   await port.fill("64500");

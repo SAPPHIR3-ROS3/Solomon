@@ -35,7 +35,7 @@ export function AutoSaveSetting({ id, label, description, saved, save, min, max,
 
   useEffect(() => {
     const previousSaved = previous.current;
-    setValue(current => current === previousSaved || current.trim() === saved ? saved : current);
+    setValue(current => current === previousSaved || current.trim() === saved || current.trim() === attempted.current ? saved : current);
     previous.current = saved;
   }, [saved]);
 

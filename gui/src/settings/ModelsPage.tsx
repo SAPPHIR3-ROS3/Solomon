@@ -16,6 +16,7 @@ import {
 } from "../projects/projects";
 import { InputModeIcons, ProviderIcon } from "../home/ModelControl";
 import { modelLabel } from "../projects/modelLabels";
+import { BankedResetButton } from "../home/BankedResetButton";
 
 type ProviderKind = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -236,6 +237,7 @@ export function ModelsPage() {
                 provider={provider}
                 quota={state.quotas.find((entry) => entry.provider === provider.provider)}
                 quotaNow={quotaNow}
+                onQuotaUpdated={(quotas) => setState(current => ({ ...current, quotas }))}
                 reloginBusy={reloginProvider === provider.provider}
               />
             ))}
@@ -431,12 +433,14 @@ function ProviderRow({
   quota,
   quotaNow,
   reloginBusy,
+  onQuotaUpdated,
 }: {
   onRelogin: () => void;
   provider: ProviderCatalog;
   quota?: ProviderQuota;
   quotaNow: number;
   reloginBusy: boolean;
+  onQuotaUpdated: (quotas: ProviderQuota[]) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const panelId = useId();
@@ -483,6 +487,7 @@ function ProviderRow({
                   <span style={{ width: `${Math.round(bar.percent)}%` }} />
                 </div>
               )}
+              {(bar.availableResets ?? 0) > 0 ? <BankedResetButton provider={provider.provider} available={bar.availableResets!} onUpdated={onQuotaUpdated} /> : null}
             </div>
           ))}
         </div>

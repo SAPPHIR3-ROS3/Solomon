@@ -1,3 +1,4 @@
+import { ProviderQuotaControl } from "../home/ProviderQuotaControl";
 import { usePacedChatMessages } from "./usePacedChatMessages";
 import { chatPresentationKey } from "./chatPresentationKey";
 import { useChatHistoryWindow } from "./useChatHistoryWindow";
@@ -58,6 +59,7 @@ type ChatViewProps = {
 
 export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onSend, onStopTool, onStopStreaming, openSubagentRequest, queuedMessages = [], worktree, workspaceName, workspacePath }: ChatViewProps) {
   const { chat: chatPreferences } = useGUIChatPreferencesState();
+  const [quotaProvider, setQuotaProvider] = useState("");
   const [composerMenu, setComposerMenu] = useState<ChatComposerMenu>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
   const [composerMode, setComposerMode] = useState<"agent" | "chat">(chat.modeSwitchTarget ? "chat" : "agent");
@@ -297,6 +299,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
         <div aria-hidden="true" className="chat-composer-background" />
         <div className="chat-composer">
           <ChatComposer
+            onProviderChange={setQuotaProvider}
             aria-label="Message"
             formRef={composerRef}
             openMenu={composerMenu === "notifications" ? null : composerMenu}
@@ -319,6 +322,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
           {workspaceName ? <span className="chat-readonly-control is-workspace" title={workspacePath}><FolderIcon />{workspaceName}</span> : null}
           {currentBranch ? <span className="chat-readonly-control"><BranchIcon />{currentBranch}</span> : null}
           {currentWorktree ? <span className="chat-readonly-control"><WorktreeIcon />{currentWorktree}</span> : null}
+          <ProviderQuotaControl provider={quotaProvider} open={composerMenu === "quota"} onOpenChange={(open) => setComposerMenu(open ? "quota" : null)} />
           <NotificationControl open={composerMenu === "notifications"} onOpenChange={(open) => setComposerMenu(open ? "notifications" : null)} />
         </div>
       </div>

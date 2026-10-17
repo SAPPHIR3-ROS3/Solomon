@@ -52,3 +52,35 @@ func TestSavedDevServerSettingsControlDefaultStartup(t *testing.T) {
 		t.Fatal("accepted missing dev directory")
 	}
 }
+
+func TestDevServerAcceptsQuotedRepositoryPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLOMON_HOME", home)
+	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte("user_name='Fixture'\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	repository := filepath.Join(home, "Solomon sources")
+	directory := filepath.Join(repository, "gui")
+	if err := os.MkdirAll(filepath.Join(directory, "src"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "package.json"), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []string{repository, `"` + repository + `"`, `"` + directory + `"`} {
+		raw, _ := json.Marshal(input)
+		settings, err := config.UpdateGUIPreferences(config.GUISettingsPatch{Advanced: map[string]json.RawMessage{
+			"server.dev_mode": json.RawMessage("true"), "server.dev_directory": raw,
+		}})
+		if err != nil {
+			t.Fatalf("path %q: %v", input, err)
+		}
+		if settings.Advanced["server.dev_directory"] != directory {
+			t.Fatalf("path not normalized: %#v", settings.Advanced)
+		}
+		mode, source, err := config.ResolveServerDevelopment("normal", "")
+		if err != nil || mode != "dev" || source != directory {
+			t.Fatalf("startup: %s %s %v", mode, source, err)
+		}
+	}
+}

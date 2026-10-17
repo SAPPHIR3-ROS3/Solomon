@@ -313,6 +313,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/model-visibility", modelAPI.handleVisibility)
 	mux.HandleFunc("/__solomon/connect-provider", modelAPI.handleConnectProvider)
 	mux.HandleFunc("/__solomon/provider-quotas", modelAPI.handleQuotas)
+	mux.HandleFunc("/__solomon/provider-quotas/reset", modelAPI.handleQuotaReset)
 	mux.HandleFunc("/__solomon/terminal", terminalAPI.handleWebSocket)
 	if proxy != nil {
 		mux.Handle("/", proxy)

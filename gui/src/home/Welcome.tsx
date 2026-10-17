@@ -1,3 +1,4 @@
+import { ProviderQuotaControl } from "../home/ProviderQuotaControl";
 import { composerDraftKey } from "../chat/composerDrafts";
 import { NotificationControl } from "../notifications/Notifications";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
@@ -55,6 +56,7 @@ type Visibility = {
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
 export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspaceActive = false, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onOpenNewProject, onOpenTemporaryWorkspace, onTemporaryWorkspacePathChange, onSend, onWorkspaceChange, resetToken = 0, temporaryWorkspace = null, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
+  const [quotaProvider, setQuotaProvider] = useState("");
   const [userName, setUserName] = useState(() => getCachedUserName() ?? "");
   const [projects, setProjects] = useState<Project[]>(() => getCachedProjectSidebarData()?.projects ?? []);
   const [homeStats, setHomeStats] = useState(() => getCachedHomeStats());
@@ -341,6 +343,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
         {visibility.composer ? (
           <div className="welcome-composer-dock" ref={composerRef}>
             <ChatComposer
+              onProviderChange={setQuotaProvider}
               aria-label="Ask Solomon"
               initialReasoning="none"
               isSending={isSending}
@@ -375,6 +378,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
                 open={openMenu === "worktree"}
                 project={selectedProject}
               />
+              <ProviderQuotaControl provider={quotaProvider} open={openMenu === "quota"} onOpenChange={(open) => setOpenMenu(open ? "quota" : null)} />
               <NotificationControl open={openMenu === "notifications"} onOpenChange={(open) => setOpenMenu(open ? "notifications" : null)} />
             </div>
           </div>

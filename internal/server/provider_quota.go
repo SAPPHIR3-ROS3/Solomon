@@ -18,10 +18,11 @@ import (
 )
 
 type apiQuotaBar struct {
-	Label       string  `json:"label"`
-	Percent     float64 `json:"percent"`
-	Detail      string  `json:"detail,omitempty"`
-	HidePercent bool    `json:"hidePercent,omitempty"`
+	AvailableResets int     `json:"availableResets,omitempty"`
+	Label           string  `json:"label"`
+	Percent         float64 `json:"percent"`
+	Detail          string  `json:"detail,omitempty"`
+	HidePercent     bool    `json:"hidePercent,omitempty"`
 }
 
 type apiProviderQuota struct {
@@ -323,7 +324,7 @@ func quotaBarsFromChatGPTResetCredits(payload any) []apiQuotaBar {
 			detail += " (" + formatDuration(int64(seconds)) + ")"
 		}
 	}
-	return []apiQuotaBar{{Label: "Banked resets", Detail: detail, HidePercent: true}}
+	return []apiQuotaBar{{Label: "Banked resets", Detail: detail, HidePercent: true, AvailableResets: max(0, int(count))}}
 }
 
 func resetCreditsBlock(payload any) map[string]any {

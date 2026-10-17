@@ -408,9 +408,10 @@ func clampPercent(value float64) float64 {
 
 // QuotaBarForTest is a narrow test view of a provider quota bar.
 type QuotaBarForTest struct {
-	Label   string
-	Percent float64
-	Detail  string
+	AvailableResets int
+	Label           string
+	Percent         float64
+	Detail          string
 }
 
 // QuotaBarsForTest exposes the pure parser to external package tests.
@@ -418,7 +419,7 @@ func QuotaBarsForTest(payload any, kind string) []QuotaBarForTest {
 	bars := quotaBarsFromPayload(payload, kind)
 	out := make([]QuotaBarForTest, len(bars))
 	for i, bar := range bars {
-		out[i] = QuotaBarForTest{Label: bar.Label, Percent: bar.Percent, Detail: bar.Detail}
+		out[i] = QuotaBarForTest{Label: bar.Label, Percent: bar.Percent, Detail: bar.Detail, AvailableResets: bar.AvailableResets}
 	}
 	return out
 }

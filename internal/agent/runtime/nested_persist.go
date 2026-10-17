@@ -169,7 +169,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 				msgs = append(msgs, chatstore.Message{Role: "user", Content: r.toolInvocationCorrectionForError(err)})
 				continue
 			}
-			logging.Log(logging.ERROR_LOG_LEVEL, "subagent assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			if !errors.Is(err, context.Canceled) {
+				logging.Log(logging.ERROR_LOG_LEVEL, "subagent assistant stream failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			}
 			sess.Status = chatstore.SubStatusPaused
 			sess.Messages = msgs
 			_ = r.persistSubSession(sess)

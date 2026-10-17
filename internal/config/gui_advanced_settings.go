@@ -43,6 +43,9 @@ func validateGUIAdvancedSettings(patch map[string]json.RawMessage) error {
 				return fmt.Errorf("server.dev_directory requires a string")
 			}
 			directory = strings.TrimSpace(directory)
+			if len(directory) >= 2 && ((directory[0] == '"' && directory[len(directory)-1] == '"') || (directory[0] == '\'' && directory[len(directory)-1] == '\'')) {
+				directory = directory[1 : len(directory)-1]
+			}
 			if len(directory) > 256 || strings.ContainsAny(directory, "\r\n\x00") {
 				return fmt.Errorf("GUI source directory must be a single-line path of at most 256 bytes")
 			}

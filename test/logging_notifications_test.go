@@ -45,3 +45,18 @@ func TestLoggedErrorIsNotDuplicatedByJournalAndFile(t *testing.T) {
 		t.Fatalf("duplicate history: %#v, %v", entries, err)
 	}
 }
+
+func TestNotificationPreservesBracketedContinuationLines(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(logging.IsolateNotificationsForTest(dir))
+	message := "Failure\n[compiler output]\nmore details"
+	logging.RecordNotificationAtForTest("2025-01-01T10:00:00Z", "error", message)
+	legacy := "[2025-01-01T10:00:00Z][ERROR][test.go][test] " + message + "\n[2025-01-01T11:00:00Z][INFO][test.go][test] Done\n"
+	if err := os.WriteFile(filepath.Join(dir, "2025-01-01.log"), []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := logging.ReadNotifications()
+	if err != nil || len(entries) != 1 || entries[0].Message != message {
+		t.Fatalf("truncated or duplicated notification: %#v, %v", entries, err)
+	}
+}

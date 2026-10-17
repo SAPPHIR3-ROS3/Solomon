@@ -86,6 +86,7 @@ export type ModelCatalog = {
 };
 
 export type QuotaBar = {
+  availableResets?: number;
   detail?: string;
   hidePercent?: boolean;
   label: string;
@@ -98,6 +99,17 @@ export type ProviderQuota = {
   error: string;
   provider: string;
 };
+
+export async function consumeProviderReset(provider: string, idempotencyKey: string): Promise<string> {
+  const response = await fetch(await serverEndpoint("/__solomon/provider-quotas/reset"), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider, idempotencyKey }), signal: AbortSignal.timeout(20000),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "Unable to use reset.");
+  if (!["reset", "already_redeemed", "nothing_to_reset", "no_credit"].includes(payload.code)) throw new Error("Unexpected reset response.");
+  return payload.code;
+}
 
 const PROVIDER_QUOTA_CACHE_KEY = "solomon:provider-quotas";
 const quotaStampPattern = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2})(?: \([^)]*\))?/g;
@@ -151,7 +163,8 @@ function providerQuotasFromPayload(payload: unknown): ProviderQuota[] {
           const percent = "percent" in bar && typeof bar.percent === "number" ? Math.max(0, Math.min(100, bar.percent)) : 0;
           const detail = "detail" in bar && typeof bar.detail === "string" ? bar.detail : undefined;
           const hidePercent = "hidePercent" in bar && bar.hidePercent === true;
-          return [{ detail, hidePercent, label: bar.label, percent }];
+          const availableResets = "availableResets" in bar && typeof bar.availableResets === "number" ? Math.max(0, Math.floor(bar.availableResets)) : 0;
+          return [{ detail, hidePercent, label: bar.label, percent, availableResets }];
         })
       : [];
     return [{ canRelogin: "canRelogin" in entry && entry.canRelogin === true, provider: entry.provider, error: "error" in entry && typeof entry.error === "string" ? entry.error : "", bars }];

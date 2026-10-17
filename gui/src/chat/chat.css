@@ -166,7 +166,9 @@
 .chat-subchat-collapse:hover { background: var(--color-surface-raised); color: var(--color-text); }
 .chat-subchat-collapse:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .chat-subchat-collapse svg { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; transform: scaleX(-1); width: 16px; }
-.chat-subchat-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: 22px; min-height: 0; overflow: auto; padding: 24px; scrollbar-color: var(--color-border) transparent; scrollbar-width: var(--app-scrollbar-width, thin); }
+.chat-subchat-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: 22px; min-height: 0; min-width: 0; overflow-x: hidden; overflow-y: auto; padding: 24px; scrollbar-color: var(--color-border) transparent; scrollbar-width: var(--app-scrollbar-width, thin); }
+.chat-subchat-transcript .chat-checkpoint-label,
+.chat-subchat-transcript .chat-tool-checkpoints-collapsed { display: none; }
 .chat-subchat-body::-webkit-scrollbar { width: 10px; }
 .chat-subchat-body::-webkit-scrollbar-track { background: transparent; }
 .chat-subchat-body::-webkit-scrollbar-thumb { background: var(--color-border); background-clip: padding-box; border: 3px solid transparent; border-radius: 999px; }

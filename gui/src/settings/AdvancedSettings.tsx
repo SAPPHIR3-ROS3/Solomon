@@ -4,7 +4,7 @@ import { setAdvancedSetting, useGUIChatPreferencesState } from "./chatPreference
 
 const fields = [
   { key: "server_port", label: "Server port", description: "TCP port used at the next server startup.", min: 1, max: 65535 },
-  { key: "server.dev_directory", label: "GUI source directory", description: "Absolute path to the GUI project containing package.json and src. Used by the dev server at its next startup.", allowEmpty: true },
+  { key: "server.dev_directory", label: "GUI source directory", description: "Absolute path to the Solomon repository or its gui folder (containing package.json and src). Windows paths copied with quotes are accepted. Save this path before enabling the dev server.", allowEmpty: true },
   { key: "compaction_threshold_tokens", label: "Compaction threshold", description: "Conversation tokens before automatic context compaction.", min: 32768, max: 1048576 },
   { key: "subagent_timeout_minutes", label: "Subagent timeout", description: "Maximum duration of a subagent run, in minutes.", min: 1, max: 180 },
   { key: "log_level", label: "Log level", description: "Logging verbosity. Takes effect at the next application startup.", options: ["error", "warning", "info", "debug", "result"] },
@@ -35,24 +35,27 @@ function DevServerSetting() {
   const [saving, setSaving] = useState(false);
   const enabled = preferences.advanced["server.dev_mode"] === true;
   const hasDirectory = typeof preferences.advanced["server.dev_directory"] === "string" && preferences.advanced["server.dev_directory"].trim().length > 0;
+  const busy = (!preferences.ready && !preferences.error) || preferences.saving || saving;
   return <div className="settings-model-row settings-language-row">
     <div className="settings-model-row-copy">
       <strong id="dev-server-label">Dev server</strong>
-      <small id="dev-server-description">Enable Vite development mode at the next server startup. Configure a GUI source directory first.</small>
+      <small id="dev-server-description">{!hasDirectory ? "Set and save the GUI source directory below to unlock this switch." : enabled ? "Dev mode is saved. Restart the Solomon server to apply it (solomon server restart). Closing and reopening the app keeps the current server running." : "Enable Vite development mode, then restart the Solomon server to apply it (solomon server restart). Install the GUI dependencies with npm install in the GUI source directory first."}</small>
     </div>
     <div className="settings-language-controls">
       {saving ? <small className="settings-save-status" aria-live="polite">Saving…</small> : null}
       <button
+        aria-busy={busy}
         aria-checked={enabled}
         aria-describedby="dev-server-description"
         aria-labelledby="dev-server-label"
         className={`settings-model-toggle${enabled ? " is-enabled" : ""}`}
-        disabled={!preferences.ready || preferences.saving || !hasDirectory}
+        disabled={!preferences.ready || preferences.saving || saving || (!enabled && !hasDirectory)}
         onClick={() => {
           setSaving(true);
           void setAdvancedSetting("server.dev_mode", !enabled).catch(() => {}).finally(() => setSaving(false));
         }}
         role="switch"
+        title={!hasDirectory && !enabled ? "Set and save the GUI source directory first" : undefined}
         type="button"
       ><span /></button>
     </div>

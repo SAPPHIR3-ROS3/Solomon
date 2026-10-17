@@ -30,6 +30,7 @@ export type ChatComposerProps = {
   mode?: "agent" | "chat";
   modeSwitchPending?: boolean;
   openMenu?: ChatComposerMenu;
+  onProviderChange?: (provider: string) => void;
   onModeChange?: (mode: "agent" | "chat") => void;
   onOpenMenuChange?: (menu: ChatComposerMenu) => void;
   onSend?: (content: string, images: ComposerImageAttachment[], clips?: ComposerTerminalClip[]) => void | Promise<void>;
@@ -41,7 +42,7 @@ export type ChatComposerProps = {
   draftKey?: string;
 };
 
-export type ChatComposerMenu = "model" | "reasoning" | "notifications" | null;
+export type ChatComposerMenu = "model" | "reasoning" | "notifications" | "quota" | null;
 
 export function ChatComposer({
   "aria-label": ariaLabel,
@@ -57,6 +58,7 @@ export function ChatComposer({
   openMenu: controlledOpenMenu,
   onFastModeChange,
   onModeChange,
+  onProviderChange,
   onOpenMenuChange,
   onReasoningChange,
   onSend,
@@ -237,6 +239,7 @@ export function ChatComposer({
             }}
             onModelChange={(choice) => {
               setSelectedProvider(choice.provider);
+              onProviderChange?.(choice.provider);
             }}
             onOpenChange={(open) => setOpenMenu(open ? "model" : null)}
             open={openMenu === "model"}

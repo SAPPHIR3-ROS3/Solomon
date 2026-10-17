@@ -17,6 +17,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon/server/detach"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
@@ -212,6 +213,17 @@ func runProcess(mode, devDir string) error {
 	// runtime (notably the background MCP connector) logs from goroutines, so
 	// initialize logging before starting the HTTP service.
 	logging.LogInit(logging.INFO_LOG_LEVEL)
+	home, err := paths.SolomonHome()
+	if err != nil {
+		return err
+	}
+	// Server commands bypass main's logging configuration. The notification
+	// journal and historical log reader still need the shared log directory.
+	if err := logging.Configure(logging.Config{
+		Dir: filepath.Join(home, "logs"), WriteConsole: true, WriteFile: true, Retention: 7,
+	}); err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := serverruntime.Run(ctx, serverruntime.Options{Mode: mode, DevDir: devDir}); err != nil && !errors.Is(err, http.ErrServerClosed) {
