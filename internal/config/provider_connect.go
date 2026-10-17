@@ -209,7 +209,7 @@ func readCompatibleAPIProvider(pio PromptIO, opts ProviderSetupOpts, protocol, d
 	if err := rejectReservedProviderName(provNameLine); err != nil {
 		return Provider{}, nil, err
 	}
-	basePrompt := "Base URL e.g. " + defaultBaseHint
+	basePrompt := "Base URL e.g. " + defaultBaseHint + " or IP:port (e.g. 192.168.1.10:1234, defaults to HTTP)"
 	var base, key string
 	if opts.RequireProvider {
 		base, err = readRequired(pio, basePrompt+": ")

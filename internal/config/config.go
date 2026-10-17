@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -421,12 +423,36 @@ func (p *Provider) IsAnthropic() bool {
 	return p != nil && p.EffectiveAPIProtocol() == APIProtocolAnthropic
 }
 
+// providerBaseWithScheme accepts bare IP addresses and host:port endpoints for
+// local or self-hosted providers. Explicit URL schemes are validated by callers.
+func providerBaseWithScheme(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if strings.Contains(raw, "://") {
+		return raw
+	}
+	u, err := url.Parse("http://" + raw)
+	if err != nil || u.User != nil {
+		return raw
+	}
+	if host, port, err := net.SplitHostPort(u.Host); err == nil && host != "" {
+		if n, err := strconv.Atoi(port); err == nil && n > 0 && n <= 65535 {
+			return "http://" + raw
+		}
+	}
+	if net.ParseIP(u.Hostname()) != nil || u.Host == "localhost" {
+		if u.Port() == "" {
+			return "http://" + raw
+		}
+	}
+	return raw
+}
+
 func NormalizeAnthropicBase(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", errors.New("empty base url")
 	}
-	u, err := url.Parse(raw)
+	u, err := url.Parse(providerBaseWithScheme(raw))
 	if err != nil {
 		return "", err
 	}
@@ -452,7 +478,7 @@ func NormalizeAPIBase(raw string) (string, error) {
 	if raw == "" {
 		return "", errors.New("empty base url")
 	}
-	u, err := url.Parse(raw)
+	u, err := url.Parse(providerBaseWithScheme(raw))
 	if err != nil {
 		return "", err
 	}

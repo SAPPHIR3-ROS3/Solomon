@@ -404,7 +404,8 @@ function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: 
         </>
       ) : (
         <>
-          {needsAPIFields ? <label><span>Base URL</span><input onChange={(event) => setBaseURL(event.target.value)} placeholder="https://api.example.com/v1" required type="url" value={baseURL} /></label> : null}
+          {needsAPIFields ? <label><span>Base URL or IP:port</span><input onChange={(event) => setBaseURL(event.target.value)} placeholder="https://api.example.com/v1 or 192.168.1.10:1234" required type="text" autoCapitalize="none" spellCheck={false} value={baseURL} /></label> : null}
+          {needsAPIFields ? <p className="settings-provider-form-note">IP addresses and host:port use HTTP by default. Include https:// to use HTTPS.</p> : null}
           {needsAPIKey ? <label><span>API key</span><input onChange={(event) => setAPIKey(event.target.value)} placeholder="Enter API key" required type="password" value={apiKey} /></label> : null}
           {(kind === 1 || kind === 4 || kind === 5) ? <p className="settings-provider-form-note">Solomon will open the provider sign-in flow in your browser.</p> : null}
         </>
