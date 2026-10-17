@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { FolderIcon } from "./ChatIcons";
 
-export function ChatTopbar({ breadcrumb, onOpenFolder, title }: { breadcrumb?: string; onOpenFolder: () => void; title: string }) {
+export function ChatTopbar({ breadcrumb, onOpenFolder, onTitleContextMenu, title }: { breadcrumb?: string; onOpenFolder: () => void; onTitleContextMenu?: (x: number, y: number) => void; title: string }) {
   const topbarRef = useRef<HTMLDivElement>(null);
   const contextRef = useRef<HTMLButtonElement>(null);
   const folderName = breadcrumb ?? "Project";
@@ -44,7 +44,18 @@ export function ChatTopbar({ breadcrumb, onOpenFolder, title }: { breadcrumb?: s
         <span className="chat-topbar-folder">{folderName}</span>
         <span aria-hidden="true" className="chat-topbar-slash">/</span>
       </button>
-      <span className="chat-topbar-title" title={title}>{visibleTitle}</span>
+      <span className="chat-topbar-title" title={title} tabIndex={onTitleContextMenu ? 0 : undefined} aria-haspopup={onTitleContextMenu ? "menu" : undefined}
+        onContextMenu={onTitleContextMenu ? (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onTitleContextMenu(event.clientX, event.clientY);
+        } : undefined}
+        onKeyDown={onTitleContextMenu ? (event) => {
+          if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+          event.preventDefault();
+          const rect = event.currentTarget.getBoundingClientRect();
+          onTitleContextMenu(rect.left + 12, rect.bottom + 4);
+        } : undefined}>{visibleTitle}</span>
     </div>
   );
 }

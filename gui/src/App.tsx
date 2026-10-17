@@ -4,6 +4,7 @@ import { type CSSProperties, useCallback, useEffect, useRef, useState } from "re
 import { detectClient, initialClient } from "./platform";
 import { ActiveAgentsPage, prefetchActiveAgents, type ActiveAgentNode } from "./shell/ActiveAgentsPage";
 import { useAppUpdate } from "./shell/useAppUpdate";
+import { useChatContextMenu } from "./shell/useChatContextMenu";
 import { SidePanel } from "./shell/SidePanel";
 import { SidePanelToggle } from "./shell/SidePanelToggle";
 import { RightSidePanel } from "./shell/RightSidePanel";
@@ -76,6 +77,7 @@ export function App() {
     viewportHeight - (welcomeKeepAliveHeight > 0 ? welcomeKeepAliveHeight : FALLBACK_KEEP_ALIVE_HEIGHT),
   );
   const chatRuntime = useChatRuntime();
+  const chatContextMenu = useChatContextMenu({ onRenameChat: chatRuntime.renameChat, onDeleteChat: chatRuntime.deleteChat });
   const {
     selectedChat,
     isLoading: isChatLoading,
@@ -463,8 +465,7 @@ export function App() {
           onOpenTemporaryWorkspace={openTemporaryWorkspace}
           onOpenProjectChat={openProjectChat}
           onOpenProjectTerminal={openProjectTerminal}
-          onRenameChat={chatRuntime.renameChat}
-          onDeleteChat={chatRuntime.deleteChat}
+          onOpenChatContextMenu={chatContextMenu.open}
           onOpenSettings={openSettings}
           onToggleActiveAgents={toggleActiveAgents}
           onToggleCustomization={toggleCustomization}
@@ -531,6 +532,7 @@ export function App() {
           onOpenFolder={() => {
             if (selectedWorkspace) openProjectNewChat(selectedWorkspace);
           }}
+          onTitleContextMenu={selectedChat.projectID ? (x, y) => chatContextMenu.open(selectedChat.projectID!, selectedChat.id, selectedChat.title, x, y) : undefined}
           title={selectedChat.title}
         />
       ) : null}
@@ -563,6 +565,7 @@ export function App() {
       ) : null}
       <NotificationToasts />
       <LinkContextMenu />
+      {chatContextMenu.menu}
       {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedResearch ? (
         <ResearchReportView bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0} project={selectedResearch.project} research={selectedResearch.research} />
       ) : null}

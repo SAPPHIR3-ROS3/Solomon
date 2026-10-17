@@ -1,3 +1,4 @@
+import type { OpenChatContextMenu } from "./useChatContextMenu";
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCachedProjectSidebarData, getCachedUserName, PROJECTS_CHANGED_EVENT, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
@@ -10,8 +11,6 @@ const INITIAL_CHAT_LIMIT = 5;
 const MIN_SCROLL_THUMB_HEIGHT = 28;
 const PROJECT_CONTEXT_MENU_HEIGHT = 158;
 const PROJECT_CONTEXT_MENU_WIDTH = 200;
-const CHAT_CONTEXT_MENU_HEIGHT = 120;
-const CHAT_CONTEXT_MENU_WIDTH = 200;
 const PROJECT_CONTEXT_MENU_EDGE_GAP = 8;
 const ACTIVE_AGENT_POLL_MS = 1000;
 
@@ -19,20 +18,6 @@ type ProjectContextMenu = {
   project: Project;
   x: number;
   y: number;
-};
-
-type ChatContextMenu = {
-  chatID: string;
-  projectID: string;
-  title: string;
-  x: number;
-  y: number;
-};
-
-type ChatDeletionDialog = {
-  chatID: string;
-  projectID: string;
-  title: string;
 };
 
 type ProjectRemovalDialog = {
@@ -51,8 +36,7 @@ type SidePanelProps = {
   onOpenTemporaryWorkspace: () => void;
   onOpenProjectChat: (project: Project, chatID: string) => void;
   onOpenProjectTerminal: (project: Project) => void;
-  onRenameChat: (projectID: string, chatID: string, title: string) => Promise<void>;
-  onDeleteChat: (projectID: string, chatID: string) => Promise<void>;
+  onOpenChatContextMenu: OpenChatContextMenu;
   onOpenSettings: () => void;
   onToggleActiveAgents: () => void;
   onToggleCustomization: () => void;
@@ -75,8 +59,7 @@ export function SidePanel({
   onOpenTemporaryWorkspace,
   onOpenProjectChat,
   onOpenProjectTerminal,
-  onRenameChat,
-  onDeleteChat,
+  onOpenChatContextMenu,
   onOpenSettings,
   onToggleActiveAgents,
   onToggleCustomization,
@@ -90,10 +73,6 @@ export function SidePanel({
   const [projects, setProjects] = useState<Project[]>(() => getCachedProjectSidebarData()?.projects ?? []);
   const [activeAgentChatIDs, setActiveAgentChatIDs] = useState<ReadonlySet<string>>(() => new Set());
   const [projectContextMenu, setProjectContextMenu] = useState<ProjectContextMenu | null>(null);
-  const [chatContextMenu, setChatContextMenu] = useState<ChatContextMenu | null>(null);
-  const [chatDeletionDialog, setChatDeletionDialog] = useState<ChatDeletionDialog | null>(null);
-  const [chatDeletionError, setChatDeletionError] = useState("");
-  const [isDeletingChat, setIsDeletingChat] = useState(false);
   const [projectRemovalDialog, setProjectRemovalDialog] = useState<ProjectRemovalDialog | null>(null);
   const [projectRemovalError, setProjectRemovalError] = useState("");
   const [projectRemovalInfo, setProjectRemovalInfo] = useState<ProjectRemovalInfo | null>(null);
@@ -110,7 +89,6 @@ export function SidePanel({
   const [isSavingUserName, setIsSavingUserName] = useState(false);
   const [userNameError, setUserNameError] = useState("");
   const userNameInputRef = useRef<HTMLInputElement>(null);
-  const chatDeleteCancelRef = useRef<HTMLButtonElement>(null);
   const projectsListRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -211,11 +189,10 @@ export function SidePanel({
   }, [bottomInset, openProjectIds, projects, temporaryWorkspace?.id, visibleChatCounts]);
 
   useEffect(() => {
-    if (!projectContextMenu && !chatContextMenu) return;
+    if (!projectContextMenu) return;
 
     const closeMenu = () => {
       setProjectContextMenu(null);
-      setChatContextMenu(null);
     };
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") closeMenu();
@@ -228,42 +205,13 @@ export function SidePanel({
       window.removeEventListener("resize", closeMenu);
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [chatContextMenu, projectContextMenu]);
-
-  useEffect(() => {
-    if (!chatDeletionDialog) return;
-
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape" && !isDeletingChat) {
-        setChatDeletionDialog(null);
-        setChatDeletionError("");
-      }
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    const focusTimer = !isDeletingChat ? window.setTimeout(() => chatDeleteCancelRef.current?.focus(), 0) : undefined;
-    return () => {
-      document.removeEventListener("keydown", closeOnEscape);
-      if (focusTimer !== undefined) window.clearTimeout(focusTimer);
-    };
-  }, [chatDeletionDialog, isDeletingChat]);
+  }, [projectContextMenu]);
 
   function openProjectContextMenu(project: Project, x: number, y: number) {
-    setChatContextMenu(null);
     setProjectContextMenu({
       project,
       x: Math.max(PROJECT_CONTEXT_MENU_EDGE_GAP, Math.min(x, window.innerWidth - PROJECT_CONTEXT_MENU_WIDTH - PROJECT_CONTEXT_MENU_EDGE_GAP)),
       y: Math.max(PROJECT_CONTEXT_MENU_EDGE_GAP, Math.min(y, window.innerHeight - PROJECT_CONTEXT_MENU_HEIGHT - PROJECT_CONTEXT_MENU_EDGE_GAP)),
-    });
-  }
-
-  function openChatContextMenu(projectID: string, chatID: string, title: string, x: number, y: number) {
-    setProjectContextMenu(null);
-    setChatContextMenu({
-      chatID,
-      projectID,
-      title,
-      x: Math.max(PROJECT_CONTEXT_MENU_EDGE_GAP, Math.min(x, window.innerWidth - CHAT_CONTEXT_MENU_WIDTH - PROJECT_CONTEXT_MENU_EDGE_GAP)),
-      y: Math.max(PROJECT_CONTEXT_MENU_EDGE_GAP, Math.min(y, window.innerHeight - CHAT_CONTEXT_MENU_HEIGHT - PROJECT_CONTEXT_MENU_EDGE_GAP)),
     });
   }
 
@@ -282,14 +230,16 @@ export function SidePanel({
   function handleChatContextMenu(event: MouseEvent<HTMLButtonElement>, projectID: string, chatID: string, title: string) {
     event.preventDefault();
     event.stopPropagation();
-    openChatContextMenu(projectID, chatID, title, event.clientX, event.clientY);
+    setProjectContextMenu(null);
+    onOpenChatContextMenu(projectID, chatID, title, event.clientX, event.clientY);
   }
 
   function handleChatContextMenuKey(event: KeyboardEvent<HTMLButtonElement>, projectID: string, chatID: string, title: string) {
     if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
-    openChatContextMenu(projectID, chatID, title, rect.left + 12, rect.bottom + 4);
+    setProjectContextMenu(null);
+    onOpenChatContextMenu(projectID, chatID, title, rect.left + 12, rect.bottom + 4);
   }
 
   function renameProject(project: Project) {
@@ -306,55 +256,6 @@ export function SidePanel({
     } catch {
       // The clipboard is unavailable on some non-secure browser previews.
       window.prompt("Copy absolute path", path);
-    }
-  }
-
-  async function copyChatID(chatID: string) {
-    try {
-      await navigator.clipboard.writeText(chatID);
-    } catch {
-      // The clipboard is unavailable on some non-secure browser previews.
-      window.prompt("Copy chat ID", chatID);
-    }
-  }
-
-  function renameChatFromContextMenu() {
-    if (!chatContextMenu) return;
-    const menu = chatContextMenu;
-    const title = window.prompt("Thread name", menu.title)?.trim();
-    setChatContextMenu(null);
-    if (!title || title === menu.title) return;
-    void onRenameChat(menu.projectID, menu.chatID, title).catch(() => {
-      // The main app displays the request error.
-    });
-  }
-
-  function deleteChatFromContextMenu() {
-    if (!chatContextMenu) return;
-    const menu = chatContextMenu;
-    setChatContextMenu(null);
-    setChatDeletionError("");
-    setChatDeletionDialog({ chatID: menu.chatID, projectID: menu.projectID, title: menu.title });
-  }
-
-  function cancelChatDeletion() {
-    if (isDeletingChat) return;
-    setChatDeletionDialog(null);
-    setChatDeletionError("");
-  }
-
-  async function confirmChatDeletion() {
-    if (!chatDeletionDialog || isDeletingChat) return;
-    const dialog = chatDeletionDialog;
-    setIsDeletingChat(true);
-    setChatDeletionError("");
-    try {
-      await onDeleteChat(dialog.projectID, dialog.chatID);
-      setChatDeletionDialog(null);
-    } catch (reason: unknown) {
-      setChatDeletionError(reason instanceof Error ? reason.message : "Unable to delete chat");
-    } finally {
-      setIsDeletingChat(false);
     }
   }
 
@@ -676,58 +577,6 @@ export function SidePanel({
           <button className="is-danger" onClick={() => { openProjectRemovalDialog(projectContextMenu.project, true); setProjectContextMenu(null); }} role="menuitem" type="button">
             Remove from disk
           </button>
-        </div>
-      ) : null}
-      {chatContextMenu ? (
-        <div
-          aria-label={`Actions for ${chatContextMenu.title}`}
-          className="project-context-menu"
-          onPointerDown={(event) => event.stopPropagation()}
-          role="menu"
-          style={{ left: chatContextMenu.x, top: chatContextMenu.y }}
-        >
-          <button onClick={() => { void copyChatID(chatContextMenu.chatID); setChatContextMenu(null); }} role="menuitem" type="button">
-            Copy chat ID
-          </button>
-          <button onClick={renameChatFromContextMenu} role="menuitem" type="button">
-            Rename thread
-          </button>
-          <div className="project-context-menu-divider" role="separator" />
-          <button className="is-danger" onClick={deleteChatFromContextMenu} role="menuitem" type="button">
-            Delete chat
-          </button>
-        </div>
-      ) : null}
-      {chatDeletionDialog ? (
-        <div
-          className="chat-delete-dialog-backdrop"
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) cancelChatDeletion();
-          }}
-          role="presentation"
-        >
-          <section
-            aria-describedby="chat-sidebar-delete-dialog-description"
-            aria-labelledby="chat-sidebar-delete-dialog-title"
-            aria-modal="true"
-            className="chat-delete-dialog"
-            onPointerDown={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <div aria-hidden="true" className="chat-delete-dialog-marker">!</div>
-            <p className="chat-delete-dialog-eyebrow">Delete confirmation</p>
-            <h2 id="chat-sidebar-delete-dialog-title">Delete this chat?</h2>
-            <p id="chat-sidebar-delete-dialog-description">
-              This permanently removes <strong>{chatDeletionDialog.title}</strong> and all its messages. This action cannot be undone.
-            </p>
-            {chatDeletionError ? <p className="chat-delete-dialog-error" role="alert">{chatDeletionError}</p> : null}
-            <div className="chat-delete-dialog-actions">
-              <button disabled={isDeletingChat} onClick={cancelChatDeletion} ref={chatDeleteCancelRef} type="button">Cancel</button>
-              <button className="is-danger" disabled={isDeletingChat} onClick={() => void confirmChatDeletion()} type="button">
-                {isDeletingChat ? "Deleting…" : "Delete chat"}
-              </button>
-            </div>
-          </section>
         </div>
       ) : null}
       {projectRemovalDialog ? (
