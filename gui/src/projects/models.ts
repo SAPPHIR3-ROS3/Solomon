@@ -12,6 +12,8 @@ let visibilityWriteQueue: Promise<void> = Promise.resolve();
 let visibilityRevision = 0;
 const visibilityEdits = new Map<string, ModelVisibility & { revision: number }>();
 
+export const MODEL_CATALOG_CHANGED_EVENT = "solomon:model-catalog-changed";
+
 export function invalidateModelCatalogCache(): void {
   modelCatalogCache = null;
   modelCatalogCacheNeedsRefresh = false;
@@ -262,6 +264,7 @@ function startModelCatalogRequest(forceRefresh = false): Promise<ModelCatalog> {
       modelCatalogCacheNeedsRefresh = false;
       cacheModelCatalog(catalog);
       if (catalog.current.provider && catalog.current.model) cacheCurrentModel(catalog.current);
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<ModelCatalog>(MODEL_CATALOG_CHANGED_EVENT, { detail: catalog }));
       return catalog;
     })
     .catch((reason: unknown) => {
@@ -350,6 +353,7 @@ export async function connectProvider(request: ConnectProviderRequest): Promise<
     const detail = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Unable to connect provider";
     throw new Error(detail);
   }
+  invalidateModelCatalogCache();
   return modelChoiceFromPayload(await response.json());
 }
 

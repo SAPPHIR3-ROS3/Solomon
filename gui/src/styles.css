@@ -2328,6 +2328,11 @@ button.right-side-panel-history-ref:hover {
   z-index: 10;
 }
 
+.settings-provider-modal-backdrop.is-viewport {
+  position: fixed;
+  z-index: 40;
+}
+
 .settings-provider-modal {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

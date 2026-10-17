@@ -26,6 +26,7 @@ export {
   saveCurrentModel,
   setModelEnabled,
   connectProvider,
+  MODEL_CATALOG_CHANGED_EVENT,
 } from "./models";
 export type { ConnectProviderRequest, ModelCatalog, ModelChoice, ModelInfo, ModelVisibility, ProviderCatalog, ProviderQuota, QuotaBar } from "./models";
 export { fetchProviderQuotas } from "./models";

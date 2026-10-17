@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
+  connectProvider,
   fetchModelCatalog,
+  MODEL_CATALOG_CHANGED_EVENT,
   getCachedModelCatalog,
   getCachedCurrentModel,
   saveCurrentModel,
   type ModelCatalog,
   type ModelChoice,
 } from "../projects/projects";
+import type { AddProviderRequest } from "../settings/ModelsPage";
 import "./welcome-model.css";
 import { modelLabel } from "../projects/modelLabels";
 
@@ -65,6 +69,8 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
   const [loadError, setLoadError] = useState(false);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [isAddingProvider, setIsAddingProvider] = useState(false);
+  const [addProviderError, setAddProviderError] = useState("");
 
   function notifyModelChange(choice: ModelChoice, sourceCatalog = catalog) {
     const normalizedProvider = choice.provider.trim().toLowerCase();
@@ -73,6 +79,18 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
     onReasoningModeChange?.(modelReasoningMode(provider, choice.model));
     onModelChange?.(choice);
   }
+
+  useEffect(() => {
+    const applyCatalog = (event: Event) => {
+      const data = (event as CustomEvent<ModelCatalog>).detail;
+      if (!data?.providers) return;
+      setCatalog(data);
+      setLoadError(false);
+      setCatalogLoaded(true);
+    };
+    window.addEventListener(MODEL_CATALOG_CHANGED_EVENT, applyCatalog);
+    return () => window.removeEventListener(MODEL_CATALOG_CHANGED_EVENT, applyCatalog);
+  }, []);
 
   useEffect(() => {
     if (catalogLoaded) return;
@@ -151,6 +169,21 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
     return source.filter((choice) => modelMatchesQuery(choice.provider, choice.model, needle));
   }, [activeGroup, activeProvider, catalog.providers, query, showingRecents, visibleRecentModels]);
 
+  const noProviders = catalogLoaded && !catalogLoading && catalog.providers.length === 0;
+
+  async function submitProvider(request: AddProviderRequest) {
+    setAddProviderError("");
+    try {
+      await connectProvider(request);
+      const next = await fetchModelCatalog(true);
+      setCatalog(next);
+      setCatalogLoaded(true);
+      setIsAddingProvider(false);
+    } catch (error) {
+      setAddProviderError(error instanceof Error ? error.message : "Unable to connect provider.");
+    }
+  }
+
   async function selectModel(choice: ModelChoice) {
     const previous = selected;
     setSelected(choice);
@@ -175,6 +208,11 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
         aria-label="Select model"
         className="welcome-model-trigger"
         onClick={() => {
+          if (noProviders) {
+            setAddProviderError("");
+            setIsAddingProvider(true);
+            return;
+          }
           const next = !isOpen;
           setOpen(next);
           if (next) {
@@ -267,6 +305,10 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
           </div>
         </div>
       ) : null}
+      {isAddingProvider ? createPortal(
+        <AddProviderDialog error={addProviderError} onClose={() => setIsAddingProvider(false)} onSubmit={(request) => void submitProvider(request)} />,
+        document.body,
+      ) : null}
     </div>
   );
 }
@@ -313,6 +355,19 @@ function InputModeIcon({ mode }: { mode: string }) {
       <path d="M3.5 5.3h6v5.4h-6zM9.5 7l2.8-1.5v5L9.5 9z" />
     </svg>
   );
+}
+
+function AddProviderDialog({ error, onClose, onSubmit }: { error?: string; onClose: () => void; onSubmit: (request: AddProviderRequest) => void }) {
+  const [Dialog, setDialog] = useState<typeof import("../settings/ModelsPage").AddProviderModal | null>(null);
+  useEffect(() => {
+    let active = true;
+    void import("../settings/ModelsPage").then((module) => {
+      if (active) setDialog(() => module.AddProviderModal);
+    });
+    return () => { active = false; };
+  }, []);
+  if (!Dialog) return null;
+  return <Dialog error={error} onClose={onClose} onSubmit={onSubmit} />;
 }
 
 function firstChoice(catalog: ModelCatalog): ModelChoice {

@@ -117,15 +117,6 @@ export function ModelsPage() {
     void loadCatalog();
   }, []);
 
-  useEffect(() => {
-    if (!isAddingProvider) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsAddingProvider(false);
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [isAddingProvider]);
-
   const visibleProviders = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return (needle
@@ -191,7 +182,7 @@ export function ModelsPage() {
     try {
       await connectProvider(request);
       setIsAddingProvider(false);
-      await loadCatalog();
+      await loadCatalog(true);
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -284,19 +275,7 @@ export function ModelsPage() {
         {state.error ? <p className="settings-models-error" role="alert">{state.error}</p> : null}
       </div>
 
-      {isAddingProvider ? (
-        <div className="settings-provider-modal-backdrop" onClick={() => setIsAddingProvider(false)}>
-          <section aria-labelledby="settings-provider-modal-title" aria-modal="true" className="settings-provider-modal" onClick={(event) => event.stopPropagation()} role="dialog">
-            <header className="settings-provider-modal-header">
-              <h2 id="settings-provider-modal-title">Add provider</h2>
-              <button aria-label="Close add provider" className="settings-provider-modal-close" onClick={() => setIsAddingProvider(false)} type="button">
-                <CloseIcon />
-              </button>
-            </header>
-            <ProviderForm onCancel={() => setIsAddingProvider(false)} onSubmit={addProvider} />
-          </section>
-        </div>
-      ) : null}
+      {isAddingProvider ? <AddProviderModal error={state.error} onClose={() => setIsAddingProvider(false)} onSubmit={addProvider} /> : null}
     </section>
   );
 }
@@ -376,7 +355,34 @@ function ProviderModelGroup({
   );
 }
 
-function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (request: { apiKey: string; baseURL: string; kind: ProviderKind; name: string }) => void }) {
+export type AddProviderRequest = { apiKey: string; baseURL: string; kind: ProviderKind; name: string };
+
+export function AddProviderModal({ error, onClose, onSubmit }: { error?: string; onClose: () => void; onSubmit: (request: AddProviderRequest) => void }) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div className="settings-provider-modal-backdrop is-viewport" onClick={onClose}>
+      <section aria-labelledby="settings-provider-modal-title" aria-modal="true" className="settings-provider-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+        <header className="settings-provider-modal-header">
+          <h2 id="settings-provider-modal-title">Add provider</h2>
+          <button aria-label="Close add provider" className="settings-provider-modal-close" onClick={onClose} type="button">
+            <CloseIcon />
+          </button>
+        </header>
+        <ProviderForm onCancel={onClose} onSubmit={onSubmit} />
+        {error ? <p className="settings-models-error" role="alert">{error}</p> : null}
+      </section>
+    </div>
+  );
+}
+
+function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (request: AddProviderRequest) => void }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [kind, setKind] = useState<ProviderKind>(2);
   const [name, setName] = useState("");
