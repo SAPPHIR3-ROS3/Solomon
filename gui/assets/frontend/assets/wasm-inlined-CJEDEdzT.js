@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";async function t(e){let t=await fetch(new URL(`oniguruma-Du5pRr7Y.wasm`,import.meta.url).href);if(!t.ok)throw Error(`Unable to load syntax engine: `+t.status);let{instance:n}=await WebAssembly.instantiate(await t.arrayBuffer(),e);return n.exports}e((()=>{}))();export{t as default,t as getWasmInstance};
