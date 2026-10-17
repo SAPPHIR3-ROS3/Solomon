@@ -1,0 +1,1 @@
+import{n as e,t}from"./app~text.searchResult-DdkuM5Kk.js";t();export{e as default};

@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-java","patterns":[{"include":"source.java"}],"name":"cursor:source.worktree-java"}`}))();export{t as default};
