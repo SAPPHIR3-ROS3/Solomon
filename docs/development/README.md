@@ -6,6 +6,7 @@ How to build, test, and tag Solomon from source.
 
 | Article | Summary |
 |---------|---------|
+| [wiki.md](wiki.md) | GitHub Wiki synchronization and setup |
 | [contributing.md](contributing.md) | First contribution, local setup and pre-PR checks |
 | [building-and-releases.md](building-and-releases.md) | `go vet`, build, release workflow, CI |
 | [testing.md](testing.md) | Test layout, pyramid, helpers, when to mock |

@@ -1,0 +1,63 @@
+name: Wiki
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', 'scripts/wiki.py', 'test/wiki_test.py', '.github/workflows/wiki.yml']
+  pull_request:
+    paths: ['docs/**', 'scripts/wiki.py', 'test/wiki_test.py', '.github/workflows/wiki.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wiki-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - run: go run scripts/check_doc_paths.go
+      - run: python3 -m unittest discover -s test -p wiki_test.py
+      - run: python3 scripts/wiki.py --output "$RUNNER_TEMP/wiki-preview" --repository "$GITHUB_REPOSITORY" --revision "$GITHUB_SHA"
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Synchronize GitHub Wiki
+        env:
+          GH_TOKEN: ${{ secrets.WIKI_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo '::error::Configure WIKI_TOKEN with wiki write access. See docs/development/wiki.md.'
+            exit 1
+          fi
+          gh auth setup-git
+          target="$RUNNER_TEMP/wiki"
+          if ! git clone "https://github.com/${GITHUB_REPOSITORY}.wiki.git" "$target"; then
+            echo '::error::Create the first GitHub Wiki page and verify WIKI_TOKEN permissions.'
+            exit 1
+          fi
+          python3 scripts/wiki.py --output "$target" --repository "$GITHUB_REPOSITORY" --revision "$GITHUB_SHA"
+          git -C "$target" config user.name 'github-actions[bot]'
+          git -C "$target" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "$target" add --all
+          if git -C "$target" diff --cached --quiet; then
+            echo 'Wiki already synchronized.'
+            exit 0
+          fi
+          git -C "$target" commit -m "docs: mirror ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+          git -C "$target" push origin HEAD
