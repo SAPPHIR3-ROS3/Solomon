@@ -1,10 +1,11 @@
-package commands
+package test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 )
 
@@ -18,9 +19,12 @@ func TestTranscriptsUseEachMessagesRecordedTarget(t *testing.T) {
 		t.Run(format, func(t *testing.T) {
 			var out bytes.Buffer
 			if format == "terminal" {
-				WriteLabeledTranscript(&out, messages, "current-model", false)
+				commands.WriteLabeledTranscript(&out, messages, "current-model", false)
 			} else {
-				writeMarkdownTranscript(&out, messages, "current-model", false)
+				meta := commands.MarkdownExportMetaForTest("Recorded targets", "", "current-model")
+				if err := commands.WriteMarkdownExportForTest(&out, meta, &chatstore.Session{Messages: messages}, false); err != nil {
+					t.Fatal(err)
+				}
 			}
 			for _, want := range []string{"model-a (provider-a)", "model-b (provider-b)", "current-model"} {
 				if !strings.Contains(out.String(), want) {
