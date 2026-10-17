@@ -113,6 +113,21 @@ func TestServerRuntime_GUISettingsArePersistedAndDoNotExposeSecrets(t *testing.T
 			t.Fatal("reasoning update changed other chat preferences")
 		}
 	}
+	for _, enabled := range []bool{false, true} {
+		body, err := json.Marshal(map[string]any{"chat": map[string]bool{"composerQuotaBars": enabled}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response = patch(string(body))
+		decodeServerTestJSON(t, response, &gui)
+		persisted, err := config.ReadGUISettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gui.Chat.ComposerQuotaBars == nil || *gui.Chat.ComposerQuotaBars != enabled || persisted.Chat.ComposerQuotaBars == nil || *persisted.Chat.ComposerQuotaBars != enabled {
+			t.Fatal("composer quota bars preference did not persist and round trip")
+		}
+	}
 	for _, enabled := range []bool{true, false} {
 		body, err := json.Marshal(map[string]any{"chat": map[string]bool{"floatingLetters": enabled}})
 		if err != nil {

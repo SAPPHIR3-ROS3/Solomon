@@ -1,4 +1,5 @@
 import { ProviderQuotaControl } from "../home/ProviderQuotaControl";
+import { useGUIChatPreferencesState } from "../settings/chatPreferences";
 import { composerDraftKey } from "../chat/composerDrafts";
 import { NotificationControl } from "../notifications/Notifications";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
@@ -56,6 +57,7 @@ type Visibility = {
 const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
 export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspaceActive = false, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onOpenNewProject, onOpenTemporaryWorkspace, onTemporaryWorkspacePathChange, onSend, onWorkspaceChange, resetToken = 0, temporaryWorkspace = null, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
+  const { chat: chatPreferences } = useGUIChatPreferencesState();
   const [quotaProvider, setQuotaProvider] = useState("");
   const [userName, setUserName] = useState(() => getCachedUserName() ?? "");
   const [projects, setProjects] = useState<Project[]>(() => getCachedProjectSidebarData()?.projects ?? []);
@@ -378,7 +380,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
                 open={openMenu === "worktree"}
                 project={selectedProject}
               />
-              <ProviderQuotaControl provider={quotaProvider} open={openMenu === "quota"} onOpenChange={(open) => setOpenMenu(open ? "quota" : null)} />
+              {chatPreferences.composerQuotaBars ? <ProviderQuotaControl provider={quotaProvider} open={openMenu === "quota"} onOpenChange={(open) => setOpenMenu(open ? "quota" : null)} /> : null}
               <NotificationControl open={openMenu === "notifications"} onOpenChange={(open) => setOpenMenu(open ? "notifications" : null)} />
             </div>
           </div>

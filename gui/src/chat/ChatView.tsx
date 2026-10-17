@@ -322,7 +322,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
           {workspaceName ? <span className="chat-readonly-control is-workspace" title={workspacePath}><FolderIcon />{workspaceName}</span> : null}
           {currentBranch ? <span className="chat-readonly-control"><BranchIcon />{currentBranch}</span> : null}
           {currentWorktree ? <span className="chat-readonly-control"><WorktreeIcon />{currentWorktree}</span> : null}
-          <ProviderQuotaControl provider={quotaProvider} open={composerMenu === "quota"} onOpenChange={(open) => setComposerMenu(open ? "quota" : null)} />
+          {chatPreferences.composerQuotaBars ? <ProviderQuotaControl provider={quotaProvider} open={composerMenu === "quota"} onOpenChange={(open) => setComposerMenu(open ? "quota" : null)} /> : null}
           <NotificationControl open={composerMenu === "notifications"} onOpenChange={(open) => setComposerMenu(open ? "notifications" : null)} />
         </div>
       </div>

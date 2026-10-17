@@ -1,4 +1,4 @@
-import { setFloatingLettersDensity, setFloatingLetters, setAutoCollapseToolCalls, setStartToolCallsCollapsed, setStartReasoningCollapsed, useGUIChatPreferencesState, refreshChatPreferences } from "./chatPreferences";
+import { setFloatingLettersDensity, setFloatingLetters, setAutoCollapseToolCalls, setStartToolCallsCollapsed, setStartReasoningCollapsed, setComposerQuotaBars, useGUIChatPreferencesState, refreshChatPreferences } from "./chatPreferences";
 import "./chat-settings.css";
 
 export function ChatSettings({ query }: { query: string }) {
@@ -26,6 +26,13 @@ export function ChatSettings({ query }: { query: string }) {
       description: "Show new tool calls closed from the start. Turn this off to display them open while the model works.",
       enabled: startCollapsed,
       setEnabled: setStartToolCallsCollapsed,
+    },
+    {
+      id: "composer-quota-bars",
+      label: "Composer quota bars",
+      description: "Show provider quota bars next to the composer. Turn this off to hide them.",
+      enabled: preferences.chat.composerQuotaBars,
+      setEnabled: setComposerQuotaBars,
     },
     {
       id: "floating-letters",

@@ -77,7 +77,7 @@ func (patch GUISettingsPatch) Validate() error {
 	if err := validateGUIAdvancedSettings(patch.Advanced); err != nil {
 		return err
 	}
-	if patch.General == nil && len(patch.Advanced) == 0 && patch.Chat.AutoCloseToolCalls == nil && patch.Chat.StartToolCallsCollapsed == nil && patch.Chat.StartReasoningCollapsed == nil && patch.Chat.FloatingLetters == nil && patch.Chat.FloatingLettersDensity == nil {
+	if patch.General == nil && len(patch.Advanced) == 0 && patch.Chat.AutoCloseToolCalls == nil && patch.Chat.StartToolCallsCollapsed == nil && patch.Chat.StartReasoningCollapsed == nil && patch.Chat.FloatingLetters == nil && patch.Chat.FloatingLettersDensity == nil && patch.Chat.ComposerQuotaBars == nil {
 		return fmt.Errorf("at least one preference is required")
 	}
 	return nil
@@ -89,6 +89,7 @@ type GUIChatSettings struct {
 	AutoCloseToolCalls      *bool   `toml:"auto_close_tool_calls,omitempty" json:"autoCloseToolCalls,omitempty"`
 	StartToolCallsCollapsed *bool   `toml:"start_tool_calls_collapsed,omitempty" json:"startToolCallsCollapsed,omitempty"`
 	StartReasoningCollapsed *bool   `toml:"start_reasoning_collapsed,omitempty" json:"startReasoningCollapsed,omitempty"`
+	ComposerQuotaBars       *bool   `toml:"composer_quota_bars,omitempty" json:"composerQuotaBars,omitempty"`
 }
 
 type GUIModelSettings struct {
@@ -322,6 +323,9 @@ func UpdateGUIPreferences(patch GUISettingsPatch) (GUISettings, error) {
 		}
 		if patch.Chat.StartReasoningCollapsed != nil {
 			gui.Chat.StartReasoningCollapsed = patch.Chat.StartReasoningCollapsed
+		}
+		if patch.Chat.ComposerQuotaBars != nil {
+			gui.Chat.ComposerQuotaBars = patch.Chat.ComposerQuotaBars
 		}
 		return nil
 	})

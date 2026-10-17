@@ -8,7 +8,7 @@ const helper = fileURLToPath(new URL("./desktop/gui_settings.go", import.meta.ur
 export type GUISettings = {
   general: { userName: string; responseLanguage: string };
   advanced: Record<string, string | number | boolean>;
-  chat: { floatingLettersDensity?: "low" | "medium" | "high" | "max"; floatingLetters?: boolean; autoCloseToolCalls?: boolean; startToolCallsCollapsed?: boolean; startReasoningCollapsed?: boolean };
+  chat: { floatingLettersDensity?: "low" | "medium" | "high" | "max"; floatingLetters?: boolean; autoCloseToolCalls?: boolean; startToolCallsCollapsed?: boolean; startReasoningCollapsed?: boolean; composerQuotaBars?: boolean };
   models: { hiddenModels: Record<string, string[]> };
   docs: Record<string, never>;
 };
@@ -52,7 +52,7 @@ function attach(server: ViteDevServer | PreviewServer) {
           if (payload.chat !== undefined) {
             if (!payload.chat || typeof payload.chat !== "object" || Array.isArray(payload.chat)) throw new Error("Invalid chat preferences");
             const entries = Object.entries(payload.chat);
-            if (!entries.length || entries.some(([key, value]) => key === "floatingLettersDensity" ? !["low", "medium", "high", "max"].includes(value) : !["floatingLetters", "autoCloseToolCalls", "startToolCallsCollapsed", "startReasoningCollapsed"].includes(key) || typeof value !== "boolean")) throw new Error("Invalid chat preference");
+            if (!entries.length || entries.some(([key, value]) => key === "floatingLettersDensity" ? !["low", "medium", "high", "max"].includes(value) : !["floatingLetters", "autoCloseToolCalls", "startToolCallsCollapsed", "startReasoningCollapsed", "composerQuotaBars"].includes(key) || typeof value !== "boolean")) throw new Error("Invalid chat preference");
           }
           if (payload.general !== undefined) {
             if (!payload.general || typeof payload.general !== "object" || Array.isArray(payload.general)) throw new Error("Invalid general preferences");

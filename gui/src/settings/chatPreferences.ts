@@ -3,11 +3,11 @@ import { serverEndpoint } from "../platform";
 
 export type FloatingLettersDensity = "low" | "medium" | "high" | "max";
 
-type ChatPreferences = { floatingLettersDensity: FloatingLettersDensity; floatingLetters: boolean; autoCloseToolCalls: boolean; startToolCallsCollapsed: boolean; startReasoningCollapsed: boolean };
+type ChatPreferences = { floatingLettersDensity: FloatingLettersDensity; floatingLetters: boolean; autoCloseToolCalls: boolean; startToolCallsCollapsed: boolean; startReasoningCollapsed: boolean; composerQuotaBars: boolean };
 type PreferenceState = { userName: string; responseLanguage: string; advanced: Record<string, string | number | boolean>; chat: ChatPreferences; ready: boolean; saving: boolean; error: string | null };
 type GUISettingsPayload = { general?: { userName?: string; responseLanguage?: string }; advanced?: Record<string, string | number | boolean>; chat?: Partial<ChatPreferences> };
 type SettingsPatch = { chat?: Partial<ChatPreferences>; general?: { userName?: string; responseLanguage?: string }; advanced?: Record<string, string | number | boolean> };
-const initialState: PreferenceState = { userName: "", advanced: {}, responseLanguage: "", chat: { floatingLettersDensity: "medium", floatingLetters: false, autoCloseToolCalls: false, startToolCallsCollapsed: false, startReasoningCollapsed: false }, ready: false, saving: false, error: null };
+const initialState: PreferenceState = { userName: "", advanced: {}, responseLanguage: "", chat: { floatingLettersDensity: "medium", floatingLetters: false, autoCloseToolCalls: false, startToolCallsCollapsed: false, startReasoningCollapsed: false, composerQuotaBars: true }, ready: false, saving: false, error: null };
 let state = initialState;
 let loading: Promise<void> | undefined;
 let writes: Promise<void> = Promise.resolve();
@@ -55,7 +55,7 @@ async function fetchSettings(patch: SettingsPatch | undefined, signal: AbortSign
 }
 
 function resolvedChat(payload: GUISettingsPayload): ChatPreferences {
-  return { floatingLettersDensity: payload.chat?.floatingLettersDensity === "low" || payload.chat?.floatingLettersDensity === "high" || payload.chat?.floatingLettersDensity === "max" ? payload.chat.floatingLettersDensity : "medium", floatingLetters: payload.chat?.floatingLetters === true, autoCloseToolCalls: payload.chat?.autoCloseToolCalls === true, startToolCallsCollapsed: payload.chat?.startToolCallsCollapsed === true, startReasoningCollapsed: payload.chat?.startReasoningCollapsed === true };
+  return { floatingLettersDensity: payload.chat?.floatingLettersDensity === "low" || payload.chat?.floatingLettersDensity === "high" || payload.chat?.floatingLettersDensity === "max" ? payload.chat.floatingLettersDensity : "medium", floatingLetters: payload.chat?.floatingLetters === true, autoCloseToolCalls: payload.chat?.autoCloseToolCalls === true, startToolCallsCollapsed: payload.chat?.startToolCallsCollapsed === true, startReasoningCollapsed: payload.chat?.startReasoningCollapsed === true, composerQuotaBars: payload.chat?.composerQuotaBars !== false };
 }
 
 export function refreshChatPreferences(): Promise<void> {
@@ -124,6 +124,7 @@ export function setResponseLanguage(responseLanguage: string) { return savePrefe
 export function setAutoCollapseToolCalls(enabled: boolean) { return setPreference("autoCloseToolCalls", enabled).catch(() => {}); }
 export function setStartToolCallsCollapsed(enabled: boolean) { return setPreference("startToolCallsCollapsed", enabled).catch(() => {}); }
 export function setStartReasoningCollapsed(enabled: boolean) { return setPreference("startReasoningCollapsed", enabled).catch(() => {}); }
+export function setComposerQuotaBars(enabled: boolean) { return setPreference("composerQuotaBars", enabled).catch(() => {}); }
 export function useGUIChatPreferencesState() { return useSyncExternalStore(subscribe, () => state, () => initialState); }
 export function useAutoCollapseToolCalls() { return useGUIChatPreferencesState().chat.autoCloseToolCalls; }
 export function useStartToolCallsCollapsed() { return useGUIChatPreferencesState().chat.startToolCallsCollapsed; }
