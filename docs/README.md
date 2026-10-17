@@ -1,6 +1,6 @@
 # Solomon documentation
 
-Welcome to the in-repo wiki for Solomon. Articles are grouped by topic into **portals** (folders). Each portal has an index page; articles end with a **See also** section for cross-links.
+The `docs/` tree is the single source for Solomon documentation, published independently to the [GitHub Wiki](https://github.com/SAPPHIR3-ROS3/Solomon/wiki) and the [Pages Wiki](https://sapphir3-ros3.github.io/Solomon/wiki/). Edit these source files rather than either generated mirror. See [publishing and local checks](development/wiki.md). Articles are grouped by topic into **portals** (folders). Each portal has an index page; articles end with a **See also** section for cross-links.
 
 ## Documentation map
 

@@ -6,12 +6,23 @@ the home page and the nested quickstart. This avoids render-blocking CSS request
 without requiring npm dependencies for deployment. The development files remain
 separate in `site/styles/`.
 
-To preview the production output:
+## Offline checks and preview
+
+The Python builder invokes the local Go renderer in `scripts/site/` to publish `docs/` under `/wiki/`, using the existing pinned Goldmark GFM dependency. Wiki pages use inline CSS, responsive navigation and no JavaScript; Mermaid blocks remain readable code. See [documentation publishing](wiki.md) for mappings and independent Wiki/Pages workflows.
+
+Use the Go version required by `go.mod` and Python 3. CI installs Go with `actions/setup-go` and explicitly provisions `go mod download github.com/yuin/goldmark` before tests/build, allowing a clean module cache without adding or updating dependencies. Local checks require that dependency to be cached already; rendering never downloads modules or a toolchain.
+
+From the repository root, run the exact offline checks and preview build:
 
 ```bash
-python3 scripts/build_site.py --output dist/site
-python3 -m http.server 8765 --directory dist/site
+export GOPROXY=off GOTOOLCHAIN=local GOSUMDB=off
+export PYTHONDONTWRITEBYTECODE=1
+python3 -m unittest discover -s test -p site_test.py
+python3 scripts/build_site.py --output /tmp/solomon-site-preview --repository SAPPHIR3-ROS3/Solomon --revision "$(git rev-parse HEAD)" --base-url "https://sapphir3-ros3.github.io/Solomon/"
+python3 -m http.server 8765 --directory /tmp/solomon-site-preview
 ```
+
+Use a disposable output directory: the generated `wiki/` subtree is replaced on each build. The builder itself enforces `GOPROXY=off GOTOOLCHAIN=local GOSUMDB=off` and Go's `-mod=readonly`, even without the exports above. Open `http://localhost:8765/` or `/wiki/` for the preview.
 
 GitHub Pages compresses text assets. An uncompressed development server can
 report slower simulated loading than the deployed website. Always check the

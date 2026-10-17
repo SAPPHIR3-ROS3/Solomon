@@ -6,10 +6,11 @@ How to build, test, and tag Solomon from source.
 
 | Article | Summary |
 |---------|---------|
-| [wiki.md](wiki.md) | GitHub Wiki synchronization and setup |
+| [wiki.md](wiki.md) | Single-source documentation: GitHub Wiki and Pages publishing |
 | [contributing.md](contributing.md) | First contribution, local setup and pre-PR checks |
 | [building-and-releases.md](building-and-releases.md) | `go vet`, build, release workflow, CI |
 | [testing.md](testing.md) | Test layout, pyramid, helpers, when to mock |
+| [site-performance.md](site-performance.md) | Pages build, offline renderer checks and website performance |
 | [chat-performance.md](chat-performance.md) | In-app thread timings and reproducible navigation benchmark |
 | [cookbook.md](cookbook.md) | Recipes: slash, tools, REPL, providers, Cursor |
 | [ci-github-actions.example.yml](ci-github-actions.example.yml) | Example workflow: `--jsonl` stream and `--json` report |

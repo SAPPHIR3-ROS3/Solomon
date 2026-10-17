@@ -66,7 +66,7 @@
       <nav class="nav-links" aria-label="Primary">
         <a href="../#features">Features</a>
         <a href="./" aria-current="page">Get started</a>
-        <a href="https://github.com/SAPPHIR3-ROS3/Solomon/tree/main/docs">Docs</a>
+        <a href="../wiki/">Wiki</a>
       </nav>
       <a class="btn btn-ghost btn-sm" href="https://github.com/SAPPHIR3-ROS3/Solomon">GitHub</a>
     </div>
@@ -93,7 +93,7 @@
         <pre class="surface-snippet"><code>curl -fsSL https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh | bash</code></pre>
         <h3>Windows PowerShell</h3>
         <pre class="surface-snippet"><code>irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex</code></pre>
-        <p>The installers set up required dependencies and the desktop application. On macOS, the installer uses Homebrew and may ask for administrator credentials. See the <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/installation.md">full installation guide</a> for dependency and PATH details.</p>
+        <p>The installers set up required dependencies and the desktop application. On macOS, the installer uses Homebrew and may ask for administrator credentials. See the <a href="../wiki/user-guide/installation.html">full installation guide</a> for dependency and PATH details.</p>
         <h3>Install the CLI with Go</h3>
         <p>If you already have Go 1.25 or newer, use:</p>
         <pre class="surface-snippet"><code>go install github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@latest</code></pre>
@@ -115,7 +115,7 @@ solomon .</code></pre>
         <h2>Connect a cloud provider or a local model</h2>
         <p>Solomon supports OpenAI-compatible APIs, the native Anthropic Messages API and integrations with existing ChatGPT, Claude and Cursor accounts. Add a provider with <code>/connect</code> and switch the active model with <code>/models</code>.</p>
         <p>For local models, connect a runtime that exposes an OpenAI-compatible endpoint. Once the runtime, model and Solomon are installed, local file, coding and shell tasks can work offline. Cloud models, web search and downloads need a network connection.</p>
-        <p>Local-first refers to where Solomon stores its state. When you select a cloud provider, prompts and relevant project context are sent to that provider. The <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/configuration.md">configuration guide</a> covers provider settings and credentials.</p>
+        <p>Local-first refers to where Solomon stores its state. When you select a cloud provider, prompts and relevant project context are sent to that provider. The <a href="../wiki/user-guide/configuration.html">configuration guide</a> covers provider settings and credentials.</p>
       </section>
       <section id="interfaces">
         <h2>Use the desktop app, web interface or CI runner</h2>
@@ -124,10 +124,10 @@ solomon .</code></pre>
         <p>Open the native GUI with chat, editor and terminal panels over the same engine and local sessions.</p>
         <h3>Local web interface</h3>
         <pre class="surface-snippet"><code>solomon server</code></pre>
-        <p>Start the local server and open its GUI in a browser. See the <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/usage-and-commands.md">usage guide</a> for network access and server options.</p>
+        <p>Start the local server and open its GUI in a browser. See the <a href="../wiki/user-guide/usage-and-commands.html">usage guide</a> for network access and server options.</p>
         <h3>Headless automation and CI</h3>
         <pre class="surface-snippet"><code>solomon exec --jsonl --fail-on-tool-error "run the project tests and fix failures"</code></pre>
-        <p>Automate a file task, run a coding check or execute another agent prompt without the interactive REPL, with JSONL events and stable exit codes. Use the <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/development/ci-github-actions.example.yml">GitHub Actions example</a> to integrate Solomon into a pipeline.</p>
+        <p>Automate a file task, run a coding check or execute another agent prompt without the interactive REPL, with JSONL events and stable exit codes. Use the <a href="../wiki/development/ci-github-actions.example.yml">GitHub Actions example</a> to integrate Solomon into a pipeline.</p>
       </section>
       <section id="next">
         <h2>Commands and next steps</h2>
@@ -136,7 +136,7 @@ solomon .</code></pre>
           <div><dt><code>/chat</code></dt><dd>Use chat mode for questions, web search, documentation and research.</dd></div>
           <div><dt><code>/help</code></dt><dd>List the available commands.</dd></div>
         </dl>
-        <p>Continue with the <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/usage-and-commands.md">complete command reference</a>, configure <a href="https://github.com/SAPPHIR3-ROS3/Solomon/blob/main/docs/user-guide/project-instructions.md">AGENTS.md and project rules</a>, or explore <a href="../#features">checkpoints, skills and MCP support</a>.</p>
+        <p>Continue with the <a href="../wiki/user-guide/usage-and-commands.html">complete command reference</a>, configure <a href="../wiki/user-guide/project-instructions.html">AGENTS.md and project rules</a>, or explore <a href="../#features">checkpoints, skills and MCP support</a>.</p>
       </section>
     </article>
   </main>
@@ -146,7 +146,7 @@ solomon .</code></pre>
       <nav aria-label="Footer">
         <a href="../">Home</a>
         <a href="https://github.com/SAPPHIR3-ROS3/Solomon">GitHub</a>
-        <a href="https://github.com/SAPPHIR3-ROS3/Solomon/tree/main/docs">Docs</a>
+        <a href="../wiki/">Wiki</a>
       </nav>
       <p class="muted">MIT License &middot; early release software</p>
     </div>
