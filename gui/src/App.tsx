@@ -17,7 +17,7 @@ import { CustomizationPage } from "./customization/CustomizationPage";
 import { Welcome } from "./home/Welcome";
 import { NewProjectDialog } from "./projects/NewProjectDialog";
 import { hideSettings, isSettingsPath, SettingsPage, showSettings, subscribeSettingsLocation } from "./settings/SettingsPage";
-import { createProjectFromFolder, fetchProjectSidebarData, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
+import { createProjectFromFolder, resolveMessageProject, fetchProjectSidebarData, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
 import { ResearchReportView } from "./research/ResearchReportView";
 import { useChatRuntime } from "./chat/useChatRuntime";
 import { beginNavigation } from "./chat/navigationPerformance";
@@ -65,6 +65,8 @@ export function App() {
   const [activeTemporaryWorkspaceID, setActiveTemporaryWorkspaceID] = useState<string | null>(null);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
+  const resolvingMessageProject = useRef(false);
+  const [isResolvingMessageProject, setIsResolvingMessageProject] = useState(false);
   const [welcomeResetToken, setWelcomeResetToken] = useState(0);
   const [selectedResearch, setSelectedResearch] = useState<{ project: Project; research: ProjectResearch } | null>(null);
   const [workspaceFocus, setWorkspaceFocus] = useState<{ project: Project; token: number } | null>(null);
@@ -516,8 +518,20 @@ export function App() {
         onOpenNewProject={openNewProjectDialog}
         onOpenTemporaryWorkspace={openTemporaryWorkspace}
         onTemporaryWorkspacePathChange={selectTemporaryWorkspacePath}
-        isSending={isChatLoading}
-        onSend={selectedWorkspace ? (content, images, clips) => chatRuntime.sendNewProjectMessage(selectedWorkspace, content, images, clips) : undefined}
+        isSending={isChatLoading || isResolvingMessageProject}
+        onSend={workspaceNameOverride ? undefined : async (content, images, clips) => {
+          if (resolvingMessageProject.current) throw new Error("A message is already being sent");
+          resolvingMessageProject.current = true;
+          setIsResolvingMessageProject(true);
+          try {
+            const project = await resolveMessageProject(selectedWorkspace);
+            await chatRuntime.sendNewProjectMessage(project, content, images, clips);
+            handleWorkspaceChange(project);
+          } finally {
+            resolvingMessageProject.current = false;
+            setIsResolvingMessageProject(false);
+          }
+        }}
         onWorkspaceChange={handleWorkspaceChange}
         isTemporaryWorkspaceActive={activeTemporaryWorkspaceID === temporaryWorkspace?.id}
         temporaryWorkspace={temporaryWorkspace}

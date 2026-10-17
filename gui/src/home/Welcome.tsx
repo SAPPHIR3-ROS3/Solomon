@@ -32,7 +32,7 @@ type WelcomeProps = {
   onOpenNewProject?: () => void;
   onOpenTemporaryWorkspace?: () => void;
   onTemporaryWorkspacePathChange?: (path: string) => void;
-  onSend?: (content: string, images?: ComposerImageAttachment[], clips?: ComposerTerminalClip[]) => void;
+  onSend?: (content: string, images?: ComposerImageAttachment[], clips?: ComposerTerminalClip[]) => void | Promise<void>;
   onWorkspaceChange?: (project: Project | null) => void;
   isSending?: boolean;
   isTemporaryWorkspaceActive?: boolean;

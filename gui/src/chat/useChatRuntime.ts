@@ -302,6 +302,7 @@ export function useChatRuntime(): ChatRuntime {
     } catch (reason: unknown) {
       if (controller.signal.aborted || requestID !== createRequest.current) return;
       setError(reason instanceof Error ? reason.message : "Unable to create chat");
+      throw reason;
     } finally {
       if (createRequest.current === requestID) {
         createController.current = null;

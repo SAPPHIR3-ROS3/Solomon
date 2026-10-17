@@ -373,6 +373,12 @@ function startProjectSidebarRequest(): Promise<ProjectSidebarData> {
   return projectSidebarRequest;
 }
 
+export async function resolveMessageProject(project: Project | null): Promise<Project> {
+  // The daemon resolves an empty path to the user's home directory, including
+  // on installations where Home has never been registered in the sidebar.
+  return project ?? createProjectFromFolder("");
+}
+
 export async function createProjectFromFolder(path: string): Promise<Project> {
   const response = await fetch(await serverEndpoint("/__solomon/projects"), {
     body: JSON.stringify({ path }),
