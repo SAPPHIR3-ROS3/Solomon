@@ -11,13 +11,16 @@ type Props = {
   working: boolean;
   viewRef: RefObject<HTMLElement | null>;
 };
-type Particle = { x: number; y: number; phase: number; glyph: string };
+type Particle = { x: number; y: number; phase: number; glyph: string; rotation: number };
 type Flight = { messageID: string; offset: number; range: Range; glyph: string; x: number; y: number; targetX: number; targetY: number; visible: boolean; start: number; font: string; color: string };
 type HighlightAPI = {
   Highlight?: new (...ranges: Range[]) => { add(range: Range): void; delete(range: Range): void; clear(): void };
   CSS: typeof CSS & { highlights?: Map<string, { add(range: Range): void; delete(range: Range): void; clear(): void }> };
 };
-const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const alphabet = [
+  ...Array.from({ length: 126 - 33 + 1 }, (_, index) => String.fromCharCode(33 + index)),
+  ...Array.from({ length: 255 - 161 + 1 }, (_, index) => String.fromCharCode(161 + index)),
+].join("");
 const MAX_FLIGHTS = 100;
 const DURATION = 460;
 
@@ -88,6 +91,7 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
     const particles: Particle[] = Array.from({ length: { low: 16, medium: 32, high: 64, max: 128 }[density] }, () => ({
       x: Math.random(), y: Math.random(), phase: Math.random() * Math.PI * 2,
       glyph: alphabet[Math.floor(Math.random() * alphabet.length)],
+      rotation: (Math.random() - 0.5) * (Math.PI * 0.7),
     }));
     let ambientColor = getComputedStyle(view).getPropertyValue("--color-text-muted").trim() || "#888";
 
@@ -269,7 +273,12 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
       for (const particle of particles) {
         particle.x = (particle.x + Math.cos(now / 4000 + particle.phase) * delta * 0.012 + 1) % 1;
         particle.y = (particle.y + Math.sin(now / 5000 + particle.phase) * delta * 0.016 + 1) % 1;
-        context!.fillText(particle.glyph, particle.x * width, particle.y * height);
+        const x = particle.x * width, y = particle.y * height;
+        context!.save();
+        context!.translate(x, y);
+        context!.rotate(particle.rotation);
+        context!.fillText(particle.glyph, 0, 0);
+        context!.restore();
       }
       flights = flights.filter(flight => {
         const progress = Math.max(0, (now - flight.start) / DURATION);
