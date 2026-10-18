@@ -57,7 +57,7 @@ func hasImageLinux() bool {
 func hasImageWindows() bool {
 	ps := psLoadWinForms +
 		`if ([System.Windows.Forms.Clipboard]::ContainsImage()) { exit 0 } else { exit 1 }`
-	err := exec.Command("powershell", "-NoProfile", "-Command", ps).Run()
+	err := clipboardPowerShell(ps).Run()
 	return err == nil
 }
 
@@ -125,7 +125,7 @@ func pasteImageWindows(path string) error {
 		`if ($img -eq $null) { exit 1 }; ` +
 		`$img.Save('` + strings.ReplaceAll(path, `'`, `''`) + `', [System.Drawing.Imaging.ImageFormat]::Png); ` +
 		`$img.Dispose()`
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", ps)
+	cmd := clipboardPowerShell(ps)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("powershell clipboard image: %w", err)
 	}
