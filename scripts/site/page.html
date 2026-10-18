@@ -1,12 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{.Language}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} — Solomon Wiki</title>
-<meta name="description" content="{{.Title}} — Solomon documentation, guides and architecture.">
+<title>{{.MetadataTitle}} — Solomon Wiki</title>
+<meta name="description" content="{{.Description}}">
 <meta name="theme-color" content="#061c3b">
 <link rel="canonical" href="{{.Canonical}}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Solomon">
+<meta property="og:title" content="{{.MetadataTitle}} — Solomon Wiki">
+<meta property="og:description" content="{{.Description}}">
+<meta property="og:url" content="{{.Canonical}}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{.MetadataTitle}} — Solomon Wiki">
+<meta name="twitter:description" content="{{.Description}}">
 <style>{{.CSS}}</style>
 </head>
 <body>

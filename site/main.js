@@ -28,6 +28,12 @@
       if (M.onTab) M.onTab(target);
     }
 
+    var platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || "";
+    var defaultTab = /win/i.test(platform) ? "install-tab-windows" : "install-tab-unix";
+    tabs.forEach(function (tab) {
+      if (tab.id === defaultTab) selectTab(tab);
+    });
+
     tabs.forEach(function (tab, index) {
       tab.addEventListener("click", function () {
         selectTab(tab);

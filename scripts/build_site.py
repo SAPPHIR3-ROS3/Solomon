@@ -2,11 +2,13 @@
 """Build the static site with inline CSS to avoid render-blocking requests."""
 
 import argparse
+from html import unescape
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import xml.etree.ElementTree as ET
 
 
 def build(output: Path, repository_name: str = "SAPPHIR3-ROS3/Solomon",
@@ -64,6 +66,23 @@ def build(output: Path, repository_name: str = "SAPPHIR3-ROS3/Solomon",
          "--repository", repository_name, "--revision", revision,
          "--base-url", base_url],
         cwd=repository, env=environment, check=True)
+    # Use the renderer's canonical URLs, including index.html for wiki portals.
+    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    ET.register_namespace("", namespace)
+    sitemap = ET.parse(output / "sitemap.xml")
+    root = sitemap.getroot()
+    locations = {entry.text for entry in root.iter(f"{{{namespace}}}loc")}
+    for page in sorted((output / "wiki").rglob("*.html")):
+        canonical = re.search(r'<link rel="canonical" href="([^"]+)">',
+                              page.read_text(encoding="utf-8"))
+        if canonical:
+            url = unescape(canonical[1])
+            if url not in locations:
+                entry = ET.SubElement(root, f"{{{namespace}}}url")
+                ET.SubElement(entry, f"{{{namespace}}}loc").text = url
+                locations.add(url)
+    ET.indent(sitemap, space="  ")
+    sitemap.write(output / "sitemap.xml", encoding="utf-8", xml_declaration=True)
     print(f"Built website: {output}")
 
 
