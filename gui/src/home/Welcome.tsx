@@ -470,10 +470,29 @@ function WorkspaceControl({
   temporaryWorkspace?: TemporaryWorkspace | null;
 }) {
   const [showAll, setShowAll] = useState(false);
+  const [query, setQuery] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const normalizedQuery = query.trim().toLowerCase();
+  const matches = (name: string, path: string) => !normalizedQuery || name.toLowerCase().includes(normalizedQuery) || path.toLowerCase().includes(normalizedQuery);
+  const visibleTemporaryWorkspace = temporaryWorkspace && matches(temporaryWorkspace.name, temporaryWorkspace.path) ? temporaryWorkspace : null;
   const controlRef = useRef<HTMLDivElement>(null);
   const recentProjects = [...projects]
     .sort((a, b) => latestProjectActivity(b) - latestProjectActivity(a))
-    .slice(0, showAll ? undefined : 5);
+    .filter((project) => matches(project.name, project.path))
+    .slice(0, showAll || normalizedQuery ? undefined : 5);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    setQuery("");
+    setShowAll(false);
+    const list = listRef.current;
+    const search = searchRef.current;
+    if (list && search) {
+      // La riga vuota in fondo consente di nascondere la ricerca anche con pochi progetti.
+      list.scrollTop = search.offsetHeight;
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -511,8 +530,12 @@ function WorkspaceControl({
       </button>
       {open ? (
         <div aria-label="Project directory" className="welcome-workspace-menu" role="menu">
-          <div className="welcome-workspace-recents">
-            {temporaryWorkspace ? (
+          <div className="welcome-workspace-scroll" ref={listRef} style={{ height: Math.min(Math.max(recentProjects.length + (visibleTemporaryWorkspace ? 1 : 0), 1) * 36, 180) }}>
+            <div className="welcome-workspace-search" ref={searchRef}>
+              <input aria-label="Search projects" placeholder="Search projects…" type="search" value={query} onChange={(event) => { setQuery(event.target.value); if (listRef.current) listRef.current.scrollTop = 0; }} onFocus={() => { if (listRef.current) listRef.current.scrollTop = 0; }} />
+            </div>
+            <div className="welcome-workspace-recents">
+            {visibleTemporaryWorkspace ? (
               <button
                 className="welcome-workspace-project is-temporary"
                 onClick={() => {
@@ -520,11 +543,11 @@ function WorkspaceControl({
                   onOpenChange(false);
                 }}
                 role="menuitem"
-                title={temporaryWorkspace.displayPath}
+                title={visibleTemporaryWorkspace.displayPath}
                 type="button"
               >
                 <FolderIcon />
-                <span>{temporaryWorkspace.name}</span>
+                <span>{visibleTemporaryWorkspace.name}</span>
               </button>
             ) : null}
             {recentProjects.length ? recentProjects.map((project) => (
@@ -539,16 +562,18 @@ function WorkspaceControl({
                 <FolderIcon />
                 <span>{project.name}</span>
               </button>
-            )) : <span className="welcome-workspace-empty">No recent projects</span>}
+            )) : <span className="welcome-workspace-empty">{normalizedQuery ? "No matching projects" : "No recent projects"}</span>}
+            </div>
+            <div aria-hidden="true" className="welcome-workspace-scroll-tail" />
           </div>
-          <button
+          {!normalizedQuery && !showAll && projects.length > 5 ? <button
             className="welcome-workspace-show-more"
             onClick={() => setShowAll(true)}
             role="menuitem"
             type="button"
           >
             Show more
-          </button>
+          </button> : null}
           <div aria-hidden="true" className="welcome-workspace-divider" role="separator" />
           <div className="welcome-workspace-actions">
             <button aria-current={workspaceName === "Home" ? "page" : undefined} onClick={() => selectProject(homeProject)} role="menuitem" type="button">

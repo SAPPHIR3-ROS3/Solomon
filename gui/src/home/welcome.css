@@ -1114,3 +1114,40 @@
   cursor: crosshair;
   box-shadow: 0 30px 90px rgb(0 0 0 / 50%);
 }
+
+.welcome-workspace-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-width: var(--app-scrollbar-width, thin);
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.welcome-workspace-search {
+  box-sizing: border-box;
+  height: 44px;
+  padding: 2px 2px 8px;
+}
+
+.welcome-workspace-search input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.welcome-workspace-search input:focus {
+  outline: 1px solid var(--color-crown-gold);
+  outline-offset: -1px;
+}
+
+.welcome-workspace-scroll-tail {
+  height: 44px;
+  pointer-events: none;
+}
