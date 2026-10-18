@@ -12,6 +12,19 @@ const { MarkdownContent } = await server.ssrLoadModule('/src/chat/MarkdownConten
 const render = (content) => renderToStaticMarkup(createElement(MarkdownContent, { content }));
 const tick = String.fromCharCode(96);
 
+test('recovers dotenv and PowerShell blocks from thread 45b61937', () => {
+  const env = 'OPENMEDIAGEN_BIND_HOST=127.0.0.1\nOPENMEDIAGEN_PORT=8000\n\nOPENMEDIAGEN_MODELS_DIR=./models\nOPENMEDIAGEN_OUTPUT_DIR=./output\n\nOPENMEDIAGEN_API_KEY=\nOPENMEDIAGEN_HF_TOKEN=';
+  for (const [language, code] of [['dotenv', env], ['powershell', 'docker compose up -d --build']]) {
+    const malformed = 'Configurazione:\n' + tick + language + '\n' + code + '\n' + tick;
+    const fenced = 'Configurazione:\n' + tick.repeat(3) + language + '\n' + code + '\n' + tick.repeat(3);
+    const html = render(malformed);
+    assert.equal(html, render(fenced));
+    assert.equal((html.match(/class="chat-code-block"/g) ?? []).length, 1);
+    assert.equal((html.match(/class="chat-code-line"/g) ?? []).length, code.split('\n').length);
+    assert.ok(html.includes('aria-label="Copy code"'));
+  }
+});
+
 test('recovers the recursive Python snippet from thread 125a0e35 with its indentation', () => {
   const code = [
     'def count_paths(n, blocked):',
