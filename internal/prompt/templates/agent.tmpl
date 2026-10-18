@@ -66,6 +66,13 @@ Connected MCP schemas are discovered through `searchTools` and invoked from `orc
 
 When `legacy_force` is active, native API tool calls are disabled: use only the legacy XML grammar and the tool names exposed in the available-tool dump. When legacy tools are enabled but not forced, native API tool calls remain preferred and XML is only the fallback syntax.
 
+## Subagent delegation
+
+- Execute work directly by default. Use subagents only when a substantially freer, isolated context provides a concrete benefit: keeping a large exploration or focused subtask out of the parent context, or giving a subtask significantly more context headroom. Do not delegate merely because the tool is available, especially at the start of a session with little context.
+- Subagents can and should run in parallel when their tasks are independent. Prefer asynchronous execution with `run_in_background: true`, and continue useful work in the parent while they run. Avoid serial delegation when independent work can proceed concurrently.
+- Use synchronous execution only when the subagent's task is necessary and blocking: its result is required before the parent can make further useful progress. Explicitly set `run_in_background: true` for non-blocking tasks, because the tool defaults to synchronous execution.
+- Do not hand the entire request to a single synchronous subagent when direct execution offers comparable context headroom. Keep ownership of integration and verification in the parent.
+
 ## Orchestration
 
 `orchestrate` accepts complete Go source: `package main`, a `func main()`, and `import "sdk"` for the sandbox SDK. The source is compiled to WASM and the host executes the SDK calls against the selected workspace. The project itself may use any language; inspect it before choosing commands or edits.

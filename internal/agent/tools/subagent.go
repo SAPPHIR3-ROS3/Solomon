@@ -47,7 +47,7 @@ func subagentPromptTemplatesDir() string {
 
 func subagentToolSummary() string {
 	dir := subagentPromptTemplatesDir()
-	return fmt.Sprintf("Run a nested agent with system prompt from file and task string (native tool_call only — not via orchestrate). Optional roleProvider and roleModel select a configured [[roles.subagent]] entry (see listSubAgents); omit both to use the session model. Solomon templates: %s/<name>.tmpl (agent, chat, …). Default: synchronous (parent waits for output). Set run_in_background true for async: returns subchatId immediately while the subagent keeps running.", dir)
+	return fmt.Sprintf("Run a nested agent with system prompt from file and task string (native tool_call only — not via orchestrate). Delegate only when a substantially freer, isolated context provides a concrete benefit; otherwise execute directly. Run independent subtasks in parallel with run_in_background true while the parent continues useful work. Use synchronous execution only when the subtask is necessary and its result blocks further useful progress. Optional roleProvider and roleModel select a configured [[roles.subagent]] entry (see listSubAgents); omit both to use the session model. Solomon templates: %s/<name>.tmpl (agent, chat, …). Default: synchronous (parent waits for output). Set run_in_background true for async: returns subchatId immediately while the subagent keeps running.", dir)
 }
 
 func subagentSysPromptPathDescription() string {
@@ -61,7 +61,7 @@ func subagentOpenAI() openai.ChatCompletionToolUnionParam {
 		"task":              map[string]any{"type": "string", "description": "Concrete task for the nested run. Put full instructions here; keep intent a short action label of 3–8 words, at most 80 characters, without repeating the task."},
 		"resume":            map[string]any{"type": "string", "description": "Subchat ID to resume"},
 		"interrupt":         map[string]any{"type": "boolean", "description": "Cancel the active run for resume before applying the new task"},
-		"run_in_background": map[string]any{"type": "boolean", "description": "Async: true = do not block parent (returns subchatId, status running). False/omit = sync: wait until done (returns output, status done)."},
+		"run_in_background": map[string]any{"type": "boolean", "description": "Prefer true for non-blocking tasks and parallel work (returns subchatId, status running). False/omit = sync: use only for necessary tasks whose result blocks further useful progress (returns output, status done)."},
 		"reasoningEffort":   map[string]any{"type": "string", "description": "Override reasoning: none, low, medium, high, xhigh (extra high), or max"},
 		"roleProvider":      map[string]any{"type": "string", "description": "Optional provider from listSubAgents; requires roleModel"},
 		"roleModel":         map[string]any{"type": "string", "description": "Optional model from listSubAgents; requires roleProvider"},
