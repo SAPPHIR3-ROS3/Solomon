@@ -6,8 +6,11 @@ after changes reach `main`. Its current public base URL is
 
 Each indexable page has a unique title, description, absolute canonical URL,
 social metadata, one descriptive H1 and content present in the initial HTML.
-`site/sitemap.xml` lists canonical page URLs, without section fragments.
-Add new public pages to the sitemap and link to them from existing pages.
+`site/sitemap.xml` lists the hand-authored canonical page URLs, without section
+fragments. The Pages build automatically adds the canonical URLs of generated
+Wiki pages to the published sitemap, keeping it synchronized with `docs/`.
+Add new hand-authored public pages to the source sitemap and link to them from
+existing pages.
 
 Structured data describes the software on the home page and the breadcrumb on
 the quickstart. It does not promise Google rich results: no reviews, ratings or

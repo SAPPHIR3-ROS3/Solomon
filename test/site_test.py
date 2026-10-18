@@ -3,6 +3,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from urllib.parse import unquote, urlsplit
 
@@ -140,6 +141,20 @@ class SiteTest(unittest.TestCase):
                        cwd=ROOT, env=self.environment, check=True, capture_output=True)
         self.assertIn("<style>", (output / "index.html").read_text())
         self.assertTrue((output / "getting-started/index.html").is_file())
+        namespace = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        locations = [entry.text for entry in ET.parse(output / "sitemap.xml").findall(
+            "sm:url/sm:loc", namespace)]
+        expected = {
+            "https://sapphir3-ros3.github.io/Solomon/",
+            "https://sapphir3-ros3.github.io/Solomon/getting-started/",
+        }
+        for source in (ROOT / "docs").rglob("*.md"):
+            relative = source.relative_to(ROOT / "docs")
+            relative = (relative.with_name("index.html") if source.name == "README.md"
+                        else relative.with_suffix(".html"))
+            expected.add("https://sapphir3-ros3.github.io/Solomon/wiki/" + relative.as_posix())
+        self.assertEqual(set(locations), expected)
+        self.assertEqual(len(locations), len(expected))
         for document in (output / "wiki").rglob("*.html"):
             for raw in Links(document.read_text()).targets:
                 link = urlsplit(raw)
