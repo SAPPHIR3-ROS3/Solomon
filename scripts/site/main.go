@@ -22,6 +22,7 @@ import (
 
 type article struct {
 	Source, Output, Title string
+	Description           string
 	Body                  template.HTML
 }
 type item struct {
@@ -30,6 +31,7 @@ type item struct {
 }
 type page struct {
 	Title, Canonical, Source, Home, Index string
+	MetadataTitle, Description, Language  string
 	CSS                                   template.CSS
 	Body                                  template.HTML
 	Navigation                            []item
@@ -107,11 +109,31 @@ func render(source []byte, name string, files map[string]string, repository, rev
 	title := strings.TrimSuffix(path.Base(name), path.Ext(name))
 	ids := map[string]bool{}
 	first := true
+	description := ""
 	err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
 		switch v := n.(type) {
+		case *ast.Paragraph:
+			if description == "" {
+				var plain strings.Builder
+				ast.Walk(v, func(child ast.Node, entering bool) (ast.WalkStatus, error) {
+					if entering {
+						switch inline := child.(type) {
+						case *ast.Text:
+							plain.Write(inline.Segment.Value(source))
+							if inline.SoftLineBreak() || inline.HardLineBreak() {
+								plain.WriteByte(' ')
+							}
+						case *ast.String:
+							plain.Write(inline.Value)
+						}
+					}
+					return ast.WalkContinue, nil
+				})
+				description = strings.Join(strings.Fields(plain.String()), " ")
+			}
 		case *ast.Link:
 			v.Destination = []byte(rewrite(string(v.Destination), name, files, repository, revision))
 		case *ast.Image:
@@ -132,7 +154,19 @@ func render(source []byte, name string, files map[string]string, repository, rev
 	if err := md.Renderer().Render(&body, source, doc); err != nil {
 		return article{}, err
 	}
-	return article{name, outputPath(name), title, template.HTML(body.String())}, nil
+	words := strings.Fields(description)
+	description = ""
+	for _, word := range words {
+		if len([]rune(description+" "+word)) > 180 {
+			break
+		}
+		description = strings.TrimSpace(description + " " + word)
+	}
+	if description == "" {
+		description = title + " — Solomon documentation."
+	}
+	return article{Source: name, Output: outputPath(name), Title: title,
+		Description: description, Body: template.HTML(body.String())}, nil
 }
 
 func generate(docs, output, repository, revision, base, theme string) error {
@@ -238,7 +272,20 @@ func generate(docs, output, repository, revision, base, theme string) error {
 			return err
 		}
 		sourceURL := (&url.URL{Scheme: "https", Host: "github.com", Path: "/" + repository + "/blob/" + revision + "/docs/" + a.Source}).String()
-		data := page{a.Title, canonical, sourceURL, relative(a.Output, "../index.html"), relative(a.Output, "index.html"), template.CSS(string(baseCSS) + string(css)), a.Body, navigation}
+		metadata := wikiMetadata[a.Source]
+		if metadata.Title == "" {
+			metadata.Title = a.Title
+		}
+		if metadata.Description == "" {
+			metadata.Description = a.Description
+		}
+		if metadata.Language == "" {
+			metadata.Language = "en"
+		}
+		data := page{Title: a.Title, Canonical: canonical, Source: sourceURL,
+			Home: relative(a.Output, "../index.html"), Index: relative(a.Output, "index.html"),
+			MetadataTitle: metadata.Title, Description: metadata.Description, Language: metadata.Language,
+			CSS: template.CSS(string(baseCSS) + string(css)), Body: a.Body, Navigation: navigation}
 		var result bytes.Buffer
 		if err := layout.Execute(&result, data); err != nil {
 			return err

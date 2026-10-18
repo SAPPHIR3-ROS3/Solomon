@@ -12,6 +12,13 @@ Wiki pages to the published sitemap, keeping it synchronized with `docs/`.
 Add new hand-authored public pages to the source sitemap and link to them from
 existing pages.
 
+Wiki search titles and descriptions are maintained by source path in
+`scripts/site/metadata.go`. The renderer reuses them for Open Graph and Twitter
+cards, and declares the Italian interface guide's language as `it`. New articles
+fall back to their heading and a plain-text excerpt of their first paragraph;
+add a curated summary when publishing a new guide. Markdown content and
+navigation labels remain independent of the search titles.
+
 Structured data describes the software on the home page and the breadcrumb on
 the quickstart. It does not promise Google rich results: no reviews, ratings or
 commercial offers are invented.

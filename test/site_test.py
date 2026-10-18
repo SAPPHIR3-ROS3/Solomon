@@ -27,6 +27,21 @@ class Links(HTMLParser):
                 self.targets.append(values[key])
 
 
+class Metadata(HTMLParser):
+    def __init__(self, text):
+        super().__init__()
+        self.values = {}
+        self.language = None
+        self.feed(text)
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag == "meta":
+            self.values[values.get("name") or values.get("property")] = values.get("content")
+        elif tag == "html":
+            self.language = values.get("lang")
+
+
 class SiteTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -75,7 +90,7 @@ class SiteTest(unittest.TestCase):
                          'href="portal/page.html?q=one#hello-world"',
                          'href="https://github.com/owner/project/blob/abc123/cmd/main.go#L2"',
                          'href="https://example.com/a.md"',
-                         '<title>Wiki &amp; Guide — Solomon Wiki</title>',
+                         '<h1 id="wiki--guide">Wiki &amp; Guide</h1>',
                          'href="https://example.com/project/wiki/index.html"',
                          'aria-label="Wiki pages"', 'aria-current="page"'):
             self.assertIn(expected, html)
@@ -108,15 +123,33 @@ class SiteTest(unittest.TestCase):
         self.assertFalse((self.output / "old.html").exists())
         self.assertFalse((self.output / "asset.txt").exists())
         html = (self.output / "index.html").read_text()
-        self.assertIn("After — Solomon Wiki", html)
+        self.assertIn('<h1 id="after">After</h1>', html)
         self.assertNotIn("old.html", html)
+
+    def test_metadata_fallback_escaping_and_language(self):
+        self.write("README.md", '# Documentation\n\nStart with **models** & "tools".\n')
+        self.write("new-guide.md", '# New guide\n\nUse **models** & "tools" with café settings.\n')
+        self.write("user-guide/interface-and-terminal.md", "# Interfaccia e terminale\n")
+        self.generate()
+        document = (self.output / "new-guide.html").read_text()
+        meta = Metadata(document)
+        self.assertEqual(meta.language, "en")
+        self.assertEqual(meta.values["description"], 'Use models & "tools" with café settings.')
+        self.assertEqual(meta.values["og:description"], meta.values["description"])
+        self.assertEqual(meta.values["twitter:description"], meta.values["description"])
+        self.assertEqual(meta.values["og:url"], "https://example.com/project/wiki/new-guide.html")
+        self.assertEqual(meta.values["og:title"], "New guide — Solomon Wiki")
+        self.assertEqual(meta.values["twitter:title"], meta.values["og:title"])
+        self.assertIn("&amp;", document)
+        italian = Metadata((self.output / "user-guide/interface-and-terminal.html").read_text())
+        self.assertEqual(italian.language, "it")
 
     def test_collision_preserves_existing_output(self):
         self.write("README.md", "# Index\n")
         self.generate()
         self.write("index.html", "collision")
         self.generate(success=False)
-        self.assertIn("Index — Solomon Wiki", (self.output / "index.html").read_text())
+        self.assertIn('<h1 id="index">Index</h1>', (self.output / "index.html").read_text())
 
     def test_overlapping_source_rejected(self):
         self.write("README.md", "# Safe\n")
@@ -155,7 +188,19 @@ class SiteTest(unittest.TestCase):
             expected.add("https://sapphir3-ros3.github.io/Solomon/wiki/" + relative.as_posix())
         self.assertEqual(set(locations), expected)
         self.assertEqual(len(locations), len(expected))
+        descriptions = set()
         for document in (output / "wiki").rglob("*.html"):
+            meta = Metadata(document.read_text())
+            description = meta.values["description"]
+            self.assertTrue(80 <= len(description) <= 180, (document, description))
+            self.assertNotIn(description, descriptions, document)
+            descriptions.add(description)
+            self.assertEqual(meta.values["og:description"], description)
+            self.assertEqual(meta.values["twitter:description"], description)
+            self.assertEqual(meta.values["og:title"], meta.values["twitter:title"])
+            self.assertEqual(meta.values["og:type"], "article")
+            expected_language = "it" if document.name == "interface-and-terminal.html" else "en"
+            self.assertEqual(meta.language, expected_language)
             for raw in Links(document.read_text()).targets:
                 link = urlsplit(raw)
                 if link.scheme or link.netloc:
