@@ -44,17 +44,24 @@ From a clone: `./scripts/install.sh`
 **Windows (PowerShell):**
 
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 irm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex
 ```
 
 From a clone: `powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1`
 
-The execution policy bypass applies only to the current PowerShell process;
-it does not change the user or machine policy. Use the command above for a
-local script too: a blocked `.ps1` cannot change its own policy before it starts.
+The online installer sets the execution policy bypass automatically for the
+current PowerShell process; it does not change the user or machine policy.
+For a local script, use the `-ExecutionPolicy Bypass -File` command above:
+a blocked `.ps1` cannot change its own policy before it starts.
 The installer refreshes the current process PATH after installing GNU Make,
 so installation continues in the same terminal.
+
+On Windows, the installer extends the npm wrapper's fixed browser download
+timeout to 60 minutes per server and retries a failed browser installation up
+to three times. This changes only the installed wrapper's download timeout;
+its integrity checks and extraction remain in place. If installation still
+fails, check the connection and rerun the same install command. Already prepared
+dependencies are reused.
 
 Reload the terminal, then run `solomon version`.
 

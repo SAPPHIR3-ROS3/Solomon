@@ -144,8 +144,9 @@ func TestWindowsInstallerExecutionPolicyIsProcessOnly(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(strings.ReplaceAll(string(data), "\r\n", "\n"), "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force\nirm ") {
-			t.Fatalf("%s: missing process bypass before online installer", name)
+		normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
+		if !strings.Contains(normalized, "```powershell\nirm https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1 | iex\n```") {
+			t.Fatalf("%s: expected a single online installation command", name)
 		}
 	}
 	runWindowsInstallerFixture(t, `param($Installer, $Fixture)
@@ -180,6 +181,73 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
  if ((Get-ExecutionPolicy -Scope CurrentUser) -ne $user -or (Get-ExecutionPolicy -Scope LocalMachine) -ne $machine) { throw 'Persistent policy changed' }
 }
 `)
+}
+
+func TestWindowsInstallerBrowserDownloadRecovery(t *testing.T) {
+	for _, scenario := range []string{"success", "retry", "exhausted", "npm failure", "changed wrapper", "longer timeout", "no previous cache"} {
+		t.Run(scenario, func(t *testing.T) {
+			runWindowsInstallerFixture(t, `param($Installer, $Fixture, $Scenario)
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Installer, [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw ($errors | Out-String) }
+foreach ($name in @('Set-CloakBrowserDownloadTimeout', 'Install-CloakBrowser')) {
+ $definition = $ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name}, $true)
+ Invoke-Expression $definition.Extent.Text
+}
+$env:SOLOMON_HOME = Join-Path $Fixture 'home with spaces'
+$cloak = Join-Path $env:SOLOMON_HOME 'cloakbrowser'
+$download = Join-Path $cloak 'node_modules/cloakbrowser/dist/download.js'
+New-Item -ItemType Directory -Force -Path (Split-Path $download -Parent) | Out-Null
+$constant = 'const DOWNLOAD_TIMEOUT_MS = 600_000; // 10 minutes'
+if ($Scenario -eq 'changed wrapper') { $constant = 'const NEW_TIMEOUT = 600_000;' }
+if ($Scenario -eq 'longer timeout') { $constant = 'const DOWNLOAD_TIMEOUT_MS = 7200000;' }
+$verification = 'export const verifyDownloadChecksum = () => true;'
+[IO.File]::WriteAllText($download, $constant + [Environment]::NewLine + $verification)
+function Test-CloakBrowserReady { $false }
+function Ensure-Node {}
+$script:attempts = 0; $script:sleeps = 0
+function npm {
+ $global:LASTEXITCODE = 0
+ if ($Scenario -eq 'npm failure') { $global:LASTEXITCODE = 1 }
+}
+function npx {
+ $script:attempts++
+ if ($env:CLOAKBROWSER_CACHE_DIR -ne (Join-Path $cloak 'cache')) { throw 'Download used wrong cache' }
+ $global:LASTEXITCODE = 0
+ if ($Scenario -eq 'exhausted' -or ($Scenario -eq 'retry' -and $script:attempts -eq 1)) { $global:LASTEXITCODE = 1 }
+}
+function Start-Sleep { param($Seconds); if ($Seconds -ne 5) { throw 'Wrong retry delay' }; $script:sleeps++ }
+$env:CLOAKBROWSER_CACHE_DIR = 'previous-cache'
+if ($Scenario -eq 'no previous cache') { Remove-Item Env:CLOAKBROWSER_CACHE_DIR }
+$before = (Get-Location).Path
+$failure = $null
+try { Install-CloakBrowser } catch { $failure = $_.Exception.Message }
+if ((Get-Location).Path -ne $before) { throw 'Installer did not restore working directory' }
+if ($Scenario -eq 'no previous cache') {
+ if (Test-Path Env:CLOAKBROWSER_CACHE_DIR) { throw 'Installer leaked cache override' }
+} elseif ($env:CLOAKBROWSER_CACHE_DIR -ne 'previous-cache') { throw 'Installer did not restore cache override' }
+$expectedAttempts = 1; $expectedSleeps = 0
+switch ($Scenario) {
+ 'retry' { $expectedAttempts = 2; $expectedSleeps = 1 }
+ 'exhausted' { $expectedAttempts = 3; $expectedSleeps = 2; if ($failure -notlike '*failed after 3 attempts*') { throw 'Missing actionable download failure' } }
+ 'npm failure' { $expectedAttempts = 0; if ($failure -notlike '*npm install cloakbrowser failed*') { throw 'npm failure was ignored' } }
+ 'changed wrapper' { $expectedAttempts = 0; if ($failure -notlike '*timeout format changed*') { throw 'Changed wrapper was silently accepted' } }
+ default { if ($failure) { throw $failure } }
+}
+if ($Scenario -eq 'retry' -and $failure) { throw $failure }
+if ($script:attempts -ne $expectedAttempts -or $script:sleeps -ne $expectedSleeps) { throw 'Unexpected download attempts or delays' }
+if ($Scenario -notin @('npm failure', 'changed wrapper')) {
+ $source = [IO.File]::ReadAllText($download)
+ $expected = 'const DOWNLOAD_TIMEOUT_MS = 3600000;'
+ if ($Scenario -eq 'longer timeout') { $expected = 'const DOWNLOAD_TIMEOUT_MS = 7200000;' }
+ if (-not $source.Contains($expected) -or -not $source.Contains($verification)) { throw 'Timeout not extended safely' }
+ Set-CloakBrowserDownloadTimeout $cloak
+ if ([IO.File]::ReadAllText($download) -ne $source) { throw 'Timeout adaptation is not idempotent' }
+}
+`, scenario)
+		})
+	}
 }
 
 func TestWindowsInstallerMakeRealCommandDiscovery(t *testing.T) {

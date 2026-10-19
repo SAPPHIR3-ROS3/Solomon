@@ -272,6 +272,24 @@ function Test-CloakBrowserReady {
     return $null -ne $browser
 }
 
+function Set-CloakBrowserDownloadTimeout {
+    param([string]$CloakDir)
+
+    # The official npm wrapper hard-codes a ten-minute total download timeout.
+    # A 500+ MB archive can exceed that on slower connections. Adapt only this
+    # constant; leave the wrapper's mirrors, verification and extraction intact.
+    $path = Join-Path $CloakDir 'node_modules/cloakbrowser/dist/download.js'
+    $source = [IO.File]::ReadAllText($path)
+    $pattern = '(?m)^const DOWNLOAD_TIMEOUT_MS = ([0-9_]+);[^\r\n]*'
+    $matches = [regex]::Matches($source, $pattern)
+    if ($matches.Count -ne 1) {
+        throw 'CloakBrowser download timeout format changed; cannot safely extend it. Please report this installer compatibility error.'
+    }
+    if ([long]($matches[0].Groups[1].Value.Replace('_', '')) -ge 3600000) { return }
+    $source = [regex]::Replace($source, $pattern, 'const DOWNLOAD_TIMEOUT_MS = 3600000; // Solomon installer: allow slow connections (60 minutes)')
+    [IO.File]::WriteAllText($path, $source, (New-Object System.Text.UTF8Encoding -ArgumentList $false))
+}
+
 function Install-CloakBrowser {
     if (Test-CloakBrowserReady) {
         return
@@ -289,12 +307,21 @@ function Install-CloakBrowser {
     try {
         & npm install --ignore-scripts --no-audit --no-fund cloakbrowser playwright-core
         if ($LASTEXITCODE -ne 0) { throw 'npm install cloakbrowser failed' }
+        Set-CloakBrowserDownloadTimeout -CloakDir $cloakDir
         $hadPreviousCache = Test-Path Env:CLOAKBROWSER_CACHE_DIR
         $previousCache = $env:CLOAKBROWSER_CACHE_DIR
         $env:CLOAKBROWSER_CACHE_DIR = $cloakCache
         try {
-            & npx --no-install cloakbrowser install
-            if ($LASTEXITCODE -ne 0) { throw 'npx cloakbrowser install failed' }
+            Write-Host 'Downloading CloakBrowser (up to 60 minutes per server on slow connections)...'
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+                & npx --no-install cloakbrowser install
+                if ($LASTEXITCODE -eq 0) { break }
+                if ($attempt -eq 3) {
+                    throw 'CloakBrowser download failed after 3 attempts. Check your connection and rerun the same Solomon install command.'
+                }
+                Write-Host "CloakBrowser download failed (attempt $attempt/3), retrying in 5 seconds..."
+                Start-Sleep -Seconds 5
+            }
         }
         finally {
             if ($hadPreviousCache) {
