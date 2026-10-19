@@ -75,7 +75,28 @@ test('sending a new user turn does not start a timer above it',async()=>{
  }));
 });
 
-test('composer wraps complete words and keeps the caret on the rendered word',async()=>{
+test('composer uses the native caret for wrapped text, selection and Unicode',async()=>{
+ await load();
+ const text="non sono sicurissimo di aver capito, ma se ho capito man mano scorro l'array tenendo conto della della posizione del pivot, faccio il confronto con il valore della posizione\nAccenti: è già così. Emoji: 👩🏽‍💻. العربية";
+ for(const cursor of [text.indexOf('posizione'),text.indexOf('👩'),text.length]){
+  await page.evaluate(({text,cursor})=>window.setComposer(text,cursor),{text,cursor});
+  await page.waitForTimeout(50);
+  const state=await page.evaluate(()=>{
+   const input=document.querySelector('textarea');
+   return {color:getComputedStyle(input).caretColor,start:input.selectionStart,end:input.selectionEnd,focused:document.activeElement===input,overlays:document.querySelectorAll('.composer-image-caret').length};
+  });
+  assert.notEqual(state.color,'rgba(0, 0, 0, 0)','the real textarea caret must stay visible');
+  assert.notEqual(state.color,'transparent');
+  assert.equal(state.overlays,0,'a separately positioned caret can drift from native text layout');
+  assert.equal(state.focused,true);
+  assert.equal(state.start,cursor);
+  assert.equal(state.end,cursor);
+ }
+ await page.evaluate(()=>document.querySelector('textarea').setSelectionRange(4,30));
+ assert.deepEqual(await page.evaluate(()=>{const input=document.querySelector('textarea');return [input.selectionStart,input.selectionEnd];}),[4,30]);
+});
+
+test('composer wraps complete words and resizes without horizontal scrolling',async()=>{
  await load();
  // The word fits on its own but not on the remainder of the first line.
  const sample=await page.evaluate(()=>{
@@ -101,7 +122,7 @@ test('composer wraps complete words and keeps the caret on the rendered word',as
   await page.evaluate(({text,cursor})=>window.setComposer(text,cursor),{text:value,cursor});
   await page.waitForTimeout(100);
   return page.evaluate(({text,cursor})=>{
-   const input=document.querySelector('textarea'), shell=input.parentElement, style=getComputedStyle(input);
+   const input=document.querySelector('textarea'), style=getComputedStyle(input);
    const mirror=document.createElement('div');
    for(const property of ['boxSizing','font','letterSpacing','lineHeight','padding','whiteSpace','wordBreak','overflowWrap','wordSpacing','tabSize'])mirror.style[property]=style[property];
    mirror.style.position='fixed';mirror.style.width=input.clientWidth+'px';mirror.style.visibility='hidden';
@@ -109,10 +130,8 @@ test('composer wraps complete words and keeps the caret on the rendered word',as
    const wordStart=text.lastIndexOf(' ')+1;
    const range=document.createRange();range.setStart(mirror.firstChild,wordStart);range.setEnd(mirror.firstChild,text.length);
    const rects=[...range.getClientRects()];
-   const caretRange=document.createRange();caretRange.setStart(mirror.firstChild,cursor);caretRange.collapse(true);
-   const expected=caretRange.getBoundingClientRect(), bounds=mirror.getBoundingClientRect();
-   const caret=document.querySelector('.composer-image-caret').getBoundingClientRect(), parent=shell.getBoundingClientRect();
-   const data={wordLines:rects.length,wordTop:rects[0].top-bounds.top,expectedLeft:expected.left-bounds.left+input.getBoundingClientRect().left-parent.left,expectedTop:expected.top-bounds.top+input.getBoundingClientRect().top-parent.top,caretLeft:caret.left-parent.left,caretTop:caret.top-parent.top,scrollLeft:input.scrollLeft,scrollWidth:input.scrollWidth,clientWidth:input.clientWidth};
+   const bounds=mirror.getBoundingClientRect();
+   const data={wordLines:rects.length,wordTop:rects[0].top-bounds.top,scrollLeft:input.scrollLeft,scrollWidth:input.scrollWidth,clientWidth:input.clientWidth};
    mirror.remove();return data;
   },{text:value,cursor});
  };
@@ -123,9 +142,8 @@ test('composer wraps complete words and keeps the caret on the rendered word',as
  assert.equal(end.wordLines,1,'a word that fits must move to the next line as a whole');
  assert.ok(end.wordTop>10,'the word must wrap before the right padding');
  assert.equal(end.scrollLeft,0);
- const middle=await measure(sample.prefix.length+3);
- assert.ok(Math.abs(middle.caretTop-middle.expectedTop)<4,'caret must follow the entire wrapped word when editing its middle');
- assert.ok(Math.abs(middle.caretLeft-middle.expectedLeft)<3,'caret must not remain at the end of the previous line');
+ await measure(sample.prefix.length+3);
+ assert.equal(await page.evaluate(()=>document.querySelector('textarea').selectionStart),sample.prefix.length+3);
  const deleted=await measure(shorter.length,shorter);
  assert.ok(deleted.wordTop<10,'deleting the last character must bring the complete word back');
  const multiline='Prima riga\nSeconda riga\n';
@@ -139,7 +157,7 @@ test('composer wraps complete words and keeps the caret on the rendered word',as
  // Changing the layout width must update height and overlays without another keystroke.
  await page.evaluate(()=>{document.querySelector('.welcome-composer').style.width='350px';});
  await page.waitForTimeout(150);
- assert.ok(await page.evaluate(()=>{const input=document.querySelector('textarea'),caret=document.querySelector('.composer-image-caret');return input.scrollWidth<=input.clientWidth+1 && parseFloat(caret.style.left)<input.clientWidth;}));
+ assert.ok(await page.evaluate(()=>{const input=document.querySelector('textarea');return input.scrollWidth<=input.clientWidth+1 && input.scrollLeft===0;}));
 
 });
 

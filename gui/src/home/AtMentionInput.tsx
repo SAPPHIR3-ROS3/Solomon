@@ -26,7 +26,6 @@ type AtMentionInputProps = {
 
 type InputSuggestion = ProjectAtMentionSuggestion & { description?: string };
 type ImageTagPosition = { id: number; left: number; top: number; text: string; width: number };
-type CaretPosition = { height: number; left: number; top: number };
 type LightboxTool = "color" | "cursor" | "eraser" | "sketch" | "text";
 
 const lightboxColors = [
@@ -80,7 +79,6 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   const [selected, setSelected] = useState(0);
   const [pickerPosition, setPickerPosition] = useState<{ left: number; top: number } | null>(null);
   const [imageTagPositions, setImageTagPositions] = useState<ImageTagPosition[]>([]);
-  const [caretPosition, setCaretPosition] = useState<CaretPosition | null>(null);
   const [selectedImageID, setSelectedImageID] = useState<number | null>(null);
   const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<LightboxTool>("color");
@@ -118,14 +116,12 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     if (images.length && input && document.activeElement !== input) input.focus();
     resizeInput(inputRef.current);
     setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
-    if (document.activeElement === inputRef.current) syncVisualCaret(inputRef.current);
   }, [clips, images, value]);
 
   useEffect(() => {
     const reposition = () => {
       resizeInput(inputRef.current);
       setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
-      if (document.activeElement === inputRef.current) syncVisualCaret(inputRef.current);
     };
     let width = inputRef.current?.clientWidth;
     let frame = 0;
@@ -226,7 +222,6 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     requestAnimationFrame(() => {
       input.focus();
       input.setSelectionRange(nextCursor, nextCursor);
-      scheduleVisualCaret(input);
     });
   }
 
@@ -275,7 +270,6 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     requestAnimationFrame(() => {
       input?.focus();
       input?.setSelectionRange(insertion.cursor, insertion.cursor);
-      scheduleVisualCaret(input);
     });
   }
 
@@ -286,7 +280,6 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.setSelectionRange(removal.cursor, removal.cursor);
-      scheduleVisualCaret(inputRef.current);
     });
   }
 
@@ -306,18 +299,6 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   function removeImageFromKeyboard(image: ComposerImageAttachment, event: KeyboardEvent<HTMLTextAreaElement>) {
     event.preventDefault();
     removeImage(image);
-  }
-
-  function syncVisualCaret(input: HTMLTextAreaElement | null) {
-    if (!input || document.activeElement !== input || input.selectionStart !== input.selectionEnd) {
-      setCaretPosition(null);
-      return;
-    }
-    setCaretPosition(positionCaret(input, shellRef.current, input.value, input.selectionStart));
-  }
-
-  function scheduleVisualCaret(input: HTMLTextAreaElement | null) {
-    requestAnimationFrame(() => requestAnimationFrame(() => syncVisualCaret(input)));
   }
 
   return (
@@ -379,21 +360,12 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
           const remainingClips = clips.filter((clip) => nextValue.includes(clip.tag));
           if (remainingClips.length !== clips.length) onClipsChange?.(remainingClips);
           updateSuggestions(nextValue, event.target.selectionStart ?? nextValue.length);
-          scheduleVisualCaret(inputRef.current);
         }}
         onClick={(event) => {
           updateSuggestions(value, event.currentTarget.selectionStart ?? value.length);
-          syncVisualCaret(event.currentTarget);
-          scheduleVisualCaret(event.currentTarget);
         }}
         onFocus={(event) => {
           updateSuggestions(value, event.currentTarget.selectionStart ?? value.length);
-          syncVisualCaret(event.currentTarget);
-          scheduleVisualCaret(event.currentTarget);
-        }}
-        onMouseUp={(event) => {
-          syncVisualCaret(event.currentTarget);
-          scheduleVisualCaret(event.currentTarget);
         }}
         onKeyDown={(event) => {
           // IME confirmation belongs to the keyboard, including mobile keyboards.
@@ -414,11 +386,11 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
             const cursor = input.selectionStart;
             if (event.key === "ArrowLeft") {
               const nextCursor = jumpAcrossImageTag(value, overlayTags(images, clips), cursor, "left");
-              if (nextCursor !== null) { event.preventDefault(); input.setSelectionRange(nextCursor, nextCursor); syncVisualCaret(input); return; }
+              if (nextCursor !== null) { event.preventDefault(); input.setSelectionRange(nextCursor, nextCursor); return; }
             }
             if (event.key === "ArrowRight") {
               const nextCursor = jumpAcrossImageTag(value, overlayTags(images, clips), cursor, "right");
-              if (nextCursor !== null) { event.preventDefault(); input.setSelectionRange(nextCursor, nextCursor); syncVisualCaret(input); return; }
+              if (nextCursor !== null) { event.preventDefault(); input.setSelectionRange(nextCursor, nextCursor); return; }
             }
             if (event.key === "Backspace") {
               const image = imageAtCursor(value, overlayTags(images, clips), cursor, "left");
@@ -437,13 +409,11 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
         }}
         onScroll={() => {
           setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
-          syncVisualCaret(inputRef.current);
         }}
         onSelect={(event) => {
           snapSelectionOutsideImageTag(event.currentTarget, value, overlayTags(images, clips));
-          scheduleVisualCaret(event.currentTarget);
         }}
-        onBlur={() => { setCaretPosition(null); requestRef.current += 1; setSuggestions([]); contextRef.current = null; }}
+        onBlur={() => { requestRef.current += 1; setSuggestions([]); contextRef.current = null; }}
         placeholder={placeholder}
         ref={inputRef}
         rows={3}
@@ -459,9 +429,6 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
           ) : null;
         })}
       </div>
-      {caretPosition ? (
-        <span aria-hidden="true" className="composer-image-caret" style={caretPosition} />
-      ) : null}
       {suggestions.length ? (
         <div id={pickerID} aria-label={contextRef.current?.kind === "command" ? "Command suggestions" : "File suggestions"} className="at-mention-picker" role="listbox" style={pickerPosition ? { left: pickerPosition.left, bottom: pickerPosition.top } satisfies CSSProperties : undefined}>
           {suggestions.map((suggestion, index) => (
@@ -757,36 +724,6 @@ function positionImageTags(input: HTMLTextAreaElement | null, shell: HTMLDivElem
   });
   mirror.remove();
   return positions;
-}
-
-function positionCaret(input: HTMLTextAreaElement | null, shell: HTMLDivElement | null, value: string, position: number): CaretPosition | null {
-  if (!input || !shell) return null;
-  const computed = getComputedStyle(input);
-  const mirror = document.createElement("div");
-  copyTextareaStyles(computed, mirror);
-  const inputRect = input.getBoundingClientRect();
-  mirror.style.cssText += `;height:auto;left:${inputRect.left}px;overflow:hidden;position:fixed;top:${inputRect.top}px;visibility:hidden;width:${input.clientWidth}px;`;
-  // Layout the whole value: a prefix alone can fit on the previous line even
-  // though the complete word wraps. A span at the caret can also introduce a
-  // break opportunity that the textarea's uninterrupted text does not have.
-  mirror.textContent = `${value}\u200b`;
-  document.body.append(mirror);
-  const range = document.createRange();
-  const cursor = Math.max(0, Math.min(position, value.length));
-  range.setStart(mirror.firstChild!, cursor);
-  range.setEnd(mirror.firstChild!, cursor + (String.fromCodePoint(mirror.textContent.codePointAt(cursor)!).length));
-  const markerRect = range.getBoundingClientRect();
-  const mirrorRect = mirror.getBoundingClientRect();
-  const shellRect = shell.getBoundingClientRect();
-  const lineHeight = Number.parseFloat(computed.lineHeight) || 22;
-  const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
-  const lineTop = paddingTop + Math.round((markerRect.top - mirrorRect.top - paddingTop) / lineHeight) * lineHeight;
-  mirror.remove();
-  return {
-    height: lineHeight,
-    left: markerRect.left - shellRect.left - input.scrollLeft,
-    top: inputRect.top - shellRect.top + lineTop - input.scrollTop,
-  };
 }
 
 function copyTextareaStyles(computed: CSSStyleDeclaration, target: HTMLElement) {

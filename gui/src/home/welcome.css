@@ -712,7 +712,7 @@
 }
 
 .at-mention-input-shell .welcome-input {
-  caret-color: transparent;
+  caret-color: var(--color-crown-gold);
   display: block;
   color: var(--color-text);
   overflow-y: hidden;
@@ -747,24 +747,6 @@
   position: absolute;
   text-align: left;
   white-space: nowrap;
-}
-
-.composer-image-caret {
-  animation: composer-caret-blink 1s steps(2, start) infinite;
-  background: var(--color-crown-gold);
-  border-radius: 2px;
-  pointer-events: none;
-  position: absolute;
-  width: 2px;
-  z-index: 3;
-}
-
-@keyframes composer-caret-blink {
-  50% { opacity: 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composer-image-caret { animation: none; }
 }
 
 .at-mention-input-shell .welcome-input::-webkit-scrollbar {
