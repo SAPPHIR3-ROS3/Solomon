@@ -17,7 +17,11 @@ if ($PSVersionTable.PSEdition -eq 'Desktop') {
 # The online installer is evaluated with iex, so this also permits npm.ps1/npx.ps1.
 # Local files must be launched with powershell -ExecutionPolicy Bypass -File.
 if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+    try {
+        Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+    } catch {
+        throw "[install] PowerShell execution policy setup failed: $($_.Exception.Message). A managed UserPolicy/MachinePolicy may override Process scope; inspect Get-ExecutionPolicy -List."
+    }
 }
 
 $GoRequired = '1.25.0'
@@ -29,11 +33,26 @@ $GithubReleasesLatest = 'https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/rele
 $Marker = '# solomon-installer'
 $MarkerEnd = '# /solomon-installer'
 
+function Invoke-InstallerStep {
+    param([string]$Step, [string]$Hint, [scriptblock]$Action)
+    $script:InstallOperation = $Step
+    Write-Host "[install] $Step"
+    try { & $Action }
+    catch {
+        $detail = $_.Exception.Message
+        $location = $_.InvocationInfo.PositionMessage
+        throw "[install] FAILED: $Step`nOperation: $script:InstallOperation`nCause: $detail`nError ID: $($_.FullyQualifiedErrorId)`n$location`nNext: $Hint`nExternal command output is shown above. Installation stopped; resolve this error and rerun the same install command."
+    }
+}
+
 function Get-GoSemVer {
-    if ((go version 2>$null) -match 'go version go(\S+)') {
+    $script:InstallOperation = 'Validate Go toolchain using go version'
+    $output = go version
+    if ($LASTEXITCODE -ne 0) { throw "go version failed (exit code $LASTEXITCODE). Check the command output above and repair the Go installation." }
+    if ($output -match 'go version go(\S+)') {
         return ($Matches[1] -replace '-.*$', '')
     }
-    return ''
+    throw "Cannot parse Go version output: $output. Check that go on PATH is a working Go toolchain."
 }
 
 function Test-VersionGe {
@@ -71,10 +90,14 @@ function Install-GoWindows {
     try {
         Write-Host "Downloading Go $GoRequired (windows-$arch)..."
         $zipPath = Join-Path $tmp $zip
+        $script:InstallOperation = "Download Go $GoRequired from $url to $zipPath"
         Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+        $script:InstallOperation = "Extract Go archive $zipPath into $tmp"
         Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
+        $script:InstallOperation = "Validate extracted Go toolchain in $tmp"
         & (Join-Path $tmp 'go\bin\go.exe') version | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw 'Downloaded Go toolchain is invalid' }
+        if ($LASTEXITCODE -ne 0) { throw "Downloaded Go toolchain is invalid (go version exit code $LASTEXITCODE). Check antivirus restrictions and the command output above." }
+        $script:InstallOperation = "Replace Go toolchain at $GoRoot (backup and rollback enabled)"
         $goBackup = Join-Path $parent ('.go-backup-' + [guid]::NewGuid().ToString('n'))
         if (Test-Path -LiteralPath $GoRoot) { Move-Item -LiteralPath $GoRoot -Destination $goBackup }
         try { Move-Item -LiteralPath (Join-Path $tmp 'go') -Destination $GoRoot }
@@ -92,11 +115,12 @@ function Install-GoWindows {
 }
 
 function Get-LatestReleaseTag {
+    $script:InstallOperation = "Resolve latest Solomon release using $GithubReleasesLatest"
     $headers = @{ 'User-Agent' = 'solomon-installer' }
     $resp = Invoke-RestMethod -Uri $GithubReleasesLatest -Headers $headers -UseBasicParsing
     $tag = [string]$resp.tag_name
     if ([string]::IsNullOrWhiteSpace($tag)) {
-        throw 'failed to resolve latest GitHub release tag'
+        throw "GitHub response from $GithubReleasesLatest contains no release tag_name. Check that a published release exists; inspect the API response for rate limiting or proxy errors."
     }
     return $tag.Trim()
 }
@@ -118,6 +142,7 @@ function Install-ReleaseAsset {
     $target = Join-Path $binDir "$Name.exe"
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     Write-Host "Downloading Solomon release asset $asset..."
+    $script:InstallOperation = "Download Solomon asset $url to $target"
     $maxAttempts = 15
     $tmp = Join-Path $binDir ('.solomon-download-' + [guid]::NewGuid().ToString('n'))
     try {
@@ -127,16 +152,18 @@ function Install-ReleaseAsset {
             break
         } catch {
             if ($attempt -ge $maxAttempts) {
-                throw "Failed to download $asset after $maxAttempts attempts"
+                throw "Failed to download $asset after $maxAttempts attempts from $url. Last cause: $($_.Exception.Message)"
             }
-            Write-Host "Download failed (attempt $attempt/$maxAttempts), retrying..."
+            Write-Host "Download failed (attempt $attempt/$maxAttempts): $($_.Exception.Message). URL: $url. Retrying..."
             Start-Sleep -Seconds 2
         }
     }
     $checksumsUrl = "https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/$Version/checksums.txt"
     $checksumsPath = Join-Path (Get-SolomonTempDir) ("solomon-checksums-" + [guid]::NewGuid().ToString('n'))
     try {
+        $script:InstallOperation = "Download checksum manifest $checksumsUrl"
         Invoke-WebRequest -Uri $checksumsUrl -OutFile $checksumsPath -UseBasicParsing
+        $script:InstallOperation = "Verify SHA-256 of $asset using $checksumsUrl"
         $expected = $null
         Get-Content $checksumsPath | ForEach-Object {
             if ($_ -match '^(\S+)\s+\*?(.+)$') {
@@ -154,6 +181,7 @@ function Install-ReleaseAsset {
         Remove-Item -Force $checksumsPath -ErrorAction SilentlyContinue
     }
     $backup = "$target.$([guid]::NewGuid().ToString('n')).bak"
+    $script:InstallOperation = "Replace Solomon binary at $target (backup: $backup)"
     if ((Get-Item -LiteralPath $tmp).Length -eq 0) { throw 'Downloaded binary is empty' }
     $installed = $false
     try {
@@ -201,7 +229,10 @@ function Ensure-Go {
 function Ensure-Node {
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if ($nodeCmd) {
-        $ver = (node --version 2>$null).Trim()
+        $script:InstallOperation = "Validate Node.js runtime $($nodeCmd.Source) using node --version"
+        $output = node --version
+        if ($LASTEXITCODE -ne 0) { throw "node --version failed (exit code $LASTEXITCODE; executable: $($nodeCmd.Source)). Check the command output above and repair Node.js." }
+        $ver = ([string]$output).Trim()
         $normalized = $ver.TrimStart('v') -replace '-.*$', ''
         if ((Test-VersionGe -Have $normalized -Want $NodeRequired)) {
             Write-Host "Node $ver OK (>= $NodeRequired)"
@@ -221,7 +252,9 @@ function Ensure-Node {
         throw 'winget not found; install Node.js LTS from https://nodejs.org/en/download/'
     }
 
+    $script:InstallOperation = 'Install Node.js LTS using winget package OpenJS.NodeJS.LTS'
     & winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) { throw "Node.js LTS installation via winget failed (exit code $LASTEXITCODE). See the winget error above; check package agreements, source access and installer permissions." }
 
     $nodeDirs = @(
         (Join-Path $env:ProgramFiles 'nodejs')
@@ -279,6 +312,7 @@ function Set-CloakBrowserDownloadTimeout {
     # A 500+ MB archive can exceed that on slower connections. Adapt only this
     # constant; leave the wrapper's mirrors, verification and extraction intact.
     $path = Join-Path $CloakDir 'node_modules/cloakbrowser/dist/download.js'
+    $script:InstallOperation = "Adapt CloakBrowser download timeout in $path"
     $source = [IO.File]::ReadAllText($path)
     $pattern = '(?m)^const DOWNLOAD_TIMEOUT_MS = ([0-9_]+);[^\r\n]*'
     $matches = [regex]::Matches($source, $pattern)
@@ -305,8 +339,9 @@ function Install-CloakBrowser {
     Write-Host 'Installing the official CloakBrowser wrapper...'
     Push-Location $cloakDir
     try {
+        $script:InstallOperation = "Install npm packages cloakbrowser and playwright-core in $cloakDir"
         & npm install --ignore-scripts --no-audit --no-fund cloakbrowser playwright-core
-        if ($LASTEXITCODE -ne 0) { throw 'npm install cloakbrowser failed' }
+        if ($LASTEXITCODE -ne 0) { throw "npm install cloakbrowser failed (exit code $LASTEXITCODE). See the npm error above for registry, proxy, certificate, permissions or disk-space details." }
         Set-CloakBrowserDownloadTimeout -CloakDir $cloakDir
         $hadPreviousCache = Test-Path Env:CLOAKBROWSER_CACHE_DIR
         $previousCache = $env:CLOAKBROWSER_CACHE_DIR
@@ -314,12 +349,13 @@ function Install-CloakBrowser {
         try {
             Write-Host 'Downloading CloakBrowser (up to 60 minutes per server on slow connections)...'
             for ($attempt = 1; $attempt -le 3; $attempt++) {
+                $script:InstallOperation = "Download, verify and extract CloakBrowser into $cloakCache (attempt $attempt/3; timeout 60 minutes per server)"
                 & npx --no-install cloakbrowser install
                 if ($LASTEXITCODE -eq 0) { break }
                 if ($attempt -eq 3) {
-                    throw 'CloakBrowser download failed after 3 attempts. Check your connection and rerun the same Solomon install command.'
+                    throw "CloakBrowser download failed after 3 attempts (npx exit code $LASTEXITCODE; cache: $cloakCache). See the CloakBrowser output above: aborted means cancellation/timeout; HTTP, certificate, checksum and extraction errors have different causes. Check the reported error and rerun the same Solomon install command."
                 }
-                Write-Host "CloakBrowser download failed (attempt $attempt/3), retrying in 5 seconds..."
+                Write-Host "CloakBrowser download failed (attempt $attempt/3, npx exit code $LASTEXITCODE). See the error above; retrying in 5 seconds..."
                 Start-Sleep -Seconds 5
             }
         }
@@ -360,7 +396,7 @@ function Get-InstallerServerPort {
     }
     $port = 0
     if (-not [int]::TryParse($raw.Trim(), [ref]$port) -or $port -lt 1 -or $port -gt 65535) {
-        throw 'SOLOMON_SERVER_PORT must be a TCP port between 1 and 65535'
+        throw "SOLOMON_SERVER_PORT must be a TCP port between 1 and 65535 (received '$raw'; config: $ConfigPath). Correct the environment variable or the top-level server_port setting."
     }
     return $port
 }
@@ -432,6 +468,7 @@ function Ensure-McpWebConfig {
     param([string]$SolomonHome)
 
     $path = Join-Path $SolomonHome 'mcp.json'
+    $script:InstallOperation = "Read and update MCP configuration $path"
     New-Item -ItemType Directory -Force -Path $SolomonHome | Out-Null
     if (Test-Path $path) {
         $document = Get-Content -Path $path -Raw | ConvertFrom-Json
@@ -477,6 +514,7 @@ function Configure-RuntimeDefaults {
     if (-not (Test-Path $configPath)) {
         [System.IO.File]::WriteAllText($configPath, '', (New-Object System.Text.UTF8Encoding -ArgumentList $false))
     }
+    $script:InstallOperation = "Validate server port and update runtime settings in $configPath"
     $port = Get-InstallerServerPort -ConfigPath $configPath
     Set-TomlScalar -Path $configPath -Key 'server_port' -Value ([string]$port)
     if (-not (Test-TopLevelTomlScalar -Path $configPath -Key 'web_search_engine')) {
@@ -488,11 +526,16 @@ function Configure-RuntimeDefaults {
 }
 
 function Get-GoInstallBinDir {
-    $gobin = (go env GOBIN).Trim()
+    $script:InstallOperation = 'Resolve installation directory using go env GOBIN/GOPATH'
+    $gobinOutput = go env GOBIN
+    if ($LASTEXITCODE -ne 0) { throw "go env GOBIN failed (exit code $LASTEXITCODE). Check the Go installation and the error above." }
+    $gobin = ([string]$gobinOutput).Trim()
     if ($gobin) {
         return $gobin
     }
-    return Join-Path (((go env GOPATH) -split ';')[0]) 'bin'
+    $gopathOutput = go env GOPATH
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$gopathOutput)) { throw "go env GOPATH failed or returned an empty directory (exit code $LASTEXITCODE). Check the Go environment and the error above." }
+    return Join-Path (([string]$gopathOutput -split ';')[0]) 'bin'
 }
 
 function Ensure-GoBinInPath {
@@ -509,6 +552,7 @@ function Add-UserPathEntry {
     param([string]$Entry)
     if ([string]::IsNullOrWhiteSpace($Entry)) { return }
     $Entry = $Entry.Trim().TrimEnd('\')
+    $script:InstallOperation = "Persist user PATH entry $Entry"
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     $userParts = @()
     if ($userPath) {
@@ -547,8 +591,9 @@ function Ensure-Make {
     Update-InstallerProcessPath
     $makeCmd = Get-Command make -ErrorAction SilentlyContinue
     if ($makeCmd) {
+        $script:InstallOperation = 'Validate GNU Make using make --version'
         & make --version | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw 'GNU Make is on PATH but cannot run (make --version failed)' }
+        if ($LASTEXITCODE -ne 0) { throw "GNU Make is on PATH but cannot run (make --version failed; exit code $LASTEXITCODE; executable: $($makeCmd.Source)). Check the command output above." }
         Write-Host "make OK ($($makeCmd.Source))"
         return
     }
@@ -559,6 +604,7 @@ function Ensure-Make {
         throw 'winget not found; install GNU Make manually or install App Installer from the Microsoft Store'
     }
 
+    $script:InstallOperation = 'Install GNU Make using winget package ezwinports.make'
     & winget install --id ezwinports.make -e --scope user --accept-source-agreements --accept-package-agreements
     if ($LASTEXITCODE -ne 0) { throw "GNU Make installation via winget failed (exit code $LASTEXITCODE)" }
 
@@ -578,8 +624,9 @@ function Ensure-Make {
         throw 'winget completed but make.exe is unavailable in the updated PATH and WinGet Links directory'
     }
 
+    $script:InstallOperation = 'Validate GNU Make using make --version'
     & make --version | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'GNU Make was installed but cannot run (make --version failed)' }
+    if ($LASTEXITCODE -ne 0) { throw "GNU Make was installed but cannot run (make --version failed; exit code $LASTEXITCODE; executable: $($makeCmd.Source)). Check the command output above." }
     Write-Host "make ready ($($makeCmd.Source))"
 }
 
@@ -624,7 +671,8 @@ function Test-SolomonInstallerProfileBlockCurrent {
     param([string]$ProfilePath)
 
     $expected = (Get-GoInstallBinProfileBlock).Trim()
-    $content = Get-Content -Path $ProfilePath -Raw -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $ProfilePath)) { return $false }
+    $content = Get-Content -LiteralPath $ProfilePath -Raw -ErrorAction Stop
     if ([string]::IsNullOrEmpty($content)) {
         return $false
     }
@@ -645,7 +693,8 @@ function Install-GoInstallBinProfileBlock {
     }
 
     $block = (Get-GoInstallBinProfileBlock).Trim()
-    $content = Remove-SolomonInstallerProfileBlocks (Get-Content -Path $ProfilePath -Raw -ErrorAction SilentlyContinue)
+    $existingContent = if (Test-Path -LiteralPath $ProfilePath) { Get-Content -LiteralPath $ProfilePath -Raw -ErrorAction Stop } else { '' }
+    $content = Remove-SolomonInstallerProfileBlocks $existingContent
     if ([string]::IsNullOrWhiteSpace($content)) {
         Set-Content -Path $ProfilePath -Value $block -NoNewline
     } else {
@@ -659,6 +708,7 @@ function Update-PowerShellProfile {
     if (-not $profile) {
         $profile = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'PowerShell\profile.ps1'
     }
+    $script:InstallOperation = "Update PowerShell profile $profile"
     $profileDir = Split-Path $profile -Parent
     if (-not (Test-Path $profileDir)) {
         New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
@@ -692,6 +742,7 @@ function Install-Solomon {
     Ensure-GoBinInPath
     $installedCLI = Join-Path (Get-GoInstallBinDir) 'solomon.exe'
     $installedDesktop = Join-Path (Get-GoInstallBinDir) 'solomon-desktop.exe'
+    $script:InstallOperation = "Check for running Solomon processes before replacing $installedCLI and $installedDesktop"
     $running = Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
         $_.ExecutablePath -ieq $installedCLI -or $_.ExecutablePath -ieq $installedDesktop
     }
@@ -714,10 +765,13 @@ function Install-Solomon {
         try {
             $mz = ($stream.ReadByte() -eq 0x4D) -and ($stream.ReadByte() -eq 0x5A)
         } finally { $stream.Close() }
-        if (-not $mz) { throw 'Solomon desktop setup failed' }
+        if (-not $mz) { throw "Solomon desktop setup failed: downloaded CLI $bin has no Windows MZ executable header. It is corrupt or is not a Windows executable." }
+        $script:InstallOperation = "Provision desktop application and OS registration using $bin init"
         & $bin init
-        if (-not $? -or $LASTEXITCODE -ne 0) { throw 'Solomon desktop setup failed' }
-        & $bin version 2>$null
+        if (-not $? -or $LASTEXITCODE -ne 0) { throw "Solomon desktop setup failed (solomon init exit code $LASTEXITCODE). See the error above for desktop download, checksum, WebView2 or registration details. CLI: $bin" }
+        $script:InstallOperation = "Validate installed CLI using $bin version"
+        & $bin version
+        if ($LASTEXITCODE -ne 0) { throw "Installed Solomon version check failed (exit code $LASTEXITCODE; binary: $bin). See the command output above." }
         $cmd = Get-Command solomon -ErrorAction SilentlyContinue
         if ($cmd) {
             Write-Host "solomon on PATH: $($cmd.Source)"
@@ -742,26 +796,26 @@ function Install-Solomon {
 }
 
 if ($ProfileOnly) {
-    Update-PowerShellProfile
+    Invoke-InstallerStep 'PowerShell profile setup' 'Check profile file permissions and available disk space.' { Update-PowerShellProfile }
     return
 }
 
 if ($SetupPathOnly) {
-    Ensure-Go
-    Setup-Shell
+    Invoke-InstallerStep 'Go toolchain setup' 'Check the reported download URL, Go version, permissions and available disk space.' { Ensure-Go }
+    Invoke-InstallerStep 'Shell PATH and profile setup' 'Check user PATH registry access and PowerShell profile permissions.' { Setup-Shell }
     return
 }
 
 if ($CloakBrowserOnly) {
-    Install-CloakBrowser
-    Configure-RuntimeDefaults
+    Invoke-InstallerStep 'CloakBrowser setup' 'Check Node/npm, the reported server error, connection, proxy and cache directory permissions.' { Install-CloakBrowser }
+    Invoke-InstallerStep 'Runtime configuration' 'Correct the reported port or JSON error; check configuration directory permissions.' { Configure-RuntimeDefaults }
     return
 }
 
-Ensure-Go
-Ensure-Make
-Setup-Shell
-Install-CloakBrowser
-Configure-RuntimeDefaults
-Install-Solomon
+Invoke-InstallerStep 'Go toolchain setup' 'Check the reported download URL, Go version, permissions and available disk space.' { Ensure-Go }
+Invoke-InstallerStep 'GNU Make setup' 'Check the winget error, App Installer availability and the refreshed PATH.' { Ensure-Make }
+Invoke-InstallerStep 'Shell PATH and profile setup' 'Check user PATH registry access and PowerShell profile permissions.' { Setup-Shell }
+Invoke-InstallerStep 'CloakBrowser setup' 'Check Node/npm, the reported server error, connection, proxy and cache directory permissions.' { Install-CloakBrowser }
+Invoke-InstallerStep 'Runtime configuration' 'Correct the reported port or JSON error; check configuration directory permissions.' { Configure-RuntimeDefaults }
+Invoke-InstallerStep 'Solomon CLI and desktop setup' 'Check the reported release URL, checksum, running-process or desktop setup error. Use solomon upgrade if Solomon is running.' { Install-Solomon }
 Write-Host 'Done.'

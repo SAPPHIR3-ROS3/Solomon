@@ -13,9 +13,34 @@ GITHUB_RELEASES_API="https://api.github.com/repos/SAPPHIR3-ROS3/Solomon/releases
 MARKER="# solomon-installer"
 DEFAULT_SERVER_PORT="64000"
 
+installer_step() {
+  INSTALL_STEP="$1"
+  INSTALL_OPERATION="$1"
+  INSTALL_HINT="$2"
+  printf '[install] %s\n' "$INSTALL_STEP" >&2
+}
+
+installer_error() {
+  local status="$1" line="${2:-unknown}" command="${3:-explicit exit}" caller="${4:-main}"
+  INSTALL_ERROR_REPORTED=1
+  printf '\n[install] FAILED: %s\nOperation: %s\nExit code: %s\nLocation: %s, line %s\nCommand: %s\nNext: %s\nOriginal command output is shown above. Resolve this error and rerun the same install command.\n' \
+    "${INSTALL_STEP:-Installer startup}" "${INSTALL_OPERATION:-Initialize installer}" "$status" "$caller" "$line" "$command" \
+    "${INSTALL_HINT:-Check the error above, required commands, filesystem permissions and available disk space.}" >&2
+}
+
+installer_enable_diagnostics() {
+  set -E
+  INSTALL_ERROR_REPORTED=0
+  # ERR identifies unexpected failures; EXIT also covers explicit exit guards.
+  # Existing cleanup and rollback traps in subshells continue to run unchanged.
+  trap 'installer_error "$?" "$LINENO" "$BASH_COMMAND" "${FUNCNAME[0]:-main}"' ERR
+  trap 'status=$?; if (( status != 0 )) && [[ "${INSTALL_ERROR_REPORTED:-0}" != 1 ]]; then installer_error "$status"; fi' EXIT
+}
+
 go_install_bin_dir() {
+  INSTALL_OPERATION="Resolve installation directory using go env GOBIN/GOPATH"
   local gobin
-  gobin="$(go env GOBIN 2>/dev/null || true)"
+  gobin="$(go env GOBIN)"
   gobin="${gobin//$'\r'/}"
   gobin="${gobin//$'\n'/}"
   if [[ -n "$gobin" ]]; then
@@ -150,7 +175,7 @@ file_sha256() {
 
 go_semver() {
   local raw
-  raw="$(go version 2>/dev/null | awk '{print $3}')"
+  raw="$(go version | awk '{print $3}')"
   raw="${raw#go}"
   raw="${raw%%-*}"
   echo "$raw"
@@ -178,6 +203,7 @@ detect_platform() {
 }
 
 resolve_latest_release_tag() {
+  INSTALL_OPERATION="Resolve latest Solomon release using $GITHUB_RELEASES_API"
   local tag api="$GITHUB_RELEASES_API"
   if command -v python3 >/dev/null 2>&1; then
     tag="$(curl -fsSL "$api" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")"
@@ -187,7 +213,7 @@ resolve_latest_release_tag() {
   tag="${tag//$'\r'/}"
   tag="${tag//$'\n'/}"
   if [[ -z "$tag" ]]; then
-    echo "failed to resolve latest GitHub release tag" >&2
+    echo "No release tag_name found in $api. Check for API rate limiting, proxy errors or a missing published release." >&2
     exit 1
   fi
   echo "$tag"
@@ -215,22 +241,26 @@ install_release_asset() (
   checksums="$(mktemp "$bin_dir/.solomon-checksums.XXXXXX")"
   trap "rm -f $(printf '%q' "$tmp") $(printf '%q' "$checksums")" EXIT
   echo "Downloading Solomon release asset ${asset}..."
+  INSTALL_OPERATION="Download Solomon asset $url to $target"
     attempt=1
   max_attempts=15
   while true; do
     if curl -fsSL "$url" -o "$tmp"; then
       break
+    else
+      download_status=$?
     fi
     if (( attempt >= max_attempts )); then
-      echo "Failed to download ${asset} after ${max_attempts} attempts" >&2
+      echo "Failed to download ${asset} after ${max_attempts} attempts (curl exit code $download_status) from $url. See curl error above for HTTP, DNS, TLS or connection details." >&2
       rm -f "$tmp"
-      exit 1
+      exit "$download_status"
     fi
-    echo "Download failed (attempt ${attempt}/${max_attempts}), retrying..." >&2
+    echo "Download failed (attempt ${attempt}/${max_attempts}; curl exit code $download_status; URL: $url). See curl error above; retrying..." >&2
     sleep 2
     attempt=$((attempt + 1))
   done
   checksums_url="https://github.com/SAPPHIR3-ROS3/Solomon/releases/download/${INSTALL_VERSION}/checksums.txt"
+  INSTALL_OPERATION="Download checksum manifest $checksums_url"
   if curl -fsSL "$checksums_url" -o "$checksums"; then
     expected="$(awk -v asset="$asset" '{name=$NF; sub(/^\*/,"",name); if(name==asset) {print tolower($1); exit}}' "$checksums")"
     if [[ -z "$expected" ]]; then
@@ -238,6 +268,7 @@ install_release_asset() (
       rm -f "$tmp" "$checksums"
       exit 1
     fi
+    INSTALL_OPERATION="Verify SHA-256 of $asset using $checksums_url"
     actual="$(file_sha256 "$tmp")"
     if [[ "$expected" != "$actual" ]]; then
       echo "checksum mismatch for ${asset} (expected ${expected}, got ${actual})" >&2
@@ -246,11 +277,13 @@ install_release_asset() (
     fi
     rm -f "$checksums"
   else
-    echo "Cannot download checksums.txt for ${INSTALL_VERSION}; installation cancelled" >&2
-    exit 1
+    download_status=$?
+    echo "Cannot download checksums.txt for ${INSTALL_VERSION} from $checksums_url (curl exit code $download_status); installation cancelled. See curl error above; the release must include a checksum manifest." >&2
+    exit "$download_status"
   fi
   [[ -s "$tmp" ]] || { echo 'Downloaded binary is empty' >&2; exit 1; }
   # Chmod before the atomic rename; a running CLI keeps its previous inode.
+  INSTALL_OPERATION="Set executable permissions and replace Solomon binary at $target"
   chmod 755 "$tmp"
   mv "$tmp" "$target"
 )
@@ -265,9 +298,13 @@ install_go() (
   echo "Downloading Go ${GO_REQUIRED} (${platform})..."
   tmp="$(mktemp -d "$parent/.solomon-go.XXXXXX")"
   trap 'rm -rf "$tmp"' EXIT
+  INSTALL_OPERATION="Download Go from $url into $tmp"
   curl -fsSL "$url" -o "${tmp}/${tarball}"
+  INSTALL_OPERATION="Extract Go archive ${tmp}/${tarball}"
   tar -C "$tmp" -xzf "${tmp}/${tarball}"
+  INSTALL_OPERATION="Validate extracted Go toolchain ${tmp}/go/bin/go"
   "${tmp}/go/bin/go" version >/dev/null
+  INSTALL_OPERATION="Replace Go toolchain at $GO_INSTALL_ROOT (backup and rollback enabled)"
   if [[ -e "$GO_INSTALL_ROOT" ]]; then
     mv "$GO_INSTALL_ROOT" "$tmp/previous-go"
   fi
@@ -309,6 +346,7 @@ ensure_go() {
 
 linux_install_packages() {
   local id="" id_like="" pkgs=("$@")
+  INSTALL_OPERATION="Install Linux packages: ${pkgs[*]} (check package-manager output and sudo permissions)"
   if [[ -f /etc/os-release ]]; then
     id="$(grep -E '^ID=' /etc/os-release | cut -d= -f2- | tr -d '"')"
     id_like="$(grep -E '^ID_LIKE=' /etc/os-release | cut -d= -f2- | tr -d '"' || true)"
@@ -354,6 +392,7 @@ linux_install_packages() {
       elif command -v apk >/dev/null 2>&1; then
         sudo apk add "${pkgs[@]}"
       else
+        echo "No supported Linux package manager found (distribution: ${id:-unknown}; requested packages: ${pkgs[*]}). Install these packages manually, then rerun." >&2
         return 1
       fi
       ;;
@@ -376,6 +415,7 @@ find_homebrew() {
 
 ensure_homebrew() {
   local installer brew_prefix install_status=0
+  INSTALL_OPERATION="Locate Homebrew or install from https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
   if ! find_homebrew; then
     echo "Homebrew not found; installing from the official installer..."
     installer="$(mktemp)"
@@ -393,7 +433,7 @@ ensure_homebrew() {
     fi
     if [[ "$install_status" != 0 ]]; then
       rm -f "$installer"
-      echo "Homebrew installation failed; complete installation at https://brew.sh/ and rerun this script." >&2
+      echo "Homebrew installation failed (exit code $install_status); see installer output above for administrator permissions or Xcode Command Line Tools requirements. Complete installation at https://brew.sh/ and rerun this script." >&2
       return 1
     fi
     rm -f "$installer"
@@ -410,6 +450,7 @@ ensure_homebrew() {
 
 install_make_darwin() {
   ensure_homebrew || return 1
+  INSTALL_OPERATION="Install GNU Make with brew install make and resolve its PATH"
   echo "Installing make via Homebrew..."
   if ! brew install make; then
     echo "Homebrew make installation failed; resolve the brew error above and rerun this script." >&2
@@ -423,14 +464,17 @@ install_make_darwin() {
 }
 
 install_make_linux() {
-  if ! linux_install_packages make; then
-    echo "Unsupported Linux distro; install make with your package manager." >&2
-    exit 1
-  fi
+  linux_install_packages make || {
+    local status=$?
+    echo "GNU Make package installation failed (exit code $status). See package-manager error above for repository, sudo, lock or package availability details; install make manually and rerun." >&2
+    exit "$status"
+  }
 }
 
 ensure_make() {
   if command -v make > /dev/null 2>&1; then
+    INSTALL_OPERATION='Validate GNU Make using make --version'
+    make --version >/dev/null
     echo "make OK ($(command -v make))"
     return 0
   fi
@@ -449,21 +493,24 @@ ensure_make() {
     echo "make install failed; make not in PATH" >&2
     exit 1
   fi
+  INSTALL_OPERATION='Validate installed GNU Make using make --version'
+  make --version >/dev/null
   echo "make ready ($(command -v make))"
 }
 
 node_lts_major() {
   local major=""
   if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
-    major="$(curl --connect-timeout 10 --max-time 30 -fsSL https://nodejs.org/dist/index.json 2>/dev/null | python3 -c "
+    major="$(curl --connect-timeout 10 --max-time 30 -fsSL https://nodejs.org/dist/index.json | python3 -c "
 import json,sys
 for e in json.load(sys.stdin):
     if e.get('lts'):
         print(e['version'].lstrip('v').split('.')[0])
         break
-" 2>/dev/null || true)"
+" || true)"
   fi
   if [[ -z "$major" ]]; then
+    echo '[install] Warning: could not resolve Node.js LTS from https://nodejs.org/dist/index.json (curl/python3 missing or request/JSON failure). Using Node.js 22 fallback.' >&2
     major="22"
   fi
   echo "$major"
@@ -474,6 +521,7 @@ install_node_darwin() {
   ensure_homebrew || return 1
   major="$(node_lts_major)"
   formula="node@${major}"
+  INSTALL_OPERATION="Install Node.js with brew install $formula and resolve its PATH"
   echo "Installing Node.js LTS (${formula}) via Homebrew..."
   if ! brew install "$formula"; then
     echo "${formula} installation failed; trying brew install node..."
@@ -492,10 +540,11 @@ install_node_darwin() {
 }
 
 install_node_linux_fallback() {
-  if ! linux_install_packages nodejs npm; then
-    echo "Unsupported Linux distro; install Node.js LTS from https://nodejs.org/" >&2
-    exit 1
-  fi
+  linux_install_packages nodejs npm || {
+    local status=$?
+    echo "Node.js/npm package installation failed (exit code $status). See package-manager error above for repository, sudo, lock or package availability details; install Node.js LTS and npm from https://nodejs.org/ and rerun." >&2
+    exit "$status"
+  }
 }
 
 install_node_linux() {
@@ -503,6 +552,7 @@ install_node_linux() {
   major="$(node_lts_major)"
 
   if command -v curl >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+    INSTALL_OPERATION="Configure NodeSource repository https://deb.nodesource.com/setup_${major}.x and install nodejs"
     echo "Installing Node.js LTS (${major}.x) via NodeSource..."
     if curl -fsSL "https://deb.nodesource.com/setup_${major}.x" | sudo bash -; then
       if sudo apt-get install -y nodejs && command -v node >/dev/null 2>&1; then
@@ -520,7 +570,7 @@ ensure_node() {
   if command -v node >/dev/null 2>&1; then
     node_present=1
     local ver
-    ver="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//' || true)"
+    ver="$(node --version | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//' || true)"
     if version_ge "$ver" "$NODE_REQUIRED" && command -v npm >/dev/null 2>&1; then
       echo "Node ${ver} OK (>= ${NODE_REQUIRED})"
       return 0
@@ -547,7 +597,8 @@ ensure_node() {
     exit 1
   fi
   local ver
-  ver="$(node --version 2>/dev/null | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//' || true)"
+  INSTALL_OPERATION='Validate installed Node.js using node --version'
+  ver="$(node --version | tr -d '\r' | sed 's/^v//' | sed 's/-.*$//' || true)"
   if ! version_ge "$ver" "$NODE_REQUIRED"; then
     echo "Node install failed (got ${ver}; need >= ${NODE_REQUIRED})" >&2
     exit 1
@@ -601,7 +652,9 @@ install_cloakbrowser() {
   echo "Installing the official CloakBrowser wrapper..."
   (
     cd "$cloak_dir"
+    INSTALL_OPERATION="Install npm packages cloakbrowser and playwright-core in $cloak_dir"
     npm install --ignore-scripts --no-audit --no-fund cloakbrowser playwright-core
+    INSTALL_OPERATION="Download, verify and extract CloakBrowser into $cloak_cache"
     CLOAKBROWSER_CACHE_DIR="$cloak_cache" npx --no-install cloakbrowser install
   )
   echo "CloakBrowser ready: ${cloak_dir}"
@@ -660,7 +713,7 @@ resolve_installer_server_port() {
     raw="$DEFAULT_SERVER_PORT"
   fi
   if ! [[ "$raw" =~ ^[0-9]+$ ]] || (( raw < 1 || raw > 65535 )); then
-    echo "SOLOMON_SERVER_PORT must be a TCP port between 1 and 65535" >&2
+    echo "SOLOMON_SERVER_PORT must be a TCP port between 1 and 65535 (received '$raw'; config: $config_path). Correct the environment variable, .env or top-level server_port setting." >&2
     exit 1
   fi
   printf '%s\n' "$raw"
@@ -696,6 +749,7 @@ upsert_toml_scalar() {
 
 ensure_mcp_web_config() {
   local solomon_home="$1" mcp_path="${1}/mcp.json"
+  INSTALL_OPERATION="Read and update MCP configuration $mcp_path"
   mkdir -p "$solomon_home"
   if [[ ! -f "$mcp_path" ]]; then
     (
@@ -784,6 +838,7 @@ configure_runtime_defaults() {
     : >"$config_path"
     chmod 600 "$config_path"
   fi
+  INSTALL_OPERATION="Validate server port and update runtime settings in $config_path"
   port="$(resolve_installer_server_port "$solomon_home")"
   upsert_toml_scalar "$config_path" "server_port" "$port"
   if ! has_top_level_toml_scalar "$config_path" "web_search_engine"; then
@@ -847,6 +902,7 @@ configure_unix_rc() {
   rc="$1"
   [[ -n "$rc" ]] || return 0
   mkdir -p "$(dirname "$rc")"
+  INSTALL_OPERATION="Update shell profile $rc"
   touch "$rc"
 
   if [[ "$INSTALLED_LOCAL_GO" == 1 ]]; then
@@ -870,6 +926,7 @@ configure_fish_rc() {
   rc="$1"
   [[ -n "$rc" ]] || return 0
   mkdir -p "$(dirname "$rc")"
+  INSTALL_OPERATION="Update shell profile $rc"
   touch "$rc"
 
   if [[ "$INSTALLED_LOCAL_GO" == 1 ]]; then
@@ -905,6 +962,7 @@ install_solomon() (
   ensure_go_bin_in_path
   local server_port
   server_port="$(resolve_installer_server_port "${SOLOMON_HOME:-${HOME}/.solomon}")"
+  INSTALL_OPERATION="Check for active Solomon daemon on 127.0.0.1:$server_port"
   if curl --connect-timeout 2 --max-time 3 -fsS "http://127.0.0.1:${server_port}/health" -o /dev/null 2>/dev/null; then
     echo 'A daemon is active. Use solomon upgrade for a coordinated update, or stop Solomon before reinstalling.' >&2
     return 1
@@ -912,6 +970,7 @@ install_solomon() (
   local bin_dir solomon_bin previous
   bin_dir="$(go_install_bin_dir)"
   solomon_bin="${bin_dir}/solomon"
+  INSTALL_OPERATION="Back up existing Solomon CLI $solomon_bin"
   previous="$(mktemp "$bin_dir/.solomon-reinstall-backup.XXXXXX")"
   local had_previous=0
   if [[ -e "$solomon_bin" ]]; then
@@ -935,31 +994,45 @@ install_solomon() (
   }
   trap rollback_release_install EXIT
   echo "Installing solomon (${INSTALL_VERSION})..."
+  INSTALL_OPERATION='Install Solomon release binary: download, checksum verification and replacement'
   install_release_asset
   if [[ -x "$solomon_bin" ]]; then
     echo "solomon installed: ${solomon_bin}"
+    INSTALL_OPERATION="Provision desktop application and OS registration using $solomon_bin init"
     "$solomon_bin" init
-    "$solomon_bin" version 2>/dev/null || true
+    INSTALL_OPERATION="Validate installed CLI using $solomon_bin version"
+    "$solomon_bin" version
   else
-    echo "solomon binary is in ${bin_dir} (add to PATH if needed)" >&2
+    echo "Expected executable $solomon_bin is missing or not executable after installation. Check filesystem permissions and the download/extraction errors above." >&2
     exit 1
   fi
 )
 
 setup_path_only() {
+  installer_enable_diagnostics
+  installer_step 'Go toolchain setup' 'Check the reported download URL, Go version, permissions and available disk space.'
   ensure_go
+  installer_step 'Shell PATH and profile setup' 'Check the reported profile path and directory permissions.'
   setup_shell
 }
 
 main() {
+  installer_enable_diagnostics
   if [[ "$(uname -s)" == Darwin ]]; then
-    ensure_homebrew || return 1
+    installer_step 'Homebrew setup' 'Resolve the Homebrew error above; check administrator access and Xcode Command Line Tools.'
+    ensure_homebrew || return $?
   fi
+  installer_step 'Go toolchain setup' 'Check the reported download URL, Go version, permissions and available disk space.'
   ensure_go
+  installer_step 'GNU Make setup' 'Check the package-manager error, repository access, sudo permissions and PATH.'
   ensure_make
+  installer_step 'CloakBrowser setup' 'Check Node/npm and the reported download, timeout, checksum or extraction error; check proxy and cache permissions.'
   install_cloakbrowser
+  installer_step 'Shell PATH and profile setup' 'Check the reported profile path and directory permissions.'
   setup_shell
+  installer_step 'Runtime configuration' 'Correct the reported port or JSON error; check configuration directory permissions.'
   configure_runtime_defaults
+  installer_step 'Solomon CLI and desktop setup' 'Check the reported release URL, checksum, active daemon or desktop setup error. Use solomon upgrade if Solomon is running.'
   install_solomon
   echo "Done."
 }

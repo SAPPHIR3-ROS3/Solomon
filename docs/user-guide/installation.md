@@ -63,6 +63,13 @@ its integrity checks and extraction remain in place. If installation still
 fails, check the connection and rerun the same install command. Already prepared
 dependencies are reused.
 
+Installers print the current installation stage. On failure, they report the
+stage, operation, command/location, original error or exit code, and suggested
+next checks. External tools keep their original output visible: for example,
+a download timeout, an HTTP error, a checksum mismatch and a permission error
+are reported separately. Keep the output immediately before the final
+`[install] FAILED` message when reporting an installation problem.
+
 Reload the terminal, then run `solomon version`.
 
 All installation methods produce the same CLI and native desktop application.
