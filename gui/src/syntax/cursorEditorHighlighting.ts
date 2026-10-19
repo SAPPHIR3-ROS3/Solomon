@@ -1,6 +1,7 @@
 import { RangeSetBuilder, StateEffect } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { cursorForeground, cursorTokenizer, cursorTokenStyle } from "./cursorSyntax";
+import { rainbowBrackets } from "./rainbowBrackets";
 
 const highlightedTokens = StateEffect.define<DecorationSet>();
 
@@ -32,13 +33,16 @@ export function cursorEditorHighlighting(pathOrLanguage: string) {
     }
 
     schedule() {
-      if (!this.tokenizer?.highlighter || this.frame !== undefined) return;
+      if (!this.tokenizer || this.frame !== undefined) return;
       this.frame = requestAnimationFrame(() => {
         this.frame = undefined;
-        if (this.destroyed || !this.tokenizer?.highlighter) return;
+        if (this.destroyed || !this.tokenizer) return;
         const builder = new RangeSetBuilder<Decoration>();
         const { highlighter, language } = this.tokenizer;
-        const tokens = highlighter.codeToTokens(this.view.state.doc.toString(), { lang: language, theme: "cursor-dark" }).tokens;
+        const source = this.view.state.doc.toString();
+        const tokens = rainbowBrackets(highlighter
+          ? highlighter.codeToTokens(source, { lang: language, theme: "cursor-dark", includeExplanation: "tokenType" }).tokens
+          : source.split("\n").map(content => [{ content, offset: 0 }]));
         for (let index = 0; index < tokens.length && index < this.view.state.doc.lines; index++) {
           let from = this.view.state.doc.line(index + 1).from;
           for (const token of tokens[index]) {
