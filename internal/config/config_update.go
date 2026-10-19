@@ -70,3 +70,8 @@ func updateConfig(mutate func(*Root) error) (*Root, error) {
 	}
 	return root, nil
 }
+
+// UpdateProvider merges a connection into the latest config after browser login.
+func UpdateProvider(provider Provider) (*Root, error) {
+	return updateConfig(func(root *Root) error { AppendOrUpdateProvider(root, provider); return nil })
+}

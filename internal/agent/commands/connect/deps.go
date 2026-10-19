@@ -17,8 +17,9 @@ type Deps struct {
 	Stdin    io.Reader
 	ReadLine func(prompt string) (string, error)
 
-	Cfg     *config.Root
-	SaveCfg func() error
+	Cfg          *config.Root
+	SaveCfg      func() error
+	SaveProvider func(config.Provider) error
 
 	ApplyCurrentModel func(providerName, modelID string) error
 	Model             func() string

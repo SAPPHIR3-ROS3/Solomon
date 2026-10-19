@@ -51,10 +51,14 @@ func randomState() (string, error) {
 }
 
 func BuildAuthorizeURL(pkce PKCE) string {
+	return buildAuthorizeURL(pkce, RedirectURI)
+}
+
+func buildAuthorizeURL(pkce PKCE, redirect string) string {
 	params := url.Values{}
 	params.Set("response_type", "code")
 	params.Set("client_id", ClientID)
-	params.Set("redirect_uri", RedirectURI)
+	params.Set("redirect_uri", redirect)
 	params.Set("scope", Scopes)
 	params.Set("code_challenge", pkce.Challenge)
 	params.Set("code_challenge_method", "S256")

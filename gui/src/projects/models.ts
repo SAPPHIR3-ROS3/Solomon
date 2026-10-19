@@ -348,12 +348,12 @@ export async function connectProvider(request: ConnectProviderRequest): Promise<
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
+  invalidateModelCatalogCache();
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Unable to connect provider";
     throw new Error(detail);
   }
-  invalidateModelCatalogCache();
   return modelChoiceFromPayload(await response.json());
 }
 

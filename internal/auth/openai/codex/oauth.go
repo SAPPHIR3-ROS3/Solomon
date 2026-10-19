@@ -16,6 +16,15 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
+var tokenEndpoint = TokenURL
+var tokenClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+func SetTokenEndpointForTest(endpoint string) func() {
+	old := tokenEndpoint
+	tokenEndpoint = endpoint
+	return func() { tokenEndpoint = old }
+}
+
 type TokenSet struct {
 	AccessToken  string
 	RefreshToken string
@@ -33,8 +42,7 @@ type tokenResponse struct {
 }
 
 type tokenError struct {
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description"`
+	Error json.RawMessage `json:"error"`
 }
 
 func Refresh(ctx context.Context, refreshToken string) (TokenSet, error) {
@@ -65,48 +73,59 @@ func exchangeAuthorizationCode(ctx context.Context, code, verifier string) (Toke
 }
 
 func postToken(ctx context.Context, form url.Values) (TokenSet, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, TokenURL, strings.NewReader(form.Encode()))
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenEndpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token request build failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT OAuth token request build failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", clientUserAgent(ResolveClientVersion(ctx, false)))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := tokenClient.Do(req)
 	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token request failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT OAuth token request failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token response read failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT OAuth token response read failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	if resp.StatusCode != http.StatusOK {
+		code := ""
 		var te tokenError
-		if json.Unmarshal(body, &te) == nil && te.Error != "" {
-			if te.ErrorDescription != "" {
-				err := fmt.Errorf("%s: %s", te.Error, te.ErrorDescription)
-				logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
-				return TokenSet{}, err
+		if json.Unmarshal(body, &te) == nil {
+			if json.Unmarshal(te.Error, &code) != nil {
+				var nested struct {
+					Code string `json:"code"`
+				}
+				if json.Unmarshal(te.Error, &nested) == nil {
+					code = nested.Code
+				}
 			}
-			err := fmt.Errorf("%s", te.Error)
-			logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
-			return TokenSet{}, err
 		}
-		err := fmt.Errorf("token endpoint: %s: %s", resp.Status, string(body))
-		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
+		message := "ChatGPT OAuth token request rejected"
+		switch code {
+		case "invalid_grant", "invalid_token", "invalid_refresh_token", "refresh_token_reused", "refresh_token_expired":
+			message = "ChatGPT Sub authorization expired or was revoked; sign in again with /connect (" + code + ")"
+		}
+		err := fmt.Errorf("%s (HTTP %d)", message, resp.StatusCode)
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT OAuth token endpoint error", logging.LogOptions{Params: map[string]any{"status": resp.StatusCode, "err": err.Error()}})
 		return TokenSet{}, err
 	}
 	var tr tokenResponse
 	if err := json.Unmarshal(body, &tr); err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token response unmarshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT OAuth token response unmarshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return TokenSet{}, err
 	}
 	if strings.TrimSpace(tr.AccessToken) == "" {
-		logging.Log(logging.ERROR_LOG_LEVEL, "OAuth token response missing access_token", logging.LogOptions{Params: nil})
+		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT OAuth token response missing access_token", logging.LogOptions{Params: nil})
 		return TokenSet{}, errors.New("token response missing access_token")
 	}
 	expires := time.Now().Add(time.Hour)
@@ -120,6 +139,9 @@ func postToken(ctx context.Context, form url.Values) (TokenSet, error) {
 	refresh := strings.TrimSpace(tr.RefreshToken)
 	if refresh == "" {
 		refresh = strings.TrimSpace(form.Get("refresh_token"))
+	}
+	if refresh == "" {
+		return TokenSet{}, errors.New("ChatGPT OAuth response missing refresh_token; run /connect")
 	}
 	return TokenSet{
 		AccessToken:  tr.AccessToken,
@@ -143,5 +165,9 @@ func openBrowser(url string) error {
 	default:
 		cmd = exec.Command("xdg-open", url)
 	}
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }()
+	return nil
 }

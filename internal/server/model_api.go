@@ -155,11 +155,11 @@ func (a *modelAPI) handleConnectProvider(w http.ResponseWriter, r *http.Request)
 	result, err := providerui.Connect(r.Context(), providerui.ConnectRequest{
 		APIKey: request.APIKey, BaseURL: request.BaseURL, Kind: request.Kind, Name: request.Name,
 	})
+	a.invalidate() // A connection may be saved even if model discovery failed.
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
-	a.invalidate()
 	writeJSON(w, http.StatusOK, apiModelChoice{Model: result.CurrentModel, Provider: result.CurrentProvider})
 }
 

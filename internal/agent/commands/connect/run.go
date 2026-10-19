@@ -45,5 +45,6 @@ func ProviderSetupOpts(d Deps) config.ProviderSetupOpts {
 		RequireProvider: true,
 		WriteToConfig:   true,
 		SaveConfig:      d.SaveCfg,
+		SaveProvider:    d.SaveProvider,
 	}
 }

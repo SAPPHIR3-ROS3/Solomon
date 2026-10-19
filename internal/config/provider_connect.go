@@ -84,6 +84,8 @@ type ProviderSetupOpts struct {
 	RequireProvider bool
 	WriteToConfig   bool
 	SaveConfig      func() error
+	SaveProvider    func(Provider) error
+	OpenBrowser     func(string) error
 }
 
 type ProviderSetupResult struct {
@@ -114,7 +116,7 @@ func setupClaudeSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root
 	}
 	out := pio.promptOut()
 	fmt.Fprintln(out, "Third-party harness usage may draw from Anthropic extra usage instead of plan limits.")
-	tokens, err := claude.Login(ctx, out)
+	tokens, err := claude.LoginWithBrowser(ctx, out, opts.OpenBrowser)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub login failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
@@ -123,9 +125,14 @@ func setupClaudeSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root
 	if err != nil {
 		return nil, err
 	}
+	saved := opts.WriteToConfig && cfg != nil && (opts.SaveProvider != nil || opts.SaveConfig != nil)
+	if err := persistSetupProvider(cfg, opts, prov); err != nil {
+		return nil, err
+	}
+	opts.WriteToConfig = false
 	ids, err := listAnthropicModelsForSetup(&prov, tokens.AccessToken)
 	if err != nil {
-		return nil, err
+		return nil, providerCatalogError(prov.Name, saved, err)
 	}
 	return FinalizeProviderSetup(pio, cfg, existing, opts, prov, ids)
 }
@@ -138,7 +145,7 @@ func setupChatGPTSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Roo
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	tokens, err := codex.Login(ctx, pio.promptOut())
+	tokens, err := codex.LoginWithBrowser(ctx, pio.promptOut(), opts.OpenBrowser)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT Sub login failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
@@ -147,12 +154,17 @@ func setupChatGPTSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Roo
 	if err != nil {
 		return nil, err
 	}
-	ids, err := codex.ListModels(ctx, tokens.AccessToken, tokens.AccountID)
-	if err != nil {
+	saved := opts.WriteToConfig && cfg != nil && (opts.SaveProvider != nil || opts.SaveConfig != nil)
+	if err := persistSetupProvider(cfg, opts, prov); err != nil {
 		return nil, err
 	}
+	opts.WriteToConfig = false
+	ids, err := codex.ListModels(ctx, tokens.AccessToken, tokens.AccountID)
+	if err != nil {
+		return nil, providerCatalogError(prov.Name, saved, err)
+	}
 	if len(ids) == 0 {
-		return nil, fmt.Errorf("ChatGPT Sub: no usable models returned by API")
+		return nil, providerCatalogError(prov.Name, saved, fmt.Errorf("no usable models returned by API"))
 	}
 	return FinalizeProviderSetup(pio, cfg, existing, opts, prov, ids)
 }
@@ -277,15 +289,36 @@ func listModelsForNewProvider(pio PromptIO, p *Provider, curated []string) ([]st
 	return ids, nil
 }
 
+// Save authenticated credentials before optional model discovery or selection.
+func persistSetupProvider(cfg *Root, opts ProviderSetupOpts, prov Provider) error {
+	if !opts.WriteToConfig || cfg == nil {
+		return nil
+	}
+	if opts.SaveProvider != nil {
+		if err := opts.SaveProvider(prov); err != nil {
+			return err
+		}
+		AppendOrUpdateProvider(cfg, prov)
+		return nil
+	}
+	AppendOrUpdateProvider(cfg, prov)
+	if opts.SaveConfig != nil {
+		return opts.SaveConfig()
+	}
+	return nil
+}
+
+func providerCatalogError(name string, saved bool, err error) error {
+	if saved {
+		return fmt.Errorf("%s sign-in credentials saved, but model discovery failed; retry loading models: %w", name, err)
+	}
+	return fmt.Errorf("%s model discovery failed: %w", name, err)
+}
+
 func FinalizeProviderSetup(pio PromptIO, cfg *Root, existing *Root, opts ProviderSetupOpts, prov Provider, ids []string) (*ProviderSetupResult, error) {
 	res := &ProviderSetupResult{Provider: prov}
-	if opts.WriteToConfig && cfg != nil {
-		AppendOrUpdateProvider(cfg, prov)
-		if opts.SaveConfig != nil {
-			if err := opts.SaveConfig(); err != nil {
-				return nil, err
-			}
-		}
+	if err := persistSetupProvider(cfg, opts, prov); err != nil {
+		return nil, err
 	}
 	allowSkip := !opts.RequireProvider
 	prevProv, prevModel := "", ""

@@ -325,34 +325,6 @@ func ResolveProviderBearer(ctx context.Context, r *Root, p *Provider) (string, e
 	}
 }
 
-func resolveChatGPTOAuthBearer(ctx context.Context, r *Root, p *Provider) (string, error) {
-	now := time.Now()
-	if !p.oauthAccessExpired(now) {
-		tok := strings.TrimSpace(p.OAuthAccessToken)
-		if tok != "" {
-			return tok, nil
-		}
-	}
-	refresh := strings.TrimSpace(p.OAuthRefreshToken)
-	if refresh == "" {
-		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT Sub OAuth refresh token missing", logging.LogOptions{Params: map[string]any{"provider": p.Name}})
-		return "", errors.New("ChatGPT Sub: missing OAuth tokens; run /connect")
-	}
-	tokens, err := codex.Refresh(ctx, refresh)
-	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "ChatGPT Sub OAuth token refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
-		return "", fmt.Errorf("ChatGPT Sub token refresh: %w", err)
-	}
-	ApplyOAuthTokens(p, tokens)
-	if r != nil {
-		if err := Save(r); err != nil {
-			logging.Log(logging.ERROR_LOG_LEVEL, "save config after OAuth refresh failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
-			return "", err
-		}
-	}
-	return tokens.AccessToken, nil
-}
-
 func ApplyCursorOAuthTokens(p *Provider, t cursorauth.TokenSet) {
 	keepKey := strings.TrimSpace(p.APIKey)
 	if strings.TrimSpace(t.APIKey) != "" {

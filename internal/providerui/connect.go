@@ -84,14 +84,22 @@ func Connect(ctx context.Context, request ConnectRequest) (ConnectResponse, erro
 		Ctx:      ctx,
 		Out:      &output,
 		ReadLine: readLine,
+		SaveProvider: func(provider config.Provider) error {
+			latest, err := config.UpdateProvider(provider)
+			if err == nil {
+				*cfg = *latest
+			}
+			return err
+		},
 		SaveCfg: func() error {
 			return config.Save(cfg)
 		},
 		ApplyCurrentModel: func(providerName, modelID string) error {
-			cfg.Current.Provider = providerName
-			cfg.Current.Model = modelID
-			config.NoteRecentModelUse(cfg, providerName, modelID)
-			return config.Save(cfg)
+			latest, err := config.UpdateCurrentModel(providerName, modelID)
+			if err == nil {
+				*cfg = *latest
+			}
+			return err
 		},
 		Model: func() string {
 			return cfg.Current.Model
