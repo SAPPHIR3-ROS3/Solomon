@@ -195,11 +195,13 @@
   left: 0;
   max-height: min(268px, calc(100vh - 160px));
   min-width: 260px;
-  overflow: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-width: var(--app-scrollbar-width, thin);
+  scrollbar-color: var(--color-border) transparent;
   padding: 6px;
   position: absolute;
-  scrollbar-color: var(--color-border) transparent;
-  scrollbar-width: var(--app-scrollbar-width, thin);
   top: calc(100% + 8px);
   width: 304px;
   z-index: 3;
@@ -1115,14 +1117,6 @@
   box-shadow: 0 30px 90px rgb(0 0 0 / 50%);
 }
 
-.welcome-workspace-scroll {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  overflow-anchor: none;
-  scrollbar-width: var(--app-scrollbar-width, thin);
-  scrollbar-color: var(--color-border) transparent;
-}
-
 .welcome-workspace-search {
   box-sizing: border-box;
   height: 44px;
@@ -1145,9 +1139,4 @@
 .welcome-workspace-search input:focus {
   outline: 1px solid var(--color-crown-gold);
   outline-offset: -1px;
-}
-
-.welcome-workspace-scroll-tail {
-  height: 44px;
-  pointer-events: none;
 }

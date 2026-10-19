@@ -489,7 +489,6 @@ function WorkspaceControl({
     const list = listRef.current;
     const search = searchRef.current;
     if (list && search) {
-      // La riga vuota in fondo consente di nascondere la ricerca anche con pochi progetti.
       list.scrollTop = search.offsetHeight;
     }
   }, [open]);
@@ -529,8 +528,8 @@ function WorkspaceControl({
         <ChevronIcon className={open ? "is-open" : undefined} />
       </button>
       {open ? (
-        <div aria-label="Project directory" className="welcome-workspace-menu" role="menu">
-          <div className="welcome-workspace-scroll" ref={listRef} style={{ height: Math.min(Math.max(recentProjects.length + (visibleTemporaryWorkspace ? 1 : 0), 1) * 36, 180) }}>
+        <div aria-label="Project directory" className="welcome-workspace-menu" ref={listRef} role="menu">
+          <div className="welcome-workspace-list">
             <div className="welcome-workspace-search" ref={searchRef}>
               <input aria-label="Search projects" placeholder="Search projects…" type="search" value={query} onChange={(event) => { setQuery(event.target.value); if (listRef.current) listRef.current.scrollTop = 0; }} onFocus={() => { if (listRef.current) listRef.current.scrollTop = 0; }} />
             </div>
@@ -564,7 +563,6 @@ function WorkspaceControl({
               </button>
             )) : <span className="welcome-workspace-empty">{normalizedQuery ? "No matching projects" : "No recent projects"}</span>}
             </div>
-            <div aria-hidden="true" className="welcome-workspace-scroll-tail" />
           </div>
           {!normalizedQuery && !showAll && projects.length > 5 ? <button
             className="welcome-workspace-show-more"
