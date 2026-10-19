@@ -88,12 +88,14 @@ func LoginWithBrowser(ctx context.Context, out io.Writer, browser func(string) e
 	go func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			select {
+			case <-ctx.Done():
 			case results <- loginResult{err: err}:
 			default:
 			}
 		}
 	}()
 	defer func() {
+		_ = ln.Close()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), time.Second)
 		defer shutdownCancel()
 		if srv.Shutdown(shutdownCtx) != nil {
@@ -113,6 +115,9 @@ func LoginWithBrowser(ctx context.Context, out io.Writer, browser func(string) e
 	case <-ctx.Done():
 		return TokenSet{}, fmt.Errorf("ChatGPT sign-in: %w", ctx.Err())
 	case result := <-results:
+		if ctx.Err() != nil {
+			return TokenSet{}, fmt.Errorf("ChatGPT sign-in: %w", ctx.Err())
+		}
 		if result.err != nil {
 			return TokenSet{}, result.err
 		}
