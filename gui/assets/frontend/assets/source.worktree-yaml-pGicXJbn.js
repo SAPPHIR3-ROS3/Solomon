@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-yaml","patterns":[{"include":"source.yaml"}],"name":"cursor:source.worktree-yaml"}`}))();export{t as default};
