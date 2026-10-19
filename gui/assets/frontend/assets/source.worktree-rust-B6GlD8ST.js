@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-rust","patterns":[{"include":"source.rust"}],"name":"cursor:source.worktree-rust"}`}))();export{t as default};

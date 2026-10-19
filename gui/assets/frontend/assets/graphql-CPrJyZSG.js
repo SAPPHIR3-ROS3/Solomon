@@ -1,0 +1,1 @@
+import{n as e,t}from"./graphql-BIW1nN8J.js";e();export{t as default};
