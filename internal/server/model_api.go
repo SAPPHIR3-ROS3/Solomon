@@ -188,18 +188,12 @@ func (a *modelAPI) loadCatalog(forceRefresh bool) (apiModelCatalog, error) {
 		Recent:    []apiModelChoice{},
 	}
 	for _, recent := range config.RecentModelUseEntries(cfg, cfg.Current.Provider) {
-		if recent.Provider == config.ProviderNameClaudeSub {
-			continue
-		}
 		catalog.Recent = append(catalog.Recent, apiModelChoice{Model: recent.Model, Provider: recent.Provider})
 	}
 
 	providers := config.ProviderList(cfg)
 	filtered := make([]config.Provider, 0, len(providers))
 	for _, provider := range providers {
-		if provider.Name == config.ProviderNameClaudeSub {
-			continue
-		}
 		if provider.Name == config.ProviderNameCursorAPI && !config.ProviderCredentialsReady(&provider) {
 			continue
 		}

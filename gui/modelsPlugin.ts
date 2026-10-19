@@ -10,7 +10,6 @@ const modelsEndpoint = "/__solomon/models";
 const currentModelEndpoint = "/__solomon/current-model";
 const modelVisibilityEndpoint = "/__solomon/model-visibility";
 const connectProviderEndpoint = "/__solomon/connect-provider";
-const skippedProviders = new Set(["Claude Sub"]);
 const recentModelCap = 64;
 const guiRoot = fileURLToPath(new URL(".", import.meta.url));
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -111,7 +110,7 @@ function listProviderNames(source: string): string[] {
   const seen = new Set<string>();
   for (const match of source.matchAll(/^\s*\[providers\.(.+?)\]\s*$/gm)) {
     const name = unquoteTomlKey(match[1]);
-    if (!name || skippedProviders.has(name) || seen.has(name)) continue;
+    if (!name || seen.has(name)) continue;
     seen.add(name);
     names.push(name);
   }
@@ -125,7 +124,7 @@ function parseRecentModels(source: string): Map<string, string[]> {
     const match = line.match(/^\s*(?:"([^"]+)"|'((?:[^']|'')*)'|([A-Za-z0-9_-]+))\s*=\s*\[(.*)\]\s*(?:#.*)?$/);
     if (!match) continue;
     const provider = (match[1] || (match[2] ? match[2].replaceAll("''", "'") : "") || match[3] || "").trim();
-    if (!provider || skippedProviders.has(provider)) continue;
+    if (!provider) continue;
     const models = Array.from(match[4].matchAll(/"([^"]+)"|'((?:[^']|'')*)'/g), (entry) => (entry[1] || entry[2]?.replaceAll("''", "'") || "").trim()).filter(Boolean);
     if (models.length) recent.set(provider, models);
   }
@@ -166,9 +165,9 @@ async function readRecentModelCatalog(home: string): Promise<ModelCatalog> {
   const hiddenMap = await readHiddenModels(home, source);
   const providerNames = listProviderNames(source);
   for (const name of recentMap.keys()) {
-    if (!providerNames.includes(name) && !skippedProviders.has(name)) providerNames.push(name);
+    if (!providerNames.includes(name)) providerNames.push(name);
   }
-  if (current.provider && !providerNames.includes(current.provider) && !skippedProviders.has(current.provider)) {
+  if (current.provider && !providerNames.includes(current.provider)) {
     providerNames.unshift(current.provider);
   }
   const providers: ProviderCatalog[] = providerNames.map((provider) => {

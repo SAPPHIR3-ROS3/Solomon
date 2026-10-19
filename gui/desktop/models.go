@@ -113,9 +113,6 @@ func buildDesktopModelCatalog(cfg *config.Root) desktopModelCatalog {
 		Providers: make([]desktopProviderCatalog, 0),
 	}
 	for _, entry := range config.RecentModelUseEntries(cfg, cfg.Current.Provider) {
-		if strings.TrimSpace(entry.Provider) == config.ProviderNameClaudeSub {
-			continue
-		}
 		result.Recent = append(result.Recent, desktopModelChoice{
 			Provider: strings.TrimSpace(entry.Provider),
 			Model:    strings.TrimSpace(entry.Model),
@@ -124,12 +121,7 @@ func buildDesktopModelCatalog(cfg *config.Root) desktopModelCatalog {
 
 	configured := config.ProviderList(cfg)
 	providers := make([]config.Provider, 0, len(configured))
-	for _, provider := range configured {
-		if provider.Name == config.ProviderNameClaudeSub {
-			continue
-		}
-		providers = append(providers, provider)
-	}
+	providers = append(providers, configured...)
 	result.Providers = make([]desktopProviderCatalog, len(providers))
 	if len(providers) == 0 {
 		return result

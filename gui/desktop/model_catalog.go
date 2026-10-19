@@ -98,9 +98,6 @@ func buildCatalog(cfg *config.Root, forceRefresh bool) catalogResponse {
 		Providers: make([]providerCatalog, 0),
 	}
 	for _, entry := range config.RecentModelUseEntries(cfg, cfg.Current.Provider) {
-		if strings.TrimSpace(entry.Provider) == config.ProviderNameClaudeSub {
-			continue
-		}
 		result.Recent = append(result.Recent, modelChoice{
 			Provider: strings.TrimSpace(entry.Provider),
 			Model:    strings.TrimSpace(entry.Model),
@@ -108,12 +105,7 @@ func buildCatalog(cfg *config.Root, forceRefresh bool) catalogResponse {
 	}
 	configured := config.ProviderList(cfg)
 	providers := make([]config.Provider, 0, len(configured))
-	for _, provider := range configured {
-		if provider.Name == config.ProviderNameClaudeSub {
-			continue
-		}
-		providers = append(providers, provider)
-	}
+	providers = append(providers, configured...)
 	result.Providers = make([]providerCatalog, len(providers))
 	if len(providers) == 0 {
 		return result
