@@ -42,7 +42,7 @@ var (
 	cached     Catalog
 	cachedAt   time.Time
 	fetching   chan struct{}
-	httpClient = &http.Client{Timeout: 8 * time.Second}
+	httpClient = &http.Client{Timeout: 40 * time.Second}
 )
 
 // Load returns a cached catalog when available. The first caller downloads the
@@ -120,6 +120,10 @@ func (c Catalog) Lookup(providerName, baseURL, modelID string) (Model, bool) {
 	if modelID == "" {
 		return Model{}, false
 	}
+	if strings.HasPrefix(modelID, "cursor-grok-") {
+		model, ok := c["xai"].Models[strings.TrimPrefix(modelID, "cursor-")]
+		return model, ok
+	}
 	if normalized(providerName) == "cursorapi" || normalized(providerName) == "cursorsub" {
 		return c.lookupCursorModel(modelID)
 	}
@@ -137,6 +141,10 @@ func (c Catalog) Lookup(providerName, baseURL, modelID string) (Model, bool) {
 // several labs, so derive visual capabilities from the corresponding official
 // provider instead of treating Cursor as a provider of the model.
 func (c Catalog) lookupCursorModel(modelID string) (Model, bool) {
+	modelID = strings.TrimPrefix(modelID, "cursor-")
+	if strings.HasPrefix(modelID, "glm-") {
+		modelID = strings.ReplaceAll(modelID, "p", ".")
+	}
 	for _, providerID := range officialProvidersForCursorModel(modelID) {
 		provider, ok := c[providerID]
 		if !ok {
@@ -161,7 +169,9 @@ func officialProvidersForCursorModel(modelID string) []string {
 	case strings.Contains(id, "gemini") || strings.Contains(id, "google"):
 		return []string{"google"}
 	case strings.Contains(id, "glm"):
-		return []string{"zhipuai"}
+		return []string{"zai", "zhipuai"}
+	case strings.Contains(id, "muse"):
+		return []string{"meta"}
 	case strings.Contains(id, "kimi"):
 		return []string{"moonshotai"}
 	default:

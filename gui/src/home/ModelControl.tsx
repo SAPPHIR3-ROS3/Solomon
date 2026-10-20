@@ -1,3 +1,4 @@
+import { invalidateModelCatalogCache } from "../projects/models";
 import "./logos.css";
 import { ProviderIcon } from "./ProviderIcon";
 export { ProviderIcon } from "./ProviderIcon";
@@ -119,6 +120,12 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
       cancelled = true;
     };
   }, [catalogLoaded, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    invalidateModelCatalogCache();
+    void fetchModelCatalog().catch(() => setLoadError(true));
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;

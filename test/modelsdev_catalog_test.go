@@ -92,3 +92,37 @@ func TestLookupCursorSubscriptionPreservesAllInputModes(t *testing.T) {
 		t.Fatalf("expected all input modalities, got %+v, found %v", result.Modalities.Input, ok)
 	}
 }
+
+func TestLookupCursorPrefixedGrokPreservesInputModes(t *testing.T) {
+	model := modelsdev.Model{ID: "grok-4.7"}
+	model.Modalities.Input = []string{"text", "image"}
+	catalog := modelsdev.Catalog{"xai": {Models: map[string]modelsdev.Model{"grok-4.7": model}}}
+	for _, provider := range []string{"Cursor Sub", "Cursor API", "Custom Cursor"} {
+		result, ok := catalog.Lookup(provider, "", "cursor-grok-4.7")
+		if !ok || result.ID != model.ID || len(result.Modalities.Input) != 2 {
+			t.Fatalf("%s: expected canonical Grok metadata, got %+v, found %v", provider, result, ok)
+		}
+	}
+}
+
+func TestLookupCursorGLMAndMuseOfficialInputs(t *testing.T) {
+	for _, entry := range []struct{ provider, id string }{{"zai", "glm-5.3"}, {"meta", "muse-spark-1.3"}} {
+		model := modelsdev.Model{ID: entry.id}
+		model.Modalities.Input = []string{"text", "image"}
+		catalog := modelsdev.Catalog{entry.provider: {Models: map[string]modelsdev.Model{entry.id: model}}}
+		result, ok := catalog.Lookup("Cursor Sub", "", "cursor-"+entry.id)
+		if !ok || len(result.Modalities.Input) != 2 {
+			t.Fatalf("%s: missing official input modes", entry.id)
+		}
+	}
+}
+
+func TestLookupCursorGLMVersionAlias(t *testing.T) {
+	model := modelsdev.Model{ID: "glm-5.3-flash"}
+	model.Modalities.Input = []string{"text", "image", "video", "pdf"}
+	catalog := modelsdev.Catalog{"zai": {Models: map[string]modelsdev.Model{model.ID: model}}}
+	result, ok := catalog.Lookup("Cursor Sub", "", "glm-5p3-flash")
+	if !ok || len(result.Modalities.Input) != 4 {
+		t.Fatal("expected canonical GLM input modalities")
+	}
+}
