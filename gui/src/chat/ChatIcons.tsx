@@ -7,7 +7,7 @@ export function CollapseSubchatIcon() {
 }
 
 export function BranchIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5" /><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" /><path d="M8.5 6h4A5.5 5.5 0 0 1 18 11.5V14" /><path d="M6 8.5v7" /></svg>;
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2" /><circle cx="18" cy="7" r="2" /><circle cx="6" cy="19" r="2" /><path d="M6 7v10M8 11h5a5 5 0 0 0 5-4" /></svg>;
 }
 
 export function WorktreeIcon() {
