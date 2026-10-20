@@ -237,7 +237,7 @@ func (r *Runtime) applyProviderClient(ctx context.Context, p *config.Provider) {
 }
 
 func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
-	prevP, prevM := r.Cfg.Current.Provider, r.Cfg.Current.Model
+	prevP := r.Cfg.Current.Provider
 	if prevP != "" {
 		if old := config.ProviderByName(r.Cfg, prevP); old != nil && old.IsCursorAPI() && providerName != prevP {
 			if np := config.ProviderByName(r.Cfg, providerName); np == nil || !np.IsCursorAPI() {
@@ -245,11 +245,8 @@ func (r *Runtime) ApplyCurrentModel(providerName, modelID string) error {
 			}
 		}
 	}
-	changed := prevP != providerName || prevM != modelID
-	r.Cfg.Current.Provider = providerName
-	r.Cfg.Current.Model = modelID
-	if changed {
-		config.NoteRecentModelUse(r.Cfg, providerName, modelID)
+	if err := config.AssignCurrentModel(r.Cfg, providerName, modelID); err != nil {
+		return err
 	}
 	if err := config.Save(r.Cfg); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "save config failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

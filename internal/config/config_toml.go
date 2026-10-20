@@ -39,6 +39,8 @@ type rootLegacyFile struct {
 
 	FastMode *bool `toml:"fast_mode,omitempty"`
 
+	ModelModes map[string]map[string]ModelMode `toml:"model_modes,omitempty"`
+
 	LogLevel string `toml:"log_level"`
 
 	MaxResponseTokens int `toml:"max_response_tokens"`
@@ -108,6 +110,8 @@ type rootFile struct {
 	SubagentReasoningEffort string `toml:"subagent_reasoning_effort"`
 
 	FastMode *bool `toml:"fast_mode,omitempty"`
+
+	ModelModes map[string]map[string]ModelMode `toml:"model_modes,omitempty"`
 
 	LogLevel string `toml:"log_level"`
 
@@ -209,6 +213,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		FastMode: f.FastMode,
 
+		ModelModes: f.ModelModes,
+
 		LogLevel: f.LogLevel,
 
 		MaxResponseTokens: f.MaxResponseTokens,
@@ -298,6 +304,8 @@ func rootToFile(r *Root) *rootFile {
 		SubagentReasoningEffort: r.SubagentReasoningEffort,
 
 		FastMode: r.FastMode,
+
+		ModelModes: r.ModelModes,
 
 		LogLevel: r.LogLevel,
 
@@ -429,6 +437,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		SubagentReasoningEffort: f.SubagentReasoningEffort,
 
 		FastMode: f.FastMode,
+
+		ModelModes: f.ModelModes,
 
 		LogLevel: f.LogLevel,
 

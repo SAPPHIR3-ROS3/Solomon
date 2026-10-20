@@ -28,6 +28,13 @@ type apiModelChoice struct {
 	Provider string `json:"provider"`
 }
 
+type apiCurrentModel struct {
+	FastMode        bool   `json:"fastMode"`
+	Model           string `json:"model"`
+	Provider        string `json:"provider"`
+	ReasoningEffort string `json:"reasoningEffort"`
+}
+
 type apiProviderCatalog struct {
 	Complete            bool     `json:"complete"`
 	Disabled            []string `json:"disabled,omitempty"`
@@ -101,12 +108,18 @@ func (a *modelAPI) handleCurrent(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, errors.New("provider and model are required"))
 		return
 	}
-	if _, err := config.UpdateCurrentModel(request.Provider, request.Model); err != nil {
+	saved, err := config.UpdateCurrentModel(request.Provider, request.Model)
+	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, err)
 		return
 	}
 	a.invalidate()
-	writeJSON(w, http.StatusOK, apiModelChoice{Model: request.Model, Provider: request.Provider})
+	writeJSON(w, http.StatusOK, apiCurrentModel{
+		Model:           request.Model,
+		Provider:        request.Provider,
+		ReasoningEffort: saved.ReasoningEffort,
+		FastMode:        saved.EffectiveFastMode(),
+	})
 }
 
 func (a *modelAPI) handleVisibility(w http.ResponseWriter, r *http.Request) {

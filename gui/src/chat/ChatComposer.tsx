@@ -237,9 +237,18 @@ export function ChatComposer({
             onFastModeAvailableChange={(available) => {
               setFastModeAvailable(available);
             }}
-            onModelChange={(choice) => {
+            onModelChange={(choice, modes) => {
               setSelectedProvider(choice.provider);
               onProviderChange?.(choice.provider);
+              if (modes?.reasoningEffort) {
+                const saved = normalizeReasoningEffort(modes.reasoningEffort);
+                setReasoning(saved);
+                onReasoningChange?.(saved);
+              }
+              if (typeof modes?.fastMode === "boolean") {
+                setFastOn(modes.fastMode);
+                onFastModeChange?.(modes.fastMode);
+              }
             }}
             onOpenChange={(open) => setOpenMenu(open ? "model" : null)}
             open={openMenu === "model"}

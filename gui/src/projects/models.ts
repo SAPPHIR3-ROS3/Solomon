@@ -281,7 +281,12 @@ function startModelCatalogRequest(forceRefresh = false): Promise<ModelCatalog> {
   return modelCatalogRequest;
 }
 
-export async function saveCurrentModel(provider: string, model: string): Promise<ModelChoice> {
+export type SavedCurrentModel = ModelChoice & {
+  fastMode?: boolean;
+  reasoningEffort?: string;
+};
+
+export async function saveCurrentModel(provider: string, model: string): Promise<SavedCurrentModel> {
   const response = await fetch(await serverEndpoint("/__solomon/current-model"), {
     body: JSON.stringify({ provider, model }),
     headers: { "Content-Type": "application/json" },
@@ -291,7 +296,8 @@ export async function saveCurrentModel(provider: string, model: string): Promise
     const detail = await response.text().catch(() => "");
     throw new Error(detail || `Unable to save model: ${response.status}`);
   }
-  const saved = modelChoiceFromPayload(await response.json());
+  const payload = await response.json();
+  const saved = savedCurrentModelFromPayload(payload);
   invalidateModelCatalogCache();
   cacheCurrentModel(saved);
   return saved;
@@ -411,6 +417,17 @@ function modelInfoFromPayload(payload: unknown): ModelInfo | undefined {
     : [];
   if (!context && !output && !input.length) return undefined;
   return { context, input, output };
+}
+
+function savedCurrentModelFromPayload(payload: unknown): SavedCurrentModel {
+  const choice = modelChoiceFromPayload(payload);
+  if (!payload || typeof payload !== "object") return choice;
+  const record = payload as Record<string, unknown>;
+  return {
+    ...choice,
+    fastMode: typeof record.fastMode === "boolean" ? record.fastMode : undefined,
+    reasoningEffort: typeof record.reasoningEffort === "string" ? record.reasoningEffort : undefined,
+  };
 }
 
 function modelChoiceFromPayload(payload: unknown): ModelChoice {

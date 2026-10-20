@@ -18,17 +18,34 @@ func UpdateCurrentModel(providerName, modelID string) (*Root, error) {
 		return nil, fmt.Errorf("provider and model are required")
 	}
 	return updateConfig(func(root *Root) error {
-		if ProviderByName(root, providerName) == nil {
-			return fmt.Errorf("unknown provider %q", providerName)
-		}
-		changed := root.Current.Provider != providerName || root.Current.Model != modelID
-		root.Current.Provider = providerName
-		root.Current.Model = modelID
-		if changed {
-			NoteRecentModelUse(root, providerName, modelID)
-		}
-		return nil
+		return AssignCurrentModel(root, providerName, modelID)
 	})
+}
+
+// AssignCurrentModel stores the outgoing model's mode and restores the incoming one on root.
+func AssignCurrentModel(root *Root, providerName, modelID string) error {
+	providerName = strings.TrimSpace(providerName)
+	modelID = strings.TrimSpace(modelID)
+	if providerName == "" || modelID == "" {
+		return fmt.Errorf("provider and model are required")
+	}
+	if root == nil {
+		return fmt.Errorf("config not loaded")
+	}
+	if ProviderByName(root, providerName) == nil {
+		return fmt.Errorf("unknown provider %q", providerName)
+	}
+	changed := root.Current.Provider != providerName || root.Current.Model != modelID
+	if changed {
+		RememberCurrentModelMode(root)
+	}
+	root.Current.Provider = providerName
+	root.Current.Model = modelID
+	if changed {
+		NoteRecentModelUse(root, providerName, modelID)
+		applyModelMode(root, providerName, modelID)
+	}
+	return nil
 }
 
 // UpdateReasoningEffort atomically persists the main-chat reasoning level.
@@ -39,8 +56,56 @@ func UpdateReasoningEffort(effort string) (*Root, error) {
 	}
 	return updateConfig(func(root *Root) error {
 		root.ReasoningEffort = canonical
+		RememberCurrentModelMode(root)
 		return nil
 	})
+}
+
+// UpdateFastMode atomically persists fast mode for the current provider model.
+func UpdateFastMode(enabled bool) (*Root, error) {
+	return updateConfig(func(root *Root) error {
+		root.FastMode = &enabled
+		RememberCurrentModelMode(root)
+		return nil
+	})
+}
+
+// RememberCurrentModelMode stores reasoning and fast mode for the current provider model.
+func RememberCurrentModelMode(root *Root) {
+	if root == nil {
+		return
+	}
+	providerName := strings.TrimSpace(root.Current.Provider)
+	modelID := strings.TrimSpace(root.Current.Model)
+	if providerName == "" || modelID == "" {
+		return
+	}
+	if root.ModelModes == nil {
+		root.ModelModes = map[string]map[string]ModelMode{}
+	}
+	modes := root.ModelModes[providerName]
+	if modes == nil {
+		modes = map[string]ModelMode{}
+		root.ModelModes[providerName] = modes
+	}
+	fast := root.EffectiveFastMode()
+	modes[modelID] = ModelMode{ReasoningEffort: root.ReasoningEffort, FastMode: &fast}
+}
+
+func applyModelMode(root *Root, providerName, modelID string) {
+	modes := root.ModelModes[providerName]
+	mode, ok := modes[modelID]
+	if !ok {
+		RememberCurrentModelMode(root)
+		return
+	}
+	if canonical, err := ParseReasoningEffortToken(mode.ReasoningEffort); err == nil {
+		root.ReasoningEffort = canonical
+	}
+	if mode.FastMode != nil {
+		fast := *mode.FastMode
+		root.FastMode = &fast
+	}
 }
 
 func updateConfig(mutate func(*Root) error) (*Root, error) {

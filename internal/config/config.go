@@ -72,6 +72,12 @@ type RecentModelUse struct {
 	Model    string `toml:"model"`
 }
 
+// ModelMode is the reasoning effort and fast mode last used with one provider model.
+type ModelMode struct {
+	ReasoningEffort string `toml:"reasoning_effort,omitempty"`
+	FastMode        *bool  `toml:"fast_mode,omitempty"`
+}
+
 type ToolOutput struct {
 	MaxBytes int `toml:"max_bytes,omitempty"`
 	MaxLines int `toml:"max_lines,omitempty"`
@@ -86,43 +92,44 @@ type Tools struct {
 type Root struct {
 	GUI                       GUISettings `toml:"gui"`
 	guiSnapshot               string
-	UserName                  string               `toml:"user_name"`
-	Providers                 map[string]*Provider `toml:"-"`
-	Current                   Current              `toml:"current"`
-	RecentModels              map[string][]string  `toml:"recent_models,omitempty"`
-	HiddenModels              map[string][]string  `toml:"hidden_models,omitempty"`
-	SubagentTimeoutMinutes    int                  `toml:"subagent_timeout_minutes"`
-	ReasoningEffort           string               `toml:"reasoning_effort"`
-	SubagentReasoningEffort   string               `toml:"subagent_reasoning_effort"`
-	FastMode                  *bool                `toml:"fast_mode,omitempty"`
-	LogLevel                  string               `toml:"log_level"`
-	MaxResponseTokens         int                  `toml:"max_response_tokens"`
-	ShowThinking              bool                 `toml:"show_thinking"`
-	Anonymize                 bool                 `toml:"anonymize,omitempty"`
-	Tools                     Tools                `toml:"tools,omitempty"`
-	ShowUsageStats            *bool                `toml:"show_usage_stats"`
-	ResponseLanguage          string               `toml:"response_language"`
-	CompactionThresholdTokens int64                `toml:"compaction_threshold_tokens"`
-	SkillSearchMinNorm        *float64             `toml:"skill_search_min_normalized_score,omitempty"`
-	DocSearchMinNorm          *float64             `toml:"doc_search_min_normalized_score,omitempty"`
-	DocSearchFullArticleScore *float64             `toml:"doc_search_full_article_score,omitempty"`
-	WebSearchEngine           string               `toml:"web_search_engine,omitempty"`
-	Server                    ServerSettings       `toml:"server,omitempty"`
-	ServerPort                int                  `toml:"server_port,omitempty"`
-	WebSearchAPIKey           string               `toml:"web_search_api_key,omitempty"`
-	WebSearchBaseURL          string               `toml:"web_search_base_url,omitempty"`
-	WebSearchCX               string               `toml:"web_search_cx,omitempty"`
-	ResearchMaxRounds         int                  `toml:"research_max_rounds,omitempty"`
-	ResearchMaxURLsPerRound   int                  `toml:"research_max_urls_per_round,omitempty"`
-	ResearchMaxContentChars   int                  `toml:"research_max_content_chars,omitempty"`
-	ToolOutput                ToolOutput           `toml:"tool_output,omitempty"`
-	APIResilience             APIResilienceConfig  `toml:"api_resilience,omitempty"`
-	WebFetch                  WebFetchConfig       `toml:"web_fetch,omitempty"`
-	Export                    Export               `toml:"export,omitempty"`
-	Roles                     Roles                `toml:"roles,omitempty"`
-	AutoUpdate                *bool                `toml:"autoupdate,omitempty"`
-	PromptTemplates           map[string]string    `toml:"prompt_templates,omitempty"`
-	PromptTemplateModTime     map[string]int64     `toml:"prompt_template_mtime,omitempty"`
+	UserName                  string                          `toml:"user_name"`
+	Providers                 map[string]*Provider            `toml:"-"`
+	Current                   Current                         `toml:"current"`
+	RecentModels              map[string][]string             `toml:"recent_models,omitempty"`
+	HiddenModels              map[string][]string             `toml:"hidden_models,omitempty"`
+	SubagentTimeoutMinutes    int                             `toml:"subagent_timeout_minutes"`
+	ReasoningEffort           string                          `toml:"reasoning_effort"`
+	SubagentReasoningEffort   string                          `toml:"subagent_reasoning_effort"`
+	FastMode                  *bool                           `toml:"fast_mode,omitempty"`
+	ModelModes                map[string]map[string]ModelMode `toml:"model_modes,omitempty"`
+	LogLevel                  string                          `toml:"log_level"`
+	MaxResponseTokens         int                             `toml:"max_response_tokens"`
+	ShowThinking              bool                            `toml:"show_thinking"`
+	Anonymize                 bool                            `toml:"anonymize,omitempty"`
+	Tools                     Tools                           `toml:"tools,omitempty"`
+	ShowUsageStats            *bool                           `toml:"show_usage_stats"`
+	ResponseLanguage          string                          `toml:"response_language"`
+	CompactionThresholdTokens int64                           `toml:"compaction_threshold_tokens"`
+	SkillSearchMinNorm        *float64                        `toml:"skill_search_min_normalized_score,omitempty"`
+	DocSearchMinNorm          *float64                        `toml:"doc_search_min_normalized_score,omitempty"`
+	DocSearchFullArticleScore *float64                        `toml:"doc_search_full_article_score,omitempty"`
+	WebSearchEngine           string                          `toml:"web_search_engine,omitempty"`
+	Server                    ServerSettings                  `toml:"server,omitempty"`
+	ServerPort                int                             `toml:"server_port,omitempty"`
+	WebSearchAPIKey           string                          `toml:"web_search_api_key,omitempty"`
+	WebSearchBaseURL          string                          `toml:"web_search_base_url,omitempty"`
+	WebSearchCX               string                          `toml:"web_search_cx,omitempty"`
+	ResearchMaxRounds         int                             `toml:"research_max_rounds,omitempty"`
+	ResearchMaxURLsPerRound   int                             `toml:"research_max_urls_per_round,omitempty"`
+	ResearchMaxContentChars   int                             `toml:"research_max_content_chars,omitempty"`
+	ToolOutput                ToolOutput                      `toml:"tool_output,omitempty"`
+	APIResilience             APIResilienceConfig             `toml:"api_resilience,omitempty"`
+	WebFetch                  WebFetchConfig                  `toml:"web_fetch,omitempty"`
+	Export                    Export                          `toml:"export,omitempty"`
+	Roles                     Roles                           `toml:"roles,omitempty"`
+	AutoUpdate                *bool                           `toml:"autoupdate,omitempty"`
+	PromptTemplates           map[string]string               `toml:"prompt_templates,omitempty"`
+	PromptTemplateModTime     map[string]int64                `toml:"prompt_template_mtime,omitempty"`
 }
 
 func (r *Root) AutoUpdateEnabled() bool {

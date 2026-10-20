@@ -59,6 +59,7 @@ func Fast(d Deps, parts []string) error {
 		}
 	}
 	d.Cfg.FastMode = &next
+	config.RememberCurrentModelMode(d.Cfg)
 	if err := d.SaveCfg(); err != nil {
 		return err
 	}

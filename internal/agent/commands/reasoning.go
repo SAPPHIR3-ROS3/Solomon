@@ -44,6 +44,7 @@ func Reasoning(d Deps, parts []string) error {
 		return err
 	}
 	d.Cfg.ReasoningEffort = canonical
+	config.RememberCurrentModelMode(d.Cfg)
 	if err := d.SaveCfg(); err != nil {
 		return err
 	}

@@ -20,7 +20,7 @@ const emptyCatalog: ModelCatalog = { current: { provider: "", model: "" }, provi
 type ModelControlProps = {
   onFastModeAvailableChange?: (available: boolean) => void;
   onReasoningModeChange?: (mode: ReasoningMode) => void;
-  onModelChange?: (choice: ModelChoice) => void;
+  onModelChange?: (choice: ModelChoice, modes?: { fastMode?: boolean; reasoningEffort?: string }) => void;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
 };
@@ -193,6 +193,7 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
       const saved = await saveCurrentModel(choice.provider, choice.model);
       setSelected(saved);
       notifyModelChange(saved);
+      onModelChange?.(saved, { fastMode: saved.fastMode, reasoningEffort: saved.reasoningEffort });
       const next = await fetchModelCatalog();
       setCatalog(next);
     } catch {

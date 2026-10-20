@@ -367,13 +367,7 @@ func (a *chatAPI) handleFastMode(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
-	cfg, err := config.Load()
-	if err != nil {
-		writeAPIError(w, http.StatusInternalServerError, err)
-		return
-	}
-	cfg.FastMode = req.FastMode
-	if err := config.Save(cfg); err != nil {
+	if _, err := config.UpdateFastMode(*req.FastMode); err != nil {
 		writeAPIError(w, http.StatusInternalServerError, err)
 		return
 	}

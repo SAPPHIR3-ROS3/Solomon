@@ -370,7 +370,11 @@ func SlashModels(d Deps) error {
 	if err := d.ApplyCurrentModel(lm.Prov, lm.Model); err != nil {
 		return err
 	}
-	PrintSystemf(d.Out, "Using %s[%s]", d.Model(), d.Provider().Name)
+	fast := "off"
+	if d.Cfg.FastModeEnabledForProvider(d.Provider()) {
+		fast = "on"
+	}
+	PrintSystemf(d.Out, "Using %s[%s] (reasoning %s, fast %s)", d.Model(), d.Provider().Name, d.Cfg.ReasoningEffortDisplayLabel(), fast)
 	return nil
 }
 
