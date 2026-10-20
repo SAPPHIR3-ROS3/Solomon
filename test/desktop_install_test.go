@@ -97,22 +97,15 @@ func desktopInstallFixture(t *testing.T) (string, []byte, *atomic.Int32, *atomic
 	return cli, payload, downloads, registrations
 }
 
-func TestDesktopStartupDoesNotDownloadRelease(t *testing.T) {
+func TestDesktopFirstLaunchInstallsOnceAndUpdatesWithCLI(t *testing.T) {
 	cli, _, downloads, registrations := desktopInstallFixture(t)
-	if _, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard); !errors.Is(err, updater.ErrDesktopUnavailable) {
-		t.Fatalf("missing desktop: %v", err)
-	}
-	if err := updater.InstallDesktop(context.Background(), "v2026.1005.0", cli, io.Discard); err != nil {
-		t.Fatal(err)
-	}
-	before := downloads.Load()
-	for _, tag := range []string{"v2026.1005.0", "v2026.1005.1"} {
+	for _, tag := range []string{"v2026.1005.0", "v2026.1005.0", "v2026.1005.1"} {
 		if _, err := updater.EnsureDesktop(context.Background(), tag, cli, io.Discard); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if downloads.Load() != before || registrations.Load() != 2 {
-		t.Fatalf("downloads=%d registrations=%d; a CLI update must not fetch desktop", downloads.Load(), registrations.Load())
+	if downloads.Load() != 4 || registrations.Load() != 2 {
+		t.Fatalf("downloads=%d registrations=%d; repeated startup should be offline", downloads.Load(), registrations.Load())
 	}
 	data, err := os.ReadFile(cli)
 	if err != nil || string(data) != "original CLI" {
@@ -120,16 +113,20 @@ func TestDesktopStartupDoesNotDownloadRelease(t *testing.T) {
 	}
 }
 
-func TestDesktopDevelopmentStartupDoesNotResolveRelease(t *testing.T) {
+func TestDesktopDevelopmentFirstLaunchResolvesLatestRelease(t *testing.T) {
 	cli, _, downloads, _ := desktopInstallFixture(t)
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"tag_name":"v2026.1005.0"}`) }))
 	defer api.Close()
 	restore := updater.SetLatestReleaseAPIURL(api.URL)
 	defer restore()
-	if _, err := updater.EnsureDesktop(context.Background(), "dev", cli, io.Discard); !errors.Is(err, updater.ErrDesktopUnavailable) {
-		t.Fatalf("missing desktop: %v", err)
+	if _, err := updater.EnsureDesktop(context.Background(), "dev", cli, io.Discard); err != nil {
+		t.Fatal(err)
 	}
-	if downloads.Load() != 0 {
+	api.Close()
+	if _, err := updater.EnsureDesktop(context.Background(), "dev", cli, io.Discard); err != nil {
+		t.Fatalf("second startup needs no network: %v", err)
+	}
+	if downloads.Load() != 2 {
 		t.Fatalf("unexpected downloads: %d", downloads.Load())
 	}
 }
@@ -137,33 +134,30 @@ func TestDesktopDevelopmentStartupDoesNotResolveRelease(t *testing.T) {
 func TestDesktopConcurrentFirstLaunchDownloadsOnce(t *testing.T) {
 	cli, _, downloads, registrations := desktopInstallFixture(t)
 	var group sync.WaitGroup
-	results := make(chan error, 4)
+	errors := make(chan error, 4)
 	for attempt := 0; attempt < 4; attempt++ {
 		group.Add(1)
 		go func() {
 			defer group.Done()
 			_, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard)
-			results <- err
+			errors <- err
 		}()
 	}
 	group.Wait()
-	close(results)
-	for err := range results {
-		if !errors.Is(err, updater.ErrDesktopUnavailable) {
+	close(errors)
+	for err := range errors {
+		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	if downloads.Load() != 0 || registrations.Load() != 0 {
+	if downloads.Load() != 2 || registrations.Load() != 1 {
 		t.Fatalf("concurrent setup: downloads=%d registrations=%d", downloads.Load(), registrations.Load())
 	}
 }
 
 func TestDesktopRegistrationFailureRestoresInstalledGUIAndMarker(t *testing.T) {
 	cli, _, _, _ := desktopInstallFixture(t)
-	if err := updater.InstallDesktop(context.Background(), "v2026.1005.0", cli, io.Discard); err != nil {
-		t.Fatal(err)
-	}
-	target, err := updater.DesktopExecutablePath(cli)
+	target, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +188,7 @@ func TestDesktopRegistrationFailureRestoresInstalledGUIAndMarker(t *testing.T) {
 
 func TestDesktopChecksumFailurePreservesInstalledGUI(t *testing.T) {
 	cli, _, _, registrations := desktopInstallFixture(t)
-	if err := updater.InstallDesktop(context.Background(), "v2026.1005.0", cli, io.Discard); err != nil {
+	if _, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	target, err := updater.DesktopExecutablePath(cli)
@@ -214,12 +208,13 @@ func TestDesktopChecksumFailurePreservesInstalledGUI(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
 	})
 	defer restore()
-	if _, err = updater.EnsureDesktop(context.Background(), "v2026.1005.1", cli, io.Discard); err != nil {
-		t.Fatal(err)
+	_, err = updater.EnsureDesktop(context.Background(), "v2026.1005.1", cli, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatalf("checksum error: %v", err)
 	}
 	after, err := os.ReadFile(target)
-	if err != nil || !bytes.Equal(before, after) || registrations.Load() != 2 {
-		t.Fatal("CLI update changed the installed GUI")
+	if err != nil || !bytes.Equal(before, after) || registrations.Load() != 1 {
+		t.Fatal("failed update changed the installed GUI or registration")
 	}
 }
 
@@ -243,10 +238,7 @@ func TestDesktopMissingChecksumsDoesNotRegister(t *testing.T) {
 
 func TestDesktopEmptyDownloadPreservesExistingInstallation(t *testing.T) {
 	cli, _, _, registrations := desktopInstallFixture(t)
-	if err := updater.InstallDesktop(context.Background(), "v2026.1005.0", cli, io.Discard); err != nil {
-		t.Fatal(err)
-	}
-	target, err := updater.DesktopExecutablePath(cli)
+	target, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,10 +263,7 @@ func TestDesktopEmptyDownloadPreservesExistingInstallation(t *testing.T) {
 
 func TestBuiltDesktopRejectsIncompleteArtifactsBeforeReplacement(t *testing.T) {
 	cli, _, _, registrations := desktopInstallFixture(t)
-	if err := updater.InstallDesktop(context.Background(), "v2026.1005.0", cli, io.Discard); err != nil {
-		t.Fatal(err)
-	}
-	target, err := updater.DesktopExecutablePath(cli)
+	target, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
@@ -16,6 +17,13 @@ func desktopCLI() (string, error) {
 	executable, err := os.Executable()
 	if err != nil {
 		return "", err
+	}
+	base := strings.ToLower(filepath.Base(executable))
+	if base == "solomon" || base == "solomon.exe" {
+		if configured := os.Getenv("SOLOMON_BINARY"); configured != "" {
+			return configured, nil
+		}
+		return executable, nil
 	}
 	name := "solomon"
 	if runtime.GOOS == "windows" {

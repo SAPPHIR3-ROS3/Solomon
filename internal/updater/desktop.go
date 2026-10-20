@@ -21,8 +21,6 @@ import (
 
 var desktopReleaseTag = regexp.MustCompile(`^v[0-9]{4}\.[0-9]+\.[0-9]+$`)
 
-var ErrDesktopUnavailable = errors.New("Solomon Desktop is not installed")
-
 type desktopInstallation struct {
 	Tag string `json:"tag"`
 	CLI string `json:"cli"`
@@ -69,8 +67,8 @@ func DesktopExecutablePath(cli string) (string, error) {
 	return filepath.Join(filepath.Dir(cli), name), nil
 }
 
-// EnsureDesktop reports the local desktop binary. A newer CLI does not download
-// a desktop build from the release; an explicit install still can.
+// EnsureDesktop completes a CLI-only installation on its first normal launch.
+// Subsequent launches use the recorded version without consulting the network.
 func EnsureDesktop(ctx context.Context, version, cli string, progress io.Writer) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -89,19 +87,30 @@ func EnsureDesktop(ctx context.Context, version, cli string, progress io.Writer)
 	}
 	defer lock.Close()
 	tag := strings.TrimSpace(version)
+	release := desktopReleaseTag.MatchString(tag)
 	info, statErr := os.Stat(target)
 	installed := statErr == nil && !info.IsDir()
-	if !installed {
-		return "", ErrDesktopUnavailable
-	}
 	var recorded desktopInstallation
 	if data, err := os.ReadFile(target + ".install.json"); err == nil {
 		_ = json.Unmarshal(data, &recorded)
 	}
-	if recorded.CLI == cli && recorded.Tag == tag {
+	if installed && recorded.CLI == cli && ((!release && recorded.Tag != "") || recorded.Tag == tag) {
 		return target, nil
 	}
-	if err := finishDesktopInstallation(ctx, tag, cli, target, progress); err != nil {
+	if installed && (!release || recorded.Tag == tag) {
+		if err := finishDesktopInstallation(ctx, tag, cli, target, progress); err != nil {
+			return "", err
+		}
+		return target, nil
+	}
+	if !release {
+		result := Check(ctx, "dev")
+		if result.Err != nil {
+			return "", result.Err
+		}
+		tag = result.LatestTag
+	}
+	if err := installDesktop(ctx, tag, cli, progress); err != nil {
 		return "", err
 	}
 	return target, nil

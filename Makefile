@@ -14,7 +14,17 @@ endif
 GO_BIN_DIR := $(strip $(shell go run ./scripts/install_path))
 BIN_DIR ?= $(GO_BIN_DIR)
 INSTALL_BIN := $(BIN_DIR)/$(INSTALL_NAME)
+ifeq ($(GOOS),windows)
+STANDALONE_NAME := solomon-standalone.exe
+else
+STANDALONE_NAME := solomon-standalone
+endif
 export CGO_ENABLED := 0
+ifeq ($(GOOS),linux)
+DESKTOP_TAGS := desktop,production,webkit2_41
+else
+DESKTOP_TAGS := desktop,production
+endif
 
 ifeq ($(GOOS),windows)
 COMMIT ?= $(shell git rev-parse HEAD 2>NUL || echo unknown)
@@ -205,7 +215,8 @@ install-prepare:
 	$(call INSTALL_STEP,1/9 Build Cursor proxy,$(CURSOR_BUNDLER) build --force)
 	$(call INSTALL_STEP,2/9 Prepare embedded Cursor bundle,$(CURSOR_BUNDLER) bundle)
 	$(call INSTALL_STEP,3/9 Build production GUI and native desktop,$(MAKE) gui-build desktop-build)
-	$(call INSTALL_STEP,Build staged CLI,go build $(BUILD_FLAGS) -o "$(OUT)" ./cmd/solomon)
+	$(call INSTALL_STEP,Build Solomon CLI,go build $(BUILD_FLAGS) -o "$(OUT)" ./cmd/solomon)
+	$(call INSTALL_STEP,Build Solomon standalone,CGO_ENABLED=1 go build -tags $(DESKTOP_TAGS) $(BUILD_FLAGS) -o "$(dir $(OUT))$(STANDALONE_NAME)" ./cmd/solomon)
 ifneq ($(CLOAK_BROWSER_READY),1)
 	$(call INSTALL_STEP,4/9 Provision CloakBrowser,$(MAKE) cloak-install)
 else

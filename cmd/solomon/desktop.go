@@ -5,19 +5,68 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
-func prepareDesktop() (string, error) {
-	logging.LogInit(logging.INFO_LOG_LEVEL)
-	cli, err := os.Executable()
-	if err != nil {
-		return "", err
+func requireDesktopWebView() error {
+	if desktopWebViewAvailable() {
+		return nil
 	}
-	return updater.EnsureDesktop(context.Background(), commands.LocalVersionString(), cli, os.Stdout)
+	switch runtime.GOOS {
+	case "linux":
+		return fmt.Errorf("solomon desktop cannot open its window because WebKitGTK 4.1 is not installed.\nInstall it, then run solomon desktop again:\n  Debian, Ubuntu: sudo apt-get install libgtk-3-0 libwebkit2gtk-4.1-0\n  Fedora: sudo dnf install gtk3 webkit2gtk4.1\nUntil then, run solomon for the terminal, or solomon server start and open the printed http://127.0.0.1 URL in a browser")
+	case "windows":
+		return fmt.Errorf("solomon desktop cannot open its window because the Microsoft Edge WebView2 Runtime is not installed.\nInstall the Evergreen Runtime from https://developer.microsoft.com/microsoft-edge/webview2/ and run solomon desktop again.\nUntil then, run solomon for the terminal, or solomon server start and open the printed http://127.0.0.1 URL in a browser")
+	case "darwin":
+		return fmt.Errorf("solomon desktop cannot open its window because /System/Library/Frameworks/WebKit.framework is missing.\nRestore WebKit with macOS software update, then run solomon desktop again.\nUntil then, run solomon for the terminal, or solomon server start and open the printed http://127.0.0.1 URL in a browser")
+	default:
+		return fmt.Errorf("solomon desktop cannot open its window because this system has no WebKit or WebView2 runtime.\nRun solomon for the terminal, or solomon server start and open the printed http://127.0.0.1 URL in a browser")
+	}
+}
+
+func desktopWebViewAvailable() bool {
+	switch runtime.GOOS {
+	case "darwin":
+		info, err := os.Stat("/System/Library/Frameworks/WebKit.framework")
+		return err == nil && info.IsDir()
+	case "linux":
+		if _, err := exec.LookPath("pkg-config"); err == nil {
+			if exec.Command("pkg-config", "--exists", "webkit2gtk-4.1").Run() == nil {
+				return true
+			}
+		}
+		for _, path := range []string{
+			"/usr/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0",
+			"/usr/lib/aarch64-linux-gnu/libwebkit2gtk-4.1.so.0",
+			"/usr/lib64/libwebkit2gtk-4.1.so.0",
+			"/usr/lib/libwebkit2gtk-4.1.so.0",
+		} {
+			if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+				return true
+			}
+		}
+		out, err := exec.Command("ldconfig", "-p").Output()
+		return err == nil && strings.Contains(string(out), "libwebkit2gtk-4.1.so")
+	case "windows":
+		roots := []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"), os.Getenv("LocalAppData")}
+		for _, root := range roots {
+			if root == "" {
+				continue
+			}
+			matches, _ := filepath.Glob(filepath.Join(root, "Microsoft", "EdgeWebView", "Application", "*", "msedgewebview2.exe"))
+			if len(matches) > 0 {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 func desktopSetupRequired(args []string) bool {
@@ -41,16 +90,10 @@ func launchDesktop(args []string) error {
 	if len(args) != 0 {
 		return fmt.Errorf("usage: solomon desktop [install [release-tag]]")
 	}
-	path, err := prepareDesktop()
-	if err != nil {
+	if err := requireDesktopWebView(); err != nil {
 		return err
 	}
-	cmd := exec.Command(path)
-	configureDesktopProcess(cmd)
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start Solomon Desktop: %w", err)
-	}
-	return cmd.Process.Release()
+	return launchDesktopWindow()
 }
 
 func installDesktopCLI(args []string) error {

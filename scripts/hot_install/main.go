@@ -99,16 +99,24 @@ func install(ctx context.Context, target, root, stage string, run func(string, .
 	} else if runtime.GOOS == "darwin" {
 		desktop = filepath.Join(filepath.Dir(desktop), "Solomon.app")
 	}
+	standaloneName := "solomon-standalone"
+	if runtime.GOOS == "windows" {
+		standaloneName += ".exe"
+	}
 	version := os.Getenv("VERSION")
 	if version == "" {
 		version = "dev"
 	}
 	deploy := func() error {
-		step(6, "Install Solomon CLI and native desktop")
+		step(6, "Install Solomon CLI, desktop and standalone")
 		if err := updater.CommitInstall(stagedCLI, target); err != nil {
 			return err
 		}
 		if err := updater.InstallBuiltDesktop(ctx, version, target, desktop, os.Stdout); err != nil {
+			return err
+		}
+		stagedStandalone := filepath.Join(stage, standaloneName)
+		if err := updater.CommitInstall(stagedStandalone, filepath.Join(filepath.Dir(target), standaloneName)); err != nil {
 			return err
 		}
 		return run(os.Args[2], "install-deploy", "BIN_DIR="+os.Args[3], "CURSOR_STAGE="+cursorStage)
