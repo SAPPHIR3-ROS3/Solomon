@@ -1069,13 +1069,16 @@ func (a *chatAPI) projectInfo(root, id string) (apiProject, error) {
 		if sess == nil {
 			continue
 		}
-		last := chatstore.SessionActivityTime(sess)
+		last := sidebarChatSentTime(sess)
 		title := strings.TrimSpace(sess.Title)
 		if title == "" {
 			title = "Untitled chat"
 		}
 		chats = append(chats, apiChatSummary{ID: sess.ID, LastMessageAt: last, Title: title})
 	}
+	sort.SliceStable(chats, func(i, j int) bool {
+		return chats[i].LastMessageAt.After(chats[j].LastMessageAt)
+	})
 	var user, reasoning, response int64
 	if _, u, r, resp, statsErr := chatstore.ProjectWelcomeStats(id); statsErr == nil {
 		user, reasoning, response = u, r, resp
@@ -1092,6 +1095,20 @@ func (a *chatAPI) projectInfo(root, id string) (apiProject, error) {
 		ChatCount:  len(chats),
 		TokenStats: apiTokenStats{User: user, Reasoning: reasoning, Response: response, Total: user + reasoning + response},
 	}, nil
+}
+
+// Sidebar order follows user sends, never assistant output or run completion.
+func sidebarChatSentTime(sess *chatstore.Session) time.Time {
+	if !sess.LastUserMessageAt.IsZero() {
+		return sess.LastUserMessageAt
+	}
+	latest := sess.CreatedAt
+	for _, message := range sess.Messages {
+		if message.Role == "user" && message.CreatedAt.After(latest) {
+			latest = message.CreatedAt
+		}
+	}
+	return latest
 }
 
 func projectLastActivity(p apiProject) time.Time {

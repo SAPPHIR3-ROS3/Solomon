@@ -1,6 +1,7 @@
 import type { OpenChatContextMenu } from "./useChatContextMenu";
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCachedProjectSidebarData, getCachedUserName, PROJECTS_CHANGED_EVENT, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
+import { applyProjectChatActivity, PROJECT_CHAT_ACTIVITY_EVENT } from "../projects/chatActivity";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
 import { fetchActiveAgentChatIDs } from "./ActiveAgentsPage";
@@ -70,7 +71,7 @@ export function SidePanel({
   temporaryWorkspace,
   width,
 }: SidePanelProps) {
-  const [projects, setProjects] = useState<Project[]>(() => getCachedProjectSidebarData()?.projects ?? []);
+  const [projects, setProjects] = useState<Project[]>(() => applyProjectChatActivity(getCachedProjectSidebarData()?.projects ?? []));
   const [activeAgentChatIDs, setActiveAgentChatIDs] = useState<ReadonlySet<string>>(() => new Set());
   const [projectContextMenu, setProjectContextMenu] = useState<ProjectContextMenu | null>(null);
   const [projectRemovalDialog, setProjectRemovalDialog] = useState<ProjectRemovalDialog | null>(null);
@@ -125,7 +126,7 @@ export function SidePanel({
       void fetchProjectSidebarData(requestController.signal)
         .then((data) => {
           if (requestController.signal.aborted || currentController !== requestController) return;
-          setProjects(data.projects);
+          setProjects(applyProjectChatActivity(data.projects));
           setOpenProjectIds(new Set(data.projects.map((project) => project.id)));
           const nextUserName = data.userName.trim();
           cacheUserName(nextUserName);
@@ -136,9 +137,12 @@ export function SidePanel({
         });
     };
     loadProjects();
+    const updateActivity = () => setProjects((current) => applyProjectChatActivity(current));
+    window.addEventListener(PROJECT_CHAT_ACTIVITY_EVENT, updateActivity);
     window.addEventListener(PROJECTS_CHANGED_EVENT, loadProjects);
     return () => {
       currentController?.abort();
+      window.removeEventListener(PROJECT_CHAT_ACTIVITY_EVENT, updateActivity);
       window.removeEventListener(PROJECTS_CHANGED_EVENT, loadProjects);
     };
   }, []);

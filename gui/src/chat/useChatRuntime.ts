@@ -1,4 +1,5 @@
 import { notifyNotification } from "../notifications/store";
+import { recordProjectChatActivity } from "../projects/chatActivity";
 import { beginNavigation, cancelNavigation, failNavigation, markNavigationSelection, measureNavigation, measureNavigationSync, setNavigationCache } from "./navigationPerformance";
 import { createChatStreamBatch } from "./streamBatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -269,6 +270,7 @@ export function useChatRuntime(): ChatRuntime {
   const sendMessage = useCallback((chatID: string, message: ChatMessage) => {
     const chat = getChat(chatID);
     if (!chat?.projectID) return;
+    recordProjectChatActivity(chat.projectID, chatID);
     const isRunning = streams.current.has(chatID) || chat.status === "running";
     if (isRunning || messageQueues.current.has(chatID)) {
       messageQueues.current.set(chatID, [...(messageQueues.current.get(chatID) ?? []), message]);
