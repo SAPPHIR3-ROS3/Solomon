@@ -1,10 +1,14 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
 func handleGUISettings(w http.ResponseWriter, r *http.Request) {
@@ -35,6 +39,15 @@ func handleGUISettings(w http.ResponseWriter, r *http.Request) {
 			}
 			writeAPIError(w, status, err)
 			return
+		}
+		if raw, ok := request.Advanced["install_layout"]; ok {
+			var layout string
+			_ = json.Unmarshal(raw, &layout)
+			go func() {
+				if err := updater.SwitchToLayout(context.Background(), layout); err != nil {
+					logging.Log(logging.WARNING_LOG_LEVEL, "install layout switch failed", logging.LogOptions{Params: map[string]any{"layout": layout, "err": err.Error()}})
+				}
+			}()
 		}
 		writeJSON(w, http.StatusOK, gui)
 	default:

@@ -128,12 +128,20 @@ type Root struct {
 	Export                    Export                          `toml:"export,omitempty"`
 	Roles                     Roles                           `toml:"roles,omitempty"`
 	AutoUpdate                *bool                           `toml:"autoupdate,omitempty"`
+	InstallLayout             string                          `toml:"install_layout,omitempty"`
 	PromptTemplates           map[string]string               `toml:"prompt_templates,omitempty"`
 	PromptTemplateModTime     map[string]int64                `toml:"prompt_template_mtime,omitempty"`
 }
 
 func (r *Root) AutoUpdateEnabled() bool {
 	return r != nil && r.AutoUpdate != nil && *r.AutoUpdate
+}
+
+func (r *Root) EffectiveInstallLayout() string {
+	if r != nil && r.InstallLayout == "standalone" {
+		return "standalone"
+	}
+	return "split"
 }
 
 func (r *Root) LegacyToolsEnabled() bool {

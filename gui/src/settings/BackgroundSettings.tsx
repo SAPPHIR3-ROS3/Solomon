@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { initialClient, serverEndpoint } from "../platform";
+import { initialClient, nativeBindings, serverEndpoint } from "../platform";
 
 export const backgroundSearchText = "General Enable daemon background start keep awake sleep laptop lid";
 
@@ -16,7 +16,7 @@ export function BackgroundSettings() {
     const controller = new AbortController();
     async function refresh() {
       try {
-        const bridge = window.go?.main?.ServerBridge;
+        const bridge = nativeBindings()?.ServerBridge;
         const online = native && bridge?.DaemonRunning
           ? await bridge.DaemonRunning()
           : (await fetch(await serverEndpoint("/health"), { signal: controller.signal })).ok;
@@ -37,7 +37,7 @@ export function BackgroundSettings() {
   }, [native]);
 
   async function changeDaemon() {
-    const bridge = window.go?.main?.ServerBridge;
+    const bridge = nativeBindings()?.ServerBridge;
     if (!bridge?.SetDaemonEnabled) { setError("Manual daemon control requires the updated desktop app."); return; }
     if (running && !window.confirm("Stop the daemon? This interrupts running agents and terminals.")) return;
     setBusy(true); setError("");

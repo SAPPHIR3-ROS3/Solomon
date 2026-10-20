@@ -1,4 +1,4 @@
-import type {} from "../platform";
+import { nativeBindings } from "../platform";
 
 export function clipboardImageFiles(data: DataTransfer): File[] {
   const items = Array.from(data.items ?? [])
@@ -8,7 +8,7 @@ export function clipboardImageFiles(data: DataTransfer): File[] {
 }
 
 export async function readNativeClipboardImage(): Promise<File[]> {
-  const read = window.go?.main?.ServerBridge?.ClipboardImage;
+  const read = nativeBindings()?.ServerBridge?.ClipboardImage;
   if (!read) return [];
   const url = await read();
   if (!url) return [];

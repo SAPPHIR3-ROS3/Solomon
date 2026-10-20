@@ -11,12 +11,13 @@ const fields = [
   { key: "compaction_threshold_tokens", label: "Compaction threshold", description: "Conversation tokens before automatic context compaction.", min: 32768, max: 1048576 },
   { key: "subagent_timeout_minutes", label: "Subagent timeout", description: "Maximum duration of a subagent run, in minutes.", min: 1, max: 180 },
   { key: "log_level", label: "Log level", description: "Logging verbosity. Takes effect at the next application startup.", options: ["error", "warning", "info", "debug", "result"] },
+  { key: "install_layout", label: "Install layout", description: "split keeps the CLI server and the desktop client separate. standalone is one binary. Updates download this layout, and changing it switches the installation.", options: ["split", "standalone"] },
   { key: "research_max_rounds", label: "Research rounds", description: "Maximum number of rounds in deep research.", min: 1, max: 100 },
   { key: "research_max_urls_per_round", label: "Research URLs per round", description: "Maximum number of URLs explored in each research round.", min: 1, max: 100 },
   { key: "research_max_content_chars", label: "Research content limit", description: "Maximum characters of content collected per research page.", min: 1, max: 1000000 },
   { key: "tool_output.max_bytes", label: "Tool output byte limit", description: "Maximum bytes of a tool result sent to the model.", min: 1, max: 1048576 },
   { key: "tool_output.max_lines", label: "Tool output line limit", description: "Maximum lines of a tool result sent to the model.", min: 1, max: 1048576 },
-].map(field => ({ ...field, save: (value: string) => setAdvancedSetting(field.key, ["log_level", "server.dev_directory"].includes(field.key) ? value : Number(value)) }));
+].map(field => ({ ...field, save: (value: string) => setAdvancedSetting(field.key, ["log_level", "server.dev_directory", "install_layout"].includes(field.key) ? value : Number(value)) }));
 
 export function AdvancedSettings({ query }: { query: string }) {
   const preferences = useGUIChatPreferencesState();

@@ -68,21 +68,28 @@ declare global {
     runtime?: WailsEnvironment;
     wails?: unknown;
     go?: {
-      main?: {
-        DesktopBridge?: WailsDesktopBridge;
-        ServerBridge?: WailsServerBridge;
-      };
+      main?: WailsBindings;
+      app?: WailsBindings;
     };
   }
+}
+
+type WailsBindings = {
+  DesktopBridge?: WailsDesktopBridge;
+  ServerBridge?: WailsServerBridge;
+};
+
+export function nativeBindings(): WailsBindings | undefined {
+  return window.go?.main ?? window.go?.app;
 }
 
 export async function desktopBridge(): Promise<WailsDesktopBridge | undefined> {
   // Wails injects its bindings immediately after the document starts loading.
   // Do not use runtime.Environment as the guard here: on a cold WebView load it
   // can arrive after React has already requested sidebar data.
-  if (!isNativeLocation() && !window.go?.main) return undefined;
+  if (!isNativeLocation() && !nativeBindings()) return undefined;
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const bridge = window.go?.main?.DesktopBridge;
+    const bridge = nativeBindings()?.DesktopBridge;
     if (bridge) return bridge;
     await new Promise((resolve) => window.setTimeout(resolve, 25));
   }
@@ -124,7 +131,7 @@ function getDesktopServerURL(): Promise<string> {
   return new Promise((resolve) => {
     let attempt = 0;
     const resolveURL = () => {
-      const bridge = window.go?.main?.ServerBridge;
+      const bridge = nativeBindings()?.ServerBridge;
       if (!bridge && attempt++ < 10) {
         window.setTimeout(resolveURL, 25);
         return;
@@ -144,7 +151,7 @@ function isNativeLocation(): boolean {
 }
 
 function isWailsDesktop(): boolean {
-  return isNativeLocation() || Boolean(window.go?.main) || typeof window.runtime?.Environment === "function";
+  return isNativeLocation() || Boolean(nativeBindings()) || typeof window.runtime?.Environment === "function";
 }
 
 function osFromPlatform(platform: string): ClientOS {

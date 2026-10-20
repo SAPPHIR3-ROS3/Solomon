@@ -280,6 +280,10 @@ func UpdateGUIPreferences(patch GUISettingsPatch) (GUISettings, error) {
 					}
 				}
 				value = directory
+			} else if key == "install_layout" {
+				var layout string
+				_ = json.Unmarshal(raw, &layout)
+				value = strings.ToLower(strings.TrimSpace(layout))
 			} else if key == "log_level" {
 				var level string
 				_ = json.Unmarshal(raw, &level)

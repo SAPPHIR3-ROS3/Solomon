@@ -192,6 +192,13 @@ jobs:
           else
             cp build/bin/solomon-desktop "../../desktop-dist/solomon-desktop-${ASSET}"
           fi
+          cd ../..
+          host="$(go env GOOS)/$(go env GOARCH)"
+          if [[ "$PLATFORM" == "$host" ]]; then
+            tags="desktop,production"
+            if [[ "$PLATFORM" == linux/* ]]; then tags="${tags},webkit2_41"; fi
+            CGO_ENABLED=1 go build -tags "$tags" -o "desktop-dist/solomon-standalone-${ASSET}" ./cmd/solomon
+          fi
       - uses: actions/upload-artifact@v6
         with:
           name: desktop-${{ matrix.asset }}
@@ -326,8 +333,14 @@ jobs:
         run: |
           set -e
           for asset in desktop-dist/solomon-desktop-*; do
+            [ -e "$asset" ] || continue
             suffix=${asset##*/solomon-desktop-}
             cp "$asset" "dist/solomon-desktop-${VER}-${suffix}"
+          done
+          for asset in desktop-dist/solomon-standalone-*; do
+            [ -e "$asset" ] || continue
+            suffix=${asset##*/solomon-standalone-}
+            cp "$asset" "dist/solomon-standalone-${VER}-${suffix}"
           done
 
       - name: Generate release checksums

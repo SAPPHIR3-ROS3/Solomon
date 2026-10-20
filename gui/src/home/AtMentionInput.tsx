@@ -7,6 +7,7 @@ import type { ComposerImageAttachment, ComposerTerminalClip } from "../chat/comp
 import { fetchProjectAtMentionSuggestions, type ProjectAtMentionSuggestion } from "../projects/projects";
 import { fetchProjectSlashCommands, getCachedProjectSlashCommands } from "../projects/projects";
 import { suggestionContext, insertSuggestion, type SuggestionContext } from "./composerSuggestions";
+import { nativeBindings } from "../platform";
 
 export type { ComposerImageAttachment } from "../chat/composerTypes";
 
@@ -240,7 +241,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   }
 
   function pasteNativeImage() {
-    if (!onImagesChange || !window.go?.main?.ServerBridge?.ClipboardImage) return;
+    if (!onImagesChange || !nativeBindings()?.ServerBridge?.ClipboardImage) return;
     const request = ++pasteRequestRef.current;
     const composer = latestComposerRef.current;
     void readNativeClipboardImage().then((files) => {

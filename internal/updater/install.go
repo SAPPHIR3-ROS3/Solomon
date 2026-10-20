@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
@@ -31,11 +32,15 @@ func releaseAssetName(tag string) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported architecture: %s", goarch)
 	}
+	name := "solomon"
+	if selectedInstallLayout() == "standalone" {
+		name = "solomon-standalone"
+	}
 	switch goos {
 	case "linux", "darwin":
-		return fmt.Sprintf("solomon-%s-%s-%s", tag, goos, goarch), nil
+		return fmt.Sprintf("%s-%s-%s-%s", name, tag, goos, goarch), nil
 	case "windows":
-		return fmt.Sprintf("solomon-%s-windows-%s.exe", tag, goarch), nil
+		return fmt.Sprintf("%s-%s-windows-%s.exe", name, tag, goarch), nil
 	default:
 		return "", fmt.Errorf("unsupported OS: %s (use install.ps1 on Windows if needed)", goos)
 	}
@@ -62,25 +67,47 @@ func goInstallBinDir() (string, error) {
 	return "", fmt.Errorf("could not resolve Go install bin directory")
 }
 
+func selectedInstallLayout() string {
+	root, err := config.Load()
+	if err != nil || root == nil {
+		return "split"
+	}
+	return root.EffectiveInstallLayout()
+}
+
 func installTargetPath() (string, error) {
 	if configured := strings.TrimSpace(os.Getenv("SOLOMON_BINARY")); configured != "" {
 		return filepath.Abs(configured)
 	}
 	if executable, err := os.Executable(); err == nil {
 		base := strings.ToLower(filepath.Base(executable))
-		if base == "solomon" || base == "solomon.exe" {
+		if selectedInstallLayout() == "standalone" {
+			if base == "solomon-standalone" || base == "solomon-standalone.exe" {
+				return executable, nil
+			}
+		} else if base == "solomon" || base == "solomon.exe" {
 			return executable, nil
+		}
+		if base == "solomon" || base == "solomon.exe" || base == "solomon-standalone" || base == "solomon-standalone.exe" {
+			return layoutInstallPath(filepath.Dir(executable)), nil
 		}
 	}
 	dir, err := goInstallBinDir()
 	if err != nil {
 		return "", err
 	}
+	return layoutInstallPath(dir), nil
+}
+
+func layoutInstallPath(dir string) string {
 	name := "solomon"
-	if runtime.GOOS == "windows" {
-		name = "solomon.exe"
+	if selectedInstallLayout() == "standalone" {
+		name = "solomon-standalone"
 	}
-	return filepath.Join(dir, name), nil
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(dir, name)
 }
 
 var httpDownload = func(ctx context.Context, url string) (*http.Response, error) {
@@ -307,4 +334,30 @@ func RunSystemInstall(ctx context.Context, tag string, progress io.Writer) error
 		return ErrRestartScheduled
 	}
 	return ErrRestartScheduled
+}
+
+// SwitchToLayout downloads the saved layout from the latest release and installs it.
+func SwitchToLayout(ctx context.Context, layout string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result := Check(ctx, "dev")
+	if result.Err != nil {
+		return result.Err
+	}
+	tag := strings.TrimSpace(result.LatestTag)
+	if tag == "" {
+		return fmt.Errorf("no release available to switch layout")
+	}
+	if err := Install(ctx, tag, io.Discard); err != nil {
+		return err
+	}
+	if layout != "split" {
+		return nil
+	}
+	cli, err := installTargetPath()
+	if err != nil {
+		return err
+	}
+	return InstallDesktop(ctx, tag, cli, io.Discard)
 }

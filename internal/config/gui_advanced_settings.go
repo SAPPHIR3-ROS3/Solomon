@@ -59,6 +59,17 @@ func validateGUIAdvancedSettings(patch map[string]json.RawMessage) error {
 			}
 			continue
 		}
+		if key == "install_layout" {
+			var layout string
+			if err := json.Unmarshal(raw, &layout); err != nil {
+				return fmt.Errorf("install_layout requires a string")
+			}
+			layout = strings.ToLower(strings.TrimSpace(layout))
+			if layout != "split" && layout != "standalone" {
+				return fmt.Errorf("install_layout must be split or standalone")
+			}
+			continue
+		}
 		if key == "log_level" {
 			var level string
 			if err := json.Unmarshal(raw, &level); err != nil {
@@ -97,6 +108,7 @@ func guiAdvancedValues(root *Root) map[string]any {
 		"compaction_threshold_tokens": EffectiveCompactionThresholdTokens(root),
 		"subagent_timeout_minutes":    SubagentTimeout(root),
 		"log_level":                   level,
+		"install_layout":              root.EffectiveInstallLayout(),
 		"server_port":                 root.EffectiveServerPort(),
 		"server.dev_mode":             root.Server.DevMode != nil && *root.Server.DevMode,
 		"server.dev_directory":        root.Server.DevDirectory,
