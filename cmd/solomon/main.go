@@ -28,6 +28,7 @@ import (
 	sandboxworker "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/worker"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
 func init() {
@@ -91,8 +92,8 @@ func main() {
 		return
 	}
 	if !daemonTUIChild && desktopSetupRequired(os.Args) {
-		if _, err := prepareDesktop(); err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to complete Solomon desktop setup: %v\nRetry this command when the release download is available.\n", err)
+		if _, err := prepareDesktop(); err != nil && !errors.Is(err, updater.ErrDesktopUnavailable) {
+			fmt.Fprintf(os.Stderr, "Unable to complete Solomon desktop setup: %v\n", err)
 			os.Exit(1)
 		}
 	}
