@@ -119,9 +119,11 @@ Deep dives stay in linked articles; this file is the single checklist.
 
 | Path | Role | Article |
 |------|------|---------|
+| `internal/integrations/claude/` | Official Claude SDK sidecar process and CLI login | [LLM layer](llm-layer.md) |
 | `internal/integrations/cursor/` | Sidecar install paths, process manager, embed | [Cursor integration](cursor-integration.md) |
 | `internal/integrations/cursor/agent/` | Cursor Agent SDK runtime wrapper (Go) | [Cursor integration](cursor-integration.md) |
 | `internal/updater/` | GitHub release check, install, restart | [Supporting packages](supporting-packages.md) |
+| `integrations/claude/` | Node.js sidecar for the official Claude Agent SDK (not Go) | [LLM layer](llm-layer.md) |
 | `integrations/cursor/` | Node.js OpenAI-compatible proxy (not Go) | [Cursor integration](cursor-integration.md) |
 | `test/` | Integration and unit tests (package `test`) | [Testing](../development/testing.md) |
 
@@ -180,6 +182,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/docs/` | Feature |
 | `internal/gitignore/` | Feature |
 | `internal/instructions/` | Feature |
+| `internal/integrations/claude/` | Integration |
 | `internal/integrations/cursor/` | Integration |
 | `internal/integrations/cursor/agent/` | Integration |
 | `internal/llm/` | Core |
@@ -228,6 +231,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/tooloutput/` | Feature |
 | `internal/tooloutput/process/` | Feature |
 | `internal/updater/` | Integration |
+| `integrations/claude/` | Integration |
 | `integrations/cursor/` | Integration |
 | `test/` | Integration |
 
