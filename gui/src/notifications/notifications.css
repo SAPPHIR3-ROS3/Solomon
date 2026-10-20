@@ -5,8 +5,19 @@
 .notification-bell svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .notification-unread { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; background: var(--color-accent); border-radius: 50%; }
 .notification-menu { position: absolute; right: 0; bottom: calc(100% + 12px); width: min(380px, calc(100vw - 40px)); border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-raised); box-shadow: 0 12px 36px #0005; color: var(--color-text); z-index: 60; overflow: hidden; }
-.notification-menu > header { display: flex; justify-content: space-between; padding: 14px 16px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--color-border); }
-.notification-menu > header span { color: var(--color-text-muted); }
+.notification-menu > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--color-border); }
+.notification-header-actions { display: flex; align-items: center; gap: 10px; color: var(--color-text-muted); font-weight: 500; }
+.notification-report { border: 1px solid var(--color-border); border-radius: 8px; background: transparent; color: var(--color-text); cursor: pointer; font: 500 12px/1 "Geist", ui-sans-serif, system-ui, sans-serif; padding: 6px 8px; }
+.notification-report:hover:not(:disabled) { background: var(--color-surface); }
+.report-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: #0006; padding: 24px; }
+.report-dialog { width: min(420px, 100%); border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-raised); color: var(--color-text); padding: 16px; }
+.report-dialog h2 { margin: 0; font-size: 15px; }
+.report-dialog p { margin: 8px 0 12px; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }
+.report-dialog textarea { width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font: 13px/1.4 "Geist", ui-sans-serif, system-ui, sans-serif; padding: 8px; }
+.report-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.report-actions span { flex: 1; color: var(--color-danger); font-size: 12px; }
+.report-actions button { border: 1px solid var(--color-border); border-radius: 8px; background: transparent; color: var(--color-text); cursor: pointer; padding: 7px 10px; }
+.report-actions button:last-child { background: var(--color-accent); border-color: transparent; color: var(--color-text-on-accent, #fff); }
 .notification-history { max-height: min(440px, 55dvh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: var(--app-scrollbar-width, thin); }
 .notification-entry { padding: 12px 16px; min-height: 88px; box-sizing: border-box; border-bottom: 1px solid var(--color-border); }
 .notification-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; }

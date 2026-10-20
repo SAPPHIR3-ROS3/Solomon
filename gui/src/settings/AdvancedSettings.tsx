@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AutoSaveSetting, SettingsLoadStatus } from "./AutoSaveSetting";
 import { refreshChatPreferences, setAdvancedSetting, useGUIChatPreferencesState } from "./chatPreferences";
+import { ReportButton } from "../notifications/Notifications";
 import { NewProjectDialog } from "../projects/NewProjectDialog";
 import { serverEndpoint } from "../platform";
 import "./development-settings.css";
@@ -22,7 +23,8 @@ export function AdvancedSettings({ query }: { query: string }) {
   const matches = fields.filter(field => `Advanced ${field.label} ${field.description} ${field.key}`.toLowerCase().includes(query.trim().toLowerCase()));
   const matchesDev = `Advanced Dev server Enable Vite development mode. server.dev_mode`.toLowerCase().includes(query.trim().toLowerCase());
   const matchesDirectory = `Advanced GUI source directory folder server.dev_directory`.toLowerCase().includes(query.trim().toLowerCase());
-  if (query.trim() && !matches.length && !matchesDev && !matchesDirectory) return null;
+  const matchesReport = `Advanced Send report diagnostic logs note`.toLowerCase().includes(query.trim().toLowerCase());
+  if (query.trim() && !matches.length && !matchesDev && !matchesDirectory && !matchesReport) return null;
   return <section aria-label="Advanced settings" className="settings-models">
     <header className="settings-models-header"><h1>Advanced</h1></header>
     <div className="settings-models-content">
@@ -30,6 +32,7 @@ export function AdvancedSettings({ query }: { query: string }) {
         {matchesDev ? <DevServerSetting /> : null}
         {matchesDirectory ? <GUIDirectorySetting /> : null}
       </div> : null}
+      {matchesReport ? <ReportButton placement="settings" /> : null}
       {matches.map(({ key, ...field }) => <AutoSaveSetting key={key} id={`advanced-${key.replaceAll(".", "-")}`} {...field} saved={String(preferences.advanced[key] ?? "")} />)}
       <SettingsLoadStatus section="advanced" />
     </div>

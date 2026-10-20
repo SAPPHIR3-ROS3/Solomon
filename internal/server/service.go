@@ -269,6 +269,7 @@ func Run(ctx context.Context, options Options) error {
 		go func() { _ = httpServer.Shutdown(context.Background()) }()
 	})
 	mux.HandleFunc("GET /__solomon/notifications", handleNotifications)
+	mux.HandleFunc("POST /__solomon/report", handleReport)
 	mux.HandleFunc(chatAPIPath, chatAPI.handleProjects)
 	mux.HandleFunc(chatAPIPath+"/", func(w http.ResponseWriter, r *http.Request) {
 		if chatAPI.handlesProjectRoute(r.URL.Path) {
