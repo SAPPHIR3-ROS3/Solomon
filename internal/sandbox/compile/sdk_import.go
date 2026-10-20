@@ -3,6 +3,7 @@ package compile
 import (
 	"fmt"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"strconv"
 	"strings"
@@ -63,10 +64,45 @@ func orchestrateParseError(parseErr error, src string) string {
 	if parseErr == nil {
 		return ""
 	}
-	if SourceReferencesSDKAlias(src) {
-		return fmt.Sprintf("invalid Go source: %v (SDK import paths are rewritten only when the script parses; unescaped backticks inside `...` raw string literals are a common cause)", parseErr)
+	msg := fmt.Sprintf("invalid Go source: %v", parseErr)
+	if list, ok := parseErr.(scanner.ErrorList); ok && len(list) > 0 {
+		first := list[0]
+		offset := first.Pos.Offset
+		if offset >= 0 && offset <= len(src) {
+			left, right := offset, offset
+			for left > 0 && offset-left < 60 && src[left-1] != '\n' {
+				left--
+			}
+			for right < len(src) && right-offset < 60 && src[right] != '\n' {
+				right++
+			}
+			msg += fmt.Sprintf("\nSource near main.go:%d:%d (quoted): %q", first.Pos.Line, first.Pos.Column, src[left:right])
+		}
+		switch {
+		case strings.Contains(first.Msg, "unknown escape sequence"):
+			msg += "\nHint: invalid escape in a Go quoted literal. For a literal backslash, double it in Go source (for example, \"\\\\d+\", not \"\\d+\"). A raw string preserves backslashes but cannot contain backticks. JSON escaping is a separate layer."
+		case strings.Contains(first.Msg, "raw string literal not terminated"):
+			msg += "\nHint: close the raw string with a backtick. Raw strings cannot contain backticks; read existing text with sdk.ReadFile instead of embedding it."
+		case strings.Contains(first.Msg, "string literal not terminated"):
+			msg += "\nHint: close the double-quoted Go string; escape embedded double quotes and encode newlines as Go escapes."
+		case strings.Contains(first.Msg, "missing ','"):
+			msg += "\nHint: check the separator and string delimiters at this position and immediately before it; multiline composite literals require a trailing comma."
+		case strings.Contains(first.Msg, "illegal character"):
+			msg += "\nHint: this character is not valid Go syntax at this position. Check whether shell syntax or embedded text escaped its string literal; keep such text inside a valid Go string or read it through the SDK."
+		case strings.Contains(first.Msg, "expected declaration"):
+			msg += "\nHint: only declarations are allowed outside functions. Check for an extra closing brace or a function closed too early; executable statements belong inside func main()."
+		case strings.Contains(first.Msg, "expected ')'") || strings.Contains(first.Msg, "expected ']'") || strings.Contains(first.Msg, "expected '}'"):
+			msg += "\nHint: check matching parentheses, brackets, and braces before this position. The missing or mismatched delimiter may be on an earlier line; fix the first syntax error before subsequent errors."
+		case strings.Contains(first.Msg, "expected operand"):
+			msg += "\nHint: an expression is required here. Check for a missing value, an extra closing delimiter, or a malformed function argument immediately before this position."
+		case strings.Contains(first.Msg, "expected ';'"):
+			msg += "\nHint: check the preceding statement and its string or expression delimiters. Put separate Go statements on separate lines rather than joining them into one dense line."
+		}
 	}
-	return fmt.Sprintf("invalid Go source: %v", parseErr)
+	if SourceReferencesSDKAlias(src) {
+		msg += "\nSDK import rewriting requires valid Go syntax; fix the reported syntax error first."
+	}
+	return msg
 }
 
 func clarifyCompileError(src, msg string) string {

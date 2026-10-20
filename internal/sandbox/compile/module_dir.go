@@ -1,6 +1,7 @@
 package compile
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -115,12 +116,18 @@ func moduleRootFromStub() (string, error) {
 		return "", err
 	}
 	cmd.Dir = stubDir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		if len(out) > 0 {
-			err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+		detail := strings.TrimSpace(stderr.String())
+		if detail == "" {
+			detail = strings.TrimSpace(string(out))
 		}
-		return "", err
+		if detail != "" {
+			return "", fmt.Errorf("orchestrate stub go list: %w: %s", err, detail)
+		}
+		return "", fmt.Errorf("orchestrate stub go list: %w", err)
 	}
 	root := strings.TrimSpace(string(out))
 	if root == "" {
