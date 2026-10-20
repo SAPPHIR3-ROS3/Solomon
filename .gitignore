@@ -40,3 +40,8 @@ internal/integrations/cursor/bundle/
 # Generated production GUI bundle shared by CLI and Wails
 /gui/assets/frontend/*
 !/gui/assets/frontend/.keep
+
+integrations/claude/dist/
+integrations/claude/.test/
+integrations/claude/*.tsbuildinfo
+integrations/claude/report.*.json

@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	claudeint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/claude"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/anthropic"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -39,6 +40,15 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 	switch {
 	case p.IsCursorSub():
 		inner = &cursorSubBackend{cfg: cfg, provider: p, httpClient: httpClient}
+	case p.IsClaudeSub():
+		cwd, _ := os.Getwd()
+		base, token, err := claudeint.Ensure(ctx, cwd)
+		if err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "claude sidecar ensure failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			return nil, err
+		}
+		client := openai.NewClient(option.WithAPIKey(token), option.WithBaseURL(base), option.WithHTTPClient(httpClient))
+		inner = &OpenAIBackend{Client: client}
 	case p.EffectiveAPIProtocol() == config.APIProtocolAnthropic:
 		bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
 		if err != nil {
