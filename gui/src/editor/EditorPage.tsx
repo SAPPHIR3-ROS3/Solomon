@@ -494,7 +494,7 @@ function CodeEditor({ file, onChange, onCursor, onSave, viewState, onViewState }
         ]),
         EditorView.theme({
           "&": { height: "100%", background: "transparent", color: cursorForeground },
-          ".cm-scroller": { overflow: "auto", fontFamily: '"Geist Mono", "SFMono-Regular", "Cascadia Code", ui-monospace, monospace' },
+          ".cm-scroller": { overflow: "auto", fontFamily: 'var(--font-mono)' },
           ".cm-content": { padding: "24px 0 130px", caretColor: "#82aaff" },
           ".cm-line": { padding: "0 28px 0 8px" },
           ".cm-gutters": { minWidth: "64px", background: "transparent", border: "none", color: "#52616a" },

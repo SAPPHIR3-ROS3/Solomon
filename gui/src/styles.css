@@ -1,4 +1,5 @@
 :root {
+  --font-mono: "Geist Mono", "SFMono-Regular", "Cascadia Code", ui-monospace, monospace;
   background: var(--color-canvas);
   color: var(--color-text);
   font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
@@ -6,6 +7,14 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Keep characters separate, including in code and terminal output. */
+*,
+*::before,
+*::after {
+  font-variant-ligatures: none !important;
+  font-feature-settings: "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0 !important;
 }
 
 /* Native thin scrollbars can expand on hover. Use fixed geometry when the
