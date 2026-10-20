@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-BgaNhQyE.js";var t;e((()=>{t=`{"scopeName":"source.worktree-ruby","patterns":[{"include":"source.ruby"}],"name":"cursor:source.worktree-ruby"}`}))();export{t as default};
