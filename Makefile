@@ -31,8 +31,10 @@ ifeq ($(origin VERSION),file)
 VERSION := $(VERSION)
 endif
 export VERSION
-SOURCE_TREE = $(strip $(shell go run ./scripts/source_identity))
-COMMIT_TREE = $(strip $(shell git rev-parse "HEAD^{tree}"))
+# Compute source stamps on first use and retain them for subsequent recipes.
+# Keep this lazy so targets that do not compile need no source snapshot.
+SOURCE_TREE = $(eval SOURCE_TREE := $(strip $(shell go run ./scripts/source_identity)))$(SOURCE_TREE)
+COMMIT_TREE = $(eval COMMIT_TREE := $(strip $(shell git rev-parse "HEAD^{tree}")))$(COMMIT_TREE)
 LDFLAGS = -s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$(VERSION) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$(COMMIT) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=$(COMMIT_TIME) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=$(SOURCE_TREE) -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=$(COMMIT_TREE)
 
 BUILD_FLAGS = -trimpath -ldflags="$(LDFLAGS)"
@@ -190,6 +192,10 @@ ifneq (,$(wildcard ./.env))
 include .env
 export
 endif
+
+# The dotenv export must not evaluate build expressions for every child process.
+# Recursive Make calls derive their own flags when they actually compile.
+unexport SOURCE_TREE COMMIT_TREE LDFLAGS BUILD_FLAGS
 
 # Prepare every artifact and dependency before interrupting the installed runtime.
 install-prepare:
