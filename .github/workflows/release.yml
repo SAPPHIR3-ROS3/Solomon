@@ -126,83 +126,11 @@ jobs:
           COMMIT_TREE=$(git rev-parse 'HEAD^{tree}')
           go build -ldflags="-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=${VERSION} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=${COMMIT} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTime=${COMMIT_TIME} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=${SOURCE_TREE} -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=${COMMIT_TREE}" ./cmd/solomon
 
-  desktop_assets:
-    if: |
-      always() &&
-      github.event_name == 'workflow_dispatch' &&
-      needs.prior_test_status.result == 'success' &&
-      (needs.test.result == 'success' ||
-       (needs.test.result == 'skipped' && needs.prior_test_status.outputs.skip_tests == 'true'))
-    needs: [prior_test_status, test]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: windows-latest
-            platform: windows/amd64
-            asset: windows-amd64.exe
-          - runner: windows-latest
-            platform: windows/arm64
-            asset: windows-arm64.exe
-          - runner: ubuntu-24.04
-            platform: linux/amd64
-            asset: linux-amd64
-          - runner: ubuntu-24.04-arm
-            platform: linux/arm64
-            asset: linux-arm64
-          - runner: macos-15-intel
-            platform: darwin/amd64
-            asset: darwin-amd64.app.tar.gz
-          - runner: macos-15
-            platform: darwin/arm64
-            asset: darwin-arm64.app.tar.gz
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-      - uses: actions/setup-node@v6
-        with:
-          node-version: lts/*
-      - name: Install Linux native build dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
-      - name: Build Cursor integration bundle
-        run: |
-          go run scripts/cursor_bundler.go build
-          go run scripts/cursor_bundler.go bundle
-      - name: Build native desktop
-        shell: bash
-        env:
-          PLATFORM: ${{ matrix.platform }}
-          ASSET: ${{ matrix.asset }}
-        run: |
-          set -euo pipefail
-          mkdir -p desktop-dist
-          cd gui/desktop
-          wails_version=$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
-          flags=(-skipbindings -nosyncgomod -m -platform "$PLATFORM")
-          if [[ "$PLATFORM" == linux/* ]]; then flags+=(-tags webkit2_41); fi
-          go run "github.com/wailsapp/wails/v2/cmd/wails@${wails_version}" build "${flags[@]}"
-          if [[ "$PLATFORM" == darwin/* ]]; then
-            COPYFILE_DISABLE=1 tar -czf "../../desktop-dist/solomon-desktop-${ASSET}" -C build/bin Solomon.app
-          elif [[ "$PLATFORM" == windows/* ]]; then
-            cp build/bin/solomon-desktop.exe "../../desktop-dist/solomon-desktop-${ASSET}"
-          else
-            cp build/bin/solomon-desktop "../../desktop-dist/solomon-desktop-${ASSET}"
-          fi
-      - uses: actions/upload-artifact@v6
-        with:
-          name: desktop-${{ matrix.asset }}
-          path: desktop-dist/*
-
   release:
     if: |
       always() &&
       github.event_name == 'workflow_dispatch' &&
       needs.prior_test_status.result == 'success' &&
-      needs.desktop_assets.result == 'success' &&
       (
         needs.test.result == 'success' ||
         (
@@ -210,7 +138,7 @@ jobs:
           needs.prior_test_status.outputs.skip_tests == 'true'
         )
       )
-    needs: [prior_test_status, test, desktop_assets]
+    needs: [prior_test_status, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -314,22 +242,6 @@ jobs:
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$VER -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$COMMIT -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=$SOURCE_TREE -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=$COMMIT_TREE" -o "$out" ./cmd/solomon
           done
 
-      - uses: actions/download-artifact@v7
-        with:
-          pattern: desktop-*
-          path: desktop-dist
-          merge-multiple: true
-
-      - name: Collect native desktop executables
-        env:
-          VER: ${{ steps.version.outputs.ver }}
-        run: |
-          set -e
-          for asset in desktop-dist/solomon-desktop-*; do
-            suffix=${asset##*/solomon-desktop-}
-            cp "$asset" "dist/solomon-desktop-${VER}-${suffix}"
-          done
-
       - name: Generate release checksums
         env:
           VER: ${{ steps.version.outputs.ver }}
@@ -346,9 +258,36 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
         run: |
           set -e
+          notes=$(find changelog -name "${VER}.md" -print -quit || true)
+          if [ -z "$notes" ]; then
+            notes=$(mktemp)
+            prev=$(git describe --tags --abbrev=0 --match 'v*' 'HEAD^' 2>/dev/null || true)
+            range=HEAD
+            if [ -n "$prev" ]; then range="${prev}..HEAD"; fi
+            {
+              echo "# ${VER}"
+              echo
+              echo "Calendar release ${VER}."
+              echo
+              for heading in Added Fixed Changed; do
+                case "$heading" in
+                  Added) filter='^feat' ;;
+                  Fixed) filter='^fix' ;;
+                  Changed) filter='^(docs|chore|ci|build|test|refactor|perf)' ;;
+                esac
+                items=$(git log --format='%s' "$range" | grep -Ei "$filter" | grep -Eiv '^(Merge |build: include embedded assets)' || true)
+                if [ -n "$items" ]; then
+                  echo "## ${heading}"
+                  echo
+                  echo "$items" | sed -E 's/^[A-Za-z]+(\([^)]+\))?!?: */- /'
+                  echo
+                fi
+              done
+            } > "$notes"
+          fi
           gh release create "$VER" dist/* \
             --title "$VER" \
-            --notes "Calendar release $VER. CLI and native desktop assets for Linux, Windows and macOS (amd64 and arm64). First launch completes desktop installation automatically."
+            --notes-file "$notes"
 
   post_release_smoke:
     if: |
