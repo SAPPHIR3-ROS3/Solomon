@@ -196,8 +196,13 @@ jobs:
           host="$(go env GOOS)/$(go env GOARCH)"
           if [[ "$PLATFORM" == "$host" ]]; then
             tags="desktop,production"
+            standalone="desktop-dist/solomon-standalone-${ASSET}"
             if [[ "$PLATFORM" == linux/* ]]; then tags="${tags},webkit2_41"; fi
-            CGO_ENABLED=1 go build -tags "$tags" -o "desktop-dist/solomon-standalone-${ASSET}" ./cmd/solomon
+            if [[ "$PLATFORM" == darwin/* ]]; then
+              standalone="desktop-dist/solomon-standalone-${ASSET%.app.tar.gz}"
+              export CGO_LDFLAGS="-framework UniformTypeIdentifiers${CGO_LDFLAGS:+ $CGO_LDFLAGS}"
+            fi
+            CGO_ENABLED=1 go build -tags "$tags" -o "$standalone" ./cmd/solomon
           fi
       - uses: actions/upload-artifact@v6
         with:
