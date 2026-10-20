@@ -129,7 +129,7 @@ func updateClients(executable string) ([]desktopUpdateProcess, error) {
 			continue
 		}
 		base := strings.ToLower(filepath.Base(r.Executable))
-		if r.Kind == "desktop" && base != desktopName() && base != "solomon" && base != "solomon.exe" {
+		if r.Kind == "desktop" && base != desktopName() {
 			continue
 		}
 		if r.Kind == "tui" && (runtime.GOOS != "windows" || base != "solomon.exe") {

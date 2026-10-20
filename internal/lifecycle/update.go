@@ -200,14 +200,16 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 					}
 					for _, desktop := range stopped {
 						executable := desktop.executable
-						args := append([]string(nil), desktop.args...)
 						if tag == "" {
 							executable = target
-							if desktop.kind != "tui" && (len(args) == 0 || args[0] != "desktop") {
-								args = append([]string{"desktop"}, args...)
+							if desktop.kind != "tui" {
+								executable, err = updater.DesktopExecutablePath(target)
+								if err != nil {
+									return err
+								}
 							}
 						}
-						command := exec.Command(executable, args...)
+						command := exec.Command(executable, desktop.args...)
 						command.Env, command.Dir = desktop.env, desktop.cwd
 						if daemonPort != "" {
 							command.Env = append(command.Env, "SOLOMON_SERVER_PORT="+daemonPort)
