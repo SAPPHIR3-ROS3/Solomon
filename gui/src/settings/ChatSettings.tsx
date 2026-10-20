@@ -49,7 +49,7 @@ export function ChatSettings({ query }: { query: string }) {
       <header className="settings-models-header"><h1>Chat</h1></header>
       <div className="settings-models-content">
         {matches.map(({ id, label, description, enabled, setEnabled }) => (
-          <div className="settings-model-row" key={id}>
+          <div className="settings-model-row settings-chat-row" key={id}>
             <div className="settings-model-row-copy">
               <strong id={`${id}-label`}>{label}</strong>
               <small id={`${id}-description`}>{description}</small>

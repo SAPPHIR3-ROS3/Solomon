@@ -1,3 +1,9 @@
+.settings-model-row.settings-chat-row {
+  box-sizing: border-box;
+  gap: 16px;
+  padding: 12px 0;
+}
+
 .settings-language-row {
   flex-wrap: wrap;
   gap: 16px;
