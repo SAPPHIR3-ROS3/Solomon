@@ -120,7 +120,7 @@ func (c Catalog) Lookup(providerName, baseURL, modelID string) (Model, bool) {
 	if modelID == "" {
 		return Model{}, false
 	}
-	if normalized(providerName) == "cursorapi" {
+	if normalized(providerName) == "cursorapi" || normalized(providerName) == "cursorsub" {
 		return c.lookupCursorModel(modelID)
 	}
 	for _, provider := range c {

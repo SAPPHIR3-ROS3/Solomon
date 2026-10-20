@@ -82,3 +82,13 @@ func TestLookupDoesNotConflateProviderPathsOnOneHost(t *testing.T) {
 		t.Fatal("must not match a provider only because it shares an API host")
 	}
 }
+
+func TestLookupCursorSubscriptionPreservesAllInputModes(t *testing.T) {
+	model := modelsdev.Model{ID: "claude-test"}
+	model.Modalities.Input = []string{"text", "image", "pdf"}
+	catalog := modelsdev.Catalog{"anthropic": {Models: map[string]modelsdev.Model{"claude-test": model}}}
+	result, ok := catalog.Lookup("Cursor Sub", "", "claude-test")
+	if !ok || len(result.Modalities.Input) != 3 {
+		t.Fatalf("expected all input modalities, got %+v, found %v", result.Modalities.Input, ok)
+	}
+}

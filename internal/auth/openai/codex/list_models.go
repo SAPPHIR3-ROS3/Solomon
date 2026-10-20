@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 )
 
 type codexModelEntry struct {
-	Slug       string `json:"slug"`
-	Visibility string `json:"visibility"`
-	Priority   int    `json:"priority"`
+	InputModalities []string `json:"input_modalities"`
+	Slug            string   `json:"slug"`
+	Visibility      string   `json:"visibility"`
+	Priority        int      `json:"priority"`
 }
 
 type codexModelsResponse struct {
@@ -61,6 +63,7 @@ func ListModels(ctx context.Context, bearer, accountID string) ([]string, error)
 		if vis := strings.TrimSpace(strings.ToLower(m.Visibility)); vis == "hide" || vis == "hidden" {
 			continue
 		}
+		storeModelInputs(slug, m.InputModalities)
 		m.Slug = slug
 		filtered = append(filtered, m)
 	}
@@ -78,4 +81,19 @@ func ListModels(ctx context.Context, bearer, accountID string) ([]string, error)
 		return nil, fmt.Errorf("ChatGPT Sub models API: empty model list")
 	}
 	return out, nil
+}
+
+var modelInputs sync.Map
+
+func storeModelInputs(id string, inputs []string) {
+	if len(inputs) > 0 {
+		modelInputs.Store(id, append([]string(nil), inputs...))
+	}
+}
+
+func ModelInputModalities(id string) []string {
+	if inputs, ok := modelInputs.Load(id); ok {
+		return append([]string(nil), inputs.([]string)...)
+	}
+	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands/connect"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsdev"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/providerui"
 )
 
@@ -35,15 +36,22 @@ type apiCurrentModel struct {
 	ReasoningEffort string `json:"reasoningEffort"`
 }
 
+type apiModelMetadata struct {
+	Context int      `json:"context"`
+	Input   []string `json:"input"`
+	Output  int      `json:"output"`
+}
+
 type apiProviderCatalog struct {
-	Complete            bool     `json:"complete"`
-	Disabled            []string `json:"disabled,omitempty"`
-	FastModels          []string `json:"fastModels"`
-	ThinkingModels      []string `json:"thinkingModels"`
-	ThinkingLevelModels []string `json:"thinkingLevelModels"`
-	Models              []string `json:"models"`
-	Provider            string   `json:"provider"`
-	SupportsFastMode    bool     `json:"supportsFastMode"`
+	Metadata            map[string]apiModelMetadata `json:"metadata"`
+	Complete            bool                        `json:"complete"`
+	Disabled            []string                    `json:"disabled,omitempty"`
+	FastModels          []string                    `json:"fastModels"`
+	ThinkingModels      []string                    `json:"thinkingModels"`
+	ThinkingLevelModels []string                    `json:"thinkingLevelModels"`
+	Models              []string                    `json:"models"`
+	Provider            string                      `json:"provider"`
+	SupportsFastMode    bool                        `json:"supportsFastMode"`
 }
 
 type apiModelCatalog struct {
@@ -215,6 +223,7 @@ func (a *modelAPI) loadCatalog(forceRefresh bool) (apiModelCatalog, error) {
 	catalog.Providers = make([]apiProviderCatalog, len(filtered))
 	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
 	defer cancel()
+	modelsCatalog, _ := modelsdev.Load(ctx)
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(len(filtered))
 	for index := range filtered {
@@ -237,6 +246,21 @@ func (a *modelAPI) loadCatalog(forceRefresh bool) (apiModelCatalog, error) {
 				Models:           ids,
 				Provider:         provider.Name,
 				SupportsFastMode: config.FastModeSupportedByProvider(&provider),
+			}
+			entry.Metadata = make(map[string]apiModelMetadata)
+			for _, id := range ids {
+				if model, ok := modelsCatalog.Lookup(provider.Name, provider.BaseURL, id); ok {
+					entry.Metadata[id] = apiModelMetadata{Context: model.Limit.Context, Input: model.Modalities.Input, Output: model.Limit.Output}
+				}
+			}
+			if provider.Name == config.ProviderNameChatGPTSub {
+				for _, id := range ids {
+					if inputs := codex.ModelInputModalities(id); len(inputs) > 0 {
+						info := entry.Metadata[id]
+						info.Input = inputs
+						entry.Metadata[id] = info
+					}
+				}
 			}
 			if provider.IsCursorSub() {
 				entry.FastModels = connect.CursorFastModels()

@@ -1,0 +1,25 @@
+.welcome-model-title > strong {
+  flex: 0 1 auto;
+}
+
+.welcome-model-title > .welcome-model-inputs {
+  flex: 0 0 auto;
+}
+
+.welcome-model-title .welcome-model-input-icon {
+  flex-shrink: 0;
+}
+
+.welcome-model-trigger .welcome-model-provider-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.welcome-model-provider-icon svg {
+  width: 15px;
+  height: 15px;
+}
