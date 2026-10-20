@@ -13,7 +13,7 @@ const (
 	Scopes       = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 	Originator   = "codex_cli_rs"
 	// ClientVersion is the offline fallback; requests resolve npm latest dynamically.
-	ClientVersion = "0.153.3"
+	ClientVersion = "0.163.0"
 	CallbackAddr  = "127.0.0.1:1455"
 	CallbackPath  = "/auth/callback"
 )

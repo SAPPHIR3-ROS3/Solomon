@@ -24,8 +24,8 @@ const (
 	pollURL             = "https://api2.cursor.sh/auth/poll"
 	refreshURL          = "https://api2.cursor.sh/auth/exchange_user_api_key"
 	APIBase             = "https://api2.cursor.sh"
-	cursorClientVersion = "3.21.13"
-	cursorClientCommit  = "e44a49c17e334d442e58bbde931d791200f014a0"
+	cursorClientVersion = "3.25.9"
+	cursorClientCommit  = "5d4df965746c5d09740842fc0f1331ba1c15783d"
 
 	pollMaxAttempts      = 150
 	pollMaxDelay         = 10 * time.Second

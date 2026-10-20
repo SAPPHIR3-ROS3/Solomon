@@ -14,7 +14,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
-const FallbackVersion = "2.1.75"
+const FallbackVersion = "2.1.304"
 
 const githubLatestReleaseURL = "https://api.github.com/repos/anthropics/claude-code/releases/latest"
 
