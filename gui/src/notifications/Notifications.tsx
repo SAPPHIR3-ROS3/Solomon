@@ -2,7 +2,7 @@ import { CheckIcon, CopyIcon } from "../chat/ChatIcons";
 import { copyTextFallback } from "../chat/chatClipboard";
 import { serverEndpoint } from "../platform";
 import { useEffect, useRef, useState } from "react";
-import { dismissToast, useNotifications, type Notification, type Toast } from "./store";
+import { dismissToast, groupNotifications, useNotifications, type Notification, type NotificationGroup, type Toast } from "./store";
 import "./notifications.css";
 
 function BellIcon() {
@@ -27,6 +27,10 @@ function NotificationBody({ entry }: { entry: Notification }) {
   const copyLabel = copyState === "copied" ? "Notification copied" : copyState === "failed" ? "Unable to copy notification, try again" : "Copy notification text";
   return <><div className="notification-meta"><strong>{entry.level === "error" ? "Error" : entry.level === "warning" ? "Warning" : "System"}</strong><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString()}</time><button aria-label={copyLabel} className="notification-copy" onClick={() => void copyNotification()} title={copyLabel} type="button">{copyState === "copied" ? <CheckIcon /> : <CopyIcon />}</button></div><p>{entry.message}</p></>;
 }
+function RelatedErrors({ entry }: { entry: NotificationGroup }) {
+  if (!entry.children.length) return null;
+  return <details className="notification-related"><summary>{entry.children.length} related {entry.children.length === 1 ? "error" : "errors"}</summary><div>{entry.children.map(child => <article className="notification-child is-error" key={child.id}><NotificationBody entry={child} /></article>)}</div></details>;
+}
 export function NotificationControl({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { history } = useNotifications();
   const ref = useRef<HTMLDivElement>(null);
@@ -42,7 +46,7 @@ export function NotificationControl({ open, onOpenChange }: { open: boolean; onO
   }, [open, history.length, onOpenChange]);
   return <div className="notification-control" ref={ref}>
     <button aria-label="Notifications" aria-expanded={open} aria-haspopup="dialog" className="notification-bell" title="Notifications" type="button" onClick={() => onOpenChange(!open)}><BellIcon />{history.length > readCount ? <span className="notification-unread" /> : null}</button>
-    {open ? <section aria-label="Notification history" className="notification-menu" role="dialog"><header><span>Notifications</span><span className="notification-header-actions"><span>{history.length}</span><ReportButton placement="menu" /></span></header><div className="notification-history" tabIndex={0}>{history.length ? history.map((entry) => <article className={`notification-entry is-${entry.level}`} key={entry.id}><NotificationBody entry={entry} /></article>) : <p className="notification-empty">No notifications yet.</p>}</div></section> : null}
+    {open ? <section aria-label="Notification history" className="notification-menu" role="dialog"><header><span>Notifications</span><span className="notification-header-actions"><span>{history.length}</span><ReportButton placement="menu" /></span></header><div className="notification-history" tabIndex={0}>{history.length ? groupNotifications(history).map((entry) => <article className={`notification-entry is-${entry.level}`} key={entry.id}><NotificationBody entry={entry} /><RelatedErrors entry={entry} /></article>) : <p className="notification-empty">No notifications yet.</p>}</div></section> : null}
   </div>;
 }
 function NotificationToast({ entry }: { entry: Toast }) {
@@ -50,7 +54,7 @@ function NotificationToast({ entry }: { entry: Toast }) {
     const timer = setTimeout(() => dismissToast(entry.id), Math.max(0, entry.expiresAt - Date.now()));
     return () => clearTimeout(timer);
   }, [entry.id, entry.expiresAt]);
-  return <article className={`notification-toast is-${entry.level}`} role={entry.level === "error" ? "alert" : "status"}><NotificationBody entry={entry} /><button aria-label="Dismiss notification" className="notification-dismiss" onClick={() => dismissToast(entry.id)} type="button">×</button><div aria-hidden="true" className="notification-progress" /></article>;
+  return <article className={`notification-toast is-${entry.level}`} role={entry.level === "error" ? "alert" : "status"}><NotificationBody entry={entry} /><RelatedErrors entry={entry} /><button aria-label="Dismiss notification" className="notification-dismiss" onClick={() => dismissToast(entry.id)} type="button">×</button><div aria-hidden="true" className="notification-progress" /></article>;
 }
 export function ReportButton({ placement }: { placement: "menu" | "settings" }) {
   const [open, setOpen] = useState(false);

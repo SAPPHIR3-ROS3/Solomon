@@ -43,3 +43,9 @@
 .notification-copy:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .notification-copy svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .notification-entry p, .notification-toast p { -webkit-user-select: text; user-select: text; }
+
+.notification-related { margin-top: 8px; font-size: 11px; }
+.notification-related summary { cursor: pointer; color: var(--color-text-muted); }
+.notification-child { border-left: 2px solid var(--color-border); padding: 8px 0 8px 12px; margin-top: 6px; }
+.notification-toast:has(.notification-related) { height: auto; min-height: 140px; max-height: 360px; overflow-y: auto; }
+.notification-toast > .notification-related { flex-shrink: 0; }

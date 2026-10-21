@@ -56,10 +56,10 @@ test("composer history scrolls and new notifications expire after ten seconds", 
     await page.waitForTimeout(1500);
     assert.deepEqual(errors, []);
     await page.evaluate(() => window.runHomeCommand("/help"));
-    assert.deepEqual(commandRequests, [{path:"/__solomon/projects/project-fixture/commands", body:{content:"/help"}}]);
+    assert.deepEqual(commandRequests, [{path:"/__solomon/projects/project-fixture/commands", body:{content:"/help",surface:"web"}}]);
     assert.equal(await page.evaluate(() => window.selectedCommandChat), null);
     assert.equal(await page.locator("form .notification-bell").count(), 0);
-    const bell = page.locator(".welcome-git-controls .notification-bell");
+    const bell = page.getByRole("button", { name: "Notifications", exact: true });
     const bellBounds = await bell.boundingBox();
     const composerBounds = await page.locator("form").boundingBox();
     assert.ok(bellBounds.y + bellBounds.height <= 720 && bellBounds.x + bellBounds.width <= 1280, JSON.stringify({bellBounds, composerBounds}));
@@ -89,6 +89,26 @@ test("composer history scrolls and new notifications expire after ten seconds", 
     await page.locator(".notification-toast").waitFor({ state: "detached", timeout: 11000 });
     await page.getByRole("button", { name: "Notifications", exact: true }).click();
     assert.equal(await page.locator(".notification-entry").count(), 13);
+    await page.keyboard.press("Escape");
+    const burstTime = Date.now();
+    notifications = [
+      { id: "burst-child", createdAt: new Date(burstTime + 1).toISOString(), level: "error", message: "Stream cleanup failed" },
+      { id: "burst-root", createdAt: new Date(burstTime).toISOString(), level: "error", message: "Stream interrupted" },
+      ...notifications,
+    ];
+    await page.locator(".notification-toast").getByText("Stream interrupted", { exact: true }).waitFor();
+    assert.equal(await page.locator(".notification-toast").count(), 1);
+    await page.locator(".notification-toast summary").click();
+    await page.locator(".notification-toast .notification-child").getByText("Stream cleanup failed", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Dismiss notification", exact: true }).click();
+    notifications = [{ id: "burst-child-2", createdAt: new Date(burstTime + 2).toISOString(), level: "error", message: "Transport closed" }, ...notifications];
+    await page.waitForTimeout(2200);
+    assert.equal(await page.locator(".notification-toast").count(), 0);
+    await page.getByRole("button", { name: "Notifications", exact: true }).click();
+    const burst = page.locator(".notification-entry").filter({ hasText: "Stream interrupted" });
+    await burst.getByText("2 related errors", { exact: true }).waitFor();
+    await burst.locator("summary").click();
+    assert.equal(await burst.locator(".notification-child").count(), 2);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await server.close(); }
-}, { timeout: 30000 });
+}, { timeout: 40000 });

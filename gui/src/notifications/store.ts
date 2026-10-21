@@ -2,7 +2,24 @@ import { useSyncExternalStore } from "react";
 import { serverEndpoint } from "../platform";
 
 export type Notification = { id: string; createdAt: string; level: string; message: string };
-export type Toast = Notification & { expiresAt: number };
+export type NotificationGroup = Notification & { children: Notification[] };
+export type Toast = NotificationGroup & { expiresAt: number };
+
+// Bound each burst to its first error so a continuous stream cannot hide errors forever.
+export function groupNotifications(entries: Notification[]): NotificationGroup[] {
+  const groups: NotificationGroup[] = [];
+  let root: NotificationGroup | undefined;
+  for (const entry of [...entries].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id))) {
+    if (entry.level === "error" && root && Date.parse(entry.createdAt) - Date.parse(root.createdAt) <= 5000) {
+      root.children.push(entry);
+    } else {
+      const group = { ...entry, children: [] };
+      groups.push(group);
+      if (entry.level === "error") root = group;
+    }
+  }
+  return groups.reverse();
+}
 const storageKey = "solomon:notification-errors";
 let local: Notification[] = [];
 try { local = JSON.parse(localStorage.getItem(storageKey) ?? "[]").filter(isNotification); } catch { /* Storage can be unavailable. */ }
@@ -20,8 +37,16 @@ function isNotification(value: unknown): value is Notification {
   return [entry.id, entry.createdAt, entry.level, entry.message].every((field) => typeof field === "string");
 }
 function toast(entry: Notification) {
-  if (toasts.some((current) => current.message === entry.message)) return;
-  toasts = [...toasts, { ...entry, expiresAt: Date.now() + 10_000 }];
+  const group = groupNotifications(history).find((group) => group.id === entry.id || group.children.some((child) => child.id === entry.id));
+  if (!group) return;
+  const existing = toasts.find((current) => current.id === group.id);
+  if (existing) {
+    toasts = toasts.map((current) => current.id === group.id ? { ...group, expiresAt: current.expiresAt } : current);
+    return;
+  }
+  // A child never opens a second popup, even if the first was dismissed.
+  if (group.id !== entry.id || toasts.some((current) => current.message === entry.message)) return;
+  toasts = [...toasts, { ...group, expiresAt: Date.now() + 10_000 }];
 }
 export function notifyError(message: string) { notifyNotification(message, "error"); }
 export function notifyNotification(message: string, level = "system") {
@@ -55,10 +80,11 @@ export function watchNotifications() {
       if (!Array.isArray(payload)) throw new Error("Invalid notification history");
       const entries = payload.filter(isNotification);
       if (controller.signal.aborted) return;
-      if (seen) entries.filter((entry) => !seen!.has(entry.id)).reverse().forEach(toast);
+      const arrivals = seen ? entries.filter((entry) => !seen!.has(entry.id)).reverse() : [];
       seen = new Set(entries.map((entry) => entry.id));
       const combined = [...entries, ...local.filter((entry) => !entries.some((remote) => remote.message === entry.message && Math.abs(Date.parse(remote.createdAt) - Date.parse(entry.createdAt)) < 10_000))];
       history = combined.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      arrivals.forEach(toast);
       publish();
     } catch { /* Reconnect without generating repeated connection errors. */ }
     if (!controller.signal.aborted) timer = setTimeout(poll, 2000);
