@@ -1088,7 +1088,7 @@
 }
 
 .composer-image-lightbox-stage { position: relative; }
-.composer-image-lightbox-stage > .composer-image-lightbox-image { display: none; }
+.composer-image-editor-stage > .composer-image-lightbox-image { display: none; }
 .composer-image-lightbox-canvas {
   display: block;
   max-width: 88vw;

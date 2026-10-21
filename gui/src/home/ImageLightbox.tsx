@@ -204,7 +204,7 @@ export function ImageLightbox(props: Props) {
         <button aria-label="Reset" className="composer-image-lightbox-action" disabled={historyIndex === 0 && current.strokes.length === 0} onClick={reset} title="Reset" type="button"><HistoryIcon action="reset" /></button>
       </div>
       {props.images.length > 1 ? <button aria-label="Previous image" className="composer-image-lightbox-nav is-previous" onClick={(event) => { event.stopPropagation(); props.onSelectIndex(-1); }} type="button"><ArrowIcon direction="left" /></button> : null}
-      <div className="composer-image-lightbox-stage" onClick={(event) => event.stopPropagation()}>
+      <div className="composer-image-lightbox-stage composer-image-editor-stage" onClick={(event) => event.stopPropagation()}>
         <img alt={props.image.name} className="composer-image-lightbox-image" onError={() => props.onRefresh(props.image)} onLoad={() => setImageLoaded((value) => value + 1)} ref={imageRef} src={sourceURL} />
         <canvas aria-label="Image editing canvas" className="composer-image-lightbox-canvas" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => { setDraft(null); const drag = dragRef.current; if (drag) setHistory((items) => items.map((item, index) => index === historyIndex ? drag.start : item)); dragRef.current = null; }} ref={canvasRef} />
       </div>
