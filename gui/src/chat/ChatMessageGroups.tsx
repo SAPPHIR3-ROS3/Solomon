@@ -111,6 +111,8 @@ const AssistantTurn = memo(function AssistantTurn({
   const rawActivityEntries = responseEntry ? entries.filter((_, index) => index !== responseIndex) : entries;
   const toolCalls = rawActivityEntries.flatMap(({ message }) => message.toolCalls ?? []);
   const hasToolCalls = toolCalls.length > 0;
+  const latestMessage = entries.at(-1)?.message;
+  const activeGenerationMessageID = isWorking && (latestMessage?.toolCalls?.length ?? 0) === 0 ? latestMessage?.id : undefined;
   const activityEntries = withActivityCheckpoints(rawActivityEntries, toolCalls);
   const [collapsedOverride, setCollapsedOverride] = useState<boolean | undefined>(undefined);
   const wasWorking = useRef(isWorking);
@@ -144,7 +146,7 @@ const AssistantTurn = memo(function AssistantTurn({
           return (
             <AssistantMessageBlock
               checkpoint={entry.checkpoint}
-              isWorking={isWorking}
+              isWorking={entry.message.id === activeGenerationMessageID}
               key={entry.message.id}
               message={entry.message}
               onOpenSubagent={actions.onOpenSubagent}
@@ -157,7 +159,7 @@ const AssistantTurn = memo(function AssistantTurn({
         {hasToolCalls ? (
           <ToolActivityCollapseControl
             isCollapsed={isToolActivityCollapsed}
-            isWorking={isWorking}
+            isWorking={activeGenerationMessageID !== undefined}
             onToggleCollapsed={toggleToolActivity}
             entries={activityEntries}
             thoughtFor={isToolActivityCollapsed ? aggregateThoughtFor(activityEntries) : undefined}
@@ -168,7 +170,7 @@ const AssistantTurn = memo(function AssistantTurn({
       {responseEntry ? (
         <AssistantMessageBlock
           checkpoint={responseEntry.checkpoint}
-          isWorking={isWorking}
+          isWorking={responseEntry.message.id === activeGenerationMessageID}
           message={responseEntry.message}
           onOpenSubagent={responseActions?.onOpenSubagent}
           onStopTool={responseActions?.onStopTool}
