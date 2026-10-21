@@ -43,10 +43,11 @@ func TestServerRuntime_chatSnapshotCompactionKeepsHistoryInScrollablePayload(t *
 	}
 	separator := "---"
 	summaryBody := separator + "\n[Conversation summary]\n" + separator + "\n\nKeep the API history visible.\n\n" + separator + "\n[Retained messages]\n" + separator + "\n\nUser:\nEarlier question\n\nAssistant:\nEarlier answer\n\n" + separator
+	currentAnswer := "La compaction usa [Conversation summary] e [Retained messages] come marcatori."
 	sess.Messages = []chatstore.Message{
 		{Role: "assistant", Content: summaryBody},
 		{Role: "user", Content: "Current question"},
-		{Role: "assistant", Content: "Current answer"},
+		{Role: "assistant", Content: currentAnswer},
 	}
 	archived := make([]chatstore.Message, 0, 10)
 	for index := 0; index < 10; index++ {
@@ -99,11 +100,11 @@ func TestServerRuntime_chatSnapshotCompactionKeepsHistoryInScrollablePayload(t *
 	if len(compaction.RetainedMessages) != 8 || compaction.RetainedMessages[0].Content != "Archived message 2" || compaction.RetainedMessages[7].Content != "Archived message 9" {
 		t.Fatalf("retained messages = %+v", compaction.RetainedMessages)
 	}
-	if opened.Messages[3].Content != "Current question" || opened.Messages[4].Content != "Current answer" {
+	if opened.Messages[3].Content != "Current question" || opened.Messages[4].Content != currentAnswer {
 		t.Fatalf("current messages are not in the scrollable payload: %+v", opened.Messages)
 	}
 	for index, message := range opened.Messages {
-		if index == 1 {
+		if index == 1 || index == 4 {
 			continue
 		}
 		if strings.Contains(message.Content, "[Conversation summary]") {

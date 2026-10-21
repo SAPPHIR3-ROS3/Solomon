@@ -59,7 +59,7 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 		if messagePrecededByUser(msgs, idx) {
 			termcolor.PrintChatSeparator(out)
 		}
-		if strings.Contains(m.Content, "[Conversation summary]") {
+		if chatstore.IsCompactionSummary(m) {
 			fmt.Fprintf(out, "%s%s\n", prefix, RenderCompactSummaryBody(m.Content))
 			break
 		}

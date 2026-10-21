@@ -208,7 +208,7 @@ func writeMarkdownMessage(out io.Writer, msgs []chatstore.Message, idx int, mode
 		}
 		fmt.Fprintf(out, "**You:**\n\n%s\n\n", strings.TrimSpace(m.Content))
 	case "assistant":
-		if strings.Contains(m.Content, "[Conversation summary]") {
+		if chatstore.IsCompactionSummary(m) {
 			fmt.Fprintf(out, "**Summary:**\n\n```\n%s\n```\n\n", strings.TrimSpace(m.Content))
 			break
 		}

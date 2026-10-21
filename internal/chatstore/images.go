@@ -128,7 +128,7 @@ func NormalizeSummaryWhitespace(content string) string {
 }
 
 func ScrubCompactSummaryContent(content string) string {
-	if !strings.Contains(content, "[Conversation summary]") {
+	if !IsCompactionSummary(Message{Role: "assistant", Content: content}) {
 		return StripAllImgPlaceholderLiterals(content)
 	}
 	next := StripAllImgPlaceholderLiterals(content)
@@ -205,7 +205,7 @@ func stripMessageImgLiterals(m *Message) int {
 		m.Content = next
 		n++
 	}
-	if strings.Contains(m.Content, "[Conversation summary]") {
+	if IsCompactionSummary(*m) {
 		if next := ScrubCompactSummaryContent(m.Content); next != m.Content {
 			m.Content = next
 			n++

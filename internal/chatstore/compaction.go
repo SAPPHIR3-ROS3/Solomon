@@ -2,6 +2,7 @@ package chatstore
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -74,8 +75,15 @@ func ApplyCompaction(sess *Session, body string, at time.Time) {
 	if sess != nil {
 		prev = len(sess.Messages)
 	}
+	if sess == nil {
+		return
+	}
+	sess.Capabilities.Backfill(sess.Messages)
 	ArchiveUncompactedState(sess, at)
 	sess.Messages = []Message{{Role: "assistant", Content: body}}
+	if restored, ok := sess.Capabilities.RestoreMessage(); ok {
+		sess.Messages = append(sess.Messages, restored)
+	}
 	sess.Branches = nil
 	sess.CheckpointBranchSuffix = ""
 	sess.ForkChildCount = nil
@@ -85,4 +93,27 @@ func ApplyCompaction(sess *Session, body string, at time.Time) {
 	sess.LastMessageAt = at
 	RepairSessionMalformedImages(sess)
 	logging.Log(logging.INFO_LOG_LEVEL, "session compacted", logging.LogOptions{Params: map[string]any{"archived_messages": prev}})
+}
+
+// IsCompactionSummary recognizes the stored summary envelope, rather than
+// mentions of its marker in ordinary assistant explanations or tool output.
+func IsCompactionSummary(message Message) bool {
+	if message.Role != "assistant" {
+		return false
+	}
+	lines := strings.SplitN(strings.TrimSpace(message.Content), "\n", 4)
+	if len(lines) < 4 || strings.TrimSpace(lines[1]) != "[Conversation summary]" {
+		return false
+	}
+	separator := strings.TrimSpace(lines[0])
+	if len(separator) < 3 || strings.TrimSpace(lines[2]) != separator {
+		return false
+	}
+	first := []rune(separator)[0]
+	for _, char := range separator {
+		if char != first {
+			return false
+		}
+	}
+	return strings.ContainsRune("-=─━", first)
 }

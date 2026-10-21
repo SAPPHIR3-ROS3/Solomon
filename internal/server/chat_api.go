@@ -1327,7 +1327,7 @@ func compactionSummary(messages []chatstore.Message, dumps []chatstore.Uncompact
 }
 
 func isCompactionSummaryMessage(message chatstore.Message) bool {
-	return message.Role == "assistant" && strings.Contains(message.Content, "[Conversation summary]")
+	return chatstore.IsCompactionSummary(message)
 }
 
 func compactSummaryText(body string) string {
