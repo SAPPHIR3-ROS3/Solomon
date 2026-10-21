@@ -1,6 +1,10 @@
-package chatstore
+package test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+)
 
 func TestIsCompactionSummary(t *testing.T) {
 	for _, tc := range []struct {
@@ -15,7 +19,7 @@ func TestIsCompactionSummary(t *testing.T) {
 		{"unframed marker", "assistant", "[Conversation summary]\nOrdinary explanation", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := IsCompactionSummary(Message{Role: tc.role, Content: tc.content}); got != tc.want {
+			if got := chatstore.IsCompactionSummary(chatstore.Message{Role: tc.role, Content: tc.content}); got != tc.want {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})
