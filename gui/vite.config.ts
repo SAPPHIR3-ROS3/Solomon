@@ -4,11 +4,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
-import { projectsPlugin } from "./projectsPlugin";
-import { customizationPlugin } from "./customizationPlugin";
-import { guiSettingsPlugin } from "./guiSettingsPlugin";
-import { modelsPlugin } from "./modelsPlugin";
-import { syntaxAssetsPlugin } from "./syntaxAssetsPlugin";
+import { projectsPlugin } from "./projectsPlugin.ts";
+import { customizationPlugin } from "./customizationPlugin.ts";
+import { guiSettingsPlugin } from "./guiSettingsPlugin.ts";
+import { modelsPlugin } from "./modelsPlugin.ts";
+import { syntaxAssetsPlugin } from "./syntaxAssetsPlugin.ts";
 
 const localIconPath = fileURLToPath(new URL("./icon.svg", import.meta.url));
 const rootIconPath = existsSync(localIconPath) ? localIconPath : fileURLToPath(new URL("../icon.svg", import.meta.url));

@@ -13,7 +13,7 @@ import {
   projectGitHistory,
   projectGitStatus,
   projectWorktrees,
-} from "./projectBranches";
+} from "./projectBranches.ts";
 
 const projectsEndpoint = "/__solomon/projects";
 const chatAPIPath = projectsEndpoint;

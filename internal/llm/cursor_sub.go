@@ -210,16 +210,16 @@ func (b *cursorSubBackend) selectAgentModel(ctx context.Context, selected, effor
 	if selected == "" {
 		selected = "composer-2.5"
 	}
-	resolved := cursorauth.ResolveChatModelID(selected, effort, fast)
-	if strings.EqualFold(resolved, selected) {
-		return selected
-	}
 	session, err := config.ResolveCursorSessionBearer(ctx, b.cfg, b.provider)
 	if err != nil {
 		return selected
 	}
 	available, err := cursorauth.ListAvailableModels(ctx, session)
+	resolved := cursorauth.ResolveChatModelID(selected, effort, fast)
 	if err != nil {
+		if resolved != "" {
+			return resolved
+		}
 		return selected
 	}
 	for _, candidate := range []string{resolved, strings.TrimPrefix(resolved, "cursor-"), selected, strings.TrimPrefix(selected, "cursor-")} {

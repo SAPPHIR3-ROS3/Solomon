@@ -450,27 +450,21 @@ func ResolveChatModelID(id, effort string, fast bool) string {
 	if base == "" {
 		base = "cursor-composer-2.5"
 	}
-	level := cursorEffortSuffix(effort)
-	synth := base
-	if level != "" {
-		synth += "-" + level
-	}
-	if fast {
-		synth += "-fast"
-	}
 	fastMu.Lock()
 	variants := append([]string(nil), knownVariants...)
 	fastMu.Unlock()
+	var same []string
 	for _, raw := range variants {
-		raw = strings.TrimSpace(raw)
-		if raw == "" {
+		canon := CanonicalCursorModelID(strings.TrimSpace(raw))
+		if canon == "" || !strings.EqualFold(cursorBaseModelID(canon), base) {
 			continue
 		}
-		if strings.EqualFold(CanonicalCursorModelID(raw), synth) {
-			return CanonicalCursorModelID(raw)
-		}
+		same = append(same, canon)
 	}
-	return synth
+	if len(same) == 0 {
+		return base
+	}
+	return pickCursorVariant(same, base, cursorEffortSuffix(effort), fast)
 }
 
 func cursorEffortSuffix(effort string) string {

@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/pro
 import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
-import { readModelCatalog } from "./modelsPlugin";
+import { readModelCatalog } from "./modelsPlugin.ts";
 import {
   acceptPromptTemplate,
   createSubagentRole,
@@ -16,7 +16,7 @@ import {
   saveRolesTable,
   updateSubagentDetail,
   type CatalogItem,
-} from "./rolesLocal";
+} from "./rolesLocal.ts";
 
 const rulesEndpoint = "/__solomon/rules";
 const reorderRulesEndpoint = "/__solomon/rules/reorder";

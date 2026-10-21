@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
-import { runGUISettings } from "./guiSettingsPlugin";
+import { runGUISettings } from "./guiSettingsPlugin.ts";
 
 const modelsEndpoint = "/__solomon/models";
 const currentModelEndpoint = "/__solomon/current-model";

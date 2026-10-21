@@ -2,12 +2,14 @@ package test
 
 import (
 	"context"
+	"io"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	cursorauth "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/cursor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
@@ -15,6 +17,9 @@ import (
 func TestCursorAgentDirectLive(t *testing.T) {
 	if os.Getenv("SOLOMON_CURSOR_DIRECT_LIVE") != "1" {
 		t.Skip("live subscription test")
+	}
+	config.RolesModelLister = func(context.Context, *config.Root, *config.Provider) ([]string, error) {
+		return []string{"gpt-6-luna", "gpt-6.1-sol", "claude-fable-5-1", "claude-opus-5-5", "cursor-grok-4.7", "composer-2.5"}, nil
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -80,9 +85,45 @@ func TestCursorAgentDirectLive(t *testing.T) {
 	}
 }
 
+func TestCursorSolTurnLive(t *testing.T) {
+	if os.Getenv("SOLOMON_CURSOR_DIRECT_LIVE") != "1" {
+		t.Skip("live subscription test")
+	}
+	config.RolesModelLister = func(context.Context, *config.Root, *config.Provider) ([]string, error) {
+		return []string{"gpt-6-luna", "gpt-6.1-sol", "claude-fable-5-1", "claude-opus-5-5", "cursor-grok-4.7", "composer-2.5", "gpt-5.6-sol"}, nil
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := config.ProviderByName(cfg, config.ProviderNameCursorSub)
+	backend, err := llm.NewCompletionBackend(context.Background(), cfg, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	result, err := backend.StreamTurn(ctx, llm.TurnRequest{
+		Model:           "gpt-5.6-sol",
+		System:          "Reply briefly.",
+		Messages:        []chatstore.Message{{Role: "user", Content: "Reply with OK only."}},
+		ReasoningEffort: "low",
+	}, io.Discard, llm.StreamOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(result.Content) == "" {
+		t.Fatal("empty sol reply")
+	}
+	t.Logf("reply %q", strings.TrimSpace(result.Content))
+}
+
 func TestCursorAgentModelListLive(t *testing.T) {
 	if os.Getenv("SOLOMON_CURSOR_DIRECT_LIVE") != "1" {
 		t.Skip("live subscription test")
+	}
+	config.RolesModelLister = func(context.Context, *config.Root, *config.Provider) ([]string, error) {
+		return []string{"gpt-6-luna", "gpt-6.1-sol", "claude-fable-5-1", "claude-opus-5-5", "cursor-grok-4.7", "composer-2.5"}, nil
 	}
 	cfg, err := config.Load()
 	if err != nil {

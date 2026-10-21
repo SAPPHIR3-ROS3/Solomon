@@ -292,8 +292,12 @@ func TestResolveChatModelID(t *testing.T) {
 	cursorauth.SetModelCaps(caps)
 	t.Cleanup(func() { cursorauth.SetModelCaps(cursorauth.ModelCaps{}) })
 	got := cursorauth.ResolveChatModelID("grok-4.6", "medium", true)
-	if got != "cursor-grok-4.6-medium-fast" {
+	if got != "cursor-grok-4.6-thinking-medium-fast" {
 		t.Fatalf("got %q", got)
+	}
+	plain := cursorauth.ResolveChatModelID("gpt-5.6-sol", "high", true)
+	if plain != "gpt-5.6-sol" {
+		t.Fatalf("bare id got %q", plain)
 	}
 }
 
