@@ -8,6 +8,13 @@ import "./typography.css";
 import "./editor/editor.css";
 import "./responsive.css";
 
+// Keep Tab available to editors and completion menus without moving focus.
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Tab") {
+    event.preventDefault();
+  }
+}, true);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
