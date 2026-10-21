@@ -12,13 +12,13 @@ import (
 )
 
 func interruptedDuringGeneration(parent, runCtx context.Context, opErr, stopErr error) bool {
-	if errors.Is(context.Cause(runCtx), stopErr) {
+	if errors.Is(context.Cause(runCtx), stopErr) || errors.Is(context.Cause(parent), stopErr) {
 		return true
 	}
-	if opErr == nil {
-		return false
+	if runCtx.Err() != nil || parent.Err() != nil {
+		return true
 	}
-	return parent.Err() == nil && errors.Is(runCtx.Err(), context.Canceled) && errors.Is(opErr, context.Canceled)
+	return opErr != nil && errors.Is(opErr, context.Canceled)
 }
 
 func appendSyntheticToolResults(h Host, astSeq int, invs []tooling.Invocation, toolIDs []string, start int) error {

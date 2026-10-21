@@ -205,29 +205,14 @@ func cursorToolResult(messages []chatstore.Message, id string) (string, bool, bo
 	return "", false, false
 }
 
-func (b *cursorSubBackend) selectAgentModel(ctx context.Context, selected, effort string, fast bool) string {
+func (b *cursorSubBackend) selectAgentModel(selected, effort string, fast bool) string {
 	selected = strings.TrimSpace(selected)
 	if selected == "" {
 		selected = "composer-2.5"
 	}
-	session, err := config.ResolveCursorSessionBearer(ctx, b.cfg, b.provider)
-	if err != nil {
-		return selected
-	}
-	available, err := cursorauth.ListAvailableModels(ctx, session)
 	resolved := cursorauth.ResolveChatModelID(selected, effort, fast)
-	if err != nil {
-		if resolved != "" {
-			return resolved
-		}
-		return selected
-	}
-	for _, candidate := range []string{resolved, strings.TrimPrefix(resolved, "cursor-"), selected, strings.TrimPrefix(selected, "cursor-")} {
-		for _, model := range available {
-			if strings.EqualFold(candidate, model) {
-				return model
-			}
-		}
+	if resolved != "" {
+		return resolved
 	}
 	return selected
 }
@@ -262,7 +247,7 @@ func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string
 			return cursorauth.ChatResult{}, err
 		}
 		fast := b.cfg != nil && b.cfg.EffectiveFastMode()
-		model = b.selectAgentModel(ctx, model, effort, fast)
+		model = b.selectAgentModel(model, effort, fast)
 		user, media := latestCursorUser(messages, imageFiles)
 		if user == "" && len(media) == 0 {
 			return cursorauth.ChatResult{}, fmt.Errorf("Cursor Agent: no user message")

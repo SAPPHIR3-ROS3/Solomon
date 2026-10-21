@@ -51,7 +51,13 @@ func (b *ResilientBackend) runWithRetry(ctx context.Context, opts StreamOpts, op
 	max := b.maxAttempts()
 	var lastErr error
 	for attempt := 1; attempt <= max; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		lastErr = op()
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if lastErr == nil {
 			b.Circuits.Reset(b.HostKey)
 			return nil

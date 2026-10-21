@@ -88,11 +88,11 @@ func OpenAgentSession(ctx context.Context, apiKey, model, system, user string, t
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, fmt.Errorf("Cursor Agent: missing subscription API key")
 	}
-	tokens, err := Refresh(ctx, apiKey)
+	access, err := agentAccessToken(ctx, apiKey)
 	if err != nil {
 		return nil, fmt.Errorf("Cursor Agent token exchange: %w", err)
 	}
-	endpoint, err := discoverAgentURL(ctx, tokens.AccessToken)
+	endpoint, err := discoverAgentURL(ctx, access)
 	if err != nil {
 		return nil, err
 	}
@@ -115,14 +115,14 @@ func OpenAgentSession(ctx context.Context, apiKey, model, system, user string, t
 	req.Header.Set("Content-Type", "application/connect+proto")
 	req.Header.Set("Connect-Protocol-Version", "1")
 	req.Header.Set("TE", "trailers")
-	req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
+	req.Header.Set("Authorization", "Bearer "+access)
 	req.Header.Set("X-Ghost-Mode", "true")
 	req.Header.Set("X-Cursor-Client-Version", agentClientVersion())
 	req.Header.Set("X-Cursor-Client-Type", "cli")
 	req.Header.Set("X-Cursor-Streaming", "true")
 	req.Header.Set("Connect-Accept-Encoding", "gzip")
 	req.Header.Set("User-Agent", "connect-es/1.6.1")
-	prefix := tokens.AccessToken
+	prefix := access
 	if len(prefix) > 15 {
 		prefix = prefix[:15]
 	}
@@ -143,7 +143,55 @@ func OpenAgentSession(ctx context.Context, apiKey, model, system, user string, t
 	return s, nil
 }
 
+var (
+	agentAuthMu       sync.Mutex
+	agentAuthKey      string
+	agentAuthAccess   string
+	agentAuthUntil    time.Time
+	agentEndpoint     string
+	agentEndpointUntil time.Time
+	agentTransport    = &http2.Transport{}
+)
+
+func clearAgentAccess() {
+	agentAuthMu.Lock()
+	agentAuthAccess = ""
+	agentAuthUntil = time.Time{}
+	agentAuthMu.Unlock()
+}
+
+func agentAccessToken(ctx context.Context, apiKey string) (string, error) {
+	agentAuthMu.Lock()
+	if agentAuthKey == apiKey && agentAuthAccess != "" && time.Now().Before(agentAuthUntil) {
+		tok := agentAuthAccess
+		agentAuthMu.Unlock()
+		return tok, nil
+	}
+	agentAuthMu.Unlock()
+	tokens, err := Refresh(ctx, apiKey)
+	if err != nil {
+		return "", err
+	}
+	until := tokens.ExpiresAt
+	if until.IsZero() || until.Before(time.Now().Add(time.Minute)) {
+		until = time.Now().Add(20 * time.Minute)
+	}
+	agentAuthMu.Lock()
+	agentAuthKey = apiKey
+	agentAuthAccess = tokens.AccessToken
+	agentAuthUntil = until
+	agentAuthMu.Unlock()
+	return tokens.AccessToken, nil
+}
+
 func discoverAgentURL(ctx context.Context, access string) (string, error) {
+	agentAuthMu.Lock()
+	if agentEndpoint != "" && time.Now().Before(agentEndpointUntil) {
+		endpoint := agentEndpoint
+		agentAuthMu.Unlock()
+		return endpoint, nil
+	}
+	agentAuthMu.Unlock()
 	requestCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, "https://api2.cursor.sh/aiserver.v1.ServerConfigService/GetServerConfig", strings.NewReader("{}"))
@@ -180,6 +228,10 @@ func discoverAgentURL(ctx context.Context, access string) (string, error) {
 	if endpoint == "" {
 		return "", fmt.Errorf("Cursor Agent service discovery returned no endpoint")
 	}
+	agentAuthMu.Lock()
+	agentEndpoint = endpoint
+	agentEndpointUntil = time.Now().Add(30 * time.Minute)
+	agentAuthMu.Unlock()
 	return endpoint, nil
 }
 
@@ -258,11 +310,17 @@ func (s *AgentSession) Write(payload []byte) error {
 }
 
 func (s *AgentSession) Next(ctx context.Context) (AgentEvent, bool) {
+	if err := ctx.Err(); err != nil {
+		return AgentEvent{Err: err}, true
+	}
 	select {
-	case event, ok := <-s.events:
-		return event, ok
 	case <-ctx.Done():
 		return AgentEvent{Err: ctx.Err()}, true
+	case event, ok := <-s.events:
+		if err := ctx.Err(); err != nil {
+			return AgentEvent{Err: err}, true
+		}
+		return event, ok
 	}
 }
 
@@ -310,15 +368,16 @@ func (s *AgentSession) emit(ctx context.Context, event AgentEvent) bool {
 
 func (s *AgentSession) readResponse(req *http.Request) {
 	defer close(s.events)
-	transport := &http2.Transport{}
-	defer transport.CloseIdleConnections()
-	resp, err := transport.RoundTrip(req)
+	resp, err := agentTransport.RoundTrip(req)
 	if err != nil {
 		s.emit(req.Context(), AgentEvent{Err: fmt.Errorf("Cursor Agent transport: %w", err)})
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			clearAgentAccess()
+		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		s.emit(req.Context(), AgentEvent{Err: fmt.Errorf("Cursor Agent HTTP %d: %s", resp.StatusCode, clipChatBody(body))})
 		return

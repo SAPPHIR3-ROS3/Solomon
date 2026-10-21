@@ -114,6 +114,8 @@ func (r *chatRun) Emit(ev cievents.Event) {
 
 	for _, subscriber := range subscribers {
 		select {
+		case <-r.ctx.Done():
+			return
 		case subscriber.sub.events <- value:
 		case <-subscriber.sub.ctx.Done():
 			r.unsubscribe(subscriber.id)
