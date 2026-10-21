@@ -98,7 +98,11 @@ func (r *Runtime) runPromptOnceCI(ctx context.Context, line string) (err error) 
 		if err != nil {
 			code, msg := cievents.ClassifyExit(err)
 			logging.Log(logging.ERROR_LOG_LEVEL, "CI run failed", logging.LogOptions{Params: map[string]any{"code": code, "reason": msg, "err": err.Error()}})
-			r.ciEmit(cievents.ErrorEvent(code, msg, err.Error()))
+			detail := err.Error()
+			if facing := llm.UserFacingAPIError(err); facing != "" {
+				detail = facing
+			}
+			r.ciEmit(cievents.ErrorEvent(code, msg, detail))
 		}
 		exitCode, exitReason := cievents.ClassifyExit(err)
 		r.ciEmit(cievents.RunEnd(exitCode, exitReason, r.ciFinalContent, nil))

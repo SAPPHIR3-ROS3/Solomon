@@ -196,6 +196,15 @@ export type ChatBannerError = {
   title: string;
 };
 
+export function rateLimitNoticeFromEvent(event: Record<string, unknown>): string | undefined {
+  const raw = ["detail", "error", "message"]
+    .map((key) => typeof event[key] === "string" ? event[key].trim() : "")
+    .filter(Boolean)
+    .join("\n");
+  if (!raw || parseChatBannerError(raw).title !== "Usage limit reached") return undefined;
+  return raw;
+}
+
 export function parseChatBannerError(raw: string): ChatBannerError {
   let text = raw.trim();
   let source: string | undefined;
@@ -220,9 +229,9 @@ export function parseChatBannerError(raw: string): ChatBannerError {
       /* keep the original text */
     }
   }
-  if (/usage limit/i.test(text) || /^summary:\s*rate limit reached/im.test(text)) {
+  if (/usage limit/i.test(text) || /rate[\s-]?limit/i.test(text) || /\b429\b/.test(text)) {
     const plan = text.match(/\(([^)\n]+) plan\)/i)?.[1] ?? text.match(/^plan:\s*(.+)$/im)?.[1];
-    const reset = text.match(/resets?\s+(.+)$/im)?.[1];
+    const reset = text.match(/^reset:\s*(.+)$/im)?.[1] ?? text.match(/resets?\s+(.+)$/im)?.[1];
     const message = (text.match(/^message:\s*(.+)$/im)?.[1] ?? text.replace(/^summary:\s*.+$/im, "").replace(/\s*\([^)]+ plan\)/i, "").replace(/;\s*resets?\s+.+$/im, "").replace(/^(type|plan|reset|hint|HTTP|attempts):\s*.+$/gim, "").trim()) || "The usage limit has been reached";
     return {
       title: "Usage limit reached",

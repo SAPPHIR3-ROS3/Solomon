@@ -44,6 +44,7 @@ export function useChatRuntime(): ChatRuntime {
   const streams = useRef(new Map<string, AbortController>());
   const streamRetryTimers = useRef(new Map<string, number>());
   const streamRetryAttempts = useRef(new Map<string, number>());
+  const stopRequested = useRef(new Set<string>());
   const selectedChatIDRef = useRef<string | null>(null);
   const loadController = useRef<AbortController | null>(null);
   const loadRequest = useRef(0);
@@ -141,21 +142,21 @@ export function useChatRuntime(): ChatRuntime {
     reconnectOpen?: (signal: AbortSignal, onEvent: ChatStreamEventHandler) => Promise<void>,
   ) => {
     const projectID = chat.projectID;
-    if (!projectID || streams.current.has(chat.id)) return;
+    if (!projectID || streams.current.has(chat.id) || stopRequested.current.has(chat.id)) return;
     const retryOpen = reconnectOpen ?? open;
     let retryWhenDetached = false;
     let receivedStreamError = false;
     const retry = () => {
       if (streams.current.has(chat.id) || streamRetryTimers.current.has(chat.id)) return;
       const current = getChat(chat.id);
-      if (!current?.projectID || current.status !== "running") return;
+      if (!current?.projectID || current.status !== "running" || stopRequested.current.has(chat.id)) return;
       const attempts = streamRetryAttempts.current.get(chat.id) ?? 0;
       const delay = Math.min(5000, 300 * (2 ** Math.min(attempts, 4)));
       streamRetryAttempts.current.set(chat.id, attempts + 1);
       const timer = window.setTimeout(() => {
         streamRetryTimers.current.delete(chat.id);
         const latest = getChat(chat.id);
-        if (latest?.status === "running") attachDaemonStream(latest, retryOpen, retryOpen);
+        if (latest?.status === "running" && !stopRequested.current.has(chat.id)) attachDaemonStream(latest, retryOpen, retryOpen);
       }, delay);
       streamRetryTimers.current.set(chat.id, timer);
     };
@@ -206,7 +207,7 @@ export function useChatRuntime(): ChatRuntime {
         const merged = current ? preserveLiveWorkState(current, latest) : latest;
         saveChat({ ...merged, workspaceName: chat.workspaceName, workspacePath: chat.workspacePath, branch: chat.branch, worktree: chat.worktree });
         window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
-        if (latest.status === "running") retryWhenDetached = true;
+        if (latest.status === "running" && !stopRequested.current.has(chat.id)) retryWhenDetached = true;
         else {
           streamRetryAttempts.current.delete(chat.id);
           forgetChatStreamCursor(projectID, chat.id);
@@ -231,7 +232,8 @@ export function useChatRuntime(): ChatRuntime {
     if (!chat.projectID || streams.current.has(chat.id)) return;
     forgetChatStreamCursor(chat.projectID, chat.id);
     const isCommand = message.content.trimStart().startsWith("/");
-    updateChat(chat.id, (current) => ({ ...current, messages: isCommand ? current.messages : [...current.messages, message], runStartedAt: Date.now(), status: "running" }));
+    stopRequested.current.delete(chat.id);
+    updateChat(chat.id, (current) => ({ ...current, messages: isCommand ? current.messages : [...current.messages, message], rateLimitNotice: undefined, runStartedAt: Date.now(), status: "running" }));
     setError("");
     attachDaemonStream(chat, (signal, onEvent) => streamLiveChatMessage(
       chat.projectID!,
@@ -250,7 +252,7 @@ export function useChatRuntime(): ChatRuntime {
   }, [attachDaemonStream]);
 
   useEffect(() => {
-    if (!selectedChat?.projectID || selectedChat.status !== "running") return;
+    if (!selectedChat?.projectID || selectedChat.status !== "running" || stopRequested.current.has(selectedChat.id)) return;
     const currentStream = streams.current.get(selectedChat.id);
     if (currentStream && !currentStream.signal.aborted) return;
     if (currentStream) streams.current.delete(selectedChat.id);
@@ -477,8 +479,17 @@ export function useChatRuntime(): ChatRuntime {
   const stopChat = useCallback((chatID: string) => {
     const chat = getChat(chatID);
     if (!chat?.projectID) return;
+    stopRequested.current.add(chatID);
+    const retryTimer = streamRetryTimers.current.get(chatID);
+    if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    streamRetryTimers.current.delete(chatID);
+    streamRetryAttempts.current.delete(chatID);
+    streams.current.get(chatID)?.abort();
+    streams.current.delete(chatID);
+    markStreaming(chatID, false);
+    updateChat(chatID, (current) => ({ ...current, status: "interrupted" }));
     void stopLiveChat(chat.projectID, chatID).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to stop chat"));
-  }, []);
+  }, [markStreaming]);
 
 	const stopTool = useCallback((chatID: string, messageID: string, toolID: string) => {
 		const chat = getChat(chatID);

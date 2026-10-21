@@ -124,6 +124,7 @@ export type Chat = {
   projectID?: string;
   /** Browser-only fallback for runs restored while the stream is already active. */
   runStartedAt?: number;
+  rateLimitNotice?: string;
   status?: "error" | "interrupted" | "running" | "success";
   title: string;
   workspaceID?: string;

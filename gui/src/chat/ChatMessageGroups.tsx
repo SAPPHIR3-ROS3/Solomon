@@ -3,7 +3,7 @@ import type { ChatMessage, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 import { ChatImageAttachments, CheckpointLabel, CompactionCard, InterruptedGenerationMarker } from "./ChatMessageParts";
 import { SubagentCard, ToolCallCard, subagentDisplayStatus } from "./ChatToolActivity";
-import { assistantFooterMessage, groupChatTurns, indexChatMessages, toolCheckpoint } from "./chatMessageUtils";
+import { assistantFooterMessage, groupChatTurns, indexChatMessages, parseChatBannerError, toolCheckpoint } from "./chatMessageUtils";
 import { BriefThought, MessageFooter, ReasoningBlock, ReasoningSummaryBlock, WorkedForCounter } from "./ChatMessageFooter";
 import { CollapseSubchatIcon } from "./ChatIcons";
 import { MarkdownContent } from "./MarkdownContent";
@@ -15,7 +15,7 @@ type ChatMessageGroupHandlers = {
   onStopTool?: (messageID: string, toolID: string) => void;
 };
 
-export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !== undefined, messages, onOpenSubagent, onRequestDelete, onStopTool }: { isWorking?: boolean; liveWorkedFor?: number; messages: IndexedChatMessage[] } & ChatMessageGroupHandlers) {
+export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !== undefined, messages, onOpenSubagent, onRequestDelete, onStopTool, rateLimitNotice }: { isWorking?: boolean; liveWorkedFor?: number; messages: IndexedChatMessage[]; rateLimitNotice?: string } & ChatMessageGroupHandlers) {
   const preferences = useGUIChatPreferencesState();
   const preferencesReady = preferences.ready;
   const autoCollapseToolCalls = preferences.chat.autoCloseToolCalls;
@@ -27,33 +27,49 @@ export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !==
     <>
       {groups.map((entries, groupIndex) => {
         const first = entries[0];
+        const isLast = groupIndex === groups.length - 1;
         if (first.message.kind === "compaction") return <CompactionCard key={first.message.id} message={first.message} />;
 
         if (first.message.role === "assistant") {
-          const activeWorkedFor = isWorking && groupIndex === groups.length - 1 ? liveWorkedFor : undefined;
+          const activeWorkedFor = isWorking && isLast ? liveWorkedFor : undefined;
           return (
             <AssistantTurn
               preferencesReady={preferencesReady}
               autoCollapseToolCalls={autoCollapseToolCalls}
               startToolCallsCollapsed={startToolCallsCollapsed}
               activeWorkedFor={activeWorkedFor}
-              isWorking={isWorking && groupIndex === groups.length - 1}
+              isWorking={isWorking && isLast}
               entries={entries}
               key={first.message.id}
               onOpenSubagent={onOpenSubagent}
               onStopTool={onStopTool}
+              rateLimitNotice={isLast ? rateLimitNotice : undefined}
             />
           );
         }
-        return <UserTurn entry={first} key={first.message.id} onOpenSubagent={onOpenSubagent} onRequestDelete={onRequestDelete} onStopTool={onStopTool} />;
+        return (
+          <UserTurn
+            entry={first}
+            key={first.message.id}
+            onOpenSubagent={onOpenSubagent}
+            onRequestDelete={onRequestDelete}
+            onStopTool={onStopTool}
+            rateLimitNotice={isLast ? rateLimitNotice : undefined}
+          />
+        );
       })}
     </>
   );
 }
 
-const UserTurn = memo(function UserTurn({ entry, ...handlers }: { entry: IndexedChatMessage } & ChatMessageGroupHandlers) {
+const UserTurn = memo(function UserTurn({ entry, rateLimitNotice, ...handlers }: { entry: IndexedChatMessage; rateLimitNotice?: string } & ChatMessageGroupHandlers) {
   const actions = messageActions(entry, handlers);
-  return <ChatMessageTurn checkpoint={entry.checkpoint} index={entry.index} message={entry.message} onOpenSubagent={actions.onOpenSubagent} onRequestDelete={actions.onRequestDelete} onStopTool={actions.onStopTool} />;
+  return (
+    <>
+      <ChatMessageTurn checkpoint={entry.checkpoint} index={entry.index} message={entry.message} onOpenSubagent={actions.onOpenSubagent} onRequestDelete={actions.onRequestDelete} onStopTool={actions.onStopTool} />
+      {rateLimitNotice ? <RateLimitNotice raw={rateLimitNotice} /> : null}
+    </>
+  );
 });
 
 function messageActions(entry: IndexedChatMessage, handlers: ChatMessageGroupHandlers) {
@@ -85,6 +101,7 @@ const AssistantTurn = memo(function AssistantTurn({
   isWorking,
   onOpenSubagent,
   onStopTool,
+  rateLimitNotice,
 }: {
   preferencesReady: boolean;
   autoCollapseToolCalls: boolean;
@@ -94,6 +111,7 @@ const AssistantTurn = memo(function AssistantTurn({
   isWorking: boolean;
   onOpenSubagent?: ChatMessageGroupHandlers["onOpenSubagent"];
   onStopTool?: ChatMessageGroupHandlers["onStopTool"];
+  rateLimitNotice?: string;
 }) {
   const footerMessage = assistantFooterMessage(entries);
   const hasAnyToolCalls = entries.some(({ message }) => Boolean(message.toolCalls?.length));
@@ -116,7 +134,7 @@ const AssistantTurn = memo(function AssistantTurn({
     else if (isWorking && !wasWorking.current) setCollapsedOverride(undefined);
     wasWorking.current = isWorking;
   }, [autoCollapseToolCalls, isWorking, preferencesReady]);
-  const isToolActivityCollapsed = collapsedOverride ?? (startToolCallsCollapsed || (preferencesReady && autoCollapseToolCalls && !isWorking));
+  const isToolActivityCollapsed = collapsedOverride ?? (Boolean(rateLimitNotice) || startToolCallsCollapsed || (preferencesReady && autoCollapseToolCalls && !isWorking));
   const timelineClassName = [
     "chat-assistant-timeline",
     hasToolCalls ? "has-tool-activity" : "",
@@ -158,8 +176,9 @@ const AssistantTurn = memo(function AssistantTurn({
             entries={activityEntries}
             thoughtFor={isToolActivityCollapsed ? aggregateThoughtFor(activityEntries) : undefined}
             toolCalls={toolCalls}
+            rateLimitNotice={rateLimitNotice}
           />
-        ) : null}
+        ) : rateLimitNotice ? <RateLimitNotice raw={rateLimitNotice} /> : null}
       </div>
       {responseEntry ? (
         <AssistantMessageBlock
@@ -352,7 +371,7 @@ function aggregateThoughtFor(entries: IndexedChatMessage[]): number | undefined 
   return durations.reduce((total, value) => total + value, 0);
 }
 
-function ToolActivityCollapseControl({ entries, isCollapsed, isWorking, onToggleCollapsed, thoughtFor, toolCalls }: { entries: IndexedChatMessage[]; isCollapsed: boolean; isWorking: boolean; onToggleCollapsed: () => void; thoughtFor?: number; toolCalls: ChatToolCall[] }) {
+function ToolActivityCollapseControl({ entries, isCollapsed, isWorking, onToggleCollapsed, rateLimitNotice, thoughtFor, toolCalls }: { entries: IndexedChatMessage[]; isCollapsed: boolean; isWorking: boolean; onToggleCollapsed: () => void; rateLimitNotice?: string; thoughtFor?: number; toolCalls: ChatToolCall[] }) {
   const collapseLabel = toolActivityCollapseLabel(isCollapsed, toolCalls.length);
   const hasReasoning = entries.some(({ message }) => Boolean(message.reasoning?.trim()));
 
@@ -367,8 +386,15 @@ function ToolActivityCollapseControl({ entries, isCollapsed, isWorking, onToggle
       <button aria-expanded={!isCollapsed} aria-label={collapseLabel} className="chat-tool-collapse-all" onClick={onToggleCollapsed} type="button">
         {collapseLabel}
       </button>
+      {rateLimitNotice ? <RateLimitNotice raw={rateLimitNotice} /> : null}
     </section>
   );
+}
+
+export function RateLimitNotice({ raw }: { raw: string }) {
+  const banner = parseChatBannerError(raw);
+  const label = banner.resetLabel ? `${banner.title} · ${banner.resetLabel}` : banner.title;
+  return <p className="chat-rate-limit" role="status">{label}</p>;
 }
 
 function toolActivityCollapseLabel(isCollapsed: boolean, count: number) {

@@ -2,6 +2,7 @@ import { notifyNotification } from "../notifications/store";
 import { measureNavigation, measureNavigationSync } from "./navigationPerformance";
 import { initialClient, serverEndpoint } from "../platform";
 import type { ComposerImageAttachment } from "./composerTypes";
+import { rateLimitNoticeFromEvent } from "./chatMessageUtils";
 import type { Chat, ChatImage, ChatMessage, ChatStats, ChatTodoItem, ChatToolCall, ChatToolResult } from "./chatTypes";
 
 export type ChatImageInput = {
@@ -336,10 +337,15 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   if (type === "chat_interrupted") {
     return { ...updateLastAssistant(chat, (message) => ({ ...message, status: "interrupted" })), status: "interrupted" };
   }
-  if (type === "error") return { ...chat, status: "error" };
+  if (type === "error") {
+    const rateLimitNotice = rateLimitNoticeFromEvent(event);
+    const next = rateLimitNotice ? stopOpenToolCalls(chat) : chat;
+    return { ...next, rateLimitNotice: rateLimitNotice ?? chat.rateLimitNotice, status: "error" };
+  }
   if (type === "run_end") {
     const exitCode = numberValue(event.exit_code ?? event.exitCode, undefined);
-    return { ...chat, status: exitCode !== undefined && exitCode !== 0 ? "error" : "success" };
+    const failed = exitCode !== undefined && exitCode !== 0;
+    return { ...chat, rateLimitNotice: failed ? chat.rateLimitNotice : undefined, status: failed ? "error" : "success" };
   }
   return chat;
 }
@@ -360,7 +366,18 @@ export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat 
       const workStartedAt = startedAtByCheckpoint.get(message.checkpointSeq);
       return workStartedAt === undefined ? message : { ...message, workStartedAt };
     }),
+    rateLimitNotice: previous.rateLimitNotice,
     runStartedAt: next.runStartedAt ?? previous.runStartedAt,
+  };
+}
+
+function stopOpenToolCalls(chat: LiveChat): LiveChat {
+  return {
+    ...chat,
+    messages: chat.messages.map((message) => ({
+      ...message,
+      toolCalls: message.toolCalls?.map((tool) => tool.status === "running" ? { ...tool, status: "interrupted" } : tool),
+    })),
   };
 }
 

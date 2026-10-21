@@ -15,7 +15,7 @@ import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTy
 import { snapshotComposerImages } from "./chatClient";
 import { useChatScroll } from "./useChatScroll";
 import { ChatImageAttachments, ModeSwitchNotice, SubagentActivityIndicator } from "./ChatMessageParts";
-import { ChatMessageGroups, SubagentChatPanel } from "./ChatMessageGroups";
+import { ChatMessageGroups, RateLimitNotice, SubagentChatPanel } from "./ChatMessageGroups";
 import { indexChatMessages, liveWorkedForSeconds } from "./chatMessageUtils";
 import { subagentIsActive, subagentStatus } from "./ChatToolActivity";
 import { BranchIcon, CloseIcon, FolderIcon, WorktreeIcon } from "./ChatIcons";
@@ -266,8 +266,9 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
               onOpenSubagent={openSubagentMessage}
               onRequestDelete={setDeleteTarget}
               onStopTool={stopMessageTool}
+              rateLimitNotice={chat.rateLimitNotice}
             />
-          ) : <p className="chat-empty">This chat is ready for the first message.</p>}
+          ) : chat.rateLimitNotice ? <RateLimitNotice raw={chat.rateLimitNotice} /> : <p className="chat-empty">This chat is ready for the first message.</p>}
         </div>
       </div>
 		{openSubagentTool && openSubchatID ? <SubagentChatPanel isLoading={isSubchatLoading} messages={subchatMessages ?? undefined} onCollapse={() => { setOpenSubagent(null); setForcedSubagent(null); }} tool={openSubagentTool} /> : null}
