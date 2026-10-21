@@ -1,6 +1,8 @@
 package chat
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 )
@@ -134,7 +136,7 @@ func BuildCodexInput(chat map[string]any) []any {
 					funcMap, _ := tcm["function"].(map[string]any)
 					name, _ := funcMap["name"].(string)
 					input = append(input, map[string]any{
-						"type": "function_call", "name": name, "call_id": callID,
+						"type": "function_call", "name": name, "call_id": codexCallID(callID),
 						"arguments": extractArgumentsString(funcMap["arguments"]),
 					})
 				}
@@ -145,12 +147,22 @@ func BuildCodexInput(chat map[string]any) []any {
 				continue
 			}
 			input = append(input, map[string]any{
-				"type": "function_call_output", "call_id": callID,
+				"type": "function_call_output", "call_id": codexCallID(callID),
 				"output": collectToolOutput(mm["content"]),
 			})
 		}
 	}
 	return input
+}
+
+// Keep historical tool IDs compatible with the Responses API while preserving
+// the association between each call and its output. Do not alter stored history.
+func codexCallID(id string) string {
+	if len(id) <= 64 {
+		return id
+	}
+	sum := sha256.Sum256([]byte(id))
+	return hex.EncodeToString(sum[:])
 }
 
 func mapToolsToCodex(chat map[string]any) []any {

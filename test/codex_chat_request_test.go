@@ -2,10 +2,44 @@ package test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	codexchat "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex/chat"
 )
+
+func TestBuildCodexInputLongCallIDs(t *testing.T) {
+	prefix := strings.Repeat("a", 64)
+	ids := []string{"call_short", prefix, prefix + strings.Repeat("b", 19), prefix + strings.Repeat("c", 19)}
+	var messages []any
+	for _, id := range ids {
+		messages = append(messages,
+			map[string]any{"role": "assistant", "tool_calls": []any{
+				map[string]any{"id": id, "function": map[string]any{"name": "shell", "arguments": "{}"}},
+			}},
+			map[string]any{"role": "tool", "tool_call_id": id, "content": "done"},
+		)
+	}
+	input := codexchat.BuildCodexInput(map[string]any{"messages": messages})
+	if len(input) != 2*len(ids) {
+		t.Fatalf("unexpected input count: %d", len(input))
+	}
+	seen := map[string]bool{}
+	for i, original := range ids {
+		call := input[2*i].(map[string]any)["call_id"].(string)
+		output := input[2*i+1].(map[string]any)["call_id"].(string)
+		if len(call) > 64 || call != output || seen[call] {
+			t.Fatalf("invalid call/output mapping: %q / %q", call, output)
+		}
+		if len(original) <= 64 && call != original {
+			t.Fatalf("valid ID changed: %q", original)
+		}
+		seen[call] = true
+	}
+	if messages[4].(map[string]any)["tool_calls"].([]any)[0].(map[string]any)["id"] != ids[2] {
+		t.Fatal("stored history was modified")
+	}
+}
 
 func TestBuildCodexInputUserImages(t *testing.T) {
 	imgURL := "data:image/png;base64,abc"
@@ -55,8 +89,8 @@ func TestBuildCodexInputSkipsAssistantToolCallsWithEmptyID(t *testing.T) {
 				"role": "assistant",
 				"tool_calls": []any{
 					map[string]any{
-						"id": "",
-						"type": "function",
+						"id":       "",
+						"type":     "function",
 						"function": map[string]any{"name": "shell", "arguments": "{}"},
 					},
 				},
