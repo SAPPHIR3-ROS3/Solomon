@@ -145,25 +145,30 @@ function aggregateAssistantStats(messages: ChatMessage[]): ChatStats | undefined
   if (stats.length === 0) return undefined;
   if (stats.length === 1) return stats[0];
 
-  const last = stats[stats.length - 1];
-  const reasoningTokens = stats.reduce((total, current) => total + current.reasoningTokens, 0);
-  const responseTokens = stats.reduce((total, current) => total + current.responseTokens, 0);
-  const contextTokens = lastNonZero(stats.map((current) => current.contextTokens));
-  const userTokens = lastNonZero(stats.map((current) => current.userTokens));
-  const outputTokensPerSecond = average(stats.map((current) => current.outputTokensPerSecond));
-  const promptTokensPerSecond = average(stats.map((current) => current.promptTokensPerSecond));
-  const totalTokens = contextTokens + userTokens + reasoningTokens + responseTokens;
+  const turnAggregate = [...stats].reverse().find((current) => current.turnAggregate);
+  const reasoningTokens = turnAggregate?.reasoningTokens ?? stats.reduce((total, current) => total + current.reasoningTokens, 0);
+  const responseTokens = turnAggregate?.responseTokens ?? stats.reduce((total, current) => total + current.responseTokens, 0);
+  const contextTokens = turnAggregate?.contextTokens ?? stats.reduce((total, current) => total + current.contextTokens, 0);
+  const userTokens = turnAggregate?.userTokens ?? stats.reduce((total, current) => total + current.userTokens, 0);
+  const cachedPromptTokens = turnAggregate?.cachedPromptTokens ?? stats.reduce((total, current) => total + (current.cachedPromptTokens ?? 0), 0);
+  const cacheCreationPromptTokens = turnAggregate?.cacheCreationPromptTokens ?? stats.reduce((total, current) => total + (current.cacheCreationPromptTokens ?? 0), 0);
+  const outputTokensPerSecond = turnAggregate?.outputTokensPerSecond ?? average(stats.map((current) => current.outputTokensPerSecond));
+  const promptTokensPerSecond = turnAggregate?.promptTokensPerSecond ?? average(stats.map((current) => current.promptTokensPerSecond));
+  const totalTokens = turnAggregate?.totalTokens ?? stats.reduce((total, current) => total + current.totalTokens, 0);
 
   return {
+    reasoningEffort: [...new Set(stats.map((current) => current.reasoningEffort).filter(Boolean))].join(", ") || undefined,
     provider: [...new Set(stats.map((current) => current.provider).filter(Boolean))].join(", ") || undefined,
     model: [...new Set(stats.map((current) => current.model).filter(Boolean))].join(", ") || undefined,
     contextTokens,
+    cachedPromptTokens,
+    cacheCreationPromptTokens,
     outputTokensPerSecond,
     promptTokensPerSecond,
     reasoningTokens,
     responseTokens,
     totalTokens,
-    ttftSeconds: stats[0].ttftSeconds,
+    ttftSeconds: turnAggregate?.ttftSeconds ?? stats[0].ttftSeconds,
     userTokens,
   };
 }
@@ -171,10 +176,6 @@ function aggregateAssistantStats(messages: ChatMessage[]): ChatStats | undefined
 function sumDefined(values: Array<number | undefined>) {
   const defined = values.filter((value): value is number => value !== undefined && Number.isFinite(value));
   return defined.length ? defined.reduce((total, value) => total + value, 0) : undefined;
-}
-
-function lastNonZero(values: number[]) {
-  return [...values].reverse().find((value) => value > 0) ?? 0;
 }
 
 function average(values: number[]) {

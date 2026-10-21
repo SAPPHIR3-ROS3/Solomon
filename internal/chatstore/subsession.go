@@ -53,6 +53,7 @@ type PendingSubagentSpawn struct {
 }
 
 type SubSession struct {
+	FastMode         *bool                  `json:"fast_mode,omitempty"`
 	Capabilities     CapabilityRegistry     `json:"capabilities,omitempty"`
 	ID               string                 `json:"id"`
 	Title            string                 `json:"title"`
@@ -268,7 +269,7 @@ func WriteActiveSubagents(f *ActiveSubagentsFile) error {
 	return writeJSONAtomic(p, f)
 }
 
-func ApplyTurnUsageDisplayToLastSubAssistant(s *SubSession, ctxTok, usrTok int64, ctxEst bool, reasonTok, respTok, totalTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64) {
+func ApplyTurnUsageDisplayToLastSubAssistant(s *SubSession, ctxTok, usrTok int64, ctxEst bool, reasonTok, respTok, totalTok, cachedPromptTok, cacheCreationPromptTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64) {
 	if s == nil {
 		return
 	}
@@ -281,6 +282,8 @@ func ApplyTurnUsageDisplayToLastSubAssistant(s *SubSession, ctxTok, usrTok int64
 		m.TurnContextTokens = ctxTok
 		m.TurnContextEst = ctxEst
 		m.TurnUserTokens = usrTok
+		m.TurnCachedPromptTokens = cachedPromptTok
+		m.TurnCacheCreationPromptTokens = cacheCreationPromptTok
 		m.TurnReasonTokens = reasonTok
 		m.TurnRespTokens = respTok
 		m.TurnTotalDisplay = totalTok

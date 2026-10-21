@@ -18,6 +18,8 @@ type ToolCall struct {
 type Message struct {
 	ContextKind       string            `json:"context_kind,omitempty"`
 	Provider          string            `json:"provider,omitempty"`
+	FastMode          *bool             `json:"fast_mode,omitempty"`
+	ReasoningEffort   string            `json:"reasoning_effort,omitempty"`
 	Model             string            `json:"model,omitempty"`
 	GUIHidden         bool              `json:"gui_hidden,omitempty"`
 	CreatedAt         time.Time         `json:"created_at,omitempty"`
@@ -34,28 +36,32 @@ type Message struct {
 	CheckpointBranchKey string `json:"cp_branch,omitempty"`
 	CommitOID           string `json:"commit_oid,omitempty"`
 
-	UserPromptTokens   int64   `json:"user_prompt_tokens"`
-	ReasoningTokens    int64   `json:"reasoning_tokens"`
-	ResponseTokens     int64   `json:"response_tokens"`
-	TurnTotalTokens    int64   `json:"turn_total_tokens"`
-	PromptTokens       int64   `json:"prompt_tokens,omitempty"`
-	CachedPromptTokens int64   `json:"cached_prompt_tokens,omitempty"`
-	OutputTPS          float64 `json:"output_tps,omitempty"`
-	TTFTSecs           float64 `json:"ttft_secs,omitempty"`
-	PromptTPS          float64 `json:"prompt_tps,omitempty"`
-	TurnWallSecs       float64 `json:"turn_wall_secs,omitempty"`
+	UserPromptTokens          int64   `json:"user_prompt_tokens"`
+	ReasoningTokens           int64   `json:"reasoning_tokens"`
+	ResponseTokens            int64   `json:"response_tokens"`
+	TurnTotalTokens           int64   `json:"turn_total_tokens"`
+	PromptTokens              int64   `json:"prompt_tokens,omitempty"`
+	CachedPromptTokens        int64   `json:"cached_prompt_tokens,omitempty"`
+	CacheCreationPromptTokens int64   `json:"cache_creation_prompt_tokens,omitempty"`
+	OutputTPS                 float64 `json:"output_tps,omitempty"`
+	TTFTSecs                  float64 `json:"ttft_secs,omitempty"`
+	PromptTPS                 float64 `json:"prompt_tps,omitempty"`
+	ToolWallSecs              float64 `json:"tool_wall_secs,omitempty"`
+	TurnWallSecs              float64 `json:"turn_wall_secs,omitempty"`
 
-	TurnDisplaySaved  bool    `json:"turn_display_saved,omitempty"`
-	TurnContextTokens int64   `json:"turn_context_tokens,omitempty"`
-	TurnContextEst    bool    `json:"turn_context_est,omitempty"`
-	TurnUserTokens    int64   `json:"turn_user_tokens,omitempty"`
-	TurnReasonTokens  int64   `json:"turn_reason_tokens,omitempty"`
-	TurnRespTokens    int64   `json:"turn_resp_tokens,omitempty"`
-	TurnTotalDisplay  int64   `json:"turn_total_display,omitempty"`
-	TurnOutputTPS     float64 `json:"turn_output_tps,omitempty"`
-	TurnTTFTSecs      float64 `json:"turn_ttft_secs,omitempty"`
-	TurnPromptTPS     float64 `json:"turn_prompt_tps,omitempty"`
-	TurnWallDisplay   float64 `json:"turn_wall_display_secs,omitempty"`
+	TurnDisplaySaved              bool    `json:"turn_display_saved,omitempty"`
+	TurnContextTokens             int64   `json:"turn_context_tokens,omitempty"`
+	TurnContextEst                bool    `json:"turn_context_est,omitempty"`
+	TurnUserTokens                int64   `json:"turn_user_tokens,omitempty"`
+	TurnCachedPromptTokens        int64   `json:"turn_cached_prompt_tokens,omitempty"`
+	TurnCacheCreationPromptTokens int64   `json:"turn_cache_creation_prompt_tokens,omitempty"`
+	TurnReasonTokens              int64   `json:"turn_reason_tokens,omitempty"`
+	TurnRespTokens                int64   `json:"turn_resp_tokens,omitempty"`
+	TurnTotalDisplay              int64   `json:"turn_total_display,omitempty"`
+	TurnOutputTPS                 float64 `json:"turn_output_tps,omitempty"`
+	TurnTTFTSecs                  float64 `json:"turn_ttft_secs,omitempty"`
+	TurnPromptTPS                 float64 `json:"turn_prompt_tps,omitempty"`
+	TurnWallDisplay               float64 `json:"turn_wall_display_secs,omitempty"`
 }
 
 type BranchSegment struct {

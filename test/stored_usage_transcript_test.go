@@ -11,7 +11,7 @@ func TestStoredUsageLineForTurnRangeSavedDisplay(t *testing.T) {
 		{Role: "user", Content: "hi"},
 		{Role: "assistant", TurnDisplaySaved: true, TurnContextTokens: 80, TurnUserTokens: 10, TurnReasonTokens: 4, TurnRespTokens: 6, TurnTotalDisplay: 100, TurnOutputTPS: 12.5, TurnTTFTSecs: 1.2, TurnPromptTPS: 100, TurnWallDisplay: 3.5},
 	}
-	_, usr, r, resp, total, outTPS, ttft, pp, wall, _, ok := chatstore.StoredUsageLineForTurnRange(msgs, 1, len(msgs))
+	_, usr, r, resp, total, _, _, outTPS, ttft, pp, wall, _, ok := chatstore.StoredUsageLineForTurnRange(msgs, 1, len(msgs))
 	if !ok {
 		t.Fatal("expected usage")
 	}

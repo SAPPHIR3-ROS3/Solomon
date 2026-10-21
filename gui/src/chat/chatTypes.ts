@@ -7,9 +7,13 @@ export type ChatImage = {
 };
 
 export type ChatStats = {
+  turnAggregate?: boolean;
+  reasoningEffort?: string;
   provider?: string;
   model?: string;
   contextTokens: number;
+  cachedPromptTokens?: number;
+  cacheCreationPromptTokens?: number;
   outputTokensPerSecond: number;
   promptTokensPerSecond: number;
   reasoningTokens: number;
@@ -69,6 +73,10 @@ export type ChatToolCall = {
   renameTo?: string;
   status?: "error" | "interrupted" | "running" | "success";
   sync?: boolean;
+  provider?: string;
+  fastMode?: boolean;
+  model?: string;
+  reasoningEffort?: string;
 };
 
 export type ChatRetainedMessage = {

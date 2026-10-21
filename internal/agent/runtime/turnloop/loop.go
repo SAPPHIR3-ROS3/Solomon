@@ -81,10 +81,10 @@ func Run(ctx context.Context, h Host) error {
 			return
 		}
 		agg := llm.AggregateConsecutiveTurnUsage(usageTurns)
-		ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(usageSys, usageMsgs, agg, len(usageTurns))
-		fmt.Fprintln(out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, ctxEst, agg.TurnWallSecs))
+		ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(usageSys, usageMsgs, agg)
+		fmt.Fprintln(out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, agg.CachedPromptTokens, agg.CacheCreationPromptTokens, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, ctxEst, agg.TurnWallSecs))
 		h.MutateSession(func(s *chatstore.Session) {
-			chatstore.ApplyTurnUsageDisplayToLastAssistant(s, ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, agg.TurnWallSecs)
+			chatstore.ApplyTurnUsageDisplayToLastAssistant(s, ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok, agg.CachedPromptTokens, agg.CacheCreationPromptTokens, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, agg.TurnWallSecs)
 		})
 		h.PersistSessionOrLog("flushUsageStats")
 		usageTurns = nil
@@ -111,6 +111,8 @@ func Run(ctx context.Context, h Host) error {
 		if p := h.Provider(); p != nil && p.Name != "" {
 			provider = p.Name
 		}
+		reasoningEffort := h.Config().ReasoningEffortDisplayLabel()
+		fastMode := h.Config().FastModeEnabledForProvider(h.Provider())
 		turnReq := llm.TurnRequest{
 			Cfg:                   h.Config(),
 			Model:                 h.ModelName(),
@@ -225,7 +227,7 @@ func Run(ctx context.Context, h Host) error {
 				proxyCorrection = fallback
 			}
 		}
-		ast := chatstore.Message{Provider: provider, Model: turnReq.Model, CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
+		ast := chatstore.Message{Provider: provider, Model: turnReq.Model, ReasoningEffort: reasoningEffort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
 		ast.AnthropicThinking = turn.AnthropicThinking
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
@@ -352,6 +354,7 @@ func Run(ctx context.Context, h Host) error {
 		for i := range prepared {
 			execInvs[i] = prepared[i].inv
 		}
+		toolStartedAt := time.Now()
 		results := make([]toolbatch.Result, len(execInvs))
 		if len(execInvs) > 1 && len(turn.ToolCalls) > 1 && toolbatch.CanRunConcurrently(execInvs) {
 			// Multiple calls returned in one assistant turn are independent
@@ -364,6 +367,16 @@ func Run(ctx context.Context, h Host) error {
 				results[i].Value, results[i].Err = h.ExecTool(runCtx, execInvs[i])
 			}
 		}
+		toolWallSecs := time.Since(toolStartedAt).Seconds()
+		h.MutateSession(func(s *chatstore.Session) {
+			for i := len(s.Messages) - 1; i >= 0; i-- {
+				if s.Messages[i].Role == "assistant" && s.Messages[i].CheckpointSeq == astSeq {
+					s.Messages[i].ToolWallSecs += toolWallSecs
+					break
+				}
+			}
+		})
+		h.PersistSessionOrLog("toolWallTime")
 		if interruptedDuringGeneration(ctx, runCtx, nil, stopErr) {
 			if err := appendSyntheticToolResults(h, astSeq, invs, toolIDs, 0); err != nil {
 				return err

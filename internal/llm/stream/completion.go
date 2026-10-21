@@ -277,6 +277,9 @@ func AggregateConsecutiveTurnUsage(usages []apitype.UsageStats) apitype.UsageSta
 		return usages[0]
 	}
 	out := usages[len(usages)-1]
+	out.PromptTokens = 0
+	out.CachedPromptTokens = 0
+	out.CacheCreationPromptTokens = 0
 	out.ReasoningTokens = 0
 	out.ResponseTokens = 0
 	out.TotalTokens = 0
@@ -284,8 +287,16 @@ func AggregateConsecutiveTurnUsage(usages []apitype.UsageStats) apitype.UsageSta
 	out.PromptTPS = 0
 	out.TurnWallSecs = 0
 	for _, u := range usages {
+		out.PromptTokens += u.PromptTokens
+		out.CachedPromptTokens += u.CachedPromptTokens
+		out.CacheCreationPromptTokens += u.CacheCreationPromptTokens
 		out.ReasoningTokens += u.ReasoningTokens
 		out.ResponseTokens += u.ResponseTokens
+		if u.TotalTokens > 0 {
+			out.TotalTokens += u.TotalTokens
+		} else {
+			out.TotalTokens += u.PromptTokens + u.ReasoningTokens + u.ResponseTokens
+		}
 		out.TurnWallSecs += u.TurnWallSecs
 		out.OutputTPS += u.OutputTPS
 		out.PromptTPS += u.PromptTPS
@@ -294,24 +305,16 @@ func AggregateConsecutiveTurnUsage(usages []apitype.UsageStats) apitype.UsageSta
 	out.OutputTPS /= n
 	out.PromptTPS /= n
 	out.TTFTSecs = usages[0].TTFTSecs
-	out.TotalTokens = out.PromptTokens + out.ReasoningTokens + out.ResponseTokens
+	if out.TotalTokens <= 0 {
+		out.TotalTokens = out.PromptTokens + out.ReasoningTokens + out.ResponseTokens
+	}
 	return out
 }
 
-func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u apitype.UsageStats, turnCount int) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
+func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u apitype.UsageStats) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
 	reasoningTok = u.ReasoningTokens
 	responseTok = u.ResponseTokens
 	contextTok, lastUserTok, contextEstimated = promptparts.UsagePromptParts(system, msgs, u.PromptTokens, u.CachedPromptTokens)
-	if turnCount > 1 {
-		d := reasoningTok + responseTok
-		if contextTok > d {
-			contextTok -= d
-		} else {
-			contextTok = 0
-		}
-		totalTok = contextTok + lastUserTok + reasoningTok + responseTok
-		return
-	}
 	totalTok = u.TotalTokens
 	if totalTok <= 0 {
 		totalTok = contextTok + lastUserTok + reasoningTok + responseTok
@@ -326,11 +329,12 @@ func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int
 		resp = 0
 	}
 	return apitype.UsageStats{
-		PromptTokens:       acc.Usage.PromptTokens,
-		CachedPromptTokens: acc.Usage.PromptTokensDetails.CachedTokens,
-		ReasoningTokens:    reasoningTok,
-		ResponseTokens:     resp,
-		TotalTokens:        acc.Usage.TotalTokens,
+		PromptTokens:              acc.Usage.PromptTokens,
+		CachedPromptTokens:        acc.Usage.PromptTokensDetails.CachedTokens,
+		CacheCreationPromptTokens: parseLooseCacheWriteTokensFromUsageRawJSON(acc.Usage.RawJSON()),
+		ReasoningTokens:           reasoningTok,
+		ResponseTokens:            resp,
+		TotalTokens:               acc.Usage.TotalTokens,
 	}
 }
 

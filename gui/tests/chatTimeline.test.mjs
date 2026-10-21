@@ -146,3 +146,15 @@ test("il footer e il popover dei dati sono allineati a destra", async () => {
 });
 
 await server.close();
+
+test("completed work duration is visible on every assistant turn", () => {
+ const messages = [
+  {id:"u1", role:"user", content:"First"},
+  {id:"a1", role:"assistant", content:"First answer", workedFor:14},
+  {id:"u2", role:"user", content:"Second"},
+  {id:"a2", role:"assistant", content:"Second answer", workedFor:27},
+ ];
+ const html = renderToStaticMarkup(createElement(ChatMessageGroups, {messages:indexChatMessages(messages)}));
+ assert.match(html, /worked for 14s/);
+ assert.match(html, /worked for 27s/);
+});

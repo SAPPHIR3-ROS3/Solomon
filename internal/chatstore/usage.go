@@ -7,16 +7,17 @@ import (
 )
 
 type turnUsageCall struct {
-	promptTokens       int64
-	cachedPromptTokens int64
-	reasoningTokens    int64
-	responseTokens     int64
-	totalTokens        int64
-	outputTPS          float64
-	ttftSecs           float64
-	promptTPS          float64
-	turnWallSecs       float64
-	userPromptTokens   int64
+	promptTokens              int64
+	cachedPromptTokens        int64
+	cacheCreationPromptTokens int64
+	reasoningTokens           int64
+	responseTokens            int64
+	totalTokens               int64
+	outputTPS                 float64
+	ttftSecs                  float64
+	promptTPS                 float64
+	turnWallSecs              float64
+	userPromptTokens          int64
 }
 
 func BackfillSessionAssistantUsage(msgs []Message) {
@@ -28,7 +29,7 @@ func BackfillSessionAssistantUsage(msgs []Message) {
 	}
 }
 
-func ApplyTurnUsageDisplayToLastAssistant(s *Session, ctxTok, usrTok int64, ctxEst bool, reasonTok, respTok, totalTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64) {
+func ApplyTurnUsageDisplayToLastAssistant(s *Session, ctxTok, usrTok int64, ctxEst bool, reasonTok, respTok, totalTok, cachedPromptTok, cacheCreationPromptTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64) {
 	if s == nil {
 		return
 	}
@@ -41,6 +42,8 @@ func ApplyTurnUsageDisplayToLastAssistant(s *Session, ctxTok, usrTok int64, ctxE
 		m.TurnContextTokens = ctxTok
 		m.TurnContextEst = ctxEst
 		m.TurnUserTokens = usrTok
+		m.TurnCachedPromptTokens = cachedPromptTok
+		m.TurnCacheCreationPromptTokens = cacheCreationPromptTok
 		m.TurnReasonTokens = reasonTok
 		m.TurnRespTokens = respTok
 		m.TurnTotalDisplay = totalTok
@@ -54,16 +57,17 @@ func ApplyTurnUsageDisplayToLastAssistant(s *Session, ctxTok, usrTok int64, ctxE
 
 func turnUsageCallFromMessage(m Message) turnUsageCall {
 	return turnUsageCall{
-		promptTokens:       m.PromptTokens,
-		cachedPromptTokens: m.CachedPromptTokens,
-		reasoningTokens:    m.ReasoningTokens,
-		responseTokens:     m.ResponseTokens,
-		totalTokens:        m.TurnTotalTokens,
-		outputTPS:          m.OutputTPS,
-		ttftSecs:           m.TTFTSecs,
-		promptTPS:          m.PromptTPS,
-		turnWallSecs:       m.TurnWallSecs,
-		userPromptTokens:   m.UserPromptTokens,
+		promptTokens:              m.PromptTokens,
+		cachedPromptTokens:        m.CachedPromptTokens,
+		cacheCreationPromptTokens: m.CacheCreationPromptTokens,
+		reasoningTokens:           m.ReasoningTokens,
+		responseTokens:            m.ResponseTokens,
+		totalTokens:               m.TurnTotalTokens,
+		outputTPS:                 m.OutputTPS,
+		ttftSecs:                  m.TTFTSecs,
+		promptTPS:                 m.PromptTPS,
+		turnWallSecs:              m.TurnWallSecs,
+		userPromptTokens:          m.UserPromptTokens,
 	}
 }
 
@@ -75,6 +79,10 @@ func aggregateTurnUsageCalls(calls []turnUsageCall) (turnUsageCall, bool) {
 		return calls[0], true
 	}
 	out := calls[len(calls)-1]
+	out.promptTokens = 0
+	out.cachedPromptTokens = 0
+	out.cacheCreationPromptTokens = 0
+	out.userPromptTokens = 0
 	out.reasoningTokens = 0
 	out.responseTokens = 0
 	out.totalTokens = 0
@@ -82,8 +90,17 @@ func aggregateTurnUsageCalls(calls []turnUsageCall) (turnUsageCall, bool) {
 	out.promptTPS = 0
 	out.turnWallSecs = 0
 	for _, c := range calls {
+		out.promptTokens += c.promptTokens
+		out.cachedPromptTokens += c.cachedPromptTokens
+		out.cacheCreationPromptTokens += c.cacheCreationPromptTokens
+		out.userPromptTokens += c.userPromptTokens
 		out.reasoningTokens += c.reasoningTokens
 		out.responseTokens += c.responseTokens
+		if c.totalTokens > 0 {
+			out.totalTokens += c.totalTokens
+		} else {
+			out.totalTokens += c.promptTokens + c.reasoningTokens + c.responseTokens
+		}
 		out.turnWallSecs += c.turnWallSecs
 		out.outputTPS += c.outputTPS
 		out.promptTPS += c.promptTPS
@@ -92,26 +109,18 @@ func aggregateTurnUsageCalls(calls []turnUsageCall) (turnUsageCall, bool) {
 	out.outputTPS /= n
 	out.promptTPS /= n
 	out.ttftSecs = calls[0].ttftSecs
-	out.totalTokens = out.promptTokens + out.reasoningTokens + out.responseTokens
+	if out.totalTokens <= 0 {
+		out.totalTokens = out.promptTokens + out.reasoningTokens + out.responseTokens
+	}
 	return out, true
 }
 
-func usageDisplayPartsFromAggregated(msgs []Message, agg turnUsageCall, nCalls int) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
+func usageDisplayPartsFromAggregated(msgs []Message, agg turnUsageCall) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
 	reasoningTok = agg.reasoningTokens
 	responseTok = agg.responseTokens
 	contextTok, lastUserTok, contextEstimated = usagePromptPartsFromMessages(msgs, agg.promptTokens, agg.cachedPromptTokens)
 	if lastUserTok <= 0 && agg.userPromptTokens > 0 {
 		lastUserTok = agg.userPromptTokens
-	}
-	if nCalls > 1 {
-		d := reasoningTok + responseTok
-		if contextTok > d {
-			contextTok -= d
-		} else {
-			contextTok = 0
-		}
-		totalTok = contextTok + lastUserTok + reasoningTok + responseTok
-		return
 	}
 	totalTok = agg.totalTokens
 	if totalTok <= 0 {
@@ -209,34 +218,43 @@ func promptWireWeights(msgs []Message, lastUserIdx int, model string) (contextW 
 	return contextW, userW
 }
 
-func StoredUsageLineForTurnRange(msgs []Message, start, end int) (contextTok, lastUserTok, reasoningTok, responseTok, totalTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64, contextEstimated bool, ok bool) {
+func StoredUsageLineForTurnRange(msgs []Message, start, end int) (contextTok, lastUserTok, reasoningTok, responseTok, totalTok, cachedPromptTok, cacheCreationPromptTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64, contextEstimated bool, ok bool) {
 	if start < 0 || end > len(msgs) || start >= end {
-		return 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false
+		return
 	}
-	for i := end - 1; i >= start; i-- {
-		m := msgs[i]
-		if m.Role != "assistant" || !m.TurnDisplaySaved {
-			continue
-		}
-		return m.TurnContextTokens, m.TurnUserTokens, m.TurnReasonTokens, m.TurnRespTokens, m.TurnTotalDisplay,
-			m.TurnOutputTPS, m.TurnTTFTSecs, m.TurnPromptTPS, m.TurnWallDisplay, m.TurnContextEst, true
-	}
+	var savedDisplay *Message
 	var calls []turnUsageCall
 	for i := start; i < end; i++ {
 		if msgs[i].Role != "assistant" {
 			continue
 		}
 		m := msgs[i]
-		if !assistantMessageHasStoredUsage(m) {
+		if savedDisplay == nil && m.TurnDisplaySaved {
+			copy := m
+			savedDisplay = &copy
+		}
+		if !assistantMessageHasRawUsage(m) {
 			continue
 		}
 		calls = append(calls, turnUsageCallFromMessage(m))
 	}
+	if len(calls) == 0 && savedDisplay != nil {
+		m := savedDisplay
+		return m.TurnContextTokens, m.TurnUserTokens, m.TurnReasonTokens, m.TurnRespTokens, m.TurnTotalDisplay,
+			m.TurnCachedPromptTokens, m.TurnCacheCreationPromptTokens,
+			m.TurnOutputTPS, m.TurnTTFTSecs, m.TurnPromptTPS, m.TurnWallDisplay, m.TurnContextEst, true
+	}
 	agg, found := aggregateTurnUsageCalls(calls)
 	if !found {
-		return 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false
+		return
 	}
 	turnMsgs := append(append([]Message(nil), msgs[:start]...), msgs[start:end]...)
-	ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := usageDisplayPartsFromAggregated(turnMsgs, agg, len(calls))
-	return ctxTok, usrTok, reasonTok, respTok, totalTok, agg.outputTPS, agg.ttftSecs, agg.promptTPS, agg.turnWallSecs, ctxEst, true
+	ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := usageDisplayPartsFromAggregated(turnMsgs, agg)
+	return ctxTok, usrTok, reasonTok, respTok, totalTok, agg.cachedPromptTokens, agg.cacheCreationPromptTokens,
+		agg.outputTPS, agg.ttftSecs, agg.promptTPS, agg.turnWallSecs, ctxEst, true
+}
+
+func assistantMessageHasRawUsage(m Message) bool {
+	return m.PromptTokens != 0 || m.CachedPromptTokens != 0 || m.CacheCreationPromptTokens != 0 ||
+		m.UserPromptTokens != 0 || m.ReasoningTokens != 0 || m.ResponseTokens != 0 || m.TurnTotalTokens != 0
 }

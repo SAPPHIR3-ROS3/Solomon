@@ -203,6 +203,12 @@ func (t *sseTransformer) transform(dataLine []byte) (out []byte, done bool, err 
 				if ot, ok := u["output_tokens"].(float64); ok {
 					outUsage["completion_tokens"] = int(ot)
 				}
+				if details, ok := u["input_tokens_details"].(map[string]any); ok && len(details) > 0 {
+					outUsage["prompt_tokens_details"] = details
+				}
+				if details, ok := u["output_tokens_details"].(map[string]any); ok && len(details) > 0 {
+					outUsage["completion_tokens_details"] = details
+				}
 				if tt, ok := u["total_tokens"].(float64); ok {
 					outUsage["total_tokens"] = int(tt)
 				} else if pt, ok := outUsage["prompt_tokens"].(int); ok {

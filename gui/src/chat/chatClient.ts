@@ -435,6 +435,10 @@ function toolCallFromPayload(payload: unknown, index: number, _imageOrigin = "")
     renameTo: stringValue(record.renameTo) || stringValue(args.renameTo),
     result,
     status: (stringValue(record.status) || result?.status || "running") as ChatToolCall["status"],
+    model: stringValue(record.model) || stringValue(args.model) || undefined,
+    reasoningEffort: stringValue(record.reasoningEffort) || stringValue(args.reasoning_effort) || undefined,
+    provider: stringValue(record.provider) || undefined,
+    fastMode: typeof record.fastMode === "boolean" ? record.fastMode : undefined,
     sync: subagentSyncFromPayload(name, record, args),
   };
 }
@@ -499,9 +503,13 @@ function todoItemFromPayload(payload: unknown): ChatTodoItem[] {
 function statsFromPayload(payload: unknown): ChatStats {
   const record = objectValue(payload);
   return {
+    turnAggregate: record.turnAggregate === true,
+    reasoningEffort: stringValue(record.reasoningEffort) || undefined,
     provider: stringValue(record.provider) || undefined,
     model: stringValue(record.model) || undefined,
     contextTokens: numberValue(record.contextTokens, 0) ?? 0,
+    cachedPromptTokens: numberValue(record.cachedPromptTokens, 0) ?? 0,
+    cacheCreationPromptTokens: numberValue(record.cacheCreationPromptTokens, 0) ?? 0,
     outputTokensPerSecond: numberValue(record.outputTokensPerSecond, 0) ?? 0,
     promptTokensPerSecond: numberValue(record.promptTokensPerSecond, 0) ?? 0,
     reasoningTokens: numberValue(record.reasoningTokens, 0) ?? 0,

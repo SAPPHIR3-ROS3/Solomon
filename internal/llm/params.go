@@ -366,6 +366,7 @@ func PopulateAssistantTurnUsage(dst *chatstore.Message, system string, msgsPrior
 	dst.TurnTotalTokens = u.TotalTokens
 	dst.PromptTokens = u.PromptTokens
 	dst.CachedPromptTokens = u.CachedPromptTokens
+	dst.CacheCreationPromptTokens = u.CacheCreationPromptTokens
 	dst.OutputTPS = u.OutputTPS
 	dst.TTFTSecs = u.TTFTSecs
 	dst.PromptTPS = u.PromptTPS

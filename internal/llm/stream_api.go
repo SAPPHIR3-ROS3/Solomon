@@ -23,8 +23,8 @@ func AggregateConsecutiveTurnUsage(usages []UsageStats) UsageStats {
 	return stream.AggregateConsecutiveTurnUsage(usages)
 }
 
-func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u UsageStats, turnCount int) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
-	return stream.UsageTokensDisplayParts(system, msgs, u, turnCount)
+func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u UsageStats) (contextTok, lastUserTok int64, contextEstimated bool, reasoningTok, responseTok, totalTok int64) {
+	return stream.UsageTokensDisplayParts(system, msgs, u)
 }
 
 func ParseCursorToolEventFromChunkRawJSON(raw string) string {

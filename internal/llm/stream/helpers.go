@@ -116,6 +116,47 @@ func parseLooseReasoningTokensFromUsageRawJSON(raw string) int64 {
 	return 0
 }
 
+func parseLooseCacheWriteTokensFromUsageRawJSON(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &top); err != nil {
+		return 0
+	}
+	tryNum := func(msg json.RawMessage) int64 {
+		var n int64
+		if json.Unmarshal(msg, &n) == nil && n > 0 {
+			return n
+		}
+		var f float64
+		if json.Unmarshal(msg, &f) == nil && f > 0 {
+			return int64(f + 0.5)
+		}
+		return 0
+	}
+	if n := tryNum(top["cache_creation_input_tokens"]); n > 0 {
+		return n
+	}
+	for _, key := range []string{"prompt_tokens_details", "input_tokens_details"} {
+		msg, ok := top[key]
+		if !ok {
+			continue
+		}
+		var details map[string]json.RawMessage
+		if json.Unmarshal(msg, &details) != nil {
+			continue
+		}
+		for _, detailKey := range []string{"cache_write_tokens", "cache_creation_input_tokens"} {
+			if n := tryNum(details[detailKey]); n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
 func parseProxyCorrectionFromChunkRawJSON(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

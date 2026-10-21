@@ -98,8 +98,11 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
   const rows = [
     ["provider", stats.provider || "—"],
     ["model", stats.model || "—"],
+    ["reasoning effort", stats.reasoningEffort || "—"],
     ["context", formatStatsTokenCount(stats.contextTokens)],
     ["user", formatStatsTokenCount(stats.userTokens)],
+    ["cached input", formatStatsTokenCount(stats.cachedPromptTokens ?? 0)],
+    ["cache write", formatStatsTokenCount(stats.cacheCreationPromptTokens ?? 0)],
     ["reasoning", formatStatsTokenCount(stats.reasoningTokens)],
     ["response", formatStatsTokenCount(stats.responseTokens)],
     ["total", formatStatsTokenCount(stats.totalTokens)],
@@ -120,6 +123,7 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
           </div>
         ))}
       </dl>
+      <div className="chat-stats-note">Cached input and cache write are input breakdowns included in the total.</div>
     </div>
   );
 }

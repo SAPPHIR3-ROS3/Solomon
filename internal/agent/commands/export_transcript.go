@@ -126,14 +126,14 @@ func writeMarkdownTranscript(out io.Writer, msgs []chatstore.Message, model stri
 }
 
 func writeMarkdownUsageLine(out io.Writer, msgs []chatstore.Message, start, end int) {
-	ctxTok, usrTok, reasonTok, respTok, totalTok, outputTPS, ttftSecs, promptTPS, turnWallSecs, ctxEst, ok := chatstore.StoredUsageLineForTurnRange(msgs, start, end)
+	ctxTok, usrTok, reasonTok, respTok, totalTok, cachedPromptTok, cacheCreationPromptTok, outputTPS, ttftSecs, promptTPS, turnWallSecs, ctxEst, ok := chatstore.StoredUsageLineForTurnRange(msgs, start, end)
 	if !ok {
 		return
 	}
-	fmt.Fprintf(out, "_%s_\n\n", exportPlainUsageLine(ctxTok, usrTok, reasonTok, respTok, totalTok, outputTPS, ttftSecs, promptTPS, ctxEst, turnWallSecs))
+	fmt.Fprintf(out, "_%s_\n\n", exportPlainUsageLine(ctxTok, usrTok, reasonTok, respTok, totalTok, cachedPromptTok, cacheCreationPromptTok, outputTPS, ttftSecs, promptTPS, ctxEst, turnWallSecs))
 }
 
-func exportPlainUsageLine(contextPromptTok, lastUserPromptTok, reasoningTokens, responseTokens, totalTokens int64, outputTPS, ttftSecs, promptTPS float64, contextEstimated bool, turnWallSecs float64) string {
+func exportPlainUsageLine(contextPromptTok, lastUserPromptTok, reasoningTokens, responseTokens, totalTokens, cachedPromptTokens, cacheCreationPromptTokens int64, outputTPS, ttftSecs, promptTPS float64, contextEstimated bool, turnWallSecs float64) string {
 	formatContext := func(n int64) string {
 		s := strconv.FormatInt(n, 10)
 		if contextEstimated && n > 0 {
@@ -155,8 +155,11 @@ func exportPlainUsageLine(contextPromptTok, lastUserPromptTok, reasoningTokens, 
 	line := "token: " + promptSeg + "+" +
 		strconv.FormatInt(reasoningTokens, 10) + "+" +
 		strconv.FormatInt(responseTokens, 10) + "=" +
-		strconv.FormatInt(totalTokens, 10) +
-		fmt.Sprintf("\t%st/s ttft:%ss pp:%st/s", formatExportFloatMax3(outputTPS), formatExportFloatMax3(ttftSecs), formatExportFloatMax3(promptTPS))
+		strconv.FormatInt(totalTokens, 10)
+	if cachedPromptTokens > 0 || cacheCreationPromptTokens > 0 {
+		line += fmt.Sprintf("\tcache read:%d write:%d", cachedPromptTokens, cacheCreationPromptTokens)
+	}
+	line += fmt.Sprintf("\t%st/s ttft:%ss pp:%st/s", formatExportFloatMax3(outputTPS), formatExportFloatMax3(ttftSecs), formatExportFloatMax3(promptTPS))
 	line += "\t worked for " + formatExportWorkedDuration(turnWallSecs)
 	return line
 }

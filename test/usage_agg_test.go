@@ -9,8 +9,8 @@ import (
 
 func TestAggregateConsecutiveTurnUsage_TwoTurns(t *testing.T) {
 	usages := []llm.UsageStats{
-		{PromptTokens: 100, ReasoningTokens: 50, ResponseTokens: 30, TotalTokens: 180},
-		{PromptTokens: 200, ReasoningTokens: 40, ResponseTokens: 25, TotalTokens: 265},
+		{PromptTokens: 100, CachedPromptTokens: 20, CacheCreationPromptTokens: 3, ReasoningTokens: 50, ResponseTokens: 30, TotalTokens: 180},
+		{PromptTokens: 200, CachedPromptTokens: 40, CacheCreationPromptTokens: 5, ReasoningTokens: 40, ResponseTokens: 25, TotalTokens: 265},
 	}
 
 	agg := llm.AggregateConsecutiveTurnUsage(usages)
@@ -32,8 +32,17 @@ func TestAggregateConsecutiveTurnUsage_TwoTurns(t *testing.T) {
 		t.Errorf("ResponseTokens = %d, want %d", agg.ResponseTokens, expectedResponse)
 	}
 
-	if agg.PromptTokens != 200 {
-		t.Errorf("PromptTokens = %d, want 200 (last turn)", agg.PromptTokens)
+	if agg.PromptTokens != 300 {
+		t.Errorf("PromptTokens = %d, want 300 (sum of calls)", agg.PromptTokens)
+	}
+	if agg.CachedPromptTokens != 60 {
+		t.Errorf("CachedPromptTokens = %d, want 60", agg.CachedPromptTokens)
+	}
+	if agg.CacheCreationPromptTokens != 8 {
+		t.Errorf("CacheCreationPromptTokens = %d, want 8", agg.CacheCreationPromptTokens)
+	}
+	if agg.TotalTokens != 445 {
+		t.Errorf("TotalTokens = %d, want 445 (sum of calls)", agg.TotalTokens)
 	}
 }
 
@@ -54,7 +63,7 @@ func TestUsageTokensDisplayParts_MultiTurn(t *testing.T) {
 		TotalTokens:        345,
 	}
 
-	ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(sys, msgs, agg, 2)
+	ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(sys, msgs, agg)
 
 	t.Logf("ctxTok=%d usrTok=%d ctxEst=%v reasonTok=%d respTok=%d totalTok=%d",
 		ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok)

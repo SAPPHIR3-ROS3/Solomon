@@ -248,16 +248,20 @@ type apiImage struct {
 }
 
 type apiStats struct {
-	Provider              string  `json:"provider,omitempty"`
-	Model                 string  `json:"model,omitempty"`
-	ContextTokens         int64   `json:"contextTokens"`
-	OutputTokensPerSecond float64 `json:"outputTokensPerSecond"`
-	PromptTokensPerSecond float64 `json:"promptTokensPerSecond"`
-	ReasoningTokens       int64   `json:"reasoningTokens"`
-	ResponseTokens        int64   `json:"responseTokens"`
-	TotalTokens           int64   `json:"totalTokens"`
-	TTFTSeconds           float64 `json:"ttftSeconds"`
-	UserTokens            int64   `json:"userTokens"`
+	TurnAggregate             bool    `json:"turnAggregate,omitempty"`
+	ReasoningEffort           string  `json:"reasoningEffort,omitempty"`
+	Provider                  string  `json:"provider,omitempty"`
+	Model                     string  `json:"model,omitempty"`
+	ContextTokens             int64   `json:"contextTokens"`
+	CachedPromptTokens        int64   `json:"cachedPromptTokens"`
+	CacheCreationPromptTokens int64   `json:"cacheCreationPromptTokens"`
+	OutputTokensPerSecond     float64 `json:"outputTokensPerSecond"`
+	PromptTokensPerSecond     float64 `json:"promptTokensPerSecond"`
+	ReasoningTokens           int64   `json:"reasoningTokens"`
+	ResponseTokens            int64   `json:"responseTokens"`
+	TotalTokens               int64   `json:"totalTokens"`
+	TTFTSeconds               float64 `json:"ttftSeconds"`
+	UserTokens                int64   `json:"userTokens"`
 }
 
 type apiToolCall struct {
@@ -277,6 +281,10 @@ type apiToolCall struct {
 	RenameTo         string             `json:"renameTo,omitempty"`
 	Result           map[string]any     `json:"result,omitempty"`
 	Status           string             `json:"status,omitempty"`
+	Model            string             `json:"model,omitempty"`
+	ReasoningEffort  string             `json:"reasoningEffort,omitempty"`
+	Provider         string             `json:"provider,omitempty"`
+	FastMode         *bool              `json:"fastMode,omitempty"`
 	Sync             bool               `json:"sync,omitempty"`
 }
 
@@ -1279,7 +1287,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 	if role == "assistant" {
 		value.Reasoning = reasoning
 		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive, true)
-		value.Stats = apiStatsFromMessage(message)
+		value.Stats = apiStatsForMessageTurn(message, source, index)
 		value.ThoughtFor = message.TurnTTFTSecs
 		if value.ThoughtFor == 0 {
 			value.ThoughtFor = message.TTFTSecs
@@ -1288,6 +1296,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 		if value.WorkedFor == 0 {
 			value.WorkedFor = message.TurnWallSecs
 		}
+		value.WorkedFor += messageToolWallSeconds(message, source, index)
 	}
 	if chatstore.MessageCheckpointTagVisible(message) {
 		seq := message.CheckpointSeq
@@ -1414,8 +1423,32 @@ func chatTitleInput(content string, hasImages bool) string {
 	return content
 }
 
+func messageToolWallSeconds(message chatstore.Message, source []chatstore.Message, index int) float64 {
+	if message.ToolWallSecs > 0 {
+		return message.ToolWallSecs
+	}
+	if len(message.ToolCalls) == 0 || message.CreatedAt.IsZero() {
+		return 0
+	}
+	for i := index + 1; i < len(source); i++ {
+		next := source[i]
+		if next.Role == "tool" {
+			continue
+		}
+		if next.Role != "assistant" || next.CreatedAt.IsZero() || next.TurnWallSecs <= 0 {
+			return 0
+		}
+		seconds := next.CreatedAt.Sub(message.CreatedAt).Seconds() - next.TurnWallSecs
+		if seconds > 0 {
+			return seconds
+		}
+		return 0
+	}
+	return 0
+}
+
 func apiStatsFromMessage(message chatstore.Message) *apiStats {
-	if message.Provider == "" && message.Model == "" && !message.TurnDisplaySaved && message.PromptTokens == 0 && message.UserPromptTokens == 0 && message.ReasoningTokens == 0 && message.ResponseTokens == 0 && message.TurnTotalTokens == 0 && message.TurnWallSecs == 0 {
+	if message.Provider == "" && message.Model == "" && message.ReasoningEffort == "" && !message.TurnDisplaySaved && message.PromptTokens == 0 && message.CachedPromptTokens == 0 && message.CacheCreationPromptTokens == 0 && message.UserPromptTokens == 0 && message.ReasoningTokens == 0 && message.ResponseTokens == 0 && message.TurnTotalTokens == 0 && message.TurnWallSecs == 0 {
 		return nil
 	}
 	contextTokens := message.TurnContextTokens
@@ -1425,6 +1458,14 @@ func apiStatsFromMessage(message chatstore.Message) *apiStats {
 	userTokens := message.TurnUserTokens
 	if userTokens == 0 {
 		userTokens = message.UserPromptTokens
+	}
+	cachedPromptTokens := message.CachedPromptTokens
+	if message.TurnCachedPromptTokens > 0 {
+		cachedPromptTokens = message.TurnCachedPromptTokens
+	}
+	cacheCreationPromptTokens := message.CacheCreationPromptTokens
+	if message.TurnCacheCreationPromptTokens > 0 {
+		cacheCreationPromptTokens = message.TurnCacheCreationPromptTokens
 	}
 	reasoningTokens := message.TurnReasonTokens
 	if reasoningTokens == 0 {
@@ -1451,11 +1492,45 @@ func apiStatsFromMessage(message chatstore.Message) *apiStats {
 		promptTPS = message.PromptTPS
 	}
 	return &apiStats{
-		Provider: message.Provider, Model: message.Model,
-		ContextTokens: contextTokens, OutputTokensPerSecond: outputTPS, PromptTokensPerSecond: promptTPS,
+		TurnAggregate: message.TurnDisplaySaved,
+		Provider:      message.Provider, Model: message.Model, ReasoningEffort: message.ReasoningEffort,
+		ContextTokens: contextTokens, CachedPromptTokens: cachedPromptTokens, CacheCreationPromptTokens: cacheCreationPromptTokens,
+		OutputTokensPerSecond: outputTPS, PromptTokensPerSecond: promptTPS,
 		ReasoningTokens: reasoningTokens, ResponseTokens: responseTokens, TotalTokens: totalTokens,
 		TTFTSeconds: ttft, UserTokens: userTokens,
 	}
+}
+
+func apiStatsForMessageTurn(message chatstore.Message, source []chatstore.Message, index int) *apiStats {
+	stats := apiStatsFromMessage(message)
+	if stats == nil || !message.TurnDisplaySaved || index < 0 || index >= len(source) {
+		return stats
+	}
+	start := 0
+	for i := index - 1; i >= 0; i-- {
+		candidate := source[i]
+		if candidate.Role == "user" && !candidate.GUIHidden && !candidate.CreatedAt.IsZero() &&
+			!strings.HasPrefix(strings.TrimSpace(candidate.Content), "tool_result(") {
+			start = i + 1
+			break
+		}
+	}
+	contextTok, userTok, reasonTok, responseTok, totalTok, cachedTok, cacheWriteTok,
+		outputTPS, ttftSecs, promptTPS, _, _, ok := chatstore.StoredUsageLineForTurnRange(source, start, index+1)
+	if !ok {
+		return stats
+	}
+	stats.ContextTokens = contextTok
+	stats.UserTokens = userTok
+	stats.ReasoningTokens = reasonTok
+	stats.ResponseTokens = responseTok
+	stats.TotalTokens = totalTok
+	stats.CachedPromptTokens = cachedTok
+	stats.CacheCreationPromptTokens = cacheWriteTok
+	stats.OutputTokensPerSecond = outputTPS
+	stats.TTFTSeconds = ttftSecs
+	stats.PromptTokensPerSecond = promptTPS
+	return stats
 }
 
 func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstore.Message, messageIndex int, runActive bool, includeNested bool) []apiToolCall {
@@ -1520,6 +1595,8 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 		var subchat *chatstore.SubSession
 		if call.Name == "subagent" {
 			subchat = findSubchat(call.ID)
+			tool.Model = stringField(args, "model")
+			tool.ReasoningEffort = stringField(args, "reasoning_effort")
 		}
 		if resultMessage, ok := results[call.ID]; ok {
 			tool.Result = apiToolResult(resultMessage.Content)
@@ -1575,10 +1652,34 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 			if subchatID := stringField(tool.Result, "subchatId"); subchatID != "" {
 				if subSession, subErr := chatstore.FindSubSessionByID(projectID, subchatID); subErr == nil && subSession != nil && strings.TrimSpace(subSession.Status) != "" {
 					tool.Result["subagentStatus"] = strings.TrimSpace(subSession.Status)
+					subchat = subSession
 				}
 			}
 			if subStatus, ok := tool.Result["subagentStatus"].(string); ok && chatstore.SubSessionRunning(subStatus) {
 				tool.Status = "running"
+			}
+		}
+		if subchat != nil {
+			tool.Model = subchat.RoleModel
+			tool.Provider = subchat.RoleProvider
+			tool.FastMode = subchat.FastMode
+			tool.ReasoningEffort = subchat.ReasoningEffort
+			if tool.Provider == "" {
+				tool.Provider = message.Provider
+			}
+			if tool.Model == "" {
+				tool.Model = message.Model
+			}
+			for i := len(subchat.Messages) - 1; i >= 0; i-- {
+				if subchat.Messages[i].Role == "assistant" && subchat.Messages[i].Model != "" {
+					tool.Model = subchat.Messages[i].Model
+					tool.Provider = subchat.Messages[i].Provider
+					tool.FastMode = subchat.Messages[i].FastMode
+					if subchat.Messages[i].ReasoningEffort != "" {
+						tool.ReasoningEffort = subchat.Messages[i].ReasoningEffort
+					}
+					break
+				}
 			}
 		}
 		out = append(out, tool)

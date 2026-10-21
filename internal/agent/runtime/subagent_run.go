@@ -9,6 +9,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/turnloop"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/title"
 )
 
@@ -159,7 +160,13 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 		projHex = r.ProjHex
 	}
 	effort, _ := r.Cfg.EffectiveSubagentReasoningEffort(cfg.ReasoningEffort)
+	fastProvider := r.Prov
+	if cfg.RoleProvider != "" {
+		fastProvider = config.ProviderByName(r.Cfg, cfg.RoleProvider)
+	}
+	fastMode := r.Cfg.FastModeEnabledForProvider(fastProvider)
 	sess := &chatstore.SubSession{
+		FastMode:         &fastMode,
 		ID:               id,
 		Title:            t,
 		CreatedAt:        spawn,

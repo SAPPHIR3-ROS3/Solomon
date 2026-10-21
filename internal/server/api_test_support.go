@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
 
@@ -87,6 +88,26 @@ func NotificationsHandlerForTest() http.HandlerFunc { return handleNotifications
 func ReportHandlerForTest() http.HandlerFunc { return handleReport }
 
 func SlashChatOutputForTest(output string) string { return slashChatOutput(output) }
+
+type ChatMessageSnapshotForTest struct {
+	WorkedFor       float64
+	ReasoningEffort string
+	HasStats        bool
+}
+
+func ChatMessageFromSessionForTest(projectID, ownerID string, message chatstore.Message, source []chatstore.Message, index int, imageFiles map[int]string, runActive bool, id string) (ChatMessageSnapshotForTest, bool) {
+	value, visible := apiMessageFromSession(projectID, ownerID, message, source, index, imageFiles, runActive, id)
+	snapshot := ChatMessageSnapshotForTest{WorkedFor: value.WorkedFor}
+	if value.Stats != nil {
+		snapshot.HasStats = true
+		snapshot.ReasoningEffort = value.Stats.ReasoningEffort
+	}
+	return snapshot, visible
+}
+
+func MessageToolWallSecondsForTest(message chatstore.Message, source []chatstore.Message, index int) float64 {
+	return messageToolWallSeconds(message, source, index)
+}
 
 // BackgroundAPIForTest allows power-management tests to use fake inhibitors.
 type BackgroundAPIForTest struct{ api *backgroundAPI }

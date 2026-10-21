@@ -58,3 +58,17 @@ test("the expanded chat shows the full task while loading or when absent from th
   assert.match(loading, /Loading subchat/);
   assert.equal(loading.split(tool.input).length - 1, 1);
 });
+
+ test("subagent card displays its model and reasoning effort", () => {
+  const html = renderCard({ model: "test-model", reasoningEffort: "high", provider: "test-provider", fastMode: true, sync: true });
+  assert.match(html, /test-model/);
+  assert.match(html, /test-model\(high fast\)/);
+  assert.match(html, /test-provider/);
+  assert.match(html, />sync</);
+});
+
+test("subagent model omits fast when disabled", () => {
+  const html = renderCard({model: "test-model", reasoningEffort: "none", fastMode: false});
+  assert.match(html, /test-model\(none\)/);
+  assert.doesNotMatch(html, /none fast/);
+});

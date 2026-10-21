@@ -35,11 +35,11 @@ func WriteLabeledTranscript(out io.Writer, msgs []chatstore.Message, model strin
 }
 
 func writeStoredUsageLine(out io.Writer, msgs []chatstore.Message, start, end int) {
-	ctxTok, usrTok, reasonTok, respTok, totalTok, outputTPS, ttftSecs, promptTPS, turnWallSecs, ctxEst, ok := chatstore.StoredUsageLineForTurnRange(msgs, start, end)
+	ctxTok, usrTok, reasonTok, respTok, totalTok, cachedPromptTok, cacheCreationPromptTok, outputTPS, ttftSecs, promptTPS, turnWallSecs, ctxEst, ok := chatstore.StoredUsageLineForTurnRange(msgs, start, end)
 	if !ok {
 		return
 	}
-	fmt.Fprintln(out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, outputTPS, ttftSecs, promptTPS, ctxEst, turnWallSecs))
+	fmt.Fprintln(out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, cachedPromptTok, cacheCreationPromptTok, outputTPS, ttftSecs, promptTPS, ctxEst, turnWallSecs))
 }
 
 func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, model string) {

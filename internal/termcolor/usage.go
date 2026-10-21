@@ -55,7 +55,7 @@ func FormatWorkedDuration(secs float64) string {
 	return b.String()
 }
 
-func UsageTokensLine(contextPromptTok, lastUserPromptTok, reasoningTokens, responseTokens, totalTokens int64, outputTPS, ttftSecs, promptTPS float64, contextEstimated bool, turnWallSecs float64) string {
+func UsageTokensLine(contextPromptTok, lastUserPromptTok, reasoningTokens, responseTokens, totalTokens, cachedPromptTokens, cacheCreationPromptTokens int64, outputTPS, ttftSecs, promptTPS float64, contextEstimated bool, turnWallSecs float64) string {
 	var promptSeg string
 	switch {
 	case contextPromptTok <= 0 && lastUserPromptTok <= 0:
@@ -70,8 +70,11 @@ func UsageTokensLine(contextPromptTok, lastUserPromptTok, reasoningTokens, respo
 	line := "token: " + promptSeg + "+" +
 		WrapThinking(strconv.FormatInt(reasoningTokens, 10)) + "+" +
 		WrapAssistant(strconv.FormatInt(responseTokens, 10)) + "=" +
-		WrapWhite(strconv.FormatInt(totalTokens, 10)) +
-		fmt.Sprintf("\t%st/s ttft:%ss pp:%st/s", formatFloatMax3(outputTPS), formatFloatMax3(ttftSecs), formatFloatMax3(promptTPS))
+		WrapWhite(strconv.FormatInt(totalTokens, 10))
+	if cachedPromptTokens > 0 || cacheCreationPromptTokens > 0 {
+		line += fmt.Sprintf("\tcache read:%s write:%s", strconv.FormatInt(cachedPromptTokens, 10), strconv.FormatInt(cacheCreationPromptTokens, 10))
+	}
+	line += fmt.Sprintf("\t%st/s ttft:%ss pp:%st/s", formatFloatMax3(outputTPS), formatFloatMax3(ttftSecs), formatFloatMax3(promptTPS))
 	line += "\t worked for " + FormatWorkedDuration(turnWallSecs)
 	return line
 }
