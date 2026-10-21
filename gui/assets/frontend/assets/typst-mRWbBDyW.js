@@ -1,0 +1,1 @@
+import{n as e,t}from"./vendor~typst-CLu4hQ2R.js";await t();export{e as default};
