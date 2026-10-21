@@ -154,6 +154,33 @@ for (const [width, height] of [[320, 640], [390, 844], [412, 915], [844, 390]]) 
   });
 }
 
+test("overlay closes for the current chat and when navigating to another", async () => {
+  const secondChat = await api("/__solomon/projects/" + project.id + "/chats", { title: "Second mobile chat" });
+  const { page, errors } = await mobilePage(900, 844, url, false);
+  try {
+    await page.getByRole("button", { name: "Expand side panel", exact: true }).click();
+    await page.locator(".side-panel-backdrop").waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Mobile chat", exact: false }).click();
+    await page.locator(".chat-view").waitFor({ state: "visible" });
+    await page.locator(".side-panel-backdrop").waitFor({ state: "detached" });
+
+    await page.getByRole("button", { name: "Expand side panel", exact: true }).click();
+    await page.locator(".side-panel-backdrop").waitFor({ state: "visible" });
+    const currentChatLoads = await page.evaluate(() => performance.getEntriesByType("resource").filter((entry) => entry.name.includes("/chats/" + chat.id)).length);
+    await page.getByRole("button", { name: "Mobile chat", exact: false }).click();
+    await page.locator(".side-panel-backdrop").waitFor({ state: "detached" });
+    assert.equal(await page.evaluate(() => performance.getEntriesByType("resource").filter((entry) => entry.name.includes("/chats/" + chat.id)).length), currentChatLoads);
+
+    await page.getByRole("button", { name: "Expand side panel", exact: true }).click();
+    await page.locator(".side-panel-backdrop").waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Second mobile chat", exact: false }).click();
+    await page.waitForFunction((id) => JSON.parse(localStorage.getItem("solomon.active-chat"))?.chatID === id, secondChat.id);
+    await page.locator(".side-panel-backdrop").waitFor({ state: "detached" });
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("solomon.active-chat"))), { chatID: secondChat.id, projectID: project.id });
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
 test("mobile chat, IME, photo attachments and streamed replies", async () => {
   const { page, errors, setSnapshot } = await mobilePage(390);
   try {

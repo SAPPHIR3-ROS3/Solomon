@@ -268,20 +268,6 @@ export function App() {
     setIsTerminalPanelOpen(true);
   }
 
-  const openProjectChat = useCallback(async (project: Project, chatID: string) => {
-    const navigationID = beginNavigation(project.id, chatID);
-    closeMobilePanels();
-    setWelcomeResetToken((current) => current + 1);
-    setIsActiveAgentsOpen(false);
-    setIsCustomizationOpen(false);
-    setActiveView("agent");
-    setActiveTemporaryWorkspaceID(null);
-    setSelectedWorkspace(project);
-    setWorkspaceFocus({ project, token: Date.now() });
-    setSelectedResearch(null);
-    await chatRuntime.openProjectChat(project, chatID, navigationID);
-  }, [chatRuntime.openProjectChat, closeMobilePanels]);
-
   async function openActiveAgent(projectID: string, projectName: string, node: ActiveAgentNode) {
     const sidebar = await fetchProjectSidebarData();
     const project = sidebar.projects.find((candidate) => candidate.id === projectID);
@@ -359,6 +345,31 @@ export function App() {
   const panelOverlayOpen = !isSettingsOpen && activeView !== "editor" && (
     (isSidePanelOpen && leftPanelOverlay) || (rightPanelVisible && rightPanelOverlay)
   );
+
+  const openProjectChat = useCallback(async (project: Project, chatID: string) => {
+    const navigationID = beginNavigation(project.id, chatID);
+    const isDifferentChat = selectedChat?.id !== chatID || selectedChat?.projectID !== project.id;
+    if (!isDifferentChat) {
+      setIsSidePanelOpen(false);
+      if (panelOverlayOpen) setIsRightSidePanelOpen(false);
+      closeMobilePanels();
+      return;
+    }
+    if (panelOverlayOpen) {
+      setIsSidePanelOpen(false);
+      setIsRightSidePanelOpen(false);
+    }
+    closeMobilePanels();
+    setWelcomeResetToken((current) => current + 1);
+    setIsActiveAgentsOpen(false);
+    setIsCustomizationOpen(false);
+    setActiveView("agent");
+    setActiveTemporaryWorkspaceID(null);
+    setSelectedWorkspace(project);
+    setWorkspaceFocus({ project, token: Date.now() });
+    setSelectedResearch(null);
+    await chatRuntime.openProjectChat(project, chatID, navigationID);
+  }, [chatRuntime.openProjectChat, closeMobilePanels, panelOverlayOpen, selectedChat?.id, selectedChat?.projectID]);
 
   useEffect(() => {
     if (!panelOverlayOpen) return;
