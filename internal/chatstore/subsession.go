@@ -53,6 +53,7 @@ type PendingSubagentSpawn struct {
 }
 
 type SubSession struct {
+	Capabilities     CapabilityRegistry     `json:"capabilities,omitempty"`
 	ID               string                 `json:"id"`
 	Title            string                 `json:"title"`
 	CreatedAt        time.Time              `json:"created_at"`
@@ -142,6 +143,7 @@ func WriteSubSession(projectHex string, s *SubSession) (err error) {
 	if err != nil {
 		return err
 	}
+	s.Capabilities.Backfill(s.Messages)
 	return writeJSONAtomic(p, s)
 }
 

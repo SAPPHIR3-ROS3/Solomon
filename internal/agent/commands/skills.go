@@ -17,7 +17,7 @@ func RunSkillSlash(d Deps, e skills.SkillEntry) error {
 	if d.AtIncludeNotifier != nil {
 		notify = d.AtIncludeNotifier()
 	}
-	text, err := skills.SkillInputPrefillText(e, d.ProjRoot, notify)
+	text, err := skills.SkillUserMessagePayload(e, d.ProjRoot, notify)
 	if err != nil {
 		return err
 	}

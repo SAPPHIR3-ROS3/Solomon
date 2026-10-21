@@ -398,6 +398,10 @@ func Run(ctx context.Context, h Host) error {
 					compileRetryState.Reset()
 				}
 			}
+			if err == nil && chatstore.IsCapabilityTool(inv.Name) {
+				rawPayload := toolingResultJSON(res)
+				h.MutateSession(func(s *chatstore.Session) { s.Capabilities.Capture(inv.Name, rawPayload) })
+			}
 			res = h.ApplyToolOutput(res, inv.Name, toolID)
 			payload := toolingResultJSON(res)
 			if h.MachineMode() {

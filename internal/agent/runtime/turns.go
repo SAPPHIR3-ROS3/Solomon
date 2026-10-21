@@ -95,6 +95,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 		um = chatstore.Message{CreatedAt: time.Now(), Role: "user", Content: line, APIContent: apiContent}
 		checkpoint.StampMsg(&um, s, seq)
 		s.Messages = append(s.Messages, um)
+		s.Capabilities.CaptureUser(um)
 		chatstore.RepairSessionMalformedImages(s)
 		s.LastMessageAt = time.Now()
 		s.LastUserMessageAt = time.Now()

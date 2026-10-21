@@ -219,6 +219,7 @@ func SummarizeBody(d Deps) (string, error) {
 	} else if sess := d.Session(); sess != nil {
 		msgs = append([]chatstore.Message(nil), sess.Messages...)
 	}
+	msgs = chatstore.SummaryMessages(msgs)
 	if len(msgs) == 0 {
 		return "", fmt.Errorf("no messages to summarize")
 	}

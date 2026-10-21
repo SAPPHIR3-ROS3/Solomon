@@ -298,6 +298,11 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 				logging.Log(logging.WARNING_LOG_LEVEL, "nested tool execution failed", logging.LogOptions{Params: map[string]any{"tool": inv.Name, "err": err.Error()}})
 				res = map[string]any{"error": err.Error()}
 			}
+			if err == nil && chatstore.IsCapabilityTool(inv.Name) {
+				if payload, marshalErr := json.Marshal(res); marshalErr == nil {
+					sess.Capabilities.Capture(inv.Name, string(payload))
+				}
+			}
 			res = r.applyToolOutput(res, inv.Name, toolID)
 			b, err := json.Marshal(res)
 			if err != nil {
