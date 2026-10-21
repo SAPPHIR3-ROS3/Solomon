@@ -85,7 +85,13 @@ func cachedProviderModels(ctx context.Context, r *Root, providerName string, cac
 	return ids, nil
 }
 
+// ValidateRoles checks both local structure and live provider model availability.
+// Use this for explicit role configuration, never routine config persistence.
 func ValidateRoles(ctx context.Context, r *Root) error {
+	return validateRoles(ctx, r, true)
+}
+
+func validateRoles(ctx context.Context, r *Root, checkModels bool) error {
 	if r == nil {
 		return nil
 	}
@@ -111,6 +117,9 @@ func ValidateRoles(ctx context.Context, r *Root) error {
 			return fmt.Errorf("roles.subagent[%d]: duplicate provider %q model %q (also at [%d])", i, strings.TrimSpace(e.Provider), strings.TrimSpace(e.Model), prev)
 		}
 		seen[key] = i
+		if !checkModels {
+			continue
+		}
 		provider := strings.TrimSpace(e.Provider)
 		model := strings.TrimSpace(e.Model)
 		ids, err := cachedProviderModels(ctx, r, provider, modelCache)

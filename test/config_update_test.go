@@ -1,6 +1,8 @@
 package test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -78,5 +80,49 @@ func TestModelSwitchRestoresReasoningAndFastMode(t *testing.T) {
 	}
 	if back.ReasoningEffort != "low" || back.EffectiveFastMode() {
 		t.Fatalf("beta mode = %s fast=%v", back.ReasoningEffort, back.EffectiveFastMode())
+	}
+}
+
+func TestConfigModeUpdatesSkipLiveRoleValidation(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	previous := config.RolesModelLister
+	calls := 0
+	config.RolesModelLister = func(context.Context, *config.Root, *config.Provider) ([]string, error) {
+		calls++
+		return nil, fmt.Errorf("provider unavailable")
+	}
+	t.Cleanup(func() { config.RolesModelLister = previous })
+	root := config.EmptyRoot()
+	root.Providers = map[string]*config.Provider{"test": {Name: "test"}}
+	root.Current = config.Current{Provider: "test", Model: "alpha"}
+	root.ReasoningEffort = "high"
+	root.Roles = config.Roles{
+		Table:    config.RolesTable{Characteristics: []string{"reasoning"}},
+		Subagent: []config.SubagentRoleConfig{{Provider: "test", Model: "worker"}},
+	}
+	if err := config.Save(root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.UpdateCurrentModel("test", "beta"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.UpdateReasoningEffort("low"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.UpdateFastMode(false); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Current.Model != "beta" || saved.ReasoningEffort != "low" || saved.EffectiveFastMode() {
+		t.Fatalf("preferences did not persist: model=%s reasoning=%s fast=%v", saved.Current.Model, saved.ReasoningEffort, saved.EffectiveFastMode())
+	}
+	if calls != 0 {
+		t.Fatalf("routine persistence made %d live model requests", calls)
+	}
+	if err := config.ValidateRoles(context.Background(), saved); err == nil || calls != 1 {
+		t.Fatalf("explicit role validation must still check the provider: err=%v calls=%d", err, calls)
 	}
 }

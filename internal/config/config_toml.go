@@ -549,7 +549,8 @@ func validateRoot(ctx context.Context, r *Root) error {
 	if err := ValidateServerPort(r.ServerPort); err != nil {
 		return err
 	}
-	return ValidateRoles(ctx, r)
+	// Loading and saving preferences must not depend on provider network calls.
+	return validateRoles(ctx, r, false)
 }
 
 func Load() (*Root, error) {
