@@ -177,7 +177,7 @@ Highlights:
 | `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
 | `/cursortools` | Confirm deprecated Cursor native tools stay off — only after `/connect` → Cursor API |
 | `/reasoning`, `/thinking` | Main-chat reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`/Extra high, `max`); streamed reasoning preview |
-| `/subagent` | List and control persisted subagent sessions |
+| `/agents` | Show the global active-agent tree and control project subagents |
 | `/log`, `/stats`, `/max_response`, `/timeout` | Log verbosity; token footer; output cap; subagent minutes |
 | `/name`, `/language` | User name and reply language in system prompt (saved) |
 | `/fast` | Cursor fast mode when supported by the active provider (saved) |
@@ -196,20 +196,20 @@ After the welcome banner, Solomon runs a short HTTPS reachability check in the b
 
 Slash commands persist many settings to `config.toml` (for example `/name` → `user_name`, `/language` → `response_language`, `/stats` → `show_usage_stats`, `/fast` → `fast_mode`, `/cursortools` → forces `cursor_internal_tools = false`, `/autoupdate` → `autoupdate`). Field mapping: [Configuration](configuration.md#repl-slash-commands-and-config-fields). `/export` reads `[export].path` but does not write config.
 
-### `/subagent` — list and control nested runs
+### `/agents` — global active-agent tree
 
-`/subagent` lists the persisted nested sessions available to the current Solomon home and project. Each entry shows its title, status, and full `subchatId`. The title is normally derived from the task; use the ID when titles are ambiguous.
+`/agents` shows the global Active Agents tree from the daemon, across all projects. Each line contains `<id> <model> (<reasoning> <fast>) in <folder> <intent>`, with nested subagents indented below their parent. Fast mode uses a yellow lightning symbol in UTF-8 terminals, with `fast=on` as the ASCII fallback; disabled and unknown states use `fast=off` and `fast=?`. Color-disable settings remain respected. Unknown execution metadata is shown explicitly. Control actions still target persisted subagent sessions in the current project.
 
 | Invocation | Behavior |
 |------------|----------|
-| `/subagent` | List subagent sessions, newest first |
-| `/subagent resume <id\|title>` | Resume a non-running session in the background; the stored transcript is continued |
-| `/subagent stop <id\|title>` | Stop the live run, persist it as `paused`, and keep it resumable |
-| `/subagent cancel <id\|title>` | Stop the live run and persist it as `cancelled`; the transcript remains on disk |
+| `/agents` | Show the global active-agent tree |
+| `/agents resume <id\|title>` | Resume a non-running session in the background; the stored transcript is continued |
+| `/agents stop <id\|title>` | Stop the live run, persist it as `paused`, and keep it resumable |
+| `/agents cancel <id\|title>` | Stop the live run and persist it as `cancelled`; the transcript remains on disk |
 
 `stop` and `cancel` interrupt the active context and wait for it to finish before writing the final status. A control command may take up to ten seconds while a provider request is being cancelled. `resume` starts asynchronously and prints the new background run information.
 
-The `/subagent` command controls sessions created by the native `subagent` tool. It does not expose a separate foreground viewer: to continue a session with a new task, use the native tool with `resume: "<subchatId>"` and `task`, optionally adding `interrupt: true` when the resumed session is still active.
+The `/agents` command controls sessions created by the native `subagent` tool. It does not expose a separate foreground viewer: to continue a session with a new task, use the native tool with `resume: "<subchatId>"` and `task`, optionally adding `interrupt: true` when the resumed session is still active.
 
 Subagent status values are `running`, `queued`, `paused`, `done`, and `cancelled`. A timed-out or failed run is saved as `paused` so it can be resumed. Subagents cannot be persisted from an ephemeral parent session (`solomon temp exec` or `/temp`).
 

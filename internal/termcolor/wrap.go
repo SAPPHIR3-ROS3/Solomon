@@ -279,7 +279,7 @@ func FormatSystemBlock(message string) string {
 
 func WriteSystem(w io.Writer, message string) {
 	if s := FormatSystemBlock(message); s != "" {
-		logging.RecordNotification("system", message)
+		logging.RecordNotification("system", Plain(message))
 		_, _ = io.WriteString(w, s)
 	}
 }

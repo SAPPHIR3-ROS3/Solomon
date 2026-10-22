@@ -10,13 +10,13 @@ import (
 
 func Subagent(d Deps, parts []string) error {
 	if len(parts) < 2 {
-		return subagentList(d)
+		return Agents(d)
 	}
 	sub := strings.ToLower(parts[1])
 	switch sub {
 	case "resume", "stop", "cancel":
 		if len(parts) < 3 {
-			return fmt.Errorf("usage: /subagent %s <id|title>", sub)
+			return fmt.Errorf("usage: /agents %s <id|title>", sub)
 		}
 		return subagentCommand(d, sub, strings.Join(parts[2:], " "))
 	default:
@@ -117,6 +117,6 @@ func subagentCommand(d Deps, cmd, target string) error {
 		PrintSystemf(d.Out, "subagent %s marked running; use tool resume=%s to continue", sess.Title, sess.ID)
 		return nil
 	default:
-		return fmt.Errorf("unknown /subagent command: %s", cmd)
+		return fmt.Errorf("unknown /agents command: %s", cmd)
 	}
 }

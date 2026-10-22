@@ -57,7 +57,7 @@ func commandNeedsAgentRuntime(line string, cfg *config.Root) bool {
 		return false
 	}
 	switch name {
-	case "docs", "exec", "summarize", "compact", "research", "subagent", "testweb":
+	case "docs", "exec", "summarize", "compact", "research", "agents", "testweb":
 		return true
 	}
 	for _, builtin := range commands.SlashBuiltinNames(cfg) {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -20,6 +21,10 @@ type apiActiveAgentProject struct {
 }
 
 type apiActiveAgentNode struct {
+	Model            string               `json:"model,omitempty"`
+	Reasoning        string               `json:"reasoning,omitempty"`
+	Fast             *bool                `json:"fast,omitempty"`
+	Intent           string               `json:"intent,omitempty"`
 	Kind             string               `json:"kind"`
 	ID               string               `json:"id"`
 	Title            string               `json:"title"`
@@ -195,6 +200,9 @@ func activeAgentsForProject(project apiProject, running map[string]struct{}) []a
 	for _, orphan := range orphans {
 		agents = append(agents, withChildren(orphan, children))
 	}
+	for i := range agents {
+		enrichActiveAgent(&agents[i])
+	}
 	return agents
 }
 
@@ -295,4 +303,44 @@ func subSessionTask(sub *chatstore.SubSession) string {
 		}
 	}
 	return ""
+}
+
+func enrichActiveAgent(node *apiActiveAgentNode) {
+	var messages []chatstore.Message
+	if node.Kind == "subagent" {
+		if sub, err := chatstore.FindSubSessionByID(node.ProjectID, node.ID); err == nil && sub != nil {
+			node.Model, node.Reasoning, node.Fast = sub.RoleModel, sub.ReasoningEffort, sub.FastMode
+			messages = sub.Messages
+		}
+	} else if sess, err := chatstore.ReadSession(node.ProjectID, node.ID); err == nil && sess != nil {
+		messages = sess.Messages
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		m := messages[i]
+		if node.Model == "" && m.Model != "" {
+			node.Model = m.Model
+			node.Reasoning = m.ReasoningEffort
+			node.Fast = m.FastMode
+		}
+		if node.Intent == "" {
+			for j := len(m.ToolCalls) - 1; j >= 0; j-- {
+				var args struct {
+					Intent string `json:"intent"`
+				}
+				if json.Unmarshal([]byte(m.ToolCalls[j].Arguments), &args) == nil && strings.TrimSpace(args.Intent) != "" {
+					node.Intent = args.Intent
+					break
+				}
+			}
+			if node.Intent == "" && m.Role == "user" {
+				node.Intent = m.Content
+			}
+		}
+	}
+	if node.Intent == "" {
+		node.Intent = node.Title
+	}
+	for i := range node.Children {
+		enrichActiveAgent(&node.Children[i])
+	}
 }
