@@ -116,45 +116,32 @@ func parseLooseReasoningTokensFromUsageRawJSON(raw string) int64 {
 	return 0
 }
 
-func parseLooseCacheWriteTokensFromUsageRawJSON(raw string) int64 {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0
-	}
+// parseCacheCounter accepts the usage variants returned by compatible endpoints.
+// Missing and malformed counters remain unknown, while explicit zero is retained.
+func parseCacheCounter(raw string, names ...string) int64 {
 	var top map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(raw), &top); err != nil {
-		return 0
+	if json.Unmarshal([]byte(raw), &top) != nil {
+		return -1
 	}
-	tryNum := func(msg json.RawMessage) int64 {
-		var n int64
-		if json.Unmarshal(msg, &n) == nil && n > 0 {
-			return n
-		}
-		var f float64
-		if json.Unmarshal(msg, &f) == nil && f > 0 {
-			return int64(f + 0.5)
-		}
-		return 0
-	}
-	if n := tryNum(top["cache_creation_input_tokens"]); n > 0 {
-		return n
-	}
+	objects := []map[string]json.RawMessage{top}
 	for _, key := range []string{"prompt_tokens_details", "input_tokens_details"} {
-		msg, ok := top[key]
-		if !ok {
-			continue
-		}
 		var details map[string]json.RawMessage
-		if json.Unmarshal(msg, &details) != nil {
-			continue
+		if json.Unmarshal(top[key], &details) == nil {
+			objects = append(objects, details)
 		}
-		for _, detailKey := range []string{"cache_write_tokens", "cache_creation_input_tokens"} {
-			if n := tryNum(details[detailKey]); n > 0 {
+	}
+	for _, obj := range objects {
+		for _, key := range names {
+			var n int64
+			if string(obj[key]) != "null" && json.Unmarshal(obj[key], &n) == nil && n >= 0 {
 				return n
 			}
 		}
 	}
-	return 0
+	return -1
+}
+func parseLooseCacheWriteTokensFromUsageRawJSON(raw string) int64 {
+	return parseCacheCounter(raw, "cache_creation_input_tokens", "cache_write_tokens")
 }
 
 func parseProxyCorrectionFromChunkRawJSON(raw string) string {

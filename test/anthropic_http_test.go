@@ -125,8 +125,8 @@ func TestAnthropicBackend_StreamText_MockHTTP(t *testing.T) {
 	if visible.String() != "Hello world" {
 		t.Fatalf("visible: got %q", visible.String())
 	}
-	if usage.PromptTokens != 47 {
-		t.Fatalf("prompt tokens: got %d want 47", usage.PromptTokens)
+	if usage.PromptTokens != 50 {
+		t.Fatalf("prompt tokens: got %d want 50", usage.PromptTokens)
 	}
 	if usage.CachedPromptTokens != 5 {
 		t.Fatalf("cached: got %d want 5", usage.CachedPromptTokens)
@@ -180,15 +180,49 @@ func TestAnthropicBackend_StreamTurn_MockHTTP_TextAndTool(t *testing.T) {
 		if body["stream"] != true {
 			t.Fatalf("stream: got %v", body["stream"])
 		}
+		messages, _ := body["messages"].([]any)
+		if len(messages) == 0 {
+			t.Fatal("missing messages")
+		}
+		last, _ := messages[len(messages)-1].(map[string]any)
+		content, _ := last["content"].([]any)
+		if len(content) == 0 {
+			t.Fatal("missing content")
+		}
+		block, _ := content[len(content)-1].(map[string]any)
+		cache, _ := block["cache_control"].(map[string]any)
+		if cache["type"] != "ephemeral" {
+			t.Fatalf("cache_control: %#v", block["cache_control"])
+		}
+		system, _ := body["system"].([]any)
+		if len(system) == 0 {
+			t.Fatal("missing cached system")
+		}
+		sysBlock, _ := system[len(system)-1].(map[string]any)
+		sysCache, _ := sysBlock["cache_control"].(map[string]any)
+		if sysCache["type"] != "ephemeral" {
+			t.Fatalf("system cache_control: %#v", sysBlock["cache_control"])
+		}
+		tools, _ := body["tools"].([]any)
+		if len(tools) == 0 {
+			t.Fatal("missing tools")
+		}
+		tool, _ := tools[len(tools)-1].(map[string]any)
+		toolCache, _ := tool["cache_control"].(map[string]any)
+		if toolCache["type"] != "ephemeral" {
+			t.Fatalf("tool cache_control: %#v", tool["cache_control"])
+		}
 	}, sse, 0)
 	defer srv.Close()
 
 	backend := llm.NewAnthropicBackend(srv.URL, llm.AnthropicAuthFromAPIKey("test-key"))
 	turn, err := backend.StreamTurn(context.Background(), llm.TurnRequest{
-		Model: "claude-test",
+		Model:  "claude-test",
+		System: "sys",
 		Messages: []chatstore.Message{
 			{Role: "user", Content: "run ls"},
 		},
+		Tools: []llm.ToolDef{{Name: "shell", Parameters: map[string]any{"type": "object"}}},
 	}, io.Discard, llm.StreamOpts{})
 	if err != nil {
 		t.Fatal(err)

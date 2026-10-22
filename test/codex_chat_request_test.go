@@ -125,6 +125,7 @@ func TestBuildCodexInputImageOnlyUserMessage(t *testing.T) {
 	if len(input) != 1 {
 		t.Fatalf("want image-only user message preserved, got %d items", len(input))
 	}
+	chat["prompt_cache_key"] = " chat-1 "
 	body, err := codexchat.ChatCompletionToCodexBody(chat)
 	if err != nil {
 		t.Fatal(err)
@@ -132,6 +133,9 @@ func TestBuildCodexInputImageOnlyUserMessage(t *testing.T) {
 	var decoded map[string]any
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		t.Fatal(err)
+	}
+	if decoded["prompt_cache_key"] != "chat-1" {
+		t.Fatalf("prompt_cache_key: %#v", decoded["prompt_cache_key"])
 	}
 	rawInput, ok := decoded["input"].([]any)
 	if !ok || len(rawInput) != 1 {

@@ -27,6 +27,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 	skipLeadingNL := true
 	var leadBuf string
 	var reasoningFromUsage int64
+	var usageRaw string
 	var tTTFT time.Time
 	var tFirstVisible time.Time
 	var sawReasoning bool
@@ -38,6 +39,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		}
 		ch := stream.Current()
 		if ch.JSON.Usage.Valid() {
+			usageRaw = ch.Usage.RawJSON()
 			rt := ch.Usage.CompletionTokensDetails.ReasoningTokens
 			if rt == 0 {
 				rt = parseLooseReasoningTokensFromUsageRawJSON(ch.Usage.RawJSON())
@@ -116,7 +118,7 @@ func StreamText(ctx context.Context, client openai.Client, params openai.ChatCom
 		}
 	}
 	tEnd := time.Now()
-	u := buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)
+	u := buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd, usageRaw)
 	if sawReasoning && !printedThought && u.ThoughtSecs > 0 {
 		writeThoughtForLine(reasonSink, u.ThoughtSecs)
 	}
@@ -135,6 +137,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	skipLeadingNL := true
 	var leadBuf string
 	var reasoningFromUsage int64
+	var usageRaw string
 	var reasoningBuf strings.Builder
 	var tTTFT time.Time
 	var tFirstVisible time.Time
@@ -153,6 +156,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			opts.OnDelta("cursor_tool", ev)
 		}
 		if ch.JSON.Usage.Valid() {
+			usageRaw = ch.Usage.RawJSON()
 			rt := ch.Usage.CompletionTokensDetails.ReasoningTokens
 			if rt == 0 {
 				rt = parseLooseReasoningTokensFromUsageRawJSON(ch.Usage.RawJSON())
@@ -262,7 +266,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 		out.FinishReason = apitype.FinishReasonToolCalls
 	}
 	out.ProxyToolCorrection = proxyToolCorrection
-	out.Usage = buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd)
+	out.Usage = buildUsageStats(acc, reasoningFromUsage, tStart, tTTFT, tFirstVisible, tEnd, usageRaw)
 	if !printedThought && strings.TrimSpace(out.ReasoningText) != "" {
 		writeThoughtForLine(reasonSink, out.Usage.ThoughtSecs)
 	}
@@ -288,8 +292,8 @@ func AggregateConsecutiveTurnUsage(usages []apitype.UsageStats) apitype.UsageSta
 	out.TurnWallSecs = 0
 	for _, u := range usages {
 		out.PromptTokens += u.PromptTokens
-		out.CachedPromptTokens += u.CachedPromptTokens
-		out.CacheCreationPromptTokens += u.CacheCreationPromptTokens
+		out.CachedPromptTokens = chatstore.SumCacheTokens(out.CachedPromptTokens, u.CachedPromptTokens)
+		out.CacheCreationPromptTokens = chatstore.SumCacheTokens(out.CacheCreationPromptTokens, u.CacheCreationPromptTokens)
 		out.ReasoningTokens += u.ReasoningTokens
 		out.ResponseTokens += u.ResponseTokens
 		if u.TotalTokens > 0 {
@@ -322,7 +326,7 @@ func UsageTokensDisplayParts(system string, msgs []chatstore.Message, u apitype.
 	return
 }
 
-func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int64) apitype.UsageStats {
+func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int64, usageRaw string) apitype.UsageStats {
 	comp := acc.Usage.CompletionTokens
 	resp := comp - reasoningTok
 	if resp < 0 {
@@ -330,16 +334,16 @@ func usageFromAccumulator(acc openai.ChatCompletionAccumulator, reasoningTok int
 	}
 	return apitype.UsageStats{
 		PromptTokens:              acc.Usage.PromptTokens,
-		CachedPromptTokens:        acc.Usage.PromptTokensDetails.CachedTokens,
-		CacheCreationPromptTokens: parseLooseCacheWriteTokensFromUsageRawJSON(acc.Usage.RawJSON()),
+		CachedPromptTokens:        parseCacheCounter(usageRaw, "cached_tokens", "cache_read_input_tokens", "cache_read_tokens", "prompt_cache_hit_tokens"),
+		CacheCreationPromptTokens: parseLooseCacheWriteTokensFromUsageRawJSON(usageRaw),
 		ReasoningTokens:           reasoningTok,
 		ResponseTokens:            resp,
 		TotalTokens:               acc.Usage.TotalTokens,
 	}
 }
 
-func buildUsageStats(acc openai.ChatCompletionAccumulator, reasoningTok int64, tStart, tTTFT, tFirstVisible, tEnd time.Time) apitype.UsageStats {
-	u := usageFromAccumulator(acc, reasoningTok)
+func buildUsageStats(acc openai.ChatCompletionAccumulator, reasoningTok int64, tStart, tTTFT, tFirstVisible, tEnd time.Time, usageRaw string) apitype.UsageStats {
+	u := usageFromAccumulator(acc, reasoningTok, usageRaw)
 	u.TurnWallSecs = tEnd.Sub(tStart).Seconds()
 	if !tFirstVisible.IsZero() {
 		u.ThoughtSecs = tFirstVisible.Sub(tStart).Seconds()

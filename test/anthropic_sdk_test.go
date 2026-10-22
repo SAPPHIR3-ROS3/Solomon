@@ -73,7 +73,7 @@ func TestAnthropicSDKThinkingToolContinuation(t *testing.T) {
 	if len(turn.ToolCalls) != 1 || turn.ToolCalls[0].Name != "read" || turn.ToolCalls[0].Arguments != `{"path":"README.md"}` {
 		t.Fatalf("tools=%+v", turn.ToolCalls)
 	}
-	if turn.Usage.PromptTokens != 15 || turn.Usage.CachedPromptTokens != 5 || turn.Usage.CacheCreationPromptTokens != 3 {
+	if turn.Usage.PromptTokens != 18 || turn.Usage.CachedPromptTokens != 5 || turn.Usage.CacheCreationPromptTokens != 3 {
 		t.Fatalf("usage=%+v", turn.Usage)
 	}
 	if len(turn.AnthropicThinking) != 1 {

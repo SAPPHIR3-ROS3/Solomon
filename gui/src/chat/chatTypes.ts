@@ -12,6 +12,7 @@ export type ChatStats = {
   provider?: string;
   model?: string;
   contextTokens: number;
+  /** -1 (or absent) means the provider did not report this counter. */
   cachedPromptTokens?: number;
   cacheCreationPromptTokens?: number;
   outputTokensPerSecond: number;

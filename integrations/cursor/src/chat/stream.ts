@@ -63,6 +63,7 @@ export async function streamCompletion(
         inputTokens: update.usage.inputTokens ?? 0,
         outputTokens: update.usage.outputTokens ?? 0,
         cacheReadTokens: update.usage.cacheReadTokens,
+        cacheWriteTokens: update.usage.cacheWriteTokens,
       };
     },
   };

@@ -32,9 +32,10 @@ type messageParam struct {
 }
 
 type toolParam struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"input_schema"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description,omitempty"`
+	InputSchema  map[string]any `json:"input_schema"`
+	CacheControl map[string]any `json:"cache_control,omitempty"`
 }
 
 func buildTools(defs []apitype.ToolDef) []toolParam {
@@ -204,6 +205,38 @@ func applyOAuthFastMode(body map[string]any, cfg *config.Root) {
 	if provider != nil && provider.IsClaudeSub() {
 		body["speed"] = "fast"
 	}
+}
+
+func applyPromptCache(body map[string]any) {
+	if body == nil {
+		return
+	}
+	switch system := body["system"].(type) {
+	case string:
+		if text := strings.TrimSpace(system); text != "" {
+			body["system"] = []contentBlock{{"type": "text", "text": text, "cache_control": ephemeralCache()}}
+		}
+	case []contentBlock:
+		markLastBlock(system)
+	}
+	if tools, ok := body["tools"].([]toolParam); ok && len(tools) > 0 {
+		tools[len(tools)-1].CacheControl = ephemeralCache()
+		body["tools"] = tools
+	}
+	if messages, ok := body["messages"].([]messageParam); ok && len(messages) > 0 {
+		markLastBlock(messages[len(messages)-1].Content)
+	}
+}
+
+func ephemeralCache() map[string]any {
+	return map[string]any{"type": "ephemeral"}
+}
+
+func markLastBlock(blocks []contentBlock) {
+	if len(blocks) == 0 {
+		return
+	}
+	blocks[len(blocks)-1]["cache_control"] = ephemeralCache()
 }
 
 func buildOAuthSystem(system string, messages []messageParam) []contentBlock {

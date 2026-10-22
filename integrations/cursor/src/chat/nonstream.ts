@@ -48,6 +48,7 @@ export async function handleNonStream(
         inputTokens: update.usage.inputTokens ?? 0,
         outputTokens: update.usage.outputTokens ?? 0,
         cacheReadTokens: update.usage.cacheReadTokens,
+        cacheWriteTokens: update.usage.cacheWriteTokens,
       };
     },
   };

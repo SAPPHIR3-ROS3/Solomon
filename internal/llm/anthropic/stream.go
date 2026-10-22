@@ -66,6 +66,7 @@ func (b *Backend) buildBody(req apitype.TurnRequest, stream bool) map[string]any
 		body["tools"] = tools
 	}
 	shapeOAuthBody(body, req, b.auth)
+	applyPromptCache(body)
 	return body
 }
 
@@ -82,6 +83,7 @@ func (b *Backend) buildSimpleBody(req apitype.SimpleCompletionRequest, stream bo
 		body["system"] = s
 	}
 	shapeOAuthSimpleBody(body, req, b.auth)
+	applyPromptCache(body)
 	return body
 }
 
@@ -219,6 +221,12 @@ func applyStreamEvent(st *streamState, ev sdk.MessageStreamEventUnion, contentOu
 	case "message_start":
 		u := ev.Message.Usage
 		st.usage = UsagePayload{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheReadInputTokens: u.CacheReadInputTokens, CacheCreationInputTokens: u.CacheCreationInputTokens}
+		if !u.JSON.CacheReadInputTokens.Valid() {
+			st.usage.CacheReadInputTokens = -1
+		}
+		if !u.JSON.CacheCreationInputTokens.Valid() {
+			st.usage.CacheCreationInputTokens = -1
+		}
 	case "message_delta":
 		u := ev.Usage
 		if u.JSON.OutputTokens.Valid() {

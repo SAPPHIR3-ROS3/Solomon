@@ -71,8 +71,14 @@ func UsageTokensLine(contextPromptTok, lastUserPromptTok, reasoningTokens, respo
 		WrapThinking(strconv.FormatInt(reasoningTokens, 10)) + "+" +
 		WrapAssistant(strconv.FormatInt(responseTokens, 10)) + "=" +
 		WrapWhite(strconv.FormatInt(totalTokens, 10))
-	if cachedPromptTokens > 0 || cacheCreationPromptTokens > 0 {
-		line += fmt.Sprintf("\tcache read:%s write:%s", strconv.FormatInt(cachedPromptTokens, 10), strconv.FormatInt(cacheCreationPromptTokens, 10))
+	{
+		cacheCount := func(n int64) string {
+			if n < 0 {
+				return "n/a"
+			}
+			return strconv.FormatInt(n, 10)
+		}
+		line += fmt.Sprintf("\tcache read:%s write:%s", cacheCount(cachedPromptTokens), cacheCount(cacheCreationPromptTokens))
 	}
 	line += fmt.Sprintf("\t%st/s ttft:%ss pp:%st/s", formatFloatMax3(outputTPS), formatFloatMax3(ttftSecs), formatFloatMax3(promptTPS))
 	line += "\t worked for " + FormatWorkedDuration(turnWallSecs)

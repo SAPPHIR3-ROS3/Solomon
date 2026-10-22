@@ -152,6 +152,25 @@ func clampCursorReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, e
 	}
 }
 
+func ApplyPromptCache(p *openai.ChatCompletionNewParams, key string) {
+	key = strings.TrimSpace(key)
+	if p == nil || key == "" {
+		return
+	}
+	extras := p.ExtraFields()
+	if extras == nil {
+		extras = map[string]any{}
+	} else {
+		copied := make(map[string]any, len(extras)+1)
+		for k, v := range extras {
+			copied[k] = v
+		}
+		extras = copied
+	}
+	extras["prompt_cache_key"] = key
+	p.SetExtraFields(extras)
+}
+
 func applyChatExtraFields(p *openai.ChatCompletionNewParams, extras map[string]any) {
 	if len(extras) == 0 {
 		return
@@ -365,6 +384,7 @@ func PopulateAssistantTurnUsage(dst *chatstore.Message, system string, msgsPrior
 	dst.ResponseTokens = u.ResponseTokens
 	dst.TurnTotalTokens = u.TotalTokens
 	dst.PromptTokens = u.PromptTokens
+	dst.CacheUsageTracked = true
 	dst.CachedPromptTokens = u.CachedPromptTokens
 	dst.CacheCreationPromptTokens = u.CacheCreationPromptTokens
 	dst.OutputTPS = u.OutputTPS

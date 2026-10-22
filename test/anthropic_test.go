@@ -49,8 +49,8 @@ func TestNormalizeAnthropicUsage(t *testing.T) {
 		CacheReadInputTokens:     30,
 		CacheCreationInputTokens: 10,
 	})
-	if u.PromptTokens != 130 {
-		t.Fatalf("prompt tokens: got %d want 130", u.PromptTokens)
+	if u.PromptTokens != 140 {
+		t.Fatalf("prompt tokens: got %d want 140", u.PromptTokens)
 	}
 	if u.CachedPromptTokens != 30 {
 		t.Fatalf("cached: got %d want 30", u.CachedPromptTokens)

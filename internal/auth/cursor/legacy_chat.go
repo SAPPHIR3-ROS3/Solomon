@@ -94,7 +94,7 @@ func encodeLegacyChatRequest(model string, turns []ChatTurn) []byte {
 }
 
 func readUnifiedChatResponse(reader io.Reader, out io.Writer) (ChatResult, error) {
-	var result ChatResult
+	result := ChatResult{Usage: ChatUsage{CachedPromptTokens: -1, CacheWriteTokens: -1}}
 	var text strings.Builder
 	for {
 		var header [5]byte
@@ -290,7 +290,7 @@ func readLegacyChatResponse(reader io.Reader, out io.Writer) (ChatResult, error)
 	if out != nil {
 		_, _ = io.WriteString(out, text)
 	}
-	return ChatResult{Content: text, FinishReason: "stop"}, nil
+	return ChatResult{Content: text, FinishReason: "stop", Usage: ChatUsage{CachedPromptTokens: -1, CacheWriteTokens: -1}}, nil
 }
 
 func parseLegacyChatText(raw []byte) string {

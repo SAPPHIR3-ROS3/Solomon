@@ -271,7 +271,7 @@ func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string
 			return cursorauth.ChatResult{}, err
 		}
 	}
-	result := cursorauth.ChatResult{FinishReason: FinishReasonStop}
+	result := cursorauth.ChatResult{FinishReason: FinishReasonStop, Usage: cursorauth.ChatUsage{CachedPromptTokens: -1, CacheWriteTokens: -1}}
 	for {
 		event, ok := session.Next(ctx)
 		if !ok {

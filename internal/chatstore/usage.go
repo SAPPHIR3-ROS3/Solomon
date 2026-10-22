@@ -58,8 +58,8 @@ func ApplyTurnUsageDisplayToLastAssistant(s *Session, ctxTok, usrTok int64, ctxE
 func turnUsageCallFromMessage(m Message) turnUsageCall {
 	return turnUsageCall{
 		promptTokens:              m.PromptTokens,
-		cachedPromptTokens:        m.CachedPromptTokens,
-		cacheCreationPromptTokens: m.CacheCreationPromptTokens,
+		cachedPromptTokens:        CacheTokenCount(m.CachedPromptTokens, m.CacheUsageTracked),
+		cacheCreationPromptTokens: CacheTokenCount(m.CacheCreationPromptTokens, m.CacheUsageTracked),
 		reasoningTokens:           m.ReasoningTokens,
 		responseTokens:            m.ResponseTokens,
 		totalTokens:               m.TurnTotalTokens,
@@ -91,8 +91,8 @@ func aggregateTurnUsageCalls(calls []turnUsageCall) (turnUsageCall, bool) {
 	out.turnWallSecs = 0
 	for _, c := range calls {
 		out.promptTokens += c.promptTokens
-		out.cachedPromptTokens += c.cachedPromptTokens
-		out.cacheCreationPromptTokens += c.cacheCreationPromptTokens
+		out.cachedPromptTokens = SumCacheTokens(out.cachedPromptTokens, c.cachedPromptTokens)
+		out.cacheCreationPromptTokens = SumCacheTokens(out.cacheCreationPromptTokens, c.cacheCreationPromptTokens)
 		out.userPromptTokens += c.userPromptTokens
 		out.reasoningTokens += c.reasoningTokens
 		out.responseTokens += c.responseTokens
@@ -241,7 +241,7 @@ func StoredUsageLineForTurnRange(msgs []Message, start, end int) (contextTok, la
 	if len(calls) == 0 && savedDisplay != nil {
 		m := savedDisplay
 		return m.TurnContextTokens, m.TurnUserTokens, m.TurnReasonTokens, m.TurnRespTokens, m.TurnTotalDisplay,
-			m.TurnCachedPromptTokens, m.TurnCacheCreationPromptTokens,
+			CacheTokenCount(m.TurnCachedPromptTokens, m.CacheUsageTracked), CacheTokenCount(m.TurnCacheCreationPromptTokens, m.CacheUsageTracked),
 			m.TurnOutputTPS, m.TurnTTFTSecs, m.TurnPromptTPS, m.TurnWallDisplay, m.TurnContextEst, true
 	}
 	agg, found := aggregateTurnUsageCalls(calls)
@@ -255,6 +255,22 @@ func StoredUsageLineForTurnRange(msgs []Message, start, end int) (contextTok, la
 }
 
 func assistantMessageHasRawUsage(m Message) bool {
-	return m.PromptTokens != 0 || m.CachedPromptTokens != 0 || m.CacheCreationPromptTokens != 0 ||
+	return m.CacheUsageTracked || m.PromptTokens != 0 || m.CachedPromptTokens != 0 || m.CacheCreationPromptTokens != 0 ||
 		m.UserPromptTokens != 0 || m.ReasoningTokens != 0 || m.ResponseTokens != 0 || m.TurnTotalTokens != 0
+}
+
+// CacheTokenCount distinguishes legacy absent zero counters from reported zero.
+func CacheTokenCount(value int64, reported bool) int64 {
+	if value == 0 && !reported {
+		return -1
+	}
+	return value
+}
+
+// SumCacheTokens returns unknown when any call lacks the counter.
+func SumCacheTokens(a, b int64) int64 {
+	if a < 0 || b < 0 {
+		return -1
+	}
+	return a + b
 }

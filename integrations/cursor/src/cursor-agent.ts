@@ -12,7 +12,7 @@ import type { ProxyConfig } from "./chat/index.js";
 export type AgentSendOpts = {
   model: ModelSelection;
   onDelta: (arg: {
-    update: { type: string; usage?: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number } };
+    update: { type: string; usage?: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number } };
   }) => Promise<void>;
 };
 

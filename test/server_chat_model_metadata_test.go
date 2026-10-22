@@ -26,6 +26,7 @@ func TestMessageStatsPreserveRecordedTarget(t *testing.T) {
 	session.Messages = []chatstore.Message{
 		{Role: "assistant", Content: "hello", Provider: "custom-provider", Model: "recorded-model"},
 		{Role: "assistant", Content: "legacy answer", ResponseTokens: 5},
+		{Role: "assistant", Content: "reported zero", ResponseTokens: 1, CacheUsageTracked: true},
 	}
 	if err := chatstore.WriteSession(created.Project.ID, session); err != nil {
 		t.Fatal(err)
@@ -38,16 +39,18 @@ func TestMessageStatsPreserveRecordedTarget(t *testing.T) {
 	var opened struct {
 		Messages []struct {
 			Stats *struct {
-				Provider       string `json:"provider"`
-				Model          string `json:"model"`
-				ResponseTokens int64  `json:"responseTokens"`
+				Provider                  string `json:"provider"`
+				Model                     string `json:"model"`
+				ResponseTokens            int64  `json:"responseTokens"`
+				CachedPromptTokens        int64  `json:"cachedPromptTokens"`
+				CacheCreationPromptTokens int64  `json:"cacheCreationPromptTokens"`
 			} `json:"stats"`
 		} `json:"messages"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&opened); err != nil {
 		t.Fatal(err)
 	}
-	if len(opened.Messages) != 2 || opened.Messages[0].Stats == nil || opened.Messages[1].Stats == nil {
+	if len(opened.Messages) != 3 || opened.Messages[0].Stats == nil || opened.Messages[1].Stats == nil {
 		t.Fatalf("missing message statistics: %+v", opened.Messages)
 	}
 	stats := opened.Messages[0].Stats
@@ -57,5 +60,12 @@ func TestMessageStatsPreserveRecordedTarget(t *testing.T) {
 	legacy := opened.Messages[1].Stats
 	if legacy.Provider != "" || legacy.Model != "" || legacy.ResponseTokens != 5 {
 		t.Fatalf("legacy stats: %+v", legacy)
+	}
+	if legacy.CachedPromptTokens != -1 || legacy.CacheCreationPromptTokens != -1 {
+		t.Fatalf("legacy cache must be unknown: %+v", legacy)
+	}
+	zero := opened.Messages[2].Stats
+	if zero == nil || zero.CachedPromptTokens != 0 || zero.CacheCreationPromptTokens != 0 {
+		t.Fatalf("reported zero lost: %+v", zero)
 	}
 }

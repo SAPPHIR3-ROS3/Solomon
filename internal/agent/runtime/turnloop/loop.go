@@ -113,6 +113,12 @@ func Run(ctx context.Context, h Host) error {
 		}
 		reasoningEffort := h.Config().ReasoningEffortDisplayLabel()
 		fastMode := h.Config().FastModeEnabledForProvider(h.Provider())
+		var cacheKey string
+		h.MutateSession(func(s *chatstore.Session) {
+			if s != nil {
+				cacheKey = strings.TrimSpace(s.ID)
+			}
+		})
 		turnReq := llm.TurnRequest{
 			Cfg:                   h.Config(),
 			Model:                 h.ModelName(),
@@ -122,6 +128,7 @@ func Run(ctx context.Context, h Host) error {
 			Tools:                 toolDefs,
 			ParallelToolCalls:     true,
 			ForceDisableReasoning: false,
+			CacheKey:              cacheKey,
 		}
 		if h.Config().ReasoningEffortIsNone() {
 			turnReq.ForceDisableReasoning = true

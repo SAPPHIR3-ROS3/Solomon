@@ -150,8 +150,8 @@ function aggregateAssistantStats(messages: ChatMessage[]): ChatStats | undefined
   const responseTokens = turnAggregate?.responseTokens ?? stats.reduce((total, current) => total + current.responseTokens, 0);
   const contextTokens = turnAggregate?.contextTokens ?? stats.reduce((total, current) => total + current.contextTokens, 0);
   const userTokens = turnAggregate?.userTokens ?? stats.reduce((total, current) => total + current.userTokens, 0);
-  const cachedPromptTokens = turnAggregate?.cachedPromptTokens ?? stats.reduce((total, current) => total + (current.cachedPromptTokens ?? 0), 0);
-  const cacheCreationPromptTokens = turnAggregate?.cacheCreationPromptTokens ?? stats.reduce((total, current) => total + (current.cacheCreationPromptTokens ?? 0), 0);
+  const cachedPromptTokens = turnAggregate?.cachedPromptTokens ?? stats.reduce((total, current) => total < 0 || (current.cachedPromptTokens ?? -1) < 0 ? -1 : total + current.cachedPromptTokens!, 0);
+  const cacheCreationPromptTokens = turnAggregate?.cacheCreationPromptTokens ?? stats.reduce((total, current) => total < 0 || (current.cacheCreationPromptTokens ?? -1) < 0 ? -1 : total + current.cacheCreationPromptTokens!, 0);
   const outputTokensPerSecond = turnAggregate?.outputTokensPerSecond ?? average(stats.map((current) => current.outputTokensPerSecond));
   const promptTokensPerSecond = turnAggregate?.promptTokensPerSecond ?? average(stats.map((current) => current.promptTokensPerSecond));
   const totalTokens = turnAggregate?.totalTokens ?? stats.reduce((total, current) => total + current.totalTokens, 0);

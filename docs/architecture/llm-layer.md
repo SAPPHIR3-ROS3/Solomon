@@ -124,7 +124,7 @@ Tests: [`test/api_resilience_test.go`](../../test/api_resilience_test.go), [`tes
 
 ## Usage stats
 
-`UsageStats` is provider-agnostic. Anthropic maps `input_tokens`, `output_tokens`, `cache_read_input_tokens`, and `cache_creation_input_tokens` (creation stored but not shown in the REPL footer v1).
+`UsageStats` is provider-agnostic. Anthropic maps `input_tokens`, `output_tokens`, `cache_read_input_tokens`, and `cache_creation_input_tokens` (read and creation included in usage displays).
 
 ## Images
 
@@ -168,3 +168,14 @@ sequenceDiagram
 - [Sessions and storage](sessions-and-storage.md)
 - [Configuration](../user-guide/configuration.md)
 - [Supporting packages — ChatGPT Sub auth](supporting-packages.md#chatgpt-sub-auth)
+
+Cache usage counters distinguish an explicit provider zero from missing usage:
+`CachedPromptTokens` and `CacheCreationPromptTokens` use `-1` for unavailable
+values. OpenAI streaming reads the original usage event, because the SDK
+accumulator does not preserve its raw JSON. Anthropic and Cursor retain field
+presence as well. Unknown counters propagate through turn sums; a partial sum
+is not displayed as a complete total. Messages persist `cache_usage_tracked`
+so explicit zero survives JSON `omitempty`; legacy zero without this marker
+is unknown. The chat API uses the same `-1` sentinel, shown as `—` in the GUI
+and `n/a` in terminal and transcript output. Anthropic prompt totals include
+ordinary input, cache reads, and cache creation tokens.

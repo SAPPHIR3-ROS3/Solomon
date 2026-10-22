@@ -25,6 +25,7 @@ func (b *OpenAIBackend) buildParams(req TurnRequest) openai.ChatCompletionNewPar
 		ParallelToolCalls: param.NewOpt(req.ParallelToolCalls),
 	}
 	ApplyProviderTurnParamsWithEffort(ProtocolOpenAI, req.Cfg, &p, req.ForceDisableReasoning, req.ReasoningEffort)
+	ApplyPromptCache(&p, req.CacheKey)
 	return p
 }
 
@@ -41,6 +42,7 @@ func (b *OpenAIBackend) StreamText(ctx context.Context, req SimpleCompletionRequ
 		},
 	}
 	ApplyProviderSimpleParams(ProtocolOpenAI, req.Cfg, &p, req.ForceDisableReasoning)
+	ApplyPromptCache(&p, req.CacheKey)
 	return StreamText(ctx, b.Client, p, contentOut, opts)
 }
 
@@ -53,6 +55,7 @@ func (b *OpenAIBackend) CompleteText(ctx context.Context, req SimpleCompletionRe
 		},
 	}
 	ApplyProviderSimpleParams(ProtocolOpenAI, req.Cfg, &p, req.ForceDisableReasoning)
+	ApplyPromptCache(&p, req.CacheKey)
 	resp, err := b.Client.Chat.Completions.New(ctx, p)
 	if err != nil {
 		return "", err

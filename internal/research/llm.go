@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/apitype"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 type backendLLM struct {
@@ -47,5 +48,6 @@ func mergeUsage(dst *apitype.UsageStats, src apitype.UsageStats) {
 	dst.ResponseTokens += src.ResponseTokens
 	dst.TotalTokens += src.TotalTokens
 	dst.ReasoningTokens += src.ReasoningTokens
-	dst.CachedPromptTokens += src.CachedPromptTokens
+	dst.CachedPromptTokens = chatstore.SumCacheTokens(dst.CachedPromptTokens, src.CachedPromptTokens)
+	dst.CacheCreationPromptTokens = chatstore.SumCacheTokens(dst.CacheCreationPromptTokens, src.CacheCreationPromptTokens)
 }

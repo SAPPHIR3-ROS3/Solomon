@@ -42,6 +42,7 @@ type TurnRequest struct {
 	ParallelToolCalls     bool
 	ForceDisableReasoning bool
 	ReasoningEffort       string
+	CacheKey              string
 }
 
 type SimpleCompletionRequest struct {
@@ -50,6 +51,7 @@ type SimpleCompletionRequest struct {
 	System                string
 	User                  string
 	ForceDisableReasoning bool
+	CacheKey              string
 }
 
 type AssistantToolCall struct {
@@ -58,6 +60,7 @@ type AssistantToolCall struct {
 	Arguments string
 }
 
+// Cache counters use -1 when the provider does not report a value. Zero is explicit.
 type UsageStats struct {
 	PromptTokens              int64
 	CachedPromptTokens        int64

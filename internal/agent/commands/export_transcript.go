@@ -156,8 +156,14 @@ func exportPlainUsageLine(contextPromptTok, lastUserPromptTok, reasoningTokens, 
 		strconv.FormatInt(reasoningTokens, 10) + "+" +
 		strconv.FormatInt(responseTokens, 10) + "=" +
 		strconv.FormatInt(totalTokens, 10)
-	if cachedPromptTokens > 0 || cacheCreationPromptTokens > 0 {
-		line += fmt.Sprintf("\tcache read:%d write:%d", cachedPromptTokens, cacheCreationPromptTokens)
+	{
+		cacheCount := func(n int64) string {
+			if n < 0 {
+				return "n/a"
+			}
+			return strconv.FormatInt(n, 10)
+		}
+		line += fmt.Sprintf("\tcache read:%s write:%s", cacheCount(cachedPromptTokens), cacheCount(cacheCreationPromptTokens))
 	}
 	line += fmt.Sprintf("\t%st/s ttft:%ss pp:%st/s", formatExportFloatMax3(outputTPS), formatExportFloatMax3(ttftSecs), formatExportFloatMax3(promptTPS))
 	line += "\t worked for " + formatExportWorkedDuration(turnWallSecs)

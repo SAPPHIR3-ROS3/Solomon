@@ -107,7 +107,7 @@ export function buildOpenAIUsage(
   const estResp = roughTokFromString(textBuf);
   let prompt = sdkUsage?.inputTokens ?? 0;
   let completion = sdkUsage?.outputTokens ?? 0;
-  const cached = sdkUsage?.cacheReadTokens ?? 0;
+  const cached = sdkUsage?.cacheReadTokens;
   if (prompt <= 0) {
     prompt = estPrompt;
   }
@@ -127,8 +127,12 @@ export function buildOpenAIUsage(
     completion_tokens: completion,
     total_tokens: total > 0 ? total : prompt + completion,
   };
-  if (cached > 0) {
+  if (cached !== undefined && Number.isFinite(cached) && cached >= 0) {
     out.prompt_tokens_details = { cached_tokens: cached };
+  }
+  const written = sdkUsage?.cacheWriteTokens;
+  if (written !== undefined && Number.isFinite(written) && written >= 0) {
+    out.cache_creation_input_tokens = written;
   }
   if (reasoning > 0) {
     out.completion_tokens_details = { reasoning_tokens: reasoning };

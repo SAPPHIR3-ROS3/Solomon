@@ -10,7 +10,13 @@ type UsagePayload struct {
 }
 
 func NormalizeUsage(u UsagePayload) apitype.UsageStats {
-	prompt := u.InputTokens + u.CacheReadInputTokens
+	prompt := u.InputTokens
+	if u.CacheReadInputTokens > 0 {
+		prompt += u.CacheReadInputTokens
+	}
+	if u.CacheCreationInputTokens > 0 {
+		prompt += u.CacheCreationInputTokens
+	}
 	total := prompt + u.OutputTokens
 	return apitype.UsageStats{
 		PromptTokens:              prompt,

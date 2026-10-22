@@ -152,8 +152,8 @@ func decodeAgentInteraction(data []byte) AgentEvent {
 		output := int64(agentWireVarint(usageFields, 2))
 		return AgentEvent{Ended: true, Usage: ChatUsage{
 			PromptTokens: input, CompletionTokens: output, TotalTokens: input + output,
-			CachedPromptTokens: int64(agentWireVarint(usageFields, 3)),
-			CacheWriteTokens:   int64(agentWireVarint(usageFields, 4)),
+			CachedPromptTokens: agentWireCacheCount(usageFields, 3),
+			CacheWriteTokens:   agentWireCacheCount(usageFields, 4),
 			ReasoningTokens:    int64(agentWireVarint(usageFields, 5)),
 		}}
 	default:
@@ -319,4 +319,13 @@ func decodeAgentTool(data []byte, base AgentExecRequest) AgentEvent {
 		ID: string(agentWireBytes(fields, 3)), Name: firstNonEmpty(string(agentWireBytes(fields, 5)), string(agentWireBytes(fields, 1))),
 		Arguments: string(encoded), ExecID: base.ExecID, ExecNumber: base.ID,
 	}}
+}
+
+func agentWireCacheCount(fields []agentWireField, number int) int64 {
+	for _, f := range fields {
+		if f.number == number && f.wire == 0 {
+			return int64(f.value)
+		}
+	}
+	return -1
 }

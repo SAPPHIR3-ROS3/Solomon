@@ -308,7 +308,7 @@ func FindByTitle(projectHex, title string) (*Session, error) {
 }
 
 func assistantMessageHasStoredUsage(m Message) bool {
-	return m.TurnDisplaySaved || m.PromptTokens != 0 || m.CachedPromptTokens != 0 || m.CacheCreationPromptTokens != 0 || m.UserPromptTokens != 0 || m.ReasoningTokens != 0 || m.ResponseTokens != 0 || m.TurnTotalTokens != 0 || m.TurnWallSecs != 0
+	return m.CacheUsageTracked || m.TurnDisplaySaved || m.PromptTokens != 0 || m.CachedPromptTokens != 0 || m.CacheCreationPromptTokens != 0 || m.UserPromptTokens != 0 || m.ReasoningTokens != 0 || m.ResponseTokens != 0 || m.TurnTotalTokens != 0 || m.TurnWallSecs != 0
 }
 
 var thinkBlockRes = []*regexp.Regexp{

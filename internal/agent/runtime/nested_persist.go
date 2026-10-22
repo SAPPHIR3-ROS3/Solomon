@@ -132,7 +132,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			provider, model = cfg.RoleProvider, cfg.RoleModel
 		}
 		fastMode := r.Cfg.FastModeEnabledForProvider(config.ProviderByName(r.Cfg, provider))
-		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable, effort, cfg)
+		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable, effort, cfg, id)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
 			flushUsageStats()

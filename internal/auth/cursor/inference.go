@@ -314,7 +314,7 @@ func inferenceString(data []byte, number uint64) (string, error) {
 // arbitrary protobuf strings would also emit reasoning, request IDs and final
 // response metadata as chat text.
 func readInferenceResponse(reader io.Reader, out io.Writer) (ChatResult, error) {
-	var result ChatResult
+	result := ChatResult{Usage: ChatUsage{CachedPromptTokens: -1, CacheWriteTokens: -1}}
 	var text strings.Builder
 	type toolAccumulator struct {
 		id       string
