@@ -79,6 +79,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/skills/` | Skill registry, install, search | [Skills and slash](skills-and-slash.md) |
 | `internal/checkpoint/` | Checkpoint sequences, labels, goto | [Checkpoints](checkpoints.md) |
 | `internal/checkpoint/staging/` | Byte snapshots for file restore | [Checkpoints](checkpoints.md) |
+| `internal/filechanges/` | Git snapshots of files changed during a chat turn | [Checkpoints](checkpoints.md) |
 | `internal/instructions/` | `AGENTS.md` / fallbacks loader | [Supporting packages](supporting-packages.md) |
 | `internal/search/` | Legacy web search backends plus the internal Exa/Parallel router and monthly balance state | [Supporting packages](supporting-packages.md) |
 | `internal/webfetch/` | Legacy HTTP fetch plus internal Exa/Parallel/native CloakBrowser fetch adapters and router | [Supporting packages](supporting-packages.md) |
@@ -180,6 +181,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/config/` | Core |
 | `internal/desktopgit/` | Support |
 | `internal/docs/` | Feature |
+| `internal/filechanges/` | Feature |
 | `internal/gitignore/` | Feature |
 | `internal/instructions/` | Feature |
 | `internal/integrations/claude/` | Integration |
