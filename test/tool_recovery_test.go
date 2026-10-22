@@ -1,6 +1,9 @@
-package chatstore
+package test
 
-import "testing"
+import (
+	. "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"testing"
+)
 
 func TestRepairInterruptedToolCalls(t *testing.T) {
 	s := &Session{Messages: []Message{

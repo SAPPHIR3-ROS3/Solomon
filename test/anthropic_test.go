@@ -17,8 +17,8 @@ func TestMessagesForAPI_OnlyLastAssistantKeepsReasoning(t *testing.T) {
 		{Role: "assistant", Content: "a2", ReasoningText: "think2"},
 	}
 	api := llm.MessagesForAPI(msgs)
-	if api[0].ReasoningText != "" {
-		t.Fatalf("first assistant should strip reasoning, got %q", api[0].ReasoningText)
+	if api[0].ReasoningText != "think1" {
+		t.Fatalf("earlier assistant reasoning must stay in the cached prefix, got %q", api[0].ReasoningText)
 	}
 	if api[2].ReasoningText != "think2" {
 		t.Fatalf("last assistant should keep reasoning, got %q", api[2].ReasoningText)

@@ -116,6 +116,11 @@ func BuildCodexInput(chat map[string]any) []any {
 				"type": "message", "role": "user", "content": contents,
 			})
 		case "assistant":
+			if enc, _ := mm["reasoning_encrypted_content"].(string); strings.TrimSpace(enc) != "" {
+				input = append(input, map[string]any{
+					"type": "reasoning", "encrypted_content": strings.TrimSpace(enc),
+				})
+			}
 			texts := collectTextSegments(mm["content"], false)
 			if len(texts) > 0 {
 				contents := make([]any, 0, len(texts))

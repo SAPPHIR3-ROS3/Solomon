@@ -23,8 +23,9 @@ type Snapshot struct {
 	locations map[string]string
 }
 
-func (s *Snapshot) Close()                   { _ = os.RemoveAll(s.dir) }
-func Capture(root string) (*Snapshot, error) { return CapturePaths(root, nil) }
+func (s *Snapshot) Close()                          { _ = os.RemoveAll(s.dir) }
+func (s *Snapshot) HasFileForTest(name string) bool { return s != nil && s.files[name] }
+func Capture(root string) (*Snapshot, error)        { return CapturePaths(root, nil) }
 
 // CapturePaths snapshots explicit tool targets, including ignored files and
 // files outside the project. No file is ever copied through a ../ temp path.

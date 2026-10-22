@@ -17,14 +17,14 @@ func MessageForAPI(m chatstore.Message, includeReasoning bool) chatstore.Message
 	}
 	cp := m
 	cp.ReasoningText = ""
+	cp.ReasoningEncrypted = ""
 	return cp
 }
 
 func MessagesForAPI(msgs []chatstore.Message) []chatstore.Message {
-	last := LastAssistantIndex(msgs)
 	out := make([]chatstore.Message, len(msgs))
 	for i, m := range msgs {
-		out[i] = MessageForAPI(m, i == last)
+		out[i] = MessageForAPI(m, true)
 	}
 	return out
 }

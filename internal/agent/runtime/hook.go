@@ -60,6 +60,10 @@ func (r *Runtime) ToolEnvForTest() *agenttools.Env {
 	return r.toolEnv(tooling.Invocation{})
 }
 
+func (r *Runtime) ToolEnvForInvocationForTest(inv tooling.Invocation) *agenttools.Env {
+	return r.toolEnv(inv)
+}
+
 func (r *Runtime) SystemPromptForTest(disableThinking bool) (string, error) {
 	return r.systemPrompt(disableThinking)
 }

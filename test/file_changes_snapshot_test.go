@@ -1,6 +1,7 @@
-package filechanges
+package test
 
 import (
+	. "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/filechanges"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,8 +81,8 @@ func TestFileChangesRespectGitIgnore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer snapshot.Close()
-	if snapshot.files["ignored.txt"] || !snapshot.files["visible.txt"] {
-		t.Fatalf("files: %v", snapshot.files)
+	if snapshot.HasFileForTest("ignored.txt") || !snapshot.HasFileForTest("visible.txt") {
+		t.Fatal("ignored or visible file classification failed")
 	}
 }
 
@@ -126,7 +127,7 @@ func TestFileChangesSelectedPathsSkipInaccessibleSiblings(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer all.Close()
-	if !all.files[filepath.Join("Desktop", "test.txt")] {
+	if !all.HasFileForTest(filepath.Join("Desktop", "test.txt")) {
 		t.Fatal("permission failure discarded readable files")
 	}
 }

@@ -184,6 +184,25 @@ func parseCursorToolEventFromChunkRawJSON(raw string) string {
 	return strings.TrimSpace(string(v))
 }
 
+func deltaStringField(rawJSON, key string) string {
+	if rawJSON == "" {
+		return ""
+	}
+	var m map[string]json.RawMessage
+	if json.Unmarshal([]byte(rawJSON), &m) != nil {
+		return ""
+	}
+	v, ok := m[key]
+	if !ok {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(v, &s) != nil {
+		return ""
+	}
+	return s
+}
+
 func deltaReasoningText(rawJSON string) string {
 	if rawJSON == "" {
 		return ""

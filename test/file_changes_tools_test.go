@@ -1,8 +1,9 @@
-package tools
+package test
 
 import (
 	"context"
 	"encoding/json"
+	. "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"os"

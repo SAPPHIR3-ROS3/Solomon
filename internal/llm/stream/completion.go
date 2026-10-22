@@ -139,6 +139,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	var reasoningFromUsage int64
 	var usageRaw string
 	var reasoningBuf strings.Builder
+	var reasoningEncrypted string
 	var tTTFT time.Time
 	var tFirstVisible time.Time
 	var printedThought bool
@@ -171,6 +172,9 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 			continue
 		}
 		delta := ch.Choices[0].Delta
+		if enc := strings.TrimSpace(deltaStringField(delta.RawJSON(), "reasoning_encrypted_content")); enc != "" {
+			reasoningEncrypted = enc
+		}
 		rs := deltaReasoningText(delta.RawJSON())
 		if rs != "" {
 			reasoningBuf.WriteString(rs)
@@ -242,6 +246,7 @@ func StreamAssistantTurn(ctx context.Context, client openai.Client, params opena
 	tEnd := time.Now()
 	var out apitype.AssistantTurnResult
 	out.ReasoningText = tooling.StripLegacyToolBlocks(strings.TrimSpace(streamio.NormalizeReasoningWhitespace(reasoningBuf.String())))
+	out.ReasoningEncrypted = reasoningEncrypted
 	if legacyStopped {
 		out.Content = streamTruncatedContent(contentOut, "")
 	} else if len(acc.Choices) > 0 {

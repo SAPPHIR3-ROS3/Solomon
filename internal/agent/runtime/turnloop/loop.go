@@ -92,20 +92,20 @@ func Run(ctx context.Context, h Host) error {
 	turnSeparatorPending := !h.MachineMode()
 	consecutiveProxyCorrections := 0
 	compileRetryState := CompileRetryState{}
-	for {
-		sys, err := h.SystemPrompt(h.Config().ReasoningEffortIsNone())
+	sys, err := h.SystemPrompt(h.Config().ReasoningEffortIsNone())
+	if err != nil {
+		return err
+	}
+	legacyTools := h.LegacyToolsEnabled()
+	var toolDefs []llm.ToolDef
+	if !h.LegacyToolsForced() {
+		tools, err := h.ToolParams()
 		if err != nil {
 			return err
 		}
-		legacyTools := h.LegacyToolsEnabled()
-		var toolDefs []llm.ToolDef
-		if !h.LegacyToolsForced() {
-			tools, err := h.ToolParams()
-			if err != nil {
-				return err
-			}
-			toolDefs = llm.ToolDefsFromOpenAI(tools)
-		}
+		toolDefs = llm.ToolDefsFromOpenAI(tools)
+	}
+	for {
 		msgs, imageFiles := h.SessionMessagesSnapshot()
 		provider := h.Config().Current.Provider
 		if p := h.Provider(); p != nil && p.Name != "" {
@@ -237,7 +237,7 @@ func Run(ctx context.Context, h Host) error {
 				proxyCorrection = fallback
 			}
 		}
-		ast := chatstore.Message{Provider: provider, Model: turnReq.Model, ReasoningEffort: reasoningEffort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText))}
+		ast := chatstore.Message{Provider: provider, Model: turnReq.Model, ReasoningEffort: reasoningEffort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText)), ReasoningEncrypted: strings.TrimSpace(turn.ReasoningEncrypted)}
 		ast.AnthropicThinking = turn.AnthropicThinking
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})

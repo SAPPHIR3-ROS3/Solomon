@@ -194,11 +194,21 @@ func NormalizeREPLBuffer(line []rune, pos int) ([]rune, int) {
 // MessageParams builds OpenAI API message params from chatstore messages.
 // If imageFiles is non-nil and contains entries for [img-<n>] placeholders
 // found in user messages, those placeholders are replaced with image content parts.
+func assistantCacheExtras(m chatstore.Message) map[string]any {
+	extras := map[string]any{}
+	if rt := strings.TrimSpace(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.ReasoningText)); rt != "" {
+		extras["reasoning_content"] = rt
+	}
+	if enc := strings.TrimSpace(m.ReasoningEncrypted); enc != "" {
+		extras["reasoning_encrypted_content"] = enc
+	}
+	return extras
+}
+
 func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]string) []openai.ChatCompletionMessageParamUnion {
 	msgs = MessagesForAPI(msgs)
-	lastAsst := LastAssistantIndex(msgs)
 	out := []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(system)}
-	for i, m := range msgs {
+	for _, m := range msgs {
 		switch m.Role {
 		case "assistant":
 			if len(m.ToolCalls) > 0 {
@@ -206,10 +216,8 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 				if m.Content != "" {
 					ap.Content.OfString = param.NewOpt(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content))
 				}
-				if i == lastAsst {
-					if rt := strings.TrimSpace(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.ReasoningText)); rt != "" {
-						ap.SetExtraFields(map[string]any{"reasoning_content": rt})
-					}
+				if extras := assistantCacheExtras(m); len(extras) > 0 {
+					ap.SetExtraFields(extras)
 				}
 				for _, tc := range m.ToolCalls {
 					ap.ToolCalls = append(ap.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
@@ -226,14 +234,12 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 				out = append(out, openai.ChatCompletionMessageParamUnion{OfAssistant: &ap})
 				continue
 			}
-			if i == lastAsst {
-				if rt := strings.TrimSpace(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.ReasoningText)); rt != "" {
-					ap := openai.ChatCompletionAssistantMessageParam{}
-					ap.Content.OfString = param.NewOpt(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content))
-					ap.SetExtraFields(map[string]any{"reasoning_content": rt})
-					out = append(out, openai.ChatCompletionMessageParamUnion{OfAssistant: &ap})
-					continue
-				}
+			if extras := assistantCacheExtras(m); len(extras) > 0 {
+				ap := openai.ChatCompletionAssistantMessageParam{}
+				ap.Content.OfString = param.NewOpt(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content))
+				ap.SetExtraFields(extras)
+				out = append(out, openai.ChatCompletionMessageParamUnion{OfAssistant: &ap})
+				continue
 			}
 			out = append(out, openai.AssistantMessage(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content)))
 		case "tool":

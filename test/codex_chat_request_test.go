@@ -109,6 +109,23 @@ func TestBuildCodexInputSkipsAssistantToolCallsWithEmptyID(t *testing.T) {
 	}
 }
 
+func TestBuildCodexInputReplaysEncryptedReasoning(t *testing.T) {
+	chat := map[string]any{
+		"messages": []any{
+			map[string]any{"role": "user", "content": "go"},
+			map[string]any{"role": "assistant", "content": "done", "reasoning_encrypted_content": "enc-1"},
+		},
+	}
+	input := codexchat.BuildCodexInput(chat)
+	if len(input) != 3 {
+		t.Fatalf("want user, reasoning, assistant; got %#v", input)
+	}
+	reasoning, _ := input[1].(map[string]any)
+	if reasoning["type"] != "reasoning" || reasoning["encrypted_content"] != "enc-1" {
+		t.Fatalf("reasoning item: %#v", input[1])
+	}
+}
+
 func TestBuildCodexInputImageOnlyUserMessage(t *testing.T) {
 	imgURL := "data:image/jpeg;base64,xyz"
 	chat := map[string]any{

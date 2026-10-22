@@ -1,7 +1,8 @@
-package chat
+package test
 
 import (
 	"bytes"
+	. "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex/chat"
 	"strings"
 	"testing"
 )
