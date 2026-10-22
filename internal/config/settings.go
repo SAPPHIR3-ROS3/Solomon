@@ -24,6 +24,7 @@ func SettingsSpecs() map[string]SettingSpec {
 		"response_language":           {Field: "ResponseLanguage", Type: "string"},
 		"reasoning_effort":            {Field: "ReasoningEffort", Type: "string", Enum: []string{"none", "low", "medium", "high", "xhigh", "max"}},
 		"subagent_reasoning_effort":   {Field: "SubagentReasoningEffort", Type: "string", Enum: []string{"none", "low", "medium", "high", "xhigh", "max"}},
+		"show_file_changes":           {Field: "ShowFileChanges", Type: "boolean"},
 		"show_thinking":               {Field: "ShowThinking", Type: "boolean"},
 		"show_usage_stats":            {Field: "ShowUsageStats", Type: "boolean"},
 		"fast_mode":                   {Field: "FastMode", Type: "boolean"},

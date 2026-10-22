@@ -104,6 +104,7 @@ type Root struct {
 	ModelModes                map[string]map[string]ModelMode `toml:"model_modes,omitempty"`
 	LogLevel                  string                          `toml:"log_level"`
 	MaxResponseTokens         int                             `toml:"max_response_tokens"`
+	ShowFileChanges           *bool                           `toml:"show_file_changes"`
 	ShowThinking              bool                            `toml:"show_thinking"`
 	Anonymize                 bool                            `toml:"anonymize,omitempty"`
 	Tools                     Tools                           `toml:"tools,omitempty"`
@@ -786,4 +787,9 @@ func ResolveProvider(r *Root) (*Provider, error) {
 	}
 	logging.Log(logging.ERROR_LOG_LEVEL, "no providers in config", logging.LogOptions{Params: nil})
 	return nil, errors.New("no providers in config")
+}
+
+// FileChangesEnabled defaults to true while preserving an explicit opt-out.
+func (r *Root) FileChangesEnabled() bool {
+	return r == nil || r.ShowFileChanges == nil || *r.ShowFileChanges
 }

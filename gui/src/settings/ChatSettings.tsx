@@ -1,4 +1,4 @@
-import { setFloatingLettersDensity, setFloatingLetters, setAutoCollapseToolCalls, setStartToolCallsCollapsed, setStartReasoningCollapsed, setComposerQuotaBars, useGUIChatPreferencesState, refreshChatPreferences } from "./chatPreferences";
+import { setShowFileChanges, setFloatingLettersDensity, setFloatingLetters, setAutoCollapseToolCalls, setStartToolCallsCollapsed, setStartReasoningCollapsed, setComposerQuotaBars, useGUIChatPreferencesState, refreshChatPreferences } from "./chatPreferences";
 import "./chat-settings.css";
 
 export function ChatSettings({ query }: { query: string }) {
@@ -6,6 +6,13 @@ export function ChatSettings({ query }: { query: string }) {
   const autoCollapse = preferences.chat.autoCloseToolCalls;
   const startCollapsed = preferences.chat.startToolCallsCollapsed;
   const settings = [
+    {
+      id: "file-changes",
+      label: "File changes",
+      description: "Show this chat’s accumulated file changes below editing turns until committed. Expand folders in the chat or see the full tree in the terminal.",
+      enabled: preferences.advanced.show_file_changes !== false,
+      setEnabled: setShowFileChanges,
+    },
     {
       id: "start-reasoning-collapsed",
       label: "Start reasoning collapsed",

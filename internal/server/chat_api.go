@@ -220,22 +220,24 @@ type apiChat struct {
 }
 
 type apiMessage struct {
-	CreatedAt        string               `json:"createdAt,omitempty"`
-	CheckpointBranch string               `json:"checkpointBranch,omitempty"`
-	CheckpointSeq    *int                 `json:"checkpointSeq,omitempty"`
-	Content          string               `json:"content"`
-	ID               string               `json:"id"`
-	Images           []apiImage           `json:"images,omitempty"`
-	Kind             string               `json:"kind,omitempty"`
-	Reasoning        string               `json:"reasoning,omitempty"`
-	RetainedMessages []apiRetainedMessage `json:"retainedMessages,omitempty"`
-	Role             string               `json:"role"`
-	Stats            *apiStats            `json:"stats,omitempty"`
-	Status           string               `json:"status,omitempty"`
-	Summary          string               `json:"summary,omitempty"`
-	ThoughtFor       float64              `json:"thoughtFor,omitempty"`
-	ToolCalls        []apiToolCall        `json:"toolCalls,omitempty"`
-	WorkedFor        float64              `json:"workedFor,omitempty"`
+	FileChangesRecorded bool                          `json:"fileChangesRecorded,omitempty"`
+	FileChanges         []chatstore.FileChangeSummary `json:"fileChanges,omitempty"`
+	CreatedAt           string                        `json:"createdAt,omitempty"`
+	CheckpointBranch    string                        `json:"checkpointBranch,omitempty"`
+	CheckpointSeq       *int                          `json:"checkpointSeq,omitempty"`
+	Content             string                        `json:"content"`
+	ID                  string                        `json:"id"`
+	Images              []apiImage                    `json:"images,omitempty"`
+	Kind                string                        `json:"kind,omitempty"`
+	Reasoning           string                        `json:"reasoning,omitempty"`
+	RetainedMessages    []apiRetainedMessage          `json:"retainedMessages,omitempty"`
+	Role                string                        `json:"role"`
+	Stats               *apiStats                     `json:"stats,omitempty"`
+	Status              string                        `json:"status,omitempty"`
+	Summary             string                        `json:"summary,omitempty"`
+	ThoughtFor          float64                       `json:"thoughtFor,omitempty"`
+	ToolCalls           []apiToolCall                 `json:"toolCalls,omitempty"`
+	WorkedFor           float64                       `json:"workedFor,omitempty"`
 }
 
 type apiRetainedMessage struct {
@@ -1287,6 +1289,8 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 		value.CreatedAt = message.CreatedAt.Local().Format(time.RFC3339Nano)
 	}
 	if role == "assistant" {
+		value.FileChanges = message.FileChanges
+		value.FileChangesRecorded = message.FileChangesRecorded
 		value.Reasoning = reasoning
 		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive, true)
 		value.Stats = apiStatsForMessageTurn(message, source, index)

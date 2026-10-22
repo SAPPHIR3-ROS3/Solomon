@@ -132,3 +132,5 @@ export function useStartToolCallsCollapsed() { return useGUIChatPreferencesState
 export function setFloatingLetters(enabled: boolean) { return setPreference("floatingLetters", enabled).catch(() => {}); }
 
 export function setFloatingLettersDensity(density: FloatingLettersDensity) { return savePreferences({ chat: { floatingLettersDensity: density } }).catch(() => {}); }
+
+export function setShowFileChanges(enabled: boolean) { return setAdvancedSetting("show_file_changes", enabled); }

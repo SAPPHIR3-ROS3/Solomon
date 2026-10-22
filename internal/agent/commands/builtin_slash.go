@@ -65,6 +65,7 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"agents"}, "/agents", "/agents | /agents resume|stop|cancel <id|title>", nil, func(d Deps, parts []string) error { return Subagent(d, parts) }},
 		{[]string{"research"}, "/research", "/research <query> | /research list|status|resume|stop|cancel|delete — deep web research (HTML report)", nil, func(d Deps, parts []string) error { return Research(d, parts) }},
 		{[]string{"timeout"}, "/timeout", "/timeout <minutes> subagent segment (1–180)", nil, func(d Deps, parts []string) error { return Timeout(d, parts) }},
+		{[]string{"changes"}, "/changes", "toggle expanded file change summary after assistant turns (saved)", nil, func(d Deps, parts []string) error { return Changes(d) }},
 		{[]string{"stats"}, "/stats", "toggle token usage line after assistant turns (saved)", nil, func(d Deps, parts []string) error { return Stats(d) }},
 		{[]string{"thinking"}, "/thinking", "/thinking toggles preview; /thinking on|off streamed reasoning (dim gray); tool echoes (yellow)", nil, func(d Deps, parts []string) error { return Thinking(d, parts) }},
 		{[]string{"fast"}, "/fast", "/fast | /fast on|off Cursor fast mode (saved)", nil, func(d Deps, parts []string) error { return Fast(d, parts) }},

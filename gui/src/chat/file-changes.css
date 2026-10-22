@@ -1,0 +1,32 @@
+.file-changes-card {
+  --change-added: #32d49a;
+  --change-removed: #ff626b;
+  margin: 16px 0 8px;
+  padding: 10px 12px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 52%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface) 76%, var(--color-canvas));
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.file-changes-card.is-collapsed .file-changes-header { margin-bottom: 0; }
+.file-changes-card svg { width: 15px; height: 15px; flex: 0 0 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.file-changes-header { display: flex; align-items: center; gap: 12px; min-height: 24px; margin-bottom: 12px; cursor: pointer; user-select: none; }
+.file-changes-header:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; border-radius: 4px; }
+.file-changes-header > .file-changes-counts { margin-left: auto; }
+.file-changes-title { color: var(--color-text); font-weight: 500; }
+.file-changes-counts { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; font: 11px/1.5 var(--font-mono, monospace); font-variant-numeric: tabular-nums; }
+.file-changes-added { color: var(--change-added); }
+.file-changes-removed { color: var(--change-removed); }
+.file-changes-binary { color: var(--color-text-muted); }
+.file-changes-card button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
+.file-changes-card button:hover { color: var(--color-text); }
+.file-changes-card button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+.file-changes-tree, .file-changes-tree ul { list-style: none; margin: 0; padding: 0; }
+.file-changes-tree ul { margin-left: 22px; }
+.file-changes-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; padding: 3px 2px; text-align: left; }
+.file-changes-row .file-changes-counts { margin-left: auto; }
+.file-changes-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px/1.5 var(--font-mono, monospace); }
+.file-changes-row .file-changes-chevron, .file-changes-chevron-spacer { width: 12px; flex: 0 0 12px; }
+.file-changes-chevron.is-open { transform: rotate(90deg); }
+@media (max-width: 480px) { .file-changes-header { gap: 8px; flex-wrap: wrap; } .file-changes-counts { gap: 8px; } .file-changes-card { padding: 10px 8px 8px; } }

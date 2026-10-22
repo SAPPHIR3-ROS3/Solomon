@@ -90,6 +90,16 @@ func (t *sseTransformer) transform(dataLine []byte) (out []byte, done bool, err 
 		return bytes.Join(chunks, []byte("\n")), false, nil
 	}
 	switch eventType {
+	case "error", "response.failed", "response.incomplete":
+		payload := trimmed
+		if response, ok := upstream["response"].(map[string]any); ok {
+			if details, ok := response["incomplete_details"]; ok && response["error"] == nil {
+				encoded, _ := json.Marshal(details)
+				return nil, false, fmt.Errorf("ChatGPT Sub: %s: %s", eventType, encoded)
+			}
+			payload, _ = json.Marshal(response)
+		}
+		return nil, false, fmt.Errorf("%s: %w", eventType, ChatGPTSubUpstreamError(502, payload, t.model))
 	case "response.created":
 		if resp, ok := upstream["response"].(map[string]any); ok {
 			if id, ok := resp["id"].(string); ok {

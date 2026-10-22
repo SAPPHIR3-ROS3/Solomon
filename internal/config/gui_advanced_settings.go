@@ -24,13 +24,13 @@ func guiAdvancedSpecs() map[string]SettingSpec {
 func validateGUIAdvancedSettings(patch map[string]json.RawMessage) error {
 	specs := guiAdvancedSpecs()
 	for key, raw := range patch {
-		if key == "server.dev_mode" {
+		if key == "server.dev_mode" || key == "show_file_changes" {
 			var enabled bool
 			if string(raw) == "null" {
-				return fmt.Errorf("server.dev_mode requires a boolean")
+				return fmt.Errorf("%s requires a boolean", key)
 			}
 			if err := json.Unmarshal(raw, &enabled); err != nil {
-				return fmt.Errorf("server.dev_mode requires a boolean")
+				return fmt.Errorf("%s requires a boolean", key)
 			}
 			continue
 		}
@@ -112,6 +112,7 @@ func guiAdvancedValues(root *Root) map[string]any {
 		"server_port":                 root.EffectiveServerPort(),
 		"server.dev_mode":             root.Server.DevMode != nil && *root.Server.DevMode,
 		"server.dev_directory":        root.Server.DevDirectory,
+		"show_file_changes":           root.FileChangesEnabled(),
 		"research_max_rounds":         EffectiveResearchMaxRounds(root),
 		"research_max_urls_per_round": EffectiveResearchMaxURLsPerRound(root),
 		"research_max_content_chars":  EffectiveResearchMaxContentChars(root),

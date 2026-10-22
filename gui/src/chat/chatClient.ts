@@ -1,3 +1,4 @@
+import { chatRequest, contextualChatError } from "./chatRequest";
 import { notifyNotification } from "../notifications/store";
 import { measureNavigation, measureNavigationSync } from "./navigationPerformance";
 import { initialClient, serverEndpoint } from "../platform";
@@ -29,14 +30,14 @@ export type ChatStreamEventHandler = (event: ChatStreamEvent, replay?: boolean, 
 
 export async function fetchLiveChat(projectID: string, chatID: string, signal?: AbortSignal, navigationID?: number): Promise<LiveChat> {
   const endpoint = await measureNavigation(navigationID, "chat.endpoint", () => serverEndpoint(chatPath(projectID, chatID)));
-  const response = await measureNavigation(navigationID, "chat.headers", () => fetch(endpoint, { cache: "no-store", signal }));
+  const response = await measureNavigation(navigationID, "chat.headers", () => chatRequest("Unable to load chat", endpoint, { cache: "no-store", signal }));
   const payload = await readResponsePayload(response, "Unable to load chat", navigationID);
   return measureNavigationSync(navigationID, "chat.normalize", () => liveChatFromPayload(payload, projectID, assetOrigin(endpoint)));
 }
 
 export async function createLiveChat(projectID: string, title = "", signal?: AbortSignal): Promise<LiveChat> {
   const endpoint = await serverEndpoint(`${projectChatsPath(projectID)}`);
-  const response = await fetch(endpoint, {
+  const response = await chatRequest("Unable to create chat", endpoint, {
     body: JSON.stringify(title.trim() ? { title: title.trim() } : {}),
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -47,7 +48,7 @@ export async function createLiveChat(projectID: string, title = "", signal?: Abo
 }
 
 export async function sendProjectCommand(projectID: string, content: string, signal?: AbortSignal): Promise<void> {
-  const response = await fetch(await serverEndpoint(projectID ? `${projectChatsPath(projectID).replace(/\/chats$/, "")}/commands` : "/__solomon/commands"), {
+  const response = await chatRequest("Unable to run command", await serverEndpoint(projectID ? `${projectChatsPath(projectID).replace(/\/chats$/, "")}/commands` : "/__solomon/commands"), {
     body: JSON.stringify({ content, surface: initialClient().surface }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -64,7 +65,7 @@ export async function sendProjectCommand(projectID: string, content: string, sig
 
 export async function renameLiveChat(projectID: string, chatID: string, title: string): Promise<LiveChat> {
   const endpoint = await serverEndpoint(chatPath(projectID, chatID));
-  const response = await fetch(endpoint, {
+  const response = await chatRequest("Unable to rename chat", endpoint, {
     body: JSON.stringify({ title }),
     headers: { "Content-Type": "application/json" },
     method: "PATCH",
@@ -75,32 +76,32 @@ export async function renameLiveChat(projectID: string, chatID: string, title: s
 
 export async function deleteLiveChat(projectID: string, chatID: string): Promise<void> {
   const endpoint = await serverEndpoint(chatPath(projectID, chatID));
-  await readResponsePayload(await fetch(endpoint, { method: "DELETE" }), "Unable to delete chat");
+  await readResponsePayload(await chatRequest("Unable to delete chat", endpoint, { method: "DELETE" }), "Unable to delete chat");
 }
 
 export async function deleteLiveChatMessage(projectID: string, chatID: string, messageID: string): Promise<LiveChat> {
   const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/messages/${encodeURIComponent(messageID)}`);
-  const response = await fetch(endpoint, { method: "DELETE" });
+  const response = await chatRequest("Unable to delete message", endpoint, { method: "DELETE" });
   const payload = await readResponsePayload(response, "Unable to delete message");
   return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
 }
 
 export async function stopLiveChat(projectID: string, chatID: string): Promise<void> {
   const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/stop`);
-  const response = await fetch(endpoint, { method: "POST" });
+  const response = await chatRequest("Unable to stop chat", endpoint, { method: "POST" });
   await readResponsePayload(response, "Unable to stop chat");
 }
 
 export async function fetchLiveSubchat(projectID: string, subchatID: string): Promise<LiveChat> {
   const endpoint = await serverEndpoint(`${projectSubchatsPath(projectID)}/${encodeURIComponent(subchatID)}`);
-  const response = await fetch(endpoint, { cache: "no-store" });
+  const response = await chatRequest("Unable to load subchat", endpoint, { cache: "no-store" });
   const payload = await readResponsePayload(response, "Unable to load subchat");
   return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
 }
 
 export async function controlLiveSubchat(projectID: string, subchatID: string, action: "stop" | "cancel" | "resume"): Promise<void> {
   const endpoint = await serverEndpoint(`${projectSubchatsPath(projectID)}/${encodeURIComponent(subchatID)}`);
-  const response = await fetch(endpoint, {
+  const response = await chatRequest("Unable to control subchat", endpoint, {
     body: JSON.stringify({ action }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -118,7 +119,7 @@ export async function streamLiveChatMessage(
   onEvent: ChatStreamEventHandler,
 ): Promise<void> {
   const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/messages`);
-  const response = await fetch(endpoint, {
+  const response = await chatRequest("Unable to send message", endpoint, {
     body: JSON.stringify({ content, images, clips, surface: initialClient().surface }),
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
     method: "POST",
@@ -139,7 +140,7 @@ export async function streamLiveChatEvents(
   onEvent: ChatStreamEventHandler,
 ): Promise<void> {
   const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/events?starting_after=${Math.max(0, Math.floor(startingAfter))}`);
-  const response = await fetch(endpoint, {
+  const response = await chatRequest("Unable to reconnect chat stream", endpoint, {
     headers: { Accept: "text/event-stream" },
     method: "GET",
     signal,
@@ -162,7 +163,9 @@ async function consumeChatStream(
   const decoder = new TextDecoder();
   let buffer = "";
   while (true) {
-    const { done, value } = await reader.read();
+    const { done, value } = await reader.read().catch((cause: unknown) => {
+      throw contextualChatError(cause, "Chat event stream interrupted", response.url);
+    });
     buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
     const frames = buffer.split(/\r?\n\r?\n/);
     buffer = frames.pop() ?? "";
@@ -411,6 +414,16 @@ function messageFromPayload(payload: unknown, index: number, imageOrigin: string
     images: imagesFromPayload(record.images, imageOrigin),
     role,
   };
+  if (role === "assistant" && record.fileChangesRecorded === true) message.fileChanges = [];
+  if (role === "assistant" && Array.isArray(record.fileChanges)) {
+    message.fileChanges = record.fileChanges.flatMap(item => {
+      const change = objectValue(item);
+      if (typeof change.path !== "string" || !change.path || typeof change.added !== "number" || typeof change.removed !== "number") return [];
+      return [{ path: change.path, added: Math.max(0, change.added), removed: Math.max(0, change.removed), binary: change.binary === true,
+        addedLines: Array.isArray(change.addedLines) ? change.addedLines.filter((line): line is string => typeof line === "string") : [],
+        removedLines: Array.isArray(change.removedLines) ? change.removedLines.filter((line): line is string => typeof line === "string") : [] }];
+    });
+  }
   if (record.kind === "compaction") message.kind = "compaction";
   if (typeof record.reasoning === "string") message.reasoning = record.reasoning;
   if (record.stats) message.stats = statsFromPayload(record.stats);
@@ -634,7 +647,7 @@ function parseSSEFrame(frame: string): ChatStreamEvent | null {
 }
 
 async function readResponsePayload(response: Response, fallback: string, navigationID?: number): Promise<unknown> {
-  const text = await measureNavigation(navigationID, "chat.body", () => response.text());
+  const text = await measureNavigation(navigationID, "chat.body", () => response.text().catch((cause: unknown) => { throw contextualChatError(cause, `${fallback}: response body interrupted`, response.url); }));
   let payload: unknown;
   try {
     payload = measureNavigationSync(navigationID, "chat.json", () => text ? JSON.parse(text) : undefined);
@@ -648,7 +661,7 @@ async function readResponsePayload(response: Response, fallback: string, navigat
       ? rawError.trim()
       : firstString(nestedError, ["message", "detail", "error"]);
     const bodyText = text.trim().replace(/\s+/g, " ");
-    throw new Error(error || bodyText.slice(0, 500) || `${fallback}: ${response.status}`);
+    throw new Error(`${fallback} (HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}): ${error || bodyText.slice(0, 500) || "Server returned no error details"}`);
   }
   return payload;
 }

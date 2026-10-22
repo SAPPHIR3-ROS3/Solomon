@@ -93,7 +93,17 @@ export type ChatClip = {
   text: string;
 };
 
+export type ChatFileChange = {
+  path: string;
+  added: number;
+  removed: number;
+  binary?: boolean;
+  addedLines?: string[];
+  removedLines?: string[];
+};
+
 export type ChatMessage = {
+  fileChanges?: ChatFileChange[];
   checkpointBranch?: string;
   checkpointSeq?: number;
   clips?: ChatClip[];

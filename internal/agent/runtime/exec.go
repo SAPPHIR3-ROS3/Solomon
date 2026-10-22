@@ -2,6 +2,9 @@ package agentruntime
 
 import (
 	"context"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/filechanges"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"strings"
 	"time"
 
@@ -14,6 +17,15 @@ import (
 func (r *Runtime) toolEnv(inv tooling.Invocation) *agenttools.Env {
 	checkpointSeq := inv.CheckpointSeq
 	return &agenttools.Env{
+		RecordFileChanges: func(changes []filechanges.Change, committed []filechanges.Commit) {
+			r.recordChatFileChanges(checkpointSeq, changes, committed)
+		},
+		FileChangesError: func(err error) {
+			logging.Log(logging.WARNING_LOG_LEVEL, "file change tracking unavailable", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			if !r.machineMode() {
+				termcolor.WriteSystem(r.Out, "File change tracking unavailable: "+err.Error())
+			}
+		},
 		ProjHex:                 r.ProjHex,
 		ProjRoot:                r.ProjRoot,
 		Cfg:                     r.Cfg,

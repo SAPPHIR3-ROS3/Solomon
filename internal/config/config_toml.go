@@ -45,7 +45,8 @@ type rootLegacyFile struct {
 
 	MaxResponseTokens int `toml:"max_response_tokens"`
 
-	ShowThinking bool `toml:"show_thinking"`
+	ShowFileChanges *bool `toml:"show_file_changes"`
+	ShowThinking    bool  `toml:"show_thinking"`
 
 	Anonymize bool `toml:"anonymize,omitempty"`
 
@@ -117,7 +118,8 @@ type rootFile struct {
 
 	MaxResponseTokens int `toml:"max_response_tokens"`
 
-	ShowThinking bool `toml:"show_thinking"`
+	ShowFileChanges *bool `toml:"show_file_changes"`
+	ShowThinking    bool  `toml:"show_thinking"`
 
 	Anonymize bool `toml:"anonymize,omitempty"`
 
@@ -219,7 +221,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		MaxResponseTokens: f.MaxResponseTokens,
 
-		ShowThinking: f.ShowThinking,
+		ShowThinking:    f.ShowThinking,
+		ShowFileChanges: f.ShowFileChanges,
 
 		Anonymize: f.Anonymize,
 
@@ -311,7 +314,8 @@ func rootToFile(r *Root) *rootFile {
 
 		MaxResponseTokens: r.MaxResponseTokens,
 
-		ShowThinking: r.ShowThinking,
+		ShowThinking:    r.ShowThinking,
+		ShowFileChanges: r.ShowFileChanges,
 
 		Anonymize: r.Anonymize,
 
@@ -444,7 +448,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 
 		MaxResponseTokens: f.MaxResponseTokens,
 
-		ShowThinking: f.ShowThinking,
+		ShowThinking:    f.ShowThinking,
+		ShowFileChanges: f.ShowFileChanges,
 
 		Anonymize: f.Anonymize,
 

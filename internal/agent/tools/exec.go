@@ -166,7 +166,7 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 	case "deletePlan":
 		return execDeletePlan(env, inv.Args)
 	case "shell":
-		return execShell(ctx, env, inv.Args)
+		return WithFileChangeTrackingPaths(ctx, env, shellInvocationPaths(env, inv.Args), func() (any, error) { return execShell(ctx, env, inv.Args) })
 	case "readFile":
 		return execReadFile(env, inv.Args)
 	case "find":
@@ -176,7 +176,7 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 	case "tree":
 		return execTree(env, inv.Args)
 	case "editFile":
-		return execEditFile(env, inv.Args)
+		return WithFileChangeTrackingPaths(ctx, env, editInvocationPaths(env, inv.Args), func() (any, error) { return execEditFile(env, inv.Args) })
 	case "subagent":
 		return execSubagent(ctx, env, inv.Args)
 	case "fetchWeb":

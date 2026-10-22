@@ -116,3 +116,33 @@ Se un'operazione riguarda il contesto visibile del progetto, cercarla prima nell
 - [Configuration](configuration.md)
 - [Usage and commands](usage-and-commands.md)
 - [Data layout](data-layout.md)
+
+### Riepilogo delle modifiche nella chat e nel terminale
+
+In **Settings → Chat → File changes** puoi attivare il riepilogo
+delle modifiche; nel terminale `/changes` alterna la stessa preferenza persistente
+(`show_file_changes` nel file di configurazione). È attivo per impostazione predefinita.
+Le impostazioni della GUI vengono lette dai nuovi processi CLI; `/changes`
+aggiorna direttamente il terminale corrente.
+
+Dopo i turni che modificano file, la GUI mostra un riquadro con cartelle
+espandibili e un pulsante Open diff per i contributi della chat. Nel terminale
+Solomon mostra cartelle e file senza sezioni collassate, con aggiunte in verde e rimozioni in rosso. Il riepilogo accumula
+solo le modifiche degli strumenti `editFile` e `shell` di quella chat, inclusi
+i richiami tramite `orchestrate`, e viene salvato con la chat. Le scritture
+Solomon sullo stesso progetto vengono serializzate per separare le chat.
+La scansione generale esclude i file ignorati da Git; i percorsi esplicitamente
+indicati agli strumenti vengono tracciati anche se ignorati o esterni al progetto.
+I file binari sono indicati separatamente. Le cartelle non accessibili non
+interrompono il tracciamento. Per i comandi shell vengono riconosciuti i percorsi
+letterali, incluse le espansioni delle variabili di ambiente; i percorsi calcolati
+dinamicamente fuori dal progetto non sono sempre individuabili. Quando il
+progetto è la home o la radice del filesystem, la scansione generale resta
+al primo livello; i percorsi indicati al comando vengono comunque controllati.
+
+Un commit eseguito nella chat (anche tramite `!git commit`) rimuove dal suo
+riepilogo le modifiche committate. Un commit di un'altra chat non azzera questo
+riepilogo. I commit parziali mantengono i contributi ancora da committare.
+Le scritture effettuate da programmi esterni durante un comando shell non sono
+attribuibili con certezza: il tracciamento delimita le operazioni degli strumenti
+Solomon e non intercetta le scritture dei singoli processi del sistema operativo.

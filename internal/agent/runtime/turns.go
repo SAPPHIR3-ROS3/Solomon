@@ -34,7 +34,7 @@ func (r *Runtime) onUserMessage(ctx context.Context, line string, fromReadline b
 	return r.onUserMessageWithAPIContent(ctx, line, "", fromReadline)
 }
 
-func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, apiContent string, fromReadline bool) error {
+func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, apiContent string, fromReadline bool) (turnErr error) {
 	clean, _ := multiline.ParseMultilineControlRunes(line)
 	line = multiline.TrimMessageEdges(clean)
 	apiContent = multiline.TrimMessageEdges(apiContent)
@@ -74,6 +74,7 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 		}
 	}
 	r.mutateSession(func(s *chatstore.Session) {
+		chatstore.RepairInterruptedToolCalls(s)
 		line = images.CanonicalizeUserLineForStorage(line, s.ImageFiles)
 		if strings.TrimSpace(apiContent) != "" {
 			apiContent = images.CanonicalizeUserLineForStorage(apiContent, s.ImageFiles)
@@ -126,6 +127,14 @@ func (r *Runtime) onUserMessageWithAPIContent(ctx context.Context, line string, 
 		if deferTitle {
 			// Title generation must not be coupled to the assistant turn context.
 			r.scheduleDeferredChatTitleFinalize(context.Background())
+		}
+	}()
+	if !r.machineMode() && r.Cfg.FileChangesEnabled() {
+		defer r.printChatFileChanges(um.CheckpointSeq)
+	}
+	defer func() {
+		if err := r.saveTurnFileChanges(um.CheckpointSeq); err != nil && turnErr == nil {
+			turnErr = err
 		}
 	}()
 	if err := r.runAgentTurns(ctx); err != nil {

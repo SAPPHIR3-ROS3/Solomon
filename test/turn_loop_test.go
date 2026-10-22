@@ -467,3 +467,20 @@ func TestRunAgentTurns_stopFinishReasonSkipsAutoCompaction(t *testing.T) {
 		t.Fatalf("auto-compaction StreamText calls=%d want 0", backend.textN)
 	}
 }
+
+func TestRunAgentTurns_emptyResponseIsAnError(t *testing.T) {
+	for _, turn := range []llm.AssistantTurnResult{{}, {FinishReason: llm.FinishReasonStop}, {ReasoningText: "thinking only"}} {
+		backend := &turnScriptBackend{protocol: llm.ProtocolOpenAI, turns: []llm.AssistantTurnResult{turn}}
+		rt := newTurnLoopRuntime(t, backend, nil, nil)
+		err := rt.RunAgentTurnsForTest(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "empty response") || !strings.Contains(err.Error(), "test-model") {
+			t.Fatalf("error = %v", err)
+		}
+		if len(rt.Session.Messages) != 1 {
+			t.Fatalf("empty assistant persisted: %+v", rt.Session.Messages)
+		}
+		if backend.turnN != 1 {
+			t.Fatalf("unexpected retries: %d", backend.turnN)
+		}
+	}
+}

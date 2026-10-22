@@ -1,3 +1,4 @@
+import { FileChangesCard } from "./FileChangesCard";
 import { memo, useEffect, useRef, useState, type MouseEvent } from "react";
 import type { ChatMessage, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
@@ -189,6 +190,7 @@ const AssistantTurn = memo(function AssistantTurn({
           onStopTool={responseActions?.onStopTool}
         />
       ) : null}
+      {!isWorking ? entries.flatMap(({ message }) => message.fileChanges?.length ? [<FileChangesCard key={message.id} changes={message.fileChanges} />] : []) : null}
       <div className="chat-assistant-footer">
         {(activeWorkedFor !== undefined || footerMessage.workedFor !== undefined) ? (
           <WorkedForCounter isLive={activeWorkedFor !== undefined} seconds={activeWorkedFor ?? footerMessage.workedFor!} />

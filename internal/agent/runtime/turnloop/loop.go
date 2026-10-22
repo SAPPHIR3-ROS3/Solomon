@@ -190,6 +190,9 @@ func Run(ctx context.Context, h Host) error {
 		if streaming {
 			LeaveStreaming(out)
 		}
+		if err == nil && strings.TrimSpace(turn.Content) == "" && len(turn.ToolCalls) == 0 && strings.TrimSpace(turn.ProxyToolCorrection) == "" {
+			err = fmt.Errorf("provider %s, model %s returned an empty response (finish reason %q): no assistant text or tool calls were received", provider, turnReq.Model, turn.FinishReason)
+		}
 		if err != nil {
 			if interruptedDuringGeneration(ctx, runCtx, err, stopErr) {
 				flushUsageStats()

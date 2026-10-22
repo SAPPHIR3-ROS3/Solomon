@@ -13,6 +13,7 @@ export type ActiveChatSelection = {
 function cloneMessage(message: ChatMessage): ChatMessage {
   return {
     ...message,
+    fileChanges: message.fileChanges?.map(change => ({ ...change, addedLines: change.addedLines ? [...change.addedLines] : undefined, removedLines: change.removedLines ? [...change.removedLines] : undefined })),
     images: message.images?.map((image) => ({ ...image })),
     retainedMessages: message.retainedMessages?.map((retained) => ({
       ...retained,

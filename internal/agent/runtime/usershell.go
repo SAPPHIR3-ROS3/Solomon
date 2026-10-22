@@ -8,6 +8,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl/shellhist"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
 func (r *Runtime) releaseTTYForSubprocess() func() {
@@ -37,7 +38,11 @@ func (r *Runtime) runUserShellLine(ctx context.Context, script string) error {
 	c.Stdin = os.Stdin
 	release := r.releaseTTYForSubprocess()
 	defer release()
-	if err := c.Run(); err != nil {
+	_, err := tools.WithFileChangeTrackingPaths(ctx, r.toolEnv(tooling.Invocation{}), tools.ShellFileChangePaths(r.ProjRoot, script), func() (any, error) { return nil, c.Run() })
+	if err != nil {
+		return err
+	}
+	if err := r.persistSession(); err != nil {
 		return err
 	}
 	_ = shellhist.Append(script)

@@ -13,3 +13,13 @@ func Stats(d Deps) error {
 	PrintSystemf(d.Out, "token stats: %s", onOff)
 	return nil
 }
+
+func Changes(d Deps) error {
+	next := !d.Cfg.FileChangesEnabled()
+	d.Cfg.ShowFileChanges = &next
+	if err := d.SaveCfg(); err != nil {
+		return err
+	}
+	PrintSystemf(d.Out, "file change summary: %t", next)
+	return nil
+}

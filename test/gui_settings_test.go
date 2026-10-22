@@ -352,3 +352,31 @@ func TestGUIDevServerPreferencesPersistAndPreserveConfig(t *testing.T) {
 		t.Fatal("disabled preference did not control restart")
 	}
 }
+
+func TestGUIFileChangesPreferencePersists(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	root := config.EmptyRoot()
+	if err := config.Save(root); err != nil {
+		t.Fatal(err)
+	}
+	for _, enabled := range []bool{true, false} {
+		raw := json.RawMessage(`false`)
+		if enabled {
+			raw = json.RawMessage(`true`)
+		}
+		gui, err := config.UpdateGUIPreferences(config.GUISettingsPatch{Advanced: map[string]json.RawMessage{"show_file_changes": raw}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gui.Advanced["show_file_changes"] != enabled {
+			t.Fatalf("preference: %+v", gui.Advanced)
+		}
+		loaded, err := config.Load()
+		if err != nil || loaded.FileChangesEnabled() != enabled {
+			t.Fatalf("persistence: %v %+v", err, loaded)
+		}
+	}
+	if _, err := config.UpdateGUIPreferences(config.GUISettingsPatch{Advanced: map[string]json.RawMessage{"show_file_changes": json.RawMessage(`"true"`)}}); err == nil {
+		t.Fatal("accepted non-boolean")
+	}
+}

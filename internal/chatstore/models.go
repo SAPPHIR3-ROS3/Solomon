@@ -16,20 +16,22 @@ type ToolCall struct {
 }
 
 type Message struct {
-	ContextKind       string            `json:"context_kind,omitempty"`
-	Provider          string            `json:"provider,omitempty"`
-	FastMode          *bool             `json:"fast_mode,omitempty"`
-	ReasoningEffort   string            `json:"reasoning_effort,omitempty"`
-	Model             string            `json:"model,omitempty"`
-	GUIHidden         bool              `json:"gui_hidden,omitempty"`
-	CreatedAt         time.Time         `json:"created_at,omitempty"`
-	Role              string            `json:"role"`
-	Content           string            `json:"content"`
-	APIContent        string            `json:"api_content,omitempty"`
-	ToolCallID        string            `json:"tool_call_id,omitempty"`
-	ToolCalls         []ToolCall        `json:"tool_calls,omitempty"`
-	ReasoningText     string            `json:"reasoning_text,omitempty"`
-	AnthropicThinking []json.RawMessage `json:"anthropic_thinking,omitempty"`
+	FileChangesRecorded bool                `json:"file_changes_recorded,omitempty"`
+	FileChanges         []FileChangeSummary `json:"file_changes,omitempty"`
+	ContextKind         string              `json:"context_kind,omitempty"`
+	Provider            string              `json:"provider,omitempty"`
+	FastMode            *bool               `json:"fast_mode,omitempty"`
+	ReasoningEffort     string              `json:"reasoning_effort,omitempty"`
+	Model               string              `json:"model,omitempty"`
+	GUIHidden           bool                `json:"gui_hidden,omitempty"`
+	CreatedAt           time.Time           `json:"created_at,omitempty"`
+	Role                string              `json:"role"`
+	Content             string              `json:"content"`
+	APIContent          string              `json:"api_content,omitempty"`
+	ToolCallID          string              `json:"tool_call_id,omitempty"`
+	ToolCalls           []ToolCall          `json:"tool_calls,omitempty"`
+	ReasoningText       string              `json:"reasoning_text,omitempty"`
+	AnthropicThinking   []json.RawMessage   `json:"anthropic_thinking,omitempty"`
 
 	CheckpointSeq       int    `json:"cp_seq,omitempty"`
 	CpSeqSet            bool   `json:"cp_set,omitempty"`
@@ -82,13 +84,15 @@ type UncompactedDump struct {
 }
 
 type Session struct {
-	ID                string             `json:"id"`
-	Title             string             `json:"title"`
-	CreatedAt         time.Time          `json:"created_at"`
-	LastMessageAt     time.Time          `json:"last_message_at"`
-	LastUserMessageAt time.Time          `json:"last_user_message_at,omitempty"`
-	Messages          []Message          `json:"messages"`
-	Capabilities      CapabilityRegistry `json:"capabilities,omitempty"`
+	FileChanges       map[string]FileChangeLedger `json:"file_changes,omitempty"`
+	FileChangesTurn   int                         `json:"file_changes_turn,omitempty"`
+	ID                string                      `json:"id"`
+	Title             string                      `json:"title"`
+	CreatedAt         time.Time                   `json:"created_at"`
+	LastMessageAt     time.Time                   `json:"last_message_at"`
+	LastUserMessageAt time.Time                   `json:"last_user_message_at,omitempty"`
+	Messages          []Message                   `json:"messages"`
+	Capabilities      CapabilityRegistry          `json:"capabilities,omitempty"`
 
 	CheckpointLast           int               `json:"checkpoint_last"`
 	CheckpointCP0            bool              `json:"cp0,omitempty"`
@@ -105,4 +109,23 @@ type Session struct {
 	PlanningActive   bool   `json:"planning_active,omitempty"`
 	ActivePlanName   string `json:"active_plan_name,omitempty"`
 	PlanImplementing bool   `json:"plan_implementing,omitempty"`
+}
+
+// FileChangeLedger stores only this chat's tool deltas, never workspace totals.
+type FileChangeLedger struct {
+	AddedLines   map[string]int `json:"added_lines,omitempty"`
+	RemovedLines map[string]int `json:"removed_lines,omitempty"`
+	Binary       bool           `json:"binary,omitempty"`
+	BeforeExists bool           `json:"before_exists"`
+	AfterExists  bool           `json:"after_exists"`
+}
+
+// FileChangeSummary is a saved view of this chat's pending changes at turn end.
+type FileChangeSummary struct {
+	Path         string   `json:"path"`
+	Added        int      `json:"added"`
+	Removed      int      `json:"removed"`
+	Binary       bool     `json:"binary,omitempty"`
+	AddedLines   []string `json:"addedLines,omitempty"`
+	RemovedLines []string `json:"removedLines,omitempty"`
 }

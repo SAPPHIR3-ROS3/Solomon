@@ -2,6 +2,7 @@ package toolenv
 
 import (
 	"context"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/filechanges"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -31,6 +32,8 @@ type SubagentResponse struct {
 }
 
 type Env struct {
+	RecordFileChanges                    func([]filechanges.Change, []filechanges.Commit)
+	FileChangesError                     func(error)
 	ProjHex                              string
 	ProjRoot                             string
 	Cfg                                  *config.Root

@@ -264,7 +264,7 @@ func UpdateGUIPreferences(patch GUISettingsPatch) (GUISettings, error) {
 		}
 		for key, raw := range patch.Advanced {
 			var value any
-			if key == "server.dev_mode" {
+			if key == "server.dev_mode" || key == "show_file_changes" {
 				var enabled bool
 				_ = json.Unmarshal(raw, &enabled)
 				value = enabled
