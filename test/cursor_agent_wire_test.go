@@ -191,3 +191,21 @@ func pbVarint(field int, value uint64) []byte {
 	out := binary.AppendUvarint(nil, uint64(field<<3))
 	return binary.AppendUvarint(out, value)
 }
+
+func TestAgentCacheCounterPresence(t *testing.T) {
+	for _, tc := range []struct {
+		usage []byte
+		want  int64
+	}{
+		{pbVarint(1, 10), -1},
+		{append(append(pbVarint(1, 10), pbVarint(3, 0)...), pbVarint(4, 0)...), 0},
+	} {
+		got := cursorauth.DecodeAgentServerMessage(pbBytes(1, pbBytes(14, tc.usage)))
+		if got.Err != nil {
+			t.Fatal(got.Err)
+		}
+		if !got.Ended || got.Usage.CachedPromptTokens != tc.want || got.Usage.CacheWriteTokens != tc.want {
+			t.Fatalf("cache presence lost: %+v", got)
+		}
+	}
+}

@@ -1,7 +1,8 @@
-package chatstore
+package test
 
 import (
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func TestCacheUsagePersistenceAndLegacy(t *testing.T) {
 		{`{"role":"assistant","prompt_tokens":10,"cached_prompt_tokens":7}`, 7},
 		{`{"role":"assistant","prompt_tokens":10,"cache_usage_tracked":true,"cached_prompt_tokens":-1}`, -1},
 	} {
-		var m Message
+		var m chatstore.Message
 		if err := json.Unmarshal([]byte(tc.raw), &m); err != nil {
 			t.Fatal(err)
 		}
@@ -26,7 +27,7 @@ func TestCacheUsagePersistenceAndLegacy(t *testing.T) {
 		if err = json.Unmarshal(encoded, &m); err != nil {
 			t.Fatal(err)
 		}
-		_, _, _, _, _, read, _, _, _, _, _, _, ok := StoredUsageLineForTurnRange([]Message{m}, 0, 1)
+		_, _, _, _, _, read, _, _, _, _, _, _, ok := chatstore.StoredUsageLineForTurnRange([]chatstore.Message{m}, 0, 1)
 		if !ok || read != tc.want {
 			t.Errorf("%s: got %d want %d", tc.raw, read, tc.want)
 		}

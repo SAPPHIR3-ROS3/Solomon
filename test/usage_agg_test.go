@@ -79,3 +79,13 @@ func TestUsageTokensDisplayParts_MultiTurn(t *testing.T) {
 		t.Errorf("usrTok is negative: %d", usrTok)
 	}
 }
+
+func TestAggregateCacheUnknown(t *testing.T) {
+	u := llm.AggregateConsecutiveTurnUsage([]llm.UsageStats{
+		{CachedPromptTokens: 12, CacheCreationPromptTokens: 0},
+		{CachedPromptTokens: -1, CacheCreationPromptTokens: 0},
+	})
+	if u.CachedPromptTokens != -1 || u.CacheCreationPromptTokens != 0 {
+		t.Fatalf("unexpected aggregate: %+v", u)
+	}
+}

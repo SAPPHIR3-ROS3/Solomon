@@ -17,6 +17,10 @@ func TestOpenAICacheUsageStreaming(t *testing.T) {
 		name, usage string
 		read, write int64
 	}{
+		{"null", `"prompt_tokens":100,"cached_tokens":null`, -1, -1},
+		{"malformed", `"prompt_tokens":100,"cached_tokens":"bad"`, -1, -1},
+		{"input details", `"prompt_tokens":100,"input_tokens_details":{"cached_tokens":123}`, 123, -1},
+		{"read alias", `"prompt_tokens":100,"cache_read_input_tokens":42`, 42, -1},
 		{"missing", `"prompt_tokens":100`, -1, -1},
 		{"zero", `"prompt_tokens":100,"prompt_tokens_details":{"cached_tokens":0},"cache_creation_input_tokens":0`, 0, 0},
 		{"positive", `"prompt_tokens":100,"prompt_tokens_details":{"cached_tokens":72,"cache_write_tokens":8}`, 72, 8},
