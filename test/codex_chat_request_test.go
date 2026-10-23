@@ -124,6 +124,31 @@ func TestBuildCodexInputReplaysEncryptedReasoning(t *testing.T) {
 	if reasoning["type"] != "reasoning" || reasoning["encrypted_content"] != "enc-1" {
 		t.Fatalf("reasoning item: %#v", input[1])
 	}
+	full := map[string]any{
+		"messages": []any{
+			map[string]any{"role": "assistant", "content": "done", "reasoning_item": `{"type":"reasoning","id":"rs_1","encrypted_content":"enc-2","summary":[]}`},
+		},
+	}
+	replayed := codexchat.BuildCodexInput(full)
+	item, _ := replayed[0].(map[string]any)
+	if item["id"] != "rs_1" || item["encrypted_content"] != "enc-2" {
+		t.Fatalf("full reasoning item: %#v", replayed[0])
+	}
+	// Validate the wire representation: Responses requires summary even when
+	// only encrypted reasoning is retained. It must be [] rather than null.
+	body, err := codexchat.ChatCompletionToCodexBody(chat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire struct {
+		Input []map[string]json.RawMessage `json:"input"`
+	}
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if string(wire.Input[1]["summary"]) != "[]" {
+		t.Fatalf("reasoning summary must be an empty array, got %s", wire.Input[1]["summary"])
+	}
 }
 
 func TestBuildCodexInputImageOnlyUserMessage(t *testing.T) {

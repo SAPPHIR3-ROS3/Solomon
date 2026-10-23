@@ -11,7 +11,8 @@ import (
 )
 
 type OpenAIBackend struct {
-	Client openai.Client
+	Client                   openai.Client
+	ReplayEncryptedReasoning bool
 }
 
 func (b *OpenAIBackend) Protocol() Protocol { return ProtocolOpenAI }
@@ -20,7 +21,7 @@ func (b *OpenAIBackend) buildParams(req TurnRequest) openai.ChatCompletionNewPar
 	tools := openaiToolsFromDefs(req.Tools)
 	p := openai.ChatCompletionNewParams{
 		Model:             shared.ChatModel(req.Model),
-		Messages:          MessageParams(req.System, req.Messages, req.ImageFiles),
+		Messages:          MessageParamsWithEncryptedReasoning(req.System, req.Messages, req.ImageFiles, b.ReplayEncryptedReasoning),
 		Tools:             tools,
 		ParallelToolCalls: param.NewOpt(req.ParallelToolCalls),
 	}

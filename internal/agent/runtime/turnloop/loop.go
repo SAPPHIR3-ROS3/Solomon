@@ -237,7 +237,7 @@ func Run(ctx context.Context, h Host) error {
 				proxyCorrection = fallback
 			}
 		}
-		ast := chatstore.Message{Provider: provider, Model: turnReq.Model, ReasoningEffort: reasoningEffort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText)), ReasoningEncrypted: strings.TrimSpace(turn.ReasoningEncrypted)}
+		ast := chatstore.Message{Provider: provider, Model: turnReq.Model, ReasoningEffort: reasoningEffort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText)), ReasoningEncrypted: strings.TrimSpace(turn.ReasoningEncrypted), ReasoningItem: strings.TrimSpace(turn.ReasoningItem)}
 		ast.AnthropicThinking = turn.AnthropicThinking
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})

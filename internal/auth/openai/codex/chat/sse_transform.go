@@ -15,6 +15,8 @@ type sseTransformer struct {
 	toolIDByItemID    map[string]string
 	nextToolIndex     int
 	sawToolCalls      bool
+	completed         bool
+	reasoningItem     map[string]any
 }
 
 func newSSETransformer(model string) *sseTransformer {
@@ -109,34 +111,11 @@ func (t *sseTransformer) transform(dataLine []byte) (out []byte, done bool, err 
 		return nil, false, nil
 	case "response.output_item.done":
 		item, _ := upstream["item"].(map[string]any)
-		if item == nil || item["type"] != "reasoning" {
-			return nil, false, nil
-		}
-		enc, _ := item["encrypted_content"].(string)
-		enc = strings.TrimSpace(enc)
-		if enc == "" {
-			return nil, false, nil
-		}
-		var chunks [][]byte
-		if rb, err := sendRole(upstream["sequence_number"]); err != nil {
-			return nil, false, err
-		} else if len(rb) > 0 {
-			chunks = append(chunks, rb)
-		}
-		chunk := map[string]any{
-			"id": t.responseID, "object": "chat.completion.chunk", "created": upstream["sequence_number"], "model": t.model,
-			"choices": []any{map[string]any{
-				"index": 0, "delta": map[string]any{"reasoning_encrypted_content": enc}, "finish_reason": nil,
-			}},
-		}
-		b, err := json.Marshal(chunk)
-		if err != nil {
-			return nil, false, err
-		}
-		chunks = append(chunks, b)
-		return bytes.Join(chunks, []byte("\n")), false, nil
+		t.noteReasoningItem(item)
+		return nil, false, nil
 	case "response.output_item.added":
 		item, _ := upstream["item"].(map[string]any)
+		t.noteReasoningItem(item)
 		if item == nil || item["type"] != "function_call" {
 			return nil, false, nil
 		}
@@ -227,12 +206,19 @@ func (t *sseTransformer) transform(dataLine []byte) (out []byte, done bool, err 
 		chunks = append(chunks, b)
 		return bytes.Join(chunks, []byte("\n")), false, nil
 	case "response.completed":
+		t.completed = true
 		finish := "stop"
 		if t.sawToolCalls {
 			finish = "tool_calls"
 		}
 		var usage map[string]any
 		if respObj, ok := upstream["response"].(map[string]any); ok {
+			if output, ok := respObj["output"].([]any); ok {
+				for _, raw := range output {
+					item, _ := raw.(map[string]any)
+					t.noteReasoningItem(item)
+				}
+			}
 			if u, ok := respObj["usage"].(map[string]any); ok {
 				outUsage := map[string]any{}
 				if it, ok := u["input_tokens"].(float64); ok {
@@ -262,10 +248,21 @@ func (t *sseTransformer) transform(dataLine []byte) (out []byte, done bool, err 
 		if usage == nil {
 			usage = map[string]any{"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 		}
+		delta := map[string]any{}
+		if len(t.reasoningItem) > 0 {
+			raw, err := json.Marshal(t.reasoningItem)
+			if err != nil {
+				return nil, false, err
+			}
+			delta["reasoning_item"] = string(raw)
+			if enc, _ := t.reasoningItem["encrypted_content"].(string); enc != "" {
+				delta["reasoning_encrypted_content"] = enc
+			}
+		}
 		finalChunk := map[string]any{
 			"id": t.responseID, "object": "chat.completion.chunk", "created": upstream["sequence_number"], "model": t.model,
 			"choices": []any{map[string]any{
-				"index": 0, "delta": map[string]any{}, "finish_reason": finish,
+				"index": 0, "delta": delta, "finish_reason": finish,
 			}},
 			"usage": usage,
 		}
@@ -276,6 +273,32 @@ func (t *sseTransformer) transform(dataLine []byte) (out []byte, done bool, err 
 		return b, false, nil
 	default:
 		return nil, false, nil
+	}
+}
+
+func (t *sseTransformer) noteReasoningItem(item map[string]any) {
+	if t == nil || item == nil || item["type"] != "reasoning" {
+		return
+	}
+	if t.reasoningItem == nil {
+		t.reasoningItem = map[string]any{"type": "reasoning", "summary": []any{}}
+	}
+	if id, _ := item["id"].(string); strings.TrimSpace(id) != "" {
+		t.reasoningItem["id"] = strings.TrimSpace(id)
+	}
+	if enc, _ := item["encrypted_content"].(string); strings.TrimSpace(enc) != "" {
+		t.reasoningItem["encrypted_content"] = strings.TrimSpace(enc)
+	}
+	if summary, ok := item["summary"]; ok && summary != nil {
+		t.reasoningItem["summary"] = summary
+	}
+	if content, ok := item["content"]; ok && content != nil {
+		t.reasoningItem["content"] = content
+	}
+	if _, hasID := t.reasoningItem["id"]; !hasID {
+		if _, hasEnc := t.reasoningItem["encrypted_content"]; !hasEnc {
+			t.reasoningItem = nil
+		}
 	}
 }
 

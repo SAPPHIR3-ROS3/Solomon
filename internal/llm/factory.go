@@ -72,7 +72,7 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 			logging.Log(logging.ERROR_LOG_LEVEL, "completion backend openai client failed", logging.LogOptions{Params: map[string]any{"provider": p.Name, "err": err.Error()}})
 			return nil, err
 		}
-		inner = &OpenAIBackend{Client: client}
+		inner = &OpenAIBackend{Client: client, ReplayEncryptedReasoning: p.IsChatGPTSub()}
 	}
 	rb := NewResilientBackend(inner, hostKey, policy, defaultCircuits)
 	if p.IsCursorAPI() && !p.IsCursorSub() {
