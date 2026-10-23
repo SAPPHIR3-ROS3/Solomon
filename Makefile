@@ -42,13 +42,20 @@ COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 COMMIT_TIME ?= $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 endif
 # Resolve once before recursive Make calls so CLI and desktop share a stamp.
-# Installation also checks the latest published release, with an offline fallback.
-VERSION_RELEASE_FLAG := $(if $(filter install hot-install desktop-install install-prepare,$(MAKECMDGOALS)),--latest,)
-VERSION ?= $(shell go run ./scripts/build_version "$(INSTALL_BIN)" $(VERSION_RELEASE_FLAG))
+# Every build checks origin's tags, falling back to local tags when unavailable.
+# Ignore stale shell stamps, but preserve the stamp passed to recursive Make.
+# Explicit overrides remain available as `make VERSION=... <target>`.
+ifneq ($(SOLOMON_BUILD_VERSION_RESOLVED),1)
+ifeq ($(origin VERSION),environment)
+undefine VERSION
+endif
+endif
+VERSION ?= $(shell go run ./scripts/build_version)
 ifeq ($(origin VERSION),file)
 VERSION := $(VERSION)
 endif
 export VERSION
+export SOLOMON_BUILD_VERSION_RESOLVED := 1
 # Compute source stamps on first use and retain them for subsequent recipes.
 # Keep this lazy so targets that do not compile need no source snapshot.
 SOURCE_TREE = $(eval SOURCE_TREE := $(strip $(shell go run ./scripts/source_identity)))$(SOURCE_TREE)
