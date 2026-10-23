@@ -1,22 +1,25 @@
-package main
+package test
 
 import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
-func TestVersionResolverProcess(t *testing.T) {
-	if os.Getenv("SOLOMON_VERSION_TEST_PROCESS") == "1" {
-		main()
-		os.Exit(0)
-	}
-}
-
 func TestOriginTagsAndLocalFallback(t *testing.T) {
 	root := t.TempDir()
+	executable := filepath.Join(root, "resolver")
+	if runtime.GOOS == "windows" {
+		executable += ".exe"
+	}
+	build := exec.Command("go", "build", "-o", executable, "./scripts/build_version")
+	build.Dir = repositoryRootForTestLayout(t)
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build resolver: %v\n%s", err, out)
+	}
 	git := func(dir string, args ...string) {
 		t.Helper()
 		cmd := exec.Command("git", args...)
@@ -36,15 +39,10 @@ func TestOriginTagsAndLocalFallback(t *testing.T) {
 	git(origin, "tag", "v2099.1.0-rc1")
 	git(checkout, "tag", "v2099.1.0")
 	git(checkout, "remote", "add", "origin", origin)
-	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
 	verify := func(want string) {
 		t.Helper()
-		cmd := exec.Command(executable, "-test.run=^TestVersionResolverProcess$")
+		cmd := exec.Command(executable)
 		cmd.Dir = checkout
-		cmd.Env = append(os.Environ(), "SOLOMON_VERSION_TEST_PROCESS=1")
 		out, err := cmd.Output()
 		if err != nil {
 			t.Fatal(err)
