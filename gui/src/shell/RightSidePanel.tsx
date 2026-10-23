@@ -1,6 +1,6 @@
 import { fileIconName } from "../fileIcons";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, stageProjectChanges, unstageProjectChanges, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
+import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, sameProjectDirectoryEntries, sameProjectGitHistory, sameProjectGitStatus, stageProjectChanges, unstageProjectChanges, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 import { useFileContextMenu } from "./FileContextMenu";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
@@ -58,6 +58,8 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
+  const expandedDirectoriesRef = useRef(expandedDirectories);
+  expandedDirectoriesRef.current = expandedDirectories;
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [scrollShadowOpacity, setScrollShadowOpacity] = useState(0);
@@ -245,6 +247,70 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
     window.addEventListener(PROJECT_GIT_STATUS_CHANGED_EVENT, refreshGitStatus);
     return () => { cancelled = true; window.removeEventListener(PROJECT_FILES_CHANGED_EVENT, refresh); window.removeEventListener(PROJECT_GIT_STATUS_CHANGED_EVENT, refreshGitStatus); };
   }, [project?.id]);
+
+  useEffect(() => {
+    if (!project && !temporaryWorkspace) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    let inFlight = false;
+    const readDirectory = (path: string) => project
+      ? fetchProjectDirectoryEntries(project.id, path)
+      : fetchHomeDirectoryEntries(path || temporaryWorkspace!.path);
+    const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      const paths = [...new Set(["", ...Object.keys(entriesRef.current).filter((path) => expandedDirectoriesRef.current.has(path))])];
+      const [listings, status] = await Promise.all([
+        Promise.all(paths.map(async (path) => {
+          try { return [path, await readDirectory(path)] as const; }
+          catch { return null; }
+        })),
+        project ? fetchProjectGitStatus(project.id).catch(() => null) : Promise.resolve(null),
+      ]);
+      if (!cancelled) {
+        setEntries((current) => {
+          let changed = false;
+          const next = { ...current };
+          for (const listing of listings) {
+            if (!listing) continue;
+            const [path, nextEntries] = listing;
+            if (sameProjectDirectoryEntries(current[path], nextEntries)) continue;
+            next[path] = nextEntries;
+            changed = true;
+          }
+          return changed ? next : current;
+        });
+        if (status) setGitStatus((current) => sameProjectGitStatus(current, status) ? current : status);
+      }
+      inFlight = false;
+      if (!cancelled) timer = window.setTimeout(() => void refresh(), 1200);
+    };
+    timer = window.setTimeout(() => void refresh(), 1200);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [project?.id, temporaryWorkspace?.id]);
+
+  useEffect(() => {
+    if (!project || activeView !== "history") return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const refresh = async () => {
+      try {
+        const nextHistory = await fetchProjectGitHistory(project.id);
+        if (!cancelled) setGitHistory((current) => sameProjectGitHistory(current, nextHistory) ? current : nextHistory);
+      } catch {
+        // Keep the last successful graph visible while the daemon is unavailable.
+      }
+      if (!cancelled) timer = window.setTimeout(() => void refresh(), 3500);
+    };
+    timer = window.setTimeout(() => void refresh(), 3500);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [project?.id, activeView]);
 
   function toggleDirectory(entry: ProjectDirectoryEntry) {
     const isExpanded = expandedDirectories.has(entry.path);
@@ -477,6 +543,15 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
       cancelled = true;
     };
   }, [project, readOnly]);
+
+  useEffect(() => {
+    if (!branchMenuOpen || !project || readOnly) return;
+    let cancelled = false;
+    void fetchProjectBranches(project.id)
+      .then((info) => { if (!cancelled) setBranches(info.branches); })
+      .catch(() => { if (!cancelled) setBranchesError("Unable to load branches."); });
+    return () => { cancelled = true; };
+  }, [branchMenuOpen, project?.id, readOnly]);
 
   useEffect(() => {
     if (!branchMenuOpen) return;
