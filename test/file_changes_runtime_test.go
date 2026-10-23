@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -125,6 +126,9 @@ func TestFileChangesSavedOnSpecificAssistantTurn(t *testing.T) {
 }
 
 func TestFileChangesXDGCommandReachesSavedAssistantMessage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("XDG desktop commands use a POSIX shell")
+	}
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	home := t.TempDir()
 	t.Setenv("HOME", home)

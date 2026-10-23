@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -90,6 +91,9 @@ func TestFileChangesCommitIsOwnedByCallingChat(t *testing.T) {
 }
 
 func TestFileChangesDesktopShellFromHomeProject(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("desktop shell tracking uses a POSIX shell")
+	}
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -143,6 +147,9 @@ func TestFileChangesExplicitEditOutsideProject(t *testing.T) {
 }
 
 func TestFileChangesXDGDesktopVariableCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("XDG desktop commands use a POSIX shell")
+	}
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
