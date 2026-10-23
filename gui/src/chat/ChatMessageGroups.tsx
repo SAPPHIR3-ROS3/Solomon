@@ -315,7 +315,7 @@ function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagen
     <article className={"chat-message is-" + message.role} onClick={canCollapseReasoning ? handleMessageClick : undefined}>
       {checkpoint && !(message.role === "assistant" && message.toolCalls?.length) ? <CheckpointLabel label={checkpoint.label} /> : null}
       {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
-      {message.role === "assistant" && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} suppressBriefThought={suppressBriefThought} /> : null}
+      {message.role === "assistant" && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} suppressBriefThought={suppressBriefThought} suppressThoughtFor={toolActivity !== undefined} /> : null}
       {message.toolCalls?.length ? (
         <ToolActivity
           isCollapsed={toolActivity?.isCollapsed}
