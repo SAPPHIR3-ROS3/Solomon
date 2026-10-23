@@ -2,7 +2,7 @@
 
 ## Status
 
-Solomon starts this directory as a local OpenAI-compatible sidecar for the Claude Sub provider. Chat completion uses the official Agent SDK and the installed Claude CLI login. The sidecar accepts a fresh user turn and continuations of the same live session. It rejects edited, truncated, or branched history instead of replaying it through undocumented transcript records.
+Solomon starts this directory as a local OpenAI-compatible sidecar for the Claude Sub provider. Chat completion uses the official Agent SDK and the installed Claude CLI login. Like the Cursor sidecar, requests run concurrently and share no state: each conversation gets its own live SDK session (at most 8, closed after 30 idle minutes; a request that finds every session running or waiting on tool results waits up to two minutes for a slot, then fails with 503, and such sessions are never evicted to make room), and every request continues the session whose exact history it extends, so background title or subagent requests never disturb a chat waiting on tool results. History that no live session holds (a restarted sidecar, an edited or branched chat, a model switch) starts a new session with the transcript replayed as text in the first prompt, never through undocumented transcript records.
 
 ## Verified dependency
 

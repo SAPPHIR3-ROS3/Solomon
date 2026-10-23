@@ -9,6 +9,7 @@ import (
 	cursorauth "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	claudeint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/claude"
 	cursorint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
@@ -41,15 +42,12 @@ func listChatGPTSubModels(ctx context.Context, cfg *config.Root, p *config.Provi
 }
 
 func listClaudeSubModels(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {
-	bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
+	cwd, _ := os.Getwd()
+	ids, err := claudeint.Models(ctx, cwd)
 	if err != nil {
 		return nil, err
 	}
-	ids, err := modelsapi.ListAnthropic(p.BaseURL, bearer, true)
-	if err != nil {
-		return nil, err
-	}
-	return filterClaudeSubModels(ids), nil
+	return config.FilterClaudeSubModels(ids), nil
 }
 
 func filterChatGPTSubModels(ids []string) []string {
@@ -99,20 +97,6 @@ func chatGPTSubPinRank(id string) int {
 	default:
 		return -1
 	}
-}
-
-func filterClaudeSubModels(ids []string) []string {
-	var out []string
-	for _, id := range ids {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		if config.ModelPassesClaudeSubFilter(id) {
-			out = append(out, id)
-		}
-	}
-	return out
 }
 
 func listCursorSubModels(ctx context.Context, cfg *config.Root, p *config.Provider) ([]string, error) {
