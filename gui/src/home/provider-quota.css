@@ -5,6 +5,7 @@
 .provider-quota-preview { display: flex; flex-direction: column; gap: 3px; width: 22px; max-height: 24px; overflow: hidden; }
 .provider-quota-preview-track { display: block; height: 4px; flex-shrink: 0; border: 1px solid var(--color-border); border-radius: 3px; background: var(--color-surface); overflow: hidden; }
 .provider-quota-preview-track > span { display: block; height: 100%; background: var(--color-accent); }
+.provider-quota-preview-track.is-limited > span { background: var(--color-danger); }
 .provider-quota-preview-track.is-unavailable { border-style: dashed; opacity: .6; }
 .provider-quota-menu { position: absolute; right: 0; bottom: calc(100% + 12px); width: min(360px, calc(100vw - 40px)); border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-raised); box-shadow: 0 12px 36px #0005; color: var(--color-text); z-index: 60; overflow: hidden; }
 .provider-quota-menu > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--color-border); font-size: 13px; }
@@ -20,4 +21,5 @@
 .provider-quota-bar small { color: var(--color-text-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .provider-quota-track { height: 6px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 4px; overflow: hidden; }
 .provider-quota-track > span { display: block; height: 100%; background: var(--color-accent); }
+.provider-quota-track.is-limited > span { background: var(--color-danger); }
 .provider-quota-control button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
