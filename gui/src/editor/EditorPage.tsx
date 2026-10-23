@@ -12,7 +12,7 @@ import { AsciiBanner } from "../home/Welcome";
 import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon, SearchIcon } from "../shell/RightSidePanel";
 import { SidePanelToggle } from "../shell/SidePanelToggle";
 import { CreateEntryActions } from "./CreateEntryActions";
-import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
+import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, sameProjectDirectoryEntries, sameProjectGitHistory, sameProjectGitStatus, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 
 import { loadEditorSession, storeEditorSession, saveEditorFile, waitForEditorSaves, type OpenFile, type EditorSession, type EditorViewState } from "./editorSession";
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
@@ -29,6 +29,8 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const childrenRef = useRef(children);
   childrenRef.current = children;
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(restoredSession.expanded));
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
   const [rootCollapsed, setRootCollapsed] = useState(restoredSession.rootCollapsed);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -194,6 +196,74 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   }, [project?.id]);
 
   useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    let inFlight = false;
+    const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      const paths = ["", ...expandedRef.current];
+      const [listings, status, branches] = await Promise.all([
+        Promise.all(paths.map(async (path) => {
+          try { return [path, await fetchProjectDirectoryEntries(project.id, path)] as const; }
+          catch { return null; }
+        })),
+        fetchProjectGitStatus(project.id).catch(() => null),
+        fetchProjectBranches(project.id).catch(() => null),
+      ]);
+      if (!cancelled) {
+        const root = listings.find((listing) => listing?.[0] === "");
+        if (root) setEntries((current) => sameProjectDirectoryEntries(current, root[1]) ? current : root[1]);
+        setChildren((current) => {
+          let changed = false;
+          const next = { ...current };
+          for (const listing of listings) {
+            if (!listing || listing[0] === "") continue;
+            const [path, nextEntries] = listing;
+            if (sameProjectDirectoryEntries(current[path], nextEntries)) continue;
+            next[path] = nextEntries;
+            changed = true;
+          }
+          return changed ? next : current;
+        });
+        if (status) setGit((current) => sameProjectGitStatus(current, status) ? current : status);
+        if (branches) {
+          setBranch((current) => current === branches.current ? current : branches.current);
+          setBranchOptions((current) => current.length === branches.branches.length && current.every((value, index) => value === branches.branches[index]) ? current : branches.branches);
+        }
+      }
+      inFlight = false;
+      if (!cancelled) timer = window.setTimeout(() => void refresh(), 1200);
+    };
+    timer = window.setTimeout(() => void refresh(), 1200);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (!project || sideView !== "git") return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const refresh = async () => {
+      try {
+        const nextHistory = await fetchProjectGitHistory(project.id);
+        if (!cancelled) setHistory((current) => sameProjectGitHistory(current, nextHistory) ? current : nextHistory);
+      } catch {
+        // Keep the current history visible when the daemon is temporarily unavailable.
+      }
+      if (!cancelled) timer = window.setTimeout(() => void refresh(), 3500);
+    };
+    void refresh();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [project?.id, sideView]);
+
+  useEffect(() => {
     if (activeTabId && !files.some((file) => file.id === activeTabId)) setActiveTabId(files[0]?.id ?? "");
   }, [files, activeTabId]);
 
@@ -352,7 +422,6 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       await saveEditorFile(project.id, path, content);
       setFiles((current) => current.map((file) => file.path === path ? { ...file, saved: content } : file));
       setMessage("");
-      void fetchProjectGitStatus(project.id).then(setGit).catch(() => undefined);
       return true;
     } catch {
       setMessage("Autosave failed. Your changes are kept in this editor; try saving again.");
