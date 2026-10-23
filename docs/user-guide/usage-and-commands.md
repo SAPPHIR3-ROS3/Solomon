@@ -166,8 +166,9 @@ Highlights:
 | `/btw <question>` | Temporary side question while the assistant is already streaming; not saved to the transcript |
 | `/add` | Install skills (skills.sh, npx, or local `.md`); `/add rule`, `/add projectrule` for custom rules |
 | `/skill:<name> [request]` | Force one installed skill into the next LLM turn while keeping `/skill:...` visible in the chat transcript |
-| `/remove rule`, `/remove projectrule` | Remove a rule by number (remaining rules renumbered) |
-| `/rules` | List custom rules (global + project) |
+| `/activate`, `/deactivate` | Enable or temporarily disable a global rule, project rule, or installed skill |
+| `/remove rule`, `/remove projectrule`, `/remove skill` | Permanently remove the selected rule or skill |
+| `/rules` | List custom rules (global + project), marking inactive rules |
 | `/instructions` | Show global `~/.solomon/AGENTS.md` loaded into the system prompt |
 | `/goto`, `/checkpoint` | Rewind transcript to a checkpoint id; print current checkpoint tag |
 | `/exec` | Send one user message and run a turn (`/exec "prompt with spaces"`) |
@@ -308,7 +309,7 @@ Solomon copies installed skills into one of three **scopes** (optional last argu
 /add skill https://example.com/SKILL.md "My Skill" project
 ```
 
-List installed skills with `/skills` (sections Local → Project → Global). Remove with `/remove skill <name>`. Paths and registry: [Data layout — Skills](data-layout.md#skills).
+List installed skills with `/skills` (sections Local → Project → Global); inactive skills remain listed but are excluded from discovery. Use `/deactivate skill <name>` and `/activate skill <name>` to toggle them; specify `--scope global|project|local` if the name is ambiguous. Permanently remove a skill with `/remove skill <name>`. Paths and registry: [Data layout — Skills](data-layout.md#skills).
 
 ### Skill install safety checks
 

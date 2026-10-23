@@ -21,13 +21,14 @@ const (
 	ScopeProject = "project"
 )
 
-var ruleFileRe = regexp.MustCompile(`^rule_(\d+)\.txt$`)
+var ruleFileRe = regexp.MustCompile(`^rule_(\d+)(\.disabled)?\.txt$`)
 
 type RuleEntry struct {
-	Number  int
-	Text    string
-	Scope   string
+	Number   int
+	Text     string
+	Scope    string
 	FilePath string
+	Enabled  bool
 }
 
 func rulesDir(scope, projHex string) (string, error) {
@@ -88,8 +89,17 @@ func ruleNumberFromName(name string) (int, error) {
 	return strconv.Atoi(m[1])
 }
 
-func ruleFileName(n int) string {
-	return fmt.Sprintf("rule_%02d.txt", n)
+func ruleFileName(n int, enabled bool) string {
+	suffix := ""
+	if !enabled {
+		suffix = ".disabled"
+	}
+	return fmt.Sprintf("rule_%02d%s.txt", n, suffix)
+}
+
+func ruleEnabledFromName(name string) bool {
+	m := ruleFileRe.FindStringSubmatch(name)
+	return len(m) < 3 || m[2] == ""
 }
 
 func AddRule(scope, projHex, text string) (n int, err error) {
@@ -110,8 +120,14 @@ func AddRule(scope, projHex, text string) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	next := len(files) + 1
-	p := filepath.Join(dir, ruleFileName(next))
+	next := 1
+	for _, name := range files {
+		n, parseErr := ruleNumberFromName(name)
+		if parseErr == nil && n >= next {
+			next = n + 1
+		}
+	}
+	p := filepath.Join(dir, ruleFileName(next, true))
 	if err := os.WriteFile(p, []byte(text), 0o600); err != nil {
 		return 0, err
 	}
@@ -131,15 +147,55 @@ func RemoveRule(scope, projHex string, number int) (err error) {
 	if err != nil {
 		return err
 	}
-	target := ruleFileName(number)
-	p := filepath.Join(dir, target)
-	if _, err := os.Stat(p); err != nil {
-		return fmt.Errorf("rule %d not found", number)
-	}
-	if err := os.Remove(p); err != nil {
+	files, err := listRuleFiles(dir)
+	if err != nil {
 		return err
 	}
-	return renumberRules(dir)
+	for _, name := range files {
+		n, parseErr := ruleNumberFromName(name)
+		if parseErr != nil || n != number {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
+			return err
+		}
+		return renumberRules(dir)
+	}
+	return fmt.Errorf("rule %d not found", number)
+}
+
+func SetRuleEnabled(scope, projHex string, number int, enabled bool) (bool, error) {
+	if number <= 0 {
+		return false, fmt.Errorf("invalid rule number %d", number)
+	}
+	dir, err := rulesDir(scope, projHex)
+	if err != nil {
+		return false, err
+	}
+	files, err := listRuleFiles(dir)
+	if err != nil {
+		return false, err
+	}
+	for _, name := range files {
+		n, parseErr := ruleNumberFromName(name)
+		if parseErr != nil || n != number {
+			continue
+		}
+		if ruleEnabledFromName(name) == enabled {
+			return false, nil
+		}
+		destination := filepath.Join(dir, ruleFileName(number, enabled))
+		if _, err := os.Stat(destination); err == nil {
+			return false, fmt.Errorf("rule %d already has a file for the requested state", number)
+		} else if !os.IsNotExist(err) {
+			return false, err
+		}
+		if err := os.Rename(filepath.Join(dir, name), destination); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, fmt.Errorf("rule %d not found", number)
 }
 
 func renumberRules(dir string) error {
@@ -148,29 +204,24 @@ func renumberRules(dir string) error {
 		return err
 	}
 	type item struct {
-		num  int
-		text string
+		text    string
+		enabled bool
 	}
 	var items []item
 	for _, name := range files {
-		n, err := ruleNumberFromName(name)
-		if err != nil {
-			continue
-		}
 		b, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return err
 		}
-		items = append(items, item{num: n, text: string(b)})
+		items = append(items, item{text: string(b), enabled: ruleEnabledFromName(name)})
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].num < items[j].num })
 	for _, name := range files {
 		if err := os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
 	for i, it := range items {
-		p := filepath.Join(dir, ruleFileName(i+1))
+		p := filepath.Join(dir, ruleFileName(i+1, it.enabled))
 		if err := os.WriteFile(p, []byte(it.text), 0o600); err != nil {
 			return err
 		}
@@ -207,6 +258,7 @@ func ListRules(scope, projHex string) (out []RuleEntry, err error) {
 			Text:     strings.TrimSpace(string(b)),
 			Scope:    scope,
 			FilePath: filepath.Join(dir, name),
+			Enabled:  ruleEnabledFromName(name),
 		})
 	}
 	return out, nil
@@ -241,13 +293,21 @@ func WriteRulesList(w io.Writer, projHex string) error {
 	if len(global) > 0 {
 		fmt.Fprintln(&buf, "Global rules:")
 		for _, r := range global {
-			fmt.Fprintf(&buf, "  %d. %s\n", r.Number, previewRule(r.Text))
+			status := ""
+			if !r.Enabled {
+				status = "[inactive] "
+			}
+			fmt.Fprintf(&buf, "  %d. %s%s\n", r.Number, status, previewRule(r.Text))
 		}
 	}
 	if len(project) > 0 {
 		fmt.Fprintln(&buf, "Project rules:")
 		for _, r := range project {
-			fmt.Fprintf(&buf, "  %d. %s\n", r.Number, previewRule(r.Text))
+			status := ""
+			if !r.Enabled {
+				status = "[inactive] "
+			}
+			fmt.Fprintf(&buf, "  %d. %s%s\n", r.Number, status, previewRule(r.Text))
 		}
 	}
 	termcolor.WriteSystem(w, buf.String())
@@ -277,10 +337,16 @@ func LoadAllRulesText(projHex string) (string, error) {
 	var b strings.Builder
 	n := 1
 	for _, r := range global {
+		if !r.Enabled {
+			continue
+		}
 		fmt.Fprintf(&b, "%d. %s\n", n, r.Text)
 		n++
 	}
 	for _, r := range project {
+		if !r.Enabled {
+			continue
+		}
 		fmt.Fprintf(&b, "%d. %s\n", n, r.Text)
 		n++
 	}

@@ -29,6 +29,7 @@ function globalAgentsFromPayload(payload: unknown): GlobalAgents {
 }
 
 export type CustomizationRule = {
+  enabled?: boolean;
   id: number;
   text: string;
 };
@@ -114,7 +115,7 @@ export async function deleteCustomizationRule(ruleId: number): Promise<Customiza
 
 export function sameCustomizationRules(left: CustomizationRule[], right: CustomizationRule[]): boolean {
   if (left.length !== right.length) return false;
-  return left.every((rule, index) => rule.id === right[index]?.id && rule.text === right[index]?.text);
+  return left.every((rule, index) => rule.id === right[index]?.id && rule.text === right[index]?.text && (rule.enabled !== false) === (right[index]?.enabled !== false));
 }
 
 export async function fetchCustomizationSkills(signal?: AbortSignal): Promise<CustomizationCatalogItem[]> {
@@ -281,7 +282,8 @@ function isCustomizationRule(value: unknown): value is CustomizationRule {
     value
       && typeof value === "object"
       && "id" in value && typeof value.id === "number"
-      && "text" in value && typeof value.text === "string",
+      && "text" in value && typeof value.text === "string"
+      && (!("enabled" in value) || typeof value.enabled === "boolean"),
   );
 }
 

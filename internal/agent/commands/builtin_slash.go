@@ -99,9 +99,21 @@ func getSlashBuiltins() []slashBuiltin {
 		{[]string{"instructions"}, "/instructions", "/instructions — show global AGENTS.md loaded for the system prompt", nil, func(d Deps, parts []string) error { return Instructions(d) }},
 		{[]string{"remove"}, "/remove", "/remove rule <N> | /remove projectrule <N> | /remove skill <name>", nil, func(d Deps, parts []string) error {
 			if len(parts) < 2 {
-				return fmt.Errorf(`usage: /remove rule <N> | /remove projectrule <N> | /remove skill <name>`)
+				return fmt.Errorf("usage: /remove rule <N> | /remove projectrule <N> | /remove skill <name>")
 			}
 			return Remove(d, parts[1:])
+		}},
+		{[]string{"activate"}, "/activate", "/activate rule <N> | projectrule <N> | skill <name> [--scope global|project|local]", nil, func(d Deps, parts []string) error {
+			if len(parts) < 2 {
+				return activationUsage()
+			}
+			return Activate(d, parts[1:])
+		}},
+		{[]string{"deactivate"}, "/deactivate", "/deactivate rule <N> | projectrule <N> | skill <name> [--scope global|project|local]", nil, func(d Deps, parts []string) error {
+			if len(parts) < 2 {
+				return activationUsage()
+			}
+			return Deactivate(d, parts[1:])
 		}},
 		{[]string{"version"}, "/version", "print installed Solomon version", nil, func(d Deps, parts []string) error { return Version(d) }},
 		{[]string{"update"}, "/update", "check GitHub releases; clear screen and refresh welcome banner (does not install)", nil, func(d Deps, parts []string) error { return Update(d) }},

@@ -9,15 +9,16 @@ const (
 )
 
 type SkillEntry struct {
-	Name          string         `json:"name"`
-	SourceRepo    string         `json:"source_repo"`
-	SkillRelPath  string         `json:"skill_rel_path"`
-	ClonePath     string         `json:"clone_path"`
-	SkillMdPath   string         `json:"skill_md_path"`
-	FrontMatter   map[string]any `json:"front_matter,omitempty"`
-	AuditSummary  string         `json:"audit_summary,omitempty"`
-	SkillSSHPage  string         `json:"skillssh_page,omitempty"`
-	InstalledAt   string         `json:"installed_at,omitempty"`
+	Name         string         `json:"name"`
+	SourceRepo   string         `json:"source_repo"`
+	SkillRelPath string         `json:"skill_rel_path"`
+	ClonePath    string         `json:"clone_path"`
+	SkillMdPath  string         `json:"skill_md_path"`
+	FrontMatter  map[string]any `json:"front_matter,omitempty"`
+	AuditSummary string         `json:"audit_summary,omitempty"`
+	SkillSSHPage string         `json:"skillssh_page,omitempty"`
+	InstalledAt  string         `json:"installed_at,omitempty"`
+	Disabled     bool           `json:"disabled,omitempty"`
 }
 
 type Registry struct {
