@@ -73,6 +73,9 @@ require('node:http').createServer((req,res)=>res.end('lifecycle')).listen(Number
 				}
 				entryURL := (&url.URL{Scheme: "file", Path: entryPath}).String()
 				fixture = "import(" + strconv.Quote(entryURL) + ");"
+				// Windows temp paths can use 8.3 aliases while Vite canonicalizes its
+				// root. This isolated fixture tests process cleanup, not the fs allowlist.
+				write(filepath.Join(gui, "vite.config.mjs"), "export default {server:{fs:{strict:false}}};")
 			}
 			write(entry, fixture)
 			// HOME is scoped to subprocesses, keeping Go's build/cache environment intact.

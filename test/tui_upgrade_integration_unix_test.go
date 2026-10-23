@@ -23,6 +23,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/creack/pty"
 )
 
@@ -171,7 +172,7 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 					}
 				}
 			}()
-			output := func() string { mu.Lock(); defer mu.Unlock(); return transcript.String() }
+			output := func() string { mu.Lock(); defer mu.Unlock(); return ansi.Strip(transcript.String()) }
 			exited := make(chan error, 1)
 			go func() { exited <- command.Wait() }()
 			t.Cleanup(func() {
