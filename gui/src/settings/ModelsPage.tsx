@@ -489,7 +489,7 @@ function ProviderRow({
                 {bar.hidePercent ? null : <span>{Math.round(bar.percent)}%</span>}
               </div>
               {bar.hidePercent ? null : (
-                <div aria-hidden="true" className="settings-provider-quota-track">
+                <div aria-hidden="true" className={`settings-provider-quota-track${bar.percent >= 100 ? " is-limited" : ""}`}>
                   <span style={{ width: `${Math.round(bar.percent)}%` }} />
                 </div>
               )}

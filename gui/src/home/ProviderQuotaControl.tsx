@@ -51,7 +51,7 @@ export function ProviderQuotaControl({ provider, open, onOpenChange }: { provide
   return <div className="provider-quota-control" ref={ref}>
     <button aria-label="Provider quota" aria-expanded={open} aria-controls={open ? id : undefined} aria-haspopup="dialog" className="notification-bell provider-quota-trigger" title={previewTitle || "Provider quota and credits"} type="button" onClick={() => onOpenChange(!open)}>
       <span aria-hidden="true" className="provider-quota-preview">
-        {previewBars.length ? previewBars.map((bar, index) => <span className="provider-quota-preview-track" key={`${bar.label}:${index}`}><span style={{ width: `${Math.max(0, Math.min(100, bar.percent))}%` }} /></span>) : <span className="provider-quota-preview-track is-unavailable" />}
+        {previewBars.length ? previewBars.map((bar, index) => <span className={`provider-quota-preview-track${bar.percent >= 100 ? " is-limited" : ""}`} key={`${bar.label}:${index}`}><span style={{ width: `${Math.max(0, Math.min(100, bar.percent))}%` }} /></span>) : <span className="provider-quota-preview-track is-unavailable" />}
       </span>
     </button>
     {open ? <section aria-label="Provider quota" aria-busy={loading} className="provider-quota-menu" id={id} role="dialog">
@@ -61,7 +61,7 @@ export function ProviderQuotaControl({ provider, open, onOpenChange }: { provide
         {quota?.error ? <p role="alert">{quota.error}</p> : null}
         {quota?.bars.map((bar, index) => <div className="provider-quota-bar" key={`${bar.label}:${index}`}>
           <div className="provider-quota-label"><span>{bar.label}</span>{bar.hidePercent ? null : <strong>{Math.round(bar.percent)}%</strong>}</div>
-          {bar.hidePercent ? null : <div aria-label={bar.label} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(bar.percent)} className="provider-quota-track"><span style={{ width: `${bar.percent}%` }} /></div>}
+          {bar.hidePercent ? null : <div aria-label={bar.label} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(bar.percent)} className={`provider-quota-track${bar.percent >= 100 ? " is-limited" : ""}`}><span style={{ width: `${bar.percent}%` }} /></div>}
           {bar.detail ? <small>{liveQuotaDetail(bar.detail, now)}</small> : null}
           {(bar.availableResets ?? 0) > 0 ? <BankedResetButton key={provider} provider={provider} available={bar.availableResets!} onUpdated={setQuotas} /> : null}
         </div>)}
