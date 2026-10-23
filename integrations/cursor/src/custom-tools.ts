@@ -26,7 +26,7 @@ export function solomonCustomToolsFromOpenAI(
   for (const def of defs) {
     out[def.name] = {
       description: def.description,
-      inputSchema: def.inputSchema,
+      inputSchema: def.inputSchema as SDKCustomTool["inputSchema"],
       execute: solomonCustomToolPrehookExecute,
     };
   }
