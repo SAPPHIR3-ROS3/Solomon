@@ -1,0 +1,1 @@
+import{n as e,t}from"./html-derivative-CDPd35K2.js";e();export{t as default};

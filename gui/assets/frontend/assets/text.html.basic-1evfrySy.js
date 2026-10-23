@@ -1,0 +1,1 @@
+import{n as e,t}from"./app~text.html.basic-BeUtblSw.js";t();export{e as default};

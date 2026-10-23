@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t;function n(){return(n=e((()=>{t=`{"scopeName":"source.worktree-python","patterns":[{"include":"source.python"}],"name":"cursor:source.worktree-python"}`})))()}n();export{t as default};
