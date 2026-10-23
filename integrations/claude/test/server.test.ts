@@ -42,3 +42,29 @@ test("sidecar authenticates health, models and streaming completions", async () 
     await once(server, "close");
   }
 });
+
+test("a fresh request is served while another completion is still open", async () => {
+  let release = () => {};
+  const blocked = new Promise<void>((resolve) => { release = resolve; });
+  const server = createSidecar("secret", {
+    async models() { return []; },
+    async complete(input) {
+      if (input.messages.at(-1)?.content === "slow") await blocked;
+      return { content: String(input.messages.at(-1)?.content), toolCalls: [], finishReason: "stop", usage: { promptTokens: 1, completionTokens: 1 } };
+    },
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("no port");
+    const slow = request(address.port, "secret", "/v1/chat/completions", { model: "m", messages: [{ role: "user", content: "slow" }] });
+    const title = await request(address.port, "secret", "/v1/chat/completions", { model: "m", messages: [{ role: "user", content: "title" }] });
+    assert.match(title.text, /"content":"title"/);
+    release();
+    assert.match((await slow).text, /"content":"slow"/);
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});

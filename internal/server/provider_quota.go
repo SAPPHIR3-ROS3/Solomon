@@ -15,6 +15,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	claudeint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/claude"
 )
 
 type apiQuotaBar struct {
@@ -63,6 +64,14 @@ func (a *modelAPI) handleQuotas(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadProviderQuota(ctx context.Context, cfg *config.Root, p *config.Provider) apiProviderQuota {
+	if p.IsClaudeSub() {
+		// The official CLI owns the login; an unreadable token is reported, not shown as no quota.
+		bearer, err := claudeint.AccessToken(ctx)
+		if err != nil {
+			return apiProviderQuota{Error: "Claude quota unavailable: " + err.Error()}
+		}
+		return fetchQuotaJSON(ctx, []string{"https://api.anthropic.com/api/oauth/usage"}, bearer, "", "claude", claudeQuotaHeaders(bearer))
+	}
 	bearer, err := config.ResolveProviderBearer(ctx, cfg, p)
 	if err != nil {
 		return apiProviderQuota{Error: err.Error()}
@@ -70,8 +79,6 @@ func loadProviderQuota(ctx context.Context, cfg *config.Root, p *config.Provider
 	switch {
 	case p.IsChatGPTSub():
 		return fetchChatGPTQuota(ctx, bearer, p.OAuthAccountID)
-	case p.IsClaudeSub():
-		return fetchQuotaJSON(ctx, []string{"https://api.anthropic.com/api/oauth/usage"}, bearer, "", "claude", claudeQuotaHeaders(bearer))
 	case p.IsCursorSub():
 		session, err := config.ResolveCursorSessionBearer(ctx, cfg, p)
 		if err != nil {

@@ -184,6 +184,10 @@ func oauthCredentialsReady(p *Provider) bool {
 	if p.EffectiveAuthKind() == AuthKindOAuthCursor {
 		return cursorSessionToken(p) != "" || strings.TrimSpace(p.OAuthRefreshToken) != "" || strings.TrimSpace(p.APIKey) != ""
 	}
+	if p.IsClaudeSub() {
+		// The official Claude CLI owns the subscription login; the sidecar reports when it is missing.
+		return true
+	}
 	if strings.TrimSpace(p.OAuthAccessToken) != "" {
 		return true
 	}
@@ -247,6 +251,21 @@ func ModelPassesChatGPTSubPickerFilter(modelID string) bool {
 func ModelPassesClaudeSubFilter(modelID string) bool {
 	m := strings.ToLower(strings.TrimSpace(modelID))
 	return strings.HasPrefix(m, "claude-")
+}
+
+// FilterClaudeSubModels drops SDK aliases such as "opus" or "default" and duplicates.
+func FilterClaudeSubModels(ids []string) []string {
+	var out []string
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] || !ModelPassesClaudeSubFilter(id) {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
 }
 
 func (p *Provider) oauthExpiresAt() (time.Time, bool) {

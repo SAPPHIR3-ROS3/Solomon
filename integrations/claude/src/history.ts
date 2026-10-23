@@ -60,8 +60,8 @@ export function nextAction(accepted: ChatMessage[], produced: Produced | null, i
   if (!produced) {
     if (accepted.length === 0) {
       const body = incoming.filter((message) => message.role !== "system");
-      if (body.length !== 1 || body[0].role !== "user") return { type: "reject", reason: "Claude sidecar cannot import an existing transcript; start a new chat" };
       const system = incoming.filter((message) => message.role === "system").map((message) => text(message.content) || "").join("\n");
+      if (body.length !== 1 || body[0].role !== "user") return { type: "start", system, prompt: transcript(body) };
       return { type: "start", system, prompt: text(body[0].content) || "" };
     }
     if (incoming.length !== accepted.length + 1 || !same(incoming.slice(0, accepted.length), accepted) || incoming[incoming.length - 1].role !== "user") {
@@ -84,6 +84,17 @@ export function nextAction(accepted: ChatMessage[], produced: Produced | null, i
     return { type: "reject", reason: "Claude sidecar history diverged from the live official session" };
   }
   return { type: "tools", results: results.map((message) => ({ id: message.tool_call_id || "", output: text(message.content) || "" })) };
+}
+
+// transcript replays a history no live session holds as one prompt, as the Cursor sidecar does
+// for every request, so a restarted, edited or re-modelled chat continues instead of failing.
+export function transcript(messages: ChatMessage[]): string {
+  const turns = messages.map((message) => {
+    if (message.role === "tool") return "[tool result " + (message.tool_call_id || "") + "]\n" + text(message.content);
+    const calls = (message.tool_calls || []).map((call) => "<tool_call name=\"" + call.name + "\">" + call.arguments + "</tool_call>");
+    return ["[" + message.role + "]", text(message.content) || "", ...calls].filter(Boolean).join("\n");
+  });
+  return "The conversation so far is replayed below as text. Continue from its last message, calling tools only through the tools you are given.\n\n" + turns.join("\n\n");
 }
 
 export function normalizeMessages(messages: ChatMessage[]): ChatMessage[] {

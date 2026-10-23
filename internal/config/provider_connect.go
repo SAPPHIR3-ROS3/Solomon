@@ -9,6 +9,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
+	claudeint "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/integrations/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelsapi"
 )
@@ -115,13 +116,17 @@ func setupClaudeSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root
 		ctx = context.Background()
 	}
 	out := pio.promptOut()
-	fmt.Fprintln(out, "Third-party harness usage may draw from Anthropic extra usage instead of plan limits.")
-	tokens, err := claude.LoginWithBrowser(ctx, out, opts.OpenBrowser)
-	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub login failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		return nil, err
+	status, err := claudeint.Status(ctx)
+	if err == nil && status.Subscription() {
+		fmt.Fprintf(out, "Using the Claude CLI login for %s.\n", status.Email)
+	} else {
+		fmt.Fprintln(out, "Sign in with your Claude subscription through the official Claude CLI.")
+		if err := claudeint.Login(ctx, pio.promptIn(), out); err != nil {
+			logging.Log(logging.ERROR_LOG_LEVEL, "Claude Sub login failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			return nil, err
+		}
 	}
-	prov, err := NewClaudeSubProvider(tokens)
+	prov, err := NewClaudeSubProvider(claude.TokenSet{})
 	if err != nil {
 		return nil, err
 	}
@@ -130,15 +135,16 @@ func setupClaudeSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root
 		return nil, err
 	}
 	opts.WriteToConfig = false
-	ids, err := listAnthropicModelsForSetup(&prov, tokens.AccessToken)
+	cwd, _ := os.Getwd()
+	ids, err := claudeint.Models(ctx, cwd)
 	if err != nil {
 		return nil, providerCatalogError(prov.Name, saved, err)
 	}
+	ids = modelsapi.OrderClaudeSubModelIDs(FilterClaudeSubModels(ids))
+	if len(ids) == 0 {
+		return nil, providerCatalogError(prov.Name, saved, fmt.Errorf("no usable models returned by the Claude SDK"))
+	}
 	return FinalizeProviderSetup(pio, cfg, existing, opts, prov, ids)
-}
-
-func listAnthropicModelsForSetup(p *Provider, bearer string) ([]string, error) {
-	return modelsapi.ListAnthropic(p.BaseURL, bearer, true)
 }
 
 func setupChatGPTSub(ctx context.Context, pio PromptIO, cfg *Root, existing *Root, opts ProviderSetupOpts) (*ProviderSetupResult, error) {
