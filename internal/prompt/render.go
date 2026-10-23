@@ -146,7 +146,7 @@ type BtwData struct {
 }
 
 func AnonymizeNativeToolInvocationSyntax() string {
-	return strings.TrimSpace(`Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty string "intent" argument describing why it is being made. Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations.`)
+	return strings.TrimSpace(`Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty, non-whitespace string "intent" argument describing why it is being made; otherwise Solomon will reject the call and will not execute it. Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations.`)
 }
 
 func ExternalToolBridgeInvocationSyntax() string {
@@ -177,9 +177,9 @@ Rules:
 }
 
 func NativeToolInvocationSyntax(legacyFallbackEnabled bool) string {
-	first := "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty string \"intent\" argument describing why it is being made. Use API tool_calls only; do not emit standalone Tool: lines in assistant text unless legacy text fallback is explicitly enabled for this chat."
+	first := "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty, non-whitespace string \"intent\" argument describing why it is being made; otherwise Solomon will reject the call and will not execute it. Use API tool_calls only; do not emit standalone Tool: lines in assistant text unless legacy text fallback is explicitly enabled for this chat."
 	if !legacyFallbackEnabled {
-		first = "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty string \"intent\" argument describing why it is being made. Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations."
+		first = "Native function calling: use the API tool/functions exposed for this session (names and JSON schemas match the tools below). Every tool call must include a non-empty, non-whitespace string \"intent\" argument describing why it is being made; otherwise Solomon will reject the call and will not execute it. Use API tool_calls only; do not emit standalone Tool: lines in assistant text as tool invocations."
 	}
 	return strings.TrimSpace(first + `
 
@@ -248,7 +248,7 @@ Rules:
 - Use exactly one tool-invocation region per assistant reply that calls tools (prefer one <tool_calls> wrapper).
 - Put optional prose before the block; do not emit text after the closing tag (</tool_calls> or last </tool> / </tool_call>).
 - Each <args> must be a valid JSON object matching the tool schema (for JSON-in-<tool_call>, put arguments in the "arguments" or "args" field).
-- Every tool invocation requires a non-empty intent: use the <intent> element in the canonical wrapper, or an "intent" string inside JSON arguments for the alternate JSON forms.
+- Every tool invocation requires a non-empty, non-whitespace intent: use the <intent> element in the canonical wrapper, or an "intent" string inside JSON arguments for the alternate JSON forms. Otherwise Solomon will reject the invocation and will not execute it.
 - Multiple tools: include multiple <tool> entries (or multiple <tool_call> JSON objects) in order of execution.
 `
 }

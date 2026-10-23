@@ -11,7 +11,7 @@ var ErrMissingToolIntent = errors.New("missing tool intent")
 
 const MissingToolIntentDisplay = "Intent missing"
 
-const ToolIntentSchemaDescription = "Required brief phrase describing why this tool call is being made"
+const ToolIntentSchemaDescription = "Required non-empty brief phrase describing why this tool call is being made. Without it, the call is rejected and not executed."
 
 // SchemaWithRequiredToolIntent returns a shallow-cloned JSON Schema with the
 // Solomon intent contract added. The intent property is reserved by Solomon
