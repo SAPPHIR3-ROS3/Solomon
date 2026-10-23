@@ -65,6 +65,13 @@ func RewriteCodexSSEStream(r io.Reader, w io.Writer, model string) error {
 				if err := flushEvent(); err != nil {
 					return err
 				}
+				if !transformer.completed {
+					return io.ErrUnexpectedEOF
+				}
+				doneSeen = true
+				if _, err := w.Write([]byte("data: [DONE]\n\n")); err != nil {
+					return err
+				}
 				continue
 			}
 			cp := make([]byte, len(payload))
@@ -77,6 +84,9 @@ func RewriteCodexSSEStream(r io.Reader, w io.Writer, model string) error {
 	}
 	if err := flushEvent(); err != nil {
 		return err
+	}
+	if !transformer.completed {
+		return io.ErrUnexpectedEOF
 	}
 	if !doneSeen {
 		_, err := w.Write([]byte("data: [DONE]\n\n"))

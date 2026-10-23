@@ -116,9 +116,16 @@ func BuildCodexInput(chat map[string]any) []any {
 				"type": "message", "role": "user", "content": contents,
 			})
 		case "assistant":
-			if enc, _ := mm["reasoning_encrypted_content"].(string); strings.TrimSpace(enc) != "" {
+			if raw, _ := mm["reasoning_item"].(string); strings.TrimSpace(raw) != "" {
+				var item map[string]any
+				if json.Unmarshal([]byte(raw), &item) == nil && item["type"] == "reasoning" {
+					input = append(input, item)
+				}
+			} else if enc, _ := mm["reasoning_encrypted_content"].(string); strings.TrimSpace(enc) != "" {
 				input = append(input, map[string]any{
 					"type": "reasoning", "encrypted_content": strings.TrimSpace(enc),
+					// Required by Responses even when no plaintext summary is retained.
+					"summary": []any{},
 				})
 			}
 			texts := collectTextSegments(mm["content"], false)

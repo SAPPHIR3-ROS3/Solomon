@@ -189,7 +189,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		transcript.WriteString(turn.Content)
 		transcript.WriteByte('\n')
 		nestedCheckpointSeq++
-		ast := chatstore.Message{Provider: provider, Model: model, ReasoningEffort: effort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText)), ReasoningEncrypted: strings.TrimSpace(turn.ReasoningEncrypted)}
+		ast := chatstore.Message{Provider: provider, Model: model, ReasoningEffort: effort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText)), ReasoningEncrypted: strings.TrimSpace(turn.ReasoningEncrypted), ReasoningItem: strings.TrimSpace(turn.ReasoningItem)}
 		stampNestedMessageCheckpoint(&ast, nestedCheckpointSeq)
 		ast.AnthropicThinking = turn.AnthropicThinking
 		for _, tc := range turn.ToolCalls {
