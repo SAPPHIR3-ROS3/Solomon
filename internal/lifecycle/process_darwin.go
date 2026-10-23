@@ -2,18 +2,14 @@ package lifecycle
 
 import (
 	"bytes"
-	"fmt"
-	"golang.org/x/sys/unix"
 	"os"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
+	"golang.org/x/sys/unix"
 )
 
-func processIdentity(pid int) string {
-	p, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
-	if err != nil || int(p.Proc.P_pid) != pid || p.Proc.P_stat == 5 {
-		return ""
-	}
-	return fmt.Sprintf("%d:%d", p.Proc.P_starttime.Sec, p.Proc.P_starttime.Usec)
-}
+func processIdentity(pid int) string { return processidentity.Read(pid) }
+
 func processExecutable(pid int) string {
 	data, err := unix.SysctlRaw("kern.procargs2", pid)
 	if err != nil || len(data) < 5 {

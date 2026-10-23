@@ -100,7 +100,7 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		// getting stuck retrying a permanent 404.
 		if errors.Is(err, errTerminalSessionNotFound) {
 			if mode == "tui" {
-				session, err = a.manager.CreateTUI(query.Get("path"), cols, rows)
+				session, err = a.manager.CreateTUI(query.Get("path"), cols, rows, sessionID)
 			} else {
 				session, err = a.manager.Create(query.Get("path"), cols, rows)
 			}

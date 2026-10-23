@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
 )
 
@@ -38,7 +39,7 @@ func TestServerRuntime_forceStopCleansViteProcessGroup(t *testing.T) {
 		if stopped {
 			return
 		}
-		serverruntime.ForceStop(serverruntime.State{VitePID: command.Process.Pid})
+		serverruntime.ForceStop(serverruntime.State{VitePID: command.Process.Pid, ViteIdentity: processidentity.Read(command.Process.Pid)})
 		_ = command.Wait()
 	}()
 
@@ -59,7 +60,7 @@ func TestServerRuntime_forceStopCleansViteProcessGroup(t *testing.T) {
 		_ = response.Body.Close()
 	}
 
-	serverruntime.ForceStop(serverruntime.State{VitePID: command.Process.Pid})
+	serverruntime.ForceStop(serverruntime.State{VitePID: command.Process.Pid, ViteIdentity: processidentity.Read(command.Process.Pid)})
 	stopped = true
 	if err := command.Wait(); err == nil {
 		t.Fatal("Vite process group exited without a termination error")

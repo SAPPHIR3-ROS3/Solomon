@@ -22,27 +22,30 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
 	"github.com/gofrs/flock"
 )
 
 type State struct {
-	Home       string             `json:"home,omitempty"`
-	PID        int                `json:"pid"`
-	URL        string             `json:"url"`
-	LocalURL   string             `json:"localhost_url"`
-	Addresses  []ReachableAddress `json:"addresses,omitempty"`
-	StartedAt  time.Time          `json:"started_at"`
-	Version    string             `json:"version"`
-	Commit     string             `json:"commit,omitempty"`
-	CommitTime time.Time          `json:"commit_time,omitempty"`
-	SourceTree string             `json:"source_tree,omitempty"`
-	Mode       string             `json:"mode"`
-	Vite       string             `json:"vite"`
-	ViteURL    string             `json:"vite_url,omitempty"`
-	VitePID    int                `json:"vite_pid,omitempty"`
-	DevDir     string             `json:"dev_directory,omitempty"`
-	GOOS       string             `json:"goos"`
-	GoVersion  string             `json:"go_version"`
+	PIDIdentity  string             `json:"pid_identity,omitempty"`
+	ViteIdentity string             `json:"vite_identity,omitempty"`
+	Home         string             `json:"home,omitempty"`
+	PID          int                `json:"pid"`
+	URL          string             `json:"url"`
+	LocalURL     string             `json:"localhost_url"`
+	Addresses    []ReachableAddress `json:"addresses,omitempty"`
+	StartedAt    time.Time          `json:"started_at"`
+	Version      string             `json:"version"`
+	Commit       string             `json:"commit,omitempty"`
+	CommitTime   time.Time          `json:"commit_time,omitempty"`
+	SourceTree   string             `json:"source_tree,omitempty"`
+	Mode         string             `json:"mode"`
+	Vite         string             `json:"vite"`
+	ViteURL      string             `json:"vite_url,omitempty"`
+	VitePID      int                `json:"vite_pid,omitempty"`
+	DevDir       string             `json:"dev_directory,omitempty"`
+	GOOS         string             `json:"goos"`
+	GoVersion    string             `json:"go_version"`
 }
 
 type ReachableAddress struct {
@@ -165,6 +168,10 @@ func Run(ctx context.Context, options Options) error {
 		return fmt.Errorf("a Solomon daemon already owns %s", home)
 	}
 	defer lock.Close()
+	// Only recover children whose creation identity still matches the saved PID.
+	if previous, err := LoadState(); err == nil && previous.VitePID > 1 && previous.ViteIdentity != "" && processidentity.Read(previous.VitePID) == previous.ViteIdentity {
+		killManagedTree(previous.VitePID)
+	}
 	mode := options.Mode
 	if mode == "" {
 		mode = "normal"
@@ -180,20 +187,21 @@ func Run(ctx context.Context, options Options) error {
 	port := listener.Addr().(*net.TCPAddr).Port
 	addresses := reachableAddresses(listener.Addr().(*net.TCPAddr), port)
 	state := State{
-		Home:       home,
-		PID:        os.Getpid(),
-		URL:        "http://127.0.0.1:" + strconv.Itoa(port),
-		LocalURL:   "http://localhost:" + strconv.Itoa(port),
-		Addresses:  addresses,
-		StartedAt:  time.Now().UTC(),
-		Version:    commands.LocalVersionString(),
-		Commit:     commands.BuildCommit(),
-		CommitTime: commands.BuildCommitTime(),
-		SourceTree: commands.BuildSourceTree(),
-		Mode:       mode,
-		Vite:       "stopped",
-		GOOS:       runtime.GOOS,
-		GoVersion:  runtime.Version(),
+		Home:        home,
+		PID:         os.Getpid(),
+		PIDIdentity: processidentity.Read(os.Getpid()),
+		URL:         "http://127.0.0.1:" + strconv.Itoa(port),
+		LocalURL:    "http://localhost:" + strconv.Itoa(port),
+		Addresses:   addresses,
+		StartedAt:   time.Now().UTC(),
+		Version:     commands.LocalVersionString(),
+		Commit:      commands.BuildCommit(),
+		CommitTime:  commands.BuildCommitTime(),
+		SourceTree:  commands.BuildSourceTree(),
+		Mode:        mode,
+		Vite:        "stopped",
+		GOOS:        runtime.GOOS,
+		GoVersion:   runtime.Version(),
 	}
 	var vite *exec.Cmd
 	var proxy *httputil.ReverseProxy
@@ -206,7 +214,8 @@ func Run(ctx context.Context, options Options) error {
 		vite = command
 		state.Vite = "running"
 		state.ViteURL = viteURL.String()
-		state.VitePID = command.Process.Pid
+		state.VitePID = managedVitePID(command)
+		state.ViteIdentity = processidentity.Read(state.VitePID)
 		state.DevDir = options.DevDir
 		proxy = httputil.NewSingleHostReverseProxy(viteURL)
 	}
@@ -257,6 +266,9 @@ func Run(ctx context.Context, options Options) error {
 		currentGUI := guiStatus
 		if current.Mode == "dev" {
 			currentGUI = "ready"
+			if current.Vite != "running" {
+				currentGUI = "unavailable"
+			}
 		}
 		writeJSON(w, http.StatusOK, Health{
 			OK: true, Server: current, Now: time.Now().UTC(), Uptime: time.Since(state.StartedAt).Round(time.Second).String(),
@@ -512,8 +524,8 @@ func startVite(directory string) (*url.URL, *exec.Cmd, error) {
 	cmd.Dir = directory
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
-	configureManagedProcess(cmd)
-	if err := cmd.Start(); err != nil {
+	cmd, err = startSupervisedVite(cmd)
+	if err != nil {
 		return nil, nil, err
 	}
 	deadline := time.Now().Add(10 * time.Second)
@@ -527,7 +539,7 @@ func startVite(directory string) (*url.URL, *exec.Cmd, error) {
 				return viteURL, cmd, nil
 			}
 		}
-		if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		if supervisedViteExited(cmd) {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)

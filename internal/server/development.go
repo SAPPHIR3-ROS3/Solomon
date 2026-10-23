@@ -18,6 +18,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logo"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
 )
 
 // Frontend transitions never restart the daemon that owns the active chat.
@@ -34,7 +35,11 @@ type developmentFrontend struct {
 func (d *developmentFrontend) snapshot() State {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.state
+	state := d.state
+	if d.process != nil && supervisedViteExited(d.process) {
+		state.Vite = "stopped"
+	}
+	return state
 }
 
 func (d *developmentFrontend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -252,6 +257,7 @@ func (d *developmentFrontend) change(ctx context.Context, mode, directory string
 		}
 	}
 	next := previous
+	next.ViteIdentity = ""
 	next.Mode, next.DevDir, next.Vite, next.ViteURL, next.VitePID = mode, "", "stopped", "", 0
 	var process *exec.Cmd
 	var handler http.Handler = productionFrontend()
@@ -261,7 +267,8 @@ func (d *developmentFrontend) change(ctx context.Context, mode, directory string
 			return previous, err
 		}
 		process, handler = command, httputil.NewSingleHostReverseProxy(address)
-		next.DevDir, next.Vite, next.ViteURL, next.VitePID = directory, "running", address.String(), command.Process.Pid
+		next.DevDir, next.Vite, next.ViteURL, next.VitePID = directory, "running", address.String(), managedVitePID(command)
+		next.ViteIdentity = processidentity.Read(next.VitePID)
 	}
 	if err := ctx.Err(); err != nil {
 		stopManagedProcess(process)

@@ -54,6 +54,9 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 			r.Session = s
 			r.sessionFileCreated = s != nil && s.ID != ""
 			r.chatPersistMu.Unlock()
+			if r.RL != nil && (s == nil || s.ID == "") {
+				_ = chatstore.RememberTerminalChat(os.Getenv("SOLOMON_TERMINAL_ID"), r.ProjHex, "")
+			}
 		},
 		AcquireSessionFileLock: func() error { return r.ensureReplSessionFileLock() },
 		ReleaseSessionFileLock: r.releaseReplSessionFileLock,

@@ -324,6 +324,14 @@ func main() {
 		Branches:               nil,
 		LastCommitOID:          "",
 	}
+	if daemonTUIChild {
+		restored, err := chatstore.ReadTerminalChat(os.Getenv("SOLOMON_TERMINAL_ID"), hex)
+		if err == nil {
+			sess = restored
+		} else if !errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintln(os.Stderr, "restore terminal chat:", err)
+		}
+	}
 	multiline.EnsureCookedTTY()
 	rt := agentruntime.NewRuntime(rl, cfg, prov, hex, root, sess)
 	defer rt.Close()

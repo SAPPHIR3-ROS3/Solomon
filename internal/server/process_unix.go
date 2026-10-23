@@ -5,6 +5,8 @@ package server
 import (
 	"os/exec"
 	"syscall"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
 )
 
 func configureManagedProcess(cmd *exec.Cmd) {
@@ -12,6 +14,9 @@ func configureManagedProcess(cmd *exec.Cmd) {
 }
 
 func stopManagedProcess(cmd *exec.Cmd) {
+	if stopSupervisedVite(cmd) {
+		return
+	}
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
@@ -20,7 +25,7 @@ func stopManagedProcess(cmd *exec.Cmd) {
 }
 
 func ForceStopPID(pid int) {
-	if pid <= 0 {
+	if pid <= 1 {
 		return
 	}
 	_ = syscall.Kill(pid, syscall.SIGKILL)
@@ -31,10 +36,10 @@ func ForceStopPID(pid int) {
 // leaders, while a foreground "server run" may share its terminal's group;
 // forceStopProcess handles both cases without killing an unrelated shell.
 func ForceStop(state State) {
-	if state.VitePID > 1 && state.VitePID != state.PID {
+	if state.VitePID > 1 && state.VitePID != state.PID && state.ViteIdentity != "" && processidentity.Read(state.VitePID) == state.ViteIdentity {
 		forceStopProcess(state.VitePID)
 	}
-	if state.PID > 1 {
+	if state.PID > 1 && state.PIDIdentity != "" && processidentity.Read(state.PID) == state.PIDIdentity {
 		forceStopProcess(state.PID)
 	}
 }
@@ -48,4 +53,10 @@ func forceStopProcess(pid int) {
 		return
 	}
 	_ = syscall.Kill(pid, syscall.SIGKILL)
+}
+
+func killManagedTree(pid int) {
+	if pid > 1 {
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+	}
 }

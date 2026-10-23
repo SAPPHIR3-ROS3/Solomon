@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strconv"
 	"syscall"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
 )
 
 const detachedProcess = 0x00000008
@@ -31,6 +33,9 @@ func runTaskkill(args ...string) {
 }
 
 func stopManagedProcess(cmd *exec.Cmd) {
+	if stopSupervisedVite(cmd) {
+		return
+	}
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
@@ -39,7 +44,7 @@ func stopManagedProcess(cmd *exec.Cmd) {
 }
 
 func ForceStopPID(pid int) {
-	if pid <= 0 {
+	if pid <= 1 {
 		return
 	}
 	runTaskkill("/PID", strconv.Itoa(pid), "/T", "/F")
@@ -49,10 +54,16 @@ func ForceStopPID(pid int) {
 // managed Vite process tree. Windows has no Unix-style process groups here;
 // taskkill /T provides the equivalent tree cleanup.
 func ForceStop(state State) {
-	if state.VitePID > 0 && state.VitePID != state.PID {
+	if state.VitePID > 1 && state.VitePID != state.PID && state.ViteIdentity != "" && processidentity.Read(state.VitePID) == state.ViteIdentity {
 		runTaskkill("/PID", strconv.Itoa(state.VitePID), "/T", "/F")
 	}
-	if state.PID > 0 {
+	if state.PID > 1 && state.PIDIdentity != "" && processidentity.Read(state.PID) == state.PIDIdentity {
 		runTaskkill("/PID", strconv.Itoa(state.PID), "/T", "/F")
+	}
+}
+
+func killManagedTree(pid int) {
+	if pid > 1 {
+		runTaskkill("/PID", strconv.Itoa(pid), "/T", "/F")
 	}
 }

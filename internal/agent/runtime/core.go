@@ -133,6 +133,7 @@ func newRuntimeState(rl *readline.Instance, cfg *config.Root, prov *config.Provi
 		ProjRoot:                  projRoot,
 		Mode:                      "agent",
 		Session:                   sess,
+		sessionFileCreated:        sess != nil && sess.ID != "" && !chatstore.IsPlaceholderChatID(sess.ID),
 		CompactionThresholdTokens: config.EffectiveCompactionThresholdTokens(cfg),
 		Out:                       os.Stdout,
 		ToolOut:                   tooloutput.NewService(projHex, tooloutput.LimitsFromConfig(cfg)),
@@ -473,7 +474,13 @@ func (r *Runtime) writeSessionLocked() error {
 	if !r.shouldWriteSessionFile() {
 		return nil
 	}
-	return chatstore.WriteSession(r.ProjHex, r.Session)
+	if err := chatstore.WriteSession(r.ProjHex, r.Session); err != nil {
+		return err
+	}
+	if r.RL != nil {
+		return chatstore.RememberTerminalChat(os.Getenv("SOLOMON_TERMINAL_ID"), r.ProjHex, r.Session.ID)
+	}
+	return nil
 }
 
 func (r *Runtime) persistSession() error {
@@ -526,7 +533,7 @@ func (r *Runtime) ensureReplSessionFileLock() error {
 	}
 	r.chatPersistMu.Unlock()
 	if chatID == "" || chatstore.IsPlaceholderChatID(chatID) {
-		return nil
+		return chatstore.RememberTerminalChat(os.Getenv("SOLOMON_TERMINAL_ID"), r.ProjHex, "")
 	}
 	if r.replSessFileLock != nil && r.replSessFileLockID == chatID {
 		return nil
@@ -538,5 +545,5 @@ func (r *Runtime) ensureReplSessionFileLock() error {
 	}
 	r.replSessFileLock = fl
 	r.replSessFileLockID = chatID
-	return nil
+	return chatstore.RememberTerminalChat(os.Getenv("SOLOMON_TERMINAL_ID"), r.ProjHex, chatID)
 }

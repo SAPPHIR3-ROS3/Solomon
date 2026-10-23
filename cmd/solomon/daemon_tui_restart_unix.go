@@ -21,11 +21,7 @@ func restartTUIAfterDaemonUpdate(args []string, previousPID int) error {
 			if err == nil && health.OK && health.Server.PID == state.PID {
 				// Re-enter through the freshly installed CLI. All PTYs will be
 				// recreated by the new daemon; the client's output cursor resets.
-				executable, err := os.Executable()
-				if err != nil {
-					return err
-				}
-				return syscall.Exec(executable, args, os.Environ())
+				return syscall.Exec(args[0], args, os.Environ())
 			}
 		}
 		time.Sleep(250 * time.Millisecond)

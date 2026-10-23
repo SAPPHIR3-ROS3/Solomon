@@ -315,11 +315,13 @@ func stop() error {
 		return fmt.Errorf("server refused stop: %s", response.Status)
 	}
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
-		if _, err := serverruntime.LoadState(); errors.Is(err, os.ErrNotExist) {
-			fmt.Println("server stopped")
-			return nil
-		}
-		if !healthy(state) {
+		_, stateErr := serverruntime.LoadState()
+		if errors.Is(stateErr, os.ErrNotExist) || !healthy(state) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := serverruntime.WaitForShutdown(ctx); err != nil {
+				return err
+			}
 			fmt.Println("server stopped")
 			return nil
 		}

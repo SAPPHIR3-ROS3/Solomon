@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 )
 
 const (
@@ -91,7 +93,7 @@ func (m *terminalManager) Create(requestedCwd string, cols, rows int) (*terminal
 // CreateTUI starts the normal Solomon REPL as a daemon-owned child process.
 // The local CLI only transports keyboard/output bytes, so a dropped client
 // connection does not terminate the REPL or its runtime.
-func (m *terminalManager) CreateTUI(requestedCwd string, cols, rows int) (*terminalSession, error) {
+func (m *terminalManager) CreateTUI(requestedCwd string, cols, rows int, resumeID ...string) (*terminalSession, error) {
 	cwd, err := terminalWorkingDirectory(requestedCwd)
 	if err != nil {
 		return nil, err
@@ -101,11 +103,21 @@ func (m *terminalManager) CreateTUI(requestedCwd string, cols, rows int) (*termi
 	if err != nil {
 		return nil, err
 	}
-	return m.create(cwd, cols, rows, executable, []string{"--daemon-tui", cwd})
+	return m.create(cwd, cols, rows, executable, []string{"--daemon-tui", cwd}, resumeID...)
 }
 
-func (m *terminalManager) create(cwd string, cols, rows int, shell string, args []string) (*terminalSession, error) {
+func (m *terminalManager) create(cwd string, cols, rows int, shell string, args []string, resumeID ...string) (*terminalSession, error) {
+	id := newTerminalID()
+	if len(resumeID) > 0 && chatstore.ValidTerminalID(resumeID[0]) {
+		id = resumeID[0]
+	}
 	env := terminalEnvironment()
+	for i := len(env) - 1; i >= 0; i-- {
+		if strings.HasPrefix(env[i], "SOLOMON_TERMINAL_ID=") {
+			env = append(env[:i], env[i+1:]...)
+		}
+	}
+	env = append(env, "SOLOMON_TERMINAL_ID="+id)
 	process, err := startTerminalProcess(terminalProcessOptions{
 		Args:  append([]string(nil), args...),
 		Cols:  uint16(cols),
@@ -120,7 +132,7 @@ func (m *terminalManager) create(cwd string, cols, rows int, shell string, args 
 	session := &terminalSession{
 		cwd:         cwd,
 		done:        make(chan struct{}),
-		id:          newTerminalID(),
+		id:          id,
 		process:     process,
 		running:     true,
 		subscribers: make(map[uint64]*terminalSubscriber),

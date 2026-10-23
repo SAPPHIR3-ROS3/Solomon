@@ -1,8 +1,6 @@
 package lifecycle
 
 import (
-	"fmt"
-	"golang.org/x/sys/windows"
 	"os"
 	"os/exec"
 	"sort"
@@ -10,24 +8,13 @@ import (
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
+	"golang.org/x/sys/windows"
 )
 
-func processIdentity(pid int) string {
-	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
-	if err != nil {
-		return ""
-	}
-	defer windows.CloseHandle(h)
-	var code uint32
-	if windows.GetExitCodeProcess(h, &code) != nil || code != 259 {
-		return ""
-	}
-	var creation, exit, kernel, user windows.Filetime
-	if windows.GetProcessTimes(h, &creation, &exit, &kernel, &user) != nil {
-		return ""
-	}
-	return fmt.Sprintf("%d:%d", creation.HighDateTime, creation.LowDateTime)
-}
+func processIdentity(pid int) string { return processidentity.Read(pid) }
+
 func processExecutable(pid int) string {
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
 	if err != nil {

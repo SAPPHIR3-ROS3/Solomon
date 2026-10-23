@@ -7,23 +7,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
 )
 
-func processIdentity(pid int) string {
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-	if err != nil {
-		return ""
-	}
-	end := strings.LastIndex(string(data), ")")
-	if end < 0 {
-		return ""
-	}
-	fields := strings.Fields(string(data)[end+1:])
-	if len(fields) < 20 || fields[0] == "Z" {
-		return ""
-	}
-	return fields[19] // starttime distinguishes a reused PID.
-}
+func processIdentity(pid int) string { return processidentity.Read(pid) }
 
 func installedDesktopProcesses(executable string) ([]desktopUpdateProcess, error) {
 	entries, err := os.ReadDir("/proc")

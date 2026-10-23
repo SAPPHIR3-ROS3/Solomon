@@ -90,6 +90,12 @@ func daemonTUIWorkingDirectory(args []string) (string, error) {
 }
 
 func runDaemonTUI(args []string) error {
+	// Capture the installed path before the coordinator renames the old inode.
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	args = append([]string{executable}, args[1:]...)
 	workingDirectory, err := daemonTUIWorkingDirectory(args)
 	if err != nil {
 		return err
@@ -118,7 +124,7 @@ func runDaemonTUI(args []string) error {
 	}
 	input := make(chan []byte, 64)
 	go readTUIInput(input)
-	var sessionID string
+	sessionID := os.Getenv("SOLOMON_TUI_TERMINAL_ID")
 	var outputSeq uint64
 	var daemonPID int
 	for {
@@ -164,7 +170,8 @@ func runDaemonTUI(args []string) error {
 					return nil
 				}
 				if errors.Is(err, errDaemonRestarting) {
-					sessionID, outputSeq = "", 0
+					outputSeq = 0
+					_ = os.Setenv("SOLOMON_TUI_TERMINAL_ID", sessionID)
 					// Restore the terminal before exec: the new process must capture
 					// the user's normal terminal settings, rather than raw mode.
 					_ = terminal.Restore(int(os.Stdin.Fd()), state)

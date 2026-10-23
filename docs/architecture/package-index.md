@@ -98,6 +98,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 
 | Path | Role | Article |
 |------|------|---------|
+| `internal/processidentity/` | Process creation identity for safe lifecycle cleanup on Linux, macOS and Windows | [Building and releases](../development/building-and-releases.md) |
 | `internal/lifecycle/` | Linux, Windows and macOS daemon/client update coordination and recovery | [Building and releases](../development/building-and-releases.md) |
 | `internal/logging/` | File logs under `~/.solomon/logs` | [Supporting packages](supporting-packages.md) |
 | `internal/termcolor/` | Lipgloss palette, usage line, `NO_COLOR` | [Supporting packages](supporting-packages.md) |
