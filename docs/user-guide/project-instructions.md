@@ -87,8 +87,12 @@ Put **architecture and stack** in `AGENTS.md` (or repo/subdir instruction files)
 |---------|------|
 | `/add rule <phrase>` | Append a global custom rule (`~/.solomon/rules/rule_NN.txt`) |
 | `/add projectrule <phrase>` | Append a project-scoped custom rule |
-| `/remove rule <N>` | Remove global rule `N` and renumber the rest (`3` and `03` both work) |
-| `/remove projectrule <N>` | Same for project rules |
+| `/activate rule <N>` / `/deactivate rule <N>` | Enable or temporarily disable a global rule |
+| `/activate projectrule <N>` / `/deactivate projectrule <N>` | Enable or temporarily disable a project rule |
+| `/activate skill <name>` / `/deactivate skill <name>` | Enable or temporarily disable an installed skill; add `--scope global|project|local` if its name is ambiguous |
+| `/remove rule <N>` | Permanently remove global rule `N` and renumber the rest (`3` and `03` both work) |
+| `/remove projectrule <N>` | Permanently remove project rule `N` |
+| `/remove skill <name>` | Permanently remove an installed skill |
 | `/rules` | List global and project rules with previews |
 | `/instructions` | Print global `~/.solomon/AGENTS.md` (path, size, body) |
 

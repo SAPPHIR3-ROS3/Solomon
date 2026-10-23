@@ -175,3 +175,28 @@ func TestCapabilitiesCapturedAutomaticallyByRuntime(t *testing.T) {
 		t.Fatal("tool protocol changed")
 	}
 }
+
+func TestCapabilityRegistryDisabledSkillsAreNotRestored(t *testing.T) {
+	var registry chatstore.CapabilityRegistry
+	registry.SetSkillEnabled("Build", false)
+	payload := capabilityJSON(t, map[string]string{"name": "Build", "slash": "build", "body": "private skill body"})
+	registry.Capture("loadSkill", payload)
+	if len(registry.LoadedSkills) != 0 {
+		t.Fatalf("disabled skill was captured: %+v", registry.LoadedSkills)
+	}
+	registry.Backfill([]chatstore.Message{
+		{Role: "assistant", ToolCalls: []chatstore.ToolCall{{ID: "load", Name: "loadSkill"}}},
+		{Role: "tool", ToolCallID: "load", Content: payload},
+	})
+	if len(registry.LoadedSkills) != 0 {
+		t.Fatalf("disabled skill was backfilled: %+v", registry.LoadedSkills)
+	}
+	if _, ok := registry.RestoreMessage(); !ok {
+		t.Fatal("disabled-skill registry was not persisted into restored capabilities")
+	}
+	registry.SetSkillEnabled("Build", true)
+	registry.Capture("loadSkill", payload)
+	if len(registry.LoadedSkills) != 1 {
+		t.Fatalf("reactivated skill was not captured: %+v", registry.LoadedSkills)
+	}
+}

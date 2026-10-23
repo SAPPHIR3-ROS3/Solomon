@@ -107,6 +107,9 @@ func writeSkillSection(w io.Writer, title string, entries []SkillEntry) {
 	fmt.Fprintf(w, "%s\n", title)
 	for _, e := range entries {
 		line := strings.TrimSpace(e.Name)
+		if e.Disabled {
+			line = "[inactive] " + line
+		}
 		src := strings.TrimSpace(e.SourceRepo)
 		if src == "" {
 			src = strings.TrimSpace(e.SkillMdPath)
