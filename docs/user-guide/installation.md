@@ -125,9 +125,6 @@ Use `solomon upgrade` to update an active release installation. Standalone relea
 installers require Solomon to be closed; they do not replace files underneath
 active clients. Downloads require a matching release checksum.
 
-Failure cases and recovery guarantees are documented in the
-[installation reliability audit](../development/installation-audit.md).
-
 ## Verify install
 
 ```bash

@@ -53,7 +53,7 @@ func sdkQuickReference() map[string]any {
 		"stdout":       "fmt.Print/Println/Printf output is captured and returned in orchestrate tool result field output; sdk.Shell return values are not — assign to a variable and fmt.Println it",
 		"contract": []string{
 			"Import the sandbox SDK only as import \"sdk\"; do not import the canonical internal package path.",
-			"Every SDK call that reaches a host tool has a final non-empty intent string.",
+			"Every SDK call that reaches a host tool has a final non-empty intent string; without it, the call is rejected and not executed.",
 			"Check every returned error before using the result.",
 			"Mutating helpers return only error; their *Result variants return (typedResult, error).",
 			"In quoted Go strings, regular-expression backslashes must be escaped; raw strings cannot contain a backtick.",
@@ -63,7 +63,7 @@ func sdkQuickReference() map[string]any {
 			"Host shell commands use sdk.Shell(command, intent), not os/exec — orchestrate runs in WASM (no python3/zsh/bash on PATH)",
 			"sdk.Shell returns (string, error); assign output to a variable and fmt.Println it — bare sdk.Shell(...) calls do not appear in orchestrate output",
 			"sdk.Grep returns (string, error) — fmt.Println the string; use sdk.GrepLines for structured matches, not range over the string",
-			"Every sdk function that performs a tool call requires a final non-empty intent string; this includes reads, searches, plans, web, research, shell, and edits",
+			"Every sdk function that performs a tool call requires a final non-empty intent string; without it, the call is rejected and not executed. This includes reads, searches, plans, web, research, shell, and edits",
 		},
 		"examples": []string{
 			`content, err := sdk.ReadFile("TODO.md", "inspect the todo list")`,
