@@ -44,7 +44,7 @@ python3 scripts/wiki.py --output /tmp/solomon-wiki-preview --repository SAPPHIR3
 make check-docs
 ```
 
-The output directory is disposable: existing files are removed. Never choose an unrelated directory. The generator rejects overlapping source/output directories and colliding page names before cleanup. The GitHub Wiki generator uses Python standard-library facilities; Pages additionally requires a compatible local Go toolchain and the pinned Goldmark dependency already cached. See [website checks and preview](site-performance.md) for exact offline commands. Pages regenerates its disposable `wiki/` output, removing stale pages and assets.
+The output directory is disposable: existing files are removed. Never choose an unrelated directory. The generator rejects overlapping source/output directories and colliding page names before cleanup. The GitHub Wiki generator uses Python standard-library facilities; Pages additionally requires a compatible local Go toolchain and the pinned Goldmark dependency already cached. Pages regenerates its disposable `wiki/` output, removing stale pages and assets.
 
 ## See also
 
