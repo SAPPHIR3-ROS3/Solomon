@@ -1,0 +1,1 @@
+import{n as e,t}from"./vendor~typst~templ~org~go-BwuwSAuX.js";e();export{t as default};
