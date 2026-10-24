@@ -3,6 +3,8 @@ import { serverEndpoint } from "../platform";
 
 type UpdateStatus = {
   current: string;
+  downloaded?: number;
+  total?: number;
   latest?: string;
   phase: "idle" | "checking" | "available" | "downloading" | "ready" | "restarting";
   error?: string;

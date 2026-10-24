@@ -13,11 +13,13 @@ import (
 )
 
 type updateStatus struct {
-	Current string `json:"current"`
-	Latest  string `json:"latest,omitempty"`
-	Phase   string `json:"phase"`
-	Error   string `json:"error,omitempty"`
-	Notice  string `json:"notice,omitempty"`
+	Downloaded int64  `json:"downloaded"`
+	Total      int64  `json:"total"`
+	Current    string `json:"current"`
+	Latest     string `json:"latest,omitempty"`
+	Phase      string `json:"phase"`
+	Error      string `json:"error,omitempty"`
+	Notice     string `json:"notice,omitempty"`
 }
 
 type updateAPI struct {
@@ -102,6 +104,7 @@ func (a *updateAPI) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.status.Phase, a.status.Error = "downloading", ""
+		a.status.Downloaded, a.status.Total = 0, 0
 		go a.download(a.status.Latest)
 	case "install":
 		if a.status.Phase != "ready" {
@@ -139,7 +142,7 @@ func (a *updateAPI) refresh() {
 func (a *updateAPI) download(tag string) {
 	ctx, cancel := context.WithTimeout(a.ctx, 15*time.Minute)
 	defer cancel()
-	staged, target, err := a.prepare(ctx, tag, io.Discard)
+	staged, target, err := a.prepare(ctx, tag, updateProgress{api: a})
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err != nil {
@@ -152,4 +155,14 @@ func (a *updateAPI) download(tag string) {
 	}
 	a.staged, a.target = staged, target
 	a.status.Phase, a.status.Error = "ready", ""
+}
+
+type updateProgress struct{ api *updateAPI }
+
+func (p updateProgress) Write(data []byte) (int, error) { return len(data), nil }
+
+func (p updateProgress) DownloadProgress(downloaded, total int64) {
+	p.api.mu.Lock()
+	defer p.api.mu.Unlock()
+	p.api.status.Downloaded, p.api.status.Total = downloaded, total
 }
