@@ -11,14 +11,15 @@
 }
 .file-changes-card.is-collapsed .file-changes-header { margin-bottom: 0; }
 .file-changes-card svg { width: 15px; height: 15px; flex: 0 0 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.file-changes-header { display: flex; align-items: center; gap: 12px; min-height: 24px; margin-bottom: 12px; cursor: pointer; user-select: none; }
+.file-changes-file-icon { width: 15px; height: 15px; flex: 0 0 15px; object-fit: contain; }
+.file-changes-header { display: flex; align-items: center; gap: 12px; min-height: 24px; padding: 0 2px; margin-bottom: 12px; cursor: pointer; user-select: none; }
 .file-changes-header:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; border-radius: 4px; }
 .file-changes-header > .file-changes-counts { margin-left: auto; }
 .file-changes-title { color: var(--color-text); font-weight: 500; }
-.file-changes-counts { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; font: 11px/1.5 var(--font-mono, monospace); font-variant-numeric: tabular-nums; }
+.file-changes-counts { display: inline-grid; grid-template-columns: minmax(3ch, var(--change-added-width)) minmax(3ch, var(--change-removed-width)); flex: none; align-items: center; gap: 12px; text-align: right; white-space: nowrap; font: 11px/1.5 var(--font-mono, monospace); font-variant-numeric: tabular-nums; }
 .file-changes-added { color: var(--change-added); }
 .file-changes-removed { color: var(--change-removed); }
-.file-changes-binary { color: var(--color-text-muted); }
+.file-changes-binary { grid-column: 1 / -1; color: var(--color-text-muted); }
 .file-changes-card button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
 .file-changes-card button:hover { color: var(--color-text); }
 .file-changes-card button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
@@ -30,3 +31,7 @@
 .file-changes-row .file-changes-chevron, .file-changes-chevron-spacer { width: 12px; flex: 0 0 12px; }
 .file-changes-chevron.is-open { transform: rotate(90deg); }
 @media (max-width: 480px) { .file-changes-header { gap: 8px; flex-wrap: wrap; } .file-changes-counts { gap: 8px; } .file-changes-card { padding: 10px 8px 8px; } }
+
+.file-changes-folder-icon { position: relative; width: 15px; height: 15px; flex: 0 0 15px; }
+.file-changes-folder-icon > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.file-changes-folder-icon > .file-changes-folder-badge { position: absolute; right: -3px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; background: #f4f7fa; border: 1px solid var(--color-surface); }
