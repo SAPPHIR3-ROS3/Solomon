@@ -46,8 +46,13 @@ func TestHotInstallCancellationDuringClientShutdownRestoresClient(t *testing.T) 
 	runHotInstallWithRegisteredDesktop(t, true)
 }
 
-func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool) {
+func TestHotInstallFailureRestoresStandaloneAlongsideCLIAndClients(t *testing.T) {
+	runHotInstallWithRegisteredDesktop(t, false, true)
+}
+
+func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool, failDeployment ...bool) {
 	t.Helper()
+	failInstall := len(failDeployment) > 0 && failDeployment[0]
 	buildEnv := os.Environ()
 	dir := t.TempDir()
 	if runtime.GOOS == "darwin" {
@@ -69,6 +74,10 @@ func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool) {
 		cliName += ".exe"
 	}
 	target, staged := filepath.Join(dir, cliName), filepath.Join(dir, "new-"+cliName)
+	standalone := filepath.Join(dir, "solomon-standalone"+filepath.Ext(cliName))
+	if err := os.WriteFile(standalone, []byte("original standalone"), 0700); err != nil {
+		t.Fatal(err)
+	}
 	for _, build := range []struct{ file, tree string }{{target, "old-fixture"}, {staged, "new-fixture"}} {
 		command := exec.Command("go", "build", "-buildvcs=false", "-ldflags=-X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree="+build.tree, "-o", build.file, "./cmd/solomon")
 		command.Dir = ".."
@@ -155,7 +164,16 @@ func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool) {
 		if lifecycle.ProcessIdentityForTest(old.PID) != "" || lifecycle.ProcessIdentityForTest(client.Process.Pid) != "" {
 			t.Error("install ran while old processes were still alive")
 		}
-		return updater.CommitInstall(staged, target)
+		if err := updater.CommitInstall(staged, target); err != nil {
+			return err
+		}
+		if err := os.WriteFile(standalone, []byte("replacement standalone"), 0700); err != nil {
+			return err
+		}
+		if failInstall {
+			return errors.New("deployment fixture failed")
+		}
+		return nil
 	}, func(phase string) { progress = append(progress, phase) })
 	// Clean up only fixture client processes, including the reopened client.
 	t.Cleanup(func() {
@@ -168,12 +186,17 @@ func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool) {
 	if cancelDuringStop && !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected cancellation, got %v", err)
 	}
-	if !cancelDuringStop && err != nil {
+	if failInstall && (err == nil || !strings.Contains(err.Error(), "deployment fixture failed")) {
+		t.Fatalf("expected deployment failure, got %v", err)
+	}
+	if !cancelDuringStop && !failInstall && err != nil {
 		t.Fatal(err)
 	}
 	wantProgress := []string{"stop", "install", "start"}
 	if cancelDuringStop {
 		wantProgress = []string{"stop"}
+	} else if failInstall {
+		wantProgress = []string{"stop", "install"}
 	}
 	if !reflect.DeepEqual(progress, wantProgress) {
 		t.Fatalf("progress=%v want=%v", progress, wantProgress)
@@ -186,12 +209,24 @@ func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool) {
 		if updated.PID != old.PID || updated.SourceTree != "old-fixture" {
 			t.Fatalf("cancelled shutdown replaced the original daemon: %+v", updated)
 		}
+	} else if failInstall {
+		if updated.PID == old.PID || updated.SourceTree != "old-fixture" {
+			t.Fatalf("failed deployment did not restore old daemon: %+v", updated)
+		}
 	} else if updated.PID == old.PID || updated.SourceTree != "new-fixture" || updated.Mode != "normal" {
 		t.Fatalf("wrong daemon: %+v", updated)
 	}
 	clients, err := lifecycle.UpdateClientsForTest(desktop)
 	if err != nil || len(clients) != 1 || clients[0].PID == client.Process.Pid {
 		t.Fatalf("wrong desktop clients: %+v %v", clients, err)
+	}
+	standaloneBytes, err := os.ReadFile(standalone)
+	wantStandalone := "replacement standalone"
+	if cancelDuringStop || failInstall {
+		wantStandalone = "original standalone"
+	}
+	if err != nil || string(standaloneBytes) != wantStandalone {
+		t.Fatalf("standalone after update: %q, %v", standaloneBytes, err)
 	}
 }
 
@@ -244,4 +279,59 @@ func TestHotInstallRejectsConcurrentUpdater(t *testing.T) {
 	if !called || err == nil {
 		t.Fatalf("called=%v err=%v", called, err)
 	}
+}
+
+func TestUpdateClientsIncludesRegisteredStandalone(t *testing.T) {
+	directory := t.TempDir()
+	t.Setenv("SOLOMON_HOME", filepath.Join(directory, "home"))
+	t.Setenv("SOLOMON_HOT_INSTALL_HELPER", "1")
+	name := "solomon-standalone"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	standalone := filepath.Join(directory, name)
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(self)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(standalone, data, 0700); err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command(standalone, "-test.run=^TestHotInstallClientHelper$")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = child.Process.Kill(); _ = child.Wait() })
+	desktop := filepath.Join(directory, desktopFixtureName())
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		clients, err := lifecycle.UpdateClientsForTest(desktop)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, client := range clients {
+			if client.PID == child.Process.Pid {
+				if err := lifecycle.StopClientForTest(desktop, client.PID); err != nil {
+					t.Fatal(err)
+				}
+				if err := lifecycle.WaitProcessExitForTest(context.Background(), client.PID, client.Identity); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("registered standalone client was ignored by the updater")
+}
+
+func desktopFixtureName() string {
+	if runtime.GOOS == "windows" {
+		return "solomon-desktop.exe"
+	}
+	return "solomon-desktop"
 }

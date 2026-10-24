@@ -3,10 +3,40 @@ package test
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 )
+
+func TestInstallLayoutSurvivesConfigRoundTrip(t *testing.T) {
+	for _, layout := range []string{"split", "standalone"} {
+		for _, legacy := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/legacy=%v", layout, legacy), func(t *testing.T) {
+				t.Setenv("SOLOMON_HOME", t.TempDir())
+				text := fmt.Sprintf("install_layout = %q\n", layout)
+				if legacy {
+					text += "[[providers]]\nname = 'fixture'\n"
+				}
+				if err := os.WriteFile(filepath.Join(os.Getenv("SOLOMON_HOME"), "config.toml"), []byte(text), 0600); err != nil {
+					t.Fatal(err)
+				}
+				root, err := config.Load()
+				if err != nil || root.EffectiveInstallLayout() != layout {
+					t.Fatalf("read layout: %+v, %v", root, err)
+				}
+				if err := config.Save(root); err != nil {
+					t.Fatal(err)
+				}
+				reloaded, err := config.Load()
+				if err != nil || reloaded.EffectiveInstallLayout() != layout {
+					t.Fatalf("saved layout: %+v, %v", reloaded, err)
+				}
+			})
+		}
+	}
+}
 
 func TestTargetedConfigUpdatesPreserveEachOther(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())

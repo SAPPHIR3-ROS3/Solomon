@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/SAPPHIR3-ROS3/Solomon/releases"><img src="https://img.shields.io/github/v/release/SAPPHIR3-ROS3/Solomon?color=6f42c1&label=release" alt="Latest release"></a>
-  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27.3+-00ADD8?logo=go&logoColor=white" alt="Go 1.27.3+"></a>
   <img src="https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-lightgrey" alt="Platforms">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/status-early%20release-orange" alt="Status: early release">

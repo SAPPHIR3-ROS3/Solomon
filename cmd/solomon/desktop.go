@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,9 +10,42 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
+
+// Older coordinators replaced only the CLI. Complete their desktop migration
+// before they reopen clients against the new daemon. Ordinary daemon starts and
+// local development builds do not need a release lookup.
+func repairDesktopForDaemonStart() error {
+	version := commands.LocalVersionString()
+	if updater.IsDevelopmentVersion(version) {
+		return nil
+	}
+	cli, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	desktop, err := updater.DesktopExecutablePath(cli)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(desktop); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	var marker struct{ Tag, CLI string }
+	if data, err := os.ReadFile(desktop + ".install.json"); err == nil {
+		_ = json.Unmarshal(data, &marker)
+	}
+	if marker.Tag == version && marker.CLI == cli {
+		return nil
+	}
+	_, err = prepareDesktop()
+	return err
+}
 
 func requireDesktopWebView() error {
 	if desktopWebViewAvailable() {

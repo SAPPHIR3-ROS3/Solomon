@@ -38,7 +38,12 @@ export function useAppUpdate() {
         if (!controller.signal.aborted) timer = window.setTimeout(() => void poll(), delay);
       }
     };
-    void poll();
+    if (status?.phase) {
+      const active = status.phase === "checking" || status.phase === "downloading" || status.phase === "restarting";
+      timer = window.setTimeout(() => void poll(), active ? 2000 : 30_000);
+    } else {
+      void poll();
+    }
     return () => { controller.abort(); window.clearTimeout(timer); };
   }, [status?.phase]);
 

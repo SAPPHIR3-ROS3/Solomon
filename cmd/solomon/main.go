@@ -127,6 +127,12 @@ func main() {
 		return
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "server" {
+		if len(os.Args) >= 3 && os.Args[2] == "start" {
+			if err := repairDesktopForDaemonStart(); err != nil {
+				fmt.Fprintln(os.Stderr, "Unable to migrate Solomon desktop:", err)
+				os.Exit(1)
+			}
+		}
 		if err := servercli.Run(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
