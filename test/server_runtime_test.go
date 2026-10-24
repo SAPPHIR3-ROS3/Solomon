@@ -177,6 +177,38 @@ func hasNonLoopbackIPv4Interface(t *testing.T) bool {
 	return false
 }
 
+// A browser may preconnect without sending HTTP headers. net/http keeps such
+// connections for at least five seconds during graceful shutdown.
+func TestServerRuntime_stopWaitsForPreconnectedClient(t *testing.T) {
+	server, stop := startServerForTest(t, serverruntime.Options{})
+	defer stop()
+	address, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := net.DialTimeout("tcp", address.Host, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	// Give the accept loop time to register the idle connection before stopping.
+	if err := connection.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	var data [1]byte
+	if _, err := connection.Read(data[:]); err == nil {
+		t.Fatal("unexpected data before an HTTP request")
+	} else if timeout, ok := err.(net.Error); !ok || !timeout.Timeout() {
+		t.Fatalf("preconnection closed before shutdown: %v", err)
+	}
+	if err := servercli.Run([]string{"stop"}); err != nil {
+		t.Fatalf("graceful stop with a preconnected client: %v", err)
+	}
+	if _, err := serverruntime.LoadState(); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("daemon state remains after stop: %v", err)
+	}
+}
+
 func TestServerRuntime_stopEndpointClearsState(t *testing.T) {
 	server, stop := startServerForTest(t, serverruntime.Options{})
 
