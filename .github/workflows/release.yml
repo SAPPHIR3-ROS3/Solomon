@@ -13,6 +13,10 @@ on:
         description: Only run installation and upgrade checks for an existing release tag
         type: string
         default: ""
+      release_tag:
+        description: Optional new calendar tag (use a new revision when replacing a withdrawn release)
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -264,6 +268,8 @@ jobs:
 
       - id: version
         name: Resolve calendar version tag
+        env:
+          REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -e
           git fetch --tags origin
@@ -282,6 +288,19 @@ jobs:
           done
           REV=$((MAX_REV + 1))
           VER="${PREFIX}.${REV}"
+
+          if [[ -n "$REQUESTED_RELEASE_TAG" ]]; then
+            REQUESTED_REV=${REQUESTED_RELEASE_TAG#"$PREFIX."}
+            if [[ "$REQUESTED_RELEASE_TAG" != "$PREFIX."* || ! "$REQUESTED_REV" =~ ^(0|[1-9][0-9]*)$ ]]; then
+              echo "release_tag must use today's calendar prefix: ${PREFIX}.<revision>" >&2
+              exit 1
+            fi
+            if ((10#$REQUESTED_REV <= MAX_REV)); then
+              echo "release_tag must be newer than every existing tag for today" >&2
+              exit 1
+            fi
+            VER="$REQUESTED_RELEASE_TAG"
+          fi
 
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
 
