@@ -107,15 +107,23 @@ dump_upgrade_log() {
   fi
 }
 
+has_release_version() {
+  local output="$1" expected="$2"
+  printf '%s\n' "$output" |
+    LC_ALL=C sed -E $'s|\033\\[[0-?]*[ -/]*[@-~]||g; s/^[[:space:]]+//; s/[[:space:]]+$//' |
+    grep -Fx -- "$expected" >/dev/null
+}
+
 wait_for_target_version() {
   local exe="$1"
   local log="${2:-}"
   local max_attempts="${3:-90}"
   local attempt ver="" binary_ver=""
   for ((attempt = 1; attempt <= max_attempts; attempt++)); do
-    binary_ver="$("$exe" version --binary 2>/dev/null | tr -d '\r\n' || true)"
-    if ver="$("$exe" version 2>/dev/null | tr -d '\r\n')" && \
-      [[ "$binary_ver" == *"$RELEASE_TAG"* && "$ver" == *"$RELEASE_TAG"* ]]; then
+    if binary_ver="$("$exe" version --binary 2>/dev/null)" &&
+      ver="$("$exe" version 2>/dev/null)" &&
+      has_release_version "$binary_ver" "$RELEASE_TAG" &&
+      has_release_version "$ver" "$RELEASE_TAG"; then
       echo "Upgrade smoke OK (${RELEASE_TAG}): ${ver}"
       return 0
     fi
