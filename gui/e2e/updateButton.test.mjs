@@ -123,3 +123,80 @@ test("retries failures, rejects duplicate actions and reconnects after restart",
     await page.close();
   }
 });
+
+
+test("recovers from stalled action and status requests after completion", async () => {
+  const page = await browser.newPage();
+  const stalled = [];
+  try {
+    await page.clock.install();
+    let phase = "available", stallStatus = false;
+    let statusStalled;
+    const statusRequest = new Promise(resolve => { statusStalled = resolve; });
+    await page.route("**/__update", route => route.fulfill({ contentType: "text/html", body: '<div id="root"></div><script type="module" src="/__update.tsx"></script>' }));
+    await page.route("**/__solomon/update", route => {
+      if (route.request().method() === "POST") {
+        phase = "downloading";
+        stalled.push(route);
+        return;
+      }
+      if (stallStatus) {
+        stallStatus = false;
+        stalled.push(route);
+        statusStalled();
+        return;
+      }
+      return route.fulfill({ json: { current: "v1", latest: "v2", phase } });
+    });
+    await page.goto(`${server.resolvedUrls.local[0]}__update`);
+    await page.waitForFunction(() => document.querySelector("output")?.textContent === "available");
+    await page.getByRole("button", { name: "Toggle panel" }).click();
+    await page.getByRole("button", { name: "Download update", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector(".solomon-update-button")?.disabled);
+    await page.clock.fastForward(10_000);
+    await page.getByRole("alert").filter({ hasText: "timed out" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Download update", exact: true }).isEnabled(), true);
+    await page.clock.fastForward(20_000);
+    await page.getByRole("progressbar").waitFor();
+    assert.equal(await page.getByRole("alert").count(), 0);
+    stallStatus = true;
+    await page.clock.fastForward(2000);
+    await statusRequest;
+    assert.equal(stalled.length, 2);
+    phase = "ready";
+    await page.clock.fastForward(10_000);
+    await page.clock.fastForward(2000);
+    const restart = page.getByRole("button", { name: "Restart to update", exact: true });
+    await restart.waitFor();
+    assert.equal(await restart.isEnabled(), true);
+    assert.equal(await page.getByRole("progressbar").count(), 0);
+  } finally {
+    for (const route of stalled) await route.abort().catch(() => {});
+    await page.close();
+  }
+});
+
+test("resumes status checks when the desktop bridge stops responding", async () => {
+  const page = await browser.newPage();
+  try {
+    await page.clock.install();
+    await page.addInitScript(() => {
+      let calls = 0;
+      window.go = { main: { ServerBridge: { URL: () => {
+        calls++;
+        return calls === 1 ? new Promise(() => {}) : Promise.resolve(window.location.origin);
+      } } } };
+    });
+    await page.route("**/__update", route => route.fulfill({ contentType: "text/html", body: '<div id="root"></div><script type="module" src="/__update.tsx"></script>' }));
+    await page.route("**/__solomon/update", route => route.fulfill({ json: { current: "v1", latest: "v2", phase: "ready" } }));
+    await page.goto(`${server.resolvedUrls.local[0]}__update`);
+    await page.getByRole("button", { name: "Toggle panel" }).click();
+    await page.clock.fastForward(10_000);
+    await page.clock.fastForward(2000);
+    const restart = page.getByRole("button", { name: "Restart to update", exact: true });
+    await restart.waitFor();
+    assert.equal(await restart.isEnabled(), true);
+  } finally {
+    await page.close();
+  }
+});
