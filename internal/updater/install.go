@@ -187,7 +187,7 @@ func PrepareInstall(ctx context.Context, tag string, progress io.Writer) (staged
 			os.Remove(tmpPath)
 		}
 	}()
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
+	if _, err := io.Copy(tmp, trackDownload(resp.Body, resp.ContentLength, progress)); err != nil {
 		return "", "", err
 	}
 	if err := tmp.Close(); err != nil {
