@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t;function n(){return(n=e((()=>{t=`{"name":"cursor:source.ignore","scopeName":"source.ignore","patterns":[{"match":"^#.*","name":"comment.line.number-sign.ignore"}]}`})))()}n();export{t as default};

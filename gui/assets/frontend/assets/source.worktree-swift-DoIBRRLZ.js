@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t;function n(){return(n=e((()=>{t=`{"scopeName":"source.worktree-swift","patterns":[{"include":"source.swift"}],"name":"cursor:source.worktree-swift"}`})))()}n();export{t as default};
