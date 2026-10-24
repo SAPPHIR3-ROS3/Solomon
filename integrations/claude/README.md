@@ -6,7 +6,7 @@ Solomon starts this directory as a local OpenAI-compatible sidecar for the Claud
 
 ## Verified dependency
 
-Installed the approved `@anthropic-ai/claude-agent-sdk` at exactly `0.3.305`, with a local package-lock. npm installed its declared peer and optional transitive packages; no additional direct dependencies were added. The package reports Claude Code `2.1.305`. Its official Linux x64 bundled executable reports `2.1.305 (Claude Code)`. The SDK module imports successfully. No authenticated inference was performed.
+Installed the approved `@anthropic-ai/claude-agent-sdk` at exactly `0.3.310`, with a local package-lock. npm installed its declared peer and optional transitive packages; no additional direct dependencies were added. The package reports Claude Code `2.1.310`. Its official Linux x64 bundled executable reports `2.1.310 (Claude Code)`. The SDK module imports successfully. No authenticated inference was performed.
 
 ## Public-interface evidence
 

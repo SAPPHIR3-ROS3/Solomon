@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -36,14 +37,14 @@ func TestTUIUpgradeReturnsToSameTerminalAndChat(t *testing.T) {
 	root := t.TempDir()
 	repo, _ := filepath.Abs("..")
 	hook := `package main
-import("net/http";"net/url";"os";"encoding/json";"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater";"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands")
+import("net/http";"net/url";"os";"context";"io";"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater")
 type fixtureTransport struct { base *url.URL; next http.RoundTripper }
 func(t fixtureTransport) RoundTrip(r *http.Request)(*http.Response,error){
  if r.URL.Host != "github.com" && r.URL.Host != "api.github.com" { return t.next.RoundTrip(r) }; c:=r.Clone(r.Context()); u:=*r.URL; c.URL=&u
  c.URL.Scheme=t.base.Scheme; c.URL.Host=t.base.Host; c.Host=t.base.Host
  return t.next.RoundTrip(c)
 }
-func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { base,_:=url.Parse(address); http.DefaultTransport=fixtureTransport{base,http.DefaultTransport}; updater.SetLatestReleaseAPIURL(address+"/latest"); cli:=os.Getenv("SOLOMON_BINARY"); desktop,_:=updater.DesktopExecutablePath(cli); marker,_:=json.Marshal(map[string]string{"tag":commands.LocalVersionString(),"cli":cli}); os.WriteFile(desktop+".install.json",marker,0600) } }
+func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { base,_:=url.Parse(address); http.DefaultTransport=fixtureTransport{base,http.DefaultTransport}; updater.SetLatestReleaseAPIURL(address+"/latest"); updater.SetDesktopRegistrar(func(context.Context,string,string,string,io.Writer)error{return nil}) } }
 `
 	hookPath := filepath.Join(root, "hook.go")
 	if err := os.WriteFile(hookPath, []byte(hook), 0600); err != nil {
@@ -65,7 +66,18 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 	if err := os.WriteFile(mainPath, []byte(seeded), 0600); err != nil {
 		t.Fatal(err)
 	}
-	overlay, _ := json.Marshal(map[string]any{"Replace": map[string]string{filepath.Join(repo, "cmd/solomon/main.go"): mainPath, filepath.Join(repo, "cmd/solomon/zz_upgrade_fixture.go"): hookPath}})
+
+	updateSource, err := os.ReadFile(filepath.Join(repo, "internal/lifecycle/update.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updateFixture := strings.Replace(string(updateSource), "ops := platformRuntimeUpdateOps(ctx, args[2])", `ops := platformRuntimeUpdateOps(ctx, args[2])
+ if os.Getenv("SOLOMON_UPGRADE_LEGACY_COORDINATOR") == "1" { ops.prepareRelated = nil; ops.backupPaths = nil; ops.commit = updater.CommitInstall }`, 1)
+	updatePath := filepath.Join(root, "update.go")
+	if err := os.WriteFile(updatePath, []byte(updateFixture), 0600); err != nil {
+		t.Fatal(err)
+	}
+	overlay, _ := json.Marshal(map[string]any{"Replace": map[string]string{filepath.Join(repo, "cmd/solomon/main.go"): mainPath, filepath.Join(repo, "cmd/solomon/zz_upgrade_fixture.go"): hookPath, filepath.Join(repo, "internal/lifecycle/update.go"): updatePath}})
 	overlayPath := filepath.Join(root, "overlay.json")
 	if err := os.WriteFile(overlayPath, overlay, 0600); err != nil {
 		t.Fatal(err)
@@ -89,7 +101,12 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 	if err != nil {
 		t.Fatal(err)
 	}
-	checksum := fmt.Sprintf("%x  %s\n", sha256.Sum256(newBytes), asset)
+	desktopAsset, err := updater.DesktopAssetName(newTag, runtime.GOOS, runtime.GOARCH)
+	if err != nil {
+		t.Fatal(err)
+	}
+	desktopPayload := desktopReleasePayload(t, []byte("new desktop fixture"))
+	checksum := fmt.Sprintf("%x  %s\n%x  %s\n", sha256.Sum256(newBytes), asset, sha256.Sum256(desktopPayload), desktopAsset)
 	fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/latest":
@@ -98,6 +115,8 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 			io.WriteString(w, checksum)
 		case strings.HasSuffix(r.URL.Path, "/"+asset):
 			w.Write(newBytes)
+		case strings.HasSuffix(r.URL.Path, "/"+desktopAsset):
+			w.Write(desktopPayload)
 		case strings.HasSuffix(r.URL.Path, "/models"):
 			io.WriteString(w, `{"data":[{"id":"fixture"}]}`)
 		default:
@@ -105,7 +124,7 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 		}
 	}))
 	defer fixture.Close()
-	for _, mode := range []string{"upgrade", "autoupdate"} {
+	for _, mode := range []string{"upgrade", "autoupdate", "legacy-coordinator"} {
 		t.Run(mode, func(t *testing.T) {
 			home := t.TempDir()
 			appHome := filepath.Join(home, "home")
@@ -125,7 +144,7 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 			if err := os.WriteFile(binary, oldBytes, 0700); err != nil {
 				t.Fatal(err)
 			}
-			// Provision a desktop marker so this TUI test never downloads or launches a GUI.
+			// Provision the old desktop; release preparation updates it without launching a GUI.
 			desktop, err := updater.DesktopExecutablePath(binary)
 			if err != nil {
 				t.Fatal(err)
@@ -149,6 +168,9 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 				t.Fatal(err)
 			}
 			env := append(os.Environ(), "HOME="+home, "USERPROFILE="+home, "SOLOMON_BINARY="+binary, "SOLOMON_UPGRADE_FIXTURE="+fixture.URL, "SOLOMON_UPGRADE_SEED_CHAT="+chat.ID, "TERM=xterm-256color")
+			if mode == "legacy-coordinator" {
+				env = append(env, "SOLOMON_UPGRADE_LEGACY_COORDINATOR=1")
+			}
 			command := exec.Command(binary, workspace)
 			command.Env, command.Dir = env, workspace
 			terminal, err := pty.StartWithSize(command, &pty.Winsize{Rows: 40, Cols: 140})
@@ -208,7 +230,7 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 				t.Fatal("cannot establish TUI process identity")
 			}
 			outerTTY, _ := os.Readlink(fmt.Sprintf("/proc/%d/fd/0", command.Process.Pid))
-			if mode == "upgrade" {
+			if mode != "autoupdate" {
 				if !wait("initial REPL never ready", func() bool { return strings.Contains(output(), oldTag) && strings.Contains(output(), "You:") }) {
 					return
 				}
@@ -230,6 +252,9 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 			}
 			if processidentity.Read(command.Process.Pid) != outerIdentity {
 				t.Error("outer terminal client exited instead of re-entering in place")
+			}
+			if data, err := os.ReadFile(desktop); err != nil || string(data) != "new desktop fixture" {
+				t.Fatalf("desktop was not upgraded with the CLI: %q, %v", data, err)
 			}
 			if runtimeTTY, err := os.Readlink(fmt.Sprintf("/proc/%d/fd/0", command.Process.Pid)); err == nil && runtimeTTY != outerTTY {
 				t.Error("outer terminal changed")

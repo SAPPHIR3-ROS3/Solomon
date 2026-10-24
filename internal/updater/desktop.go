@@ -173,10 +173,22 @@ func InstallBuiltDesktop(ctx context.Context, version, cli, source string, progr
 	if err := copyInstallationPath(source, staged); err != nil {
 		return err
 	}
+	backupPaths := []string{destination, target + ".install.json"}
+	if runtime.GOOS == "darwin" {
+		backupPaths = []string{destination}
+	}
+	backup, err := BackupInstallation(backupPaths...)
+	if err != nil {
+		return err
+	}
+	defer backup.Close()
 	if err := replaceInstallationPath(staged, destination); err != nil {
 		return err
 	}
-	return finishDesktopInstallation(ctx, version, cli, target, progress)
+	if err := finishDesktopInstallation(ctx, version, cli, target, progress); err != nil {
+		return errors.Join(err, backup.Restore())
+	}
+	return nil
 }
 
 func lockDesktopInstallation(ctx context.Context, target string) (*flock.Flock, error) {

@@ -89,12 +89,15 @@ func RunUpdateCommand(args []string) bool {
 }
 
 type runtimeUpdateOps struct {
-	prepare func() (staged, target string, err error)
-	stop    func(target string) error
-	commit  func(staged, target string) error
-	start   func(target string) error
-	restore func(target string) error
-	quiesce func() error
+	prepare        func() (staged, target string, err error)
+	stop           func(target string) error
+	commit         func(staged, target string) error
+	start          func(target string) error
+	restore        func(target string) error
+	quiesce        func() error
+	prepareRelated func(string) error
+	backupPaths    func() []string
+	cleanup        func()
 }
 
 // Keep downloads outside the interruption window and restore the old runtime
@@ -105,10 +108,22 @@ func applyRuntimeUpdate(ctx context.Context, tag string, ops runtimeUpdateOps) (
 		return err
 	}
 	defer os.Remove(staged)
+	if ops.cleanup != nil {
+		defer ops.cleanup()
+	}
+	if ops.prepareRelated != nil {
+		if err := ops.prepareRelated(target); err != nil {
+			return err
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	backup, err := updater.BackupInstallation(target)
+	backupPaths := []string{target}
+	if ops.backupPaths != nil {
+		backupPaths = append(backupPaths, ops.backupPaths()...)
+	}
+	backup, err := updater.BackupInstallation(backupPaths...)
 	if err != nil {
 		return err
 	}
@@ -163,6 +178,7 @@ type desktopUpdateProcess struct {
 }
 
 func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serverruntime.State) runtimeUpdateOps {
+	var preparedDesktop *updater.PreparedDesktop
 	var desktops []desktopUpdateProcess
 	var stopped []desktopUpdateProcess
 	var restarted []desktopUpdateProcess
@@ -200,6 +216,15 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 					}
 					for _, desktop := range stopped {
 						executable := desktop.executable
+						if requireVersion {
+							executable = target
+							if desktop.kind != "tui" {
+								executable, err = updater.DesktopUpdateExecutable(target)
+								if err != nil {
+									return err
+								}
+							}
+						}
 						if tag == "" {
 							executable = target
 							if desktop.kind != "tui" {
@@ -209,7 +234,11 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 								}
 							}
 						}
-						command := exec.Command(executable, desktop.args...)
+						args := desktop.args
+						if desktop.kind != "tui" && (len(args) == 0 || executable != desktop.executable) {
+							args = updater.DesktopRestartArgs(executable)
+						}
+						command := exec.Command(executable, args...)
 						command.Env, command.Dir = desktop.env, desktop.cwd
 						if daemonPort != "" {
 							command.Env = append(command.Env, "SOLOMON_SERVER_PORT="+daemonPort)
@@ -228,10 +257,8 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 						client.stopFile = ""
 						restarted = append(restarted, client)
 						_ = command.Process.Release()
-						if tag == "" {
-							if err := waitClientRegistration(startCtx, client); err != nil {
-								return err
-							}
+						if err := waitClientRegistration(startCtx, client); err != nil {
+							return err
 						}
 					}
 					stopped = nil
@@ -248,6 +275,12 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 	}
 	return runtimeUpdateOps{
 		prepare: func() (string, string, error) { return updater.PrepareInstall(ctx, tag, os.Stdout) },
+		prepareRelated: func(target string) (err error) {
+			preparedDesktop, err = updater.PrepareDesktopUpdate(ctx, tag, target, os.Stdout)
+			return err
+		},
+		backupPaths: func() []string { return preparedDesktop.BackupPaths() },
+		cleanup:     func() { preparedDesktop.Close() },
 		stop: func(target string) error {
 			var err error
 			desktopTarget, err := updater.DesktopExecutablePath(target)
@@ -306,8 +339,13 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 			}
 			return nil
 		},
-		commit: updater.CommitInstall,
-		start:  func(target string) error { return start(target, tag != "") },
+		commit: func(staged, target string) error {
+			if err := updater.CommitInstall(staged, target); err != nil {
+				return err
+			}
+			return preparedDesktop.Commit(ctx, os.Stdout)
+		},
+		start: func(target string) error { return start(target, tag != "") },
 		quiesce: func() error {
 			// Finish pending shutdowns with an independent recovery deadline before
 			// restoring files or starting replacements for those same clients.
@@ -380,6 +418,7 @@ func waitProcessExit(ctx context.Context, pid int, identity string) error {
 // ApplyLocalUpdate applies a verified local build using the same runtime handoff.
 func ApplyLocalUpdate(ctx context.Context, tag, staged, target string, desktopStaged ...string) error {
 	ops := platformRuntimeUpdateOps(ctx, tag)
+	ops.prepareRelated = nil
 	ops.prepare = func() (string, string, error) { return staged, target, nil }
 	if len(desktopStaged) > 0 {
 		desktopTarget, err := updater.DesktopExecutablePath(target)

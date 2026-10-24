@@ -17,6 +17,14 @@ func ApplyUpdateForTest(ctx context.Context, tag string, ops UpdateOpsForTest) e
 	return applyRuntimeUpdate(ctx, tag, runtimeUpdateOps{prepare: ops.Prepare, stop: ops.Stop, commit: ops.Commit, start: ops.Start, restore: ops.Restore, quiesce: ops.Quiesce})
 }
 
+// ApplyReleaseUpdateForTest uses real release preparation and commit, replacing
+// process operations so tests cannot stop or restart the user's installation.
+func ApplyReleaseUpdateForTest(ctx context.Context, tag string, hooks UpdateOpsForTest) error {
+	ops := platformRuntimeUpdateOps(ctx, tag)
+	ops.stop, ops.start, ops.restore, ops.quiesce = hooks.Stop, hooks.Start, hooks.Restore, hooks.Quiesce
+	return applyRuntimeUpdate(ctx, tag, ops)
+}
+
 func HotInstallForTest(target string, install func() error, ops UpdateOpsForTest) error {
 	return hotInstall(target, install, runtimeUpdateOps{stop: ops.Stop, start: ops.Start, quiesce: ops.Quiesce, restore: ops.Restore})
 }
