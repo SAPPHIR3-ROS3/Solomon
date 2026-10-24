@@ -317,7 +317,10 @@ func stop() error {
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
 		_, stateErr := serverruntime.LoadState()
 		if errors.Is(stateErr, os.ErrNotExist) || !healthy(state) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			// net/http retains preconnected clients for at least five seconds
+			// during Shutdown. Allow that grace period and subsequent cleanup
+			// to finish before declaring the daemon stuck.
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			if err := serverruntime.WaitForShutdown(ctx); err != nil {
 				return err
