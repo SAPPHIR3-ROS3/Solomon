@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t;function n(){return(n=e((()=>{t=`{"scopeName":"source.worktree-terraform-deploy","patterns":[{"include":"source.hcl"}],"name":"cursor:source.worktree-terraform-deploy"}`})))()}n();export{t as default};
