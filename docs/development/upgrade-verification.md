@@ -54,9 +54,9 @@ browser tests are also registered as `npm run test:update` and run on the Linux
 release CI job.
 
 The complete Go suite is run excluding only
-`TestGoTestsLiveInTopLevelTestDirectory`: an unrelated local
-`internal/filechanges/snapshot_test.go` violates that repository layout rule.
-That file is preserved. Platform-specific tests still skip when their required
+`TestGoTestsLiveInTopLevelTestDirectory`: an unrelated, uncommitted test under an
+internal package violates that repository layout rule. That local file is
+preserved. Platform-specific tests still skip when their required
 native operating system is unavailable.
 
 Windows file locking, COM shortcuts, WebView2 and macOS LaunchServices/native
