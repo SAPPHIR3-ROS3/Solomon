@@ -36,7 +36,7 @@ func ListModels(ctx context.Context, bearer, accountID string) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
-	applyCodexUpstreamHeaders(req, bearer, accountID, version)
+	applyCodexUpstreamHeaders(req, bearer, accountID, version, "")
 	req.Header.Set("accept", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

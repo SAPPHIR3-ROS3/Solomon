@@ -33,6 +33,7 @@ function Fixture() {
       React.createElement(ReasoningBlock, { message, isCollapsed: collapsed, onToggle: () => setCollapsed(value => !value) }),
       React.createElement(MarkdownContent, { content: message.content }),
       React.createElement(MessageFooter, { message, index: 0 })),
+    React.createElement('article', { className: 'chat-message is-user', style: { width: '100%' } }, React.createElement(MarkdownContent, { content: ['Prima riga mobile ', 'seconda riga mobile', '', 'Nuovo paragrafo  ', 'interruzione esplicita.'].join(String.fromCharCode(10)) })),
     React.createElement('textarea', { 'aria-label': 'Message input' }),
     React.createElement(LinkContextMenu)));
 }
@@ -50,7 +51,7 @@ test("chat selection, external links, message copy and paste", async () => {
     const reasoning = page.locator('.chat-reasoning-copy');
     await reasoning.waitFor();
     assert.equal(await reasoning.evaluate(node => getComputedStyle(node).userSelect), 'text');
-    assert.equal(await page.locator('.chat-message p').evaluate(node => getComputedStyle(node).userSelect), 'text');
+    assert.equal(await page.locator('.chat-message.is-assistant p').evaluate(node => getComputedStyle(node).userSelect), 'text');
     const box = await reasoning.boundingBox();
     await page.mouse.move(box.x + 1, box.y + box.height / 2);
     await page.mouse.down();
@@ -94,5 +95,29 @@ test("chat selection, external links, message copy and paste", async () => {
     await page.getByRole('textbox', { name: 'Message input' }).focus();
     await page.keyboard.press('Control+V');
     assert.equal(await page.getByRole('textbox', { name: 'Message input' }).inputValue(), 'Testo della chat con [link](https://example.com/doc).');
+  } finally { await page.close(); }
+});
+
+
+test("mobile user text reflows after resizing while preserving paragraphs and explicit breaks", async () => {
+  const page = await browser.newPage({ viewport: { width: 1000, height: 900 } });
+  try {
+    await page.route("**/__chat_fixture", route => route.fulfill({ contentType: "text/html", body: fixture }));
+    await page.goto(`${server.resolvedUrls.local[0]}__chat_fixture`);
+    const paragraphs = page.locator('.chat-message.is-user p');
+    await paragraphs.first().waitFor();
+    assert.equal(await paragraphs.count(), 2);
+    const lineCount = () => paragraphs.first().evaluate(node => {
+      const range = document.createRange(); range.selectNodeContents(node);
+      return new Set(Array.from(range.getClientRects(), rect => Math.round(rect.top))).size;
+    });
+    assert.equal(await lineCount(), 1);
+    assert.equal(await paragraphs.nth(1).locator('br').count(), 1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('.chat-view').evaluate(node => { node.style.width = '240px'; node.style.padding = '10px'; });
+    assert.ok(await lineCount() > 1);
+    await page.locator('.chat-view').evaluate(node => { node.style.width = '900px'; });
+    await page.setViewportSize({ width: 1000, height: 900 });
+    assert.equal(await lineCount(), 1);
   } finally { await page.close(); }
 });
