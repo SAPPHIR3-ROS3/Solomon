@@ -160,11 +160,21 @@ func TestMultilineEditorPasteViewportKeepsFullBufferAndNavigates(t *testing.T) {
 	}
 }
 
-func TestMultilineEditorTypingAutoWrapsAtSpace(t *testing.T) {
-	e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, []string{""}, 0, 0, 12)
-	e.TypeString("hi foob")
-	if got := e.String(); got != "hi \nfoob" {
-		t.Fatalf("auto wrap got %q want %q", got, "hi \nfoob")
+func TestMultilineEditorTypingWrapsVisuallyWithoutChangingMessage(t *testing.T) {
+	text := "hi foob e poi una frase più lunga con spazi"
+	for _, width := range []int{12, 40, 120} {
+		e := repl.NewMultilineEditorForTest(&repl.Loop{}, nil, []string{""}, 0, 0, width)
+		e.TypeString(text)
+		if got := e.String(); got != text {
+			t.Fatalf("width %d: typed text got %q want %q", width, got, text)
+		}
+		if width == 12 && e.TotalVisualRows() <= 1 {
+			t.Fatal("narrow terminal must still wrap visually")
+		}
+		e.RefreshOutput()
+		if e.String() != text {
+			t.Fatal("rendering changed submitted text")
+		}
 	}
 }
 

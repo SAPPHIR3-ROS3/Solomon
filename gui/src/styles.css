@@ -2318,6 +2318,10 @@ button.right-side-panel-history-ref:hover {
   height: 100%;
 }
 
+.settings-provider-quota-track.is-limited > span {
+  background: var(--color-danger);
+}
+
 .settings-provider-form {
   display: flex;
   flex-direction: column;

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/anthropic/claude"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/openai/codex"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 )
@@ -18,7 +17,8 @@ type subscriptionTestTransport func(*http.Request) (*http.Response, error)
 func (f subscriptionTestTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestSubscriptionConnectKeepsCredentialsWhenCatalogFails(t *testing.T) {
-	for _, name := range []string{config.ProviderNameChatGPTSub, config.ProviderNameClaudeSub} {
+	// Claude Sub signs in through the official Claude CLI, so only ChatGPT Sub runs an in-process OAuth flow.
+	for _, name := range []string{config.ProviderNameChatGPTSub} {
 		t.Run(name, func(t *testing.T) {
 			if name == config.ProviderNameChatGPTSub {
 				requireCodexCallbackPort(t)
@@ -56,7 +56,6 @@ func TestSubscriptionConnectKeepsCredentialsWhenCatalogFails(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			defer claude.SetTokenEndpointForTest(server.URL + "/token")()
 			defer codex.SetTokenEndpointForTest(server.URL + "/token")()
 			base, registry := codex.ChatGPTSubAPIBase, codex.CodexVersionRegistryURL
 			codex.ChatGPTSubAPIBase = server.URL
@@ -73,9 +72,6 @@ func TestSubscriptionConnectKeepsCredentialsWhenCatalogFails(t *testing.T) {
 			})
 			defer func() { http.DefaultTransport = transport }()
 			kind := config.ProviderKindChatGPTSub
-			if name == config.ProviderNameClaudeSub {
-				kind = config.ProviderKindClaudeSub
-			}
 			_, err := config.RunProviderSetupByKind(t.Context(), config.PromptIO{Out: io.Discard}, root, root, kind, config.ProviderSetupOpts{
 				WriteToConfig: true,
 				SaveProvider: func(p config.Provider) error {

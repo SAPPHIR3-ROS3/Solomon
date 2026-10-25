@@ -89,7 +89,8 @@ type rootLegacyFile struct {
 
 	Roles Roles `toml:"roles,omitempty"`
 
-	AutoUpdate *bool `toml:"autoupdate,omitempty"`
+	AutoUpdate    *bool  `toml:"autoupdate,omitempty"`
+	InstallLayout string `toml:"install_layout,omitempty"`
 }
 
 type rootFile struct {
@@ -162,7 +163,8 @@ type rootFile struct {
 
 	Roles Roles `toml:"roles,omitempty"`
 
-	AutoUpdate *bool `toml:"autoupdate,omitempty"`
+	AutoUpdate    *bool  `toml:"autoupdate,omitempty"`
+	InstallLayout string `toml:"install_layout,omitempty"`
 
 	PromptTemplates map[string]string `toml:"prompt_templates,omitempty"`
 
@@ -261,7 +263,8 @@ func rootFromFile(f *rootFile) *Root {
 
 		Roles: f.Roles,
 
-		AutoUpdate: f.AutoUpdate,
+		AutoUpdate:    f.AutoUpdate,
+		InstallLayout: f.InstallLayout,
 
 		PromptTemplates: f.PromptTemplates,
 
@@ -359,7 +362,8 @@ func rootToFile(r *Root) *rootFile {
 
 		Roles: r.Roles,
 
-		AutoUpdate: r.AutoUpdate,
+		AutoUpdate:    r.AutoUpdate,
+		InstallLayout: r.InstallLayout,
 
 		PromptTemplates: r.PromptTemplates,
 
@@ -488,7 +492,8 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 
 		Roles: f.Roles,
 
-		AutoUpdate: f.AutoUpdate,
+		AutoUpdate:    f.AutoUpdate,
+		InstallLayout: f.InstallLayout,
 	}
 
 	for _, p := range f.Providers {

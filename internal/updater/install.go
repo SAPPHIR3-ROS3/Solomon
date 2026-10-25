@@ -69,10 +69,18 @@ func goInstallBinDir() (string, error) {
 
 func selectedInstallLayout() string {
 	root, err := config.Load()
-	if err != nil || root == nil {
-		return "split"
+	if err == nil && root != nil && root.InstallLayout != "" {
+		return root.EffectiveInstallLayout()
 	}
-	return root.EffectiveInstallLayout()
+	executable := strings.TrimSpace(os.Getenv("SOLOMON_BINARY"))
+	if executable == "" {
+		executable, _ = os.Executable()
+	}
+	base := strings.ToLower(filepath.Base(executable))
+	if base == "solomon-standalone" || base == "solomon-standalone.exe" {
+		return "standalone"
+	}
+	return "split"
 }
 
 func installTargetPath() (string, error) {
@@ -187,7 +195,7 @@ func PrepareInstall(ctx context.Context, tag string, progress io.Writer) (staged
 			os.Remove(tmpPath)
 		}
 	}()
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
+	if _, err := io.Copy(tmp, trackDownload(resp.Body, resp.ContentLength, progress)); err != nil {
 		return "", "", err
 	}
 	if err := tmp.Close(); err != nil {
@@ -336,8 +344,11 @@ func RunSystemInstall(ctx context.Context, tag string, progress io.Writer) error
 	return ErrRestartScheduled
 }
 
-// SwitchToLayout downloads the saved layout from the latest release and installs it.
+// SwitchToLayout uses the same recoverable runtime handoff as an explicit upgrade.
 func SwitchToLayout(ctx context.Context, layout string) error {
+	if layout != "split" && layout != "standalone" {
+		return fmt.Errorf("unsupported install layout: %s", layout)
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -349,15 +360,13 @@ func SwitchToLayout(ctx context.Context, layout string) error {
 	if tag == "" {
 		return fmt.Errorf("no release available to switch layout")
 	}
-	if err := Install(ctx, tag, io.Discard); err != nil {
-		return err
+	return ExecInstallRestart(ctx, tag)
+}
+
+// DesktopUpdateExecutable selects the client belonging to the saved layout.
+func DesktopUpdateExecutable(cli string) (string, error) {
+	if selectedInstallLayout() == "standalone" {
+		return cli, nil
 	}
-	if layout != "split" {
-		return nil
-	}
-	cli, err := installTargetPath()
-	if err != nil {
-		return err
-	}
-	return InstallDesktop(ctx, tag, cli, io.Discard)
+	return DesktopExecutablePath(cli)
 }

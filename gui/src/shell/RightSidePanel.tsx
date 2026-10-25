@@ -1,6 +1,7 @@
+import { folderIcon } from "../folderIcons";
 import { fileIconName } from "../fileIcons";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, stageProjectChanges, unstageProjectChanges, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
+import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, sameProjectDirectoryEntries, sameProjectGitHistory, sameProjectGitStatus, stageProjectChanges, unstageProjectChanges, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 import { useFileContextMenu } from "./FileContextMenu";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
@@ -58,6 +59,8 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
+  const expandedDirectoriesRef = useRef(expandedDirectories);
+  expandedDirectoriesRef.current = expandedDirectories;
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [scrollShadowOpacity, setScrollShadowOpacity] = useState(0);
@@ -245,6 +248,70 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
     window.addEventListener(PROJECT_GIT_STATUS_CHANGED_EVENT, refreshGitStatus);
     return () => { cancelled = true; window.removeEventListener(PROJECT_FILES_CHANGED_EVENT, refresh); window.removeEventListener(PROJECT_GIT_STATUS_CHANGED_EVENT, refreshGitStatus); };
   }, [project?.id]);
+
+  useEffect(() => {
+    if (!project && !temporaryWorkspace) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    let inFlight = false;
+    const readDirectory = (path: string) => project
+      ? fetchProjectDirectoryEntries(project.id, path)
+      : fetchHomeDirectoryEntries(path || temporaryWorkspace!.path);
+    const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      const paths = [...new Set(["", ...Object.keys(entriesRef.current).filter((path) => expandedDirectoriesRef.current.has(path))])];
+      const [listings, status] = await Promise.all([
+        Promise.all(paths.map(async (path) => {
+          try { return [path, await readDirectory(path)] as const; }
+          catch { return null; }
+        })),
+        project ? fetchProjectGitStatus(project.id).catch(() => null) : Promise.resolve(null),
+      ]);
+      if (!cancelled) {
+        setEntries((current) => {
+          let changed = false;
+          const next = { ...current };
+          for (const listing of listings) {
+            if (!listing) continue;
+            const [path, nextEntries] = listing;
+            if (sameProjectDirectoryEntries(current[path], nextEntries)) continue;
+            next[path] = nextEntries;
+            changed = true;
+          }
+          return changed ? next : current;
+        });
+        if (status) setGitStatus((current) => sameProjectGitStatus(current, status) ? current : status);
+      }
+      inFlight = false;
+      if (!cancelled) timer = window.setTimeout(() => void refresh(), 1200);
+    };
+    timer = window.setTimeout(() => void refresh(), 1200);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [project?.id, temporaryWorkspace?.id]);
+
+  useEffect(() => {
+    if (!project || activeView !== "history") return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const refresh = async () => {
+      try {
+        const nextHistory = await fetchProjectGitHistory(project.id);
+        if (!cancelled) setGitHistory((current) => sameProjectGitHistory(current, nextHistory) ? current : nextHistory);
+      } catch {
+        // Keep the last successful graph visible while the daemon is unavailable.
+      }
+      if (!cancelled) timer = window.setTimeout(() => void refresh(), 3500);
+    };
+    timer = window.setTimeout(() => void refresh(), 3500);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [project?.id, activeView]);
 
   function toggleDirectory(entry: ProjectDirectoryEntry) {
     const isExpanded = expandedDirectories.has(entry.path);
@@ -477,6 +544,15 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
       cancelled = true;
     };
   }, [project, readOnly]);
+
+  useEffect(() => {
+    if (!branchMenuOpen || !project || readOnly) return;
+    let cancelled = false;
+    void fetchProjectBranches(project.id)
+      .then((info) => { if (!cancelled) setBranches(info.branches); })
+      .catch(() => { if (!cancelled) setBranchesError("Unable to load branches."); });
+    return () => { cancelled = true; };
+  }, [branchMenuOpen, project?.id, readOnly]);
 
   useEffect(() => {
     if (!branchMenuOpen) return;
@@ -955,105 +1031,10 @@ function researchStatusLabel(status: string) {
   return "Unknown";
 }
 
-const specialFolderTypes: Record<string, string> = {
-  ".android": "folder_type_android",
-  ".anthropic": "folder_type_claude",
-  ".cargo": "folder_type_cargo",
-  ".claude": "folder_type_claude",
-  ".copilot": "folder_type_github",
-  ".copilot-chat": "folder_type_github",
-  ".cursor": "folder_type_cursor",
-  ".cursor-server": "folder_type_cursor",
-  ".docker": "folder_type_docker",
-  ".flutter": "folder_type_flutter",
-  ".flutter-devtools": "folder_type_flutter",
-  ".gemini": "folder_type_gemini",
-  ".git": "folder_type_git",
-  ".gradle": "folder_type_gradle",
-  ".github": "folder_type_github",
-  ".node": "folder_type_node",
-  ".python": "folder_type_python",
-  ".solomon": "folder_type_config",
-  ".vscode": "folder_type_vscode",
-  ".windsurf": "folder_type_windsurf",
-  android: "folder_type_android",
-  Applications: "folder_type_applications",
-  "Applications (Parallels)": "folder_type_applications",
-  anthropic: "folder_type_claude",
-  components: "folder_type_library",
-  docker: "folder_type_docker",
-  docs: "folder_type_docs",
-  Documents: "folder_type_docs",
-  Downloads: "folder_type_downloads",
-  flutter: "folder_type_flutter",
-  Flutter: "folder_type_flutter",
-  internal: "folder_type_src",
-  Library: "folder_type_library",
-  Movies: "folder_type_video",
-  movies: "folder_type_video",
-  Music: "folder_type_audio",
-  music: "folder_type_audio",
-  node_modules: "folder_type_node",
-  Photos: "folder_type_images",
-  photos: "folder_type_images",
-  Pictures: "folder_type_images",
-  pictures: "folder_type_images",
-  Public: "folder_type_public",
-  python: "folder_type_python",
-  scripts: "folder_type_tools",
-  src: "folder_type_src",
-  test: "folder_type_test",
-  tests: "folder_type_test",
-  tools: "folder_type_tools",
-  Videos: "folder_type_video",
-  videos: "folder_type_video",
-};
-
-const specialFolderBadges: Record<string, string> = {
-  ".bun": "bun",
-  ".cocoapods": "cocoapods",
-  ".codex": "openai",
-  ".conda": "anaconda",
-  ".dart-tool": "dart",
-  ".dartServer": "dart",
-  ".eclipse": "eclipseide",
-  ".homebrew": "homebrew",
-  ".jupyter": "jupyter",
-  ".jupiter": "jupyter",
-  ".openai": "openai",
-  ".opencode": "opencode",
-  ".ollama": "ollama",
-  ".npm": "npm",
-  ".rustup": "rust",
-  ".swiftpm": "swift",
-  bun: "bun",
-  cocoapods: "cocoapods",
-  eclipse: "eclipseide",
-  go: "go",
-  homebrew: "homebrew",
-  ipython: "jupyter",
-  jupyter: "jupyter",
-  jupiter: "jupyter",
-  miniforge3: "anaconda",
-  npm: "npm",
-  ollama: "ollama",
-  openai: "openai",
-  opencode: "opencode",
-  "oracle-cursor": "cursor",
-  rustup: "rust",
-  swiftpm: "swift",
-};
-
-const standaloneFolderIcons: Record<string, string> = {
-  Desktop: "desktop",
-};
 
 function FolderIcon({ name, isOpen }: { name: string; isOpen: boolean }) {
-  const standaloneIcon = standaloneFolderIcons[name];
-  if (standaloneIcon) return <img aria-hidden="true" className="right-side-panel-file-icon" src={`/vscode-icons/${standaloneIcon}.svg`} />;
-  const badge = specialFolderBadges[name];
-  const folderType = specialFolderTypes[name] ?? "default_folder";
-  const icon = <img aria-hidden="true" className="right-side-panel-folder-image" src={`/vscode-icons/${folderType}${isOpen ? "_opened" : ""}.svg`} />;
+  const { src, badge } = folderIcon(name, isOpen);
+  const icon = <img aria-hidden="true" className="right-side-panel-folder-image" src={src} />;
   if (!badge) return <span aria-hidden="true" className="right-side-panel-file-icon">{icon}</span>;
   return <span aria-hidden="true" className="right-side-panel-file-icon">{icon}<img className="right-side-panel-folder-badge" src={`/vscode-icons/${badge}.svg`} /></span>;
 }

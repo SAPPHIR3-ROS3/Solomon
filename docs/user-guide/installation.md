@@ -4,7 +4,7 @@ How to install Solomon and ensure `solomon` is on your shell `PATH`.
 
 ## Requirements
 
-- [Go](https://go.dev/) **1.25.0+** ([`go.mod`](../../go.mod))
+- [Go](https://go.dev/) **1.27.3+** ([`go.mod`](../../go.mod))
 - Node.js **20+** and npm for the native CloakBrowser fallback (the standard installer ensures them)
 - Network access for `go install` or the install script
 - Desktop runtime: WebView2 on Windows; GTK3 and WebKit2GTK 4.1 on Linux.
@@ -29,7 +29,7 @@ CLOAKBROWSER_CACHE_DIR="$PWD/cache" npx --no-install cloakbrowser install
 
 ## Install script (recommended)
 
-Installs Go **1.25.0+** and Node.js **20+** if needed, ensures `make` is available, configures your shell `PATH`, installs Solomon, and provisions the official CloakBrowser fallback.
+Installs Go **1.27.3+** and Node.js **20+** if needed, ensures `make` is available, configures your shell `PATH`, installs Solomon, and provisions the official CloakBrowser fallback.
 
 On macOS, missing Node.js/npm and `make` are installed through Homebrew. At the start of every macOS installation, the installer detects Homebrew in the standard Apple Silicon and Intel locations, or runs its official installer if missing, even when the other dependencies are already available. Homebrew may require administrator credentials and Xcode Command Line Tools; if its setup fails, resolve the reported error and rerun the Solomon installer. The installed Node runtime is added to the current and future shell PATH without forcing links or using MacPorts.
 
@@ -125,8 +125,11 @@ Use `solomon upgrade` to update an active release installation. Standalone relea
 installers require Solomon to be closed; they do not replace files underneath
 active clients. Downloads require a matching release checksum.
 
-Failure cases and recovery guarantees are documented in the
-[installation reliability audit](../development/installation-audit.md).
+Updates from the app, `solomon upgrade`, `/upgrade`, and startup autoupdate use
+precompiled release binaries; they do not need Go to be installed or upgraded.
+For split installations, the coordinator verifies both CLI and desktop before
+stopping clients, then restores both if deployment or restart fails. The Go
+requirement above applies when building from source and to the installer setup.
 
 ## Verify install
 

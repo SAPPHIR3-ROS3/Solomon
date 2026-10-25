@@ -79,6 +79,7 @@ type AssistantTurnResult struct {
 	Content            string
 	ReasoningText      string
 	ReasoningEncrypted string
+	ReasoningItem      string
 	// Opaque signed provider blocks must survive tool continuations unchanged.
 	AnthropicThinking []json.RawMessage
 	ToolCalls         []AssistantToolCall

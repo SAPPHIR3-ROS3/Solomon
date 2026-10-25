@@ -55,6 +55,10 @@ func HotInstallWithProgress(ctx context.Context, target, defaultDevDir string, i
 	if strings.HasSuffix(desktop, filepath.Join("Contents", "MacOS", "solomon-desktop")) {
 		backupPaths = []string{target, filepath.Dir(filepath.Dir(filepath.Dir(desktop)))}
 	}
+	standalone := filepath.Join(filepath.Dir(target), "solomon-standalone"+filepath.Ext(target))
+	if standalone != target {
+		backupPaths = append(backupPaths, standalone)
+	}
 	cursor := strings.TrimSpace(os.Getenv("SOLOMON_CURSOR_API_ROOT"))
 	if cursor == "" {
 		cursor = filepath.Join(home, "integrations", "cursor")

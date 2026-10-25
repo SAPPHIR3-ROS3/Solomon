@@ -50,6 +50,18 @@ if wait_for_target_version "$(exe_path)" "" 1 > "$FAKE_STATE_DIR/stale.log" 2>&1
   echo 'accepted an outdated binary' >&2
   exit 1
 fi
+# A tag in setup progress is not evidence of a healthy target daemon.
+echo "$RELEASE_TAG" > "$FAKE_STATE_DIR/binary"
+printf 'Installing Solomon Desktop (%s)...\ndaemon unavailable\n' "$RELEASE_TAG" > "$FAKE_STATE_DIR/daemon"
+if wait_for_target_version "$(exe_path)" "" 1 > "$FAKE_STATE_DIR/progress.log" 2>&1; then
+  echo 'accepted download progress as the daemon version' >&2
+  exit 1
+fi
+# Prefix matches must not accept a different release or a development build.
+for output in "$RELEASE_TAG-dev" "${RELEASE_TAG}0"; do
+  if has_release_version "$output" "$RELEASE_TAG"; then exit 1; fi
+done
+has_release_version "$(printf '\033[32m%s\033[0m\n' "$RELEASE_TAG")" "$RELEASE_TAG"
 # Installation alone does not start a daemon. The upgrade must start and update it.
 install_release() {
   echo "$1" > "$FAKE_STATE_DIR/binary"

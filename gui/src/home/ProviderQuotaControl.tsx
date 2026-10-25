@@ -27,6 +27,11 @@ export function ProviderQuotaControl({ provider, open, onOpenChange }: { provide
   }, [open, provider, revision]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => setRevision((value) => value + 1), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -49,19 +54,19 @@ export function ProviderQuotaControl({ provider, open, onOpenChange }: { provide
   const previewBars = quota?.bars.filter((bar) => !bar.hidePercent) ?? [];
   const previewTitle = previewBars.map((bar) => `${bar.label}: ${Math.round(bar.percent)}%`).join("; ");
   return <div className="provider-quota-control" ref={ref}>
-    <button aria-label="Provider quota" aria-expanded={open} aria-controls={open ? id : undefined} aria-haspopup="dialog" className="notification-bell provider-quota-trigger" title={previewTitle || "Provider quota and credits"} type="button" onClick={() => onOpenChange(!open)}>
+    <button aria-label="Provider quota" aria-expanded={open} aria-controls={open ? id : undefined} aria-haspopup="dialog" className="notification-bell provider-quota-trigger" title={previewTitle || "Provider quota and credits"} type="button" onMouseEnter={() => setRevision((value) => value + 1)} onClick={() => onOpenChange(!open)}>
       <span aria-hidden="true" className="provider-quota-preview">
-        {previewBars.length ? previewBars.map((bar, index) => <span className="provider-quota-preview-track" key={`${bar.label}:${index}`}><span style={{ width: `${Math.max(0, Math.min(100, bar.percent))}%` }} /></span>) : <span className="provider-quota-preview-track is-unavailable" />}
+        {previewBars.length ? previewBars.map((bar, index) => <span className={`provider-quota-preview-track${bar.percent >= 100 ? " is-limited" : ""}`} key={`${bar.label}:${index}`}><span style={{ width: `${Math.max(0, Math.min(100, bar.percent))}%` }} /></span>) : <span className="provider-quota-preview-track is-unavailable" />}
       </span>
     </button>
     {open ? <section aria-label="Provider quota" aria-busy={loading} className="provider-quota-menu" id={id} role="dialog">
-      <header><strong>{provider || "Provider quota"}</strong><button type="button" disabled={loading || !provider} onClick={() => setRevision((value) => value + 1)}>{loading ? "Refreshing..." : "Refresh"}</button></header>
+      <header><strong>{provider || "Provider quota"}</strong>{loading ? <span role="status">Refreshing...</span> : null}</header>
       <div className="provider-quota-content">
         {error ? <p role="alert">{error} {quota ? "Showing cached data." : ""}</p> : null}
         {quota?.error ? <p role="alert">{quota.error}</p> : null}
         {quota?.bars.map((bar, index) => <div className="provider-quota-bar" key={`${bar.label}:${index}`}>
           <div className="provider-quota-label"><span>{bar.label}</span>{bar.hidePercent ? null : <strong>{Math.round(bar.percent)}%</strong>}</div>
-          {bar.hidePercent ? null : <div aria-label={bar.label} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(bar.percent)} className="provider-quota-track"><span style={{ width: `${bar.percent}%` }} /></div>}
+          {bar.hidePercent ? null : <div aria-label={bar.label} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(bar.percent)} className={`provider-quota-track${bar.percent >= 100 ? " is-limited" : ""}`}><span style={{ width: `${bar.percent}%` }} /></div>}
           {bar.detail ? <small>{liveQuotaDetail(bar.detail, now)}</small> : null}
           {(bar.availableResets ?? 0) > 0 ? <BankedResetButton key={provider} provider={provider} available={bar.availableResets!} onUpdated={setQuotas} /> : null}
         </div>)}

@@ -50,7 +50,7 @@ Check the server log for connection errors and review tool allow/deny rules befo
 
 Read the original error and `~/.solomon/logs/update/update.log` when an upgrade coordinator ran. Downloads require matching release checksums: do not bypass verification to force an installation. Check network/proxy access, disk space and permissions on the installation directory.
 
-Standalone release installers require Solomon to be closed. Use `solomon upgrade` for an active release installation; source users should use the coordinated `make hot-install` flow. Preparation failures should be resolved before retrying rather than replacing binaries manually. Recovery behavior is detailed in the [installation audit](../development/installation-audit.md).
+Standalone release installers require Solomon to be closed. Use `solomon upgrade` for an active release installation; source users should use the coordinated `make hot-install` flow. Preparation failures should be resolved before retrying rather than replacing binaries manually.
 
 ## Platform-specific checks
 

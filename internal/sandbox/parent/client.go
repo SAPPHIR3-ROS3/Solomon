@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -31,7 +32,7 @@ type Client struct {
 
 func Start(ctx context.Context) (*Client, error) {
 	_ = ctx
-	exe, err := os.Executable()
+	exe, err := workerExecutablePath()
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox worker executable resolve failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
@@ -61,9 +62,33 @@ func Start(ctx context.Context) (*Client, error) {
 	return c, nil
 }
 
+// workerExecutablePath prefers the launch path over os.Executable. On Linux,
+// os.Executable can point into an updater's temporary backup after an in-place
+// replacement; that path disappears when the updater cleans up its transaction.
+func workerExecutablePath() (string, error) {
+	if argv0 := strings.TrimSpace(os.Args[0]); argv0 != "" {
+		if path, err := exec.LookPath(argv0); err == nil {
+			return filepath.Abs(path)
+		}
+	}
+	return os.Executable()
+}
+
 func (c *Client) ping() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.pingLocked()
+}
+
+func (c *Client) pingIfIdle() (bool, error) {
+	if !c.mu.TryLock() {
+		return false, nil
+	}
+	defer c.mu.Unlock()
+	return true, c.pingLocked()
+}
+
+func (c *Client) pingLocked() error {
 	if c.closed {
 		return fmt.Errorf("worker closed")
 	}
@@ -211,11 +236,11 @@ func ReleaseGlobal() {
 
 func ensureGlobalLocked(ctx context.Context) error {
 	if globalClient != nil {
-		if pingErr := globalClient.ping(); pingErr == nil {
+		idle, pingErr := globalClient.pingIfIdle()
+		if !idle || pingErr == nil {
 			return nil
-		} else {
-			logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker reconnecting after ping failure", logging.LogOptions{Params: map[string]any{"err": pingErr.Error()}})
 		}
+		logging.Log(logging.WARNING_LOG_LEVEL, "sandbox worker reconnecting after ping failure", logging.LogOptions{Params: map[string]any{"err": pingErr.Error()}})
 		_ = globalClient.Close()
 		globalClient = nil
 	}

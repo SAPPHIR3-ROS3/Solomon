@@ -116,6 +116,7 @@ function Get-ExePath {
 
 function Write-UpgradeLog {
     param([string]$LogPath)
+    if (-not $LogPath) { return }
     foreach ($path in @($LogPath, "${LogPath}.err")) {
         if (-not (Test-Path $path)) {
             continue
@@ -126,15 +127,61 @@ function Write-UpgradeLog {
     }
 }
 
+function Test-ReleaseVersionOutput {
+    param([string]$Output, [string]$Expected)
+    $plain = $Output -replace '\x1B\[[0-?]*[ -/]*[@-~]', ''
+    return @($plain -split '\r?\n' | Where-Object { $_.Trim() -ceq $Expected }).Count -gt 0
+}
+
+function Get-SmokeInstallationProcesses {
+    param([string]$Exe, [switch]$CoordinatorsOnly)
+    $homeDir = if ($env:SOLOMON_HOME) { $env:SOLOMON_HOME } else { Join-Path $env:USERPROFILE '.solomon' }
+    $coordinatorDir = Join-Path $homeDir 'logs/update'
+    $desktop = Join-Path ([System.IO.Path]::GetDirectoryName($Exe)) 'solomon-desktop.exe'
+    return @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
+        $path = [string]$_.ExecutablePath
+        $coordinator = $path -and
+            ([System.IO.Path]::GetDirectoryName($path) -ieq $coordinatorDir) -and
+            ([System.IO.Path]::GetFileName($path) -like 'coordinator-*.exe')
+        $coordinator -or (-not $CoordinatorsOnly -and ($path -ieq $Exe -or $path -ieq $desktop))
+    })
+}
+
+function Wait-UpgradeCoordinators {
+    param([string]$Exe, [int]$MaxAttempts = 60)
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        $running = @(Get-SmokeInstallationProcesses $Exe -CoordinatorsOnly)
+        if ($running.Count -eq 0) { return }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "Upgrade coordinator did not finish: $($running.ProcessId -join ', ')"
+}
+
+function Stop-SmokeInstallation {
+    param([string]$Exe, [int]$MaxAttempts = 60)
+    Wait-UpgradeCoordinators $Exe $MaxAttempts
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        & $Exe server stop
+        if ($LASTEXITCODE -ne 0) { throw "Cannot stop smoke daemon (exit code $LASTEXITCODE)" }
+        $running = @(Get-SmokeInstallationProcesses $Exe)
+        if ($running.Count -eq 0) { return }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "Previous smoke installation is still running: $($running.ProcessId -join ', ')"
+}
+
 function Wait-TargetVersion {
-    param([string]$Exe, [string]$LogPath = '')
+    param([string]$Exe, [string]$LogPath = '', [int]$MaxAttempts = 90)
     $last = ''
     $binaryVersion = ''
-    for ($attempt = 1; $attempt -le 90; $attempt++) {
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         $binaryVersion = (& $Exe version --binary 2>&1 | Out-String).Trim()
+        $binaryExit = $LASTEXITCODE
         $ver = (& $Exe version 2>&1 | Out-String).Trim()
         $last = $ver
-        if ($binaryVersion -like "*$($env:RELEASE_TAG)*" -and $ver -like "*$($env:RELEASE_TAG)*") {
+        if ($binaryExit -eq 0 -and $LASTEXITCODE -eq 0 -and
+            (Test-ReleaseVersionOutput $binaryVersion $env:RELEASE_TAG) -and
+            (Test-ReleaseVersionOutput $ver $env:RELEASE_TAG)) {
             Write-Host "Upgrade smoke OK ($($env:RELEASE_TAG)): $ver"
             return
         }
@@ -195,6 +242,7 @@ exit `$LASTEXITCODE
     if ($p -and -not $p.WaitForExit(30000)) {
         throw 'Upgrade CLI did not exit after the target runtime became ready'
     }
+    Wait-UpgradeCoordinators $Exe
     Remove-Item -LiteralPath $launchScript -ErrorAction SilentlyContinue
     if (Test-Path "${LogPath}.err") {
         $stderr = Get-Content -Path "${LogPath}.err" -Raw
@@ -209,7 +257,7 @@ function Invoke-UpgradeSmokeCase {
     Write-Host "Upgrade smoke (cli): $FromTag -> $($env:RELEASE_TAG)"
     $installedExe = Get-ExePath
     if (Test-Path -LiteralPath $installedExe) {
-        & $installedExe server stop
+        Stop-SmokeInstallation $installedExe
     }
     Install-Release $FromTag
     $exe = Get-ExePath

@@ -8,8 +8,8 @@ const declarations = await readFile(new URL('sdk.d.ts', root), 'utf8');
 
 test('approved SDK version and public entrypoints are available', async () => {
   const manifest = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
-  assert.equal(manifest.version, '0.3.305');
-  assert.equal(manifest.claudeCodeVersion, '2.1.305');
+  assert.equal(manifest.version, '0.3.310');
+  assert.equal(manifest.claudeCodeVersion, '2.1.310');
   assert.equal(typeof query, 'function');
   assert.equal(typeof createSdkMcpServer, 'function');
 });

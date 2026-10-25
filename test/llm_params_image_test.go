@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -8,6 +9,37 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
+
+func TestMessageParamsEncryptedReasoningIsProviderScoped(t *testing.T) {
+	msgs := []chatstore.Message{
+		{Role: "user", Content: "go"},
+		{Role: "assistant", Content: "done", ReasoningEncrypted: "encrypted-by-codex"},
+	}
+	for _, tc := range []struct {
+		name    string
+		replay  bool
+		wantKey bool
+	}{
+		{name: "standard OpenAI", replay: false},
+		{name: "ChatGPT subscription", replay: true, wantKey: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params := llm.MessageParamsWithEncryptedReasoning("", msgs, nil, tc.replay)
+			assistant := params[2].OfAssistant
+			if assistant == nil {
+				t.Fatal("expected assistant message")
+			}
+			wire, err := json.Marshal(assistant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			containsKey := strings.Contains(string(wire), "reasoning_encrypted_content")
+			if containsKey != tc.wantKey {
+				t.Fatalf("encrypted reasoning field presence = %v, wire=%s", containsKey, wire)
+			}
+		})
+	}
+}
 
 func TestNeutralizeLiteralImgPlaceholders(t *testing.T) {
 	got := chatstore.NeutralizeLiteralImgPlaceholders("see [img-1] in docs")

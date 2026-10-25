@@ -69,10 +69,14 @@ tree. Dirty builds, missing source snapshots, divergent commits, and unavailable
 ancestry checks prevent replacement. Commit timestamps can protect a newer local
 build, but never authorize replacement on their own.
 A release version can be supplied
-explicitly with `VERSION=vYYYY.MDD.N make build` when needed.
-The default base version uses the newest local release tag or installed CLI
-version. Installation targets also check the latest published release, falling
-back to local information when offline. The resolver runs once and shares its
+explicitly with `make VERSION=vYYYY.MDD.N build` when needed. A `VERSION`
+inherited from the shell is ignored unless it was resolved by a parent Make
+invocation, so a stale environment value cannot pin subsequent installations.
+Every Make build reads tags from Git remote `origin` using `git ls-remote`
+and selects the newest release tag. If origin is unreachable or has no valid
+release tags, it uses local tags. This does not fetch or modify local tags and
+does not call the GitHub API. No release number is hardcoded.
+The resolver runs once and shares its
 result with recursive Make invocations, keeping CLI and desktop versions aligned.
 Development builds retain their source commit and `-dirty` marker even when the
 release baseline advances.

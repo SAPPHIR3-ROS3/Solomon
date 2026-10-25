@@ -1,15 +1,10 @@
 package app
 
 import (
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 	"os"
-	"path/filepath"
-	"strings"
 )
 
 func desktopRestartArgs() []string {
-	base := strings.ToLower(filepath.Base(os.Args[0]))
-	if base == "solomon" || base == "solomon.exe" {
-		return []string{"desktop"}
-	}
-	return nil
+	return updater.DesktopRestartArgs(os.Args[0])
 }

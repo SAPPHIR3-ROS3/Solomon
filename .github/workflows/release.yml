@@ -13,6 +13,10 @@ on:
         description: Only run installation and upgrade checks for an existing release tag
         type: string
         default: ""
+      release_tag:
+        description: Optional new calendar tag (use a new revision when replacing a withdrawn release)
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -25,7 +29,7 @@ jobs:
     outputs:
       skip_tests: ${{ steps.check.outputs.skip_tests }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check release workflow permissions
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -59,11 +63,11 @@ jobs:
     env:
       CGO_ENABLED: "0"
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           check-latest: true
@@ -110,6 +114,13 @@ jobs:
           else
             go test ./... -count=1
           fi
+      - name: Verify app update interactions
+        if: runner.os == 'Linux'
+        working-directory: gui
+        env:
+          SOLOMON_TEST_BROWSER: /usr/bin/google-chrome
+        run: npm run test:update
+
       - name: Build solomon with embedded version metadata
         shell: bash
         run: |
@@ -158,11 +169,11 @@ jobs:
             asset: darwin-arm64.app.tar.gz
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
       - name: Install Linux native build dependencies
@@ -204,7 +215,7 @@ jobs:
             fi
             CGO_ENABLED=1 go build -tags "$tags" -o "$standalone" ./cmd/solomon
           fi
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.asset }}
           path: desktop-dist/*
@@ -229,16 +240,16 @@ jobs:
     outputs:
       ver: ${{ steps.version.outputs.ver }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN || github.token }}
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           check-latest: true
@@ -257,6 +268,8 @@ jobs:
 
       - id: version
         name: Resolve calendar version tag
+        env:
+          REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -e
           git fetch --tags origin
@@ -275,6 +288,19 @@ jobs:
           done
           REV=$((MAX_REV + 1))
           VER="${PREFIX}.${REV}"
+
+          if [[ -n "$REQUESTED_RELEASE_TAG" ]]; then
+            REQUESTED_REV=${REQUESTED_RELEASE_TAG#"$PREFIX."}
+            if [[ "$REQUESTED_RELEASE_TAG" != "$PREFIX."* || ! "$REQUESTED_REV" =~ ^(0|[1-9][0-9]*)$ ]]; then
+              echo "release_tag must use today's calendar prefix: ${PREFIX}.<revision>" >&2
+              exit 1
+            fi
+            if ((10#$REQUESTED_REV <= MAX_REV)); then
+              echo "release_tag must be newer than every existing tag for today" >&2
+              exit 1
+            fi
+            VER="$REQUESTED_RELEASE_TAG"
+          fi
 
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
 
@@ -326,7 +352,7 @@ jobs:
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.version=$VER -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commit=$COMMIT -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.sourceTree=$SOURCE_TREE -X github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands.commitTree=$COMMIT_TREE" -o "$out" ./cmd/solomon
           done
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: desktop-*
           path: desktop-dist
@@ -407,9 +433,9 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 

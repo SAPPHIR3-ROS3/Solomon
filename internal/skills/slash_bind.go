@@ -24,9 +24,9 @@ func ReservedSlashCommandNames() map[string]struct{} {
 		"reasoning": {}, "timeout": {}, "stats": {}, "thinking": {},
 		"max_response": {}, "threshold": {}, "models": {}, "connect": {},
 		"new": {}, "temp": {}, "resume": {}, "summarize": {}, "compact": {}, "cleansessioncache": {},
-		"btw": {},
+		"btw":  {},
 		"exit": {}, "quit": {}, "language": {}, "legacytools": {}, "legacy": {},
-		"add": {}, "skills": {}, "remove": {}, "help": {}, "skill": {},
+		"add": {}, "skills": {}, "remove": {}, "activate": {}, "deactivate": {}, "help": {}, "skill": {},
 		"rules": {}, "instructions": {}, "integrations": {},
 	}
 }
@@ -47,6 +47,17 @@ func sortRefsByNameKey(refs []SkillRefWithKey) {
 }
 
 func OrderedSkillRefs(r *Registry, projHex, projRoot string) []SkillRefWithKey {
+	all := OrderedSkillRefsIncludingDisabled(r, projHex, projRoot)
+	active := make([]SkillRefWithKey, 0, len(all))
+	for _, ref := range all {
+		if !ref.Entry.Disabled {
+			active = append(active, ref)
+		}
+	}
+	return active
+}
+
+func OrderedSkillRefsIncludingDisabled(r *Registry, projHex, projRoot string) []SkillRefWithKey {
 	var locals, projects, globals []SkillRefWithKey
 	for k, e := range r.Global {
 		globals = append(globals, SkillRefWithKey{RegistryKey: k, Entry: e})

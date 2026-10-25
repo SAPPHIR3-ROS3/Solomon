@@ -153,6 +153,25 @@ export type ProjectGitStatus = {
   staged: Record<string, string>;
 };
 
+export function sameProjectDirectoryEntries(left: ProjectDirectoryEntry[] | undefined, right: ProjectDirectoryEntry[]): boolean {
+  return Boolean(left && left.length === right.length && left.every((entry, index) => {
+    const next = right[index];
+    return entry.path === next.path && entry.name === next.name && entry.isDirectory === next.isDirectory;
+  }));
+}
+
+export function sameProjectGitStatus(left: ProjectGitStatus, right: ProjectGitStatus): boolean {
+  const sameFiles = (first: Record<string, string>, second: Record<string, string>) => {
+    const paths = Object.keys(first);
+    return paths.length === Object.keys(second).length && paths.every((path) => first[path] === second[path]);
+  };
+  return left.isRepo === right.isRepo && sameFiles(left.changes, right.changes) && sameFiles(left.staged, right.staged);
+}
+
+export function sameProjectGitHistory(left: ProjectGitHistory, right: ProjectGitHistory): boolean {
+  return left.current === right.current && left.isRepo === right.isRepo && JSON.stringify(left.commits) === JSON.stringify(right.commits);
+}
+
 export type ProjectWorktree = {
   bare: boolean;
   branch: string;
@@ -191,6 +210,7 @@ export async function saveProjectFile(projectID: string, filePath: string, conte
     `/__solomon/projects/${encodeURIComponent(projectID)}/file?path=${encodeURIComponent(filePath)}`,
   ), { body: content, headers: { "Content-Type": "text/plain; charset=utf-8" }, method: "PUT" });
   if (!response.ok) throw new Error(`Unable to save project file: ${response.status}`);
+  window.dispatchEvent(new CustomEvent(PROJECT_GIT_STATUS_CHANGED_EVENT, { detail: { projectID } }));
 }
 
 export async function fetchHomeDirectoryEntries(directoryPath = "", signal?: AbortSignal): Promise<ProjectDirectoryEntry[]> {

@@ -24,7 +24,7 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
     }
 }
 
-$GoRequired = '1.25.0'
+$GoRequired = '1.27.3'
 $NodeRequired = '20.0.0'
 $DefaultServerPort = 64000
 $GoRoot = Join-Path $env:USERPROFILE '.local\go'
@@ -47,8 +47,14 @@ function Invoke-InstallerStep {
 
 function Get-GoSemVer {
     $script:InstallOperation = 'Validate Go toolchain using go version'
-    $output = go version
-    if ($LASTEXITCODE -ne 0) { throw "go version failed (exit code $LASTEXITCODE). Check the command output above and repair the Go installation." }
+    $previousToolchain = $env:GOTOOLCHAIN
+    try {
+        $env:GOTOOLCHAIN = 'local'
+        $output = go version
+        if ($LASTEXITCODE -ne 0) { throw "go version failed (exit code $LASTEXITCODE). Check the command output above and repair the Go installation." }
+    } finally {
+        $env:GOTOOLCHAIN = $previousToolchain
+    }
     if ($output -match 'go version go(\S+)') {
         return ($Matches[1] -replace '-.*$', '')
     }

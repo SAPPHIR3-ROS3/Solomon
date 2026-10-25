@@ -9,10 +9,27 @@ import (
 type CapabilityRegistry struct {
 	DiscoveredTools map[string]json.RawMessage `json:"discovered_tools,omitempty"`
 	LoadedSkills    map[string]json.RawMessage `json:"loaded_skills,omitempty"`
+	DisabledSkills  map[string]bool            `json:"disabled_skills,omitempty"`
 	SDK             json.RawMessage            `json:"sdk,omitempty"`
 }
 
 func IsCapabilityTool(name string) bool { return name == "searchTools" || name == "loadSkill" }
+
+func (r *CapabilityRegistry) SetSkillEnabled(name string, enabled bool) {
+	key := strings.ToLower(strings.TrimSpace(name))
+	if key == "" {
+		return
+	}
+	if !enabled {
+		if r.DisabledSkills == nil {
+			r.DisabledSkills = map[string]bool{}
+		}
+		r.DisabledSkills[key] = true
+		delete(r.LoadedSkills, key)
+		return
+	}
+	delete(r.DisabledSkills, key)
+}
 
 func (r *CapabilityRegistry) Capture(name, payload string) {
 	var result map[string]json.RawMessage
@@ -53,6 +70,9 @@ func (r *CapabilityRegistry) Capture(name, payload string) {
 			key = strings.ToLower(strings.TrimSpace(skill.Slash))
 		}
 		if key == "" {
+			return
+		}
+		if r.DisabledSkills[key] {
 			return
 		}
 		if r.LoadedSkills == nil {
@@ -117,6 +137,9 @@ func (r *CapabilityRegistry) Backfill(messages []Message) {
 		r.LoadedSkills = map[string]json.RawMessage{}
 	}
 	for key, skill := range recovered.LoadedSkills {
+		if r.DisabledSkills[key] {
+			continue
+		}
 		if _, exists := r.LoadedSkills[key]; !exists {
 			r.LoadedSkills[key] = skill
 		}
@@ -127,7 +150,7 @@ func (r *CapabilityRegistry) Backfill(messages []Message) {
 }
 
 func (r CapabilityRegistry) RestoreMessage() (Message, bool) {
-	if len(r.DiscoveredTools) == 0 && len(r.LoadedSkills) == 0 && len(r.SDK) == 0 {
+	if len(r.DiscoveredTools) == 0 && len(r.LoadedSkills) == 0 && len(r.DisabledSkills) == 0 && len(r.SDK) == 0 {
 		return Message{}, false
 	}
 	payload, err := json.Marshal(r)

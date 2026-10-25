@@ -32,6 +32,7 @@ type Message struct {
 	ToolCalls           []ToolCall          `json:"tool_calls,omitempty"`
 	ReasoningText       string              `json:"reasoning_text,omitempty"`
 	ReasoningEncrypted  string              `json:"reasoning_encrypted,omitempty"`
+	ReasoningItem       string              `json:"reasoning_item,omitempty"`
 	AnthropicThinking   []json.RawMessage   `json:"anthropic_thinking,omitempty"`
 
 	CheckpointSeq       int    `json:"cp_seq,omitempty"`

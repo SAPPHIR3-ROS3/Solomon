@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GO_REQUIRED="1.25.0"
+GO_REQUIRED="1.27.3"
 NODE_REQUIRED="20.0.0"
 GO_INSTALL_ROOT="${HOME}/.local/go"
 INSTALLED_LOCAL_GO=0
@@ -175,7 +175,7 @@ file_sha256() {
 
 go_semver() {
   local raw
-  raw="$(go version | awk '{print $3}')"
+  raw="$(GOTOOLCHAIN=local go version | awk '{print $3}')"
   raw="${raw#go}"
   raw="${raw%%-*}"
   echo "$raw"

@@ -48,25 +48,7 @@ func desktopInstallFixture(t *testing.T) (string, []byte, *atomic.Int32, *atomic
 	if err := os.WriteFile(cli, []byte("original CLI"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	payload := []byte("desktop executable")
-	if runtime.GOOS == "darwin" {
-		var archive bytes.Buffer
-		gz := gzip.NewWriter(&archive)
-		writer := tar.NewWriter(gz)
-		if err := writer.WriteHeader(&tar.Header{Name: "Solomon.app/Contents/MacOS/solomon-desktop", Mode: 0o755, Size: int64(len(payload))}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := writer.Write(payload); err != nil {
-			t.Fatal(err)
-		}
-		if err := writer.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if err := gz.Close(); err != nil {
-			t.Fatal(err)
-		}
-		payload = archive.Bytes()
-	}
+	payload := desktopReleasePayload(t, []byte("desktop executable"))
 	downloads, registrations := &atomic.Int32{}, &atomic.Int32{}
 	restore := updater.SetHTTPDownload(func(_ context.Context, url string) (*http.Response, error) {
 		downloads.Add(1)
@@ -300,5 +282,69 @@ func TestBuiltDesktopRejectsIncompleteArtifactsBeforeReplacement(t *testing.T) {
 				t.Fatalf("invalid build replaced existing desktop: %v", err)
 			}
 		})
+	}
+}
+
+func desktopReleasePayload(t *testing.T, payload []byte) []byte {
+	t.Helper()
+	if runtime.GOOS == "darwin" {
+		var archive bytes.Buffer
+		gz := gzip.NewWriter(&archive)
+		writer := tar.NewWriter(gz)
+		if err := writer.WriteHeader(&tar.Header{Name: "Solomon.app/Contents/MacOS/solomon-desktop", Mode: 0o755, Size: int64(len(payload))}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.Write(payload); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := gz.Close(); err != nil {
+			t.Fatal(err)
+		}
+		payload = archive.Bytes()
+	}
+	return payload
+}
+
+func TestBuiltDesktopRegistrationFailureRestoresPreviousInstallation(t *testing.T) {
+	cli, _, _, _ := desktopInstallFixture(t)
+	target, err := updater.EnsureDesktop(context.Background(), "v2026.1005.0", cli, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker, err := os.ReadFile(target + ".install.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(t.TempDir(), "new desktop")
+	executable := source
+	if runtime.GOOS == "darwin" {
+		source += ".app"
+		executable = filepath.Join(source, "Contents", "MacOS", "solomon-desktop")
+		if err := os.MkdirAll(filepath.Dir(executable), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(executable, []byte("new built desktop"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	restore := updater.SetDesktopRegistrar(func(context.Context, string, string, string, io.Writer) error {
+		return errors.New("built desktop registration failed")
+	})
+	defer restore()
+	if err := updater.InstallBuiltDesktop(context.Background(), "v2026.1005.1", cli, source, io.Discard); err == nil {
+		t.Fatal("registration failure reported success")
+	}
+	for path, want := range map[string][]byte{target: original, target + ".install.json": marker} {
+		got, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(got, want) {
+			t.Fatalf("rollback %s: %q, %v", path, got, err)
+		}
 	}
 }

@@ -28,8 +28,8 @@ func ChatCompletionToCodexBody(chat map[string]any) ([]byte, error) {
 	if serviceTier, ok := chat["service_tier"].(string); ok && strings.TrimSpace(serviceTier) != "" {
 		body["service_tier"] = strings.TrimSpace(serviceTier)
 	}
-	if cacheKey, ok := chat["prompt_cache_key"].(string); ok && strings.TrimSpace(cacheKey) != "" {
-		body["prompt_cache_key"] = strings.TrimSpace(cacheKey)
+	if cacheKey := CodexSessionID(chat); cacheKey != "" {
+		body["prompt_cache_key"] = cacheKey
 	}
 	if tc, ok := chat["tool_choice"]; ok && tc != nil {
 		body["tool_choice"] = tc
@@ -95,6 +95,14 @@ func extractSystemInstructions(chat map[string]any) string {
 	return strings.TrimSpace(strings.Join(parts, "\n\n"))
 }
 
+func CodexSessionID(chat map[string]any) string {
+	if chat == nil {
+		return ""
+	}
+	cacheKey, _ := chat["prompt_cache_key"].(string)
+	return strings.TrimSpace(cacheKey)
+}
+
 func BuildCodexInput(chat map[string]any) []any {
 	msgs, _ := chat["messages"].([]any)
 	var input []any
@@ -116,10 +124,16 @@ func BuildCodexInput(chat map[string]any) []any {
 				"type": "message", "role": "user", "content": contents,
 			})
 		case "assistant":
-			if enc, _ := mm["reasoning_encrypted_content"].(string); strings.TrimSpace(enc) != "" {
-				// The Responses API rejects reasoning input items without a summary array.
+			if raw, _ := mm["reasoning_item"].(string); strings.TrimSpace(raw) != "" {
+				var item map[string]any
+				if json.Unmarshal([]byte(raw), &item) == nil && item["type"] == "reasoning" {
+					input = append(input, item)
+				}
+			} else if enc, _ := mm["reasoning_encrypted_content"].(string); strings.TrimSpace(enc) != "" {
 				input = append(input, map[string]any{
-					"type": "reasoning", "encrypted_content": strings.TrimSpace(enc), "summary": []any{},
+					"type": "reasoning", "encrypted_content": strings.TrimSpace(enc),
+					// Required by Responses even when no plaintext summary is retained.
+					"summary": []any{},
 				})
 			}
 			texts := collectTextSegments(mm["content"], false)

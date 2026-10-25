@@ -171,23 +171,24 @@ func pathIsUnderSolomonSkillRoots(absClone, projRoot string) bool {
 }
 
 func relUnderResolved(child, root string) bool {
-	rootAbs, err := filepath.Abs(filepath.Clean(root))
-	if err != nil {
-		return false
-	}
-	if r, err := filepath.EvalSymlinks(rootAbs); err == nil {
-		rootAbs = r
-	}
-	childAbs, err := filepath.Abs(filepath.Clean(child))
-	if err != nil {
-		return false
-	}
-	if r, err := filepath.EvalSymlinks(childAbs); err == nil {
-		childAbs = r
-	}
-	rel, err := filepath.Rel(rootAbs, childAbs)
+	rel, err := filepath.Rel(resolveExistingPath(root), resolveExistingPath(child))
 	if err != nil {
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+func resolveExistingPath(path string) string {
+	abs, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved
+	}
+	parent := filepath.Dir(abs)
+	if parent == abs {
+		return abs
+	}
+	return filepath.Join(resolveExistingPath(parent), filepath.Base(abs))
 }
