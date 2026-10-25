@@ -60,3 +60,31 @@ func TestNotificationPreservesBracketedContinuationLines(t *testing.T) {
 		t.Fatalf("truncated or duplicated notification: %#v, %v", entries, err)
 	}
 }
+
+func TestNotificationsExcludeSystemGoodbye(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(logging.IsolateNotificationsForTest(dir))
+	logging.RecordNotification("system", "Goodbye.\nResume this chat by id: /resume abc")
+	if _, err := os.Stat(filepath.Join(dir, "notifications.jsonl")); !os.IsNotExist(err) {
+		t.Fatalf("goodbye should not be persisted, stat error: %v", err)
+	}
+	legacy := "[2025-01-01T10:00:00Z][SYSTEM][test.go][test] Goodbye.\nResume this chat by id: /resume abc\n"
+	if err := os.WriteFile(filepath.Join(dir, "2025-01-01.log"), []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+	journal := `{"id":"old-goodbye","createdAt":"2025-01-01T10:00:00Z","level":"system","message":"Goodbye.\nResume this chat by id: /resume abc"}` + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "notifications.jsonl"), []byte(journal), 0600); err != nil {
+		t.Fatal(err)
+	}
+	logging.RecordNotification("system", "Saved configuration")
+	logging.RecordNotification("error", "Goodbye.")
+	entries, err := logging.ReadNotifications()
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("unexpected notifications: %#v, %v", entries, err)
+	}
+	for _, entry := range entries {
+		if entry.Level == "system" && entry.Message != "Saved configuration" {
+			t.Fatalf("unexpected system notification: %#v", entry)
+		}
+	}
+}

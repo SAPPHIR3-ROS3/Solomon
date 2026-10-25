@@ -38,7 +38,15 @@ func RecordNotification(level, message string) {
 	recordNotificationLocked(notification(time.Now().UTC().Format(time.RFC3339Nano), level, message))
 }
 
+func isGoodbyeNotification(entry Notification) bool {
+	firstLine, _, _ := strings.Cut(strings.TrimSpace(entry.Message), "\n")
+	return strings.EqualFold(entry.Level, "system") && strings.TrimSpace(firstLine) == "Goodbye."
+}
+
 func recordNotificationLocked(entry Notification) {
+	if isGoodbyeNotification(entry) {
+		return
+	}
 	notificationMemory = append(notificationMemory, entry)
 	if globalLogDir == "" {
 		return
@@ -62,7 +70,11 @@ func ReadNotifications() ([]Notification, error) {
 	logMu.Lock()
 	defer logMu.Unlock()
 	entries := make(map[string]Notification)
-	add := func(entry Notification) { entries[entry.ID] = entry }
+	add := func(entry Notification) {
+		if !isGoodbyeNotification(entry) {
+			entries[entry.ID] = entry
+		}
+	}
 	if globalLogDir != "" {
 		paths, err := filepath.Glob(filepath.Join(globalLogDir, "*.log"))
 		if err != nil {
