@@ -102,7 +102,7 @@ func Dispatch(d commands.Deps, line string) error {
 		return skillErr
 	}
 	if e != nil {
-		if err := commands.RunSkillSlash(d, *e); err != nil {
+		if err := commands.RunSkillSlash(d, *e, line); err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "slash skill command failed", logging.LogOptions{Params: map[string]any{"command": name, "skill": e.Name, "err": err.Error()}})
 			return err
 		}

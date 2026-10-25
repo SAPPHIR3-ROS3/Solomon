@@ -160,10 +160,7 @@ func ensureOrchestrateStub(version string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	goVer := "1.25.0"
-	if info, ok := debug.ReadBuildInfo(); ok && strings.TrimSpace(info.GoVersion) != "" {
-		goVer = strings.TrimPrefix(strings.TrimSpace(info.GoVersion), "go")
-	}
+	goVer := stubGoVersion()
 	want := fmt.Sprintf("module solomon.orchestrate.stub\n\ngo %s\n\nrequire %s %s\n", goVer, SolomonModulePath, version)
 	goMod := filepath.Join(dir, "go.mod")
 	refresh := true
@@ -188,4 +185,35 @@ func ensureOrchestrateStub(version string) (string, error) {
 		return "", fmt.Errorf("orchestrate stub go mod download: %w", err)
 	}
 	return dir, nil
+}
+
+// stubGoVersion returns the version of the local go command that builds the stub. The toolchain
+// Solomon was built with may be newer, and GOTOOLCHAIN=local then refuses a go.mod asking for it.
+func stubGoVersion() string {
+	cmd, err := goCommand("env", "GOVERSION")
+	if err != nil {
+		return minStubGoVersion
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return minStubGoVersion
+	}
+	return GoDirectiveVersion(string(out))
+}
+
+const minStubGoVersion = "1.25.0"
+
+// GoDirectiveVersion turns a go version string such as "go1.26.9-X:nodwarf5" into a valid
+// go.mod directive ("1.26.9"), falling back to the oldest version Solomon supports.
+func GoDirectiveVersion(raw string) string {
+	v := strings.TrimPrefix(strings.TrimSpace(raw), "go")
+	end := 0
+	for end < len(v) && (v[end] == '.' || v[end] >= '0' && v[end] <= '9') {
+		end++
+	}
+	v = strings.TrimRight(v[:end], ".")
+	if strings.Count(v, ".") < 1 {
+		return minStubGoVersion
+	}
+	return v
 }
