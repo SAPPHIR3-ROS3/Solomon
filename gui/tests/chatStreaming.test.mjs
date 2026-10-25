@@ -88,3 +88,19 @@ test("stream updates retain historical messages and leave previous snapshots int
   assert.equal(getChat("chat"), next);
   clearChatStore();
 });
+
+test("a skill request sent by the server appears once, and snapshots keep it unless hidden", () => {
+  const user = { id: "stream-user-1", role: "user", content: "/teach review cryptography" };
+  let chat = { id: "chat", projectID: "project", messages: [], source: "daemon" };
+  chat = applyLiveStreamEvent(chat, { type: "chat_start", chat: { id: "chat", messages: [] }, user }, "", false);
+  assert.deepEqual(chat.messages.map(message => message.content), ["/teach review cryptography"]);
+  // A normal message is already shown optimistically, so chat_start must not repeat it.
+  const optimistic = { id: "chat", projectID: "project", messages: [{ id: "user-1", role: "user", content: "hello" }], source: "daemon" };
+  const started = applyLiveStreamEvent(optimistic, { type: "chat_start", chat: { id: "chat", messages: [] }, user: { ...user, content: "hello" } }, "", false);
+  assert.equal(started.messages.length, 1);
+  const snapshot = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { role: "user", content: "/teach review cryptography" },
+    { role: "user", content: "/help", guiHidden: true },
+  ] } }, "", false);
+  assert.deepEqual(snapshot.messages.map(message => message.content), ["/teach review cryptography"]);
+});

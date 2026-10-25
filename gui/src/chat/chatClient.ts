@@ -229,10 +229,15 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   }
   if (type === "chat_start") {
     const runStartedAt = chat.runStartedAt ?? eventTimeMilliseconds(event);
-    if (!replay || !event.chat) return { ...chat, runStartedAt, status: "running" };
+    if (!replay || !event.chat) {
+      // Slash commands are not shown optimistically; the server sends the line when it is a skill request.
+      const user = messageFromPayload(event.user, chat.messages.length, imageOrigin);
+      const last = chat.messages[chat.messages.length - 1];
+      const shown = !user || last?.role === "user";
+      return { ...chat, messages: shown ? chat.messages : [...chat.messages, user], runStartedAt, status: "running" };
+    }
     const base = liveChatFromPayload(event.chat, chat.projectID, imageOrigin);
-    const incomingUser = messageFromPayload(event.user, base.messages.length, imageOrigin);
-    const user = incomingUser?.content.trimStart().startsWith("/") ? null : incomingUser;
+    const user = messageFromPayload(event.user, base.messages.length, imageOrigin);
     return {
       ...base,
       messages: user ? [...base.messages, user] : base.messages,
@@ -407,7 +412,8 @@ function messageFromPayload(payload: unknown, index: number, imageOrigin: string
   const record = objectValue(payload);
   const role = stringValue(record.role);
   if (role !== "user" && role !== "assistant") return null;
-  if (record.guiHidden === true || (role === "user" && stringValue(record.content).trimStart().startsWith("/"))) return null;
+  // The server marks command lines it keeps out of the GUI; a skill request stays visible.
+  if (record.guiHidden === true) return null;
   const message: ChatMessage = {
     checkpointBranch: stringValue(record.checkpointBranch) || undefined,
     checkpointSeq: numberValue(record.checkpointSeq, undefined),

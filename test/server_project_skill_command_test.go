@@ -98,8 +98,16 @@ func TestServerRuntime_ChatSkillCommandKeepsRequestVisible(t *testing.T) {
 	decodeServerTestJSON(t, postJSONForServerTest(t, base, map[string]string{}), &chat)
 	for _, content := range []string{"/teach review cryptography", "/help"} {
 		response := postJSONForServerTest(t, base+"/"+chat.ID+"/messages", map[string]string{"content": content})
-		_, _ = io.Copy(io.Discard, response.Body)
+		stream, err := io.ReadAll(response.Body)
 		response.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The GUI does not show slash lines optimistically, so chat_start carries the skill request.
+		sentUser := strings.Contains(string(stream), `"stream-user-`)
+		if sentUser != (content != "/help") {
+			t.Fatalf("%s: chat_start user sent=%v", content, sentUser)
+		}
 	}
 	sess, err := chatstore.ReadSession(created.Project.ID, chat.ID)
 	if err != nil {

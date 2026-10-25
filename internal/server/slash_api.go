@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -61,7 +62,13 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		writeAPIError(w, http.StatusConflict, errors.New("chat is already running"))
 		return
 	}
-	run.Emit(apiEvent("chat_start", map[string]any{"chat": apiChatFromSession(projectID, sess, run)}))
+	// A skill sends the typed line as the visible request of its agent turn.
+	skillTurn := slash.RunsSkill(content, projectID, root)
+	start := map[string]any{"chat": apiChatFromSession(projectID, sess, run)}
+	if skillTurn {
+		start["user"] = apiMessage{Content: content, ID: fmt.Sprintf("stream-user-%d", time.Now().UnixNano()), Role: "user"}
+	}
+	run.Emit(apiEvent("chat_start", start))
 	go func() {
 		defer a.finishRun(key, run)
 		rt := agentruntime.NewCommandRuntime(run.ctx, cfg, prov, projectID, root, sess, content)
@@ -72,8 +79,6 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		rt.Surface = surface
 		before := len(sess.Messages)
 		startedAt := time.Now().UTC()
-		// A skill sends the typed line as the visible request of its agent turn.
-		skillTurn := slash.RunsSkill(content, projectID, root)
 		commandErr := rt.RunGUISlash(run.ctx, content)
 		text := strings.TrimSpace(slashANSI.ReplaceAllString(output.String(), ""))
 		if commandErr != nil {
