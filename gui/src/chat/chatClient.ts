@@ -231,9 +231,10 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
     const runStartedAt = chat.runStartedAt ?? eventTimeMilliseconds(event);
     if (!replay || !event.chat) {
       // Slash commands are not shown optimistically; the server sends the line when it is a skill request.
+      // Only a local optimistic message stands for this request: an earlier user message without a reply is history.
       const user = messageFromPayload(event.user, chat.messages.length, imageOrigin);
       const last = chat.messages[chat.messages.length - 1];
-      const shown = !user || last?.role === "user";
+      const shown = !user || isOptimisticUserMessage(last);
       return { ...chat, messages: shown ? chat.messages : [...chat.messages, user], runStartedAt, status: "running" };
     }
     const base = liveChatFromPayload(event.chat, chat.projectID, imageOrigin);
@@ -391,10 +392,15 @@ function stopOpenToolCalls(chat: LiveChat): LiveChat {
   };
 }
 
+// The composer inserts the user's message with a local "user-" id before the server echoes it.
+function isOptimisticUserMessage(message: ChatMessage | undefined): boolean {
+  return message?.role === "user" && message.id.startsWith("user-");
+}
+
 function preserveOptimisticMessages(previous: Chat, nextMessages: ChatMessage[]): ChatMessage[] {
   if (nextMessages.length > 0) return nextMessages;
 
-  const optimisticMessages = previous.messages.filter((message) => message.role === "user" && message.id.startsWith("user-"));
+  const optimisticMessages = previous.messages.filter(isOptimisticUserMessage);
   return optimisticMessages.length ? [...optimisticMessages] : nextMessages;
 }
 

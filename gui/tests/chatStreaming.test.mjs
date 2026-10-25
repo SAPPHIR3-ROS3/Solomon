@@ -98,6 +98,10 @@ test("a skill request sent by the server appears once, and snapshots keep it unl
   const optimistic = { id: "chat", projectID: "project", messages: [{ id: "user-1", role: "user", content: "hello" }], source: "daemon" };
   const started = applyLiveStreamEvent(optimistic, { type: "chat_start", chat: { id: "chat", messages: [] }, user: { ...user, content: "hello" } }, "", false);
   assert.equal(started.messages.length, 1);
+  // An earlier request that never got a reply is history, not the request that just started.
+  const interrupted = { id: "chat", projectID: "project", messages: [{ id: "msg-7", role: "user", content: "previous interrupted request" }], source: "daemon" };
+  const next = applyLiveStreamEvent(interrupted, { type: "chat_start", chat: { id: "chat", messages: [] }, user: { ...user, content: "/teach new request" } }, "", false);
+  assert.deepEqual(next.messages.map(message => message.content), ["previous interrupted request", "/teach new request"]);
   const snapshot = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
     { role: "user", content: "/teach review cryptography" },
     { role: "user", content: "/help", guiHidden: true },
