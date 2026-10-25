@@ -29,6 +29,22 @@ test("collapsed card shows only the changed-files summary row", () => {
  assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="file-changes-tree"|docs\/architecture\/a\.md|gui\/src\/a\.ts/);
  assert.equal(renderToStaticMarkup(createElement(FileChangesCard,{changes:[]})),"");
 });
+test("external folders retain absolute paths and stay separate from project folders", () => {
+ const nodes=fileChangeTree([
+  {path:"/home/oni/shared/src/a.ts",added:3,removed:1},
+  {path:"/home/oni/shared/docs/b.md",added:2,removed:0},
+  {path:"home/oni/shared/src/local.ts",added:1,removed:0},
+  {path:"/external.txt",added:1,removed:0},
+ ]);
+ const external=nodes.find(node=>node.path==="/home/oni/shared");
+ assert.ok(external);
+ assert.equal(external.name,"/home/oni/shared");
+ assert.equal(external.files,2);
+ assert.deepEqual(external.children.map(node=>node.name),["docs","src"]);
+ assert.equal(external.children[1].children[0].path,"/home/oni/shared/src/a.ts");
+ assert.ok(nodes.some(node=>node.name==="home/oni/shared/src" && node.files===1));
+ assert.ok(nodes.some(node=>node.name==="/external.txt"));
+});
 test("completed editing turns show their own saved summary under the answer", () => {
  const messages=indexChatMessages([{id:"u",role:"user",content:"Edit"},{id:"a",role:"assistant",content:"Completed answer",fileChanges:changes},{id:"u2",role:"user",content:"Explain"},{id:"a2",role:"assistant",content:"Explanation"}]);
  const html=renderToStaticMarkup(createElement(ChatMessageGroups,{messages,isWorking:false}));

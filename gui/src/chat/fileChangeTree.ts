@@ -15,6 +15,9 @@ export function fileChangeTree(changes: readonly ChatFileChange[]): FileChangeNo
   for (const change of changes) {
     const parts = change.path.split("/").filter(Boolean);
     if (!parts.length) continue;
+    // External changes have absolute paths. Keep their root both in the
+    // displayed folder chain and in its identity, separate from project files.
+    if (change.path.startsWith("/")) parts[0] = `/${parts[0]}`;
     let parent = root;
     for (let index = 0; index < parts.length; index++) {
       const path = parts.slice(0, index + 1).join("/");
