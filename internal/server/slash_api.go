@@ -11,6 +11,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -71,6 +72,8 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		rt.Surface = surface
 		before := len(sess.Messages)
 		startedAt := time.Now().UTC()
+		// A skill sends the typed line as the visible request of its agent turn.
+		skillTurn := slash.RunsSkill(content, projectID, root)
 		commandErr := rt.RunGUISlash(run.ctx, content)
 		text := strings.TrimSpace(slashANSI.ReplaceAllString(output.String(), ""))
 		if commandErr != nil {
@@ -79,12 +82,12 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		commandRecorded := false
 		for index := before; index < len(sess.Messages); index++ {
 			if sess.Messages[index].Role == "user" && sess.Messages[index].Content == content {
-				sess.Messages[index].GUIHidden = true
+				sess.Messages[index].GUIHidden = !skillTurn
 				commandRecorded = true
 			}
 		}
 		if !commandRecorded {
-			sess.Messages = append(sess.Messages, chatstore.Message{GUIHidden: true, Role: "user", Content: content, CreatedAt: time.Now().UTC()})
+			sess.Messages = append(sess.Messages, chatstore.Message{GUIHidden: !skillTurn, Role: "user", Content: content, CreatedAt: time.Now().UTC()})
 		}
 		if text != "" {
 			sess.Messages = append(sess.Messages, chatstore.Message{GUIHidden: true, Role: "assistant", Content: text, CreatedAt: time.Now().UTC()})
