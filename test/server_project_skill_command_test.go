@@ -109,6 +109,26 @@ func TestServerRuntime_ChatSkillCommandKeepsRequestVisible(t *testing.T) {
 			t.Fatalf("%s: chat_start user sent=%v", content, sentUser)
 		}
 	}
+	response, err := http.Get(base + "/" + chat.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var served struct {
+		Messages []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	decodeServerTestJSON(t, response, &served)
+	var shown []string
+	for _, message := range served.Messages {
+		if message.Role == "user" {
+			shown = append(shown, message.Content)
+		}
+	}
+	if len(shown) != 1 || shown[0] != "/teach review cryptography" {
+		t.Fatalf("chat API should return only the skill request, got %q", shown)
+	}
 	sess, err := chatstore.ReadSession(created.Project.ID, chat.ID)
 	if err != nil {
 		t.Fatal(err)

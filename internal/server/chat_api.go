@@ -1316,7 +1316,8 @@ func isHiddenSessionMessage(message chatstore.Message) bool {
 	if message.GUIHidden || message.Role == "tool" {
 		return true
 	}
-	return message.Role == "user" && (strings.HasPrefix(strings.TrimSpace(message.Content), "tool_result(") || strings.HasPrefix(strings.TrimSpace(message.Content), "/"))
+	// Command lines are marked GUIHidden when recorded; a skill request starting with "/" stays visible.
+	return message.Role == "user" && strings.HasPrefix(strings.TrimSpace(message.Content), "tool_result(")
 }
 
 func normalizedMessageRole(role string) string {
