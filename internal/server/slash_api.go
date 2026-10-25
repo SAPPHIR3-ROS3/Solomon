@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -64,6 +65,7 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 	}
 	// A skill sends the typed line as the visible request of its agent turn.
 	skillTurn := slash.RunsSkill(content, projectID, root)
+	generateTitle := skillTurn && needsChatTitleGeneration(sess)
 	start := map[string]any{"chat": apiChatFromSession(projectID, sess, run)}
 	if skillTurn {
 		start["user"] = apiMessage{Content: content, ID: fmt.Sprintf("stream-user-%d", time.Now().UnixNano()), Role: "user"}
@@ -80,6 +82,14 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		before := len(sess.Messages)
 		startedAt := time.Now().UTC()
 		commandErr := rt.RunGUISlash(run.ctx, content)
+		// Name a new chat after the skill request once the turn ends, so the title request never competes with it.
+		if generateTitle && run.ctx.Err() == nil {
+			titleCtx, cancel := context.WithTimeout(a.daemonCtx, chatTitleTimeout)
+			if title := rt.FinalizeChatTitle(titleCtx, skillTitleInput(content)); title != "" {
+				run.Emit(apiEvent("chat_title", map[string]any{"chatID": chatID, "title": title}))
+			}
+			cancel()
+		}
 		text := strings.TrimSpace(slashANSI.ReplaceAllString(output.String(), ""))
 		if commandErr != nil {
 			text += "\n" + commandErr.Error()
@@ -113,6 +123,17 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		}
 	}()
 	a.streamChatRun(w, r, run, 0)
+}
+
+// The request after the skill command describes the chat better than the command name.
+func skillTitleInput(content string) string {
+	content = strings.TrimSpace(content)
+	if i := strings.IndexAny(content, " \t\n"); i >= 0 {
+		if request := strings.TrimSpace(content[i:]); request != "" {
+			return request
+		}
+	}
+	return strings.TrimPrefix(content, "/")
 }
 
 // System blocks are already recorded by WriteSystem; only command data belongs in chat.

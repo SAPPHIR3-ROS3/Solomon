@@ -133,6 +133,10 @@ func TestServerRuntime_ChatSkillCommandKeepsRequestVisible(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The chat is named after the request, not the skill command or the default title.
+	if title := strings.ToLower(sess.Title); !strings.Contains(title, "cryptography") || strings.Contains(title, "teach") {
+		t.Fatalf("skill chat title = %q", sess.Title)
+	}
 	hidden := map[string]bool{}
 	for _, message := range sess.Messages {
 		if message.Role == "user" {
