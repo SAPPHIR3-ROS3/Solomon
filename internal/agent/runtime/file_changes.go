@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,6 +45,22 @@ func (r *Runtime) renderFileChanges(changes []filechanges.Change) {
 
 func (r *Runtime) recordChatFileChanges(seq int, changes []filechanges.Change, committed []filechanges.Commit) {
 	r.mutateSession(func(s *chatstore.Session) {
+		turn := seq
+		for i := len(s.Messages) - 1; i >= 0; i-- {
+			if s.Messages[i].Role == "user" {
+				turn = s.Messages[i].CheckpointSeq
+				break
+			}
+		}
+		// Project edits accumulate until committed; external edits belong only
+		// to the turn that made them. Retain accumulation within the same turn.
+		if s.FileChangesTurn != turn {
+			for name := range s.FileChanges {
+				if filepath.IsAbs(name) {
+					delete(s.FileChanges, name)
+				}
+			}
+		}
 		if s.FileChanges == nil {
 			s.FileChanges = map[string]chatstore.FileChangeLedger{}
 		}
@@ -127,13 +144,7 @@ func (r *Runtime) recordChatFileChanges(seq int, changes []filechanges.Change, c
 			}
 		}
 		if len(changes) > 0 || len(committed) > 0 {
-			s.FileChangesTurn = seq
-			for i := len(s.Messages) - 1; i >= 0; i-- {
-				if s.Messages[i].Role == "user" {
-					s.FileChangesTurn = s.Messages[i].CheckpointSeq
-					break
-				}
-			}
+			s.FileChangesTurn = turn
 		}
 	})
 }

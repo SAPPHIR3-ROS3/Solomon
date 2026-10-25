@@ -183,3 +183,56 @@ func TestFileChangesResumedOneSidedLedger(t *testing.T) {
 		}
 	}
 }
+
+func TestExternalFileChangesBelongOnlyToTheirTurn(t *testing.T) {
+	external := filepath.Join(t.TempDir(), "external.txt")
+	r := &Runtime{Session: &chatstore.Session{Messages: []chatstore.Message{{Role: "user", CheckpointSeq: 1}, {Role: "assistant"}}}}
+	r.RecordChatFileChangesForTest(2, []filechanges.Change{
+		{Name: external, BeforeExists: true, AfterExists: true, Lines: map[string]int{"first": 1}},
+		{Name: "local.txt", AfterExists: true, Lines: map[string]int{"local": 1}},
+	}, nil)
+	r.RecordChatFileChangesForTest(3, []filechanges.Change{{Name: external, BeforeExists: true, AfterExists: true, Lines: map[string]int{"second": 1}}}, nil)
+	if err := r.SaveTurnFileChangesForTest(1); err != nil {
+		t.Fatal(err)
+	}
+	first := r.Session.Messages[1].FileChanges
+	if r.Session.FileChanges[external].AddedLines["first"] != 1 || r.Session.FileChanges[external].AddedLines["second"] != 1 {
+		t.Fatal("same-turn external changes did not accumulate")
+	}
+	r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", CheckpointSeq: 4}, chatstore.Message{Role: "assistant"})
+	// Exercise a resumed ledger, too.
+	encoded, err := json.Marshal(r.Session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resumed chatstore.Session
+	if err := json.Unmarshal(encoded, &resumed); err != nil {
+		t.Fatal(err)
+	}
+	r.Session = &resumed
+	r.RecordChatFileChangesForTest(5, []filechanges.Change{{Name: external, BeforeExists: true, AfterExists: true, Lines: map[string]int{"third": 1}}}, nil)
+	if err := r.SaveTurnFileChangesForTest(4); err != nil {
+		t.Fatal(err)
+	}
+	entry := r.Session.FileChanges[external]
+	if len(entry.AddedLines) != 1 || entry.AddedLines["third"] != 1 {
+		t.Fatalf("external changes leaked across turns: %+v", entry)
+	}
+	if len(first) != 2 || len(r.Session.Messages[1].FileChanges) != 2 {
+		t.Fatal("previous summary was modified")
+	}
+	r.Session.Messages = append(r.Session.Messages, chatstore.Message{Role: "user", CheckpointSeq: 7}, chatstore.Message{Role: "assistant"})
+	r.RecordChatFileChangesForTest(8, []filechanges.Change{{Name: "other.txt", AfterExists: true, Lines: map[string]int{"other": 1}}}, nil)
+	if err := r.SaveTurnFileChangesForTest(7); err != nil {
+		t.Fatal(err)
+	}
+	summary := r.Session.Messages[5].FileChanges
+	if len(summary) != 2 {
+		t.Fatalf("internal accumulation lost: %+v", summary)
+	}
+	for _, change := range summary {
+		if filepath.IsAbs(change.Path) {
+			t.Fatalf("external edit repeated: %+v", change)
+		}
+	}
+}
