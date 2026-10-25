@@ -117,8 +117,9 @@ func BuildCodexInput(chat map[string]any) []any {
 			})
 		case "assistant":
 			if enc, _ := mm["reasoning_encrypted_content"].(string); strings.TrimSpace(enc) != "" {
+				// The Responses API rejects reasoning input items without a summary array.
 				input = append(input, map[string]any{
-					"type": "reasoning", "encrypted_content": strings.TrimSpace(enc),
+					"type": "reasoning", "encrypted_content": strings.TrimSpace(enc), "summary": []any{},
 				})
 			}
 			texts := collectTextSegments(mm["content"], false)
