@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Snapshots are private and outside the project: no index or worktree mutations.
@@ -192,6 +193,20 @@ func Compare(before, after *Snapshot) ([]Change, error) {
 		if !after.files[name] {
 			newPath = os.DevNull
 		}
+		// Sparse logs can contain zero-filled holes after truncation while a
+		// writer retains its offset. Compare private text copies, never sources.
+		if oldText, oldOK := sparseLogText(old); oldOK {
+			if nextText, nextOK := sparseLogText(next); nextOK && (!bytes.Equal(old, oldText) || !bytes.Equal(next, nextText)) {
+				oldPath = filepath.Join(before.dir, "text-before")
+				newPath = filepath.Join(after.dir, "text-after")
+				if err := os.WriteFile(oldPath, oldText, 0600); err != nil {
+					return nil, err
+				}
+				if err := os.WriteFile(newPath, nextText, 0600); err != nil {
+					return nil, err
+				}
+			}
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		output, err := exec.CommandContext(ctx, "git", "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--unified=0", "--", oldPath, newPath).Output()
 		cancel()
@@ -250,4 +265,26 @@ func skipSnapshotDirectory(name string) bool {
 		return true
 	}
 	return false
+}
+
+// sparseLogText accepts UTF-8 text with zero-filled holes, not arbitrary binary
+// data or UTF-16. Requiring a long zero run and line breaks avoids treating
+// short binary payloads as logs simply because their other bytes are printable.
+func sparseLogText(data []byte) ([]byte, bool) {
+	text := data
+	if bytes.IndexByte(data, 0) >= 0 {
+		if !bytes.Contains(data, make([]byte, 8)) || !bytes.ContainsAny(data, "\r\n") {
+			return nil, false
+		}
+		text = bytes.ReplaceAll(data, []byte{0}, nil)
+	}
+	if !utf8.Valid(text) {
+		return nil, false
+	}
+	for _, c := range text {
+		if c < 32 && c != '\n' && c != '\r' && c != '\t' && c != 27 {
+			return nil, false
+		}
+	}
+	return text, true
 }

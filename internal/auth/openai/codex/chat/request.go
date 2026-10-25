@@ -28,8 +28,8 @@ func ChatCompletionToCodexBody(chat map[string]any) ([]byte, error) {
 	if serviceTier, ok := chat["service_tier"].(string); ok && strings.TrimSpace(serviceTier) != "" {
 		body["service_tier"] = strings.TrimSpace(serviceTier)
 	}
-	if cacheKey, ok := chat["prompt_cache_key"].(string); ok && strings.TrimSpace(cacheKey) != "" {
-		body["prompt_cache_key"] = strings.TrimSpace(cacheKey)
+	if cacheKey := CodexSessionID(chat); cacheKey != "" {
+		body["prompt_cache_key"] = cacheKey
 	}
 	if tc, ok := chat["tool_choice"]; ok && tc != nil {
 		body["tool_choice"] = tc
@@ -93,6 +93,14 @@ func extractSystemInstructions(chat map[string]any) string {
 		}
 	}
 	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+func CodexSessionID(chat map[string]any) string {
+	if chat == nil {
+		return ""
+	}
+	cacheKey, _ := chat["prompt_cache_key"].(string)
+	return strings.TrimSpace(cacheKey)
 }
 
 func BuildCodexInput(chat map[string]any) []any {

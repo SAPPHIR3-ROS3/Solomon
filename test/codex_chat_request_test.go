@@ -179,8 +179,36 @@ func TestBuildCodexInputImageOnlyUserMessage(t *testing.T) {
 	if decoded["prompt_cache_key"] != "chat-1" {
 		t.Fatalf("prompt_cache_key: %#v", decoded["prompt_cache_key"])
 	}
+	if _, ok := decoded["prompt_cache_options"]; ok {
+		t.Fatal("Codex cache affinity is the session header, not prompt_cache_options")
+	}
 	rawInput, ok := decoded["input"].([]any)
 	if !ok || len(rawInput) != 1 {
 		t.Fatalf("codex body input: %#v", decoded["input"])
+	}
+}
+
+func TestCodexSessionIDFollowsPromptCacheKey(t *testing.T) {
+	chat := map[string]any{"prompt_cache_key": " chat-1 "}
+	if got := codexchat.CodexSessionID(chat); got != "chat-1" {
+		t.Fatalf("session id: %q", got)
+	}
+	body, err := codexchat.ChatCompletionToCodexBody(map[string]any{
+		"model":            "gpt-6.1-sol",
+		"prompt_cache_key": " chat-1 ",
+		"messages":         []any{map[string]any{"role": "user", "content": "first"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["prompt_cache_key"] != "chat-1" {
+		t.Fatalf("prompt_cache_key: %#v", decoded["prompt_cache_key"])
+	}
+	if _, ok := decoded["prompt_cache_options"]; ok {
+		t.Fatal("gpt-6.1-sol follows Codex and must not send prompt_cache_options")
 	}
 }
