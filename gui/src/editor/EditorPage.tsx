@@ -1,12 +1,9 @@
+import { startSideResize } from "./resize";
+import { CodeEditor } from "./CodeEditor";
+import { ImagePreview } from "./ImagePreview";
+import { isImageFile } from "./images";
 import { fileIconName } from "../fileIcons";
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { defaultKeymap, insertNewlineAndIndent } from "@codemirror/commands";
-import { indentUnit } from "@codemirror/language";
-import { EditorState } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
-import { cursorForeground } from "../syntax/cursorSyntax";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { copyTextFallback } from "../chat/chatClipboard";
 import { AsciiBanner } from "../home/Welcome";
 import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon, SearchIcon } from "../shell/RightSidePanel";
@@ -14,7 +11,7 @@ import { SidePanelToggle } from "../shell/SidePanelToggle";
 import { CreateEntryActions } from "./CreateEntryActions";
 import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, sameProjectDirectoryEntries, sameProjectGitHistory, sameProjectGitStatus, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 
-import { loadEditorSession, storeEditorSession, saveEditorFile, waitForEditorSaves, type OpenFile, type EditorSession, type EditorViewState } from "./editorSession";
+import { loadEditorSession, storeEditorSession, saveEditorFile, waitForEditorSaves, type OpenFile, type EditorSession } from "./editorSession";
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
 const EMPTY_HISTORY: ProjectGitHistory = { commits: [], current: "", isRepo: false };
 
@@ -74,7 +71,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     })).then((loaded) => { if (!cancelled) setChildren(Object.fromEntries(loaded)); });
     void waitForEditorSaves(project.id).then(async () => {
       const loaded = new Map(await Promise.all(restoredSession.files.map(async (file) => {
-        try { return [file.id, await fetchProjectFile(project.id, file.path)] as const; }
+        try { return [file.id, isImageFile(file.path) ? "" : await fetchProjectFile(project.id, file.path)] as const; }
         catch { return [file.id, null] as const; }
       })));
       if (cancelled) return;
@@ -307,7 +304,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       const requestKey = `${project.id}:${entry.path}`;
       let request = pendingFileReads.current.get(requestKey);
       if (!request) {
-        request = fetchProjectFile(project.id, entry.path).finally(() => pendingFileReads.current.delete(requestKey));
+        request = (isImageFile(entry.path) ? Promise.resolve("") : fetchProjectFile(project.id, entry.path)).finally(() => pendingFileReads.current.delete(requestKey));
         pendingFileReads.current.set(requestKey, request);
       }
       const content = await request;
@@ -429,27 +426,6 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     }
   }
 
-  function startSideResize(event: ReactPointerEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    setSideResizing(true);
-    const startX = event.clientX;
-    const startWidth = sideWidth;
-    const maxWidth = window.innerWidth / 3;
-    const minWidth = Math.min(190, maxWidth);
-    const resize = (moveEvent: PointerEvent) => {
-      setSideWidth(Math.min(maxWidth, Math.max(minWidth, startWidth + moveEvent.clientX - startX)));
-    };
-    const stop = () => {
-      setSideResizing(false);
-      window.removeEventListener("pointermove", resize);
-      window.removeEventListener("pointerup", stop);
-      window.removeEventListener("pointercancel", stop);
-    };
-    window.addEventListener("pointermove", resize);
-    window.addEventListener("pointerup", stop);
-    window.addEventListener("pointercancel", stop);
-  }
-
   const active = files.find((file) => file.id === activeTabId);
   const fileStatus = useMemo(() => ({ ...git.changes, ...git.staged }), [git]);
   const entryMap = useMemo(() => ({ "": entries, ...children }), [entries, children]);
@@ -487,11 +463,11 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
           </nav>
         </div>
       </> : <div className="editor-git-host"><GitHistoryView error="" gitStatus={git} gitStatusError="" gitStatusLoading={false} history={history} loading={false} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} project={project} /></div>}
-      <button aria-label="Resize editor side panel" className="editor-resize" onDoubleClick={() => setSideWidth(248)} onPointerDown={startSideResize} title="Drag to resize" type="button" />
+      <button aria-label="Resize editor side panel" className="editor-resize" onDoubleClick={() => setSideWidth(248)} onPointerDown={(event) => startSideResize(event, sideWidth, setSideWidth, setSideResizing)} title="Drag to resize" type="button" />
     </aside>
     <main className="editor-workbench">
       {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to duplicate" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onDoubleClick={() => duplicateFile(file)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
-      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div><CodeEditor key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} /></> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
+      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={isImageFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isImageFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <CodeEditor key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
     <footer className="editor-status">
@@ -501,117 +477,15 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
           {branchOptions.length ? branchOptions.map((option) => <button aria-selected={option === branch} key={option} onClick={() => void selectBranch(option)} role="option" type="button"><GitBranchIcon /><span>{option}</span>{option === branch ? <CheckIcon /> : null}</button>) : <span>No local branches.</span>}
         </div> : null}
       </div> : <span className="editor-status-branch">No repository</span>}
-      <span className="editor-status-spacer"/><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span>
+      <span className="editor-status-spacer"/>{active && isImageFile(active.path) ? <span>Image preview · Read only</span> : <><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span></>}
     </footer>
   </section></>;
 }
 
 
-function CodeEditor({ file, onChange, onCursor, onSave, viewState, onViewState }: {
-  file: OpenFile;
-  onChange: (content: string) => void;
-  onCursor: (cursor: { line: number; column: number }) => void;
-  onSave: (path: string, content: string) => void;
-  viewState?: EditorViewState;
-  onViewState: (state: EditorViewState) => void;
-}) {
-  const viewRef = useRef<EditorView | null>(null);
-  const host = useRef<HTMLDivElement>(null);
-  const callbacks = useRef({ onChange, onCursor, onSave, onViewState });
-  callbacks.current = { onChange, onCursor, onSave, onViewState };
-  useLayoutEffect(() => {
-    if (!host.current) return;
-    let restoring = Boolean(viewState);
-    let frame: number | undefined;
-    const saveView = (view: EditorView) => {
-      if (restoring) return;
-      const { anchor, head } = view.state.selection.main;
-      const snapshot = view.scrollSnapshot().value;
-      callbacks.current.onViewState({ top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft, anchor, head, scrollAnchor: snapshot.range.head, scrollOffset: snapshot.yMargin });
-    };
-    const view = new EditorView({ parent: host.current,
-      scrollTo: viewState?.scrollAnchor !== undefined ? EditorView.scrollIntoView(Math.min(file.content.length, viewState.scrollAnchor), { y: "start", yMargin: viewState.scrollOffset ?? 0, x: "start", xMargin: viewState.left }) : undefined,
-      state: EditorState.create({
-      doc: file.content,
-      selection: viewState ? { anchor: Math.min(file.content.length, viewState.anchor), head: Math.min(file.content.length, viewState.head) } : undefined,
-      extensions: [
-        lineNumbers(), ...cursorEditorHighlighting(file.path), EditorView.lineWrapping,
-        indentUnit.compute(["doc"], state => /^\t/m.test(state.doc.toString()) ? "\t" : "  "), closeBrackets(),
-        EditorView.scrollHandler.of((editor, range, options) => {
-          if (!restoring || viewState?.scrollAnchor === undefined || range.head !== Math.min(editor.state.doc.length, viewState.scrollAnchor) || options.y !== "start") return false;
-          // Restore the saved line block and pixel offset, rather than the
-          // text baseline used by a normal scrollIntoView request.
-          editor.scrollDOM.scrollTop = editor.lineBlockAt(range.head).top - (viewState.scrollOffset ?? 0);
-          editor.scrollDOM.scrollLeft = viewState.left;
-          return true;
-        }),
-        EditorView.domEventHandlers({ scroll: (_event, editor) => { saveView(editor); } }),
-        EditorView.updateListener.of(update => {
-          if (update.docChanged) callbacks.current.onChange(update.state.doc.toString());
-          if (update.selectionSet || update.docChanged) {
-            const pos = update.state.selection.main.head;
-            const line = update.state.doc.lineAt(pos);
-            callbacks.current.onCursor({ line: line.number, column: pos - line.from + 1 });
-            saveView(update.view);
-          }
-        }),
-        keymap.of([
-          ...closeBracketsKeymap,
-          { key: "Enter", preventDefault: true, run: insertNewlineAndIndent, shift: insertNewlineAndIndent },
-          { key: "Mod-s", preventDefault: true, run: editor => { callbacks.current.onSave(file.path, editor.state.doc.toString()); return true; } },
-          ...defaultKeymap,
-        ]),
-        EditorView.theme({
-          "&": { height: "100%", background: "transparent", color: cursorForeground },
-          ".cm-scroller": { overflow: "auto", fontFamily: 'var(--font-mono)' },
-          ".cm-content": { padding: "24px 0 130px", caretColor: "#82aaff" },
-          ".cm-line": { padding: "0 28px 0 8px" },
-          ".cm-gutters": { minWidth: "64px", background: "transparent", border: "none", color: "#52616a" },
-          ".cm-gutterElement": { transform: null },
-          "&.cm-focused": { outline: "none" },
-          ".cm-selectionBackground, ::selection": { background: "#82aaff55 !important" },
-        }, { dark: true }),
-      ],
-    }) });
-    viewRef.current = view;
-    const position = view.state.selection.main.head;
-    const line = view.state.doc.lineAt(position);
-    callbacks.current.onCursor({ line: line.number, column: position - line.from + 1 });
-    if (viewState) {
-      frame = requestAnimationFrame(() => {
-        // Let CodeMirror measure its document before restoring the viewport.
-        frame = requestAnimationFrame(() => {
-          if (viewState.scrollAnchor === undefined) {
-            view.scrollDOM.scrollTop = viewState.top;
-            view.scrollDOM.scrollLeft = viewState.left;
-          }
-          restoring = false;
-        });
-      });
-    }
-    return () => {
-      if (frame !== undefined) cancelAnimationFrame(frame);
-      saveView(view);
-      viewRef.current = null;
-      view.destroy();
-    };
-  }, [file.id, file.path]);
-  useEffect(() => {
-    const view = viewRef.current;
-    if (view && view.state.doc.toString() !== file.content) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: file.content } });
-  }, [file.content]);
-  return <div className="editor-code" ref={host} />;
-}
-
-function Tree({ entries, children, expanded, filter, status, activePath, onFolder, onFile, depth = 0 }: { entries: ProjectDirectoryEntry[]; children: Record<string, ProjectDirectoryEntry[]>; expanded: Set<string>; filter: string; status: Record<string, string>; activePath: string; onFolder: (entry: ProjectDirectoryEntry) => void; onFile: (entry: ProjectDirectoryEntry) => void; depth?: number }) {
-  return <>{entries.filter((entry) => entry.name !== ".git" && (!filter || entry.name.toLowerCase().includes(filter.toLowerCase()) || entry.isDirectory)).map((entry) => <div key={entry.path}><button className={`editor-tree-row editor-tree-${entry.isDirectory ? "folder" : "file"}-row${activePath === entry.path ? " active" : ""}`} style={{ paddingLeft: 9 + depth * 14 }} onClick={() => entry.isDirectory ? void onFolder(entry) : void onFile(entry)}>{entry.isDirectory ? <><Chevron open={expanded.has(entry.path)} /><FolderIcon name={entry.name} open={expanded.has(entry.path)} /></> : <><span className="tree-spacer" /><FileIcon fileName={entry.name} /></>}<span>{entry.name}</span>{status[entry.path] && <i className={`status-${statusLabel(status[entry.path])}`}>{status[entry.path]}</i>}</button>{entry.isDirectory && expanded.has(entry.path) && children[entry.path] ? <Tree {...{ children, expanded, filter, status, activePath, onFolder, onFile }} entries={children[entry.path]} depth={depth + 1} /> : null}</div>)}</>;
-}
-
 const without=(set:Set<string>,value:string)=>{const next=new Set(set);next.delete(value);return next}; const baseName=(path:string)=>path.split(/[\\/]/).at(-1)??path; const statusLabel=(code="")=>code==="M"?"modified":code==="A"||code==="U"?"added":code==="D"?"deleted":code==="R"?"renamed":"clean";
 function displayWorkspaceName(name:string){return name && name === name.toUpperCase() ? `${name[0]}${name.slice(1).toLowerCase()}` : name;}
 function abbreviateHomePath(path:string){const normalized=path.replace(/\\/g,"/");const home=normalized.match(/^\/(?:Users|home)\/[^/]+(?=\/|$)/)?.[0];return home ? `~${normalized.slice(home.length)}` : path;}
-function folderType(name:string,root=false){return root?"default_root_folder":name===".github"?"folder_type_github":name===".solomon"?"folder_type_config":name==="docs"?"folder_type_docs":name==="internal"?"folder_type_src":name==="scripts"?"folder_type_tools":name==="test"?"folder_type_test":"default_folder"}
-function FolderIcon({name="",open=false,root=false}:{name?:string;open?:boolean;root?:boolean}){return <img className="workspace-folder-icon" src={`/vscode-icons/${folderType(name,root)}${open?"_opened":""}.svg`} alt=""/>}
 function FileIcon({ fileName }: { fileName: string }) {
   return <img className="workspace-file-icon" src={`/vscode-icons/${fileIconName(fileName)}.svg`} alt="" />;
 }

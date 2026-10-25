@@ -1,3 +1,4 @@
+import { isImageFile } from "./images";
 import { saveProjectFile } from "../projects/projects";
 
 export type OpenFile = { id: string; path: string; content: string; saved: string };
@@ -15,7 +16,8 @@ export function loadEditorSession(projectID?: string): EditorSession {
   try {
     const value = JSON.parse(window.localStorage.getItem(storageKey(projectID)) ?? "null");
     if (!value || typeof value !== "object") return emptySession();
-    const files = Array.isArray(value.files) ? value.files.filter((file: OpenFile) => file && typeof file.id === "string" && typeof file.path === "string" && typeof file.content === "string" && typeof file.saved === "string") : [];
+    const restoredFiles = Array.isArray(value.files) ? value.files.filter((file: OpenFile) => file && typeof file.id === "string" && typeof file.path === "string" && typeof file.content === "string" && typeof file.saved === "string") : [];
+    const files = restoredFiles.map((file: OpenFile) => isImageFile(file.path) ? { ...file, content: "", saved: "" } : file);
     const views: Record<string, EditorViewState> = {};
     if (value.views && typeof value.views === "object") {
       for (const [id, state] of Object.entries(value.views)) {
@@ -39,6 +41,7 @@ export function storeEditorSession(projectID: string, session: EditorSession) {
 // Serial writes survive view unmounts, so an older request cannot overwrite
 // newer text. Identical pending writes share the same request.
 export function saveEditorFile(projectID: string, path: string, content: string): Promise<void> {
+  if (isImageFile(path)) return Promise.resolve();
   const key = JSON.stringify([projectID, path]);
   const previous = saves.get(key);
   if (previous?.content === content) return previous.promise;
