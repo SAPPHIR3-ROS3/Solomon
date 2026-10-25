@@ -1,10 +1,12 @@
-package filechanges
+package test
 
 import (
 	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/filechanges"
 )
 
 func TestCompareSparseLogsAndBinaryFiles(t *testing.T) {
@@ -29,7 +31,7 @@ func TestCompareSparseLogsAndBinaryFiles(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			before, err := CapturePaths(root, []string{path})
+			before, err := filechanges.CapturePaths(root, []string{path})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -41,12 +43,12 @@ func TestCompareSparseLogsAndBinaryFiles(t *testing.T) {
 			} else if err := os.WriteFile(path, tc.after, 0600); err != nil {
 				t.Fatal(err)
 			}
-			after, err := CapturePaths(root, []string{path})
+			after, err := filechanges.CapturePaths(root, []string{path})
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer after.Close()
-			changes, err := Compare(before, after)
+			changes, err := filechanges.Compare(before, after)
 			if err != nil {
 				t.Fatal(err)
 			}
