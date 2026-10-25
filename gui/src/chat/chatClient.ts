@@ -47,7 +47,8 @@ export async function createLiveChat(projectID: string, title = "", signal?: Abo
   return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
 }
 
-export async function sendProjectCommand(projectID: string, content: string, signal?: AbortSignal): Promise<void> {
+// Resolves true when the command starts an agent turn and belongs in a new chat.
+export async function sendProjectCommand(projectID: string, content: string, signal?: AbortSignal): Promise<boolean> {
   const response = await chatRequest("Unable to run command", await serverEndpoint(projectID ? `${projectChatsPath(projectID).replace(/\/chats$/, "")}/commands` : "/__solomon/commands"), {
     body: JSON.stringify({ content, surface: initialClient().surface }),
     headers: { "Content-Type": "application/json" },
@@ -61,6 +62,7 @@ export async function sendProjectCommand(projectID: string, content: string, sig
       if (typeof notification.message === "string") notifyNotification(notification.message, stringValue(notification.level) || "system");
     }
   }
+  return payload.open_chat === true;
 }
 
 export async function renameLiveChat(projectID: string, chatID: string, title: string): Promise<LiveChat> {

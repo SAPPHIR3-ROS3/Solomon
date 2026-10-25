@@ -11,6 +11,7 @@ import (
 	"time"
 
 	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
@@ -30,6 +31,11 @@ func (a *chatAPI) handleProjectCommand(w http.ResponseWriter, r *http.Request, p
 	content := strings.TrimSpace(req.Content)
 	if !strings.HasPrefix(content, "/") || len(req.Images) > 0 || len(req.Clips) > 0 {
 		writeAPIError(w, http.StatusBadRequest, errors.New("a slash command without attachments is required"))
+		return
+	}
+	// Skills run an agent turn, so the GUI sends them to a new chat where the turn is visible.
+	if projectID != "" && slash.RunsSkill(content, projectID, root) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "open_chat": true})
 		return
 	}
 	cfg, prov, err := loadChatRuntimeConfig()

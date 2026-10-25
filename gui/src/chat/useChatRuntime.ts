@@ -304,9 +304,10 @@ export function useChatRuntime(): ChatRuntime {
     try {
       if (content.trimStart().startsWith("/")) {
         if (composerImages.length || composerClips.length) throw new Error("Send attachments separately from slash commands");
-        await sendProjectCommand(project.id, content, controller.signal);
-        window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
-        return;
+        if (!await sendProjectCommand(project.id, content, controller.signal)) {
+          window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
+          return;
+        }
       }
       const images = await snapshotComposerImages(composerImages);
       if (controller.signal.aborted || requestID !== createRequest.current) return;
