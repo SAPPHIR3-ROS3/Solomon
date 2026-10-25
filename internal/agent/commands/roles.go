@@ -33,9 +33,6 @@ func AddSubagent(d Deps) error {
 		d.Cfg.Roles.Subagent = d.Cfg.Roles.Subagent[:previousCount]
 		return err
 	}
-	for _, w := range config.RolesScoreWarnings(d.Cfg) {
-		PrintSystem(d.Out, "warning: "+w)
-	}
 	msg := fmt.Sprintf("Subagent added: %s[%s] (scores assigned manually)", res.Model, res.Provider)
 	PrintSystem(d.Out, msg)
 	return nil

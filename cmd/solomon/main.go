@@ -162,9 +162,6 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	for _, w := range config.RolesScoreWarnings(cfg) {
-		fmt.Fprintln(os.Stderr, "warning:", w)
-	}
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	if cfg != nil && cfg.LogLevel != "" {
 		if lvl, err := logging.ParseLevel(cfg.LogLevel); err == nil {
