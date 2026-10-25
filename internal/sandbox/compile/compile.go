@@ -21,6 +21,9 @@ func BuildWASM(opts Options) ([]byte, error) {
 	if strings.TrimSpace(opts.Source) == "" {
 		return nil, fmt.Errorf("orchestrate: empty source")
 	}
+	if err := checkGoToolchain(); err != nil {
+		return nil, err
+	}
 	modRoot := opts.ModuleRoot
 	if modRoot == "" {
 		var err error
@@ -64,7 +67,7 @@ func BuildWASM(opts Options) ([]byte, error) {
 	outPath := filepath.Join(slotDir, "script.wasm")
 	// A child module path permits internal SDK imports without placing files or
 	// overlays inside Solomon's module tree (Go rejects overlays in GOMODCACHE).
-	goMod := fmt.Sprintf("module %s/orchestrate\n\ngo 1.25.0\n\nrequire %s v2026.0.0\n\nreplace %s => %q\n", SolomonModulePath, SolomonModulePath, SolomonModulePath, modRoot)
+	goMod := fmt.Sprintf("module %s/orchestrate\n\ngo %s\n\nrequire %s v2026.0.0\n\nreplace %s => %q\n", SolomonModulePath, RequiredGoVersion, SolomonModulePath, SolomonModulePath, modRoot)
 	if err := os.WriteFile(filepath.Join(slotDir, "go.mod"), []byte(goMod), 0o600); err != nil {
 		return nil, err
 	}

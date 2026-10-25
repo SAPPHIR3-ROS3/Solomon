@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 )
 
@@ -107,6 +108,9 @@ func moduleRootFromStub() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := checkGoToolchain(); err != nil {
+		return "", err
+	}
 	stubDir, err := ensureOrchestrateStub(version)
 	if err != nil {
 		return "", err
@@ -160,8 +164,7 @@ func ensureOrchestrateStub(version string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	goVer := stubGoVersion()
-	want := fmt.Sprintf("module solomon.orchestrate.stub\n\ngo %s\n\nrequire %s %s\n", goVer, SolomonModulePath, version)
+	want := fmt.Sprintf("module solomon.orchestrate.stub\n\ngo %s\n\nrequire %s %s\n", RequiredGoVersion, SolomonModulePath, version)
 	goMod := filepath.Join(dir, "go.mod")
 	refresh := true
 	if b, err := os.ReadFile(goMod); err == nil && string(b) == want {
@@ -187,24 +190,75 @@ func ensureOrchestrateStub(version string) (string, error) {
 	return dir, nil
 }
 
-// stubGoVersion returns the version of the local go command that builds the stub. The toolchain
-// Solomon was built with may be newer, and GOTOOLCHAIN=local then refuses a go.mod asking for it.
-func stubGoVersion() string {
-	cmd, err := goCommand("env", "GOVERSION")
+// RequiredGoVersion is the go directive of Solomon's go.mod. Orchestrate programs build against
+// the Solomon module, so they need at least this toolchain.
+const RequiredGoVersion = "1.27.3"
+
+// checkGoToolchain fails early, with a fix the user can apply, when the local go command is
+// older than RequiredGoVersion and is not allowed to download a newer toolchain.
+func checkGoToolchain() error {
+	version, err := goEnv("GOVERSION")
 	if err != nil {
-		return minStubGoVersion
+		return err
+	}
+	toolchain, err := goEnv("GOTOOLCHAIN")
+	if err != nil {
+		return err
+	}
+	return CheckGoToolchain(version, toolchain)
+}
+
+func goEnv(name string) (string, error) {
+	cmd, err := goCommand("env", name)
+	if err != nil {
+		return "", err
 	}
 	out, err := cmd.Output()
 	if err != nil {
-		return minStubGoVersion
+		return "", fmt.Errorf("go env %s: %w", name, err)
 	}
-	return GoDirectiveVersion(string(out))
+	return strings.TrimSpace(string(out)), nil
 }
 
-const minStubGoVersion = "1.25.0"
+// CheckGoToolchain reports whether a go command with the given GOVERSION and GOTOOLCHAIN can
+// build orchestrate programs. Unparsable (devel) versions are accepted.
+func CheckGoToolchain(goVersion, goToolchain string) error {
+	local := GoDirectiveVersion(goVersion)
+	if local == "" || compareGoVersions(local, RequiredGoVersion) >= 0 || toolchainCanSwitch(goToolchain) {
+		return nil
+	}
+	return fmt.Errorf("orchestrate requires Go %s or newer (the version in Solomon's go.mod), but the local go command is %s and GOTOOLCHAIN=%s does not allow downloading a newer toolchain; install Go %s or newer, or run `go env -w GOTOOLCHAIN=auto`", RequiredGoVersion, strings.TrimSpace(goVersion), goToolchain, RequiredGoVersion)
+}
 
-// GoDirectiveVersion turns a go version string such as "go1.26.9-X:nodwarf5" into a valid
-// go.mod directive ("1.26.9"), falling back to the oldest version Solomon supports.
+// toolchainCanSwitch reports whether GOTOOLCHAIN lets go select a newer toolchain on demand.
+func toolchainCanSwitch(goToolchain string) bool {
+	goToolchain = strings.TrimSpace(goToolchain)
+	return goToolchain == "" || goToolchain == "auto" || goToolchain == "path" ||
+		strings.HasSuffix(goToolchain, "+auto") || strings.HasSuffix(goToolchain, "+path")
+}
+
+func compareGoVersions(a, b string) int {
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(as) || i < len(bs); i++ {
+		var x, y int
+		if i < len(as) {
+			x, _ = strconv.Atoi(as[i])
+		}
+		if i < len(bs) {
+			y, _ = strconv.Atoi(bs[i])
+		}
+		if x != y {
+			if x < y {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}
+
+// GoDirectiveVersion turns a go version string such as "go1.26.9-X:nodwarf5" into a dotted
+// version ("1.26.9"), or "" when the string carries no release version.
 func GoDirectiveVersion(raw string) string {
 	v := strings.TrimPrefix(strings.TrimSpace(raw), "go")
 	end := 0
@@ -213,7 +267,7 @@ func GoDirectiveVersion(raw string) string {
 	}
 	v = strings.TrimRight(v[:end], ".")
 	if strings.Count(v, ".") < 1 {
-		return minStubGoVersion
+		return ""
 	}
 	return v
 }

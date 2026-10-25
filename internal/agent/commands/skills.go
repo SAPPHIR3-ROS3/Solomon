@@ -41,14 +41,14 @@ func RunSkillSlash(d Deps, e skills.SkillEntry, line string) error {
 		d.PrefillInput(text)
 		return nil
 	}
+	// Without an input to prefill (GUI), show the typed command and keep the skill body model-facing.
+	if d.SubmitVisibleUserMessage != nil {
+		return d.SubmitVisibleUserMessage(line, text)
+	}
 	if d.SubmitUserMessage == nil {
 		return fmt.Errorf("skill command unavailable in this context")
 	}
-	msg, err := skills.SkillUserMessagePayload(e, d.ProjRoot, notify)
-	if err != nil {
-		return err
-	}
-	return d.SubmitUserMessage(msg)
+	return d.SubmitUserMessage(text)
 }
 
 func RunForcedSkillSlash(d Deps, line string) error {
