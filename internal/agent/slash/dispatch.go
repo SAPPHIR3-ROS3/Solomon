@@ -60,6 +60,22 @@ func slashCommandName(parts []string) string {
 	return strings.ToLower(t)
 }
 
+// RunsSkill reports whether line invokes a skill, which starts an agent turn instead of printing output.
+func RunsSkill(line, projHex, projRoot string) bool {
+	name := slashCommandName(splitSlashArgs(line))
+	if strings.HasPrefix(name, "skill:") {
+		return true
+	}
+	if name == "" || name == "docs" {
+		return false
+	}
+	if _, reserved := skills.ReservedSlashCommandNames()[name]; reserved {
+		return false
+	}
+	e, err := skills.LookupSkillBySlashCommand(name, projHex, projRoot)
+	return err == nil && e != nil
+}
+
 func Dispatch(d commands.Deps, line string) error {
 	parts := splitSlashArgs(line)
 	if len(parts) == 0 {
@@ -102,7 +118,7 @@ func Dispatch(d commands.Deps, line string) error {
 		return skillErr
 	}
 	if e != nil {
-		if err := commands.RunSkillSlash(d, *e); err != nil {
+		if err := commands.RunSkillSlash(d, *e, line); err != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "slash skill command failed", logging.LogOptions{Params: map[string]any{"command": name, "skill": e.Name, "err": err.Error()}})
 			return err
 		}

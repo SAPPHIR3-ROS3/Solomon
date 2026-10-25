@@ -2,7 +2,9 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/replcomplete"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -60,7 +63,14 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		writeAPIError(w, http.StatusConflict, errors.New("chat is already running"))
 		return
 	}
-	run.Emit(apiEvent("chat_start", map[string]any{"chat": apiChatFromSession(projectID, sess, run)}))
+	// A skill sends the typed line as the visible request of its agent turn.
+	skillTurn := slash.RunsSkill(content, projectID, root)
+	generateTitle := skillTurn && needsChatTitleGeneration(sess)
+	start := map[string]any{"chat": apiChatFromSession(projectID, sess, run)}
+	if skillTurn {
+		start["user"] = apiMessage{Content: content, ID: fmt.Sprintf("stream-user-%d", time.Now().UnixNano()), Role: "user"}
+	}
+	run.Emit(apiEvent("chat_start", start))
 	go func() {
 		defer a.finishRun(key, run)
 		rt := agentruntime.NewCommandRuntime(run.ctx, cfg, prov, projectID, root, sess, content)
@@ -72,6 +82,14 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		before := len(sess.Messages)
 		startedAt := time.Now().UTC()
 		commandErr := rt.RunGUISlash(run.ctx, content)
+		// Name a new chat after the skill request once the turn ends, so the title request never competes with it.
+		if generateTitle && run.ctx.Err() == nil {
+			titleCtx, cancel := context.WithTimeout(a.daemonCtx, chatTitleTimeout)
+			if title := rt.FinalizeChatTitle(titleCtx, skillTitleInput(content)); title != "" {
+				run.Emit(apiEvent("chat_title", map[string]any{"chatID": chatID, "title": title}))
+			}
+			cancel()
+		}
 		text := strings.TrimSpace(slashANSI.ReplaceAllString(output.String(), ""))
 		if commandErr != nil {
 			text += "\n" + commandErr.Error()
@@ -79,12 +97,12 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		commandRecorded := false
 		for index := before; index < len(sess.Messages); index++ {
 			if sess.Messages[index].Role == "user" && sess.Messages[index].Content == content {
-				sess.Messages[index].GUIHidden = true
+				sess.Messages[index].GUIHidden = !skillTurn
 				commandRecorded = true
 			}
 		}
 		if !commandRecorded {
-			sess.Messages = append(sess.Messages, chatstore.Message{GUIHidden: true, Role: "user", Content: content, CreatedAt: time.Now().UTC()})
+			sess.Messages = append(sess.Messages, chatstore.Message{GUIHidden: !skillTurn, Role: "user", Content: content, CreatedAt: time.Now().UTC()})
 		}
 		if text != "" {
 			sess.Messages = append(sess.Messages, chatstore.Message{GUIHidden: true, Role: "assistant", Content: text, CreatedAt: time.Now().UTC()})
@@ -105,6 +123,17 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		}
 	}()
 	a.streamChatRun(w, r, run, 0)
+}
+
+// The request after the skill command describes the chat better than the command name.
+func skillTitleInput(content string) string {
+	content = strings.TrimSpace(content)
+	if i := strings.IndexAny(content, " \t\n"); i >= 0 {
+		if request := strings.TrimSpace(content[i:]); request != "" {
+			return request
+		}
+	}
+	return strings.TrimPrefix(content, "/")
 }
 
 // System blocks are already recorded by WriteSystem; only command data belongs in chat.

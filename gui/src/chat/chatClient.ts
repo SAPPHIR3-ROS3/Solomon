@@ -47,7 +47,8 @@ export async function createLiveChat(projectID: string, title = "", signal?: Abo
   return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
 }
 
-export async function sendProjectCommand(projectID: string, content: string, signal?: AbortSignal): Promise<void> {
+// Resolves true when the command starts an agent turn and belongs in a new chat.
+export async function sendProjectCommand(projectID: string, content: string, signal?: AbortSignal): Promise<boolean> {
   const response = await chatRequest("Unable to run command", await serverEndpoint(projectID ? `${projectChatsPath(projectID).replace(/\/chats$/, "")}/commands` : "/__solomon/commands"), {
     body: JSON.stringify({ content, surface: initialClient().surface }),
     headers: { "Content-Type": "application/json" },
@@ -61,6 +62,7 @@ export async function sendProjectCommand(projectID: string, content: string, sig
       if (typeof notification.message === "string") notifyNotification(notification.message, stringValue(notification.level) || "system");
     }
   }
+  return payload.open_chat === true;
 }
 
 export async function renameLiveChat(projectID: string, chatID: string, title: string): Promise<LiveChat> {
@@ -227,10 +229,16 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   }
   if (type === "chat_start") {
     const runStartedAt = chat.runStartedAt ?? eventTimeMilliseconds(event);
-    if (!replay || !event.chat) return { ...chat, runStartedAt, status: "running" };
+    if (!replay || !event.chat) {
+      // Slash commands are not shown optimistically; the server sends the line when it is a skill request.
+      // Only a local optimistic message stands for this request: an earlier user message without a reply is history.
+      const user = messageFromPayload(event.user, chat.messages.length, imageOrigin);
+      const last = chat.messages[chat.messages.length - 1];
+      const shown = !user || isOptimisticUserMessage(last);
+      return { ...chat, messages: shown ? chat.messages : [...chat.messages, user], runStartedAt, status: "running" };
+    }
     const base = liveChatFromPayload(event.chat, chat.projectID, imageOrigin);
-    const incomingUser = messageFromPayload(event.user, base.messages.length, imageOrigin);
-    const user = incomingUser?.content.trimStart().startsWith("/") ? null : incomingUser;
+    const user = messageFromPayload(event.user, base.messages.length, imageOrigin);
     return {
       ...base,
       messages: user ? [...base.messages, user] : base.messages,
@@ -384,10 +392,15 @@ function stopOpenToolCalls(chat: LiveChat): LiveChat {
   };
 }
 
+// The composer inserts the user's message with a local "user-" id before the server echoes it.
+function isOptimisticUserMessage(message: ChatMessage | undefined): boolean {
+  return message?.role === "user" && message.id.startsWith("user-");
+}
+
 function preserveOptimisticMessages(previous: Chat, nextMessages: ChatMessage[]): ChatMessage[] {
   if (nextMessages.length > 0) return nextMessages;
 
-  const optimisticMessages = previous.messages.filter((message) => message.role === "user" && message.id.startsWith("user-"));
+  const optimisticMessages = previous.messages.filter(isOptimisticUserMessage);
   return optimisticMessages.length ? [...optimisticMessages] : nextMessages;
 }
 
@@ -405,7 +418,8 @@ function messageFromPayload(payload: unknown, index: number, imageOrigin: string
   const record = objectValue(payload);
   const role = stringValue(record.role);
   if (role !== "user" && role !== "assistant") return null;
-  if (record.guiHidden === true || (role === "user" && stringValue(record.content).trimStart().startsWith("/"))) return null;
+  // The server marks command lines it keeps out of the GUI; a skill request stays visible.
+  if (record.guiHidden === true) return null;
   const message: ChatMessage = {
     checkpointBranch: stringValue(record.checkpointBranch) || undefined,
     checkpointSeq: numberValue(record.checkpointSeq, undefined),

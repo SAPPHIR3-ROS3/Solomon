@@ -121,7 +121,7 @@ func TestBuildCodexInputReplaysEncryptedReasoning(t *testing.T) {
 		t.Fatalf("want user, reasoning, assistant; got %#v", input)
 	}
 	reasoning, _ := input[1].(map[string]any)
-	if reasoning["type"] != "reasoning" || reasoning["encrypted_content"] != "enc-1" {
+	if summary, ok := reasoning["summary"].([]any); reasoning["type"] != "reasoning" || reasoning["encrypted_content"] != "enc-1" || !ok || len(summary) != 0 {
 		t.Fatalf("reasoning item: %#v", input[1])
 	}
 	full := map[string]any{
