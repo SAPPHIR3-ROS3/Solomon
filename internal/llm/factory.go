@@ -75,6 +75,9 @@ func NewCompletionBackend(ctx context.Context, cfg *config.Root, p *config.Provi
 		inner = &OpenAIBackend{Client: client, ReplayEncryptedReasoning: p.IsChatGPTSub()}
 	}
 	rb := NewResilientBackend(inner, hostKey, policy, defaultCircuits)
+	if transport, ok := httpClient.Transport.(interface{ PrepareRetry() }); ok {
+		rb.BeforeRetry = transport.PrepareRetry
+	}
 	if p.IsCursorAPI() && !p.IsCursorSub() {
 		cfgCopy := cfg
 		rb.SidecarRevive = func(ctx context.Context, err error) {

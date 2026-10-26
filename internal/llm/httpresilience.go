@@ -16,6 +16,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/transport"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	openai "github.com/openai/openai-go/v2"
 )
 
@@ -215,7 +216,7 @@ func NewResilientHTTPClient(policy config.APIResiliencePolicy) *http.Client {
 		ResponseHeaderTimeout: policy.ConnectTimeout,
 	}
 	return &http.Client{
-		Transport: transport,
+		Transport: networkhttp.New(transport),
 		Timeout:   0,
 	}
 }

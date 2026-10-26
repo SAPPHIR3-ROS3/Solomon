@@ -13,6 +13,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 )
 
 type commandTransport struct {
@@ -121,9 +122,9 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func httpClientWithHeaders(headers map[string]string) *http.Client {
-	base := http.DefaultTransport
+	base := networkhttp.New(http.DefaultTransport.(*http.Transport))
 	if len(headers) == 0 {
-		return http.DefaultClient
+		return &http.Client{Transport: base}
 	}
 	return &http.Client{Transport: &headerTransport{base: base, headers: headers}}
 }

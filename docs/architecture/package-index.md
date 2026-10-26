@@ -106,6 +106,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/desktopgit/` | Machine-readable Git history and status parsing for the desktop bridge | [Supporting packages](supporting-packages.md) |
 | `internal/title/` | Chat title slug and LLM refinement | [Supporting packages](supporting-packages.md) |
 | `internal/modelsapi/` | List models from provider API | [Supporting packages](supporting-packages.md) |
+| `internal/networkhttp/` | Refresh HTTP connection pools when system routes change and before retries | [Supporting packages](supporting-packages.md) |
 | `internal/modelcatalogcache/` | Persistent cache for provider model catalog lookups | [Supporting packages](supporting-packages.md) |
 | `internal/modelsdev/` | Development model catalog source and normalization | [Supporting packages](supporting-packages.md) |
 | `internal/logo/` | ASCII banner | [Supporting packages](supporting-packages.md) |

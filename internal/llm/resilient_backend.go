@@ -16,7 +16,9 @@ type ResilientBackend struct {
 	Policy        config.APIResiliencePolicy
 	Circuits      *CircuitRegistry
 	SidecarRevive func(context.Context, error)
-	rng           *rand.Rand
+	// BeforeRetry prepares network state after backoff, before a new attempt.
+	BeforeRetry func()
+	rng         *rand.Rand
 }
 
 func NewResilientBackend(inner CompletionBackend, hostKey string, policy config.APIResiliencePolicy, circuits *CircuitRegistry) *ResilientBackend {
@@ -89,6 +91,12 @@ func (b *ResilientBackend) runWithRetry(ctx context.Context, opts StreamOpts, op
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(wait):
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if b.BeforeRetry != nil {
+			b.BeforeRetry()
 		}
 	}
 	return lastErr

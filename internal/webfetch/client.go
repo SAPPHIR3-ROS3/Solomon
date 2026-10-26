@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 )
 
 const (
@@ -41,9 +42,9 @@ func newHTTPClient(redirectLimit int) *http.Client {
 	jar, _ := cookiejar.New(nil)
 	return &http.Client{
 		Jar: jar,
-		Transport: &http.Transport{
+		Transport: networkhttp.New(&http.Transport{
 			Proxy: http.ProxyFromEnvironment,
-		},
+		}),
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= redirectLimit {
 				return fmt.Errorf("stopped after %d redirects", redirectLimit)
