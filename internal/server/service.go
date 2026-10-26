@@ -354,7 +354,8 @@ func Run(ctx context.Context, options Options) error {
 					w.Header().Set("Vary", "Origin")
 				}
 			}
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range")
+			w.Header().Set("Access-Control-Expose-Headers", "Accept-Ranges, Content-Length, Content-Range")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			if r.Method == http.MethodOptions {
 				if origin == "" {

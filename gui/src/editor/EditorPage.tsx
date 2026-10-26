@@ -1,7 +1,10 @@
+import { lazy, Suspense } from "react";
+const PdfPreview = lazy(() => import("./PdfPreview").then((module) => ({ default: module.PdfPreview })));
+import { isPdfFile } from "./previews";
 import { startSideResize } from "./resize";
 import { CodeEditor } from "./CodeEditor";
 import { ImagePreview } from "./ImagePreview";
-import { isImageFile } from "./images";
+import { isPreviewFile } from "./previews";
 import { fileIconName } from "../fileIcons";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { copyTextFallback } from "../chat/chatClipboard";
@@ -71,7 +74,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     })).then((loaded) => { if (!cancelled) setChildren(Object.fromEntries(loaded)); });
     void waitForEditorSaves(project.id).then(async () => {
       const loaded = new Map(await Promise.all(restoredSession.files.map(async (file) => {
-        try { return [file.id, isImageFile(file.path) ? "" : await fetchProjectFile(project.id, file.path)] as const; }
+        try { return [file.id, isPreviewFile(file.path) ? "" : await fetchProjectFile(project.id, file.path)] as const; }
         catch { return [file.id, null] as const; }
       })));
       if (cancelled) return;
@@ -304,7 +307,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       const requestKey = `${project.id}:${entry.path}`;
       let request = pendingFileReads.current.get(requestKey);
       if (!request) {
-        request = (isImageFile(entry.path) ? Promise.resolve("") : fetchProjectFile(project.id, entry.path)).finally(() => pendingFileReads.current.delete(requestKey));
+        request = (isPreviewFile(entry.path) ? Promise.resolve("") : fetchProjectFile(project.id, entry.path)).finally(() => pendingFileReads.current.delete(requestKey));
         pendingFileReads.current.set(requestKey, request);
       }
       const content = await request;
@@ -467,7 +470,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     </aside>
     <main className="editor-workbench">
       {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to duplicate" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onDoubleClick={() => duplicateFile(file)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
-      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={isImageFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isImageFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <CodeEditor key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
+      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={isPreviewFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isPdfFile(active.path) ? <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfPreview key={active.id} projectID={project.id} path={active.path} /></Suspense> : isPreviewFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <CodeEditor key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
     <footer className="editor-status">
@@ -477,7 +480,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
           {branchOptions.length ? branchOptions.map((option) => <button aria-selected={option === branch} key={option} onClick={() => void selectBranch(option)} role="option" type="button"><GitBranchIcon /><span>{option}</span>{option === branch ? <CheckIcon /> : null}</button>) : <span>No local branches.</span>}
         </div> : null}
       </div> : <span className="editor-status-branch">No repository</span>}
-      <span className="editor-status-spacer"/>{active && isImageFile(active.path) ? <span>Image preview · Read only</span> : <><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span></>}
+      <span className="editor-status-spacer"/>{active && isPreviewFile(active.path) ? <span>{isPdfFile(active.path) ? "PDF" : "Image"} preview · Read only</span> : <><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span></>}
     </footer>
   </section></>;
 }

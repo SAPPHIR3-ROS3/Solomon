@@ -200,13 +200,26 @@ func (a *projectAPI) handleProjectFile(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	if r.Method == http.MethodGet {
-		content, readErr := os.ReadFile(target)
-		if readErr != nil {
-			writeAPIError(w, http.StatusNotFound, readErr)
+		file, openErr := os.Open(target)
+		if openErr != nil {
+			writeAPIError(w, http.StatusNotFound, openErr)
 			return
 		}
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = w.Write(content)
+		defer file.Close()
+		info, statErr := file.Stat()
+		if statErr != nil || !info.Mode().IsRegular() {
+			writeAPIError(w, http.StatusNotFound, os.ErrNotExist)
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		if strings.EqualFold(filepath.Ext(target), ".pdf") {
+			w.Header().Set("Content-Type", "application/pdf")
+		}
+		http.ServeContent(w, r, info.Name(), info.ModTime(), file)
+		return
+	}
+	if strings.EqualFold(filepath.Ext(target), ".pdf") {
+		writeAPIError(w, http.StatusUnsupportedMediaType, errors.New("PDF files cannot be saved as text"))
 		return
 	}
 	defer r.Body.Close()

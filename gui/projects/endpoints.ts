@@ -1,3 +1,4 @@
+import { createReadStream } from "node:fs";
 import { copyFile, lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
@@ -161,10 +162,40 @@ export function attachProjectActionEndpoint(server: { middlewares: { use: (route
     if ((request.method === "GET" || request.method === "PUT") && match?.[2] === "file") {
       const filePath = new URL(request.url ?? "", "http://solomon.local").searchParams.get("path") ?? "";
       if (request.method === "GET") {
-        void projectFilePath(match[1], filePath).then((target) => readFile(target))
-          .then((content) => { response.statusCode = 200; response.setHeader("Content-Type", "text/plain; charset=utf-8"); response.end(content); })
-          .catch(() => respondWithJson(response, 404, { error: "Unable to read project file" }));
+        void projectFilePath(match[1], filePath).then(async (target) => {
+          const output = response as import("node:http").ServerResponse;
+          const info = await stat(target);
+          if (!info.isFile()) throw new Error("Not a file");
+          output.setHeader("Accept-Ranges", "bytes");
+          output.setHeader("Content-Type", /\.pdf$/i.test(target) ? "application/pdf" : "application/octet-stream");
+          let start = 0, end = info.size - 1;
+          const range = request.headers?.range;
+          if (typeof range === "string") {
+            const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+            if (match && (match[1] || match[2])) {
+              start = match[1] ? Number(match[1]) : Math.max(0, info.size - Number(match[2]));
+              end = match[1] && match[2] ? Math.min(Number(match[2]), end) : end;
+            } else start = info.size;
+            if (start >= info.size || end < start) {
+              output.statusCode = 416;
+              output.setHeader("Content-Range", `bytes */${info.size}`);
+              output.end(); return;
+            }
+            output.statusCode = 206;
+            output.setHeader("Content-Range", `bytes ${start}-${end}/${info.size}`);
+          }
+          output.setHeader("Content-Length", Math.max(0, end - start + 1));
+          if (!info.size) { output.end(); return; }
+          const stream = createReadStream(target, { start, end });
+          output.on("close", () => stream.destroy());
+          stream.on("error", () => output.destroy());
+          stream.pipe(output);
+        }).catch(() => respondWithJson(response, 404, { error: "Unable to read project file" }));
       } else {
+        if (/\.pdf$/i.test(filePath)) {
+          respondWithJson(response, 415, { error: "PDF files cannot be saved as text" });
+          return;
+        }
         void Promise.all([projectFilePath(match[1], filePath), readTextBody(request)])
           .then(([target, content]) => writeFile(target, content, "utf8"))
           .then(() => respondWithJson(response, 200, {}))
