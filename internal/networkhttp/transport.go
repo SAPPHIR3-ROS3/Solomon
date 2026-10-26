@@ -2,28 +2,44 @@
 package networkhttp
 
 import (
+	"context"
+	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
+// ErrRouteChanged tells the owning retry loop to restart on the current route.
+var ErrRouteChanged = errors.New("system network route changed")
+
 // Transport replaces its connection pool when the system's routes change.
-// Existing response bodies remain readable; subsequent requests use a fresh
-// connection and let the OS choose its interface. Requests are never replayed.
+// New preserves active responses; NewRetrying interrupts them so the owning
+// retry loop can restart. This transport never replays requests itself.
 type Transport struct {
-	mu       sync.Mutex
-	base     *http.Transport
-	current  *http.Transport
-	key      string
-	routeKey func() string
+	mu                sync.Mutex
+	base              *http.Transport
+	current           *http.Transport
+	key               string
+	routeKey          func() string
+	interruptOnChange bool
 }
 
 // New clones base, which must not be modified afterward.
 func New(base *http.Transport) *Transport {
 	return &Transport{base: base.Clone(), routeKey: systemRouteKey}
+}
+
+// NewRetrying also interrupts active requests on route changes. Use only when
+// the caller owns a retry loop and permits replaying the request.
+func NewRetrying(base *http.Transport) *Transport {
+	t := New(base)
+	t.interruptOnChange = true
+	return t
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -38,7 +54,65 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	current := t.current
 	t.mu.Unlock()
-	return current.RoundTrip(req)
+	if !t.interruptOnChange {
+		return current.RoundTrip(req)
+	}
+	ctx, cancel := context.WithCancelCause(req.Context())
+	done := make(chan struct{})
+	var once sync.Once
+	stop := func() { once.Do(func() { close(done); cancel(nil) }) }
+	go func() {
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				t.mu.Lock()
+				changed := t.routeKey() != key
+				t.mu.Unlock()
+				if changed {
+					cancel(ErrRouteChanged)
+					return
+				}
+			}
+		}
+	}()
+	response, err := current.RoundTrip(req.Clone(ctx))
+	if err != nil {
+		if errors.Is(context.Cause(ctx), ErrRouteChanged) {
+			err = ErrRouteChanged
+		}
+		stop()
+		return nil, err
+	}
+	response.Body = &routeBody{ReadCloser: response.Body, ctx: ctx, stop: stop}
+	return response, nil
+}
+
+type routeBody struct {
+	io.ReadCloser
+	ctx  context.Context
+	stop func()
+}
+
+func (b *routeBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil {
+		if errors.Is(context.Cause(b.ctx), ErrRouteChanged) {
+			err = ErrRouteChanged
+		}
+		b.stop()
+	}
+	return n, err
+}
+
+func (b *routeBody) Close() error {
+	b.stop()
+	return b.ReadCloser.Close()
 }
 
 func (t *Transport) CloseIdleConnections() {
@@ -100,8 +174,9 @@ func systemRouteKey() string {
 }
 
 // NewForTest supplies a deterministic routing snapshot for offline tests.
-func NewForTest(base *http.Transport, routeKey func() string) *Transport {
+func NewForTest(base *http.Transport, routeKey func() string, interrupt ...bool) *Transport {
 	t := New(base)
 	t.routeKey = routeKey
+	t.interruptOnChange = len(interrupt) > 0 && interrupt[0]
 	return t
 }

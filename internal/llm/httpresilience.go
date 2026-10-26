@@ -91,6 +91,9 @@ func retryableStatus(code int) bool {
 }
 
 func isRetryableNetErr(err error) bool {
+	if errors.Is(err, networkhttp.ErrRouteChanged) {
+		return true
+	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
@@ -215,8 +218,12 @@ func NewResilientHTTPClient(policy config.APIResiliencePolicy) *http.Client {
 		}).DialContext,
 		ResponseHeaderTimeout: policy.ConnectTimeout,
 	}
+	routeTransport := networkhttp.New(transport)
+	if policy.MaxRetries > 1 {
+		routeTransport = networkhttp.NewRetrying(transport)
+	}
 	return &http.Client{
-		Transport: networkhttp.New(transport),
+		Transport: routeTransport,
 		Timeout:   0,
 	}
 }

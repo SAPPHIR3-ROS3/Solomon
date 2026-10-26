@@ -46,7 +46,8 @@ func chatGPTSubMiddleware(accountID string) option.Middleware {
 			return nil, err
 		}
 		applyCodexUpstreamHeaders(upReq, req.Header.Get("Authorization"), strings.TrimSpace(accountID), ResolveClientVersion(req.Context(), false), codexchat.CodexSessionID(chat))
-		upResp, err := http.DefaultClient.Do(upReq)
+		// Keep the configured client, including route changes and retry resets.
+		upResp, err := next(upReq)
 		if err != nil {
 			return nil, err
 		}
