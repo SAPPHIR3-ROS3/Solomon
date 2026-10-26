@@ -10,6 +10,8 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+
+	solomon "github.com/SAPPHIR3-ROS3/Solomon/v2026"
 )
 
 const SolomonModulePath = "github.com/SAPPHIR3-ROS3/Solomon/v2026"
@@ -164,7 +166,7 @@ func ensureOrchestrateStub(version string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	want := fmt.Sprintf("module solomon.orchestrate.stub\n\ngo %s\n\nrequire %s %s\n", RequiredGoVersion, SolomonModulePath, version)
+	want := fmt.Sprintf("module solomon.orchestrate.stub\n\ngo %s\n\nrequire %s %s\n", RequiredGoVersion(), SolomonModulePath, version)
 	goMod := filepath.Join(dir, "go.mod")
 	refresh := true
 	if b, err := os.ReadFile(goMod); err == nil && string(b) == want {
@@ -190,12 +192,14 @@ func ensureOrchestrateStub(version string) (string, error) {
 	return dir, nil
 }
 
-// RequiredGoVersion is the go directive of Solomon's go.mod. Orchestrate programs build against
+// RequiredGoVersion reads the go directive embedded from Solomon's go.mod. Orchestrate programs build against
 // the Solomon module, so they need at least this toolchain.
-const RequiredGoVersion = "1.27.3"
+func RequiredGoVersion() string {
+	return solomon.RequiredGoVersion()
+}
 
 // checkGoToolchain fails early, with a fix the user can apply, when the local go command is
-// older than RequiredGoVersion and is not allowed to download a newer toolchain.
+// older than RequiredGoVersion() and is not allowed to download a newer toolchain.
 func checkGoToolchain() error {
 	version, err := goEnv("GOVERSION")
 	if err != nil {
@@ -224,10 +228,10 @@ func goEnv(name string) (string, error) {
 // build orchestrate programs. Unparsable (devel) versions are accepted.
 func CheckGoToolchain(goVersion, goToolchain string) error {
 	local := GoDirectiveVersion(goVersion)
-	if local == "" || compareGoVersions(local, RequiredGoVersion) >= 0 || toolchainCanSwitch(goToolchain) {
+	if local == "" || compareGoVersions(local, RequiredGoVersion()) >= 0 || toolchainCanSwitch(goToolchain) {
 		return nil
 	}
-	return fmt.Errorf("orchestrate requires Go %s or newer (the version in Solomon's go.mod), but the local go command is %s and GOTOOLCHAIN=%s does not allow downloading a newer toolchain; install Go %s or newer, or run `go env -w GOTOOLCHAIN=auto`", RequiredGoVersion, strings.TrimSpace(goVersion), goToolchain, RequiredGoVersion)
+	return fmt.Errorf("orchestrate requires Go %s or newer (the version in Solomon's go.mod), but the local go command is %s and GOTOOLCHAIN=%s does not allow downloading a newer toolchain; install Go %s or newer, or run `go env -w GOTOOLCHAIN=auto`", RequiredGoVersion(), strings.TrimSpace(goVersion), goToolchain, RequiredGoVersion())
 }
 
 // toolchainCanSwitch reports whether GOTOOLCHAIN lets go select a newer toolchain on demand.

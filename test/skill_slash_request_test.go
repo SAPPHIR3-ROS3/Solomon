@@ -78,8 +78,8 @@ func TestOrchestrateRequiredGoVersionMatchesGoMod(t *testing.T) {
 	}
 	for _, line := range strings.Split(string(goMod), "\n") {
 		if version, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
-			if version != compile.RequiredGoVersion {
-				t.Fatalf("go.mod requires go %s, orchestrate requires %s", version, compile.RequiredGoVersion)
+			if version != compile.RequiredGoVersion() {
+				t.Fatalf("go.mod requires go %s, orchestrate requires %s", version, compile.RequiredGoVersion())
 			}
 			return
 		}
@@ -93,7 +93,7 @@ func TestOrchestrateCheckGoToolchain(t *testing.T) {
 		version, toolchain string
 		ok                 bool
 	}{
-		{"go" + compile.RequiredGoVersion, "local", true},
+		{"go" + compile.RequiredGoVersion(), "local", true},
 		{"go1.28.0", "local", true},
 		{"devel go1.28-abc", "local", true},
 		{"go1.26.10", "auto", true},
@@ -107,7 +107,7 @@ func TestOrchestrateCheckGoToolchain(t *testing.T) {
 		if (err == nil) != tc.ok {
 			t.Errorf("CheckGoToolchain(%q, %q) = %v, want ok=%v", tc.version, tc.toolchain, err, tc.ok)
 		}
-		if err != nil && (!strings.Contains(err.Error(), compile.RequiredGoVersion) || !strings.Contains(err.Error(), "GOTOOLCHAIN=auto")) {
+		if err != nil && (!strings.Contains(err.Error(), compile.RequiredGoVersion()) || !strings.Contains(err.Error(), "GOTOOLCHAIN=auto")) {
 			t.Errorf("error is not actionable: %v", err)
 		}
 	}
@@ -128,7 +128,7 @@ func TestOrchestrateBuildRejectsIncompatibleLocalToolchain(t *testing.T) {
 	if err == nil {
 		t.Fatal("build succeeded with an incompatible toolchain")
 	}
-	for _, want := range []string{"requires Go " + compile.RequiredGoVersion, "go1.26.10", "GOTOOLCHAIN=local", "GOTOOLCHAIN=auto"} {
+	for _, want := range []string{"requires Go " + compile.RequiredGoVersion(), "go1.26.10", "GOTOOLCHAIN=local", "GOTOOLCHAIN=auto"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q lacks %q", err, want)
 		}
