@@ -325,7 +325,7 @@ function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagen
           toolCalls={message.toolCalls}
         />
       ) : null}
-      <div className="chat-response-content" data-message-id={message.id}><MarkdownContent content={message.content} /></div>
+      <div className="chat-response-content" data-message-id={message.id}><MarkdownContent content={message.content} preserveLineBreaks={message.role === "user"} /></div>
     </article>
   );
 }

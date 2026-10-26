@@ -4,6 +4,7 @@ import type { ThemedToken } from "@shikijs/types";
 import { isValidElement, memo, type ReactNode, useEffect, useState } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Root, RootContent, PhrasingContent } from "mdast";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { normalizeMathDelimiters } from "./mathDelimiters";
@@ -27,6 +28,23 @@ const markdownComponents: Components = {
   ),
 };
 
+// Only text nodes contain Markdown soft breaks; code and math remain literal.
+function remarkUserLineBreaks() {
+  return (tree: Root) => {
+    function transform(parent: { children: (RootContent | PhrasingContent)[] }) {
+      parent.children = parent.children.flatMap((node): (RootContent | PhrasingContent)[] => {
+        if (node.type === "text") {
+          return node.value.split(/\r?\n/).flatMap((value, index) =>
+            index ? [{ type: "break" }, { type: "text", value }] : [{ type: "text", value }]);
+        }
+        if ("children" in node) transform(node);
+        return [node];
+      });
+    }
+    transform(tree);
+  };
+}
+
 // Thread switches remount the transcript. Keep a bounded in-memory cache of
 // parsed trees so reopening a thread does not repeat Markdown/math processing.
 // These are React descriptions, never mounted DOM or component state.
@@ -35,24 +53,25 @@ const MAX_CACHED_TREES = 512;
 const MAX_CACHED_CHARS = 2_000_000;
 let cachedChars = 0;
 
-export const MarkdownContent = memo(function MarkdownContent({ content }: { content: string }) {
-  const cached = markdownTrees.get(content);
+export const MarkdownContent = memo(function MarkdownContent({ content, preserveLineBreaks = false }: { content: string; preserveLineBreaks?: boolean }) {
+  const cacheKey = `${preserveLineBreaks ? "breaks:" : "markdown:"}${content}`;
+  const cached = markdownTrees.get(cacheKey);
   if (cached !== undefined) {
-    markdownTrees.delete(content);
-    markdownTrees.set(content, cached);
+    markdownTrees.delete(cacheKey);
+    markdownTrees.set(cacheKey, cached);
     return cached;
   }
   // react-markdown's synchronous renderer has no hooks; CodeBlock and other
   // stateful children remain React elements and keep their normal lifecycle.
   const tree = Markdown({
     components: markdownComponents,
-    remarkPlugins: [remarkGfm, remarkMath],
+    remarkPlugins: preserveLineBreaks ? [remarkGfm, remarkMath, remarkUserLineBreaks] : [remarkGfm, remarkMath],
     rehypePlugins: [rehypeImageTags, [rehypeKatex, { trust: false }]],
     children: escapeImageTags(normalizeMathDelimiters(normalizeCodeBlocks(content))),
   });
   if (content.length <= MAX_CACHED_CHARS) {
-    markdownTrees.set(content, tree);
-    cachedChars += content.length;
+    markdownTrees.set(cacheKey, tree);
+    cachedChars += cacheKey.length;
     while (markdownTrees.size > MAX_CACHED_TREES || cachedChars > MAX_CACHED_CHARS) {
       const oldest = markdownTrees.keys().next().value!;
       cachedChars -= oldest.length;

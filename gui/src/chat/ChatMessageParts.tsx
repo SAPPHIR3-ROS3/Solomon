@@ -167,7 +167,7 @@ export function CompactionCard({ message }: { message: ChatMessage }) {
                   <div className={`chat-retained-message is-${retainedMessage.role}`} key={`${retainedMessage.role}-${index}`}>
                     <div className="chat-retained-content">
                       {retainedMessage.images?.length ? <ChatImageAttachments images={retainedMessage.images} /> : null}
-                      <MarkdownContent content={retainedMessage.content} />
+                      <MarkdownContent content={retainedMessage.content} preserveLineBreaks={retainedMessage.role === "user"} />
                     </div>
                   </div>
                 ))}

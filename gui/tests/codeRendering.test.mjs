@@ -66,3 +66,18 @@ test('preserves inline code, unknown labels, incomplete blocks and literal backt
   assert.equal((html.match(/class="chat-code-block"/g) ?? []).length, 1);
   assert.ok(html.includes('>' + tick + 'python</span>'));
 });
+
+
+test('GUI user messages preserve soft line breaks without changing assistant rendering or code', () => {
+  const content = 'prima riga\nseconda **riga**\nterza riga';
+  const renderUser = (text) => renderToStaticMarkup(createElement(MarkdownContent, { content: text, preserveLineBreaks: true }));
+  const standard = render(content);
+  assert.equal(standard, '<p>prima riga\nseconda <strong>riga</strong>\nterza riga</p>');
+  assert.equal(renderUser(content), '<p>prima riga<br/>\nseconda <strong>riga</strong><br/>\nterza riga</p>');
+  assert.equal(render(content), standard, 'cached user rendering must not affect assistant messages');
+  assert.equal(renderUser('prima\n\nseconda'), '<p>prima</p>\n<p>seconda</p>');
+  assert.equal(renderUser('prima  \nseconda'), '<p>prima<br/>\nseconda</p>');
+  const code = tick.repeat(3) + 'text\nprima\nseconda\n' + tick.repeat(3);
+  assert.equal(renderUser(code), render(code), 'code blocks must remain literal');
+  assert.equal(renderUser(tick + 'prima\nseconda' + tick), render(tick + 'prima\nseconda' + tick));
+});
