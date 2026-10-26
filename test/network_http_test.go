@@ -1,6 +1,7 @@
-package networkhttp
+package test
 
 import (
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,10 +13,9 @@ func TestRouteChangeReplacesConnectionPool(t *testing.T) {
 		_, _ = io.WriteString(w, r.RemoteAddr)
 	}))
 	defer server.Close()
-	transport := New(http.DefaultTransport.(*http.Transport))
-	defer transport.CloseIdleConnections()
 	route := "wifi"
-	transport.routeKey = func() string { return route }
+	transport := networkhttp.NewForTest(http.DefaultTransport.(*http.Transport), func() string { return route })
+	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport}
 	request := func() string {
 		t.Helper()
@@ -64,10 +64,9 @@ func TestRouteChangePreservesActiveResponse(t *testing.T) {
 	}))
 	defer server.Close()
 	defer close(release)
-	transport := New(http.DefaultTransport.(*http.Transport))
-	defer transport.CloseIdleConnections()
 	route := "wifi"
-	transport.routeKey = func() string { return route }
+	transport := networkhttp.NewForTest(http.DefaultTransport.(*http.Transport), func() string { return route })
+	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport}
 	response, err := client.Get(server.URL + "/stream")
 	if err != nil {

@@ -98,3 +98,10 @@ func systemRouteKey() string {
 	}
 	return key
 }
+
+// NewForTest supplies a deterministic routing snapshot for offline tests.
+func NewForTest(base *http.Transport, routeKey func() string) *Transport {
+	t := New(base)
+	t.routeKey = routeKey
+	return t
+}
