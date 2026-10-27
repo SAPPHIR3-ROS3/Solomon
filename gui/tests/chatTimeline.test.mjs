@@ -10,6 +10,23 @@ const server = await createServer({ root: fileURLToPath(new URL("..", import.met
 const { ChatMessageGroups } = await server.ssrLoadModule("/src/chat/ChatMessageGroups.tsx");
 const { liveWorkedForSeconds, indexChatMessages } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
 
+test("resend appears only on the latest user turn between delete and copy", () => {
+  const messages = indexChatMessages([
+    { id: "u1", role: "user", content: "first" },
+    { id: "a1", role: "assistant", content: "reply" },
+    { id: "u2", role: "user", content: "latest" },
+    { id: "a2", role: "assistant", content: "answer" },
+  ]);
+  const props = { messages, onRequestDelete() {}, onRegenerate() {} };
+  const html = renderToStaticMarkup(createElement(ChatMessageGroups, props));
+  assert.equal((html.match(/aria-label="Resend message"/g) ?? []).length, 1);
+  const latest = html.slice(html.indexOf("latest"));
+  assert.ok(latest.indexOf('aria-label="Delete message"') < latest.indexOf('aria-label="Resend message"'));
+  assert.ok(latest.indexOf('aria-label="Resend message"') < latest.indexOf('aria-label="Copy message"'));
+  const running = renderToStaticMarkup(createElement(ChatMessageGroups, { ...props, isWorking: true }));
+  assert.doesNotMatch(running, /aria-label="Resend message"/);
+});
+
 test("streaming retains historical entries and recomputes checkpoints when their context changes", () => {
   const user={id:'u',role:'user',content:'Question'};
   const answer={id:'a',role:'assistant',content:'Answer',toolCalls:[{id:'t',name:'shell'}]};

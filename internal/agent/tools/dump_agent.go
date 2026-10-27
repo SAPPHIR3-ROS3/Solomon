@@ -11,6 +11,9 @@ func BuildAgentToolDump() (string, error) {
 	if err := appendSearchSkillDump(b); err != nil {
 		return "", err
 	}
+	if err := appendInstallSkillDump(b); err != nil {
+		return "", err
+	}
 	if err := appendLoadSkillDump(b); err != nil {
 		return "", err
 	}

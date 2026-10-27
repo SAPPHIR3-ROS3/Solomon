@@ -46,6 +46,15 @@ func getSlashBuiltins() []slashBuiltin {
 		}},
 		{[]string{"agent"}, "/agent", "agent mode (searchTools, orchestrate, switchMode)", nil, func(d Deps, parts []string) error { return Agent(d) }},
 		{[]string{"chat"}, "/chat", "chat mode (web search, docs, switchMode)", nil, func(d Deps, parts []string) error { return Chat(d) }},
+		{[]string{"regenerate"}, "/regenerate", "regenerate the response to the last user message", nil, func(d Deps, parts []string) error {
+			if len(parts) != 1 {
+				return fmt.Errorf("usage: /regenerate")
+			}
+			if d.Regenerate == nil {
+				return fmt.Errorf("regenerate unavailable")
+			}
+			return d.Regenerate()
+		}},
 		{[]string{"clear"}, "/clear", "clear terminal (ANSI)", nil, func(d Deps, parts []string) error { return Clear(d) }},
 		{[]string{"cleansessioncache"}, "/cleansessioncache", "/cleansessioncache — drop broken pasted PNG paths and strip orphaned [img-*] from transcript", nil, func(d Deps, parts []string) error {
 			return CleanSessionCache(d)

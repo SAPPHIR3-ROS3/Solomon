@@ -218,6 +218,11 @@ export function liveChatFromPayload(payload: unknown, projectID: string, imageOr
 
 export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, imageOrigin = "", replay = false): LiveChat {
   const type = stringValue(event.type);
+  if (type === "regenerate_start") {
+    let lastUser = chat.messages.length - 1;
+    while (lastUser >= 0 && chat.messages[lastUser].role !== "user") lastUser--;
+    return { ...chat, messages: chat.messages.slice(0, lastUser + 1), rateLimitNotice: undefined };
+  }
   if (type === "chat_title") {
     const title = stringValue(event.title).trim();
     return title ? { ...chat, title } : chat;

@@ -15,12 +15,14 @@ import (
 )
 
 type InstallOpts struct {
-	Ctx      context.Context
-	Out      io.Writer
-	In       io.Reader
-	ProjHex  string
-	ProjRoot string
-	Args     []string
+	// NonInteractive is for already-authorized tool installs; slash installs still prompt.
+	NonInteractive bool
+	Ctx            context.Context
+	Out            io.Writer
+	In             io.Reader
+	ProjHex        string
+	ProjRoot       string
+	Args           []string
 }
 
 type parsedAdd struct {
@@ -147,12 +149,14 @@ func RunInstall(opts InstallOpts) (err error) {
 			p.DisplayName = meta.DisplayName
 		}
 		shCmd := EnsureSkillsAddGlobalYes(meta.InstallShellCommand())
-		ok, err := ConfirmInstall(opts.In, opts.Out, meta)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return fmt.Errorf("install cancelled")
+		if !opts.NonInteractive {
+			ok, err := ConfirmInstall(opts.In, opts.Out, meta)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return fmt.Errorf("install cancelled")
+			}
 		}
 		p.NpmCommand = shCmd
 	}

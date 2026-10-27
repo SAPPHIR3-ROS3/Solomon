@@ -300,7 +300,12 @@ export async function unstageProjectChanges(projectID: string, paths: string[]):
   return updateProjectGitIndex(projectID, "unstage", paths);
 }
 
-async function updateProjectGitIndex(projectID: string, action: "stage" | "unstage", paths: string[]): Promise<ProjectGitStatus> {
+export async function restoreProjectChanges(projectID: string, path: string): Promise<void> {
+  await updateProjectGitIndex(projectID, "restore", [path]);
+  window.dispatchEvent(new CustomEvent(PROJECT_FILES_CHANGED_EVENT, { detail: { projectID, action: "restore", path } }));
+}
+
+async function updateProjectGitIndex(projectID: string, action: "stage" | "unstage" | "restore", paths: string[]): Promise<ProjectGitStatus> {
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/${action}`), {
     body: JSON.stringify({ paths }),
     headers: { "Content-Type": "application/json" },
@@ -583,7 +588,7 @@ function readProjectSidebarCache(): ProjectSidebarData | null {
 
 export const PROJECT_FILES_CHANGED_EVENT = "solomon:project-files-changed";
 export type ProjectFileOperation = { action: "rename" | "delete" | "copy" | "move" | "create-file" | "create-folder"; path: string; destination?: string };
-export type ProjectFilesChanged = ProjectFileOperation & { projectID: string };
+export type ProjectFilesChanged = (ProjectFileOperation | { action: "restore"; path: string; destination?: undefined }) & { projectID: string };
 export async function operateProjectFile(projectID: string, operation: ProjectFileOperation): Promise<void> {
   const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/file-operation`), {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(operation),

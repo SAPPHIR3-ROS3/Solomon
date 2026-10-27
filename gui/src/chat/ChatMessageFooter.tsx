@@ -3,7 +3,7 @@ import type { ChatMessage, ChatStats } from "./chatTypes";
 import { CheckIcon, CloseIcon, CopyIcon, InfoIcon } from "./ChatIcons";
 import { copyText } from "./chatClipboard";
 
-export function MessageFooter({ index, message, onRequestDelete }: { index: number; message: ChatMessage; onRequestDelete?: () => void }) {
+export function MessageFooter({ index, message, onRequestDelete, onRegenerate }: { index: number; message: ChatMessage; onRequestDelete?: () => void; onRegenerate?: () => void }) {
   const [copied, setCopied] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [legacyCreatedAt] = useState(() => Date.now());
@@ -47,6 +47,7 @@ export function MessageFooter({ index, message, onRequestDelete }: { index: numb
           <CloseIcon />
         </button>
       ) : null}
+      {onRegenerate ? <button aria-label="Resend message" className="chat-copy-message" onClick={onRegenerate} title="Resend message" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5M20 7l-3-3" /></svg></button> : null}
       <button
         aria-label={copied ? "Message copied" : "Copy message"}
         className="chat-copy-message"
@@ -160,7 +161,7 @@ export function ReasoningBlock({ isCollapsed, isLive = false, message, onToggle,
     >
       {!isCollapsed && reasoning ? <div className="chat-reasoning-copy">{reasoning}</div> : null}
       {(displayedThoughtFor !== undefined && displayedThoughtFor > 0) || isCollapsed ? (
-        <div className="chat-thought-for"><span className="chat-reasoning-wave">{displayedThoughtFor !== undefined && displayedThoughtFor > 0 ? formatThoughtDuration(displayedThoughtFor) : isLive ? "thinking" : "reasoning"}</span></div>
+        <div className="chat-thought-for"><span className="chat-reasoning-wave">{displayedThoughtFor !== undefined && displayedThoughtFor > 0 ? formatThoughtDuration(displayedThoughtFor) : isLive ? "thinking" : "thought briefly"}</span></div>
       ) : null}
     </div>
   );

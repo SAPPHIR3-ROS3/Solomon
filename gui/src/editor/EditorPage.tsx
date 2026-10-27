@@ -170,6 +170,11 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
         if ((change.action === "rename" || change.action === "move") && change.destination) return change.destination + path.slice(change.path.length);
         return path;
       });
+      if (change.action === "restore") {
+        void fetchProjectFile(project.id, change.path).then((content) => {
+          if (!cancelled) setFiles((current) => current.map((file) => file.path === change.path ? { ...file, content, saved: content } : file));
+        }).catch(() => { if (!cancelled) setMessage("Unable to reload restored file."); });
+      }
       if (change.action === "delete") {
         setFiles((current) => current.filter((file) => !affected(file.path)));
       } else if ((change.action === "rename" || change.action === "move") && change.destination) {

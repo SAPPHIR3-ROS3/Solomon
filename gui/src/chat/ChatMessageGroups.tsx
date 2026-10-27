@@ -13,15 +13,17 @@ import { useStartToolCallsCollapsed, useGUIChatPreferencesState } from "../setti
 type ChatMessageGroupHandlers = {
   onOpenSubagent?: (messageID: string, toolID: string) => void;
   onRequestDelete?: (message: ChatMessage) => void;
+  onRegenerate?: () => void;
   onStopTool?: (messageID: string, toolID: string) => void;
 };
 
-export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !== undefined, messages, onOpenSubagent, onRequestDelete, onStopTool, rateLimitNotice }: { isWorking?: boolean; liveWorkedFor?: number; messages: IndexedChatMessage[]; rateLimitNotice?: string } & ChatMessageGroupHandlers) {
+export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !== undefined, messages, onOpenSubagent, onRequestDelete, onRegenerate, onStopTool, rateLimitNotice }: { isWorking?: boolean; liveWorkedFor?: number; messages: IndexedChatMessage[]; rateLimitNotice?: string } & ChatMessageGroupHandlers) {
   const preferences = useGUIChatPreferencesState();
   const preferencesReady = preferences.ready;
   const autoCollapseToolCalls = preferences.chat.autoCloseToolCalls;
   const startToolCallsCollapsed = preferences.chat.startToolCallsCollapsed;
   const groups = groupChatTurns(messages);
+  const lastUserID = messages.filter(entry => entry.message.role === "user").at(-1)?.message.id;
 
 
   return (
@@ -53,6 +55,7 @@ export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !==
             entry={first}
             key={first.message.id}
             onOpenSubagent={onOpenSubagent}
+            onRegenerate={!isWorking && first.message.id === lastUserID ? onRegenerate : undefined}
             onRequestDelete={onRequestDelete}
             onStopTool={onStopTool}
             rateLimitNotice={isLast ? rateLimitNotice : undefined}
@@ -67,7 +70,7 @@ const UserTurn = memo(function UserTurn({ entry, rateLimitNotice, ...handlers }:
   const actions = messageActions(entry, handlers);
   return (
     <>
-      <ChatMessageTurn checkpoint={entry.checkpoint} index={entry.index} message={entry.message} onOpenSubagent={actions.onOpenSubagent} onRequestDelete={actions.onRequestDelete} onStopTool={actions.onStopTool} />
+      <ChatMessageTurn checkpoint={entry.checkpoint} index={entry.index} message={entry.message} onOpenSubagent={actions.onOpenSubagent} onRegenerate={handlers.onRegenerate} onRequestDelete={actions.onRequestDelete} onStopTool={actions.onStopTool} />
       {rateLimitNotice ? <RateLimitNotice raw={rateLimitNotice} /> : null}
     </>
   );
@@ -287,12 +290,12 @@ function AssistantMessageBlock({ checkpoint, isWorking = false, message, onOpenS
   );
 }
 
-function ChatMessageTurn({ checkpoint, index, message, onOpenSubagent, onRequestDelete, onStopTool }: { checkpoint?: CheckpointMetadata; index: number; message: ChatMessage; onOpenSubagent?: (tool: ChatToolCall) => void; onRequestDelete?: () => void; onStopTool?: (toolID: string) => void }) {
+function ChatMessageTurn({ checkpoint, index, message, onOpenSubagent, onRequestDelete, onRegenerate, onStopTool }: { checkpoint?: CheckpointMetadata; index: number; message: ChatMessage; onOpenSubagent?: (tool: ChatToolCall) => void; onRequestDelete?: () => void; onRegenerate?: () => void; onStopTool?: (toolID: string) => void }) {
   return (
     <div className={`chat-turn is-${message.role}`} data-checkpoint={checkpoint?.label}>
       <ChatMessageBody checkpoint={checkpoint} message={message} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} />
       {message.status === "interrupted" ? <InterruptedGenerationMarker /> : null}
-      <MessageFooter index={index} message={message} onRequestDelete={onRequestDelete} />
+      <MessageFooter index={index} message={message} onRegenerate={onRegenerate} onRequestDelete={onRequestDelete} />
     </div>
   );
 }
@@ -315,7 +318,7 @@ function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagen
     <article className={"chat-message is-" + message.role} onClick={canCollapseReasoning ? handleMessageClick : undefined}>
       {checkpoint && !(message.role === "assistant" && message.toolCalls?.length) ? <CheckpointLabel label={checkpoint.label} /> : null}
       {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
-      {message.role === "assistant" && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} suppressBriefThought={suppressBriefThought} suppressThoughtFor={toolActivity !== undefined} /> : null}
+      {message.role === "assistant" && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} suppressBriefThought={suppressBriefThought} /> : null}
       {message.toolCalls?.length ? (
         <ToolActivity
           isCollapsed={toolActivity?.isCollapsed}

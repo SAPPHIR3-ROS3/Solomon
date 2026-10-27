@@ -97,6 +97,7 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 		PrefillInput: func(s string) {
 			r.setReplInputPrefill(s)
 		},
+		Regenerate:               func() error { return r.regenerate(ctx) },
 		SubmitUserMessage:        func(s string) error { return r.onUserMessage(ctx, s, false) },
 		SubmitVisibleUserMessage: func(visible, api string) error { return r.onUserMessageWithAPIContent(ctx, visible, api, false) },
 		AtIncludeNotifier:        r.atIncludeNotifier,

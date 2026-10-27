@@ -432,7 +432,7 @@ function entryMatchesFilter(entry: ProjectDirectoryEntry, nameFilter: string, en
 }
 
 export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onOpenFileInNewTab, onStageEntry, onUnstageEntry, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
-  const contextMenu = useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpenFile, onOpenFileInNewTab, onToggleDirectory });
+  const contextMenu = useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpenFile, onOpenFileInNewTab, onToggleDirectory, canRestore: onStageEntry ? (entry) => !entry.isDirectory && !!fileStatus?.[entry.path] && fileStatus[entry.path] !== "U" : undefined });
   return <>{entries[parentPath]?.filter((entry) => entryMatchesFilter(entry, nameFilter, entries)).map((entry) => {
     const hasMatchingChild = Boolean(nameFilter) && entry.isDirectory && (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
     const isExpanded = entry.isDirectory && (hasMatchingChild || (collapsedDirectories ? !collapsedDirectories.has(entry.path) : expandedDirectories.has(entry.path)));

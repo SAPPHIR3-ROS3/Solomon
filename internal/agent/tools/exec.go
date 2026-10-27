@@ -90,7 +90,7 @@ func isInternalToolName(name string) bool {
 }
 
 func isSkillToolName(name string) bool {
-	return name == "loadSkill" || name == "searchSkill"
+	return name == "loadSkill" || name == "searchSkill" || name == "installSkill"
 }
 
 func modeAllowed(env *Env, mode, tool string) bool {
@@ -112,7 +112,7 @@ func modeAllowed(env *Env, mode, tool string) bool {
 	switch m {
 	case "agent":
 		switch tool {
-		case "searchTools", "orchestrate", "settings", "customizeUI", "switchMode", "loadSkill", "searchSkill", "subagent", "listSubAgents":
+		case "searchTools", "orchestrate", "settings", "customizeUI", "switchMode", "loadSkill", "searchSkill", "installSkill", "subagent", "listSubAgents":
 			return true
 		default:
 			if isPlanTool(tool) {
@@ -208,7 +208,7 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 
 func dispatchExternal(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (any, error) {
 	if isSkillToolName(inv.Name) {
-		return dispatchSkill(env, mode, inv)
+		return dispatchSkill(ctx, env, mode, inv)
 	}
 	if env.MCP != nil && env.MCP.HasTool(inv.Name) {
 		if !modeAllowed(env, mode, inv.Name) {
@@ -221,11 +221,13 @@ func dispatchExternal(ctx context.Context, env *Env, mode string, inv tooling.In
 	return nil, err
 }
 
-func dispatchSkill(env *Env, mode string, inv tooling.Invocation) (any, error) {
+func dispatchSkill(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (any, error) {
 	if !modeAllowed(env, mode, inv.Name) {
 		return nil, rejectMode(inv.Name, mode)
 	}
 	switch inv.Name {
+	case "installSkill":
+		return execInstallSkill(ctx, env, inv.Args)
 	case "loadSkill":
 		return execLoadSkill(env, inv.Args)
 	case "searchSkill":

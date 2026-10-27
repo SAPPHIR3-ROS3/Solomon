@@ -384,3 +384,5 @@ Implementation: [Skills and slash](../architecture/skills-and-slash.md).
 - [Data layout](data-layout.md)
 - [Runtime and REPL](../architecture/runtime-and-repl.md)
 - [Plan vs build](../architecture/plan-vs-build.md)
+
+`/regenerate` rigenera la risposta all’ultimo messaggio utente mantenendo gli allegati e il contesto precedente. Nel terminale pulisce lo schermo e ristampa la conversazione. Nella GUI è disponibile anche dal tasto Resend tra elimina e copia dell’ultimo messaggio utente. La risposta precedente viene sostituita; eventuali modifiche ai file già effettuate non vengono annullate.

@@ -1,23 +1,24 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { fetchProjectAtMentionSuggestions, operateProjectFile, type ProjectDirectoryEntry, type ProjectFileOperation } from "../projects/projects";
+import { fetchProjectAtMentionSuggestions, operateProjectFile, restoreProjectChanges, type ProjectDirectoryEntry, type ProjectFileOperation } from "../projects/projects";
 import { copyTextFallback } from "../chat/chatClipboard";
 import { addFileToChat } from "../chat/fileReferences";
 
 type FileClipboard = { projectID: string; entry: ProjectDirectoryEntry; cut: boolean };
 let fileClipboard: FileClipboard | null = null;
-type FileDialog = { kind: "rename" | "delete" | "paste"; entry: ProjectDirectoryEntry; clipboard?: FileClipboard };
+type FileDialog = { kind: "rename" | "delete" | "paste" | "restore"; entry: ProjectDirectoryEntry; clipboard?: FileClipboard };
 
 type Options = {
   projectID?: string;
   allowAddToChat?: boolean;
   rootPath?: string;
+  canRestore?: (entry: ProjectDirectoryEntry) => boolean;
   onOpenFile?: (entry: ProjectDirectoryEntry) => void;
   onOpenFileInNewTab?: (entry: ProjectDirectoryEntry) => void;
   onToggleDirectory: (entry: ProjectDirectoryEntry) => void;
 };
 
-export function useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpenFile, onOpenFileInNewTab, onToggleDirectory }: Options) {
+export function useFileContextMenu({ projectID, allowAddToChat, rootPath, canRestore, onOpenFile, onOpenFileInNewTab, onToggleDirectory }: Options) {
   const [target, setTarget] = useState<{ entry: ProjectDirectoryEntry; x: number; y: number } | null>(null);
   const [dialog, setDialog] = useState<FileDialog | null>(null);
   const [value, setValue] = useState("");
@@ -72,6 +73,13 @@ export function useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpen
   }
   async function submitOperation() {
     if (!dialog || !projectID || busy) return;
+    if (dialog.kind === "restore") {
+      setBusy(true); setError("");
+      try { await restoreProjectChanges(projectID, dialog.entry.path); setDialog(null); close(); }
+      catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to restore file."); }
+      finally { setBusy(false); }
+      return;
+    }
     let operation: ProjectFileOperation;
     if (dialog.kind === "delete") operation = { action: "delete", path: dialog.entry.path };
     else if (dialog.kind === "rename") {
@@ -125,6 +133,7 @@ export function useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpen
         {onOpenFileInNewTab ? <button role="menuitem" type="button" onClick={() => { onOpenFileInNewTab(entry); close(); }}>Open in new tab</button> : null}
       </>}
       {projectID ? <>
+        {canRestore?.(entry) ? <button className="is-danger" role="menuitem" type="button" onClick={() => beginDialog("restore", entry)}>Restore changes</button> : null}
         {allowAddToChat ? <button disabled={busy} role="menuitem" type="button" onClick={() => void attach(entry)}>Add to chat</button> : null}
         <div className="project-context-menu-divider" role="separator" />
         <button role="menuitem" type="button" onClick={() => { fileClipboard = { projectID, entry, cut: true }; close(); }}>Cut</button>
@@ -149,12 +158,12 @@ export function useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpen
       }
     }}>
       <form className="project-removal-dialog file-operation-dialog" role="dialog" aria-modal="true" aria-labelledby="file-operation-title" onSubmit={(event) => { event.preventDefault(); void submitOperation(); }}>
-        <h2 id="file-operation-title">{dialog.kind === "delete" ? "Delete" : dialog.kind === "rename" ? "Rename" : "Paste"} {dialog.kind === "paste" ? dialog.clipboard?.entry.name : dialog.entry.name}</h2>
-        {dialog.kind === "delete" ? <p>This will permanently delete {dialog.entry.isDirectory ? "this folder and its contents" : "this file"}.</p> : <label>{dialog.kind === "rename" ? "New name" : "Destination path"}<input autoFocus disabled={busy} value={value} onChange={(event) => setValue(event.target.value)} /></label>}
+        <h2 id="file-operation-title">{dialog.kind === "restore" ? "Restore changes" : dialog.kind === "delete" ? "Delete" : dialog.kind === "rename" ? "Rename" : "Paste"} {dialog.kind === "paste" ? dialog.clipboard?.entry.name : dialog.entry.name}</h2>
+        {dialog.kind === "restore" ? <p>Discard unstaged changes to this file? The file will be restored to its staged version. This cannot be undone.</p> : dialog.kind === "delete" ? <p>This will permanently delete {dialog.entry.isDirectory ? "this folder and its contents" : "this file"}.</p> : <label>{dialog.kind === "rename" ? "New name" : "Destination path"}<input autoFocus disabled={busy} value={value} onChange={(event) => setValue(event.target.value)} /></label>}
         {error ? <p className="project-removal-dialog-error" role="alert">{error}</p> : null}
         <div className="project-removal-dialog-actions">
-          <button autoFocus={dialog.kind === "delete"} disabled={busy} type="button" onClick={() => { setDialog(null); close(); }}>Cancel</button>
-          <button disabled={busy} className={dialog.kind === "delete" ? "is-danger" : ""} type="submit">{busy ? "Working…" : dialog.kind === "delete" ? "Delete" : dialog.kind === "rename" ? "Rename" : "Paste"}</button>
+          <button autoFocus={dialog.kind === "delete" || dialog.kind === "restore"} disabled={busy} type="button" onClick={() => { setDialog(null); close(); }}>Cancel</button>
+          <button disabled={busy} className={dialog.kind === "delete" || dialog.kind === "restore" ? "is-danger" : ""} type="submit">{busy ? "Working…" : dialog.kind === "restore" ? "Restore changes" : dialog.kind === "delete" ? "Delete" : dialog.kind === "rename" ? "Rename" : "Paste"}</button>
         </div>
       </form>
     </div>, document.body) : null}</>,

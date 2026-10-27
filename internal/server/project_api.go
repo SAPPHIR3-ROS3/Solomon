@@ -87,7 +87,7 @@ func (*projectAPI) handlesProjectRoute(path string) bool {
 		return false
 	}
 	switch parts[1] {
-	case "disk", "removal-info", "file-operation", "file", "files", "research", "history", "status", "stage", "unstage", "branches", "checkout", "worktrees":
+	case "disk", "removal-info", "file-operation", "file", "files", "research", "history", "status", "stage", "unstage", "restore", "branches", "checkout", "worktrees":
 		return true
 	default:
 		return false
@@ -145,6 +145,10 @@ func (a *projectAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) 
 	}
 	if len(parts) == 2 && parts[1] == "stage" && r.Method == http.MethodPost {
 		a.handleProjectStage(w, r, projectID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "restore" && r.Method == http.MethodPost {
+		a.handleProjectRestore(w, r, projectID)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "unstage" && r.Method == http.MethodPost {
@@ -362,6 +366,27 @@ func (a *projectAPI) handleProjectUnstage(w http.ResponseWriter, r *http.Request
 		return
 	}
 	status, err := unstageGitPaths(root, request.Paths)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (a *projectAPI) handleProjectRestore(w http.ResponseWriter, r *http.Request, projectID string) {
+	var request struct {
+		Paths []string `json:"paths"`
+	}
+	if err := decodeJSONBody(w, r, &request, 1<<20); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err)
+		return
+	}
+	root, err := registeredProjectRoot(projectID)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, err)
+		return
+	}
+	status, err := restoreGitPaths(root, request.Paths)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
@@ -882,6 +907,10 @@ func gitStatus(root string) (apiProjectGitStatus, error) {
 
 func stageGitPaths(root string, paths []string) (apiProjectGitStatus, error) {
 	return applyGitIndex(root, []string{"add", "--"}, paths, "stage git paths")
+}
+
+func restoreGitPaths(root string, paths []string) (apiProjectGitStatus, error) {
+	return applyGitIndex(root, []string{"--literal-pathspecs", "restore", "--worktree", "--"}, paths, "restore git paths")
 }
 
 func unstageGitPaths(root string, paths []string) (apiProjectGitStatus, error) {

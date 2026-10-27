@@ -41,6 +41,8 @@ func FormatToolDisplayLines(name string, rawArgs json.RawMessage) []string {
 		return formatSubagentToolDisplayLines(m)
 	case "loadSkill":
 		return []string{termcolor.ToolHeaderLine("loadSkill", jsonDisplayString(m["name"]))}
+	case "installSkill":
+		return []string{termcolor.ToolHeaderLine("installSkill", "skills")}
 	case "searchSkill":
 		return []string{termcolor.ToolHeaderLine("searchSkill", jsonDisplayString(m["query"]))}
 	case "searchTools":

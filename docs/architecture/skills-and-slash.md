@@ -55,7 +55,9 @@ Scopes (last `/add` argument; default `global`):
 
 See [Data layout](../user-guide/data-layout.md#skills).
 
-**skills.sh URLs** — `/add https://skills.sh/owner/repo/skill [scope]` (and `https://www.skills.sh/...`) are normalized and turned into `npx --yes skills add <repo> --skill <pkg> -y`. The npm `skills` CLI stages files under `~/.agents/skills/`; Solomon then copies into the scope above. Solomon does not auto-append npm `-g`/`--global`; scope is controlled by the Solomon argument, not the npm CLI global flag.
+**skills.sh URLs** — `/add https://skills.sh/owner/repo/skill [scope]` (and `https://www.skills.sh/...`) are normalized and turned into `npx --yes skills add <repo> --skill <pkg> -y`. The npm `skills` CLI stages files under `~/.agents/skills/`; Solomon then copies into the scope above. Solomon stages npm installs globally with `-g -y -a cursor`; the final Solomon scope is controlled by the last `/add` argument.
+
+The native agent tool `installSkill(args []string, intent string)` uses the same `skills.RunInstall` pipeline. Pass the arguments after `/add` as an array. Tool installs are noninteractive and require an explicit user installation request; slash installs retain their confirmation prompt. Installation errors include the skills CLI output, including unavailable upstream skills.
 
 ## Install command validation
 

@@ -264,6 +264,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
               liveWorkedFor={liveWorkedFor}
               messages={indexedMessages.slice(history.start)}
               onOpenSubagent={openSubagentMessage}
+              onRegenerate={() => void sendFromComposer("/regenerate", [])}
               onRequestDelete={setDeleteTarget}
               onStopTool={stopMessageTool}
               rateLimitNotice={chat.rateLimitNotice}

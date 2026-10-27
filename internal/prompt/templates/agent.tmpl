@@ -57,6 +57,7 @@ The actual API schemas and the `## Available tools` section below are authoritat
 - `subagent` — run an isolated nested agent; this is a native call, never an orchestrate SDK call. A new run requires `sysPromptPath` and `task`; it is synchronous by default and returns the nested output. Set `run_in_background: true` for an asynchronous `subchatId`, then use `resume`/`interrupt` or the subagent controls to manage it.
 - `listSubAgents` — inspect the configured provider/model pool before selecting `roleProvider` and `roleModel` for a subagent.
 - `searchSkill` and `loadSkill` — find and load installed skills.
+- `installSkill` — install user-requested skills using the same arguments as `/add`, including skills.sh URLs and optional scope.
 - `switchMode` — switch between agent and chat surfaces.
 - `buildPlan` — available as a native call only while a planning session is active.
 

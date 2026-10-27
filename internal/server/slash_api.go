@@ -65,6 +65,7 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 	}
 	// A skill sends the typed line as the visible request of its agent turn.
 	skillTurn := slash.RunsSkill(content, projectID, root)
+	regenerateCommand := strings.EqualFold(strings.Fields(content)[0], "/regenerate")
 	generateTitle := skillTurn && needsChatTitleGeneration(sess)
 	start := map[string]any{"chat": apiChatFromSession(projectID, sess, run)}
 	if skillTurn {
@@ -101,7 +102,7 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 				commandRecorded = true
 			}
 		}
-		if !commandRecorded {
+		if !commandRecorded && !regenerateCommand {
 			sess.Messages = append(sess.Messages, chatstore.Message{GUIHidden: !skillTurn, Role: "user", Content: content, CreatedAt: time.Now().UTC()})
 		}
 		if text != "" {

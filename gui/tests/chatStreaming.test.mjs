@@ -108,3 +108,14 @@ test("a skill request sent by the server appears once, and snapshots keep it unl
   ] } }, "", false);
   assert.deepEqual(snapshot.messages.map(message => message.content), ["/teach review cryptography"]);
 });
+
+test("regenerate replaces the last answer while preserving the original user attachments", () => {
+  const user = { id: "user", role: "user", content: "question", images: [{ id: "image" }] };
+  const history = { id: "earlier", role: "assistant", content: "earlier reply" };
+  const chat = { id: "chat", messages: [history, user, { id: "old", role: "assistant", content: "old answer" }], status: "running" };
+  const regenerated = applyLiveStreamEvent(chat, { type: "regenerate_start" });
+  assert.deepEqual(regenerated.messages, [history, user]);
+  assert.equal(regenerated.messages[1], user);
+  assert.equal(regenerated.status, "running");
+  assert.equal(chat.messages.length, 3);
+});

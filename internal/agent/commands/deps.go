@@ -59,6 +59,7 @@ type Deps struct {
 	AppendReadlineHistory func(line string) error
 
 	PrefillInput             func(string)
+	Regenerate               func() error
 	SubmitUserMessage        func(string) error
 	SubmitVisibleUserMessage func(visible, api string) error
 	AtIncludeNotifier        func() *atmention.Notifier
