@@ -145,7 +145,7 @@ for (const [width, height] of [[320, 640], [390, 844], [412, 915], [844, 390]]) 
       await withinViewport(page, ".editor-page");
       await page.getByRole("button", { name: "Agent", exact: true }).tap();
       await page.getByRole("button", { name: "Expand side panel", exact: true }).tap();
-      await page.getByRole("button", { name: "Customization", exact: true }).tap();
+      await page.getByRole("button", { name: "Agents Customization", exact: true }).tap();
       if (await page.locator(".side-panel-backdrop").isVisible()) await page.getByRole("button", { name: "Close side panels" }).tap();
       await page.getByRole("tab", { name: "Subagents", exact: true }).tap();
       await withinViewport(page, ".customization-screen");

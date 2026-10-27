@@ -1,3 +1,4 @@
+import { useAgentPages } from "./shell/useAgentPages";
 import { normalizeTemporaryWorkspacePath } from "./projects/temporaryPath";
 import { useTerminalActivity } from "./terminal-panel/useTerminalActivity";
 import { useLayout } from "./shell/useLayout";
@@ -47,8 +48,7 @@ export function App() {
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [editorFile, setEditorFile] = useState<{ projectID: string; entry: import("./projects/projects").ProjectDirectoryEntry } | null>(null);
   const [activeView, setActiveView] = useState<View>("agent");
-  const [isActiveAgentsOpen, setIsActiveAgentsOpen] = useState(false);
-  const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+  const { isActiveAgentsOpen, isCustomizationOpen, setIsActiveAgentsOpen, setIsCustomizationOpen } = useAgentPages();
   const [openSubagentRequest, setOpenSubagentRequest] = useState<{ chatID: string; subchatID: string; task?: string; title?: string; toolID?: string; status?: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(isSettingsPath);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
@@ -174,24 +174,14 @@ export function App() {
 
   function toggleActiveAgents() {
     closeNavigationPanels();
-    setIsActiveAgentsOpen((open) => {
-      if (!open) {
-        setIsCustomizationOpen(false);
-        setIsRightSidePanelOpen(false);
-      }
-      return !open;
-    });
+    if (!isActiveAgentsOpen) setIsRightSidePanelOpen(false);
+    setIsActiveAgentsOpen(!isActiveAgentsOpen);
   }
 
   function toggleCustomization() {
     closeNavigationPanels();
-    setIsCustomizationOpen((open) => {
-      if (!open) {
-        setIsActiveAgentsOpen(false);
-        setIsRightSidePanelOpen(false);
-      }
-      return !open;
-    });
+    if (!isCustomizationOpen) setIsRightSidePanelOpen(false);
+    setIsCustomizationOpen(!isCustomizationOpen);
   }
 
   function handleTerminalHeightChange(height: number) {

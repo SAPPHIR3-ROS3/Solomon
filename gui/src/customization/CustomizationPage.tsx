@@ -1,4 +1,5 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { Filters, type CustomizationFilter } from "./Filters";
+import { useEffect, useRef, useState } from "react";
 import { CatalogList, EditableCatalogList, RulesList, SearchIcon, catalogMatches, useRolesTableEditor } from "./catalog";
 import { SystemPromptsPanel } from "./prompts";
 import { GlobalAgentsPanel } from "./globalAgents";
@@ -22,16 +23,14 @@ import {
   type SubagentScore,
 } from "./rules";
 
-const filters = ["System Prompts", "Rules", "Global AGENTS.md", "MCPs", "Skills", "Subagents"] as const;
 const CATALOG_POLL_MS = 1000;
-const FILTERS_FADE_DISTANCE = 12;
 type DropIndicator = {
   position: "before" | "after";
   ruleId: number;
 };
 
 export function CustomizationPage() {
-  const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("System Prompts");
+  const [activeFilter, setActiveFilter] = useState<CustomizationFilter>("System Prompts");
   const [query, setQuery] = useState("");
   const [isCreatingRule, setIsCreatingRule] = useState(false);
   const [newRuleText, setNewRuleText] = useState("");
@@ -66,9 +65,6 @@ export function CustomizationPage() {
   const interactionLock = useRef(false);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const filtersScrollRef = useRef<HTMLDivElement | null>(null);
-  const [filtersLeftFade, setFiltersLeftFade] = useState(0);
-  const [filtersRightFade, setFiltersRightFade] = useState(0);
   const rolesTable = useRolesTableEditor(activeFilter === "Subagents");
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleRules = rules.filter((rule) => rule.text.toLocaleLowerCase().includes(normalizedQuery));
@@ -77,37 +73,6 @@ export function CustomizationPage() {
   const visibleSubagents = subagents.filter((item) => catalogMatches(item, normalizedQuery));
   const canReorderRules = !isCreatingRule && !isSavingRuleOrder && !query.trim() && editingRuleId === null && !isDeletingRule;
   interactionLock.current = isCreatingRule || isCreatingSubagent || isSavingMcp || draggedRuleId !== null || isSavingRuleOrder || editingRuleId !== null || isSavingRuleText || isDeletingRule || editingSubagentId !== null || isSavingSubagent || isDeletingSubagent || rolesTable.isBusy;
-
-  useEffect(() => {
-    const scrollport = filtersScrollRef.current;
-    if (!scrollport) return;
-    const updateFades = () => {
-      const scrollableWidth = scrollport.scrollWidth - scrollport.clientWidth;
-      setFiltersLeftFade(Math.min(1, scrollport.scrollLeft / FILTERS_FADE_DISTANCE));
-      setFiltersRightFade(Math.min(1, Math.max(0, scrollableWidth - scrollport.scrollLeft) / FILTERS_FADE_DISTANCE));
-    };
-    const scrollFilters = (event: WheelEvent) => {
-      if (event.ctrlKey || event.deltaX !== 0 || event.deltaY === 0) return;
-      const maximum = scrollport.scrollWidth - scrollport.clientWidth;
-      const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16
-        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? scrollport.clientWidth : 1;
-      const next = Math.max(0, Math.min(maximum, scrollport.scrollLeft + event.deltaY * unit));
-      if (next === scrollport.scrollLeft) return;
-      event.preventDefault();
-      scrollport.scrollLeft = next;
-    };
-    const resizeObserver = new ResizeObserver(updateFades);
-    resizeObserver.observe(scrollport);
-    if (scrollport.firstElementChild) resizeObserver.observe(scrollport.firstElementChild);
-    scrollport.addEventListener("scroll", updateFades, { passive: true });
-    scrollport.addEventListener("wheel", scrollFilters, { passive: false });
-    updateFades();
-    return () => {
-      resizeObserver.disconnect();
-      scrollport.removeEventListener("scroll", updateFades);
-      scrollport.removeEventListener("wheel", scrollFilters);
-    };
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -393,7 +358,7 @@ export function CustomizationPage() {
   } as const)[activeFilter];
 
   return (
-    <section aria-label="Customization" className="customization-screen">
+    <section aria-label="Agents Customization" className="customization-screen">
       <div className="customization-content">
         <div className="customization-toolbar">
           <label className="customization-search">
@@ -407,31 +372,7 @@ export function CustomizationPage() {
           </label>
         </div>
 
-        <div
-          className="customization-filters-shell"
-          style={{ "--customization-filters-left-fade": filtersLeftFade, "--customization-filters-right-fade": filtersRightFade } as CSSProperties}
-        >
-          <div className="customization-filters-scrollport" ref={filtersScrollRef}>
-            <nav aria-label="Customization sections" className="customization-filters" role="tablist">
-              {filters.map((filter) => (
-                <button
-                  disabled={isCreatingSubagent}
-                  aria-selected={activeFilter === filter}
-                  className={`customization-filter${activeFilter === filter ? " is-active" : ""}`}
-                  key={filter}
-                  onClick={(event) => {
-                    setActiveFilter(filter);
-                    event.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  {filter}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
+        <Filters activeFilter={activeFilter} disabled={isCreatingSubagent} onChange={setActiveFilter} />
 
         {activeFilter !== "System Prompts" && activeFilter !== "Global AGENTS.md" ? (
           <div className="customization-list-head">

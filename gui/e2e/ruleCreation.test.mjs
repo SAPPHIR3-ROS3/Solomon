@@ -29,7 +29,7 @@ test("New creates a rule, preserves failures and supports cancellation", async (
   });
   await page.goto(url);
   await page.getByRole("button", { name: "Expand side panel", exact: true }).click();
-  await page.getByRole("button", { name: "Customization", exact: true }).click();
+  await page.getByRole("button", { name: "Agents Customization", exact: true }).click();
   const backdrop = page.getByRole("button", { name: "Close side panels", exact: true });
   if (await backdrop.isVisible()) await backdrop.click();
   await page.getByRole("tab", { name: "Rules", exact: true }).click();
