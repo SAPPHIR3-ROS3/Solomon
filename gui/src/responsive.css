@@ -46,7 +46,7 @@
   .welcome-toolbar, .welcome-toolbar-modes, .welcome-meta-row { flex-wrap: wrap; }
   .welcome-toolbar-left { flex: 1 1 200px; }
   .welcome-toolbar > .welcome-send { margin-left: auto; }
-  .welcome-composer { min-width: 0; padding-inline: 12px; }
+  .welcome-composer { --composer-inline-padding: 12px; min-width: 0; padding-inline: var(--composer-inline-padding); }
   .at-mention-picker { min-width: 0; max-width: 100%; }
   .chat-view { --chat-horizontal-padding: 16px; }
   .research-report-view { padding-inline: 16px; }

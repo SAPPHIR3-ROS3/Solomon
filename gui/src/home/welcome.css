@@ -311,6 +311,7 @@
 }
 
 .welcome-composer {
+  --composer-inline-padding: 18px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 24px;
@@ -318,7 +319,7 @@
   flex: none;
   gap: 14px;
   overflow: visible;
-  padding: 12px 18px 14px;
+  padding: 12px var(--composer-inline-padding) 14px;
   position: relative;
   width: 100%;
   z-index: 1;
@@ -716,9 +717,12 @@
   display: block;
   color: var(--color-text);
   overflow-y: hidden;
+  /* Keep the scroll lane in the composer's outer padding, clear of the text. */
+  padding-right: calc(var(--composer-inline-padding) - 10px);
   position: relative;
   scrollbar-gutter: stable;
   scrollbar-width: var(--app-scrollbar-width, thin);
+  width: calc(100% + var(--composer-inline-padding) - 10px);
   z-index: 1;
 }
 
@@ -750,7 +754,7 @@
 }
 
 .at-mention-input-shell .welcome-input::-webkit-scrollbar {
-  width: 8px;
+  width: 4px;
 }
 
 .at-mention-input-shell .welcome-input::-webkit-scrollbar-track {
@@ -759,6 +763,7 @@
 
 .at-mention-input-shell .welcome-input::-webkit-scrollbar-thumb {
   background: var(--color-border);
+  border: 0;
   border-radius: 999px;
 }
 
