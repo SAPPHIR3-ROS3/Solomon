@@ -1,9 +1,11 @@
-package server
+package test
 
 import (
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -32,10 +34,17 @@ func TestRestoreGitPathsPreservesIndexAndOtherFiles(t *testing.T) {
 	git("add", "selected.txt")
 	write("selected.txt", "unstaged")
 	write("other.txt", "keep")
-	status, err := restoreGitPaths(root, []string{"selected.txt"})
-	if err != nil {
-		t.Fatal(err)
+	endpoint := strings.TrimSuffix(projectFileOperationEndpoint(t, root), "/file-operation") + "/restore"
+	response := postJSONForServerTest(t, endpoint, map[string]any{"paths": []string{"selected.txt"}})
+	if response.StatusCode != http.StatusOK {
+		response.Body.Close()
+		t.Fatalf("restore status = %d", response.StatusCode)
 	}
+	var status struct {
+		Staged  map[string]string `json:"staged"`
+		Changes map[string]string `json:"changes"`
+	}
+	decodeServerTestJSON(t, response, &status)
 	for name, want := range map[string]string{"selected.txt": "staged", "other.txt": "keep"} {
 		got, err := os.ReadFile(filepath.Join(root, name))
 		if err != nil || string(got) != want {
@@ -45,7 +54,9 @@ func TestRestoreGitPathsPreservesIndexAndOtherFiles(t *testing.T) {
 	if status.Staged["selected.txt"] != "M" || status.Changes["selected.txt"] != "" || status.Changes["other.txt"] != "M" {
 		t.Fatalf("unexpected status: %+v", status)
 	}
-	if _, err := restoreGitPaths(root, []string{"../outside"}); err == nil {
-		t.Fatal("accepted path outside repository")
+	response = postJSONForServerTest(t, endpoint, map[string]any{"paths": []string{"../outside"}})
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("accepted path outside repository: status %d", response.StatusCode)
 	}
 }

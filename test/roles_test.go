@@ -353,7 +353,7 @@ func TestNativeToolParamsIncludesListSubAgents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(params) != 11 {
+	if len(params) != 12 {
 		t.Fatalf("agent tools: %d", len(params))
 	}
 	names := map[string]bool{}
@@ -362,7 +362,7 @@ func TestNativeToolParamsIncludesListSubAgents(t *testing.T) {
 			names[p.OfFunction.Function.Name] = true
 		}
 	}
-	for _, want := range []string{"listSubAgents", "subagent"} {
+	for _, want := range []string{"listSubAgents", "subagent", "installSkill"} {
 		if !names[want] {
 			t.Fatalf("missing %s", want)
 		}

@@ -1,4 +1,4 @@
-package agentruntime
+package test
 
 import (
 	"testing"
@@ -18,7 +18,7 @@ func TestTruncateForRegeneration(t *testing.T) {
 		{Role: "user", Content: "/help", GUIHidden: true},
 	}}
 	original := s.Messages[2]
-	if err := truncateForRegeneration(s); err != nil {
+	if err := s.TruncateForRegeneration(); err != nil {
 		t.Fatal(err)
 	}
 	if len(s.Messages) != 3 {
@@ -28,14 +28,14 @@ func TestTruncateForRegeneration(t *testing.T) {
 	if got.Content != original.Content || got.APIContent != original.APIContent || got.CheckpointSeq != 7 {
 		t.Fatalf("user message changed: %+v", got)
 	}
-	if err := truncateForRegeneration(s); err != nil || len(s.Messages) != 3 {
+	if err := s.TruncateForRegeneration(); err != nil || len(s.Messages) != 3 {
 		t.Fatal("retry must retain the same question", err)
 	}
 }
 
 func TestTruncateForRegenerationWithoutUser(t *testing.T) {
 	for _, s := range []*chatstore.Session{nil, {}, {Messages: []chatstore.Message{{Role: "assistant", Content: "summary"}}}} {
-		if err := truncateForRegeneration(s); err == nil {
+		if err := s.TruncateForRegeneration(); err == nil {
 			t.Fatal("expected missing user error")
 		}
 	}

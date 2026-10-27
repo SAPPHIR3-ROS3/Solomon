@@ -3,31 +3,12 @@ package agentruntime
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 )
-
-// Keep the original user message so expanded mentions, image references and
-// checkpoint metadata remain identical on the new attempt.
-func truncateForRegeneration(s *chatstore.Session) error {
-	if s != nil {
-		for i := len(s.Messages) - 1; i >= 0; i-- {
-			m := s.Messages[i]
-			if m.Role != "user" || m.GUIHidden || strings.HasPrefix(strings.TrimSpace(m.Content), "tool_result(") {
-				continue
-			}
-			s.Messages = s.Messages[:i+1]
-			s.LastMessageAt = time.Now()
-			return nil
-		}
-	}
-	return fmt.Errorf("no user message to regenerate")
-}
 
 func (r *Runtime) regenerate(ctx context.Context) (turnErr error) {
 	if config.NeedsOnboard(r.Cfg) || r.Prov == nil {
@@ -40,7 +21,7 @@ func (r *Runtime) regenerate(ctx context.Context) (turnErr error) {
 		return err
 	}
 	var err error
-	r.mutateSession(func(s *chatstore.Session) { err = truncateForRegeneration(s) })
+	r.mutateSession(func(s *chatstore.Session) { err = s.TruncateForRegeneration() })
 	if err != nil {
 		return err
 	}
