@@ -103,7 +103,10 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     if (!target) return;
     let depth = 0;
     let active = true;
-    const visible = () => target.getClientRects().length > 0;
+    // Kept-alive screens use visibility:hidden and still have layout rectangles.
+    // Their composers must not receive the active chat's window-level drops.
+    const visible = () => target.isConnected && target.getClientRects().length > 0 &&
+      getComputedStyle(target).visibility === "visible" && !target.closest('[aria-hidden="true"], [inert]');
     const imageDrag = (data: DataTransfer) => isImageFileDrag(data) ||
       (supportsNativeImageDrop() && Array.from(data.types ?? []).includes("text/uri-list"));
     const reset = () => { depth = 0; setIsDraggingImages(false); };
@@ -112,7 +115,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
       if (!paths.length || !visible()) return;
       const composer = latestComposerRef.current;
       void readNativeDroppedImages(paths).then((images) => {
-        if (active && target.isConnected && composer.value === latestComposerRef.current.value &&
+        if (active && visible() && composer.value === latestComposerRef.current.value &&
             composer.images === latestComposerRef.current.images) latestComposerRef.current.attach(images);
       }).catch((error: unknown) => {
         if (active) notifyError(`Unable to attach dropped images: ${String(error)}`);

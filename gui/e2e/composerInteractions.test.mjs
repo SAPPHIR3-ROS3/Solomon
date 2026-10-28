@@ -13,6 +13,7 @@ const fixture = `
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {ChatView} from '/src/chat/ChatView.tsx';
+import {ChatComposer} from '/src/chat/ChatComposer.tsx';
 import {applyLiveStreamEvent} from '/src/chat/chatClient.ts';
 import {watchImageDrops} from '/src/home/imageDrops.ts';
 import '/src/styles.css';
@@ -44,6 +45,10 @@ function Fixture(){
 }
 const root=createRoot(document.getElementById('root'));
 window.hideComposer=()=>root.render(<div>No active composer</div>);
+window.showKeptAliveComposers=()=>root.render(<>
+ <div id="inactive-composer" style={{visibility:'hidden'}} aria-hidden="true"><ChatComposer aria-label="Inactive" draftKey={"inactive-drop-test-"+performance.timeOrigin} /></div>
+ <div id="active-composer"><ChatComposer aria-label="Active" draftKey={"active-drop-test-"+performance.timeOrigin} /></div>
+</>);
 root.render(<Fixture/>);
 `;
 const cacheDir=await mkdtemp(join(tmpdir(),'solomon-composer-tests-'));
@@ -110,6 +115,48 @@ test('dropped images share pasted previews, editing and sent attachments', async
  ]);
  await page.waitForFunction(()=>document.querySelectorAll('.chat-message-images .composer-image-preview').length===3);
  await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===0);
+});
+
+test('hidden kept-alive composers never retain another chat’s dropped images', async()=>{
+ await load();
+ await page.evaluate(()=>window.showKeptAliveComposers());
+ await page.waitForFunction(()=>!!document.querySelector('#inactive-composer textarea'));
+ await page.evaluate(()=>{
+  const data=new DataTransfer();
+  data.items.add(new File(['image bytes'],'active.png',{type:'image/png'}));
+  document.body.dispatchEvent(new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true}));
+ });
+ await page.waitForFunction(()=>document.querySelectorAll('#active-composer .composer-image-preview').length===1);
+ assert.deepEqual(await page.evaluate(()=>({
+  hiddenImages:document.querySelectorAll('#inactive-composer .composer-image-preview').length,
+  hiddenText:document.querySelector('#inactive-composer textarea').value,
+  activeText:document.querySelector('#active-composer textarea').value.trim(),
+ })),{hiddenImages:0,hiddenText:'',activeText:'[img-0]'});
+ // Returning to the kept-alive new-chat screen must reveal an empty composer.
+ await page.evaluate(()=>{
+  const hidden=document.querySelector('#inactive-composer');
+  hidden.style.visibility='visible';hidden.removeAttribute('aria-hidden');
+  document.querySelector('#active-composer').style.visibility='hidden';
+ });
+ assert.equal(await page.evaluate(()=>document.querySelectorAll('#inactive-composer .composer-image-preview').length),0);
+});
+
+test('native image loads are discarded when their composer becomes hidden', async()=>{
+ await load();
+ await page.evaluate(()=>{
+  window.showKeptAliveComposers();
+  window.go={app:{ServerBridge:{ReadDroppedImages:()=>new Promise(resolve=>{window.finishImageDrop=resolve;})}}};
+ });
+ await page.waitForFunction(()=>!!document.querySelector('#active-composer textarea'));
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('solomon:native-image-drop',{detail:['/tmp/late.png']})));
+ await page.waitForFunction(()=>!!window.finishImageDrop);
+ await page.evaluate(()=>{
+  document.querySelector('#active-composer').style.visibility='hidden';
+  window.finishImageDrop([{name:'late.png',data:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII='}]);
+ });
+ await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,100)));
+ assert.equal(await page.evaluate(()=>document.querySelectorAll('.composer-image-preview').length),0);
+ assert.equal(await page.evaluate(()=>document.querySelector('#active-composer textarea').value),'');
 });
 
 test('leaving the composer cancels drop highlighting and text drops remain native', async()=>{
