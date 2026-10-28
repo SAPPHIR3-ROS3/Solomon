@@ -1,4 +1,4 @@
-package networkhttp
+package test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 )
 
 func TestPolicyChangeReplacesPreviouslyAllowedPool(t *testing.T) {
@@ -18,7 +20,7 @@ func TestPolicyChangeReplacesPreviouslyAllowedPool(t *testing.T) {
 	base := &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 		return dialer.DialContext(ctx, network, server.Listener.Addr().String())
 	}}
-	transport := New(base)
+	transport := networkhttp.New(base)
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport}
 	response, err := client.Get("http://192.0.2.1/")

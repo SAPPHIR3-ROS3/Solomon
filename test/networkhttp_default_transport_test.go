@@ -1,4 +1,4 @@
-package networkhttp
+package test
 
 import (
 	"io"
@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 )
 
 type fixtureTransport func(*http.Request) (*http.Response, error)
@@ -22,7 +24,7 @@ func TestDefaultClientHonorsCustomTransportInstalledAfterInitialization(t *testi
 		calls++
 		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("fixture")), Request: r}, nil
 	})
-	for _, client := range []*http.Client{DefaultClient, {Transport: NewDefaultTransport()}} {
+	for _, client := range []*http.Client{networkhttp.DefaultClient, {Transport: networkhttp.NewDefaultTransport()}} {
 		response, err := client.Get("https://offline.invalid/test")
 		if err != nil {
 			t.Fatal(err)
@@ -48,7 +50,7 @@ func TestCustomDefaultTransportDoesNotBypassSavedSelection(t *testing.T) {
 		calls++
 		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("fixture")), Request: r}, nil
 	})
-	client := &http.Client{Transport: NewDefaultTransport()}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport()}
 	if err := os.WriteFile(filepath.Join(home, "network.json"), []byte(`{"disabled":{"eth0":true},"disabled_magic_dns":{"node.test.ts.net":true}}`), 0600); err != nil {
 		t.Fatal(err)
 	}

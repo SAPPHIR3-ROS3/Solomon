@@ -1,8 +1,9 @@
-package commands
+package test
 
 import (
 	"bytes"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 	"strings"
 	"testing"
@@ -11,15 +12,15 @@ import (
 func TestInterfaceCommand(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
 	var out bytes.Buffer
-	deps := Deps{Out: &out}
-	if matched, err := DispatchBuiltinSlash(deps, []string{"/interface"}, "interface"); !matched || err != nil {
+	deps := commands.Deps{Out: &out}
+	if matched, err := commands.DispatchBuiltinSlash(deps, []string{"/interface"}, "interface"); !matched || err != nil {
 		t.Fatalf("%v %v", matched, err)
 	}
 	if !strings.Contains(out.String(), "/interface <n> <on|off>") {
 		t.Fatal(out.String())
 	}
 	for _, parts := range [][]string{{"/interface", "0", "off"}, {"/interface", "1"}, {"/interface", "1", "invalid"}, {"/interface", "x", "on"}} {
-		if Interface(deps, parts) == nil {
+		if commands.Interface(deps, parts) == nil {
 			t.Fatalf("accepted %v", parts)
 		}
 	}
@@ -31,7 +32,7 @@ func TestInterfaceCommand(t *testing.T) {
 		if row.Local {
 			continue
 		}
-		if err := Interface(deps, []string{"/interface", fmt.Sprint(row.Number), "off"}); err != nil {
+		if err := commands.Interface(deps, []string{"/interface", fmt.Sprint(row.Number), "off"}); err != nil {
 			t.Fatal(err)
 		}
 		p, err := networkpolicy.Read()
@@ -43,7 +44,7 @@ func TestInterfaceCommand(t *testing.T) {
 }
 
 func TestInterfaceListIsOnePlainListWithNestedMagicDNS(t *testing.T) {
-	output := formatInterfaceList([]networkpolicy.Interface{
+	output := commands.FormatInterfaceList([]networkpolicy.Interface{
 		{Number: 1, Name: "lo", Type: "loopback", Enabled: true, Up: true, Addresses: []string{"127.0.0.1/8", "::1/128"}},
 		{Number: 4, Name: "tailscale0", Type: "tailscale", Enabled: true, Up: true, Addresses: []string{"100.64.0.2/32"}, Tailscale: &networkpolicy.TailscaleInfo{Account: "user@example.com", Tailnet: "team", MagicDNS: "node.team.ts.net", MagicDNSEnabled: true}},
 	})

@@ -7,6 +7,10 @@ import (
 	"net/http"
 )
 
+func HandleNetworkInterfaces(w http.ResponseWriter, r *http.Request) {
+	handleNetworkInterfaces(w, r)
+}
+
 func handleNetworkInterfaces(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	switch r.Method {
@@ -39,6 +43,10 @@ func handleNetworkInterfaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, rows)
+}
+
+func AllowNetworkRequest(w http.ResponseWriter, r *http.Request) bool {
+	return allowNetworkRequest(w, r)
 }
 
 func allowNetworkRequest(w http.ResponseWriter, r *http.Request) bool {

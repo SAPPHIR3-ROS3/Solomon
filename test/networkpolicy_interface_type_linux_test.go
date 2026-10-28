@@ -1,9 +1,11 @@
-package networkpolicy
+package test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 )
 
 func TestLinuxInterfaceTypeUsesMetadataInsteadOfNames(t *testing.T) {
@@ -33,7 +35,7 @@ func TestLinuxInterfaceTypeUsesMetadataInsteadOfNames(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if got := linuxInterfaceType(root, tc.name); got != tc.want {
+			if got := networkpolicy.LinuxInterfaceType(root, tc.name); got != tc.want {
 				t.Fatalf("got %q, want %q", got, tc.want)
 			}
 		})
@@ -41,12 +43,12 @@ func TestLinuxInterfaceTypeUsesMetadataInsteadOfNames(t *testing.T) {
 }
 func TestInterfaceNameFallback(t *testing.T) {
 	for _, kind := range []string{"", "unknown", "future-type"} {
-		i := Interface{Name: "custom0", Type: kind}
+		i := networkpolicy.Interface{Name: "custom0", Type: kind}
 		if i.DisplayName() != "custom0" {
 			t.Fatal("lost technical name")
 		}
 	}
-	if got := interfaceType("irrelevant", true); got != "loopback" {
+	if got := networkpolicy.InterfaceType("irrelevant", true); got != "loopback" {
 		t.Fatal(got)
 	}
 }

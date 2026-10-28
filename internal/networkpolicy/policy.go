@@ -31,6 +31,12 @@ type Interface struct {
 	Addresses    []string       `json:"addresses"`
 }
 
+func PolicyPath() (string, error) { return policyPath() }
+
+func ListUnfiltered(p Policy) ([]Interface, error) { return list(p) }
+
+func WritePolicyFile(path string, p Policy) error { return writePolicy(path, p) }
+
 func policyPath() (string, error) {
 	home, err := paths.SolomonHome()
 	return filepath.Join(home, "network.json"), err

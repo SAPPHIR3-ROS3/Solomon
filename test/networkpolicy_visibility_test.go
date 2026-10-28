@@ -1,18 +1,20 @@
-package networkpolicy
+package test
 
 import (
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 )
 
 func TestVisibleInterfacesOutsideAndInsideContainer(t *testing.T) {
-	rows := []Interface{{Number: 1, Name: "lo"}, {Number: 2, Name: "eth0"}, {Number: 3, Name: "wlan0"}, {Number: 4, Name: "tailscale0"}, {Number: 5, Name: "wg0"}, {Number: 6, Name: "docker0"}, {Number: 7, Name: "vethabc123"}, {Number: 8, Name: "br-012345abcdef"}, {Number: 9, Name: "br-lan"}}
-	want := append(append([]Interface{}, rows[:5]...), rows[8])
-	if got := visibleInterfaces(rows, false); !reflect.DeepEqual(got, want) {
+	rows := []networkpolicy.Interface{{Number: 1, Name: "lo"}, {Number: 2, Name: "eth0"}, {Number: 3, Name: "wlan0"}, {Number: 4, Name: "tailscale0"}, {Number: 5, Name: "wg0"}, {Number: 6, Name: "docker0"}, {Number: 7, Name: "vethabc123"}, {Number: 8, Name: "br-012345abcdef"}, {Number: 9, Name: "br-lan"}}
+	want := append(append([]networkpolicy.Interface{}, rows[:5]...), rows[8])
+	if got := networkpolicy.VisibleInterfaces(rows, false); !reflect.DeepEqual(got, want) {
 		t.Fatalf("host list: %v", got)
 	}
-	if got := visibleInterfaces(rows, true); !reflect.DeepEqual(got, rows) {
+	if got := networkpolicy.VisibleInterfaces(rows, true); !reflect.DeepEqual(got, rows) {
 		t.Fatalf("container list: %v", got)
 	}
 }
@@ -37,7 +39,7 @@ func TestRunningInContainer(t *testing.T) {
 				}
 				return nil, os.ErrNotExist
 			}
-			if got := runningInContainer(read); got != tc.want {
+			if got := networkpolicy.RunningInContainer(read); got != tc.want {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})

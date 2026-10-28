@@ -4,6 +4,10 @@ import "strings"
 
 // Filter the user-facing list only; hiding an interface must not alter routing
 // or server access through Docker bridges.
+func VisibleInterfaces(rows []Interface, inContainer bool) []Interface {
+	return visibleInterfaces(rows, inContainer)
+}
+
 func visibleInterfaces(rows []Interface, inContainer bool) []Interface {
 	if inContainer {
 		return rows
@@ -34,6 +38,10 @@ func containerInterface(name string) bool {
 		}
 	}
 	return true
+}
+
+func RunningInContainer(readFile func(string) ([]byte, error)) bool {
+	return runningInContainer(readFile)
 }
 
 func runningInContainer(readFile func(string) ([]byte, error)) bool {

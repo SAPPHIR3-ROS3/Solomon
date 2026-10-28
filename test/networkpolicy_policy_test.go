@@ -1,4 +1,4 @@
-package networkpolicy
+package test
 
 import (
 	"context"
@@ -6,50 +6,52 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 	"time"
 )
 
 func TestSelectionPersistsAndPreservesLocalAccess(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	rows, err := List()
+	rows, err := networkpolicy.List()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, row := range rows {
 		if row.Local {
-			if Set(row.Name, false) == nil {
+			if networkpolicy.Set(row.Name, false) == nil {
 				t.Fatal("disabled loopback")
 			}
-			if !AllowedLocal(net.ParseIP("127.0.0.1")) {
+			if !networkpolicy.AllowedLocal(net.ParseIP("127.0.0.1")) {
 				t.Fatal("loopback blocked")
 			}
 			continue
 		}
-		if err := Set(row.Name, false); err != nil {
+		if err := networkpolicy.Set(row.Name, false); err != nil {
 			t.Fatal(err)
 		}
-		p, err := Read()
+		p, err := networkpolicy.Read()
 		if err != nil || !p.Disabled[row.Name] {
 			t.Fatalf("selection not persisted: %v %v", p, err)
 		}
 		for _, address := range row.Addresses {
 			ip, _, _ := net.ParseCIDR(address)
-			if AllowedLocal(ip) {
+			if networkpolicy.AllowedLocal(ip) {
 				t.Fatal("disabled address allowed")
 			}
 		}
-		if err := Set(row.Name, true); err != nil {
+		if err := networkpolicy.Set(row.Name, true); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if Set("missing-solomon-interface", false) == nil {
+	if networkpolicy.Set("missing-solomon-interface", false) == nil {
 		t.Fatal("accepted unknown interface")
 	}
 }
 
 func TestMalformedPolicyFailsClosed(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	path, err := policyPath()
+	path, err := networkpolicy.PolicyPath()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,30 +61,30 @@ func TestMalformedPolicyFailsClosed(t *testing.T) {
 	if err := os.WriteFile(path, []byte("{"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if AllowedLocal(net.ParseIP("192.0.2.1")) {
+	if networkpolicy.AllowedLocal(net.ParseIP("192.0.2.1")) {
 		t.Fatal("allowed corrupt policy")
 	}
-	if _, err := DialContext(context.Background(), "tcp", "192.0.2.1:80"); err == nil {
+	if _, err := networkpolicy.DialContext(context.Background(), "tcp", "192.0.2.1:80"); err == nil {
 		t.Fatal("dial accepted corrupt policy")
 	}
 }
 
 func TestAllExternalInterfacesDisabled(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	rows, err := list(Policy{})
+	rows, err := networkpolicy.ListUnfiltered(networkpolicy.Policy{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, row := range rows {
 		if !row.Local {
-			if err := Set(row.Name, false); err != nil {
+			if err := networkpolicy.Set(row.Name, false); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if conn, err := DialContext(ctx, "tcp", "192.0.2.1:80"); err == nil {
+	if conn, err := networkpolicy.DialContext(ctx, "tcp", "192.0.2.1:80"); err == nil {
 		conn.Close()
 		t.Fatal("external dial allowed")
 	}
@@ -91,7 +93,7 @@ func TestAllExternalInterfacesDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer listener.Close()
-	conn, err := DialContext(ctx, "tcp", listener.Addr().String())
+	conn, err := networkpolicy.DialContext(ctx, "tcp", listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}

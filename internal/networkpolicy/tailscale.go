@@ -40,6 +40,8 @@ func enrichTailscale(rows []Interface) {
 	applyTailscaleStatus(rows, data)
 }
 
+func ApplyTailscaleStatus(rows []Interface, data []byte) { applyTailscaleStatus(rows, data) }
+
 func applyTailscaleStatus(rows []Interface, data []byte) {
 	var status struct {
 		BackendState   string

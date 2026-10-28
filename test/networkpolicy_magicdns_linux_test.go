@@ -1,4 +1,4 @@
-package networkpolicy
+package test
 
 import (
 	"context"
@@ -7,15 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 )
 
 func TestMagicDNSSelectionPersistsIndependentlyOfParent(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	rows, err := list(Policy{})
+	rows, err := networkpolicy.ListUnfiltered(networkpolicy.Policy{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var parent Interface
+	var parent networkpolicy.Interface
 	var ip net.IP
 	for _, row := range rows {
 		if !row.Local && len(row.Addresses) > 0 {
@@ -34,10 +36,10 @@ func TestMagicDNSSelectionPersistsIndependentlyOfParent(t *testing.T) {
 	}
 	t.Setenv("PATH", bin)
 	target := parent.Name + ":magicdns"
-	if err := Set(target, false); err != nil {
+	if err := networkpolicy.Set(target, false); err != nil {
 		t.Fatal(err)
 	}
-	p, err := Read()
+	p, err := networkpolicy.Read()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,12 +51,12 @@ func TestMagicDNSSelectionPersistsIndependentlyOfParent(t *testing.T) {
 	if !p.AllowedHostname(ip.String()) || !p.AllowedHostname("localhost:64000") {
 		t.Fatal("blocked IP or localhost")
 	}
-	if !AllowedLocal(ip) {
+	if !networkpolicy.AllowedLocal(ip) {
 		t.Fatal("disabled MagicDNS also disabled parent IP")
 	}
 	assertState := func(want bool) {
 		t.Helper()
-		rows, err := List()
+		rows, err := networkpolicy.List()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,37 +71,37 @@ func TestMagicDNSSelectionPersistsIndependentlyOfParent(t *testing.T) {
 		t.Fatal("parent missing")
 	}
 	assertState(false)
-	if err := Set(target, true); err != nil {
+	if err := networkpolicy.Set(target, true); err != nil {
 		t.Fatal(err)
 	}
 	assertState(true)
-	if err := Set(parent.Name, false); err != nil {
+	if err := networkpolicy.Set(parent.Name, false); err != nil {
 		t.Fatal(err)
 	}
 	assertState(false)
-	if err := Set(target, true); err == nil {
+	if err := networkpolicy.Set(target, true); err == nil {
 		t.Fatal("enabled child under disabled parent")
 	}
-	if err := Set(parent.Name, true); err != nil {
+	if err := networkpolicy.Set(parent.Name, true); err != nil {
 		t.Fatal(err)
 	}
 	assertState(true)
-	if err := Set("missing:magicdns", false); err == nil {
+	if err := networkpolicy.Set("missing:magicdns", false); err == nil {
 		t.Fatal("accepted unknown parent")
 	}
 }
 
 func TestDisabledMagicDNSDialDoesNotResolveOrConnect(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	path, err := policyPath()
+	path, err := networkpolicy.PolicyPath()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writePolicy(path, Policy{DisabledMagicDNS: map[string]bool{"node.test.ts.net": true}}); err != nil {
+	if err := networkpolicy.WritePolicyFile(path, networkpolicy.Policy{DisabledMagicDNS: map[string]bool{"node.test.ts.net": true}}); err != nil {
 		t.Fatal(err)
 	}
 	called := false
-	dial := WrapDial(func(context.Context, string, string) (net.Conn, error) { called = true; return nil, nil })
+	dial := networkpolicy.WrapDial(func(context.Context, string, string) (net.Conn, error) { called = true; return nil, nil })
 	if _, err := dial(context.Background(), "tcp", "node.test.ts.net:80"); err == nil {
 		t.Fatal("disabled alias allowed")
 	}

@@ -57,6 +57,8 @@ func Interface(d Deps, parts []string) error {
 	return err
 }
 
+func FormatInterfaceList(rows []networkpolicy.Interface) string { return formatInterfaceList(rows) }
+
 func formatInterfaceList(rows []networkpolicy.Interface) string {
 	var output strings.Builder
 	output.WriteString("Network interfaces\n\n")

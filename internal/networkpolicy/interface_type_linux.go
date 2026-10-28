@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+func InterfaceType(name string, local bool) string { return interfaceType(name, local) }
+
+func LinuxInterfaceType(root, name string) string { return linuxInterfaceType(root, name) }
+
 func interfaceType(name string, local bool) string {
 	if local {
 		return "loopback"

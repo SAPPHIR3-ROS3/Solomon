@@ -1,14 +1,16 @@
-package networkpolicy
+package test
 
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 )
 
 func TestTailscaleMetadataUsesOwnDeviceAccount(t *testing.T) {
 	data := []byte(`{"BackendState":"Running","CurrentTailnet":{"Name":"team.example","MagicDNSSuffix":"example.ts.net"},"Self":{"UserID":9007199254740993,"TailscaleIPs":["100.64.0.2"]},"User":{"1":{"LoginName":"wrong@example.com"},"9007199254740993":{"LoginName":"right@example.com"}}}`)
-	rows := []Interface{{Name: "custom-tun", Type: "tunnel", Addresses: []string{"100.64.0.2/32"}}, {Name: "eth0", Addresses: []string{"192.168.1.2/24"}}}
-	applyTailscaleStatus(rows, data)
+	rows := []networkpolicy.Interface{{Name: "custom-tun", Type: "tunnel", Addresses: []string{"100.64.0.2/32"}}, {Name: "eth0", Addresses: []string{"192.168.1.2/24"}}}
+	networkpolicy.ApplyTailscaleStatus(rows, data)
 	if rows[0].Tailscale == nil || rows[0].Tailscale.Account != "right@example.com" || rows[0].Tailscale.Tailnet != "team.example" || rows[0].DisplayName() != "Tailscale" {
 		t.Fatalf("wrong metadata: %+v", rows[0])
 	}
@@ -18,14 +20,14 @@ func TestTailscaleMetadataUsesOwnDeviceAccount(t *testing.T) {
 }
 func TestTailscaleMissingStatusAndTaggedDevice(t *testing.T) {
 	for _, data := range []string{`{`, `{}`, `{"BackendState":"NeedsLogin","CurrentTailnet":{"Name":"old"},"Self":{"TailscaleIPs":["100.64.0.2"]}}`} {
-		rows := []Interface{{Name: "tun", Addresses: []string{"100.64.0.2/32"}}}
-		applyTailscaleStatus(rows, []byte(data))
+		rows := []networkpolicy.Interface{{Name: "tun", Addresses: []string{"100.64.0.2/32"}}}
+		networkpolicy.ApplyTailscaleStatus(rows, []byte(data))
 		if rows[0].Tailscale != nil {
 			t.Fatal("displayed stale metadata")
 		}
 	}
-	rows := []Interface{{Name: "tun", Addresses: []string{"100.64.0.2/32"}}}
-	applyTailscaleStatus(rows, []byte(`{"BackendState":"Running","CurrentTailnet":{"Name":"team"},"Self":{"UserID":1,"Tags":["tag:server"],"TailscaleIPs":["100.64.0.2"]},"User":{"1":{"LoginName":"tagged-devices"}}}`))
+	rows := []networkpolicy.Interface{{Name: "tun", Addresses: []string{"100.64.0.2/32"}}}
+	networkpolicy.ApplyTailscaleStatus(rows, []byte(`{"BackendState":"Running","CurrentTailnet":{"Name":"team"},"Self":{"UserID":1,"Tags":["tag:server"],"TailscaleIPs":["100.64.0.2"]},"User":{"1":{"LoginName":"tagged-devices"}}}`))
 	if rows[0].Tailscale == nil || !rows[0].Tailscale.Tagged || rows[0].Tailscale.Account != "" {
 		t.Fatal("tagged device presented as user")
 	}
@@ -45,8 +47,8 @@ func TestMagicDNSOnlyWhenAvailable(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data, _ := json.Marshal(map[string]any{"BackendState": tc.state, "CurrentTailnet": map[string]any{"Name": "team", "MagicDNSEnabled": tc.enabled}, "Self": map[string]any{"DNSName": tc.dns, "TailscaleIPs": []string{"100.64.0.2"}}})
-			rows := []Interface{{Name: "tun", Addresses: []string{"100.64.0.2/32"}}}
-			applyTailscaleStatus(rows, data)
+			rows := []networkpolicy.Interface{{Name: "tun", Addresses: []string{"100.64.0.2/32"}}}
+			networkpolicy.ApplyTailscaleStatus(rows, data)
 			if rows[0].Tailscale == nil || rows[0].Tailscale.MagicDNS != tc.want {
 				t.Fatalf("unexpected MagicDNS: %+v", rows[0].Tailscale)
 			}
