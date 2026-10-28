@@ -14,6 +14,17 @@ var ErrExitChat = errors.New("exit chat")
 
 var ErrRestartSolomon = errors.New("restart solomon")
 
+// IsCommand distinguishes a slash command from an absolute filesystem path.
+// Only the first token is inspected: command arguments may contain paths.
+func IsCommand(line string) bool {
+	fields := strings.Fields(line)
+	if len(fields) == 0 || !strings.HasPrefix(fields[0], "/") {
+		return false
+	}
+	name := strings.TrimPrefix(fields[0], "/")
+	return name != "" && !strings.ContainsAny(name, "/\\")
+}
+
 func splitSlashArgs(line string) []string {
 	line = strings.TrimSpace(line)
 	var fields []string
@@ -62,6 +73,9 @@ func slashCommandName(parts []string) string {
 
 // RunsSkill reports whether line invokes a skill, which starts an agent turn instead of printing output.
 func RunsSkill(line, projHex, projRoot string) bool {
+	if !IsCommand(line) {
+		return false
+	}
 	name := slashCommandName(splitSlashArgs(line))
 	if strings.HasPrefix(name, "skill:") {
 		return true
