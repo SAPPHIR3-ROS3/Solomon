@@ -5,17 +5,19 @@ export type Notification = { id: string; createdAt: string; level: string; messa
 export type NotificationGroup = Notification & { children: Notification[] };
 export type Toast = NotificationGroup & { expiresAt: number };
 
-// Bound each burst to its first error so a continuous stream cannot hide errors forever.
+// Bound each burst to its first notification so a continuous stream cannot extend it forever.
 export function groupNotifications(entries: Notification[]): NotificationGroup[] {
   const groups: NotificationGroup[] = [];
-  let root: NotificationGroup | undefined;
+  const roots = new Map<string, NotificationGroup>();
   for (const entry of [...entries].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id))) {
-    if (entry.level === "error" && root && Date.parse(entry.createdAt) - Date.parse(root.createdAt) <= 5000) {
+    const grouped = entry.level === "error" || entry.level === "warning";
+    const root = grouped ? roots.get(entry.level) : undefined;
+    if (root && Date.parse(entry.createdAt) - Date.parse(root.createdAt) <= 5000) {
       root.children.push(entry);
     } else {
       const group = { ...entry, children: [] };
       groups.push(group);
-      if (entry.level === "error") root = group;
+      if (grouped) roots.set(entry.level, group);
     }
   }
   return groups.reverse();

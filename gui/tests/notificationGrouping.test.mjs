@@ -13,6 +13,11 @@ try {
     assert.equal(groups[0].id, "first");
     assert.deepEqual(groups[0].children.map(child => child.id), ["second", "third"]);
   });
+  test("warning bursts use independent bounded groups alongside errors", () => {
+    const groups = groupNotifications([entry("warning-first", 0, "warning"), entry("error-first", 1), entry("warning-second", 2, "warning"), entry("error-second", 3), entry("warning-boundary", 5, "warning"), entry("warning-next", 6, "warning"), entry("warning-child", 7, "warning")]);
+    assert.deepEqual(groups.map(group => group.id), ["warning-next", "error-first", "warning-first"]);
+    assert.deepEqual(groups.map(group => group.children.map(child => child.id)), [["warning-child"], ["error-second"], ["warning-second", "warning-boundary"]]);
+  });
   test("bursts have a bounded window and other levels remain independent", () => {
     const groups = groupNotifications([entry("first", 0), entry("system", 1, "system"), entry("warning", 2, "warning"), entry("boundary", 5), entry("next", 6), entry("child", 7)]);
     assert.deepEqual(groups.map(group => group.id), ["next", "warning", "system", "first"]);
