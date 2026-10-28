@@ -17,6 +17,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -316,6 +317,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 					sess.Capabilities.Capture(inv.Name, string(payload))
 				}
 			}
+			res, toolImages := images.TakeToolAttachments(res)
 			res = r.applyToolOutput(res, inv.Name, toolID)
 			b, err := json.Marshal(res)
 			if err != nil {
@@ -326,11 +328,11 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 				r.ciEmit(cievents.ToolResult(0, toolID, inv.Name, b, ""))
 			}
 			if id := toolID; id != "" {
-				toolResult := chatstore.Message{Role: "tool", ToolCallID: id, Content: payload}
+				toolResult := chatstore.Message{Role: "tool", ToolCallID: id, Content: payload, ToolImages: toolImages}
 				stampNestedMessageCheckpoint(&toolResult, toolResultSeq)
 				msgs = append(msgs, toolResult)
 			} else {
-				toolResult := chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
+				toolResult := chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")", ToolImages: toolImages}
 				stampNestedMessageCheckpoint(&toolResult, toolResultSeq)
 				msgs = append(msgs, toolResult)
 			}

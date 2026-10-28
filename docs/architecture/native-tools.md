@@ -46,9 +46,15 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
 | `customizeUI` | agent and chat; prepare and switch Solomon's frontend without restarting the daemon |
 
-`subagent` is a native function tool in agent mode. It accepts `run_in_background` for a persisted asynchronous run, `reasoningEffort` for a per-run override, and `interrupt` together with `resume` to cancel the active run before adding a new task. `/subagent stop` and `/subagent cancel` also cancel the live background context before persisting its final status.
+### Image reads
+
+`readFile` recognizes PNG, JPEG, and WebP by their binary signatures, including files without an extension. `sdk.ReadFile(path, intent)` automatically attaches the image to the orchestrate result even when the script does not print its return value. The returned string describes the image; `sdk.ReadFileInfo` also exposes `Type`, `MIMEType`, `Width`, `Height`, and `SizeBytes`. Existing text reads and their line ranges retain their behavior. Image reads reject line ranges, malformed image headers, and files larger than 5 MiB.
+
+Attachments bypass textual tool-output truncation and are saved as byte snapshots in the message's `tool_images` field, so replay survives source-file edits or deletion. OpenAI-compatible requests send image content in a user message after the complete batch of tool replies; Anthropic embeds image blocks inside the corresponding `tool_result`. Cursor Sub sends native MCP image content items and replays tool images as visual history messages. The selected model must support vision; Solomon does not infer model capabilities from model names.
 
 ### `subagent` arguments and results
+
+`subagent` is a native function tool in agent mode. It accepts `run_in_background` for a persisted asynchronous run, `reasoningEffort` for a per-run override, and `interrupt` together with `resume` to cancel the active run before adding a new task. `/subagent stop` and `/subagent cancel` also cancel the live background context before persisting its final status.
 
 | Argument | Required / default | Behavior |
 |----------|--------------------|----------|

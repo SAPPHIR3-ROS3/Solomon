@@ -1,7 +1,6 @@
 package chatstore
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,8 +15,6 @@ import (
 var imgLiteralBracketRegexp = regexp.MustCompile(`\[img-[^\]]*\]?`)
 
 var summaryImgWorkflowLineRegexp = regexp.MustCompile(`(?i)(tag immagine|\[img-|imageplaceholder|jumpleftoverimgtag|paste.*immag|placeholder.*immag)`)
-
-var pngMagic = []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
 
 func imageFileHasRecognizedBinaryPayload(path string) bool {
 	path = strings.TrimSpace(path)
@@ -38,17 +35,8 @@ func imageFileHasRecognizedBinaryPayload(path string) bool {
 	if err != nil || n < 3 {
 		return false
 	}
-	hdr = hdr[:n]
-	switch {
-	case n >= len(pngMagic) && bytes.Equal(hdr[:len(pngMagic)], pngMagic):
-		return true
-	case hdr[0] == 0xff && hdr[1] == 0xd8 && hdr[2] == 0xff:
-		return true
-	case n >= 6 && (string(hdr[:6]) == "GIF87a" || string(hdr[:6]) == "GIF89a"):
-		return true
-	default:
-		return false
-	}
+	_, ok := images.MIMEForBinary(hdr[:n])
+	return ok
 }
 
 func StripUnresolvedImgPlaceholders(content string, imageFiles map[int]string) string {

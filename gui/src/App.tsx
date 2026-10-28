@@ -1,4 +1,5 @@
 import { useAgentPages } from "./shell/useAgentPages";
+import { watchImageDrops } from "./home/imageDrops";
 import { normalizeTemporaryWorkspacePath } from "./projects/temporaryPath";
 import { useTerminalActivity } from "./terminal-panel/useTerminalActivity";
 import { useLayout } from "./shell/useLayout";
@@ -39,6 +40,7 @@ export function App() {
   const appUpdate = useAppUpdate();
   const { armedTerminalProjectIds, runningTerminalProjectIds, handleProjectTerminalArmedChange, handleProjectTerminalRunningChange } = useTerminalActivity();
   useEffect(watchExternalLinks, []);
+  useEffect(watchImageDrops, []);
   useEffect(() => watchDaemonLifecycle(() => window.location.reload()), []);
   const [client, setClient] = useState(initialClient);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);

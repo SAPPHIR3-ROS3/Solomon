@@ -1,18 +1,29 @@
 package tools
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
+	_ "golang.org/x/image/webp"
 )
 
 func signatureReadFile(path, intent string) {}
+
+const readFileDescription = "Read text or a PNG, JPEG, or WebP image relative to project root (absolute paths also accepted). Images are attached automatically for vision-capable models, including through orchestrate; no need to print image data. Optional startLine/endLine (1-based, inclusive) apply only to text."
+
+const maxReadImageBytes = 5 * 1024 * 1024
 
 type readArgs struct {
 	Path      string `json:"path"`
@@ -21,8 +32,8 @@ type readArgs struct {
 }
 
 func readFileOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("readFile", "Read a text file relative to project root. Optional startLine/endLine (1-based, inclusive) read a line range.", map[string]any{
-		"path": map[string]any{"type": "string", "description": "Path relative to project root"},
+	return nativeToolUnion("readFile", readFileDescription, map[string]any{
+		"path": map[string]any{"type": "string", "description": "Path relative to project root, or an absolute path"},
 		"startLine": map[string]any{
 			"type":        "integer",
 			"description": "Optional first line to read (1-based, inclusive)",
@@ -41,7 +52,7 @@ func appendReadFileDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("readFile", "Read a text file relative to project root. Optional startLine/endLine (1-based, inclusive) read a line range.", sig)
+	b.addBlock("readFile", readFileDescription, sig)
 	return nil
 }
 
@@ -54,7 +65,46 @@ func execReadFile(env *Env, raw json.RawMessage) (any, error) {
 	if env.ActivateInstructionsFromAbsPath != nil {
 		env.ActivateInstructionsFromAbsPath(p)
 	}
-	b, err := os.ReadFile(p)
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var header [12]byte
+	n, err := f.ReadAt(header[:], 0)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	mime, recognized := images.MIMEForBinary(header[:n])
+	isImage := recognized && (mime == "image/png" || mime == "image/jpeg" || mime == "image/webp")
+	ext := strings.ToLower(filepath.Ext(p))
+	imageExtension := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp"
+	if imageExtension && !isImage {
+		return nil, fmt.Errorf("readFile: invalid or unsupported image content in %s", p)
+	}
+	if isImage {
+		if a.StartLine != nil || a.EndLine != nil {
+			return nil, fmt.Errorf("readFile: startLine/endLine apply only to text, not images")
+		}
+		b, err := io.ReadAll(io.LimitReader(f, maxReadImageBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if len(b) > maxReadImageBytes {
+			return nil, fmt.Errorf("readFile: image exceeds the 5 MiB limit")
+		}
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(b))
+		if err != nil {
+			return nil, fmt.Errorf("readFile: invalid image: %w", err)
+		}
+		return map[string]any{
+			"path": p, "type": "image", "mime_type": mime,
+			"width": cfg.Width, "height": cfg.Height, "size_bytes": len(b),
+			"content":                 fmt.Sprintf("Image attached: %s (%s, %dx%d). Requires a vision-capable model.", p, mime, cfg.Width, cfg.Height),
+			images.ToolAttachmentsKey: []images.Attachment{{Path: p, MIMEType: mime, Data: b}},
+		}, nil
+	}
+	b, err := io.ReadAll(f)
 	if err != nil {
 		return nil, err
 	}

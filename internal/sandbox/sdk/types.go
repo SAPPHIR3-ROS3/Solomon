@@ -6,6 +6,11 @@ type ReadResult struct {
 	TotalLines int
 	StartLine  int
 	EndLine    int
+	Type       string
+	MIMEType   string
+	Width      int
+	Height     int
+	SizeBytes  int
 }
 
 type ShellOutput struct {

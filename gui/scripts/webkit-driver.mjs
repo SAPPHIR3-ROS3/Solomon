@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 // An isolated GTK window under Xvfb: the same WebKitGTK engine as Wails on
 // Linux, without attaching to or restarting the user's desktop application.
 export async function launchDesktopWebKit() {
-  const child = spawn("xvfb-run", ["-a", "/usr/bin/python3", fileURLToPath(new URL("./webkit-driver.py", import.meta.url))], { stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn("xvfb-run", ["-a", "/usr/bin/python3", fileURLToPath(new URL("./webkit-driver.py", import.meta.url))], { stdio: ["pipe", "pipe", "pipe"], env: {...process.env, GDK_BACKEND: "x11", WAYLAND_DISPLAY: "", SOLOMON_TEST_ISOLATED_DISPLAY: "1"} });
   const pending = new Map();
   let sequence = 0;
   let stderr = "";
@@ -48,6 +48,7 @@ export async function launchDesktopWebKit() {
         while (!await request("loaded")) { if (Date.now() > deadline) throw new Error("WebKitGTK load timed out"); await pause(20); }
       },
       evaluate, waitForFunction, waitForTimeout: pause,
+      nativeDrop: (paths, x, y) => request("nativeDrop", {paths, x, y}),
     }),
     close: async () => {
       if (child.exitCode === null) { await request("close"); child.stdin.end(); }

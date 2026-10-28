@@ -29,7 +29,7 @@ func (a *chatAPI) handleProjectCommand(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	content := strings.TrimSpace(req.Content)
-	if !strings.HasPrefix(content, "/") || len(req.Images) > 0 || len(req.Clips) > 0 {
+	if !slash.IsCommand(content) || len(req.Images) > 0 || len(req.Clips) > 0 {
 		writeAPIError(w, http.StatusBadRequest, errors.New("a slash command without attachments is required"))
 		return
 	}

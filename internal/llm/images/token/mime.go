@@ -13,6 +13,8 @@ func MIMEForBinary(data []byte) (mime string, ok bool) {
 		return "image/png", true
 	case data[0] == 0xff && data[1] == 0xd8 && data[2] == 0xff:
 		return "image/jpeg", true
+	case len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP":
+		return "image/webp", true
 	case len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a"):
 		return "image/gif", true
 	default:

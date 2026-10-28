@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -309,31 +310,37 @@ func TestServerRuntime_projectAtMentionSuggestionsUseCanonicalIndex(t *testing.T
 }
 
 func TestServerRuntime_sendChatMessageKeepsServerAlive(t *testing.T) {
-	sse := anthropicSSEBody(
-		map[string]any{
-			"type": "message_start",
-			"message": map[string]any{
-				"usage": map[string]any{"input_tokens": 1},
-			},
-		},
-		map[string]any{
-			"type":  "content_block_delta",
-			"index": 0,
-			"delta": map[string]any{"type": "text_delta", "text": "ok"},
-		},
-		map[string]any{
-			"type":  "message_delta",
-			"usage": map[string]any{"output_tokens": 1},
-			"delta": map[string]any{"stop_reason": "end_turn"},
-		},
-	)
-	provider := newAnthropicMockServer(t, "/v1/messages", nil, sse, 0)
-	defer provider.Close()
+	for _, tc := range []struct{ content, title string }{
+		{"hello", "hello"},
+		{"/home/oni/Pictures/Screenshots/Screenshot 2026-10-28.png", "home-oni-pictures-screenshots-screenshot-2026-10-28-png"},
+	} {
+		t.Run(tc.content, func(t *testing.T) {
+			content := tc.content
+			sse := anthropicSSEBody(
+				map[string]any{
+					"type": "message_start",
+					"message": map[string]any{
+						"usage": map[string]any{"input_tokens": 1},
+					},
+				},
+				map[string]any{
+					"type":  "content_block_delta",
+					"index": 0,
+					"delta": map[string]any{"type": "text_delta", "text": "ok"},
+				},
+				map[string]any{
+					"type":  "message_delta",
+					"usage": map[string]any{"output_tokens": 1},
+					"delta": map[string]any{"stop_reason": "end_turn"},
+				},
+			)
+			provider := newAnthropicMockServer(t, "/v1/messages", nil, sse, 0)
+			defer provider.Close()
 
-	server, stop := startServerForTest(t, serverruntime.Options{})
-	defer stop()
-	home := os.Getenv("SOLOMON_HOME")
-	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte(fmt.Sprintf(`[current]
+			server, stop := startServerForTest(t, serverruntime.Options{})
+			defer stop()
+			home := os.Getenv("SOLOMON_HOME")
+			if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte(fmt.Sprintf(`[current]
 provider = "test"
 model = "claude-test"
 
@@ -342,63 +349,66 @@ base_url = %q
 api_key = "test-key"
 api_protocol = "anthropic"
 `, provider.URL)), 0o600); err != nil {
-		t.Fatal(err)
-	}
+				t.Fatal(err)
+			}
 
-	projectRoot := t.TempDir()
-	projectResponse := postJSONForServerTest(t, server.URL+"/__solomon/projects", map[string]string{"path": projectRoot})
-	if projectResponse.StatusCode != http.StatusCreated {
-		projectResponse.Body.Close()
-		t.Fatalf("create project status = %d", projectResponse.StatusCode)
-	}
-	var created struct {
-		Project struct {
-			ID string `json:"id"`
-		} `json:"project"`
-	}
-	decodeServerTestJSON(t, projectResponse, &created)
+			projectRoot := t.TempDir()
+			projectResponse := postJSONForServerTest(t, server.URL+"/__solomon/projects", map[string]string{"path": projectRoot})
+			if projectResponse.StatusCode != http.StatusCreated {
+				projectResponse.Body.Close()
+				t.Fatalf("create project status = %d", projectResponse.StatusCode)
+			}
+			var created struct {
+				Project struct {
+					ID string `json:"id"`
+				} `json:"project"`
+			}
+			decodeServerTestJSON(t, projectResponse, &created)
 
-	chatResponse := postJSONForServerTest(t, server.URL+"/__solomon/projects/"+created.Project.ID+"/chats", map[string]string{})
-	if chatResponse.StatusCode != http.StatusCreated {
-		chatResponse.Body.Close()
-		t.Fatalf("create chat status = %d", chatResponse.StatusCode)
-	}
-	var createdChat struct {
-		ID string `json:"id"`
-	}
-	decodeServerTestJSON(t, chatResponse, &createdChat)
+			chatResponse := postJSONForServerTest(t, server.URL+"/__solomon/projects/"+created.Project.ID+"/chats", map[string]string{})
+			if chatResponse.StatusCode != http.StatusCreated {
+				chatResponse.Body.Close()
+				t.Fatalf("create chat status = %d", chatResponse.StatusCode)
+			}
+			var createdChat struct {
+				ID string `json:"id"`
+			}
+			decodeServerTestJSON(t, chatResponse, &createdChat)
 
-	body, err := json.Marshal(map[string]string{"content": "hello"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	request, err := http.NewRequest(http.MethodPost, server.URL+"/__solomon/projects/"+created.Project.ID+"/chats/"+createdChat.ID+"/messages", bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Accept", "text/event-stream")
-	client := &http.Client{Timeout: 5 * time.Second}
-	response, err := client.Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	responseBody, readErr := io.ReadAll(response.Body)
-	response.Body.Close()
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("send message status = %d body=%s", response.StatusCode, responseBody)
-	}
-	if !bytes.Contains(responseBody, []byte(`"type":"chat_snapshot"`)) {
-		t.Fatalf("send message response has no final snapshot: %s", responseBody)
-	}
-	if !bytes.Contains(responseBody, []byte(`"title":"hello"`)) {
-		t.Fatalf("final snapshot has no generated fallback title: %s", responseBody)
-	}
+			body, err := json.Marshal(map[string]string{"content": content})
+			if err != nil {
+				t.Fatal(err)
+			}
+			request, err := http.NewRequest(http.MethodPost, server.URL+"/__solomon/projects/"+created.Project.ID+"/chats/"+createdChat.ID+"/messages", bytes.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Accept", "text/event-stream")
+			client := &http.Client{Timeout: 5 * time.Second}
+			response, err := client.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			responseBody, readErr := io.ReadAll(response.Body)
+			response.Body.Close()
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if response.StatusCode != http.StatusOK {
+				t.Fatalf("send message status = %d body=%s", response.StatusCode, responseBody)
+			}
+			if !bytes.Contains(responseBody, []byte(`"type":"chat_snapshot"`)) {
+				t.Fatalf("send message response has no final snapshot: %s", responseBody)
+			}
+			if !bytes.Contains(responseBody, []byte(`"title":`+strconv.Quote(tc.title))) {
+				t.Fatalf("final snapshot has no generated fallback title: %s", responseBody)
+			}
 
-	getHealthForTest(t, server.URL)
+			getHealthForTest(t, server.URL)
+
+		})
+	}
 }
 
 func TestServerRuntime_sendChatMessageWithMCPKeepsServerAlive(t *testing.T) {

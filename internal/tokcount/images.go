@@ -10,6 +10,8 @@ import (
 	"math"
 	"os"
 	"strings"
+
+	_ "golang.org/x/image/webp"
 )
 
 func VisionTokensForFile(path string) int64 {

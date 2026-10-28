@@ -21,6 +21,7 @@ require (
 	github.com/tetratelabs/wazero v1.12.0
 	github.com/wailsapp/wails/v2 v2.17.0
 	github.com/yuin/goldmark v1.8.6
+	golang.org/x/image v0.47.0
 	golang.org/x/net v0.61.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.49.0

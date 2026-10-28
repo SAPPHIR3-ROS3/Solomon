@@ -37,6 +37,9 @@ func Run() {
 		Width:                    1280,
 		Height:                   840,
 		EnableDefaultContextMenu: true,
+		DragAndDrop: &options.DragAndDrop{
+			EnableFileDrop: true,
+		},
 		OnStartup: func(ctx context.Context) {
 			shutdown, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 			stopSignals = stop

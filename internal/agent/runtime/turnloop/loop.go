@@ -18,6 +18,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -425,6 +426,7 @@ func Run(ctx context.Context, h Host) error {
 				rawPayload := toolingResultJSON(res)
 				h.MutateSession(func(s *chatstore.Session) { s.Capabilities.Capture(inv.Name, rawPayload) })
 			}
+			res, toolImages := images.TakeToolAttachments(res)
 			res = h.ApplyToolOutput(res, inv.Name, toolID)
 			payload := toolingResultJSON(res)
 			if h.MachineMode() {
@@ -443,6 +445,7 @@ func Run(ctx context.Context, h Host) error {
 			} else {
 				tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
 			}
+			tm.ToolImages = toolImages
 			h.MutateSession(func(s *chatstore.Session) {
 				checkpoint.StampMsg(&tm, s, toolCpSeq)
 				s.Messages = append(s.Messages, tm)

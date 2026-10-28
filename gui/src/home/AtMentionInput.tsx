@@ -1,7 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { ImageLightbox } from "./ImageLightbox";
-import { clipboardImageFiles, readNativeClipboardImage } from "./clipboardImages";
+import { clipboardImageFiles, isImageFileDrag, nativeImageDropPaths, readNativeClipboardImage, readNativeDroppedImages, supportsNativeImageDrop } from "./clipboardImages";
+import { NATIVE_IMAGE_DROP_EVENT, usesNativeFileDrops } from "./imageDrops";
 import { notifyError } from "../notifications/store";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "../chat/composerTypes";
 import { fetchProjectAtMentionSuggestions, type ProjectAtMentionSuggestion } from "../projects/projects";
@@ -81,6 +82,8 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   const [pickerPosition, setPickerPosition] = useState<{ left: number; top: number } | null>(null);
   const [imageTagPositions, setImageTagPositions] = useState<ImageTagPosition[]>([]);
   const [selectedImageID, setSelectedImageID] = useState<number | null>(null);
+  const [isDraggingImages, setIsDraggingImages] = useState(false);
+  const canAttachImages = Boolean(onImagesChange);
   const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<LightboxTool>("color");
   const [selectedSketchTool, setSelectedSketchTool] = useState<SketchTool>("freehand");
@@ -91,6 +94,89 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   const contextRef = useRef<SuggestionContext | null>(null);
   const selectedImage = images.find((image) => image.id === selectedImageID);
   const selectedImageIndex = images.findIndex((image) => image.id === selectedImageID);
+
+  useEffect(() => {
+    if (!canAttachImages) return;
+    // Include the toolbar and composer padding in the drop target, while sharing
+    // the exact attachment path used by paste and the file picker.
+    const target: HTMLElement | null = shellRef.current?.closest<HTMLFormElement>("form") ?? shellRef.current;
+    if (!target) return;
+    let depth = 0;
+    let active = true;
+    const visible = () => target.getClientRects().length > 0;
+    const imageDrag = (data: DataTransfer) => isImageFileDrag(data) ||
+      (supportsNativeImageDrop() && Array.from(data.types ?? []).includes("text/uri-list"));
+    const reset = () => { depth = 0; setIsDraggingImages(false); };
+    const attachPaths = (paths: string[]) => {
+      paths = paths.filter(path => /\.(png|jpe?g|webp|gif)$/i.test(path));
+      if (!paths.length || !visible()) return;
+      const composer = latestComposerRef.current;
+      void readNativeDroppedImages(paths).then((images) => {
+        if (active && target.isConnected && composer.value === latestComposerRef.current.value &&
+            composer.images === latestComposerRef.current.images) latestComposerRef.current.attach(images);
+      }).catch((error: unknown) => {
+        if (active) notifyError(`Unable to attach dropped images: ${String(error)}`);
+      });
+    };
+    const nativeDrop = (event: Event) => {
+      reset();
+      if (!visible()) return;
+      pasteRequestRef.current += 1;
+      attachPaths((event as CustomEvent<string[]>).detail);
+    };
+    const enter = (event: DragEvent) => {
+      if (!visible() || !event.dataTransfer || !imageDrag(event.dataTransfer)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      depth += 1;
+      setIsDraggingImages(true);
+    };
+    const over = (event: DragEvent) => {
+      if (!visible() || !event.dataTransfer || !imageDrag(event.dataTransfer)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+    };
+    const leave = () => {
+      depth = Math.max(0, depth - 1);
+      if (!depth) setIsDraggingImages(false);
+    };
+    const drop = (event: DragEvent) => {
+      reset();
+      if (!visible()) return;
+      const data = event.dataTransfer;
+      if (!data) return;
+      const paths = supportsNativeImageDrop() ? nativeImageDropPaths(data) : [];
+      const hasFiles = Array.from(data.types ?? []).includes("Files") ||
+        Array.from(data.items ?? []).some((item) => item.kind === "file") || data.files.length > 0;
+      if (!hasFiles && !paths.length) return;
+      // A file drop must not navigate the WebView away from the conversation.
+      event.preventDefault();
+      // Wails resolves native file paths itself (on Windows at window bubble).
+      // Use one transport per drop, and let its runtime listener receive it.
+      if (usesNativeFileDrops() && supportsNativeImageDrop()) return;
+      event.stopPropagation();
+      pasteRequestRef.current += 1;
+      const files = clipboardImageFiles(data);
+      if (files.length) latestComposerRef.current.attach(files);
+      else if (paths.length) attachPaths(paths);
+    };
+    window.addEventListener("dragenter", enter, true);
+    window.addEventListener("dragover", over, true);
+    window.addEventListener("dragleave", leave, true);
+    window.addEventListener("dragend", reset, true);
+    window.addEventListener("drop", drop, true);
+    window.addEventListener(NATIVE_IMAGE_DROP_EVENT, nativeDrop);
+    return () => {
+      active = false;
+      window.removeEventListener("dragenter", enter, true);
+      window.removeEventListener("dragover", over, true);
+      window.removeEventListener("dragleave", leave, true);
+      window.removeEventListener("dragend", reset, true);
+      window.removeEventListener("drop", drop, true);
+      window.removeEventListener(NATIVE_IMAGE_DROP_EVENT, nativeDrop);
+    };
+  }, [canAttachImages]);
 
   useEffect(() => {
     requestRef.current += 1;
@@ -303,7 +389,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   }
 
   return (
-    <div className="at-mention-input-shell" ref={shellRef}>
+    <div className={`at-mention-input-shell${isDraggingImages ? " is-image-drop-target" : ""}`} ref={shellRef}>
       {images.length ? (
         <div aria-label="Pasted images" className="composer-image-previews">
           {images.map((image) => (

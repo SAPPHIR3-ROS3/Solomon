@@ -78,6 +78,11 @@ func parseReadResult(m map[string]any) ReadResult {
 		TotalLines: intField(m, "total_lines"),
 		StartLine:  intField(m, "start_line"),
 		EndLine:    intField(m, "end_line"),
+		Type:       strField(m, "type"),
+		MIMEType:   strField(m, "mime_type"),
+		Width:      intField(m, "width"),
+		Height:     intField(m, "height"),
+		SizeBytes:  intField(m, "size_bytes"),
 	}
 	if r.StartLine == 0 && r.EndLine == 0 && r.TotalLines > 0 {
 		r.StartLine = 1

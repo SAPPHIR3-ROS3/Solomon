@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
@@ -91,7 +90,7 @@ func Run(loop *Loop) error {
 			continue
 		}
 		history.Add(line, loop.CompleteEnv.ReplShellFirst)
-		if strings.HasPrefix(line, "/") {
+		if slash.IsCommand(line) {
 			if err := loop.HandleSlash(line); err != nil {
 				if errors.Is(err, slash.ErrExitChat) {
 					logging.Log(logging.INFO_LOG_LEVEL, "user requested exit from chat")

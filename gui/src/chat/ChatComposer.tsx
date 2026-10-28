@@ -1,4 +1,5 @@
 import { composerDraftKey, useComposerDraft } from "./composerDrafts";
+import { isSlashCommand } from "./slashCommands";
 import { sendProjectCommand } from "./chatClient";
 import { notifyError } from "../notifications/store";
 import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
@@ -180,7 +181,7 @@ export function ChatComposer({
 
   async function submit() {
     const content = draft.trim();
-    const isCommand = content.startsWith("/");
+    const isCommand = isSlashCommand(content);
     if (isSending || modeSwitchPending || (!content && images.length === 0) || (!onSend && !isCommand)) return;
     if ((content === "/agent" || content === "/chat") && !images.length && !clips.length) {
       setMode(content === "/agent" ? "agent" : "chat");
@@ -283,7 +284,7 @@ export function ChatComposer({
             <ComposerStopIcon />
           </button>
         ) : (
-          <button aria-label="Send" className="welcome-send" disabled={isSending || modeSwitchPending || (!draft.trim() && images.length === 0) || (!onSend && !draft.trimStart().startsWith("/"))} type="submit">
+          <button aria-label="Send" className="welcome-send" disabled={isSending || modeSwitchPending || (!draft.trim() && images.length === 0) || (!onSend && !isSlashCommand(draft))} type="submit">
             <ComposerSendIcon />
           </button>
         )}

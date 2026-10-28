@@ -21,6 +21,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -666,7 +667,7 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	generateTitle := needsChatTitleGeneration(sess)
-	if strings.HasPrefix(content, "/") {
+	if slash.IsCommand(content) {
 		if len(req.Images) != 0 || len(req.Clips) != 0 {
 			writeAPIError(w, http.StatusBadRequest, errors.New("send attachments as a message, separately from slash commands"))
 			return

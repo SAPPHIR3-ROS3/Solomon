@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
@@ -62,8 +64,14 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 		logging.Log(logging.WARNING_LOG_LEVEL, "orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return orchestrateCompileErrorResult(a.Source, err), nil
 	}
+	var attachments []images.Attachment
+	var attachmentsMu sync.Mutex
 	done, err := parent.RunGlobal(ctx, wasm, deferredExecMode(env), func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
-		return orchestrateHostCall(ctx, env, name, args)
+		return orchestrateHostCall(ctx, env, name, args, func(imgs []images.Attachment) {
+			attachmentsMu.Lock()
+			defer attachmentsMu.Unlock()
+			attachments = append(attachments, imgs...)
+		})
 	})
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "orchestrate sandbox run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
@@ -80,6 +88,10 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 	if done.Error != "" {
 		out["error"] = done.Error
 	}
+	if len(attachments) > 0 {
+		out[images.ToolAttachmentsKey] = attachments
+		out["images_attached"] = len(attachments)
+	}
 	return out, nil
 }
 
@@ -95,13 +107,17 @@ func orchestrateCompileErrorResult(source string, err error) map[string]any {
 	}
 }
 
-func orchestrateHostCall(ctx context.Context, env *Env, name string, args json.RawMessage) (json.RawMessage, error) {
+func orchestrateHostCall(ctx context.Context, env *Env, name string, args json.RawMessage, collect func([]images.Attachment)) (json.RawMessage, error) {
 	hostEnv := *env
 	hostEnv.AllowDeferredTools = true
 	hostEnv.ParentToolName = "orchestrate"
 	result, err := Exec(ctx, &hostEnv, "agent", tooling.Invocation{Name: name, Args: args})
 	if err != nil {
 		return nil, err
+	}
+	result, attachments := images.TakeToolAttachments(result)
+	if collect != nil && len(attachments) > 0 {
+		collect(attachments)
 	}
 	return json.Marshal(result)
 }

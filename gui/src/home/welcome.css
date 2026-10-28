@@ -343,6 +343,12 @@
   width: 100%;
 }
 
+.welcome-composer:has(.is-image-drop-target) {
+  border-color: var(--color-accent);
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
 .welcome-input::placeholder {
   color: var(--color-text-muted);
 }

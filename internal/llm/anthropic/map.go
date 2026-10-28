@@ -64,7 +64,8 @@ func buildMessages(msgs []chatstore.Message, imageFiles map[int]string) []messag
 				content = m.APIContent
 			}
 			content = chatstore.StripUnresolvedImgPlaceholders(content, imageFiles)
-			out = append(out, messageParam{Role: "user", Content: userBlocks(content, imageFiles)})
+			blocks := append(userBlocks(content, imageFiles), toolImageBlocks(m.ToolImages)...)
+			out = append(out, messageParam{Role: "user", Content: blocks})
 			i++
 		case "assistant":
 			var blocks []contentBlock
@@ -94,10 +95,14 @@ func buildMessages(msgs []chatstore.Message, imageFiles map[int]string) []messag
 			var results []contentBlock
 			for i < len(msgs) && msgs[i].Role == "tool" {
 				tm := msgs[i]
+				var content any = chatstore.ScrubLiteralImgPlaceholdersForAPI(tm.Content)
+				if len(tm.ToolImages) > 0 {
+					content = append([]contentBlock{{"type": "text", "text": content}}, toolImageBlocks(tm.ToolImages)...)
+				}
 				results = append(results, contentBlock{
 					"type":        "tool_result",
 					"tool_use_id": tm.ToolCallID,
-					"content":     chatstore.ScrubLiteralImgPlaceholdersForAPI(tm.Content),
+					"content":     content,
 				})
 				i++
 			}
@@ -114,6 +119,20 @@ func buildMessages(msgs []chatstore.Message, imageFiles map[int]string) []messag
 		}
 	}
 	return out
+}
+
+func toolImageBlocks(attachments []images.Attachment) []contentBlock {
+	var blocks []contentBlock
+	for _, attachment := range attachments {
+		blocks = append(blocks,
+			contentBlock{"type": "text", "text": "Image read by tool: " + attachment.Path},
+			contentBlock{"type": "image", "source": map[string]any{
+				"type": "base64", "media_type": attachment.MIMEType,
+				"data": base64.StdEncoding.EncodeToString(attachment.Data),
+			}},
+		)
+	}
+	return blocks
 }
 
 func userBlocks(content string, imageFiles map[int]string) []contentBlock {

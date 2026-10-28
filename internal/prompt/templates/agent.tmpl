@@ -95,7 +95,7 @@ When `legacy_force` is active, native API tool calls are disabled: use only the 
 
 ## Workspace semantics
 
-- Paths are project-relative by default and tool operations use the selected workspace. `readFile` supports optional 1-based inclusive line ranges.
+- Paths are project-relative by default and tool operations use the selected workspace. `readFile` supports optional 1-based inclusive line ranges for text. For PNG, JPEG, and WebP, `sdk.ReadFile(path, intent)` automatically attaches the image for vision-capable models; the returned string is metadata, not image bytes, and printing it is optional. Images are limited to 5 MiB each; line ranges do not apply.
 - `find` with `files=true` lists paths matching a glob; with `files=false` searches text with a Go regexp and can return content, matching files, or counts.
 - `listDir` lists one directory level; `tree` renders a bounded directory tree; both honor hidden-file and gitignore options.
 - `editFile` replaces one occurrence, creates or overwrites when `oldString` is empty and content is supplied, deletes with `delete: true`, and renames or moves with `renameTo`. Check the result before describing a mutation as complete.

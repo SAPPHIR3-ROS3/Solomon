@@ -120,13 +120,28 @@ func (s *AgentSession) ContextResult(id uint32, execID, system string, tools []A
 	return s.Write(pbBytes(2, exec))
 }
 
-func (s *AgentSession) ToolResult(call AgentToolCall, content string, isError bool) error {
+func (s *AgentSession) ToolResult(call AgentToolCall, content string, isError bool, images ...AgentImage) error {
+	return s.Write(agentToolResultMessage(call, content, isError, images))
+}
+
+func agentToolResultMessage(call AgentToolCall, content string, isError bool, images []AgentImage) []byte {
 	item := pbBytes(1, pbString(1, content))
 	success := pbBytes(1, item)
+	// McpSuccess.content (field 1) contains McpToolResultContentItem;
+	// its image variant (field 2) is McpImageContent { data: 1, mime_type: 2 }.
+	for _, image := range images {
+		imageContent := append(pbBytes(1, image.Data), pbString(2, image.Mime)...)
+		success = append(success, pbBytes(1, pbBytes(2, imageContent))...)
+	}
 	if isError {
 		success = append(success, pbVarint(2, 1)...)
 	}
 	exec := append(pbVarint(1, uint64(call.ExecNumber)), pbBytes(11, pbBytes(1, success))...)
 	exec = append(exec, pbString(15, call.ExecID)...)
-	return s.Write(pbBytes(2, exec))
+	return pbBytes(2, exec)
+}
+
+// AgentToolResultMessageForTest exposes the encoded result without opening a session.
+func AgentToolResultMessageForTest(call AgentToolCall, content string, isError bool, images []AgentImage) []byte {
+	return agentToolResultMessage(call, content, isError, images)
 }

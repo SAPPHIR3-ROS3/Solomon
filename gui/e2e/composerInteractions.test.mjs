@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -14,11 +14,14 @@ import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {ChatView} from '/src/chat/ChatView.tsx';
 import {applyLiveStreamEvent} from '/src/chat/chatClient.ts';
+import {watchImageDrops} from '/src/home/imageDrops.ts';
 import '/src/styles.css';
 import '/src/home/welcome.css';
 window.interactionErrors=[];
 window.addEventListener('error',event=>window.interactionErrors.push(event.message));
 window.addEventListener('unhandledrejection',event=>window.interactionErrors.push(String(event.reason)));
+let stopDropWatch=watchImageDrops();
+window.restartDropWatch=()=>{stopDropWatch();stopDropWatch=watchImageDrops();};
 const initial = {id:'composer-interactions',projectID:'fixture',title:'Interactions',status:'done',messages:[
  {id:'u0',role:'user',content:'Earlier question'},
  {id:'a0',role:'assistant',content:'Earlier response',checkpointSeq:1,workedFor:14,workStartedAt:1000},
@@ -37,9 +40,11 @@ function Fixture(){
   input.dispatchEvent(new MouseEvent('click',{bubbles:true}));
  };
  window.submitComposer=()=>document.querySelector('textarea[aria-label="Message"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}));
- return <ChatView chat={chat} isStreaming={chat.status==='running'} onSend={(_,message)=>setChat(current=>({...current,status:'running',runStartedAt:Date.now(),messages:[...current.messages,message]}))} onDeleteMessage={()=>{}} onStopTool={()=>{}} onStopStreaming={()=>{}}/>;
+ return <ChatView chat={chat} isStreaming={chat.status==='running'} onSend={(_,message)=>{window.lastSentMessage=message;setChat(current=>({...current,status:'running',runStartedAt:Date.now(),messages:[...current.messages,message]}));}} onDeleteMessage={()=>{}} onStopTool={()=>{}} onStopStreaming={()=>{}}/>;
 }
-createRoot(document.getElementById('root')).render(<Fixture/>);
+const root=createRoot(document.getElementById('root'));
+window.hideComposer=()=>root.render(<div>No active composer</div>);
+root.render(<Fixture/>);
 `;
 const cacheDir=await mkdtemp(join(tmpdir(),'solomon-composer-tests-'));
 after(()=>rm(cacheDir,{recursive:true,force:true}));
@@ -57,6 +62,188 @@ after(()=>browser.close());
 const page=await browser.newPage();page.setDefaultTimeout(10000);
 afterEach(async()=>assert.deepEqual(await page.evaluate(()=>window.interactionErrors??[]),[]));
 const load=async()=>{await page.goto(server.resolvedUrls.local[0]+'__interactions');await page.waitForFunction(()=>!!document.querySelector('textarea'));};
+
+test('dropped images share pasted previews, editing and sent attachments', async()=>{
+ await load();
+ await page.evaluate(()=>{
+  window.setComposer('Explain these ');
+  window.makeImageTransfer=names=>{
+   const data=new DataTransfer();
+   const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII='),c=>c.charCodeAt(0));
+   names.forEach(name=>data.items.add(new File([bytes],name,{type:name==='dropped two.png'?'':'image/png'})));
+   return data;
+  };
+  document.querySelector('textarea').dispatchEvent(new ClipboardEvent('paste',{clipboardData:window.makeImageTransfer(['pasted.png']),bubbles:true,cancelable:true}));
+ });
+ await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===1);
+ const accepted=await page.evaluate(()=>{
+  const target=document.querySelector('.welcome-toolbar');
+  const data=window.makeImageTransfer(['dropped one.png','dropped two.png']);
+  data.items.add(new File(['ignore this'],'notes.txt',{type:'text/plain'}));
+  window.dropTransfer=data;
+  const enter=new DragEvent('dragenter',{dataTransfer:data,bubbles:true,cancelable:true});
+  target.dispatchEvent(enter);
+  const over=new DragEvent('dragover',{dataTransfer:data,bubbles:true,cancelable:true});
+  target.dispatchEvent(over);
+  return {enter: enter.defaultPrevented, over: over.defaultPrevented};
+ });
+ assert.deepEqual(accepted,{enter:true,over:true});
+ await page.waitForFunction(()=>!!document.querySelector('.is-image-drop-target'));
+ assert.equal(await page.evaluate(()=>{
+  const drop=new DragEvent('drop',{dataTransfer:window.dropTransfer,bubbles:true,cancelable:true});
+  document.querySelector('.welcome-toolbar').dispatchEvent(drop);
+  return drop.defaultPrevented;
+ }),true);
+ await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===3);
+ await page.waitForFunction(()=>!document.querySelector('.is-image-drop-target'));
+ assert.deepEqual(await page.evaluate(()=>Array.from(document.querySelectorAll('.welcome-composer .composer-image-preview img'),img=>img.alt)),['Open preview of pasted.png','Open preview of dropped one.png','Open preview of dropped two.png']);
+ assert.equal(await page.evaluate(()=>document.querySelector('textarea').value),'Explain these [img-0] [img-1] [img-2] ');
+ await page.evaluate(()=>document.querySelectorAll('.welcome-composer .composer-image-preview')[1].click());
+ await page.waitForFunction(()=>!!document.querySelector('[role="dialog"][aria-label="Image preview: dropped one.png"]'));
+ assert.equal(await page.evaluate(()=>!!document.querySelector('[aria-label="Image editing tools"]')),true);
+ await page.evaluate(()=>document.querySelector('[role="dialog"][aria-label="Image preview: dropped one.png"]').click());
+ await page.waitForFunction(()=>!document.querySelector('.composer-image-lightbox'));
+ await page.evaluate(()=>window.submitComposer());
+ await page.waitForFunction(()=>window.lastSentMessage?.images?.length===3);
+ assert.deepEqual(await page.evaluate(()=>window.lastSentMessage.images.map(image=>({name:image.name,hasBytes:image.url.startsWith('data:image/png;base64,')}))),[
+  {name:'pasted.png',hasBytes:true},{name:'dropped one.png',hasBytes:true},{name:'dropped two.png',hasBytes:true},
+ ]);
+ await page.waitForFunction(()=>document.querySelectorAll('.chat-message-images .composer-image-preview').length===3);
+ await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===0);
+});
+
+test('leaving the composer cancels drop highlighting and text drops remain native', async()=>{
+ await load();
+ await page.evaluate(()=>{
+  window.setComposer('Keep this text');
+  const data=new DataTransfer();data.items.add(new File(['image'],'image.png',{type:'image/png'}));
+  window.dragTransfer=data;
+  document.querySelector('textarea').dispatchEvent(new DragEvent('dragenter',{dataTransfer:data,bubbles:true,cancelable:true}));
+ });
+ await page.waitForFunction(()=>!!document.querySelector('.is-image-drop-target'));
+ await page.evaluate(()=>document.querySelector('textarea').dispatchEvent(new DragEvent('dragleave',{dataTransfer:window.dragTransfer,bubbles:true})));
+ await page.waitForFunction(()=>!document.querySelector('.is-image-drop-target'));
+ assert.equal(await page.evaluate(()=>{
+  const data=new DataTransfer();data.setData('text/plain','ordinary text');
+  const event=new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true});
+  document.querySelector('textarea').dispatchEvent(event);
+  return event.defaultPrevented;
+ }),false);
+ assert.equal(await page.evaluate(()=>document.querySelector('textarea').value),'Keep this text');
+ assert.equal(await page.evaluate(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length),0);
+});
+
+test('native file-manager drops attach all three images instead of inserting paths', async()=>{
+ for (const uriList of [true,false]) {
+  await load();
+  const prevented=await page.evaluate(uriList=>{
+   window.setComposer('Compare ');
+   const paths=['/home/oni/Pictures/Screen one.png','/home/oni/Pictures/Screen two.png','/home/oni/Pictures/Screen three.png'];
+   const dataURL='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=';
+   window.go={app:{ServerBridge:{ReadDroppedImages:async names=>{
+    window.nativeDroppedPaths=names;
+    return names.map(path=>({name:path.split('/').at(-1),data:dataURL}));
+   }}}};
+   const data=new DataTransfer();
+   data.setData('text/plain',paths.join('\n'));
+   if(uriList)data.setData('text/uri-list',paths.map(path=>'file://'+path.split('/').map(encodeURIComponent).join('/')).join('\r\n'));
+   const drop=new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true});
+   document.querySelector('textarea').dispatchEvent(drop);
+   return drop.defaultPrevented;
+  },uriList);
+  assert.equal(prevented,true);
+  await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===3);
+  assert.deepEqual(await page.evaluate(()=>window.nativeDroppedPaths),['/home/oni/Pictures/Screen one.png','/home/oni/Pictures/Screen two.png','/home/oni/Pictures/Screen three.png']);
+  assert.equal(await page.evaluate(()=>document.querySelector('textarea').value),'Compare [img-0] [img-1] [img-2] ');
+  await page.waitForFunction(()=>[...document.querySelectorAll('.welcome-composer .composer-image-preview img')].every(image=>image.complete&&image.naturalWidth>0));
+  await page.evaluate(()=>window.submitComposer());
+  await page.waitForFunction(()=>window.lastSentMessage?.images?.length===3);
+  assert.deepEqual(await page.evaluate(()=>window.lastSentMessage.images.map(image=>image.name)),['Screen one.png','Screen two.png','Screen three.png']);
+  await page.waitForFunction(()=>document.querySelectorAll('.chat-message-images .composer-image-preview').length===3);
+ }
+});
+
+test('dropping images outside the composer preserves Solomon and attaches thumbnails', async()=>{
+ await load();
+ const before=await page.evaluate(()=>location.href);
+ const prevented=await page.evaluate(()=>{
+  window.setComposer('Compare ');
+  const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII='),c=>c.charCodeAt(0));
+  const data=new DataTransfer();
+  ['one.png','two.png','three.png'].forEach(name=>data.items.add(new File([bytes],name,{type:'image/png'})));
+  const event=new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true});
+  document.body.dispatchEvent(event);
+  return event.defaultPrevented;
+ });
+ assert.equal(prevented,true);
+ await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===3);
+ assert.equal(await page.evaluate(()=>location.href),before);
+ assert.equal(await page.evaluate(()=>document.querySelector('textarea').value),'Compare [img-0] [img-1] [img-2] ');
+ assert.equal(await page.evaluate(()=>document.querySelectorAll('.composer-image-lightbox').length),0);
+});
+
+test('native Wails events attach images once and allow its path resolver to run', async()=>{
+ await load();
+ const propagated=await page.evaluate(()=>{
+  window.setComposer('Native ');
+  const dataURL='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=';
+  window.go={app:{ServerBridge:{ReadDroppedImages:async paths=>paths.map(path=>({name:path.split('/').at(-1),data:dataURL}))}}};
+  window.runtime={OnFileDrop:callback=>{window.nativeFileDrop=callback;},OnFileDropOff:()=>{}};
+  window.restartDropWatch();
+  window.bubbledDrop=false;
+  window.addEventListener('drop',()=>{window.bubbledDrop=true;},{once:true});
+  const data=new DataTransfer();data.items.add(new File(['bytes'],'one.png',{type:'image/png'}));
+  document.body.dispatchEvent(new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true}));
+  return window.bubbledDrop;
+ });
+ assert.equal(propagated,true);
+ assert.equal(await page.evaluate(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length),0);
+ await page.evaluate(()=>window.nativeFileDrop(10,10,['/tmp/one.png','/tmp/two.png','/tmp/three.png']));
+ await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===3);
+ assert.equal(await page.evaluate(()=>document.querySelector('textarea').value),'Native [img-0] [img-1] [img-2] ');
+});
+
+test('file drops cannot navigate the window even without an active composer', async()=>{
+ await load();
+ const before=await page.evaluate(()=>location.href);
+ await page.evaluate(()=>window.hideComposer());
+ await page.waitForFunction(()=>!document.querySelector('textarea'));
+ assert.equal(await page.evaluate(()=>{
+  const data=new DataTransfer();data.setData('text/uri-list','file:///tmp/image.png');
+  const event=new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true});
+  document.body.dispatchEvent(event);
+  return event.defaultPrevented;
+ }),true);
+ assert.equal(await page.evaluate(()=>location.href),before);
+});
+
+test('real GTK file drag outside the composer keeps the app open and attaches three images', {skip:engine!=='webkitgtk'}, async()=>{
+ await load();
+ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=';
+ const paths=['native one.png','native two.png','native three.png'].map(name=>join(cacheDir,name));
+ await Promise.all(paths.map(path=>writeFile(path,Buffer.from(png,'base64'))));
+ await page.evaluate(png=>{
+  window.setComposer('GTK ');
+  window.go={app:{ServerBridge:{ReadDroppedImages:async paths=>paths.map(path=>({name:path.split('/').at(-1),data:'data:image/png;base64,'+png}))}}};
+  window.runtime={OnFileDrop:callback=>{window.nativeFileDrop=callback;},OnFileDropOff:()=>{}};
+  window.restartDropWatch();
+  window.realDragEvents=[];
+  for(const type of ['dragenter','dragover','drop'])window.addEventListener(type,event=>{
+   window.realDragEvents.push({type,types:[...event.dataTransfer.types],uri:event.dataTransfer.getData('text/uri-list'),text:event.dataTransfer.getData('text/plain'),files:[...event.dataTransfer.files].map(file=>({name:file.name,type:file.type})),prevented:event.defaultPrevented});
+  },true);
+ },png);
+ const before=await page.evaluate(()=>location.href);
+ const result=await page.nativeDrop(paths,500,180);
+ assert.equal(result.provided,true,'GTK must transfer the URI list through native Xdnd: '+JSON.stringify(result));
+ assert.deepEqual(result.receivedPaths,paths,'the native GTK signal must receive the real file paths');
+ const state=await page.evaluate(()=>({url:location.href,input:document.querySelector('textarea')?.value,events:window.realDragEvents,previews:document.querySelectorAll('.welcome-composer .composer-image-preview').length,body:document.body.innerText.slice(0,100)}));
+ assert.equal(state.url,before,JSON.stringify(state));
+ assert.equal(state.previews,3,JSON.stringify(state));
+ await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===3);
+ assert.equal(await page.evaluate(()=>location.href),before);
+ assert.equal(await page.evaluate(()=>document.querySelector('textarea').value),'GTK [img-0] [img-1] [img-2] ');
+ assert.equal(await page.evaluate(()=>document.querySelectorAll('.composer-image-lightbox').length),0);
+});
 
 test('sending a new user turn does not start a timer above it',async()=>{
  await load();

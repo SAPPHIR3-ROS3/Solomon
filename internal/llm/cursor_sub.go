@@ -117,6 +117,7 @@ func latestCursorUser(messages []chatstore.Message, imageFiles map[int]string) (
 				}
 			}
 		}
+		media = append(media, cursorToolImages(messages[i].ToolImages)...)
 		return strings.TrimSpace(text.String()), media
 	}
 	return "", nil
@@ -135,7 +136,25 @@ func agentHistory(messages []chatstore.Message, imageFiles map[int]string) ([][]
 	}
 	history := make([][]byte, 0, lastUser)
 	toolNames := map[string]string{}
+	var pendingImages []any
+	flushImages := func() error {
+		if len(pendingImages) == 0 {
+			return nil
+		}
+		encoded, err := json.Marshal(map[string]any{"role": "user", "content": pendingImages})
+		if err != nil {
+			return err
+		}
+		history = append(history, encoded)
+		pendingImages = nil
+		return nil
+	}
 	for _, msg := range messages[:lastUser] {
+		if msg.Role != "tool" {
+			if err := flushImages(); err != nil {
+				return nil, err
+			}
+		}
 		var parts []any
 		content := msg.APIContent
 		if content == "" {
@@ -173,6 +192,12 @@ func agentHistory(messages []chatstore.Message, imageFiles map[int]string) ([][]
 			}
 			parts = []any{map[string]any{"type": "tool-result", "toolCallId": msg.ToolCallID, "toolName": name, "result": map[string]any{"is_error": false, "content": msg.Content}}}
 		}
+		for _, image := range msg.ToolImages {
+			pendingImages = append(pendingImages,
+				map[string]any{"type": "text", "text": "Image read by tool: " + image.Path},
+				map[string]any{"type": "image", "image": base64.StdEncoding.EncodeToString(image.Data), "mimeType": image.MIMEType},
+			)
+		}
 		if len(parts) == 0 {
 			continue
 		}
@@ -186,10 +211,26 @@ func agentHistory(messages []chatstore.Message, imageFiles map[int]string) ([][]
 		}
 		history = append(history, encoded)
 	}
+	if err := flushImages(); err != nil {
+		return nil, err
+	}
 	return history, nil
 }
 
-func cursorToolResult(messages []chatstore.Message, id string) (string, bool, bool) {
+func cursorToolImages(attachments []images.Attachment) []cursorauth.AgentImage {
+	var media []cursorauth.AgentImage
+	for _, attachment := range attachments {
+		media = append(media, cursorauth.AgentImage{Data: attachment.Data, Mime: attachment.MIMEType, Filename: filepath.Base(attachment.Path)})
+	}
+	return media
+}
+
+// CursorAgentHistoryForTest exposes history encoding without a live Cursor session.
+func CursorAgentHistoryForTest(messages []chatstore.Message, imageFiles map[int]string) ([][]byte, error) {
+	return agentHistory(messages, imageFiles)
+}
+
+func cursorToolResult(messages []chatstore.Message, id string) (chatstore.Message, bool, bool) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role == "tool" && messages[i].ToolCallID == id {
 			content := messages[i].Content
@@ -199,10 +240,10 @@ func cursorToolResult(messages []chatstore.Message, id string) (string, bool, bo
 			if message, ok := payload["error"].(string); ok && message != "" {
 				failed = true
 			}
-			return content, failed, true
+			return messages[i], failed, true
 		}
 	}
-	return "", false, false
+	return chatstore.Message{}, false, false
 }
 
 func (b *cursorSubBackend) selectAgentModel(selected, effort string, fast bool) string {
@@ -231,7 +272,7 @@ func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string
 	if b.pending != nil {
 		if result, failed, ok := cursorToolResult(messages, b.pending.call.ID); ok {
 			session = b.pending.session
-			if err := session.ToolResult(b.pending.call, result, failed); err != nil {
+			if err := session.ToolResult(b.pending.call, result.Content, failed, cursorToolImages(result.ToolImages)...); err != nil {
 				session.Close()
 				b.pending = nil
 				return cursorauth.ChatResult{}, err

@@ -215,7 +215,19 @@ func MessageParams(system string, msgs []chatstore.Message, imageFiles map[int]s
 func MessageParamsWithEncryptedReasoning(system string, msgs []chatstore.Message, imageFiles map[int]string, includeEncryptedReasoning bool) []openai.ChatCompletionMessageParamUnion {
 	msgs = MessagesForAPI(msgs)
 	out := []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(system)}
+	var pendingImages []openai.ChatCompletionContentPartUnionParam
+	flushImages := func() {
+		if len(pendingImages) > 0 {
+			out = append(out, openai.UserMessage(pendingImages))
+			pendingImages = nil
+		}
+	}
 	for _, m := range msgs {
+		// Keep all tool replies adjacent to their assistant tool-call batch.
+		// Chat Completions accepts images in user messages, not tool messages.
+		if m.Role != "tool" {
+			flushImages()
+		}
 		switch m.Role {
 		case "assistant":
 			if len(m.ToolCalls) > 0 {
@@ -251,6 +263,7 @@ func MessageParamsWithEncryptedReasoning(system string, msgs []chatstore.Message
 			out = append(out, openai.AssistantMessage(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content)))
 		case "tool":
 			out = append(out, openai.ToolMessage(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content), m.ToolCallID))
+			pendingImages = append(pendingImages, toolImageContentParts(m.ToolImages)...)
 		case "user":
 			content := m.Content
 			if strings.TrimSpace(m.APIContent) != "" {
@@ -258,6 +271,7 @@ func MessageParamsWithEncryptedReasoning(system string, msgs []chatstore.Message
 			}
 			content = chatstore.StripUnresolvedImgPlaceholders(content, imageFiles)
 			parts := BuildUserContentParts(content, imageFiles)
+			parts = append(parts, toolImageContentParts(m.ToolImages)...)
 			if len(parts) == 0 {
 				out = append(out, openai.UserMessage(""))
 				continue
@@ -271,7 +285,23 @@ func MessageParamsWithEncryptedReasoning(system string, msgs []chatstore.Message
 			out = append(out, openai.UserMessage(m.Role+": "+m.Content))
 		}
 	}
+	flushImages()
 	return out
+}
+
+func toolImageContentParts(attachments []images.Attachment) []openai.ChatCompletionContentPartUnionParam {
+	var parts []openai.ChatCompletionContentPartUnionParam
+	for _, attachment := range attachments {
+		parts = append(parts, openai.TextContentPart("Image read by tool: "+attachment.Path))
+		parts = append(parts, openai.ChatCompletionContentPartUnionParam{
+			OfImageURL: &openai.ChatCompletionContentPartImageParam{
+				ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
+					URL: "data:" + attachment.MIMEType + ";base64," + base64.StdEncoding.EncodeToString(attachment.Data),
+				},
+			},
+		})
+	}
+	return parts
 }
 
 func BuildUserContentParts(content string, imageFiles map[int]string) []openai.ChatCompletionContentPartUnionParam {

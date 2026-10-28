@@ -1,4 +1,5 @@
 import { notifyNotification } from "../notifications/store";
+import { isSlashCommand } from "./slashCommands";
 import { recordProjectChatActivity } from "../projects/chatActivity";
 import { beginNavigation, cancelNavigation, failNavigation, markNavigationSelection, measureNavigation, measureNavigationSync, setNavigationCache } from "./navigationPerformance";
 import { createChatStreamBatch } from "./streamBatch";
@@ -231,7 +232,7 @@ export function useChatRuntime(): ChatRuntime {
   const sendDaemonMessage = useCallback((chat: Chat, message: ChatMessage) => {
     if (!chat.projectID || streams.current.has(chat.id)) return;
     forgetChatStreamCursor(chat.projectID, chat.id);
-    const isCommand = message.content.trimStart().startsWith("/");
+    const isCommand = isSlashCommand(message.content);
     stopRequested.current.delete(chat.id);
     updateChat(chat.id, (current) => ({ ...current, messages: isCommand ? current.messages : [...current.messages, message], rateLimitNotice: undefined, runStartedAt: Date.now(), status: "running" }));
     setError("");
@@ -302,7 +303,7 @@ export function useChatRuntime(): ChatRuntime {
     setIsLoading(true);
     setError("");
     try {
-      if (content.trimStart().startsWith("/")) {
+      if (isSlashCommand(content)) {
         if (composerImages.length || composerClips.length) throw new Error("Send attachments separately from slash commands");
         if (!await sendProjectCommand(project.id, content, controller.signal)) {
           window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));

@@ -9,6 +9,8 @@ export interface ClientInfo {
 }
 
 type WailsEnvironment = {
+  OnFileDrop?: (callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean) => void;
+  OnFileDropOff?: () => void;
   Environment?: () => Promise<unknown>;
   BrowserOpenURL?: (url: string) => void;
   ClipboardSetText?: (text: string) => Promise<boolean>;
@@ -19,6 +21,7 @@ type WailsServerBridge = {
   DaemonRunning?: () => Promise<boolean>;
   SetDaemonEnabled?: (enabled: boolean) => Promise<boolean>;
   ClipboardImage?: () => Promise<string>;
+  ReadDroppedImages?: (paths: string[]) => Promise<Array<{ name: string; data: string }>>;
 };
 
 type WailsDesktopBridge = {
