@@ -26,7 +26,7 @@ func TestBtwInHelpRegistry(t *testing.T) {
 }
 
 func TestBtwIdleDispatchInfoMessage(t *testing.T) {
-	t.Parallel()
+	// termcolor.Init changes the process-wide renderer; keep this test serial.
 	var buf bytes.Buffer
 	termcolor.Init(termcolor.InitOptions{Out: &buf, ForceColor: false})
 	d := commands.Deps{Out: &buf, Cfg: &config.Root{}}
