@@ -56,9 +56,9 @@ test('recovers the recursive Python snippet from thread 125a0e35 with its indent
   assert.equal(render(JSON.parse(JSON.stringify({ content })).content), html);
 });
 
-test('preserves inline code, unknown labels, incomplete blocks and literal backticks', () => {
+test('preserves inline code, unknown labels and literal backticks', () => {
   assert.equal(render(tick + 'python' + tick), '<p><code>python</code></p>');
-  for (const content of [tick + 'unknown\nexample\n' + tick, tick + 'python\nunclosed', tick + 'python\nprint("' + tick + '")\n' + tick]) {
+  for (const content of [tick + 'unknown\nexample\n' + tick, tick + 'python\nprint("' + tick + '")\n' + tick]) {
     assert.ok(!render(content).includes('chat-code-block'));
   }
   const literal = tick.repeat(3) + 'python\n' + tick + 'python\nexample\n' + tick + '\n' + tick.repeat(3);

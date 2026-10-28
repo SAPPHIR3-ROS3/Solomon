@@ -221,10 +221,17 @@ function normalizeCodeBlocks(content: string) {
       if (lines[end].includes("`")) break;
       end++;
     }
-    if (end >= lines.length || !/^ {0,3}`\s*$/.test(lines[end])) continue;
+    if (end < lines.length && !/^ {0,3}`\s*$/.test(lines[end])) continue;
     lines[index] = lines[index].replace("`", "```");
-    lines[end] = lines[end].replace("`", "```");
+    // Recognize the language as soon as it arrives: waiting for the closing
+    // marker lets dollar signs in a streaming command become transient math.
+    if (end < lines.length) lines[end] = lines[end].replace("`", "```");
     index = end;
   }
-  return lines.join("\n");
+  // Markdown only recognizes inline code once its matching delimiter arrives.
+  // Complete a pending span for rendering so its dollars stay literal meanwhile.
+  return lines.join("\n").replace(
+    /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[ \t]*\r?$|(?![\s\S]))|(`+)(?!`)([\s\S]*?)(?:(?<!`)\2(?!`)|(?![\s\S]))/gm,
+    (token, fence, ticks) => fence || token.endsWith(ticks) && token.length >= ticks.length * 2 ? token : token + ticks,
+  );
 }

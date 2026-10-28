@@ -12,6 +12,19 @@ const { MarkdownContent } = await server.ssrLoadModule('/src/chat/MarkdownConten
 const render = (content) => renderToStaticMarkup(createElement(MarkdownContent, { content }));
 const formulas = (html) => (html.match(/class="katex"/g) ?? []).length;
 
+test('streaming PowerShell snippets never turn dollar variables into math', () => {
+  for (const opening of ['`powershell\n', '```powershell\n', '~~~pwsh\n', '`', '``']) {
+    const content = opening + '$source = $env:USERPROFILE; Write-Output $source';
+    for (let end = opening.length; end <= content.length; end++) {
+      assert.equal(formulas(render(content.slice(0, end))), 0, content.slice(0, end));
+    }
+    const closing = opening.includes('\n') ? '\n' + opening.split('\n')[0].match(/^[`~]+/)[0] : opening;
+    assert.equal(formulas(render(content + closing)), 0);
+    assert.ok(render(content).includes('$source'));
+  }
+  assert.equal(formulas(render('`$source = $env:USERPROFILE` then $x^2$')), 1);
+});
+
 test('renders the TeX notation, display equations and table from reference thread 8b1e8247', () => {
   const content = String.raw`Sì: **\(O\) maiuscola e \(o\) minuscola hanno significati diversi**.
 
