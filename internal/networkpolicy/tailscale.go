@@ -21,16 +21,6 @@ type TailscaleInfo struct {
 
 // This runs only for the display list, never while routing HTTP traffic.
 func enrichTailscale(rows []Interface) {
-	candidate := false
-	for _, row := range rows {
-		if !row.Local && (row.Type == "tunnel" || row.Type == "unknown" || row.Type == "") {
-			candidate = true
-			break
-		}
-	}
-	if !candidate {
-		return
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	data, err := exec.CommandContext(ctx, "tailscale", "status", "--json").Output()
