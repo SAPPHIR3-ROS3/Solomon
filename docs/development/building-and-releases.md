@@ -7,14 +7,14 @@ From the repository root:
 ```bash
 go vet ./...
 go test ./... -count=1
-CGO_ENABLED=1 go test ./... -count=1 -race  # Linux CI parity
+CGO_ENABLED=1 go test ./... -count=1 -race -timeout 20m  # Linux CI parity
 go build ./cmd/solomon
 ```
 
 Same checks as [.github/workflows/release.yml](../../.github/workflows/release.yml), including `make check-docs`. The Linux matrix job enables CGO and the race detector; macOS and Windows run the non-race suite:
 
 ```bash
-CGO_ENABLED=1 go test ./... -count=1 -race
+CGO_ENABLED=1 go test ./... -count=1 -race -timeout 20m
 ```
 
 The workflow also runs:
@@ -30,7 +30,7 @@ All tests live in [`test/`](../../test/), package `test`. Full guide: [Testing](
 
 ```bash
 go test ./... -count=1
-CGO_ENABLED=1 go test ./... -count=1 -race  # Linux CI parity
+CGO_ENABLED=1 go test ./... -count=1 -race -timeout 20m  # Linux CI parity
 go test ./test -run TestSlashDispatch -count=1
 ```
 
