@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -115,7 +116,7 @@ func NormalizeSkillMarkdownSource(raw string) (string, error) {
 }
 
 func downloadMarkdown(ctx context.Context, pageURL string) ([]byte, error) {
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 60 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
 	if err != nil {
 		return nil, err

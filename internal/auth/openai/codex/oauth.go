@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -17,7 +18,7 @@ import (
 )
 
 var tokenEndpoint = TokenURL
-var tokenClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+var tokenClient = &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 func SetTokenEndpointForTest(endpoint string) func() {
 	old := tokenEndpoint

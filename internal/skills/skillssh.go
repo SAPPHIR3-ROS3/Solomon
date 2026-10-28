@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -59,7 +60,7 @@ func FetchSkillsShMeta(ctx context.Context, pageURL string) (*SkillsShMeta, erro
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{Timeout: 45 * time.Second}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 45 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
 	if err != nil {
 		return nil, err

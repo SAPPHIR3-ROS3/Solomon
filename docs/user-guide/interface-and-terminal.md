@@ -146,3 +146,74 @@ riepilogo. I commit parziali mantengono i contributi ancora da committare.
 Le scritture effettuate da programmi esterni durante un comando shell non sono
 attribuibili con certezza: il tracciamento delimita le operazioni degli strumenti
 Solomon e non intercetta le scritture dei singoli processi del sistema operativo.
+
+## Interfacce di rete
+
+In **Settings → Network** puoi scegliere le interfacce utilizzate da Solomon.
+La stessa selezione è disponibile nella REPL:
+
+```text
+/interface
+/interface 2 off
+/interface 2 on
+```
+
+`/interface` mostra gli indici di sistema delle interfacce, il nome, la selezione
+`on/off`, lo stato del collegamento e gli indirizzi. Usa il numero mostrato
+nell'elenco: gli indici possono cambiare quando un'interfaccia viene ricreata.
+La selezione viene salvata per nome in `~/.solomon/network.json` (oppure nella
+home indicata da `SOLOMON_HOME`) ed è condivisa tra terminale e GUI.
+
+La disattivazione impedisce nuove richieste al server sull'indirizzo di
+quell'interfaccia e la esclude dalle connessioni HTTP gestite da Solomon,
+compresi provider, ricerca, fetch, autenticazione e aggiornamenti. Su Linux
+le connessioni vengono vincolate anche al dispositivo; sugli altri sistemi
+viene selezionato l'indirizzo sorgente e il percorso dipende dal sistema.
+La risoluzione DNS resta gestita dal resolver di sistema. Programmi esterni,
+sidecar, shell e browser mantengono la propria configurazione di rete.
+Le connessioni già aperte possono proseguire fino alla loro chiusura.
+
+Il loopback resta sempre abilitato: se disattivi l'interfaccia da cui stai
+visitando la GUI, riapri Solomon localmente per riattivarla. La selezione non
+modifica lo stato delle schede di rete del sistema operativo. Senza una
+selezione esplicita tutte le interfacce sono consentite.
+
+Le interfacce Docker e dei container (come `veth`, `docker0` e i bridge
+`br-<id>`) sono nascoste in Network e in `/interface` quando Solomon gira
+sull’host. Restano visibili quando Solomon gira dentro un container.
+Questo filtro riguarda solo l’elenco e non modifica la connettività dei container.
+
+Il tipo viene riconosciuto su Linux dai metadati del kernel in sysfs, non dal
+nome assegnato alla scheda. Network mostra quindi, per esempio, **Ethernet**
+o **Wi-Fi**, conservando il nome tecnico sotto; `/interface` mostra entrambi.
+Interfacce sconosciute, metadati non disponibili e piattaforme senza un
+rilevatore specifico mantengono il nome tecnico originale. Il loopback viene
+riconosciuto anche sulle altre piattaforme.
+
+IANA definisce le categorie standard `ifType`, ma l'accesso ai dati dipende dal
+sistema operativo. I valori Linux `ARPHRD` non sono i codici IANA e il solo
+tipo Ethernet a livello di collegamento non basta a distinguere una scheda
+cablata da Wi-Fi o interfacce virtuali.
+
+Per Tailscale, Network e `/interface` mostrano anche tailnet e
+account del dispositivo locale, letti con `tailscale status --json` e associati
+all'interfaccia tramite i suoi indirizzi IP. L'account è quello di `Self.UserID`,
+non il proprietario della tailnet o un altro utente presente nell'elenco.
+I dispositivi con tag sono indicati come tali, senza attribuire loro un account
+utente. Se Tailscale non è disponibile o non risponde entro un secondo,
+l'elenco continua a funzionare con le informazioni standard dell'interfaccia.
+
+Quando MagicDNS è abilitato in Tailscale, compare come sottovoce della sua
+interfaccia con un interruttore dedicato. La scelta è salvata per Solomon e
+controlla l'accesso tramite il nome completo del dispositivo e il suo nome
+breve; non modifica la configurazione DNS di Tailscale. L'indirizzo IP resta
+utilizzabile se l'interfaccia principale è abilitata. Disabilitando Tailscale,
+anche MagicDNS diventa inattivo, conservando la sua preferenza per la successiva
+riattivazione.
+
+Nella REPL la sottovoce usa il numero del padre seguito da `.1`, per esempio:
+
+```text
+/interface 4.1 off
+/interface 4.1 on
+```

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -332,6 +333,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/promptTemplates/reset", customizationAPI.handleResetPromptTemplate)
 	mux.HandleFunc("/__solomon/globalAgents", customizationAPI.handleGlobalAgents)
 	mux.HandleFunc("/__solomon/gui-settings", handleGUISettings)
+	mux.HandleFunc("/__solomon/network-interfaces", handleNetworkInterfaces)
 	mux.HandleFunc("/__solomon/models", modelAPI.handleCatalog)
 	mux.HandleFunc("/__solomon/current-model", modelAPI.handleCurrent)
 	mux.HandleFunc("/__solomon/model-visibility", modelAPI.handleVisibility)
@@ -341,6 +343,9 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/terminal", terminalAPI.handleWebSocket)
 	mux.Handle("/", frontend)
 	httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !allowNetworkRequest(w, r) {
+			return
+		}
 		if r.URL.Path == "/health" || r.URL.Path == "/__solomon" || strings.HasPrefix(r.URL.Path, "/__solomon/") {
 			origin := strings.TrimSpace(r.Header.Get("Origin"))
 			if origin != "" {
@@ -530,7 +535,7 @@ func startVite(directory string) (*url.URL, *exec.Cmd, error) {
 		return nil, nil, err
 	}
 	deadline := time.Now().Add(10 * time.Second)
-	client := &http.Client{Timeout: 250 * time.Millisecond}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 250 * time.Millisecond}
 	for time.Now().Before(deadline) {
 		response, err := client.Get(viteURL.String())
 		if err == nil {

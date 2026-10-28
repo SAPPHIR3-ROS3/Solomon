@@ -3,6 +3,7 @@ package codex
 import (
 	"context"
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -73,7 +74,7 @@ func ResolveClientVersion(ctx context.Context, force bool) string {
 		return c.document.Version
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return c.document.Version
 	}

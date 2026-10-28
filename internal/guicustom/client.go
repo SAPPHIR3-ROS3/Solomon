@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -46,7 +47,7 @@ func Request(ctx context.Context, mode, directory string) (map[string]any, error
 		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, err := (&http.Client{Timeout: 11 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(request)
+	response, err := (&http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 11 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(request)
 	if err != nil {
 		return nil, err
 	}

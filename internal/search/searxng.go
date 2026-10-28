@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -76,7 +77,7 @@ func searxPerformGET(ctx context.Context, fullURL string, metaBase string, req R
 		return Response{}, fmt.Errorf("searxng: build request: %w", err)
 	}
 	applySearxHTTPHeaders(httpReq)
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := networkhttp.DefaultClient.Do(httpReq)
 	if err != nil {
 		return Response{}, fmt.Errorf("searxng: request: %w", err)
 	}

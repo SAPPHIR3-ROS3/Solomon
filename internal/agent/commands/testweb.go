@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"strings"
@@ -170,7 +171,7 @@ func probeURLReachable(ctx context.Context, rawURL string) bool {
 	if err != nil {
 		return false
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return false
 	}

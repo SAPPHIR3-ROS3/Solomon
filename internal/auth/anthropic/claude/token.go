@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"strings"
@@ -17,7 +18,7 @@ import (
 var tokenEndpoint = TokenURL
 
 // Token POSTs must never follow redirects to another origin.
-var tokenClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+var tokenClient = &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 type TokenSet struct {
 	AccessToken  string

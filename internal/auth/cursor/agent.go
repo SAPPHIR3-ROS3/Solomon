@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -144,13 +145,13 @@ func OpenAgentSession(ctx context.Context, apiKey, model, system, user string, t
 }
 
 var (
-	agentAuthMu       sync.Mutex
-	agentAuthKey      string
-	agentAuthAccess   string
-	agentAuthUntil    time.Time
-	agentEndpoint     string
+	agentAuthMu        sync.Mutex
+	agentAuthKey       string
+	agentAuthAccess    string
+	agentAuthUntil     time.Time
+	agentEndpoint      string
 	agentEndpointUntil time.Time
-	agentTransport    = &http2.Transport{}
+	agentTransport     = &http2.Transport{}
 )
 
 func clearAgentAccess() {
@@ -203,7 +204,7 @@ func discoverAgentURL(ctx context.Context, access string) (string, error) {
 	req.Header.Set("Connect-Protocol-Version", "1")
 	req.Header.Set("X-Cursor-Client-Type", "cli")
 	req.Header.Set("X-Cursor-Client-Version", agentClientVersion())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("Cursor Agent service discovery: %w", err)
 	}

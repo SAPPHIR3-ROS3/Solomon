@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -134,7 +135,7 @@ func Models(ctx context.Context, cwd string) ([]string, error) {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +262,7 @@ func health(ctx context.Context, base, token string) error {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

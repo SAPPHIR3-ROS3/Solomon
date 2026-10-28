@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"math"
 	"net/http"
@@ -72,7 +73,7 @@ func resolveInferenceModel(ctx context.Context, token, model string) (inferenceM
 	req.Header.Set("x-cursor-client-version", cursorClientVersionHeader())
 	req.Header.Set("x-cursor-client-commit", cursorClientCommitHeader())
 	req.Header.Set("x-cursor-client-type", "ide")
-	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 15 * time.Second}).Do(req)
 	if err != nil {
 		return inferenceModel{}, fmt.Errorf("cursor model catalog: %w", err)
 	}

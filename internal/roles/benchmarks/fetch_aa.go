@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -60,7 +61,7 @@ var httpGetAALive = func(ctx context.Context, url, apiKey string) ([]byte, error
 	}
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("User-Agent", "solomon-benchmarks")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"net/http"
 	"strings"
 
@@ -47,7 +48,7 @@ func NewBackend(baseURL string, auth Auth) *Backend {
 
 func NewBackendWithClient(baseURL string, auth Auth, client *http.Client) *Backend {
 	if client == nil {
-		client = &http.Client{}
+		client = &http.Client{Transport: networkhttp.NewDefaultTransport()}
 	}
 	return &Backend{baseURL: strings.TrimSpace(baseURL), auth: auth, httpClient: client}
 }

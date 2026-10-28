@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -120,7 +121,7 @@ var httpGetLatest = func(ctx context.Context, url string) (*http.Response, error
 		return nil, err
 	}
 	applyGitHubAPIHeaders(req)
-	return http.DefaultClient.Do(req)
+	return networkhttp.DefaultClient.Do(req)
 }
 
 func Check(ctx context.Context, currentVersion string) CheckResult {

@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -32,7 +33,7 @@ func (duckduckgoEngine) Search(ctx context.Context, req Request) (Response, erro
 	httpReq.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Solomon-webSearch/1.0)")
 	httpReq.Header.Set("Accept", "text/html,*/*")
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := networkhttp.DefaultClient.Do(httpReq)
 	if err != nil {
 		return Response{}, fmt.Errorf("duckduckgo: request: %w", err)
 	}

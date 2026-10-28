@@ -3,6 +3,7 @@ package updater
 import (
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -127,7 +128,7 @@ var httpDownload = func(ctx context.Context, url string) (*http.Response, error)
 	if tok := githubAuthToken(); tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
-	client := &http.Client{Timeout: 10 * time.Minute}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 10 * time.Minute}
 	return client.Do(req)
 }
 
@@ -143,7 +144,7 @@ func SetHTTPDownload(fn func(context.Context, string) (*http.Response, error)) f
 			if tok := githubAuthToken(); tok != "" {
 				req.Header.Set("Authorization", "Bearer "+tok)
 			}
-			client := &http.Client{Timeout: 10 * time.Minute}
+			client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 10 * time.Minute}
 			return client.Do(req)
 		}
 	} else {

@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -91,7 +92,7 @@ func PollForAuth(ctx context.Context, uuid, verifier string) (TokenSet, error) {
 	}
 	delay := pollBaseDelay
 	consecutiveErrors := 0
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 10 * time.Second}
 	for attempt := 0; attempt < pollMaxAttempts; attempt++ {
 		if attempt > 0 {
 			select {
@@ -186,7 +187,7 @@ func Refresh(ctx context.Context, refreshToken string) (TokenSet, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+refreshToken)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return TokenSet{}, fmt.Errorf("cursor login: refresh: %w", err)
 	}

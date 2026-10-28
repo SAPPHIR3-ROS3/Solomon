@@ -3,7 +3,9 @@ package networkhttp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 	"io"
 	"net"
 	"net/http"
@@ -31,7 +33,13 @@ type Transport struct {
 
 // New clones base, which must not be modified afterward.
 func New(base *http.Transport) *Transport {
-	return &Transport{base: base.Clone(), routeKey: systemRouteKey}
+	clone := base.Clone()
+	if clone.DialContext != nil {
+		clone.DialContext = networkpolicy.WrapDial(clone.DialContext, clone.ResponseHeaderTimeout)
+	} else {
+		clone.DialContext = networkpolicy.DialContext
+	}
+	return &Transport{base: clone, routeKey: systemRouteKey}
 }
 
 // NewRetrying also interrupts active requests on route changes. Use only when
@@ -138,7 +146,14 @@ func (t *Transport) PrepareRetry() {
 func systemRouteKey() string {
 	// Linux route tables include interface, gateway and metric, including
 	// changes where both Wi-Fi and Ethernet remain connected.
+	policy, err := networkpolicy.Read()
 	key := ""
+	if err != nil {
+		key = err.Error()
+	} else {
+		data, _ := json.Marshal(policy)
+		key = string(data)
+	}
 	if runtime.GOOS == "linux" {
 		for _, path := range []string{"/proc/net/route", "/proc/net/ipv6_route"} {
 			if data, err := os.ReadFile(path); err == nil {
@@ -180,3 +195,8 @@ func NewForTest(base *http.Transport, routeKey func() string, interrupt ...bool)
 	t.interruptOnChange = len(interrupt) > 0 && interrupt[0]
 	return t
 }
+
+// NewDefaultTransport applies the saved selection to standard HTTP clients.
+func NewDefaultTransport() *Transport { return New(http.DefaultTransport.(*http.Transport)) }
+
+var DefaultClient = &http.Client{Transport: NewDefaultTransport()}

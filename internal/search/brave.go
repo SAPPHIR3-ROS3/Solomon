@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -47,7 +48,7 @@ func (braveEngine) Search(ctx context.Context, req Request) (Response, error) {
 	httpReq.Header.Set("Accept", "application/json")
 	httpReq.Header.Set("X-Subscription-Token", apiKey)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := networkhttp.DefaultClient.Do(httpReq)
 	if err != nil {
 		return Response{}, fmt.Errorf("brave: request: %w", err)
 	}

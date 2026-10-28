@@ -3,6 +3,7 @@ package cursor
 import (
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -261,7 +262,7 @@ func healthOK(ctx context.Context, port int) bool {
 	if err != nil {
 		return false
 	}
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 2 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return false

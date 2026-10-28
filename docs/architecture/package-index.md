@@ -107,6 +107,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/title/` | Chat title slug and LLM refinement | [Supporting packages](supporting-packages.md) |
 | `internal/modelsapi/` | List models from provider API | [Supporting packages](supporting-packages.md) |
 | `internal/networkhttp/` | Refresh HTTP connection pools when system routes change and before retries | [Supporting packages](supporting-packages.md) |
+| `internal/networkpolicy/` | Persist interface selection, identify network devices, and control Solomon access through interfaces and Tailscale MagicDNS | [Interface and terminal](../user-guide/interface-and-terminal.md) |
 | `internal/modelcatalogcache/` | Persistent cache for provider model catalog lookups | [Supporting packages](supporting-packages.md) |
 | `internal/modelsdev/` | Development model catalog source and normalization | [Supporting packages](supporting-packages.md) |
 | `internal/logo/` | ASCII banner | [Supporting packages](supporting-packages.md) |

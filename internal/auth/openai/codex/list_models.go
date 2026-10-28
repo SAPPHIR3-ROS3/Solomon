@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"sort"
@@ -38,7 +39,7 @@ func ListModels(ctx context.Context, bearer, accountID string) ([]string, error)
 	}
 	applyCodexUpstreamHeaders(req, bearer, accountID, version, "")
 	req.Header.Set("accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

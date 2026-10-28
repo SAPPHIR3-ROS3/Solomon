@@ -3,6 +3,7 @@ import { prefetchProviderQuotas } from "../projects/projects";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { NavigationPerformanceSettings } from "./NavigationPerformanceSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { NetworkSettings } from "./NetworkSettings";
 import { ChatSettings } from "./ChatSettings";
 
 const ModelsPage = lazy(() => import("./ModelsPage").then(module => ({ default: module.ModelsPage })));
@@ -14,7 +15,7 @@ type SettingsPageProps = {
   onHome: () => void;
 };
 
-type SettingsSection = "general" | "chat" | "models" | "advanced" | "docs";
+type SettingsSection = "network" | "general" | "chat" | "models" | "advanced" | "docs";
 
 const locationEvent = "solomon-settings-location";
 
@@ -107,6 +108,15 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
             <span>Models</span>
           </button>
           <button
+            aria-current={section === "network" ? "page" : undefined}
+            className="settings-section-link"
+            onClick={() => setSection("network")}
+            type="button"
+          >
+            <NetworkIcon />
+            <span>Network</span>
+          </button>
+          <button
             aria-current={section === "advanced" ? "page" : undefined}
             className="settings-section-link"
             onClick={() => setSection("advanced")}
@@ -135,6 +145,7 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
       </aside>
 
       <main aria-label="Settings content" className="settings-main">
+        {isSearching || section === "network" ? <NetworkSettings query={query} /> : null}
         {isSearching || section === "general" ? <GeneralSettings query={query} /> : null}
         {isSearching || section === "chat" ? <ChatSettings query={query} /> : null}
         {isSearching || section === "advanced" ? <AdvancedSettings query={query} /> : null}
@@ -192,6 +203,17 @@ function ModelsIcon() {
       <circle cx="9" cy="6" r="2" />
       <circle cx="15" cy="12" r="2" />
       <circle cx="11" cy="18" r="2" />
+    </svg>
+  );
+}
+
+function NetworkIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <rect x="8" y="3" width="8" height="6" rx="1.5" />
+      <path d="M12 9v4M5 17v-4h14v4" />
+      <rect x="2" y="17" width="6" height="4" rx="1" />
+      <rect x="16" y="17" width="6" height="4" rx="1" />
     </svg>
   );
 }

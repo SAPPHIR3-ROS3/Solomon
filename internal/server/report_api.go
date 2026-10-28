@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"runtime"
@@ -17,7 +18,7 @@ import (
 const reportEndpoint = "https://solomon-reports.sapphir3ros3.workers.dev/reports"
 
 var reportDestination = reportEndpoint
-var reportClient = &http.Client{Timeout: 20 * time.Second}
+var reportClient = &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 20 * time.Second}
 
 func handleReport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

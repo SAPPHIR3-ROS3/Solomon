@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -33,7 +34,7 @@ type apiProviderQuota struct {
 	Bars       []apiQuotaBar `json:"bars,omitempty"`
 }
 
-var providerQuotaHTTPClient = &http.Client{Timeout: 15 * time.Second}
+var providerQuotaHTTPClient = &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 15 * time.Second}
 
 type apiProviderQuotas struct {
 	Providers []apiProviderQuota `json:"providers"`

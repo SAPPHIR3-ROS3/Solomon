@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"net/http"
 	"net/url"
 	"strings"
@@ -42,7 +43,7 @@ var (
 	cached     Catalog
 	cachedAt   time.Time
 	fetching   chan struct{}
-	httpClient = &http.Client{Timeout: 40 * time.Second}
+	httpClient = &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 40 * time.Second}
 )
 
 // Load returns a cached catalog when available. The first caller downloads the

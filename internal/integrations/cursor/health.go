@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -89,7 +90,7 @@ func verifySidecar(ctx context.Context, port int, expected healthIdentity, key s
 	if err != nil {
 		return err
 	}
-	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("sidecar health request failed")

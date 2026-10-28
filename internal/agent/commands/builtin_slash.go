@@ -38,6 +38,7 @@ func getSlashBuiltins() []slashBuiltin {
 		return slashBuiltins
 	}
 	slashBuiltins = []slashBuiltin{
+		{[]string{"interface"}, "/interface", "/interface | /interface <n> <on|off> — network interfaces; <n>.1 for MagicDNS (saved)", nil, func(d Deps, parts []string) error { return Interface(d, parts) }},
 		{[]string{"docs"}, "/docs", "/docs <query> — search embedded Solomon docs; keeps /docs ... visible in chat", nil, func(d Deps, parts []string) error {
 			if len(parts) < 2 {
 				return fmt.Errorf("usage: /docs <query>")

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"strings"
@@ -34,7 +35,7 @@ func MintUserAPIKey(ctx context.Context, accessToken string) (string, error) {
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connect-Protocol-Version", "1")
-	client := &http.Client{Timeout: 8 * time.Second}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 8 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("cursor login: mint api key: %w", err)
@@ -86,7 +87,7 @@ func ListAvailableModelFlags(ctx context.Context, accessToken string) ([]ModelFl
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connect-Protocol-Version", "1")
 	req.Header.Set("Accept", "application/json")
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("cursor models: %w", err)

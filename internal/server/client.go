@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"net/http"
 	"net/url"
 	"os"
@@ -115,7 +116,7 @@ func ReadHealth(ctx context.Context, state State) (Health, error) {
 	if err != nil {
 		return Health{}, err
 	}
-	response, err := (&http.Client{Timeout: time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(request)
+	response, err := (&http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(request)
 	if err != nil {
 		return Health{}, err
 	}

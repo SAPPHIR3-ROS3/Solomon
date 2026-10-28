@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -39,7 +40,7 @@ var httpGetRelease = func(ctx context.Context, url string) (*http.Response, erro
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "solomon-benchmarks")
-	return http.DefaultClient.Do(req)
+	return networkhttp.DefaultClient.Do(req)
 }
 
 var httpDownloadAsset = func(ctx context.Context, url string) ([]byte, error) {
@@ -48,7 +49,7 @@ var httpDownloadAsset = func(ctx context.Context, url string) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "solomon-benchmarks")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := networkhttp.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

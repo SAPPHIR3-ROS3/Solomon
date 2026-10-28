@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"github.com/gofrs/flock"
 	"net"
 	"net/http"
@@ -324,7 +325,7 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 			if oldState.PID > 0 {
 				identity := processIdentity(oldState.PID)
 				request, _ := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(oldState.URL, "/")+"/_solomon/stop", nil)
-				response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request)
+				response, err := (&http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 5 * time.Second}).Do(request)
 				if err != nil {
 					return err
 				}
@@ -382,7 +383,7 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 			// Windows cannot replace an executable while its process is running.
 			if state, err := serverruntime.LoadState(); err == nil && state.PID != oldState.PID {
 				request, _ := http.NewRequest(http.MethodPost, strings.TrimRight(state.URL, "/")+"/_solomon/stop", nil)
-				if response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request); err == nil {
+				if response, err := (&http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 5 * time.Second}).Do(request); err == nil {
 					response.Body.Close()
 				}
 				if err := waitProcessExit(context.Background(), state.PID, processIdentity(state.PID)); err != nil {

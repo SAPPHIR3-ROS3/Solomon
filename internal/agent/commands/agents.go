@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"net/http"
@@ -58,7 +59,7 @@ func Agents(d Deps) error {
 	if err != nil {
 		return err
 	}
-	client := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("load active agents: %w", err)

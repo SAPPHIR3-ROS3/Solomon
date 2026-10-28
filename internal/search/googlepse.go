@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"net/url"
@@ -53,7 +54,7 @@ func (googlePSEEngine) Search(ctx context.Context, req Request) (Response, error
 	}
 	httpReq.Header.Set("User-Agent", "Solomon-webSearch/1.0")
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := networkhttp.DefaultClient.Do(httpReq)
 	if err != nil {
 		return Response{}, fmt.Errorf("googlepse: request: %w", err)
 	}

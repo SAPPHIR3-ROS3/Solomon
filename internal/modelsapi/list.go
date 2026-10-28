@@ -3,6 +3,7 @@ package modelsapi
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"strings"
@@ -57,7 +58,7 @@ func ListWithOpts(baseURL, bearer string, opts ListOpts) (out []string, err erro
 	if s := strings.TrimSpace(opts.ChatGPTAccountID); s != "" {
 		req.Header.Set("ChatGPT-Account-Id", s)
 	}
-	cli := &http.Client{Timeout: 60 * time.Second}
+	cli := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 60 * time.Second}
 	resp, err := cli.Do(req)
 	if err != nil {
 		return nil, err

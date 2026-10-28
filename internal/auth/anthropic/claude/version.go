@@ -3,6 +3,7 @@ package claude
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -61,7 +62,7 @@ func resolveVersionLocked() string {
 }
 
 func fetchLatestFromGitHub() (string, error) {
-	cli := &http.Client{Timeout: 15 * time.Second}
+	cli := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 15 * time.Second}
 	req, err := http.NewRequest(http.MethodGet, githubLatestReleaseURL, nil)
 	if err != nil {
 		return "", err

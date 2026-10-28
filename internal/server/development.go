@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io/fs"
 	"net/http"
 	"net/http/httputil"
@@ -243,7 +244,7 @@ func (d *developmentFrontend) change(ctx context.Context, mode, directory string
 		if previous.Mode == "dev" && previous.DevDir == directory {
 			request, err := http.NewRequestWithContext(ctx, http.MethodGet, previous.ViteURL, nil)
 			if err == nil {
-				response, probeErr := (&http.Client{Timeout: time.Second}).Do(request)
+				response, probeErr := (&http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: time.Second}).Do(request)
 				if probeErr == nil {
 					response.Body.Close()
 					if response.StatusCode >= 200 && response.StatusCode < 300 {

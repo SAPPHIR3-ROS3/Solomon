@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
 	"os"
@@ -111,7 +112,7 @@ func postCursorChat(ctx context.Context, accessToken, endpoint string, body []by
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.ForceAttemptHTTP2 = true
 	defer tr.CloseIdleConnections()
-	client := &http.Client{Transport: tr, Timeout: 25 * time.Second}
+	client := &http.Client{Transport: networkhttp.New(tr), Timeout: 25 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return ChatResult{}, fmt.Errorf("cursor chat: %w", err)
