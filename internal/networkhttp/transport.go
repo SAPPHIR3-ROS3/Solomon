@@ -195,8 +195,3 @@ func NewForTest(base *http.Transport, routeKey func() string, interrupt ...bool)
 	t.interruptOnChange = len(interrupt) > 0 && interrupt[0]
 	return t
 }
-
-// NewDefaultTransport applies the saved selection to standard HTTP clients.
-func NewDefaultTransport() *Transport { return New(http.DefaultTransport.(*http.Transport)) }
-
-var DefaultClient = &http.Client{Transport: NewDefaultTransport()}
