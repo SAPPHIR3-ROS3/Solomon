@@ -399,3 +399,23 @@
   background:transparent;
   pointer-events:none;
 }
+
+/* Compact find/replace widget, with the same control order as the editor reference. */
+.editor-code .cm-panels.cm-panels-top { position:absolute;top:5px;left:auto;right:12px;width:420px;max-width:calc(100% - 24px);box-sizing:border-box;z-index:10;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);box-shadow:0 4px 12px #0005; }
+.editor-code .editor-find { position:relative;display:flex;flex-direction:column;gap:3px;padding:5px 6px 5px 19px;box-sizing:border-box;color:var(--color-text);font:11px var(--font-mono); }
+.editor-code .editor-find-row { display:flex;flex-direction:row;align-items:center;gap:3px;min-width:0;height:25px; }
+.editor-code .editor-find-row[hidden] { display:none; }
+.editor-code .editor-find-field { display:flex;align-items:center;flex:0 1 222px;width:222px;min-width:70px;height:25px;box-sizing:border-box;padding:0 2px;border:1px solid var(--color-border);border-radius:5px;background:var(--color-canvas); }
+.editor-code .editor-find-field:focus-within { border-color:var(--color-accent); }
+.editor-code .editor-find input { width:0;min-width:0;flex:1;padding:0 4px;border:0;outline:0;background:transparent;color:var(--color-text);font:inherit;height:23px; }
+.editor-code .editor-find input::placeholder { color:var(--color-text-muted); }
+.editor-code .editor-find button { flex:none;display:grid;place-items:center;width:22px;min-width:22px;height:22px;padding:2px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--color-text);font:11px var(--font-mono);cursor:pointer; }
+.editor-code .editor-find button svg { width:14px;height:14px; }
+.editor-code .editor-find button:hover { background:var(--color-surface-raised); }
+.editor-code .editor-find button[aria-pressed="true"] { border-color:var(--color-accent);background:color-mix(in srgb,var(--color-accent) 15%,transparent); }
+.editor-code .editor-find button:focus-visible { outline:1px solid var(--color-accent); }
+.editor-code .editor-find-count { flex:1;min-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:3px;font-size:10px; }
+.editor-code .editor-find .editor-find-expand { position:absolute;left:0;top:6.5px;width:18px;min-width:18px; }
+.editor-code .editor-find-expand[aria-expanded="false"] svg { transform:rotate(-90deg); }
+.editor-code .cm-searchMatch { background:color-mix(in srgb,var(--color-accent) 24%,transparent); }
+.editor-code .cm-searchMatch-selected { background:color-mix(in srgb,var(--color-accent) 48%,transparent);outline:1px solid var(--color-accent); }

@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, insertNewlineAndIndent } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
+import { createSearchPanel } from "./searchPanel";
+import { search, searchKeymap } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
@@ -36,6 +38,7 @@ export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onView
       doc: file.content,
       selection: viewState ? { anchor: Math.min(file.content.length, viewState.anchor), head: Math.min(file.content.length, viewState.head) } : undefined,
       extensions: [
+        search({ top: true, createPanel: createSearchPanel }),
         lineNumbers(), ...cursorEditorHighlighting(file.path), EditorView.lineWrapping,
         indentUnit.compute(["doc"], state => /^\t/m.test(state.doc.toString()) ? "\t" : "  "), closeBrackets(),
         EditorView.scrollHandler.of((editor, range, options) => {
@@ -57,6 +60,7 @@ export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onView
           }
         }),
         keymap.of([
+          ...searchKeymap,
           ...closeBracketsKeymap,
           { key: "Enter", preventDefault: true, run: insertNewlineAndIndent, shift: insertNewlineAndIndent },
           { key: "Mod-s", preventDefault: true, run: editor => { callbacks.current.onSave(file.path, editor.state.doc.toString()); return true; } },
