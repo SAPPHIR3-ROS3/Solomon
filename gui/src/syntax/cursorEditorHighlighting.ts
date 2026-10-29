@@ -10,7 +10,7 @@ export function cursorEditorHighlighting(pathOrLanguage: string) {
     decorations: DecorationSet = Decoration.none;
     tokenizer: Awaited<ReturnType<typeof cursorTokenizer>> | undefined;
     destroyed = false;
-    frame: number | undefined;
+    timer: ReturnType<typeof setTimeout> | undefined;
 
     constructor(private view: EditorView) {
       void cursorTokenizer(pathOrLanguage, view.state.doc.line(1).text).then(tokenizer => {
@@ -33,9 +33,12 @@ export function cursorEditorHighlighting(pathOrLanguage: string) {
     }
 
     schedule() {
-      if (!this.tokenizer || this.frame !== undefined) return;
-      this.frame = requestAnimationFrame(() => {
-        this.frame = undefined;
+      if (!this.tokenizer) return;
+      if (this.timer !== undefined) clearTimeout(this.timer);
+      // Keep full-document tokenization off the key-repeat/render path.
+      // Existing decorations are mapped through edits until input settles.
+      this.timer = setTimeout(() => {
+        this.timer = undefined;
         if (this.destroyed || !this.tokenizer) return;
         const builder = new RangeSetBuilder<Decoration>();
         const { highlighter, language } = this.tokenizer;
@@ -53,12 +56,12 @@ export function cursorEditorHighlighting(pathOrLanguage: string) {
         }
         // An effect redraws the tokens without changing the document or selection.
         this.view.dispatch({ effects: highlightedTokens.of(builder.finish()) });
-      });
+      }, 150);
     }
 
     destroy() {
       this.destroyed = true;
-      if (this.frame !== undefined) cancelAnimationFrame(this.frame);
+      if (this.timer !== undefined) clearTimeout(this.timer);
     }
   }, { decorations: plugin => plugin.decorations })];
 }

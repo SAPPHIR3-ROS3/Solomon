@@ -33,9 +33,35 @@ export function loadEditorSession(projectID?: string): EditorSession {
   } catch { return emptySession(); }
 }
 
+const pendingSessions = new Map<string, ReturnType<typeof setTimeout>>();
+
+function persistEditorSession(projectID: string) {
+  const timer = pendingSessions.get(projectID);
+  if (timer !== undefined) clearTimeout(timer);
+  pendingSessions.delete(projectID);
+  const session = sessions.get(projectID);
+  if (!session) return;
+  try { window.localStorage.setItem(storageKey(projectID), JSON.stringify(session)); } catch { /* Keep the in-memory draft if storage is full or unavailable. */ }
+}
+
+// Flush drafts when leaving the page, including while a write is debounced.
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    for (const projectID of pendingSessions.keys()) persistEditorSession(projectID);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      for (const projectID of pendingSessions.keys()) persistEditorSession(projectID);
+    }
+  });
+}
+
 export function storeEditorSession(projectID: string, session: EditorSession) {
   sessions.set(projectID, session);
-  try { window.localStorage.setItem(storageKey(projectID), JSON.stringify(session)); } catch { /* Keep the in-memory draft if storage is full or unavailable. */ }
+  const previous = pendingSessions.get(projectID);
+  if (previous !== undefined) clearTimeout(previous);
+  // Serializing every open document during a keystroke stalls cursor painting.
+  pendingSessions.set(projectID, setTimeout(() => persistEditorSession(projectID), 250));
 }
 
 // Serial writes survive view unmounts, so an older request cannot overwrite
