@@ -1,7 +1,7 @@
 import { folderIcon } from "../folderIcons";
 import { fileIconName } from "../fileIcons";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, sameProjectDirectoryEntries, sameProjectGitHistory, sameProjectGitStatus, stageProjectChanges, unstageProjectChanges, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
+import { commitProjectChanges, checkoutProjectBranch, fetchHomeDirectoryEntries, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectGitHistory, fetchProjectGitStatus, fetchProjectResearch, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, sameProjectDirectoryEntries, sameProjectGitHistory, sameProjectGitStatus, stageProjectChanges, unstageProjectChanges, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, type ProjectResearch, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 import { useFileContextMenu } from "./FileContextMenu";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
 import { SidePanelResizeHandle } from "./SidePanelResizeHandle";
@@ -504,6 +504,16 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
   const [graphPanelHeight, setGraphPanelHeight] = useState(220);
   const [graphResizing, setGraphResizing] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
+  const [commitError, setCommitError] = useState("");
+  const [committing, setCommitting] = useState(false);
+  const commitPending = useRef(false);
+  const currentProjectID = useRef(project?.id);
+  currentProjectID.current = project?.id;
+
+  useEffect(() => {
+    setCommitMessage("");
+    setCommitError("");
+  }, [project?.id]);
   const [stageError, setStageError] = useState("");
   const [staging, setStaging] = useState(false);
   const branchPickerRef = useRef<HTMLDivElement>(null);
@@ -601,7 +611,7 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
   }
 
   async function stagePaths(paths: string[], action: "stage" | "unstage" = "stage") {
-    if (!project || readOnly || staging || paths.length === 0) return;
+    if (!project || readOnly || staging || commitPending.current || paths.length === 0) return;
     setStaging(true);
     setStageError("");
     try {
@@ -614,8 +624,32 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
     }
   }
 
+  async function commitChanges() {
+    if (!project || readOnly || commitPending.current || staging || branchLoading || gitStatusLoading || !stagedCount || !commitMessage.trim()) return;
+    const projectID = project.id;
+    commitPending.current = true;
+    setCommitting(true);
+    setCommitError("");
+    try {
+      await commitProjectChanges(projectID, commitMessage);
+      if (currentProjectID.current !== projectID) return;
+      setCommitMessage("");
+      try {
+        const nextHistory = await fetchProjectGitHistory(projectID);
+        if (currentProjectID.current === projectID) setGraphHistory(nextHistory);
+      } catch {
+        if (currentProjectID.current === projectID) setCommitError("Commit created, but Git history could not be refreshed.");
+      }
+    } catch (error) {
+      if (currentProjectID.current === projectID) setCommitError(error instanceof Error ? error.message : "Unable to commit staged changes.");
+    } finally {
+      commitPending.current = false;
+      setCommitting(false);
+    }
+  }
+
   async function selectBranch(branch: string) {
-    if (!project || readOnly || branchLoading) return;
+    if (!project || readOnly || branchLoading || commitPending.current) return;
     setBranchLoading(true);
     setBranchError("");
     try {
@@ -640,11 +674,12 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
         {error ? <p className="right-side-panel-message" role="status">{error}</p> : null}
         {gitStatusError ? <p className="right-side-panel-message" role="status">{gitStatusError}</p> : null}
         {branchError ? <p className="right-side-panel-message" role="status">{branchError}</p> : null}
+        {commitError ? <p className="right-side-panel-message" role="alert">{commitError}</p> : null}
         {stageError ? <p className="right-side-panel-message" role="status">{stageError}</p> : null}
       </div>
       {!readOnly ? <div aria-label="Create commit" className="right-side-panel-history-commit-form">
-        <input aria-label="Commit message" onChange={(event) => setCommitMessage(event.target.value)} placeholder="Commit message" type="text" value={commitMessage} />
-        <button disabled={!commitMessage.trim()} title="Commit staged changes" type="button">Commit</button>
+        <input aria-label="Commit message" disabled={committing} onChange={(event) => setCommitMessage(event.target.value)} placeholder="Commit message" type="text" value={commitMessage} />
+        <button disabled={!project || !gitStatus.isRepo || gitStatusLoading || !stagedCount || !commitMessage.trim() || committing || staging || branchLoading} onClick={() => void commitChanges()} title="Commit staged changes" type="button">{committing ? "Committing…" : "Commit"}</button>
       </div> : null}
       <div aria-label="Changed files" className="right-side-panel-history-list">
         <section aria-label="Staged changes" className={`right-side-panel-history-change-section${stagedCount === 0 ? " is-empty" : stagedChangesCollapsed ? " is-collapsed" : ""}`}>
@@ -652,7 +687,7 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
             {stagedCount ? <button aria-expanded={!stagedChangesCollapsed} onClick={() => setStagedChangesCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!stagedChangesCollapsed} /><span>Staged Changes</span></button> : <span className="right-side-panel-history-section-label">Staged Changes</span>}
             <span className="right-side-panel-history-section-meta">
               <small>{stagedCount}</small>
-              {!readOnly && stagedCount > 0 ? <button aria-label="Unstage all changes" className="right-side-panel-stage-all" disabled={staging} onClick={() => void stagePaths(Object.keys(gitStatus.staged), "unstage")} title="Unstage all changes" type="button"><IndexMark kind="remove" /></button> : null}
+              {!readOnly && stagedCount > 0 ? <button aria-label="Unstage all changes" className="right-side-panel-stage-all" disabled={staging || committing} onClick={() => void stagePaths(Object.keys(gitStatus.staged), "unstage")} title="Unstage all changes" type="button"><IndexMark kind="remove" /></button> : null}
             </span>
           </header>
           {stagedCount > 0 && !stagedChangesCollapsed ? <div aria-label="Staged files" className="right-side-panel-history-tree">
@@ -664,7 +699,7 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
             {changedCount ? <button aria-expanded={!changesCollapsed} onClick={() => setChangesCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!changesCollapsed} /><span>Changes</span></button> : <span className="right-side-panel-history-section-label">Changes</span>}
             <span className="right-side-panel-history-section-meta">
               <small>{changedCount}</small>
-              {!readOnly && changedCount > 0 ? <button aria-label="Stage all changes" className="right-side-panel-stage-all" disabled={staging} onClick={() => void stagePaths(Object.keys(gitStatus.changes))} title="Stage all changes" type="button"><IndexMark kind="add" /></button> : null}
+              {!readOnly && changedCount > 0 ? <button aria-label="Stage all changes" className="right-side-panel-stage-all" disabled={staging || committing} onClick={() => void stagePaths(Object.keys(gitStatus.changes))} title="Stage all changes" type="button"><IndexMark kind="add" /></button> : null}
             </span>
           </header>
           {changedCount > 0 && !changesCollapsed ? <div aria-label="Changed files" className="right-side-panel-history-tree">
@@ -677,7 +712,7 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
         <header aria-label="Git graph" className="right-side-panel-history-section-header graph">
           <button aria-expanded={!graphCollapsed} onClick={() => setGraphCollapsed((collapsed) => !collapsed)} type="button"><HistoryChevronIcon open={!graphCollapsed} /><span>Graph</span></button>
           <div className="right-side-panel-history-branch-picker" ref={branchPickerRef}>
-            <button aria-expanded={branchMenuOpen} aria-haspopup="listbox" className="right-side-panel-history-branch-trigger" disabled={readOnly || branchLoading} onClick={() => setBranchMenuOpen((open) => !open)} type="button">
+            <button aria-expanded={branchMenuOpen} aria-haspopup="listbox" className="right-side-panel-history-branch-trigger" disabled={readOnly || branchLoading || committing} onClick={() => setBranchMenuOpen((open) => !open)} type="button">
               <span>{graphHistory.current || "Detached HEAD"}</span>
             </button>
             {branchMenuOpen ? <div aria-label="Branches" className="right-side-panel-history-branch-menu" role="listbox">
@@ -730,7 +765,7 @@ export function GitHistoryView({ error, gitStatus, gitStatusError, gitStatusLoad
                   {references.map((ref, refIndex) => {
                     const className = `right-side-panel-history-ref is-${ref.kind}${ref.isAligned ? " is-aligned" : ""}${ref.isCurrent ? " is-current" : ""}`;
                     if (ref.checkoutBranch && !ref.isCurrent) {
-                      return <button aria-label={`Checkout ${ref.label}`} className={className} disabled={branchLoading} key={`${ref.label}-${refIndex}`} onClick={() => void selectBranch(ref.checkoutBranch!)} title={`Checkout ${ref.label}`} type="button">{ref.label}</button>;
+                      return <button aria-label={`Checkout ${ref.label}`} className={className} disabled={branchLoading || committing} key={`${ref.label}-${refIndex}`} onClick={() => void selectBranch(ref.checkoutBranch!)} title={`Checkout ${ref.label}`} type="button">{ref.label}</button>;
                     }
                     return <span aria-label={ref.isAligned ? `${ref.label}, aligned with ${ref.label.replace(/^[^/]+\//, "")}` : undefined} className={className} key={`${ref.label}-${refIndex}`} title={ref.isCurrent ? `Current branch: ${ref.label}` : ref.isAligned ? `${ref.label} · aligned` : ref.label}>{ref.isAligned ? <CloudIcon /> : ref.label}</span>;
                   })}

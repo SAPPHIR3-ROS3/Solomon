@@ -1,362 +1,241 @@
 # UI-PRD — Solomon GUI (Deep v5)
 
-Product requirements for the production Solomon interface.
+Product requirements and implementation baseline for the production Solomon interface.
 
-**Status:** Draft — decisions from `/grill-me` session (2026-07-22).
+**Status:** Active requirements; architecture reconciled with repository code on **2026-10-29**. Supersedes the July 2026 mock-only foundation plan. Implementation evidence is distinct from release acceptance on macOS, Linux, and Windows.
 
-### Terminology
+## 1. Scope and terminology
+
+The shared React frontend lives in `gui/src/`. Browser and Wails desktop clients use the Go daemon in `internal/server/`, which delegates agent execution to the existing runtime. The system terminal REPL remains supported.
 
 | Term | Meaning |
 |------|---------|
-| **Top bar** | Horizontal chrome at the top of the UI: panel toggle buttons (side / editor side), **SOLOMON** label, Agent ↔ Editor switch, workspace path label (Editor view), terminal panel toggle, notifications, and related controls. Product term; in v5 markup this spans the side-panel head row and `deep-chrome`. |
-| **System terminal** | The OS shell emulator (Ghostty, Terminal.app, iTerm, Windows Terminal, …) where `solomon` REPL runs. This is Solomon’s native surface. |
-| **Terminal panel** | The integrated xterm area at the bottom of the **Editor** view (resizable, multi-pane). |
-| **Terminal tab** | One shell session inside the terminal panel (tab bar per pane). |
-| **GUI** | The React interface for chat, editor, git, and related UI — **not** the system terminal and **not** a replacement for the REPL. |
-| **GUI bundle** | The mutable, production React build in `~/.solomon/gui/`. It will be shared by the browser and the Wails WebView once a new host design is approved. |
+| Top bar | Upper chrome: panel toggles, SOLOMON label, Agent ↔ Editor switch, workspace path, terminal panel toggle, notifications, and related controls. |
+| System terminal | OS shell emulator where the Solomon REPL runs. |
+| Terminal panel | Integrated xterm area with multiple panes and terminal tabs. |
+| Terminal tab | A shell session inside the terminal panel. |
+| GUI bundle | Production React build embedded from `gui/assets/frontend`; shared through the daemon by browser and desktop. There is no active mutable `~/.solomon/gui/` bundle contract. |
+| Project / workspace | Registered filesystem root addressed by project id; chat and file requests carry their project scope explicitly. |
+| Tray | Persistent native status icon in the system notification area or macOS menu bar; distinct from a launcher, taskbar, or Dock icon. |
 
-Do not use “terminal” alone in specs or tasks when the meaning is ambiguous; prefer **system terminal**, **terminal panel**, or **terminal tab**.
-Use **top bar** for the upper chrome; do not call it “header” or “toolbar” in specs unless referring to a specific sub-element.
+Use these terms where “terminal” or “header” would be ambiguous.
 
----
+**Scope decision (2026-10-29): folder drag-reordering is removed entirely.** It is not an MVP requirement, acceptance criterion, or backlog task. Project grouping and collapse remain. This does not remove editor-tab reordering or moving terminal tabs between panes.
 
-## 1. Executive Summary
+Other retained requirements include in-app onboarding, workspace-wide filename search, Git commit, tray status, and tri-OS acceptance. Updating this document does not silently waive those gaps.
 
-**Problem Statement:** Solomon’s agent runtime is built for the **system terminal** (REPL). There is currently no approved GUI host or service architecture. The production GUI lives in `gui/`.
+## 2. User experience and acceptance
 
-**Proposed Solution:** Build the Deep v5 GUI as a shared frontend under `gui/src/`, with Wails code isolated under `gui/desktop/`. The GUI host, service process, API contract, installation flow, and browser delivery are intentionally undecided and will be designed from scratch.
+### 2.1 User stories
 
-**User-updatable GUI:** The intended active bundle location is `~/.solomon/gui/`. The embed, seed, reset, validation, and serving rules are deliberately deferred with the new host design.
+- **US-1:** Launch from a desktop icon, choose a project, and use chat, editor, and terminal panel without first opening a system terminal.
+- **US-2:** Complete provider/model setup in the app on a fresh config without being sent to REPL `/onboard`.
+- **US-3:** Switch Agent ↔ Editor without losing workspace context.
+- **US-4:** See streaming assistant text, reasoning, tool activity, changed files, and turn statistics; stop or reconnect a turn.
+- **US-5:** Browse, search, edit, and save project files with Git status, history, branch checkout, and staged-file commits.
+- **US-6:** Use multiple terminal tabs and panes scoped to the chosen workspace.
+- **US-7:** Choose model, reasoning effort, fast mode, and agent/chat mode. Model, reasoning, and fast preferences currently persist globally; agent/chat mode belongs to the conversation.
+- **US-8:** Browse conversations grouped by project/folder, collapse groups, and see short project names.
+- **US-9:** See daemon running/error/updating status in a native tray/menu-bar icon.
 
-**Current implementation focus (2026-07-23):** The daemon, its API contract, static serving, embed/seed mechanism, and Wails lifecycle are deferred for redesign. The active work is exclusively the production UI source under `gui/src/`: extract and organize Deep v5 while it continues to run against local mock data. UI code must depend on a narrow client interface, not on provisional `/v1/*` daemon routes.
+### 2.2 Acceptance matrix
 
-**Success Criteria:**
+**Present** means code is connected to a real implementation, not that tri-OS product acceptance has passed. **Partial** means a requirement has an identified gap. **Pending** means the required behavior is not implemented. Visual parity, reliability, and platform verification remain separate gates.
 
-| KPI | Target |
-|-----|--------|
-| Install → usable UI | User completes first chat within **5 minutes** after `make install` on a fresh config (tri-OS). |
-| Feature coverage | **100%** of Deep v5 panels and interactions listed in §2.3 behave correctly against real backends (not mock TOML / Lorem stream). |
-| Daemon availability | App launch succeeds when daemon is down: auto-start or clear recovery within **3 s**. |
-| Turn latency (UI) | First SSE byte visible within **500 ms** of submit on local daemon (excluding LLM time). |
-| Workspace isolation | Switching workspace never leaks chats, files, or git state across project ids. |
+| Requirement | Code status | Remaining acceptance work |
+|-------------|-------------|---------------------------|
+| Top bar, panel toggles, Agent ↔ Editor, workspace path | Present | Deep v5 visual walkthrough on three OSes. |
+| ASCII welcome and composer transition into chat | Present | Visual and interaction walkthrough. |
+| Resizable side panels with double-click reset | Partial | Editor reset exists; shared shell resize handles lack double-click reset. |
+| Conversation groups, collapse, short project names | Present | No folder reordering required. |
+| Create/select conversations; project-scoped disk persistence | Present | Repeated-switch and REPL interoperability acceptance. |
+| Current/recent/provider model catalog, reasoning, fast, agent/chat | Present | Verify persisted preferences and mode transitions end to end. This baseline records shared preferences rather than claiming per-session isolation. |
+| SSE text, reasoning, tools, changed files | Present | Real-provider stream integrity and recovery acceptance. |
+| Stop turn and reconnect with event cursor | Present | Validate disconnect/reconnect without corrupting sessions. |
+| Usage/token footer | Present | Statistics are exposed through a footer popover; verify available REPL fields. |
+| File tree and staged/modified/untracked badges | Present | Workspace-switch isolation acceptance. |
+| Debounced workspace-wide filename search | Partial | Current filter searches loaded entries only; unloaded directories must be searchable. |
+| Multiple editor tabs, drag reorder, double-click opening | Present | Interaction walkthrough. |
+| CodeMirror Go and generic syntax, Deep theme | Present | Syntax and visual acceptance. |
+| Read/write files, autosave, workspace path confinement | Present | Current debounce is 500 ms; verify saves and traversal/symlink rejection. |
+| Git staged/unstaged lists, collapse, stage/unstage | Present | Refresh and failure handling acceptance. |
+| Commit staged changes with a message | Present | UI and project-scoped daemon/development APIs implemented; staged-only behavior and Git failures tested. See §4. |
+| Git graph with topo-order and lanes | Present | Merge/branch topology acceptance. |
+| Branch list and checkout | Present | Refresh file, branch, and Git state after checkout. |
+| Resizable terminal panel with open/close control | Present | Desktop interaction acceptance. |
+| Up to eight terminal panes, splits, tab moves | Present | Continuity and resize acceptance. |
+| xterm over WebSocket to real PTY; workspace cwd and resize | Present | zsh/bash/PowerShell acceptance on three OSes. |
+| Persist user name | Present | Read through sidebar data; write through user-name API. |
+| Notifications for errors, completion, updates/lifecycle | Partial | Notification feed and lifecycle watcher exist; verify required event coverage and recovery UX. |
+| Project path display and clipboard copy | Present | Clipboard behavior across clients/platforms. |
+| Folder picker with per-conversation organization metadata | Partial | Project folder selection exists; separate per-conversation organization metadata is not established. |
+| In-app fresh-config onboarding | Partial | Provider connection/model settings exist; guided first-run flow is missing and backend can still request `/onboard`. |
+| Native tray/menu-bar daemon status | Pending | No tray implementation found. See §4. |
+| Desktop installation and OS registration | Present | Installer paths exist; clean-install tri-OS validation remains. |
 
----
+### 2.3 Success criteria and release gates
 
-## 2. User Experience & Functionality
+| Criterion | Target | Current evidence |
+|-----------|--------|------------------|
+| Fresh install → first chat | Within 5 minutes on each supported OS | Not measured; onboarding gap remains. |
+| Feature coverage | All retained acceptance requirements work against real backends | Incomplete; see matrix. |
+| Daemon unavailable at app launch | Auto-start or clear recovery within 3 seconds | Auto-start exists; desktop startup uses a 15-second timeout, which does not prove the target. |
+| UI turn latency | First SSE byte visible within 500 ms, excluding LLM time | Not measured in this audit. |
+| Workspace isolation | No chat/file/Git leakage during 10 rapid switches | Must be validated against the real daemon. |
+| Path confinement | Reject file operations outside project root, including symlink escapes | Checks exist; current invalid-file-path response is HTTP 400. |
+| Terminal isolation | Initial cwd is workspace root; shell may subsequently `cd` elsewhere | Real PTY implementation exists; tri-OS QA remains. |
 
-### 2.1 User Personas
+**Implementation progress estimate: approximately 81%** of retained functional scope, following the folder-order scope removal, architecture reconciliation, and staged-file commit implementation (previous estimate: approximately 78%). This is an engineering estimate, not a checkbox ratio or release-readiness score. Outstanding functional work and platform validation still count; documentation changes do not implement features.
 
-| Persona | Need |
-|---------|------|
-| **Solo developer (primary)** | Click icon → pick repo → chat + edit + terminal panel without opening a system terminal first. |
-| **Power user** | REPL in system terminal remains available; same sessions visible in UI and REPL. |
-| **Future remote user** | Passkey/bootstrap auth (deferred; loopback only for MVP). |
+**Verification snapshot (2026-10-29):** `tsc --noEmit` passed. `npm test` ran 173 tests: 172 passed, one failed in `gui/tests/imageTags.test.mjs:88` (unclosed backtick text unexpectedly rendered as a code block). Some GUI tests use Vite middleware/fixtures and cannot certify real-daemon or tri-OS acceptance. This snapshot is from the audit immediately preceding this documentation revision.
 
-### 2.2 User Stories
+### 2.4 Non-goals
 
-- **US-1:** As a user, I want to open Solomon from a desktop icon so I do not need a system terminal to start the product.
-- **US-2:** As a user, I want to complete provider/model setup in the app when config is empty so I never see `config not set up; run solomon and use /onboard`.
-- **US-3:** As a user, I want to switch between Agent and Editor views without losing workspace context.
-- **US-4:** As a user, I want to send a message and see streaming assistant output, reasoning, tool calls, and changed files like Deep v5.
-- **US-5:** As a user, I want to browse, open, edit, and save project files with git status in the sidebar.
-- **US-6:** As a user, I want a **terminal panel** with multiple **terminal tabs** and panes in the Editor view.
-- **US-7:** As a user, I want to pick model, reasoning effort, and fast mode from the composer controls.
-- **US-8:** As a user, I want conversations grouped by folder with drag-reorder, matching Deep v5 thread sidebar.
-- **US-9:** As a user, I want a system-tray/menu-bar icon showing daemon status (running / error / updating).
-
-### 2.3 Acceptance Criteria — Deep v5 Parity Checklist
-
-Each item is **Done** when wired to the global daemon (not Vite mock middleware).
-
-**Shell & navigation**
-
-- [ ] **Top bar**: panel toggles, SOLOMON label, Agent ↔ Editor switch, path label (Editor), terminal panel toggle; layout matches v5.
-- [ ] Welcome stage: ASCII banner, centered composer → bottom dock after first message.
-- [ ] Resizable side panels (thread sidebar, editor file/git panel) with double-click reset.
-
-**Chat / Agent**
-
-- [ ] Thread list grouped by folder; collapse; drag folder order; show last path segment only.
-- [ ] Create/select conversation; persist under `~/.solomon/projects/<hex>/`.
-- [ ] Composer: model picker (current + recent + per-provider catalog), reasoning effort, fast mode, agent/chat mode.
-- [ ] Submit message → SSE stream: assistant text, reasoning blocks, tool call timeline, turn changed-files list.
-- [ ] Cancel in-flight turn (`POST /v1/responses/{id}/cancel`).
-- [ ] Usage/token footer when turn completes (match REPL footer fields where available).
-
-**Editor**
-
-- [ ] File tree from workspace scan; git status badges (staged / modified / untracked).
-- [ ] Workspace filename search (debounced).
-- [ ] Multi-tab editor; drag reorder; open in new tab (double-click tree).
-- [ ] CodeMirror: Go + generic syntax; dark Deep theme.
-- [ ] Read/write file content with autosave debounce (900 ms edit → save); path jail under active `ProjRoot`.
-- [ ] Git panel: staged list, unstaged list, collapsible sections, commit message + **Commit** action.
-- [ ] Git graph (topo-order, lane layout) from `git log`.
-- [ ] Branch list + checkout from UI (updates workspace state).
-
-**Terminal panel** (Editor view only; not the system terminal / REPL)
-
-- [ ] Bottom **terminal panel**; resizable height; open/close toggle.
-- [ ] Multi-pane (up to 8); split; drag **terminal tabs** between panes.
-- [ ] Each terminal tab: xterm.js over WebSocket PTY; cwd = active workspace root; resize messages.
-
-**Settings & misc**
-
-- [ ] Edit `user_name` in config (GET/PUT).
-- [ ] Notifications panel (daemon events: turn complete, errors, updates) — minimum: turn error + daemon lifecycle.
-- [ ] Project path display with copy-to-clipboard.
-- [ ] Folder picker for thread organization (persist per conversation metadata).
-
-### 2.4 Non-Goals (MVP)
-
-- Remote / tailnet access with passkey login (auth endpoints exist; UI enforcement deferred on loopback).
-- Replacing the **system terminal** REPL for shell-first workflows.
+- Folder drag-reordering.
+- Replacing the system terminal REPL.
 - LSP, semantic search, MemPalace, vault migration.
-- Git push/pull UI, PR integration, merge conflict editor beyond status display.
-- Native macOS `Cmd+V` image paste (see `TODO.md`).
+- Git push/pull UI, PR integration, and a merge-conflict editor beyond status display.
+- Treating current LAN/Tailscale reachability as an authenticated remote-access product. Passkey/bootstrap authentication remains future work.
 
----
+## 3. Current architecture
 
-## 3. AI System Requirements
+### 3.1 Hosts, bundle, and lifecycle
 
-### 3.1 Tool Requirements
+- **Shared frontend:** React/TypeScript under `gui/src/`, organized into `shell/`, `home/`, `chat/`, `projects/`, `editor/`, `terminal-panel/`, `settings/`, and other feature modules. A synthetic `app/agent/shared` directory split is not a completion requirement.
+- **Go daemon:** `internal/server/` owns project/chat/model/file/Git APIs, SSE streams, terminal sessions, health, notifications, updates, and production asset serving.
+- **Production assets:** Vite output is packaged into `gui/assets/frontend` and embedded by `gui/assets.go`. The daemon serves this bundle with SPA fallback; missing static assets return 404.
+- **Browser:** consumes the daemon's frontend and APIs directly. Browser delivery already exists and is not a future `--static-dir` milestone.
+- **Wails desktop:** `gui/desktop/app/` calls `EnsureRunning` through the CLI, uses `DesktopFrontend()` for assets, and exposes a loopback API/WebSocket proxy through `ServerBridge.URL()`. Frontend requests normally reach the daemon through that proxy. If daemon discovery/asset forwarding fails, desktop frontend serving can fall back to embedded assets; this does not make backend operations available offline.
+- **Lifecycle:** one daemon owns the Solomon home lock; discovery/state is in `<SolomonHome>/run/server/state.json`. It is started/reused on demand rather than requiring launchd/systemd/Windows-service registration in this architecture.
+- **Development:** Vite and development middleware remain useful for fixtures and tests; they are not the production backend or proof of full integration.
 
-The UI does **not** duplicate the agent runtime. It consumes existing server turn execution:
+### 3.2 Runtime and persistence
 
-| Capability | Source |
-|------------|--------|
-| All backend capabilities | Deferred: the GUI currently uses its typed mock client. No HTTP API or service contract is approved. |
+Chat requests identify both project and chat in their URL. Creating a message starts server-side execution and an SSE response; event replay uses `starting_after`, and stop targets the chat. The UI maps events into text, reasoning, tool, changed-file, and statistics components. The backend supports concurrent chats across projects; a single global turn lock is not the architectural contract.
 
-### 3.2 Evaluation Strategy
+Project roots resolve through the project registry. Conversations live under `<SolomonHome>/projects/<hex>/chats`; configuration and project mapping live under the same Solomon home (`~/.solomon` by default). File and Git operations target the project in the request, rather than a mutable global active-workspace endpoint.
 
-| Test | Pass criteria |
-|------|---------------|
-| **Parity walkthrough** | Scripted checklist §2.3 — all boxes checked on macOS, Linux, Windows. |
-| **Stream integrity** | Disconnect mid-turn → session not corrupted; UI shows recoverable state (match `test/stream_integrity_test.go` philosophy). |
-| **Workspace switch** | 10 rapid switches between two repos → correct chats and file trees every time. |
-| **File jail** | UI cannot read/write outside active `ProjRoot` (403). |
-| **Terminal panel isolation** | PTY cwd defaults to workspace root; user can `cd` elsewhere (same trust model as REPL `!`). |
+Model/reasoning/fast preferences are saved to shared configuration. They must not be documented as isolated per-workspace settings. Runtime chat metadata records the actual model/usage for display.
 
----
+### 3.3 Terminal panel
 
-## 4. Technical Specifications
+`IntegratedShell.tsx` connects xterm to `/__solomon/terminal` over WebSocket. The Go server manages PTY processes, output/reconnection, input, and resize. Unix uses `github.com/creack/pty`; Windows uses a native pseudoconsole implementation. The initial cwd is the workspace root.
 
-### 4.1 Architecture Overview
+The earlier node-pty/UI-only PTY requirement is superseded. Wails is a host and proxy, not the owner of a separate desktop-only terminal backend.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Solomon.app / Solomon.exe / Solomon.AppImage  (Wails)      │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │  WebView → daemon-served Deep v5 React GUI bundle      │  │
-│  └───────────────┬───────────────────────┬───────────────┘  │
-│  Terminal panel: xterm ──WS──► node-pty (UI layer, not Go)  │
-│  System tray · workspace picker · daemon lifecycle            │
-└──────────────────┼──────────────────────────────────────────┘
-                   │ HTTPS localhost (TLS self-signed)
-                   ▼
-┌─────────────────────────────────────────────────────────────┐
-│  solomon daemon  (global, user service)                     │
-│  · Host/service architecture to be redesigned from zero      │
-│  · Workspace registry + active workspace routing            │
-│  · API facade; delegates turns to existing Solomon runtime  │
-│  · Responses API + workspace / editor / git HTTP APIs       │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-         ┌─────────────────────┼─────────────────────┐
-         ▼                     ▼                     ▼
- ~/.solomon/config  ~/.solomon/gui/  projects/<hex>/chats  ProjRoot files/git
+### 3.4 Current GUI API surface
 
-System terminal (separate):  user runs `solomon` REPL in Ghostty, iTerm, etc.
-```
-
-**Data flow (chat turn):**
-
-1. App sets active workspace id (header or `/v1/workspaces/{id}/activate`).
-2. UI `POST /v1/responses` with `conversation` + `input`.
-3. Daemon loads session, acquires flock, delegates to the existing Solomon turn runtime, and streams SSE to the client.
-4. UI renders events into Deep message components; on `completed`, refresh git/file status.
-
-### 4.2 Integration Points
-
-**Existing (keep):**
-
-- `GET/POST /v1/conversations`, `GET /v1/conversations/{id}`
-- `POST/GET /v1/responses`, cancel, stream replay
-- `GET /v1/health`
-
-**New daemon routes** (proposed workspace, editor, and settings APIs):
+Paths below describe implemented GUI routes. They replace the provisional `/v1/*` GUI integration plan; this does not remove unrelated APIs used by other clients. `{p}` is a project id and `{c}` a chat id.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/v1/workspaces` | List registered roots + metadata |
-| POST | `/v1/workspaces` | Register workspace (path → hex) |
-| POST | `/v1/workspaces/{id}/activate` | Set active workspace for connection |
-| GET | `/v1/config/user-name` | Read `user_name` |
-| PUT | `/v1/config/user-name` | Write `user_name` |
-| GET | `/v1/models/catalog` | Current, recent, providers (from `ui_model_catalog`) |
-| PUT | `/v1/session/model` | Switch provider/model for active workspace |
-| GET | `/v1/workspace/files` | Tree listing + git status maps |
-| GET | `/v1/workspace/search?q=` | Filename filter |
-| GET | `/v1/workspace/file?path=` | Read file |
-| PUT | `/v1/workspace/file` | Write file (path jail) |
-| GET | `/v1/git/branches` | Current + branch list |
-| POST | `/v1/git/checkout` | Checkout branch |
-| GET | `/v1/git/history` | Graph entries |
-| POST | `/v1/git/commit` | Commit staged (message body) |
-| GET | `/v1/onboard/status` | `NeedsOnboard` + missing fields |
-| POST | `/v1/onboard/*` | Web wizard steps (mirror `/connect`, `/models`) |
+| GET | `/health` | Health and daemon identity/state. |
+| GET / POST | `/__solomon/projects` | Sidebar/project data and project registration. |
+| GET / POST | `/__solomon/projects/{p}/chats` | List/create chats. |
+| GET / PATCH / DELETE | `/__solomon/projects/{p}/chats/{c}` | Load/rename/delete chat. |
+| POST | `/__solomon/projects/{p}/chats/{c}/messages` | Submit message and consume SSE. |
+| GET | `/__solomon/projects/{p}/chats/{c}/events?starting_after=N` | Replay/reconnect events. |
+| POST | `/__solomon/projects/{p}/chats/{c}/stop` | Stop active chat execution. |
+| GET | `/__solomon/projects/{p}/files` | Directory entries. |
+| GET / PUT | `/__solomon/projects/{p}/file?path=...` | Read/write file contents. |
+| POST | `/__solomon/projects/{p}/file-operation` | Create/rename/move/copy/delete entries. |
+| GET | `/__solomon/projects/{p}/status`, `/history`, `/branches`, `/worktrees` | Git state and navigation data (each suffix is relative to the project prefix). |
+| POST | `/__solomon/projects/{p}/stage`, `/unstage`, `/restore`, `/checkout` | Git operations (each suffix is relative to the project prefix). |
+| POST | `/__solomon/projects/{p}/commit` | Commit staged changes with a message; returns `{ "committed": true }` on success. |
+| GET | `/__solomon/models` | Current/recent/provider model catalog. |
+| PUT | `/__solomon/current-model`, `/__solomon/reasoning-effort`, `/__solomon/fast-mode` | Shared model preferences. |
+| POST | `/__solomon/connect-provider` | Provider setup. |
+| PUT | `/__solomon/user-name` | User name; current value comes with sidebar data. |
+| GET | `/__solomon/notifications` | Notifications feed. |
+| WebSocket | `/__solomon/terminal` | Integrated PTY sessions. |
 
-**Source and runtime layout (proposed):**
+Additional existing surfaces include GUI settings, customization, active agents, network interfaces, provider quotas, research, development mode, and updates. There is currently no workspace-wide filename-search route or dedicated onboarding-status/wizard contract in this list; those remain implementation work.
 
-| Path | Role |
-|------|------|
-| `gui/` | Root of the GUI project: shared frontend tooling and package metadata. |
-| `gui/src/` | Source for the production GUI; its build is embedded in `solomon` as the default bundle. |
-| `gui/desktop/` | Wails desktop adapter only: tray, daemon lifecycle, and desktop-only PTY bridge. It must not duplicate React UI code. |
-| `~/.solomon/gui/` | Intended active GUI bundle location; hosting and installation behavior are deferred. |
+### 3.5 Network and security baseline
 
-**Install artifacts (tri-OS, same release):**
+| Topic | Current behavior / requirement |
+|-------|--------------------------------|
+| Transport | HTTP and WebSocket; no self-signed HTTPS requirement in the current host architecture. |
+| Bind and access | Daemon default bind is `0.0.0.0:<configured port>`, not loopback-only. Access is filtered by interface/MagicDNS policy in `internal/networkpolicy` and `allowNetworkRequest`. Desktop proxy binds exclusively to loopback. |
+| Authentication | Do not describe interface policy or origin checks as user authentication. The current GUI path does not implement the former proposed Bearer/passkey contract. Authenticated remote access remains separate work. |
+| Origin handling | Desktop proxy validates native origins; terminal WebSocket validates origins; server configures allowed-origin response headers. |
+| File confinement | Resolve project roots and requested paths; reject traversal and symlink escape. Current invalid-file-path response is 400. |
+| Bundle integrity | Assets travel with the installed binary/build; installation/update flow replaces the shipped bundle. No mutable per-user GUI seed/reset contract. |
+| PTY trust | Shells run with the user's privileges, initially in the project root; navigation outside the project in the shell is allowed. |
 
-| OS | Daemon | App | Tray |
-|----|--------|-----|------|
-| macOS | `launchd` user agent | `Solomon.app` | Menu bar extra |
-| Linux | `systemd` user unit | `.desktop` + AppImage or binary | StatusNotifierItem |
-| Windows | User Windows Service or scheduled task | Start Menu shortcut | Notification area |
+### 3.6 Installation
 
-### 4.3 Security & Privacy
+`make install` prepares GUI/native desktop artifacts and uses the hot-install coordinator. Desktop installation/registration is implemented in `internal/updater/`: Linux application-menu `.desktop` entry, macOS app registration, and Windows registration script. Existing registration is distinct from tray support. Validate fresh install, upgrades, and launch behavior on each OS before claiming production acceptance. Do not require launchd/systemd/service installation merely to conform to the retired host proposal.
 
-| Topic | MVP policy |
-|-------|------------|
-| **Loopback auth** | Requests from `127.0.0.1` / `::1` skip Bearer; configurable off later. |
-| **Path jail** | All file/git APIs resolve under active `ProjRoot`; reject `..` and absolute escape (reuse patterns from `replcomplete/path.go`). |
-| **GUI bundle integrity** | Deferred with the new host design; the intended user-owned location is `~/.solomon/gui/`. |
-| **Terminal panel PTY** | Lives in the **UI layer** (node-pty), not in `solomon daemon`. Spawn shell with cwd = workspace root; full user power (same as REPL `!`). |
-| **SSRF** | Not in UI scope; no change to `fetchWeb` — note risk if loopback auth disabled on non-local bind. |
+## 4. Outstanding feature contracts
 
----
+### 4.1 Git Commit
 
-## 5. Risks & Roadmap
+**Implemented:** the Git form calls `POST /__solomon/projects/{p}/commit` with a message. The daemon and Vite development fallback run `git commit -m` in the registered project root, without staging files or supplying pathspecs. The UI blocks empty messages, empty indexes, and duplicate submissions while pending; it also blocks index/branch actions in that view while committing.
 
-### 5.1 Phased Rollout
+On success the message is cleared, Git status refresh is dispatched, and history is reloaded. Refresh errors are distinguished from commit errors so a successful commit is not presented as a failed mutation. On Git failure the UI retains the message and displays Git output, including identity and hook errors. Unstaged and untracked file content remains untouched by the implementation. No implicit stage-all, push, amend, or identity reconfiguration is performed; normal Git hook/signing behavior remains in force.
 
-All phases ship toward **full §2.3 parity**; phasing is build order, not scope cuts. Only **P0 — UI foundation** is currently in scope. The daemon- and desktop-dependent phases are intentionally deferred until their architecture is reconsidered.
+**Verification:** real-daemon HTTP tests cover staged-only commits (including files with both staged and unstaged edits), literal/multiline messages, empty message/index rejection, initial commit, missing identity, and hook rejection. Browser interaction tests against the development API cover successful commit/history refresh, pending controls, and preserving draft/index on failure. Tri-OS release validation remains separate.
 
-| Phase | Deliverable | Exit criterion |
-|-------|-------------|----------------|
-| **P0 — UI foundation (active)** | Maintain the GUI in `gui/src/`; preserve its interactive behavior behind a client interface | `gui/` runs independently in Vite and meets the requirements in §2.3 |
-| **P1 — Daemon architecture (deferred)** | Reconsider daemon scope, UI serving, GUI bundle embed/updates, workspace registry, auth, and desktop lifecycle | Approved daemon design and API contract |
-| **P2 — API integration (deferred)** | Implement the approved daemon contract; replace the mock client without reshaping UI components | `gui/src/` works against the approved real backend |
-| **P3 — Chat** | Conversations API + SSE wired to Deep chat UI; model/reasoning/fast controls persist to session | End-to-end agent turn with tool events |
-| **P4 — Editor + git** | File R/W, autosave, git panel, graph, commit, branch checkout | Edit file on disk; commit from UI |
-| **P5 — Terminal panel** | Implement UI-layer PTY service (node-pty + WebSocket); wire to Wails/desktop UI | Multi-pane terminal panel matches v5 behavior |
-| **P6 — Onboarding** | In-app wizard when `NeedsOnboard` | Fresh install never requires REPL |
-| **P7 — Install** | `make install` registers daemon + app + tray on macOS, Linux, Windows | Click icon → app → chat on clean machine |
+### 4.2 Tray / menu bar
 
-**v1.1:** Enable passkey auth for non-loopback; optional browser client via `--static-dir`.
+**Current state:** Wails window, launcher icons, desktop registration, health polling, and app update UI exist. No native tray/status-item implementation was found. Tray remains a requirement; it has not been removed by the folder-order scope change.
 
-**v2.0:** Remote access (Tailscale pairing per mock roadmap); notification push; workspace sync.
+**Required behavior:** display a native icon in the macOS menu bar, Windows notification area, or Linux status notifier area, reflecting daemon running/error/updating state. Health and update state should come from the existing daemon/lifecycle mechanisms. Verify unavailable-daemon recovery and platform integration. Menu actions and close-to-tray behavior require a product decision before they become acceptance requirements; neither is silently implied by a status icon.
 
-### 5.2 Technical Risks
+### 4.3 Other remaining work
 
-| Risk | Mitigation |
-|------|------------|
-| **CGO conflict** — main binary uses `CGO_ENABLED=0`; Wails may need CGO | Separate `solomon` (CGO=0) and `solomon-desktop` (CGO=1 if required by Wails); daemon stays CGO=0 |
-| **Large GUI components** | Split into `gui/src/agent/`, `gui/src/editor/`, `gui/src/terminal-panel/` as the UI evolves |
-| **Global daemon + one turn** | Single turn lock globally; queue or 409 with UI message (match current server) |
-| **GNOME systray** | Document extension requirement; test KDE + GNOME in parity walkthrough |
-| **Windows terminal panel** | Early spike in P5 (node-pty + ConPTY); fallback message if spawn fails |
-| **Feature creep from mock data** | Parity checklist §2.3 is the contract; mock threads deleted, not ported |
+- Search filenames across the entire workspace, including directories never expanded; debounce requests/filtering.
+- Finish guided in-app provider/model onboarding and resume the first chat without a REPL instruction.
+- Add double-click reset to shared shell panel resize handles.
+- Establish per-conversation folder metadata if retaining the separate organization picker; project selection alone does not fulfill that requirement.
+- Verify lifecycle/error/completion/update notification coverage and recovery UX.
+- Fix the recorded Markdown test failure and complete real-daemon, visual, and tri-OS acceptance.
 
----
+## 5. Backlog and validation
 
-## 6. Task Backlog
+Historical phase labels are retained for orientation; implementation is no longer restricted to P0. Sizes are T-shirt estimates, not completion percentages.
 
-Tasks are ordered by phase. Estimate **T-shirt size** only (S/M/L/XL).
+| ID / phase | Remaining task | Size |
+|------------|----------------|------|
+| T-005 / P0 | Repeatable Deep v5 walkthrough; shell double-click reset | M |
+| P1–P2 | Maintain current Go daemon/client contract; no host redesign prerequisite | Ongoing |
+| T-030 / P3 | Resolve per-conversation organization metadata; preserve project grouping | M |
+| T-031–034 / P3 | Validate real-provider SSE, replay, stop, usage, and preference behavior | M |
+| T-040 / P4 | Implement debounced whole-workspace filename search | M |
+| T-041–043 / P4 | Verify 500 ms autosave, confinement, Git refresh, and graph topology | M |
+| T-044 / P4 | Implemented and tested: project-scoped staged-file commit and UI action; retain tri-OS acceptance | M |
+| T-050–052 / P5 | Validate existing Go PTY/WebSocket continuity and tri-OS shells | M |
+| T-060–062 / P6 | Complete guided provider/model onboarding and fresh-config recovery | L |
+| T-070–074 / P7 | Validate existing installer/OS registration on clean systems; update walkthrough evidence | L |
+| T-075 / P7 | Implement native tray/menu-bar daemon status | L |
+| T-076 / Quality | Fix failing Markdown regression test; verify notification coverage | M |
 
-### P0 — UI foundation (active)
+Validation must cover stream interruption/replay, ten rapid project switches, file traversal/symlink rejection, staged-only commits and Git failures, terminal reconnect/resize, fresh onboarding, and daemon-down startup. UI fixtures complement these checks; they do not replace real backend execution.
 
-| ID | Task | Size |
-|----|------|------|
-| T-001 | Create `gui/` project root with standalone frontend tooling and `gui/src/` from Deep styles, assets, and dependencies | M |
-| T-002 | Organize the GUI into bounded `gui/src/app/`, `agent/`, `editor/`, `terminal-panel/`, and `shared/` modules | XL |
-| T-003 | Define a typed UI client interface and a mock implementation backed by fixtures; no daemon route names leak into components | M |
-| T-004 | Move `mock-config.toml` and mock stream behavior into explicit UI development fixtures | M |
-| T-005 | Verify the visual and interaction requirements in §2.3 through a repeatable local walkthrough | M |
+### Risks
 
-### P1 — Daemon architecture (deferred)
+- Large UI components and duplicated development middleware can drift from production APIs.
+- Concurrent chats require per-chat/project isolation; do not introduce a global single-turn assumption.
+- Native tray availability differs across Linux desktops; document support and validate without manipulating the user's graphical session.
+- Windows pseudoconsole lifecycle and desktop WebSocket proxying need platform testing.
+- Network interface selection is not authentication; keep remote authentication requirements explicit.
+- A high implementation estimate does not establish latency, reliability, visual parity, or tri-OS release readiness.
 
-No daemon implementation tasks are active. Revisit its lifecycle, process model, API, static GUI serving, embedded fallback, and Wails relationship before creating `internal/daemon/` or `cmd/solomon-desktop/`.
+## Appendix A — Decision record
 
-### P2 — API integration (deferred)
-
-The earlier route-by-route backlog (`/v1/workspaces`, files, models, git, and user name) is retired as a provisional design. Define replacement tasks only after P1 approves the daemon contract. The UI client interface from P0 is the compatibility boundary.
-
-### P3 — Chat
-
-| ID | Task | Size |
-|----|------|------|
-| T-030 | Map conversation list API to Deep folder-grouped sidebar | M |
-| T-031 | SSE client: parse turn events → Deep message model (tools, reasoning, files) | L |
-| T-032 | Wire composer controls to session config (model, reasoning, fast, agent/chat) | M |
-| T-033 | Turn cancel + reconnect (`stream=true&starting_after=N`) | M |
-| T-034 | Usage footer component from SSE completion metadata | S |
-
-### P4 — Editor + git
-
-| ID | Task | Size |
-|----|------|------|
-| T-040 | Wire file tree + search to daemon workspace APIs | M |
-| T-041 | CodeMirror autosave → `PUT /v1/workspace/file` | M |
-| T-042 | Git staged/changes panels; live refresh on focus + interval | M |
-| T-043 | Git graph rendering from `/v1/git/history` | S |
-| T-044 | Commit button → `POST /v1/git/commit`; branch checkout UI | M |
-
-### P5 — Terminal panel
-
-| ID | Task | Size |
-|----|------|------|
-| T-050 | Implement the UI-layer PTY service under Wails/desktop (node-pty, `/__solomon/terminal` or renamed path) | L |
-| T-051 | Wire Deep terminal panel / tabs to UI-layer WebSocket (not daemon) | M |
-| T-052 | Tri-OS terminal panel QA (zsh, bash, PowerShell) | M |
-
-### P6 — Onboarding
-
-| ID | Task | Size |
-|----|------|------|
-| T-060 | `GET /v1/onboard/status` + blocking overlay in app when incomplete | M |
-| T-061 | Web wizard: provider connect (OAuth/API key) — reuse `connect` package logic | XL |
-| T-062 | Model pick step; write config; resume main UI | M |
-
-### P7 — Install (tri-OS)
-
-| ID | Task | Size |
-|----|------|------|
-| T-070 | macOS: `launchd` plist template + `Solomon.app` bundle in `make install` | L |
-| T-071 | Linux: systemd user unit + `.desktop` entry | M |
-| T-072 | Windows: service/task registration + Start Menu shortcut | L |
-| T-073 | Install docs update (`docs/user-guide/installation.md`) | S |
-| T-074 | Parity walkthrough script/checklist for tri-OS manual QA | M |
-
-### Dependencies requiring explicit approval
-
-| Dependency | Used for | Status |
-|------------|----------|--------|
-| **Wails v2** | Desktop shell, tray, WebView | **Approved** (2026-07-22) |
-| **node-pty** | Terminal panel PTY in UI layer | Existing; no new dep |
-
----
-
-## Appendix A — Grilling decisions log
-
-| Decision | Choice |
-|----------|--------|
-| UI direction | Deep v5 only |
-| MVP scope | Full feature coverage of §2.3 |
-| Daemon scope | **Deferred for redesign**; earlier global-user-level proposal is not implementation authority |
-| Client | Wails app (not browser-first) |
-| Auth (MVP) | Open on loopback |
-| Platforms | Tri-OS from first installable milestone |
-| REPL | Remains in **system terminal**; not primary onboarding path |
-| Terminal naming | **Terminal panel** / **terminal tab** in UI; not “terminal” alone |
-| Top bar | Horizontal top chrome (panels, wordmark, switch, path, terminal panel toggle, …) |
-| Terminal panel backend | UI layer (node-pty), **not** `solomon daemon` |
+| Decision | Current baseline |
+|----------|------------------|
+| UI direction | Deep v5; shared React implementation. |
+| Backend | Existing Go daemon in `internal/server/`, real GUI APIs and runtime integration. |
+| Hosts | Browser plus Wails desktop with loopback proxy and daemon-provided assets. |
+| Bundle | Embedded production build; no active `~/.solomon/gui/` hosting plan. |
+| Project routing | Explicit project/chat ids in requests; no global activate-workspace API requirement. |
+| Model preferences | Shared config for model/reasoning/fast; actual turn metadata retained. |
+| Concurrent turns | Backend supports concurrent chats across projects. |
+| PTY | Go daemon; Unix PTY and Windows pseudoconsole; xterm over WebSocket. |
+| Network | HTTP; configurable daemon port, all-interface IPv4 default bind, interface/MagicDNS policy; desktop proxy loopback-only. |
+| Platforms | macOS, Linux, Windows; clean-install acceptance still required. |
+| Folder ordering | Removed from scope on 2026-10-29; no backlog or acceptance work. |
+| Commit and tray | Commit implemented and tested; native tray remains outstanding. See §4. |
+| Original decisions | July 2026 mock-only, deferred-host, `/v1/*` GUI proposal, node-pty, and mandatory OS-service assumptions are superseded by this baseline. |

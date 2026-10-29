@@ -145,6 +145,23 @@ function parseGitStatusOutput(output: string): Record<string, string> {
   return status;
 }
 
+export async function commitProjectChanges(projectID: string, message: string) {
+  if (!message.trim() || message.includes("\0")) throw new Error("A nonempty commit message without NUL characters is required");
+  const root = await registeredProjectRoot(projectID);
+  const status = await projectGitStatus(projectID);
+  if (!status.isRepo || Object.keys(status.staged).length === 0) throw new Error("No staged changes to commit");
+  try {
+    await execFileAsync("git", ["-C", root, "commit", "-m", message.trim()], {
+      encoding: "utf8", maxBuffer: 1024 * 1024, timeout: 120_000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    });
+  } catch (error) {
+    const failure = error as { stderr?: string; stdout?: string; message?: string; killed?: boolean };
+    throw new Error(failure.killed ? "Commit timed out; check Git history before retrying" : [failure.stderr, failure.stdout].filter(Boolean).join("\n").trim() || failure.message || "Unable to commit staged changes");
+  }
+  return { committed: true };
+}
+
 export async function checkoutProjectBranch(projectID: string, branch: string) {
   return checkoutBranchAtRoot(await registeredProjectRoot(projectID), branch);
 }

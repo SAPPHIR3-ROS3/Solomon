@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import type { Plugin } from "vite";
 import {
+  commitProjectChanges,
   checkoutHomeDirectoryBranch,
   checkoutProjectBranch,
   homeDirectoryBranches,
@@ -151,7 +152,7 @@ export function attachProjectActionEndpoint(server: { middlewares: { use: (route
         .catch(() => { response.statusCode = 404; response.end("Research report not found"); });
       return;
     }
-    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|file-operation|file|files|research|history|status|branches|checkout|worktrees))?\/?$/);
+    const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|file-operation|file|files|research|history|status|branches|checkout|worktrees|commit))?\/?$/);
     if (match?.[2] === "file-operation") {
       if (request.method !== "POST") { respondWithJson(response, 405, { error: "Method not allowed" }); return; }
       void readJsonBody(request).then((payload) => projectFileOperation(match[1], payload))
@@ -238,6 +239,17 @@ export function attachProjectActionEndpoint(server: { middlewares: { use: (route
       void projectWorktrees(match[1])
         .then((info) => respondWithJson(response, 200, info))
         .catch(() => respondWithJson(response, 500, { error: "Unable to read project worktrees" }));
+      return;
+    }
+    if (match?.[2] === "commit") {
+      if (request.method !== "POST") { respondWithJson(response, 405, { error: "Method not allowed" }); return; }
+      void readJsonBody(request).then(async (payload) => {
+        if (!payload || typeof payload !== "object" || !("message" in payload) || typeof payload.message !== "string" || !payload.message.trim() || payload.message.includes("\0")) {
+          respondWithJson(response, 400, { error: "A nonempty commit message without NUL characters is required" });
+          return;
+        }
+        respondWithJson(response, 200, await commitProjectChanges(match[1], payload.message));
+      }).catch((error: unknown) => respondWithJson(response, 409, { error: error instanceof Error ? error.message : "Unable to commit staged changes" }));
       return;
     }
     if (request.method === "POST" && match?.[2] === "checkout") {

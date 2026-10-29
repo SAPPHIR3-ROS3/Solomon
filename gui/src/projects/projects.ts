@@ -292,6 +292,19 @@ export async function fetchProjectGitStatus(projectID: string, signal?: AbortSig
   return projectGitStatusFromPayload(await response.json());
 }
 
+export async function commitProjectChanges(projectID: string, message: string): Promise<void> {
+  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/commit`), {
+    body: JSON.stringify({ message }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(typeof payload?.error === "string" ? payload.error : `Unable to commit Git changes: ${response.status}`);
+  if (payload?.committed !== true) throw new Error("Unexpected commit response; check Git history before retrying.");
+  window.dispatchEvent(new CustomEvent(PROJECT_GIT_STATUS_CHANGED_EVENT, { detail: { projectID } }));
+  window.dispatchEvent(new CustomEvent(PROJECT_GIT_BRANCH_CHANGED_EVENT, { detail: { projectID } }));
+}
+
 export async function stageProjectChanges(projectID: string, paths: string[]): Promise<ProjectGitStatus> {
   return updateProjectGitIndex(projectID, "stage", paths);
 }
