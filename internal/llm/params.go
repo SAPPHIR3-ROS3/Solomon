@@ -292,6 +292,9 @@ func MessageParamsWithEncryptedReasoning(system string, msgs []chatstore.Message
 func toolImageContentParts(attachments []images.Attachment) []openai.ChatCompletionContentPartUnionParam {
 	var parts []openai.ChatCompletionContentPartUnionParam
 	for _, attachment := range attachments {
+		if attachment.PresentationOnly {
+			continue
+		}
 		parts = append(parts, openai.TextContentPart("Image read by tool: "+attachment.Path))
 		parts = append(parts, openai.ChatCompletionContentPartUnionParam{
 			OfImageURL: &openai.ChatCompletionContentPartImageParam{

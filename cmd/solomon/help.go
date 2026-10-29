@@ -28,10 +28,12 @@ Usage:
   solomon exec [options] <prompt>
   solomon temp exec [options] <prompt>
   solomon server <command>
+  solomon image [options] <file>
 
 Commands:
   desktop                         Open the desktop application
   desktop install [release-tag]   Reinstall the desktop application
+  image                           Preview a local image in the terminal
   version                         Print the installed version
   upgrade                         Install the latest release
   init                            Create the default configuration

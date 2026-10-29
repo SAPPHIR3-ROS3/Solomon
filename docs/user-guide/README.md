@@ -11,6 +11,7 @@ Practical guides for running Solomon, configuring providers, and understanding w
 | [configuration.md](configuration.md) | `~/.solomon/config.toml`, web search engines, logs, `[tools]` legacy XML |
 | [usage-and-commands.md](usage-and-commands.md) | CLI modes, features, slash commands (incl. `/research`, `/export`, `/legacytools`, `/cursortools`) |
 | [interface-and-terminal.md](interface-and-terminal.md) | Mappa delle funzioni disponibili nella GUI, nella REPL o su entrambe |
+| [image-previews.md](image-previews.md) | Visual media artifacts, fractional previews, color settings and video posters |
 | [terminal-setup.md](terminal-setup.md) | Monospace font, ligatures, colors, pipes |
 | [data-layout.md](data-layout.md) | `~/.solomon` and workspace `.solomon` trees |
 | [project-instructions.md](project-instructions.md) | `AGENTS.md`, custom rules, system prompt injection |

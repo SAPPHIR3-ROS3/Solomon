@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/checkpoint"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/terminalmedia"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
@@ -52,6 +54,7 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 	switch m.Role {
 	case "user":
 		if strings.HasPrefix(m.Content, "tool_result(") {
+			writeTranscriptMedia(out, m)
 			return
 		}
 		fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapUser("You:"), m.Content)
@@ -71,6 +74,8 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 		}
 		if cshow != "" {
 			fmt.Fprintf(out, "%s%s %s\n", prefix, termcolor.WrapAssistant(model+":"), termcolor.ColorizeErrorLines(cshow))
+			seen := terminalmedia.WriteAttachments(context.Background(), out, m.MediaPreviews)
+			terminalmedia.WriteReferences(context.Background(), out, cshow, m.MediaRoot, seen)
 		}
 		toolCalls := m.ToolCalls
 		if len(toolCalls) == 0 {
@@ -92,6 +97,7 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 		toolName := toolNameForResult(msgs, idx)
 		lines := tooling.FormatToolResultDisplayLines(toolName, m.Content)
 		if len(lines) == 0 {
+			writeTranscriptMedia(out, m)
 			return
 		}
 		continuation := ""
@@ -99,6 +105,7 @@ func writeTranscriptMessage(out io.Writer, msgs []chatstore.Message, idx int, mo
 			continuation = checkpoint.FormatCheckpointContinuationPlain(m.CheckpointSeq, m.CheckpointBranchKey)
 		}
 		tooling.WriteToolDisplayLinesWithPrefixes(out, prefix, continuation, lines)
+		writeTranscriptMedia(out, m)
 	case "system":
 		fmt.Fprint(out, prefix)
 		termcolor.WriteSystem(out, m.Content)
@@ -153,4 +160,17 @@ func transcriptAssistantLabel(m chatstore.Message, fallback string) string {
 		model += " (" + provider + ")"
 	}
 	return model
+}
+
+func writeTranscriptMedia(out io.Writer, m chatstore.Message) {
+	ctx := context.Background()
+	seen := terminalmedia.WriteAttachments(ctx, out, m.ToolImages)
+	raw := m.Content
+	if strings.HasPrefix(raw, "tool_result(") {
+		raw = strings.TrimSuffix(strings.TrimPrefix(raw, "tool_result("), ")")
+	}
+	var result any
+	if json.Unmarshal([]byte(raw), &result) == nil {
+		terminalmedia.WriteResult(ctx, out, result, m.MediaRoot, seen)
+	}
 }

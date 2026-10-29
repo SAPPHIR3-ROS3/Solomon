@@ -124,6 +124,9 @@ func buildMessages(msgs []chatstore.Message, imageFiles map[int]string) []messag
 func toolImageBlocks(attachments []images.Attachment) []contentBlock {
 	var blocks []contentBlock
 	for _, attachment := range attachments {
+		if attachment.PresentationOnly {
+			continue
+		}
 		blocks = append(blocks,
 			contentBlock{"type": "text", "text": "Image read by tool: " + attachment.Path},
 			contentBlock{"type": "image", "source": map[string]any{

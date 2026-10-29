@@ -20,7 +20,9 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mediaartifact"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/terminalmedia"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
@@ -54,6 +56,7 @@ func Run(ctx context.Context, h Host) error {
 		}
 	}()
 	out := h.Out()
+	mediaRoot := h.SlashDeps(runCtx).ProjRoot
 	var mux *btw.OutputMux
 	var btwSvc *btw.Service
 	var restoreOut func()
@@ -239,6 +242,14 @@ func Run(ctx context.Context, h Host) error {
 			}
 		}
 		ast := chatstore.Message{Provider: provider, Model: turnReq.Model, ReasoningEffort: reasoningEffort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turnContent, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText)), ReasoningEncrypted: strings.TrimSpace(turn.ReasoningEncrypted), ReasoningItem: strings.TrimSpace(turn.ReasoningItem)}
+		ast.MediaPreviews = mediaartifact.CaptureReferences(tooling.LegacyProseOutsideToolCalls(turnContent), mediaRoot)
+		if len(mediaartifact.References(tooling.LegacyProseOutsideToolCalls(turnContent), mediaRoot)) > 0 {
+			ast.MediaRoot = mediaRoot
+		}
+		if !h.MachineMode() {
+			seen := terminalmedia.WriteAttachments(runCtx, out, ast.MediaPreviews)
+			terminalmedia.WriteReferences(runCtx, out, tooling.LegacyProseOutsideToolCalls(turnContent), mediaRoot, seen)
+		}
 		ast.AnthropicThinking = turn.AnthropicThinking
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
@@ -427,6 +438,11 @@ func Run(ctx context.Context, h Host) error {
 				h.MutateSession(func(s *chatstore.Session) { s.Capabilities.Capture(inv.Name, rawPayload) })
 			}
 			res, toolImages := images.TakeToolAttachments(res)
+			toolImages = mediaartifact.Capture(res, mediaRoot, toolImages)
+			if !h.MachineMode() {
+				seen := terminalmedia.WriteAttachments(runCtx, out, toolImages)
+				terminalmedia.WriteResult(runCtx, out, res, mediaRoot, seen)
+			}
 			res = h.ApplyToolOutput(res, inv.Name, toolID)
 			payload := toolingResultJSON(res)
 			if h.MachineMode() {
@@ -446,6 +462,9 @@ func Run(ctx context.Context, h Host) error {
 				tm = chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")"}
 			}
 			tm.ToolImages = toolImages
+			if len(toolImages) > 0 || len(mediaartifact.Find(res, mediaRoot)) > 0 {
+				tm.MediaRoot = mediaRoot
+			}
 			h.MutateSession(func(s *chatstore.Session) {
 				checkpoint.StampMsg(&tm, s, toolCpSeq)
 				s.Messages = append(s.Messages, tm)

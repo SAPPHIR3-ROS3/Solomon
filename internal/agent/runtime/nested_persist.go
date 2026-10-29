@@ -19,6 +19,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mediaartifact"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
@@ -191,6 +192,10 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		transcript.WriteByte('\n')
 		nestedCheckpointSeq++
 		ast := chatstore.Message{Provider: provider, Model: model, ReasoningEffort: effort, FastMode: &fastMode, CreatedAt: time.Now(), Role: "assistant", Content: turn.Content, ReasoningText: tooling.StripLegacyToolBlocks(strings.TrimSpace(turn.ReasoningText)), ReasoningEncrypted: strings.TrimSpace(turn.ReasoningEncrypted), ReasoningItem: strings.TrimSpace(turn.ReasoningItem)}
+		ast.MediaPreviews = mediaartifact.CaptureReferences(tooling.LegacyProseOutsideToolCalls(turn.Content), r.ProjRoot)
+		if len(ast.MediaPreviews) > 0 {
+			ast.MediaRoot = r.ProjRoot
+		}
 		stampNestedMessageCheckpoint(&ast, nestedCheckpointSeq)
 		ast.AnthropicThinking = turn.AnthropicThinking
 		for _, tc := range turn.ToolCalls {
@@ -318,6 +323,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 				}
 			}
 			res, toolImages := images.TakeToolAttachments(res)
+			toolImages = mediaartifact.Capture(res, r.ProjRoot, toolImages)
 			res = r.applyToolOutput(res, inv.Name, toolID)
 			b, err := json.Marshal(res)
 			if err != nil {
@@ -328,11 +334,11 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 				r.ciEmit(cievents.ToolResult(0, toolID, inv.Name, b, ""))
 			}
 			if id := toolID; id != "" {
-				toolResult := chatstore.Message{Role: "tool", ToolCallID: id, Content: payload, ToolImages: toolImages}
+				toolResult := chatstore.Message{Role: "tool", ToolCallID: id, Content: payload, ToolImages: toolImages, MediaRoot: r.ProjRoot}
 				stampNestedMessageCheckpoint(&toolResult, toolResultSeq)
 				msgs = append(msgs, toolResult)
 			} else {
-				toolResult := chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")", ToolImages: toolImages}
+				toolResult := chatstore.Message{Role: "user", Content: "tool_result(" + payload + ")", ToolImages: toolImages, MediaRoot: r.ProjRoot}
 				stampNestedMessageCheckpoint(&toolResult, toolResultSeq)
 				msgs = append(msgs, toolResult)
 			}

@@ -3,9 +3,12 @@ package images
 // Attachment is a snapshot of a tool-read image. Keeping the bytes rather than
 // the original path makes replay independent of later edits or file deletion.
 type Attachment struct {
-	Path     string `json:"path"`
-	MIMEType string `json:"mime_type"`
-	Data     []byte `json:"data"`
+	Path             string `json:"path"`
+	PreviewPath      string `json:"preview_path,omitempty"`
+	MediaType        string `json:"media_type,omitempty"`
+	PresentationOnly bool   `json:"presentation_only,omitempty"`
+	MIMEType         string `json:"mime_type"`
+	Data             []byte `json:"data"`
 }
 
 // ToolAttachmentsKey is an in-process side channel, removed before tool output

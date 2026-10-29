@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mediaartifact"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
@@ -21,7 +22,7 @@ import (
 
 func signatureReadFile(path, intent string) {}
 
-const readFileDescription = "Read text or a PNG, JPEG, or WebP image relative to project root (absolute paths also accepted). Images are attached automatically for vision-capable models, including through orchestrate; no need to print image data. Optional startLine/endLine (1-based, inclusive) apply only to text. Discover unknown paths with find/listDir before reading; do not guess repository filenames. AGENTS.md instructions are loaded automatically when paths are activated; do not probe speculative AGENTS.md paths."
+const readFileDescription = "Read text or a PNG, JPEG, WebP, or GIF image relative to project root (absolute paths also accepted). GIFs attach only their first frame. Images are attached automatically for vision-capable models, including through orchestrate; no need to print image data. Optional startLine/endLine (1-based, inclusive) apply only to text. Discover unknown paths with find/listDir before reading; do not guess repository filenames. AGENTS.md instructions are loaded automatically when paths are activated; do not probe speculative AGENTS.md paths."
 
 const maxReadImageBytes = 5 * 1024 * 1024
 
@@ -79,9 +80,9 @@ func execReadFile(env *Env, raw json.RawMessage) (any, error) {
 		return nil, err
 	}
 	mime, recognized := images.MIMEForBinary(header[:n])
-	isImage := recognized && (mime == "image/png" || mime == "image/jpeg" || mime == "image/webp")
+	isImage := recognized && (mime == "image/png" || mime == "image/jpeg" || mime == "image/webp" || mime == "image/gif")
 	ext := strings.ToLower(filepath.Ext(p))
-	imageExtension := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp"
+	imageExtension := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp" || ext == ".gif"
 	if imageExtension && !isImage {
 		return nil, fmt.Errorf("readFile: invalid or unsupported image content in %s", p)
 	}
@@ -100,11 +101,19 @@ func execReadFile(env *Env, raw json.RawMessage) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("readFile: invalid image: %w", err)
 		}
+		attachment := images.Attachment{Path: p, MIMEType: mime, Data: b}
+		if mime == "image/gif" {
+			attachment, err = mediaartifact.Snapshot(mediaartifact.Descriptor{Kind: "gif", Path: p, PreviewPath: p})
+			if err != nil {
+				return nil, fmt.Errorf("readFile: invalid GIF: %w", err)
+			}
+			attachment.PresentationOnly = false
+		}
 		return map[string]any{
 			"path": p, "type": "image", "mime_type": mime,
 			"width": cfg.Width, "height": cfg.Height, "size_bytes": len(b),
 			"content":                 fmt.Sprintf("Image attached: %s (%s, %dx%d). Requires a vision-capable model.", p, mime, cfg.Width, cfg.Height),
-			images.ToolAttachmentsKey: []images.Attachment{{Path: p, MIMEType: mime, Data: b}},
+			images.ToolAttachmentsKey: []images.Attachment{attachment},
 		}, nil
 	}
 	b, err := io.ReadAll(f)

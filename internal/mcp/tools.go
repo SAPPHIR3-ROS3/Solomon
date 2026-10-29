@@ -8,7 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/imagepreview"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mediaartifact"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v2"
@@ -292,31 +295,72 @@ func convertResult(res *sdkmcp.CallToolResult) (any, error) {
 	if res == nil {
 		return nil, nil
 	}
-	content := contentValues(res.Content)
+	content, attachments := contentValues(res.Content)
+	finish := func(v any) (any, error) {
+		if len(attachments) == 0 {
+			return v, nil
+		}
+		m, ok := v.(map[string]any)
+		if !ok {
+			m = map[string]any{"content": v}
+		}
+		m[images.ToolAttachmentsKey] = attachments
+		return m, nil
+	}
 	if res.NeedsInput() {
-		return map[string]any{
+		return finish(map[string]any{
 			"resultType":    "input_required",
 			"inputRequests": res.InputRequests,
 			"requestState":  res.RequestState,
 			"content":       content,
-		}, nil
+		})
 	}
 	if res.IsError {
-		return map[string]any{"error": contentText(content)}, nil
+		return finish(map[string]any{"error": contentText(content)})
 	}
 	if res.StructuredContent != nil {
-		return map[string]any{"structuredContent": res.StructuredContent, "content": content}, nil
+		return finish(map[string]any{"structuredContent": res.StructuredContent, "content": content})
 	}
 	if len(content) == 1 {
-		return content[0], nil
+		return finish(content[0])
 	}
-	return content, nil
+	return finish(content)
 }
 
-func contentValues(items []sdkmcp.Content) []any {
+func contentValues(items []sdkmcp.Content) ([]any, []images.Attachment) {
+	var attachments []images.Attachment
+	count, total := 0, 0
 	out := make([]any, 0, len(items))
+	imageValue := func(data []byte, mime string) any {
+		count++
+		total += len(data)
+		if count > 8 || total > imagepreview.MaxBytes {
+			return map[string]any{"type": "image", "preview_error": "media attachment limit exceeded"}
+		}
+		d, a, err := mediaartifact.Store(data, mime)
+		if detected, ok := images.MIMEForBinary(data); ok {
+			mime = detected
+		}
+		metadata := map[string]any{"type": "image", "mime_type": mime}
+		if d.Path != "" {
+			metadata["path"] = d.Path
+			metadata["type"] = d.Kind
+		}
+		if err != nil {
+			metadata["preview_error"] = err.Error()
+		} else {
+			attachments = append(attachments, a)
+		}
+		return metadata
+	}
 	for _, item := range items {
+		if resource, ok := item.(*sdkmcp.EmbeddedResource); ok && resource.Resource != nil && strings.HasPrefix(resource.Resource.MIMEType, "image/") && len(resource.Resource.Blob) > 0 {
+			out = append(out, imageValue(resource.Resource.Blob, resource.Resource.MIMEType))
+			continue
+		}
 		switch v := item.(type) {
+		case *sdkmcp.ImageContent:
+			out = append(out, imageValue(v.Data, v.MIMEType))
 		case *sdkmcp.TextContent:
 			out = append(out, v.Text)
 		default:
@@ -333,7 +377,7 @@ func contentValues(items []sdkmcp.Content) []any {
 			out = append(out, decoded)
 		}
 	}
-	return out
+	return out, attachments
 }
 
 func contentText(items []any) string {

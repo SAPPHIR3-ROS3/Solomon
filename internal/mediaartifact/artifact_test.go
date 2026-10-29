@@ -1,0 +1,175 @@
+package mediaartifact
+
+import (
+	"bytes"
+	"encoding/json"
+	"image"
+	"image/color"
+	"image/gif"
+	"image/png"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/imagepreview"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
+)
+
+func fixture(t *testing.T) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	m := image.NewNRGBA(image.Rect(0, 0, 4, 4))
+	m.Set(1, 1, color.White)
+	if err := png.Encode(&b, m); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+func TestFindMediaAliasesAndLocalResources(t *testing.T) {
+	root := t.TempDir()
+	input := map[string]any{"artifacts": []any{
+		map[string]any{"type": "video", "path": "clip.mp4", "thumbnailPath": "poster.png"},
+		map[string]any{"file_path": "output.png"},
+		map[string]any{"type": "resource_link", "uri": "file:///tmp/image.png", "mimeType": "image/png"},
+		`{"type":"image","path":"output.png"}`,
+		map[string]any{"type": "image", "path": "https://example.com/remote.png"},
+	}}
+	list := Find(input, root)
+	if len(list) != 3 {
+		t.Fatalf("%+v", list)
+	}
+	if list[0].PreviewPath != filepath.Join(root, "poster.png") || list[0].Kind != "video" {
+		t.Fatal(list[0])
+	}
+	if list[1].Path != filepath.Join(root, "output.png") || list[2].Path != "/tmp/image.png" {
+		t.Fatal(list)
+	}
+}
+func TestCaptureSurvivesFileDeletionAndPreservesVideoPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "poster.png")
+	data := fixture(t)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	out := Capture(map[string]any{"type": "video", "path": "clip.mp4", "poster_path": "poster.png"}, dir, nil)
+	if len(out) != 1 || out[0].Path != filepath.Join(dir, "clip.mp4") || out[0].MIMEType != "image/png" || !bytes.Equal(out[0].Data, data) {
+		t.Fatal(out)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	serialized, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored []images.Attachment
+	if err := json.Unmarshal(serialized, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := imagepreview.Decode(bytes.NewReader(restored[0].Data)); err != nil {
+		t.Fatal(err)
+	}
+	if len(Capture(map[string]any{"path": "clip.mp4"}, dir, nil)) != 0 {
+		t.Fatal("video decoded without poster")
+	}
+}
+func TestStoreNativeImageAndDeduplication(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	data := fixture(t)
+	d, a, err := Store(data, "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d2, _, err := Store(data, "image/jpeg")
+	if err != nil || d2.Path != d.Path {
+		t.Fatal("content detection or dedup failed", err)
+	}
+	saved, err := os.ReadFile(d.Path)
+	if err != nil || !bytes.Equal(saved, data) {
+		t.Fatal("original not preserved")
+	}
+	if len(Capture(map[string]any{"type": "image", "path": d.Path}, "", []images.Attachment{a})) != 1 {
+		t.Fatal("duplicate attachment")
+	}
+	st, err := os.Stat(d.Path)
+	if err != nil || st.Mode().Perm()&0077 != 0 {
+		t.Fatal("media file permissions")
+	}
+}
+func TestGIFSnapshotIsFirstFramePNG(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	palette := color.Palette{color.Black, color.White}
+	first := image.NewPaletted(image.Rect(0, 0, 2, 2), palette)
+	first.SetColorIndex(0, 0, 1)
+	second := image.NewPaletted(image.Rect(0, 0, 2, 2), palette)
+	var b bytes.Buffer
+	if err := gif.EncodeAll(&b, &gif.GIF{Image: []*image.Paletted{first, second}, Delay: []int{1, 1}}); err != nil {
+		t.Fatal(err)
+	}
+	d, a, err := Store(b.Bytes(), "image/gif")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(d.Path, ".gif") || a.MIMEType != "image/png" || !bytes.HasPrefix(a.Data, []byte("\x89PNG")) {
+		t.Fatal("original GIF or normalized poster lost")
+	}
+	im, _, err := image.Decode(bytes.NewReader(a.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _, _, _ := im.At(0, 0).RGBA()
+	if r == 0 {
+		t.Fatal("wrong GIF frame")
+	}
+}
+func TestUnsupportedOriginalRemainsAvailable(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
+	d, _, err := Store(svg, "image/svg+xml")
+	if err == nil {
+		t.Fatal("unexpected SVG raster decoder")
+	}
+	if got, e := os.ReadFile(d.Path); e != nil || !bytes.Equal(got, svg) {
+		t.Fatal("original lost on preview failure")
+	}
+}
+func TestReferencesSkipCodeAndRemoteLinks(t *testing.T) {
+	list := References("```md\n![skip](skip.png)\n```\n![one](<image%20one.png>)\n[x](https://example.com/remote.png)\n[v](clip.mp4)", t.TempDir())
+	if len(list) != 2 || !strings.HasSuffix(list[0].Path, "image one.png") || list[1].PreviewPath != "" {
+		t.Fatal(list)
+	}
+	for _, path := range []string{"data:image/png,abc", "https://example.com/x", "javascript:foo"} {
+		if LocalPath(path, "") != "" {
+			t.Fatal(path)
+		}
+	}
+}
+
+func TestConcurrentIdenticalArtifactsArePublishedWhole(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	data := fixture(t)
+	errors := make(chan error, 12)
+	for i := 0; i < 12; i++ {
+		go func() { _, _, err := Store(data, "image/png"); errors <- err }()
+	}
+	for i := 0; i < 12; i++ {
+		if err := <-errors; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestCorruptPixelDataDoesNotBecomeVisionInput(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	data := fixture(t)
+	// A complete PNG IHDR is enough for header-only decoders but has no pixels.
+	d, a, err := Store(data[:33], "image/png")
+	if err == nil || len(a.Data) > 0 {
+		t.Fatal("corrupt image became a vision input")
+	}
+	if _, e := os.Stat(d.Path); e != nil {
+		t.Fatal("corrupt original should remain inspectable")
+	}
+}

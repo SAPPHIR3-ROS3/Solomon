@@ -90,6 +90,13 @@ func main() {
 		writeCLIHelp(os.Stdout)
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "image" {
+		if err := runImageCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if !daemonTUIChild && desktopSetupRequired(os.Args) {
 		if _, err := prepareDesktop(); err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to complete Solomon desktop setup: %v\nRetry this command when the release download is available.\n", err)

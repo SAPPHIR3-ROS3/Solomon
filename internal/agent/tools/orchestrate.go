@@ -11,6 +11,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mediaartifact"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/parent"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
@@ -90,7 +91,20 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 	}
 	if len(attachments) > 0 {
 		out[images.ToolAttachmentsKey] = attachments
-		out["images_attached"] = len(attachments)
+		vision, previews := 0, 0
+		for _, a := range attachments {
+			if a.PresentationOnly {
+				previews++
+			} else {
+				vision++
+			}
+		}
+		if vision > 0 {
+			out["images_attached"] = vision
+		}
+		if previews > 0 {
+			out["media_previews"] = previews
+		}
 	}
 	return out, nil
 }
@@ -116,6 +130,7 @@ func orchestrateHostCall(ctx context.Context, env *Env, name string, args json.R
 		return nil, err
 	}
 	result, attachments := images.TakeToolAttachments(result)
+	attachments = mediaartifact.Capture(result, env.ProjRoot, attachments)
 	if collect != nil && len(attachments) > 0 {
 		collect(attachments)
 	}

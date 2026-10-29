@@ -60,6 +60,11 @@ the logo to its column and abbreviates the information text, keeping the frame
 within the available width. It does not scale the drawing or redraw an already
 printed banner when the terminal window is resized.
 
+## Image previews
+
+Local visual media output uses fractional blocks with RGB or 256-color ANSI. See [Image previews](image-previews.md) for the standalone
+`solomon image` command and conversation settings.
+
 ## Colors
 
 Styling is handled by [`internal/termcolor`](../../internal/termcolor/) on top of [lipgloss](https://github.com/charmbracelet/lipgloss) and [termenv](https://github.com/muesli/termenv). The palette is fixed for **dark** backgrounds; there is no light-theme mode.

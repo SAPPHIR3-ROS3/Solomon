@@ -193,6 +193,9 @@ func agentHistory(messages []chatstore.Message, imageFiles map[int]string) ([][]
 			parts = []any{map[string]any{"type": "tool-result", "toolCallId": msg.ToolCallID, "toolName": name, "result": map[string]any{"is_error": false, "content": msg.Content}}}
 		}
 		for _, image := range msg.ToolImages {
+			if image.PresentationOnly {
+				continue
+			}
 			pendingImages = append(pendingImages,
 				map[string]any{"type": "text", "text": "Image read by tool: " + image.Path},
 				map[string]any{"type": "image", "image": base64.StdEncoding.EncodeToString(image.Data), "mimeType": image.MIMEType},
@@ -220,6 +223,9 @@ func agentHistory(messages []chatstore.Message, imageFiles map[int]string) ([][]
 func cursorToolImages(attachments []images.Attachment) []cursorauth.AgentImage {
 	var media []cursorauth.AgentImage
 	for _, attachment := range attachments {
+		if attachment.PresentationOnly {
+			continue
+		}
 		media = append(media, cursorauth.AgentImage{Data: attachment.Data, Mime: attachment.MIMEType, Filename: filepath.Base(attachment.Path)})
 	}
 	return media

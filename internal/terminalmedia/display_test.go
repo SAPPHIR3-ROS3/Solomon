@@ -1,0 +1,77 @@
+package terminalmedia
+
+import (
+	"bytes"
+	"context"
+	"image"
+	"image/color"
+	"image/png"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
+)
+
+func pngFixture(t *testing.T) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	m := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	m.Set(1, 1, color.White)
+	if err := png.Encode(&b, m); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+func TestCapturedOutputRetainsPathsWithoutANSI(t *testing.T) {
+	t.Setenv("SOLOMON_IMAGE_COLOR", "truecolor")
+	var out bytes.Buffer
+	seen := WriteAttachments(context.Background(), &out, []images.Attachment{{Path: "/original.png", Data: pngFixture(t)}})
+	WriteResult(context.Background(), &out, map[string]any{"type": "image", "path": "/original.png"}, "", seen)
+	if out.String() != "  Image: /original.png\n" {
+		t.Fatal(out.String())
+	}
+	if Options(&out).Colors != "none" {
+		t.Fatal("capture override leaked color")
+	}
+}
+func TestExplicitMediaAndVideoPoster(t *testing.T) {
+	var out bytes.Buffer
+	WriteResult(context.Background(), &out, map[string]any{"artifacts": []any{
+		map[string]any{"type": "video", "path": "movie.mp4", "previewPath": "poster.png"},
+		map[string]any{"type": "video", "path": "no-poster.mp4"},
+		map[string]any{"type": "text", "path": "ignore.txt"},
+	}}, "/project", nil)
+	want := "  Video: /project/movie.mp4\n  Media: /project/no-poster.mp4 (no preview supplied)\n"
+	if out.String() != want {
+		t.Fatalf("%q", out.String())
+	}
+}
+func TestLocalPaths(t *testing.T) {
+	for _, raw := range []string{"https://example.com/a.png", "data:image/png,abc", "//server/a.png", "#anchor"} {
+		if localPath(raw, "/root") != "" {
+			t.Fatal(raw)
+		}
+	}
+	if got := localPath("file:///tmp/a%20b.png", "/root"); got != "/tmp/a b.png" {
+		t.Fatal(got)
+	}
+	if got := localPath("./a.png", "/root"); got != "/root/a.png" {
+		t.Fatal(got)
+	}
+}
+func TestPathControlsAreEscaped(t *testing.T) {
+	var out bytes.Buffer
+	WriteAttachments(context.Background(), &out, []images.Attachment{{Path: "bad\x1b[2J\n.png"}})
+	if strings.ContainsAny(out.String(), "\x1b") || strings.Count(out.String(), "\n") != 1 {
+		t.Fatal("terminal injection")
+	}
+}
+func TestOpenFileFailureIsNotFatalToTranscript(t *testing.T) {
+	// Captured output does not even attempt to open the source.
+	var out bytes.Buffer
+	WriteResult(context.Background(), &out, map[string]any{"type": "image", "path": filepath.Join(t.TempDir(), "missing.png")}, "", nil)
+	if !strings.Contains(out.String(), "missing.png") {
+		t.Fatal(out.String())
+	}
+}
