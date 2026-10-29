@@ -3,7 +3,7 @@ import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, insertNewlineAndIndent } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { createSearchPanel } from "./searchPanel";
-import { search, searchKeymap } from "@codemirror/search";
+import { openSearchPanel, search, searchKeymap } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
@@ -79,6 +79,13 @@ export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onView
       ],
     }) });
     viewRef.current = view;
+    const openFind = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "f") return;
+      event.preventDefault();
+      event.stopPropagation();
+      openSearchPanel(view);
+    };
+    window.addEventListener("keydown", openFind, true);
     const position = view.state.selection.main.head;
     const line = view.state.doc.lineAt(position);
     callbacks.current.onCursor({ line: line.number, column: position - line.from + 1 });
@@ -95,6 +102,7 @@ export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onView
       });
     }
     return () => {
+      window.removeEventListener("keydown", openFind, true);
       if (frame !== undefined) cancelAnimationFrame(frame);
       saveView(view);
       viewRef.current = null;
