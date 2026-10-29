@@ -21,7 +21,7 @@ import (
 
 func signatureReadFile(path, intent string) {}
 
-const readFileDescription = "Read text or a PNG, JPEG, or WebP image relative to project root (absolute paths also accepted). Images are attached automatically for vision-capable models, including through orchestrate; no need to print image data. Optional startLine/endLine (1-based, inclusive) apply only to text."
+const readFileDescription = "Read text or a PNG, JPEG, or WebP image relative to project root (absolute paths also accepted). Images are attached automatically for vision-capable models, including through orchestrate; no need to print image data. Optional startLine/endLine (1-based, inclusive) apply only to text. Discover unknown paths with find/listDir before reading; do not guess repository filenames. AGENTS.md instructions are loaded automatically when paths are activated; do not probe speculative AGENTS.md paths."
 
 const maxReadImageBytes = 5 * 1024 * 1024
 
@@ -67,6 +67,9 @@ func execReadFile(env *Env, raw json.RawMessage) (any, error) {
 	}
 	f, err := os.Open(p)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%w; discover the existing path with find or listDir before retrying", err)
+		}
 		return nil, err
 	}
 	defer f.Close()
