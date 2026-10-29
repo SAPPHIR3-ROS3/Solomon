@@ -2,6 +2,7 @@ package toolenv
 
 import (
 	"context"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/cloak"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/filechanges"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -39,6 +40,7 @@ type Env struct {
 	Cfg                                  *config.Root
 	ReloadSettings                       func(context.Context, *config.Root) error
 	MCP                                  *solomonmcp.Manager
+	Cloak                                *cloak.Client
 	WebSearch                            search.Engine
 	WebFetch                             webfetch.Fetcher
 	RunNested                            func(ctx context.Context, body string) (string, error)

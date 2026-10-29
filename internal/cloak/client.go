@@ -126,6 +126,9 @@ func NewClient(options Options) (*Client, error) {
 	if err := os.MkdirAll(installDir, 0o700); err != nil {
 		return nil, fmt.Errorf("%w: create install directory: %v", ErrUnavailable, err)
 	}
+	if err := installAssets(installDir); err != nil {
+		return nil, fmt.Errorf("%w: install bridge modules: %v", ErrUnavailable, err)
+	}
 	bridgePath := filepath.Join(installDir, "solomon-cloak-bridge.mjs")
 	if current, err := os.ReadFile(bridgePath); err != nil || !bytes.Equal(current, bridgeSource) {
 		if err := os.WriteFile(bridgePath, bridgeSource, 0o600); err != nil {

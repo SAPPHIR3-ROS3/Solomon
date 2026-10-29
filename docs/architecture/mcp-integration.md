@@ -117,6 +117,8 @@ The public install path requires Node.js 20+, `cloakbrowser`, and
 Solomon-managed cache. Runtime auto-update is disabled so the installed binary
 does not change behind Solomon's back.
 
+The native browser also provides deferred automation and diagnostics: see [CloakBrowser automation](cloak.md).
+
 ## Startup flow
 
 ```mermaid

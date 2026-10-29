@@ -81,7 +81,7 @@ func isInternalToolName(name string) bool {
 	case "docsRetrieval", "readChat",
 		"createPlan", "editPlan", "buildPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
 		"shell", "readFile", "editFile", "find", "listDir", "tree", "subagent", "fetchWeb", "webSearch",
-		"deepResearch", "researchStatus",
+		"deepResearch", "researchStatus", "cloakBrowser",
 		"searchTools", "orchestrate", "settings", "customizeUI", "switchMode", "listSubAgents":
 		return true
 	default:
@@ -94,6 +94,9 @@ func isSkillToolName(name string) bool {
 }
 
 func modeAllowed(env *Env, mode, tool string) bool {
+	if tool == "cloakBrowser" {
+		return env != nil && env.AllowDeferredTools && normalizeMode(mode) == "agent"
+	}
 	if IsUniversalTool(tool) {
 		return true
 	}
@@ -179,6 +182,8 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 		return WithFileChangeTrackingPaths(ctx, env, editInvocationPaths(env, inv.Args), func() (any, error) { return execEditFile(env, inv.Args) })
 	case "subagent":
 		return execSubagent(ctx, env, inv.Args)
+	case "cloakBrowser":
+		return execCloakBrowser(ctx, env, inv.Args)
 	case "fetchWeb":
 		return execFetchWeb(ctx, env, inv.Args)
 	case "webSearch":

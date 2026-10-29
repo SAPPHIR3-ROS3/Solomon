@@ -66,7 +66,11 @@ func (r *Runtime) configureWebSearch(mgr *solomonmcp.Manager) {
 	balanceStore := search.DefaultBalanceStore()
 	var nativeSearchFallback search.Engine
 	var nativeFetchFallback webfetch.Fetcher
-	nativeCloak, cloakErr := cloak.NewClient(cloak.Options{Stderr: os.Stderr})
+	nativeCloak := r.Cloak
+	var cloakErr error
+	if nativeCloak == nil {
+		nativeCloak, cloakErr = cloak.NewClient(cloak.Options{Stderr: os.Stderr})
+	}
 	if cloakErr != nil {
 		logging.Log(logging.INFO_LOG_LEVEL, "native CloakBrowser fallback unavailable", logging.LogOptions{Params: map[string]any{"err": cloakErr.Error()}})
 	} else {
@@ -138,7 +142,7 @@ func (r *Runtime) Close() error {
 			closeErrors = append(closeErrors, err)
 		}
 	}
-	if r != nil && r.Cloak != nil {
+	if r != nil && r.Cloak != nil && !r.CloakShared {
 		if err := r.Cloak.Close(); err != nil {
 			closeErrors = append(closeErrors, err)
 		}

@@ -31,6 +31,7 @@ func (r *Runtime) toolEnv(inv tooling.Invocation) *agenttools.Env {
 		Cfg:                     r.Cfg,
 		ReloadSettings:          r.reloadSettings,
 		MCP:                     r.MCP,
+		Cloak:                   r.Cloak,
 		WebSearch:               r.WebSearch,
 		WebFetch:                r.WebFetch,
 		RunNested:               r.runNested,

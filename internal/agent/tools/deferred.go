@@ -2,7 +2,7 @@ package tools
 
 func AgentDeferredToolNames() []string {
 	return []string{
-		"deepResearch", "researchStatus",
+		"deepResearch", "researchStatus", "cloakBrowser",
 		"createPlan", "editPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
 		"shell", "readFile", "editFile", "find", "listDir", "tree", "fetchWeb", "webSearch",
 	}
