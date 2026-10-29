@@ -49,14 +49,14 @@ test("task comparison tolerates line endings and surrounding whitespace", () => 
 test("the expanded chat shows the full task while loading or when absent from the transcript", () => {
   for (const messages of [undefined, [], [{ id: "reply", role: "assistant", content: "Progress report" }]]) {
     const html = renderPanel(messages);
-    assert.match(html, /class="chat-subchat-task"/);
-    assert.equal(html.split(tool.input).length - 1, 1);
+    assert.match(html, /Verify GPU placement/);
+    assert.equal(html.split(tool.input).length - 1, 0);
   }
   const loading = renderToStaticMarkup(createElement(SubagentChatPanel, {
     isLoading: true, messages: [{ id: "task", role: "user", content: tool.input }], tool, onCollapse() {},
   }));
   assert.match(loading, /Loading subchat/);
-  assert.equal(loading.split(tool.input).length - 1, 1);
+  assert.equal(loading.split(tool.input).length - 1, 0);
 });
 
  test("subagent card displays its model and reasoning effort", () => {
@@ -71,4 +71,33 @@ test("subagent model omits fast when disabled", () => {
   const html = renderCard({model: "test-model", reasoningEffort: "none", fastMode: false});
   assert.match(html, /test-model\(none\)/);
   assert.doesNotMatch(html, /none fast/);
+});
+
+ test("duplicate initial tasks render once while repeated followups remain", () => {
+  const messages = [
+    { id: "task-1", role: "user", content: tool.input },
+    { id: "task-2", role: "user", content: ` ${tool.input}\r\n` },
+    { id: "reply", role: "assistant", content: "Progress report" },
+  ];
+  assert.equal(renderPanel(messages).split(tool.input).length - 1, 1);
+  messages.push({ id: "followup", role: "user", content: tool.input });
+  assert.equal(renderPanel(messages).split(tool.input).length - 1, 2);
+});
+
+ test("expanded subagent shows the latest tool intent", () => {
+  const html = renderPanel([
+    { id: "first", role: "assistant", content: "", toolCalls: [{ id: "a", name: "read_file", intent: "Read sources" }] },
+    { id: "last", role: "assistant", content: "", toolCalls: [{ id: "b", name: "exec", intent: "Verify the fix" }, { id: "c", name: "exec" }] },
+  ]);
+  assert.match(html, /<p>Verify the fix<\/p>/);
+  assert.doesNotMatch(html, /Complete task instructions/);
+});
+
+test("duplicate user tasks are hidden even if the card input differs", () => {
+  const content = "Original task from the resumed subchat";
+  const html = renderPanel([
+    { id: "first", role: "user", content },
+    { id: "second", role: "user", content: ` ${content}\r\n` },
+  ], { input: "Continue the previous work" });
+  assert.equal(html.split(content).length - 1, 1);
 });

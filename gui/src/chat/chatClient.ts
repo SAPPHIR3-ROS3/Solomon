@@ -345,7 +345,16 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
     return updateLastAssistant(chat, (message) => ({
       ...message,
       toolCalls: (message.toolCalls ?? []).map((tool) => tool.id === id
-        ? { ...tool, result, status: result.status }
+        ? (() => {
+          const currentStatus = tool.result?.subchatStatus;
+          const preserveFinalStatus = tool.name === "subagent" && currentStatus
+            && currentStatus !== "running" && currentStatus !== "queued"
+            && (!result.subchatId || result.subchatId === tool.result?.subchatId)
+            && (!result.subchatStatus || result.subchatStatus === "running" || result.subchatStatus === "queued");
+          return preserveFinalStatus
+            ? { ...tool, result: { ...tool.result, ...result, subchatStatus: currentStatus }, status: currentStatus === "done" ? "success" as const : "error" as const }
+            : { ...tool, result, status: result.status };
+        })()
         : tool),
     }));
   }

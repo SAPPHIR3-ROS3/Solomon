@@ -440,12 +440,22 @@ function CollapsedCheckpointRail({ checkpoints }: { checkpoints: CheckpointMetad
 
 export function SubagentChatPanel({ isLoading = false, messages, onCollapse, tool }: { isLoading?: boolean; messages?: ChatMessage[]; onCollapse: () => void; tool: ChatToolCall }) {
   const status = subagentDisplayStatus(tool);
-  const transcript = messages ?? [];
   const normalizeTask = (content: string) => content.replace(/\r\n?/g, "\n").trim();
-  const task = normalizeTask(tool.input ?? "");
-  const taskInTranscript = !isLoading && Boolean(task) && transcript.some((message) => (
-    message.role === "user" && normalizeTask(message.content) === task
-  ));
+  // Collapse consecutive copies even when the card belongs to a resumed task.
+  let previousUserContent: string | undefined;
+  const transcript = (messages ?? []).filter((message) => {
+    if (message.role !== "user") {
+      previousUserContent = undefined;
+      return true;
+    }
+    const content = normalizeTask(message.content);
+    const duplicate = Boolean(content) && content === previousUserContent && !message.images?.length;
+    previousUserContent = content;
+    return !duplicate;
+  });
+  const latestIntent = [...transcript].reverse()
+    .flatMap((message) => [...(message.toolCalls ?? [])].reverse())
+    .find((call) => call.intent?.trim())?.intent?.trim() || tool.intent?.trim() || "Intent missing";
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -473,10 +483,10 @@ export function SubagentChatPanel({ isLoading = false, messages, onCollapse, too
         </button>
       </header>
       <div className="chat-subchat-body">
-        {!taskInTranscript ? <div className="chat-subchat-task">
-          <span className="chat-subchat-task-label">Task</span>
-          <p>{tool.input ?? "No task provided."}</p>
-        </div> : null}
+        <div className="chat-subchat-intent">
+          <span>Intent</span>
+          <p>{latestIntent}</p>
+        </div>
         <div className="chat-subchat-transcript">
           {isLoading ? <p className="chat-empty">Loading subchat…</p> : transcript.length ? <ChatMessageGroups isWorking={status === "running" || status === "queued"} messages={indexChatMessages(transcript)} /> : <p className="chat-empty">No subchat messages yet.</p>}
         </div>

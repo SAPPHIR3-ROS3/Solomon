@@ -119,3 +119,12 @@ test("regenerate replaces the last answer while preserving the original user att
   assert.equal(regenerated.status, "running");
   assert.equal(chat.messages.length, 3);
 });
+
+test("a delayed spawn result does not reactivate a completed subagent", () => {
+  const chat = { id: "chat", messages: [{ id: "assistant", role: "assistant", content: "", toolCalls: [{
+    id: "agent", name: "subagent", status: "success", result: { status: "success", subchatId: "child", subchatStatus: "done" },
+  }] }] };
+  const next = applyLiveStreamEvent(chat, { type: "tool_result", id: "agent", result: { status: "success", subchatId: "child", subagentStatus: "running" } });
+  assert.equal(next.messages[0].toolCalls[0].result.subchatStatus, "done");
+  assert.equal(next.messages[0].toolCalls[0].status, "success");
+});
