@@ -74,6 +74,9 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/sandbox/worker/` | `solomon sandbox-worker` serve loop | [Plan vs build](plan-vs-build.md) |
 | `internal/tooloutput/` | Tool result truncation and spill to `temp/` | [Supporting packages](supporting-packages.md) |
 | `internal/tooloutput/process/` | Cross-process temp cleanup coordination | [Supporting packages](supporting-packages.md) |
+| `internal/imagepreview/` | Fractional block image rendering | [Image previews](../user-guide/image-previews.md) |
+| `internal/mediaartifact/` | Media descriptors and persistent snapshots | [Image previews](../user-guide/image-previews.md) |
+| `internal/terminalmedia/` | Terminal media presentation | [Image previews](../user-guide/image-previews.md) |
 | `internal/mcp/` | MCP client manager and OpenAI adapter | [MCP integration](mcp-integration.md) |
 | `internal/cloak/` | Go-owned native CloakBrowser client and minimal official Playwright shim | [MCP integration](mcp-integration.md#native-cloakbrowser-fallback) |
 | `internal/skills/` | Skill registry, install, search | [Skills and slash](skills-and-slash.md) |
