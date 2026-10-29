@@ -42,7 +42,7 @@ func TestExplicitMediaAndVideoPoster(t *testing.T) {
 		map[string]any{"type": "video", "path": "no-poster.mp4"},
 		map[string]any{"type": "text", "path": "ignore.txt"},
 	}}, "/project", nil)
-	want := "  Video: /project/movie.mp4\n  Media: /project/no-poster.mp4 (no preview supplied)\n"
+	want := "  Video: " + localPath("movie.mp4", "/project") + "\n  Media: " + localPath("no-poster.mp4", "/project") + " (no preview supplied)\n"
 	if out.String() != want {
 		t.Fatalf("%q", out.String())
 	}
@@ -53,10 +53,10 @@ func TestLocalPaths(t *testing.T) {
 			t.Fatal(raw)
 		}
 	}
-	if got := localPath("file:///tmp/a%20b.png", "/root"); got != "/tmp/a b.png" {
+	if got := localPath("file:///tmp/a%20b.png", "/root"); got != localPath("/tmp/a b.png", "/root") {
 		t.Fatal(got)
 	}
-	if got := localPath("./a.png", "/root"); got != "/root/a.png" {
+	if got := localPath("./a.png", "/root"); got != localPath("a.png", "/root") {
 		t.Fatal(got)
 	}
 }

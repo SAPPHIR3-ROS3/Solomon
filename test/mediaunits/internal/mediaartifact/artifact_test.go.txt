@@ -8,6 +8,7 @@ import (
 	"image/gif"
 	"image/png"
 	"os"
+ "runtime"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -42,7 +43,7 @@ func TestFindMediaAliasesAndLocalResources(t *testing.T) {
 	if list[0].PreviewPath != filepath.Join(root, "poster.png") || list[0].Kind != "video" {
 		t.Fatal(list[0])
 	}
-	if list[1].Path != filepath.Join(root, "output.png") || list[2].Path != "/tmp/image.png" {
+	if list[1].Path != filepath.Join(root, "output.png") || list[2].Path != LocalPath("file:///tmp/image.png", root) {
 		t.Fatal(list)
 	}
 }
@@ -94,7 +95,7 @@ func TestStoreNativeImageAndDeduplication(t *testing.T) {
 		t.Fatal("duplicate attachment")
 	}
 	st, err := os.Stat(d.Path)
-	if err != nil || st.Mode().Perm()&0077 != 0 {
+	if err != nil || (runtime.GOOS != "windows" && st.Mode().Perm()&0077 != 0) {
 		t.Fatal("media file permissions")
 	}
 }

@@ -43,7 +43,18 @@ func LocalPath(raw, root string) string {
 				return ""
 			}
 			raw = u.Path
+			if filepath.Separator == '\\' && len(raw) > 2 && raw[0] == '/' && raw[2] == ':' {
+				raw = raw[1:]
+			}
 		}
+	}
+	if filepath.Separator == '\\' && strings.HasPrefix(raw, "/") {
+		volume := filepath.VolumeName(root)
+		if volume == "" {
+			cwd, _ := filepath.Abs(".")
+			volume = filepath.VolumeName(cwd)
+		}
+		raw = volume + raw
 	}
 	if !filepath.IsAbs(raw) {
 		raw = filepath.Join(root, raw)

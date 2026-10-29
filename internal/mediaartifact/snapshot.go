@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/imagepreview"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
@@ -157,7 +158,12 @@ func Store(data []byte, declaredMIME string) (Descriptor, images.Attachment, err
 	}
 	return d, images.Attachment{Path: path, PreviewPath: path, MediaType: kind, MIMEType: snapshotMIME, Data: snapshot}, nil
 }
+
+var originalMu sync.Mutex
+
 func writeOriginal(path string, data []byte) error {
+	originalMu.Lock()
+	defer originalMu.Unlock()
 	if st, err := os.Lstat(path); err == nil {
 		if !st.Mode().IsRegular() {
 			return fmt.Errorf("media cache target is not a regular file")
