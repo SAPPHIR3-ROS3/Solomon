@@ -32,6 +32,11 @@ func TestCoordinatedUpdateSelectsOnlyExactDesktopExecutable(t *testing.T) {
 		defer func() { _ = command.Process.Kill(); _ = command.Wait() }()
 	}
 	processes, err := lifecycle.DesktopProcessesForTest(paths[0])
+	deadline := time.Now().Add(5 * time.Second)
+	for err == nil && len(processes) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+		processes, err = lifecycle.DesktopProcessesForTest(paths[0])
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
