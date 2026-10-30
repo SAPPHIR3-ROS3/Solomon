@@ -1,0 +1,1 @@
+import{n as e,t}from"./app~text.searchResult-C65EQxp6.js";t();export{e as default};
