@@ -106,6 +106,9 @@ jobs:
           $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Solomon\Solomon.lnk'
           $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($link)
           if (-not (Test-Path -LiteralPath $shortcut.TargetPath)) { throw 'Solomon Start menu target missing' }
+      - name: Verify desktop process selection (Linux)
+        if: runner.os == 'Linux'
+        run: CGO_ENABLED=1 go test ./test -race -run '^TestCoordinatedUpdateSelectsOnlyExactDesktopExecutable$' -count=5
       - name: Run tests
         shell: bash
         run: |

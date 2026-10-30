@@ -11,20 +11,27 @@ import (
 )
 
 func TestCoordinatedUpdateSelectsOnlyExactDesktopExecutable(t *testing.T) {
-	// Use disposable native sleep binaries; never inspect or signal live clients.
-	data, err := os.ReadFile("/bin/sleep")
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(executable)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var commands []*exec.Cmd
 	var paths []string
 	for range 2 {
-		path := filepath.Join(t.TempDir(), "solomon-desktop")
+		directory, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(directory, "solomon-desktop")
 		if err := os.WriteFile(path, data, 0700); err != nil {
 			t.Fatal(err)
 		}
-		command := exec.Command(path, "60")
-		command.Args[0] = "sleep"
+		command := exec.Command(path, "-test.run=^TestDesktopProcessHelper$")
+		command.Env = append(os.Environ(), "SOLOMON_DESKTOP_PROCESS_HELPER=1")
 		if err := command.Start(); err != nil {
 			t.Fatal(err)
 		}
@@ -55,4 +62,12 @@ func TestCoordinatedUpdateSelectsOnlyExactDesktopExecutable(t *testing.T) {
 	if lifecycle.ProcessIdentityForTest(commands[1].Process.Pid) == "" {
 		t.Fatal("unrelated process was interrupted")
 	}
+}
+
+func TestDesktopProcessHelper(t *testing.T) {
+	if os.Getenv("SOLOMON_DESKTOP_PROCESS_HELPER") != "1" {
+		return
+	}
+	time.Sleep(time.Minute)
+	os.Exit(0)
 }
