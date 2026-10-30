@@ -17,7 +17,7 @@ func Interface(d Deps, parts []string) error {
 	}
 	if len(parts) != 1 {
 		if len(parts) != 3 || (parts[2] != "on" && parts[2] != "off") {
-			return fmt.Errorf("usage: /interface | /interface <n> <on|off>")
+			return fmt.Errorf("usage: %s | %s <n> <on|off>", parts[0], parts[0])
 		}
 		magicDNS := strings.HasSuffix(parts[1], ".1")
 		numberText := parts[1]
@@ -42,7 +42,7 @@ func Interface(d Deps, parts []string) error {
 			}
 		}
 		if !found {
-			return fmt.Errorf("unknown interface number %d; run /interface", number)
+			return fmt.Errorf("unknown interface number %d; run %s", number, parts[0])
 		}
 		rows, err = networkpolicy.List()
 		if err != nil {
@@ -53,7 +53,7 @@ func Interface(d Deps, parts []string) error {
 	if out == nil {
 		out = os.Stdout
 	}
-	_, err = fmt.Fprint(out, formatInterfaceList(rows))
+	_, err = fmt.Fprint(out, strings.ReplaceAll(formatInterfaceList(rows), "/interface", parts[0]))
 	return err
 }
 

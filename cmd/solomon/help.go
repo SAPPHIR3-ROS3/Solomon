@@ -29,10 +29,12 @@ Usage:
   solomon temp exec [options] <prompt>
   solomon server <command>
   solomon image [options] <file>
+  solomon interface [<n> <on|off>]
 
 Commands:
   desktop                         Open the desktop application
   desktop install [release-tag]   Reinstall the desktop application
+  interface [<n> <on|off>]         List or configure network interfaces
   image                           Preview a local image in the terminal
   version                         Print the installed version
   upgrade                         Install the latest release

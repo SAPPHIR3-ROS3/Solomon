@@ -90,6 +90,13 @@ func main() {
 		writeCLIHelp(os.Stdout)
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "interface" {
+		if err := commands.Interface(commands.Deps{Out: os.Stdout}, append([]string{"solomon interface"}, os.Args[2:]...)); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "image" {
 		if err := runImageCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 			fmt.Fprintln(os.Stderr, err)
