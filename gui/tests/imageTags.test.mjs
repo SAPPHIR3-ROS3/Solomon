@@ -85,5 +85,14 @@ test('leaves ordinary multiline inline code and existing fences unchanged', () =
   const fenced = tick.repeat(3) + 'text\n' + tick + 'text\nexample\n' + tick + '\n' + tick.repeat(3);
   assert.equal((render(fenced).match(/class="chat-code-block"/g) ?? []).length, 1);
   assert.ok(render(fenced).includes('>text</div>') === false);
-  assert.ok(!render(tick + 'text\nunclosed').includes('chat-code-block'));
+  assert.equal(render(tick + 'text\nunclosed'), render(tick.repeat(3) + 'text\nunclosed'));
+});
+
+test('recovers a Java snippet with single-backtick delimiters as one code block', () => {
+  const code = 'import java.util.HashMap;\npublic class Main {\n    record Key(String name) {\n        @Override\n        public int hashCode() { return 4; }\n    }\n\n    public static void main(String[] args) {\n        var map = new HashMap<Key, Integer>();\n    }\n}';
+  const html = render('`java\n' + code + '\n`');
+  assert.equal(html, render('```java\n' + code + '\n```'));
+  assert.equal((html.match(/class="chat-code-block"/g) ?? []).length, 1);
+  assert.ok(html.includes('>Java</div>'));
+  assert.equal((html.match(/class="chat-code-line"/g) ?? []).length, code.split('\n').length);
 });

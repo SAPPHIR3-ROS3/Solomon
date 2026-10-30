@@ -171,6 +171,7 @@ function formatCodeLanguage(language: string) {
     css: "CSS",
     go: "Go",
     html: "HTML",
+    java: "Java",
     javascript: "JavaScript",
     js: "JavaScript",
     json: "JSON",
@@ -215,7 +216,7 @@ function normalizeCodeBlocks(content: string) {
       continue;
     }
     // Recover only standalone blocks with an explicit, known language label.
-    if (!/^ {0,3}`(?:text|plaintext|tree|dirtree|python|py|bash|sh|shell|powershell|ps1|pwsh|dotenv|css|go|html|javascript|js|json|jsx|markdown|md|sql|ts|tsx|typescript|yaml|yml)\s*$/i.test(line)) continue;
+    if (!/^ {0,3}`(?:text|plaintext|tree|dirtree|python|py|bash|sh|shell|powershell|ps1|pwsh|dotenv|css|go|html|java|javascript|js|json|jsx|markdown|md|sql|ts|tsx|typescript|yaml|yml)\s*$/i.test(line)) continue;
     let end = index + 1;
     while (end < lines.length && !/^ {0,3}`\s*$/.test(lines[end])) {
       if (lines[end].includes("`")) break;
