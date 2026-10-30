@@ -16,17 +16,24 @@ type unixTerminalProcess struct {
 	file     *os.File
 	waitOnce sync.Once
 	waitErr  error
+	cleanup  func()
 }
 
 func startTerminalProcess(options terminalProcessOptions) (terminalProcess, error) {
-	command := exec.Command(options.Shell, options.Args...)
-	command.Dir = options.Cwd
-	command.Env = options.Env
-	file, err := pty.StartWithSize(command, &pty.Winsize{Cols: options.Cols, Rows: options.Rows})
+	args, env, cleanup, err := terminalIntegration(options.Shell, options.Args, options.Env)
 	if err != nil {
 		return nil, err
 	}
-	return &unixTerminalProcess{cmd: command, file: file}, nil
+	command := exec.Command(options.Shell, args...)
+	command.Dir = options.Cwd
+	command.Env = env
+	file, err := pty.StartWithSize(command, &pty.Winsize{Cols: options.Cols, Rows: options.Rows})
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	return &unixTerminalProcess{cmd: command, file: file, cleanup: cleanup}, nil
 }
 
 func (p *unixTerminalProcess) Read(data []byte) (int, error)  { return p.file.Read(data) }
@@ -46,6 +53,6 @@ func (p *unixTerminalProcess) Resize(cols, rows uint16) error {
 }
 
 func (p *unixTerminalProcess) Wait() error {
-	p.waitOnce.Do(func() { p.waitErr = p.cmd.Wait() })
+	p.waitOnce.Do(func() { p.waitErr = p.cmd.Wait(); p.cleanup() })
 	return p.waitErr
 }

@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
+import { installCommandSelection } from "./commandSelection";
 import { addTerminalClip } from "./clips";
 import { selectedTerminalText, selectionLineRange } from "./selection";
 import { terminalSocketUrl, terminateTerminalSession } from "./terminalSocket";
@@ -62,6 +63,7 @@ export function IntegratedShell({
     term.loadAddon(fitAddon);
     term.open(host);
     termRef.current = term;
+    const commandSelection = installCommandSelection(term, host);
     const selectionSub = term.onSelectionChange(() => {
       const range = selectionLineRange(term);
       const text = selectedTerminalText(term);
@@ -202,7 +204,10 @@ export function IntegratedShell({
     void connect();
 
     const inputSubscription = term.onData((data) => {
-      if (data.includes("\r") || data.includes("\n")) commandSubmitRef.current();
+      if (data.includes("\r") || data.includes("\n")) {
+        commandSelection.begin();
+        commandSubmitRef.current();
+      }
       if (socket?.readyState === WebSocket.OPEN) socket.send(data);
     });
     const observer = new ResizeObserver(() => {
@@ -216,6 +221,7 @@ export function IntegratedShell({
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       inputSubscription.dispose();
       selectionSub.dispose();
+      commandSelection.dispose();
       observer.disconnect();
       termRef.current = null;
       resizeRef.current = null;
