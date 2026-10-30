@@ -24,6 +24,7 @@ func TestCoordinatedUpdateSelectsOnlyExactDesktopExecutable(t *testing.T) {
 			t.Fatal(err)
 		}
 		command := exec.Command(path, "60")
+		command.Args[0] = "sleep"
 		if err := command.Start(); err != nil {
 			t.Fatal(err)
 		}
