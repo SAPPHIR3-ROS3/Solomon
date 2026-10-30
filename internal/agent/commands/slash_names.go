@@ -11,7 +11,7 @@ import (
 // Interactive arguments are rejected by the GUI's noninteractive input adapter.
 func GUISlashAvailable(name string) bool {
 	switch name {
-	case "clear", "terminal", "models", "connect", "new", "temp", "resume", "exit", "quit", "btw", "onboard", "upgrade", "rewind":
+	case "clear", "terminal", "models", "connect", "disconnect", "new", "temp", "resume", "exit", "quit", "btw", "onboard", "upgrade", "rewind":
 		return false
 	default:
 		return true

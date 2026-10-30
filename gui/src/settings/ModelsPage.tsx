@@ -1,3 +1,6 @@
+import { SearchIcon, PlusIcon, RefreshIcon, CheckIcon, CloseIcon, DisclosureIcon } from "./ModelIcons";
+import { ProviderRow } from "./ProviderRow";
+import { disconnectProvider } from "../projects/disconnect";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Select } from "../Select";
 import {
@@ -224,6 +227,10 @@ export function ModelsPage() {
             {state.catalog.providers.map((provider) => (
               <ProviderRow
                 key={provider.provider}
+                onRemove={() => {
+                  if (!window.confirm(`Remove provider "${provider.provider}" and its saved credentials?`)) return;
+                  void disconnectProvider(provider.provider).then(() => loadCatalog(true)).catch((error) => setState(current => ({ ...current, error: String(error) })));
+                }}
                 onRelogin={() => void reloginProviderAccount(provider.provider)}
                 provider={provider}
                 quota={state.quotas.find((entry) => entry.provider === provider.provider)}
@@ -426,106 +433,9 @@ function ProviderForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: 
   );
 }
 
-function reloginKind(provider: string): ProviderKind | 0 {
+export function reloginKind(provider: string): ProviderKind | 0 {
   if (provider === "ChatGPT Sub") return 1;
   if (provider === "Claude Sub") return 4;
 	if (provider === "Cursor Sub") return 5;
   return 0;
-}
-
-function ProviderRow({
-  onRelogin,
-  provider,
-  quota,
-  quotaNow,
-  reloginBusy,
-  onQuotaUpdated,
-}: {
-  onRelogin: () => void;
-  provider: ProviderCatalog;
-  quota?: ProviderQuota;
-  quotaNow: number;
-  reloginBusy: boolean;
-  onQuotaUpdated: (quotas: ProviderQuota[]) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(true);
-  const panelId = useId();
-  const bars = quota?.bars ?? [];
-  const hasQuota = bars.length > 0 || Boolean(quota?.error);
-  const canRelogin = Boolean(quota?.canRelogin) && Boolean(reloginKind(provider.provider));
-  return (
-    <section className="settings-provider-section">
-      <div className="settings-provider-row">
-        <button aria-controls={hasQuota ? panelId : undefined} aria-expanded={hasQuota ? isOpen : undefined} className="settings-provider-toggle" disabled={!hasQuota} onClick={() => setIsOpen((open) => !open)} type="button">
-          <span className="settings-provider-row-main">
-            <span className="settings-provider-icon"><ProviderIcon provider={provider.provider} /></span>
-            <span className="settings-provider-row-copy">
-              <strong>{provider.provider}</strong>
-              <small>{provider.models.length} {provider.models.length === 1 ? "model" : "models"}{provider.complete ? "" : " · cached"}</small>
-            </span>
-          </span>
-          <span className="settings-provider-row-meta">
-            <span className="settings-provider-connected">Configured</span>
-            {hasQuota ? <DisclosureIcon open={isOpen} /> : null}
-          </span>
-        </button>
-      </div>
-      {hasQuota && isOpen ? (
-        <div className="settings-provider-quota" id={panelId}>
-          {quota?.error ? (
-            <div className="settings-provider-quota-error-row">
-              <p className="settings-provider-quota-error" role="alert">{quota.error}</p>
-              {canRelogin ? (
-                <button className="settings-provider-relogin" disabled={reloginBusy} onClick={onRelogin} type="button">
-                  {reloginBusy ? "Signing in…" : "Sign in again"}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {bars.map((bar) => (
-            <div className="settings-provider-quota-bar" key={bar.label}>
-              <div className="settings-provider-quota-label">
-                <span>{bar.label}{bar.detail ? ` · ${liveQuotaDetail(bar.detail, quotaNow)}` : ""}</span>
-                {bar.hidePercent ? null : <span>{Math.round(bar.percent)}%</span>}
-              </div>
-              {bar.hidePercent ? null : (
-                <div aria-hidden="true" className={`settings-provider-quota-track${bar.percent >= 100 ? " is-limited" : ""}`}>
-                  <span style={{ width: `${Math.round(bar.percent)}%` }} />
-                </div>
-              )}
-              {(bar.availableResets ?? 0) > 0 ? <BankedResetButton provider={provider.provider} available={bar.availableResets!} onUpdated={onQuotaUpdated} /> : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function SearchIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>;
-}
-
-function PlusIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>;
-}
-
-function RefreshIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-4M4 5v4h4M4 13a8 8 0 0 0 14.9 4M20 19v-4h-4" /></svg>;
-}
-
-function CheckIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7" /></svg>;
-}
-
-function CloseIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>;
-}
-
-function DisclosureIcon({ open }: { open: boolean }) {
-  return (
-    <svg aria-hidden="true" className={`settings-model-provider-chevron${open ? " is-open" : ""}`} viewBox="0 0 24 24">
-      <path d="m7 10 5 5 5-5" />
-    </svg>
-  );
 }

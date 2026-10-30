@@ -335,6 +335,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/models", modelAPI.handleCatalog)
 	mux.HandleFunc("/__solomon/current-model", modelAPI.handleCurrent)
 	mux.HandleFunc("/__solomon/model-visibility", modelAPI.handleVisibility)
+	mux.HandleFunc("/__solomon/disconnect-provider", modelAPI.handleDisconnectProvider)
 	mux.HandleFunc("/__solomon/connect-provider", modelAPI.handleConnectProvider)
 	mux.HandleFunc("/__solomon/provider-quotas", modelAPI.handleQuotas)
 	mux.HandleFunc("/__solomon/provider-quotas/reset", modelAPI.handleQuotaReset)
