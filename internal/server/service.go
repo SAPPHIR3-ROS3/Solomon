@@ -178,7 +178,7 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
-	listener, err := listenForDaemon(ctx, listenAddr)
+	listener, err := listenWithFallback(ctx, listenAddr)
 	if err != nil {
 		return err
 	}

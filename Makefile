@@ -248,7 +248,7 @@ install-deploy:
 	@$(call PRINT_LINE,solomon -> $(INSTALL_BIN))
 
 # All source installations use the same runtime handoff on every platform.
-install hot-install desktop-install:
+install hot-install desktop-install: cursor-bundle
 	@$(FIX_TTY)
 	@$(PRINT_BLANK)
 	@$(call PRINT_LINE,=== Solomon hot-install ($(VERSION)) ===)
