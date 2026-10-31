@@ -114,7 +114,8 @@ func TestDaemonFallsBackFromOccupiedPort(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("SOLOMON_SERVER_PORT", port)
-	state, stop := startServerAtAddressForTest(t, serverruntime.Options{}, "")
+	state, stop := startServerAtAddressForTest(t, serverruntime.Options{}, net.JoinHostPort("127.0.0.1", port))
+	defer stop()
 	if state.URL == "http://127.0.0.1:"+port {
 		t.Fatal("daemon reused occupied port")
 	}
