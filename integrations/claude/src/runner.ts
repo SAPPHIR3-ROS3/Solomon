@@ -4,7 +4,7 @@ import { z } from "zod";
 import { nextAction, type Action, type ChatMessage, type ToolCall } from "./history.ts";
 import type { Completion, ToolDefinition } from "./server.ts";
 
-type Query = AsyncIterable<Record<string, any>> & { supportedModels(): Promise<Array<{ value: string; resolvedModel?: string }>>; return(value?: unknown): Promise<unknown> };
+type Query = AsyncIterable<Record<string, any>> & { supportedModels(): Promise<Array<{ value: string; resolvedModel?: string; supportsEffort?: boolean; supportedEffortLevels?: string[] }>>; return(value?: unknown): Promise<unknown> };
 type Event = { kind: "sdk"; message: Record<string, any> } | { kind: "tool"; call: ToolCall };
 
 const maxSessions = 8;
@@ -65,9 +65,10 @@ function schemaFor(parameters: unknown) {
   return z.object(shape).passthrough();
 }
 
-function options(executable: string, model: string, system: string, abort: AbortController) {
+function options(executable: string, model: string, system: string, abort: AbortController, effort?: string) {
   return {
     model: model || undefined,
+    effort: ["low", "medium", "high", "xhigh", "max"].includes(effort ?? "") ? effort as "low" | "medium" | "high" | "xhigh" | "max" : undefined,
     cwd: process.env.SOLOMON_CLAUDE_CWD || process.cwd(),
     abortController: abort,
     tools: [] as string[],
@@ -90,6 +91,7 @@ function user(prompt: string) { return { type: "user", message: { role: "user", 
 // waiting on Solomon's tool results.
 export type PoolSession = {
   readonly model: string;
+  readonly effort?: string;
   accepted: ChatMessage[];
   produced: { content: string; tools: ToolCall[] } | null;
   busy: boolean;
@@ -101,6 +103,7 @@ export type PoolSession = {
 
 class LiveSession implements PoolSession {
   readonly model: string;
+  readonly effort?: string;
   accepted: ChatMessage[] = [];
   produced: { content: string; tools: ToolCall[] } | null = null;
   busy = false;
@@ -111,7 +114,8 @@ class LiveSession implements PoolSession {
   private abort = new AbortController();
   private events = new PushStream<Event>();
   private pending = new Map<string, (output: string) => void>();
-  constructor(executable: string, model: string) {
+  constructor(executable: string, model: string, effort?: string) {
+    this.effort = effort;
     this.executable = executable;
     this.model = model;
   }
@@ -145,7 +149,7 @@ class LiveSession implements PoolSession {
         return { content: [{ type: "text" as const, text: output }] };
       })];
     });
-    const live = query({ prompt: this.input as AsyncIterable<any>, options: { ...options(this.executable, this.model, system, this.abort), mcpServers: { solomon: createSdkMcpServer({ name: "solomon", tools: definitions }) }, allowedTools: definitions.map((entry) => "mcp__solomon__" + entry.name) } }) as Query;
+    const live = query({ prompt: this.input as AsyncIterable<any>, options: { ...options(this.executable, this.model, system, this.abort, this.effort), mcpServers: { solomon: createSdkMcpServer({ name: "solomon", tools: definitions }) }, allowedTools: definitions.map((entry) => "mcp__solomon__" + entry.name) } }) as Query;
     this.live = live;
     void this.pump(live);
     this.input.push(user(prompt));
@@ -193,7 +197,7 @@ class LiveSession implements PoolSession {
 }
 
 export type RunnerOptions = {
-  createSession?: (model: string) => PoolSession;
+  createSession?: (model: string, effort?: string) => PoolSession;
   admitTimeoutMs?: number;
 };
 
@@ -201,12 +205,13 @@ export class ClaudeRunner {
   private executable: string;
   private sessions: PoolSession[] = [];
   private modelNames: string[] | null = null;
-  private createSession: (model: string) => PoolSession;
+ private modelEntries: Array<{ id: string; supported_reasoning_levels?: string[] }> = [];
+  private createSession: (model: string, effort?: string) => PoolSession;
   private admitTimeoutMs: number;
   private waiters: Array<() => void> = [];
   constructor(executable: string, opts: RunnerOptions = {}) {
     this.executable = executable;
-    this.createSession = opts.createSession || ((model) => new LiveSession(executable, model));
+    this.createSession = opts.createSession || ((model, effort) => new LiveSession(executable, model, effort));
     this.admitTimeoutMs = opts.admitTimeoutMs ?? admitTimeoutMs;
   }
   async models(): Promise<string[]> {
@@ -217,6 +222,7 @@ export class ClaudeRunner {
     try {
       const models = await Promise.race([live.supportedModels(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Claude model discovery timed out")), 30000))]);
       // The newest models are listed only as aliases ("opus", "sonnet"); their concrete IDs live in resolvedModel.
+      this.modelEntries = models.map((model) => ({ id: model.resolvedModel || model.value, supported_reasoning_levels: model.supportedEffortLevels ?? (model.supportsEffort === false ? [] : undefined) }));
       this.modelNames = [...new Set(models.map((model) => model.resolvedModel || model.value).filter(Boolean))];
       return this.modelNames;
     } finally {
@@ -225,7 +231,11 @@ export class ClaudeRunner {
       await live.return();
     }
   }
-  async complete(input: { model: string; messages: ChatMessage[]; tools: ToolDefinition[] }, onDelta: (text: string) => void, signal: AbortSignal): Promise<Completion> {
+  async modelCatalog() {
+    await this.models();
+    return this.modelEntries;
+  }
+  async complete(input: { model: string; messages: ChatMessage[]; tools: ToolDefinition[]; reasoningEffort?: string }, onDelta: (text: string) => void, signal: AbortSignal): Promise<Completion> {
     const deadline = Date.now() + this.admitTimeoutMs;
     let claim = this.claim(input);
     while (!claim) {
@@ -256,11 +266,11 @@ export class ClaudeRunner {
   // and the pool never exceeds maxSessions. It reuses the session whose history the request
   // extends before evicting anything, and only evicts sessions that are neither running nor
   // waiting on tool results. It returns null when the request has to wait for a free slot.
-  private claim(input: { model: string; messages: ChatMessage[] }): { session: PoolSession; action: Action } | null {
+  private claim(input: { model: string; messages: ChatMessage[]; reasoningEffort?: string }): { session: PoolSession; action: Action } | null {
     const now = Date.now();
     for (const session of this.sessions.filter((entry) => !entry.busy && !entry.awaitingTools && now - entry.used > idleMs)) void this.drop(session);
     for (const session of this.sessions) {
-      if (session.busy || session.model !== input.model) continue;
+      if (session.busy || session.model !== input.model || session.effort !== input.reasoningEffort) continue;
       const action = nextAction(session.accepted, session.produced, input.messages);
       if (action.type !== "reject") {
         session.busy = true;
@@ -274,7 +284,7 @@ export class ClaudeRunner {
       if (!victim) return null;
       void this.drop(victim);
     }
-    const session = this.createSession(input.model);
+    const session = this.createSession(input.model, input.reasoningEffort);
     session.busy = true;
     this.sessions.push(session);
     return { session, action };

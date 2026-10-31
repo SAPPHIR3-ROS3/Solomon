@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
@@ -51,6 +52,7 @@ func ListModels(ctx context.Context, bearer, accountID string) ([]string, error)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ChatGPT Sub models API: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
+	modelreasoning.CaptureList(ChatGPTSubAPIBase, body)
 	var envelope codexModelsResponse
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return nil, fmt.Errorf("ChatGPT Sub models API: decode: %w", err)

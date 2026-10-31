@@ -3,6 +3,7 @@ package connect
 import (
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"os"
 	"strings"
 
@@ -168,7 +169,7 @@ func ListModelsForProvider(ctx context.Context, cfg *config.Root, p *config.Prov
 	if err != nil {
 		return nil, err
 	}
-	ids, err := modelsapi.List(p.BaseURL, bearer)
+	ids, err := modelsapi.ListWithOpts(p.BaseURL, bearer, modelsapi.ListOpts{Context: ctx})
 	if err != nil {
 		if p.IsCursorAPI() {
 			return cursorint.DefaultModelIDs(), nil
@@ -216,7 +217,7 @@ func ListModelsForProviderAll(ctx context.Context, cfg *config.Root, p *config.P
 	if err != nil {
 		return nil, err
 	}
-	ids, err := modelsapi.ListWithOpts(p.BaseURL, bearer, modelsapi.ListOpts{AllModels: true})
+	ids, err := modelsapi.ListWithOpts(p.BaseURL, bearer, modelsapi.ListOpts{AllModels: true, Context: ctx})
 	if err != nil {
 		if p.IsCursorAPI() {
 			return cursorint.DefaultModelIDs(), nil
@@ -227,4 +228,12 @@ func ListModelsForProviderAll(ctx context.Context, cfg *config.Root, p *config.P
 		return cursorint.OrderModelIDs(ids), nil
 	}
 	return ids, err
+}
+
+func ProviderReasoning(p *config.Provider, ids []string) map[string]modelreasoning.Capability {
+	result := make(map[string]modelreasoning.Capability, len(ids))
+	for _, id := range ids {
+		result[id] = config.ModelReasoning(p, id)
+	}
+	return result
 }

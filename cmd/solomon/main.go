@@ -70,6 +70,13 @@ func resolveREPLWorkingDir(args []string) (string, error) {
 }
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "acp" {
+		if err := runACP(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if lifecycle.RunUpdateCommand(os.Args) {
 		return
 	}

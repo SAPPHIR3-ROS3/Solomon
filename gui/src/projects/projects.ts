@@ -1,15 +1,12 @@
+import { normalizeReasoningEffort } from "./reasoning";
 import { serverEndpoint } from "../platform";
 import {
   atMentionSuggestionsFromPayload,
   isProject,
-  projectBranchesFromPayload,
   projectDirectoryEntriesFromPayload,
-  projectGitHistoryFromPayload,
-  projectGitStatusFromPayload,
   projectRemovalInfoFromPayload,
   projectResearchFromPayload,
   projectSidebarDataFromPayload,
-  projectWorktreesFromPayload,
 } from "./projectPayloads";
 
 export {
@@ -65,7 +62,7 @@ export type CachedHomeStats = {
   tokenStats: ProjectTokenStats;
 };
 
-export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max";
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export type ProjectSidebarData = {
   fastMode: boolean;
@@ -160,17 +157,7 @@ export function sameProjectDirectoryEntries(left: ProjectDirectoryEntry[] | unde
   }));
 }
 
-export function sameProjectGitStatus(left: ProjectGitStatus, right: ProjectGitStatus): boolean {
-  const sameFiles = (first: Record<string, string>, second: Record<string, string>) => {
-    const paths = Object.keys(first);
-    return paths.length === Object.keys(second).length && paths.every((path) => first[path] === second[path]);
-  };
-  return left.isRepo === right.isRepo && sameFiles(left.changes, right.changes) && sameFiles(left.staged, right.staged);
-}
-
-export function sameProjectGitHistory(left: ProjectGitHistory, right: ProjectGitHistory): boolean {
-  return left.current === right.current && left.isRepo === right.isRepo && JSON.stringify(left.commits) === JSON.stringify(right.commits);
-}
+export { sameProjectGitStatus, sameProjectGitHistory } from "./git";
 
 export type ProjectWorktree = {
   bare: boolean;
@@ -266,105 +253,7 @@ export async function fetchProjectResearchReport(projectID: string, researchID: 
   return response.text();
 }
 
-export async function fetchProjectBranches(projectID: string, signal?: AbortSignal): Promise<ProjectBranches> {
-  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/branches`), { signal });
-  if (!response.ok) throw new Error(`Unable to read project branches: ${response.status}`);
-  return projectBranchesFromPayload(await response.json());
-}
-
-export async function fetchHomeDirectoryBranches(directoryPath: string, signal?: AbortSignal): Promise<ProjectBranches> {
-  const response = await fetch(await serverEndpoint(
-    `/__solomon/home-git-branches?path=${encodeURIComponent(directoryPath)}`,
-  ), { signal });
-  if (!response.ok) throw new Error(`Unable to read home directory branches: ${response.status}`);
-  return projectBranchesFromPayload(await response.json());
-}
-
-export async function fetchProjectGitHistory(projectID: string, signal?: AbortSignal): Promise<ProjectGitHistory> {
-  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/history`), { signal });
-  if (!response.ok) throw new Error(`Unable to read project Git history: ${response.status}`);
-  return projectGitHistoryFromPayload(await response.json());
-}
-
-export async function fetchProjectGitStatus(projectID: string, signal?: AbortSignal): Promise<ProjectGitStatus> {
-  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/status`), { signal });
-  if (!response.ok) throw new Error(`Unable to read project Git status: ${response.status}`);
-  return projectGitStatusFromPayload(await response.json());
-}
-
-export async function commitProjectChanges(projectID: string, message: string): Promise<void> {
-  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/commit`), {
-    body: JSON.stringify({ message }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(typeof payload?.error === "string" ? payload.error : `Unable to commit Git changes: ${response.status}`);
-  if (payload?.committed !== true) throw new Error("Unexpected commit response; check Git history before retrying.");
-  window.dispatchEvent(new CustomEvent(PROJECT_GIT_STATUS_CHANGED_EVENT, { detail: { projectID } }));
-  window.dispatchEvent(new CustomEvent(PROJECT_GIT_BRANCH_CHANGED_EVENT, { detail: { projectID } }));
-}
-
-export async function stageProjectChanges(projectID: string, paths: string[]): Promise<ProjectGitStatus> {
-  return updateProjectGitIndex(projectID, "stage", paths);
-}
-
-export async function unstageProjectChanges(projectID: string, paths: string[]): Promise<ProjectGitStatus> {
-  return updateProjectGitIndex(projectID, "unstage", paths);
-}
-
-export async function restoreProjectChanges(projectID: string, path: string): Promise<void> {
-  await updateProjectGitIndex(projectID, "restore", [path]);
-  window.dispatchEvent(new CustomEvent(PROJECT_FILES_CHANGED_EVENT, { detail: { projectID, action: "restore", path } }));
-}
-
-async function updateProjectGitIndex(projectID: string, action: "stage" | "unstage" | "restore", paths: string[]): Promise<ProjectGitStatus> {
-  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/${action}`), {
-    body: JSON.stringify({ paths }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) throw new Error(`Unable to ${action} Git changes: ${response.status}`);
-  const status = projectGitStatusFromPayload(await response.json());
-  window.dispatchEvent(new CustomEvent(PROJECT_GIT_STATUS_CHANGED_EVENT, { detail: { projectID } }));
-  return status;
-}
-
-export async function fetchProjectWorktrees(projectID: string, signal?: AbortSignal): Promise<ProjectWorktrees> {
-  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/worktrees`), { signal });
-  if (!response.ok) throw new Error(`Unable to read project worktrees: ${response.status}`);
-  return projectWorktreesFromPayload(await response.json());
-}
-
-export async function fetchHomeDirectoryWorktrees(directoryPath: string, signal?: AbortSignal): Promise<ProjectWorktrees> {
-  const response = await fetch(await serverEndpoint(
-    `/__solomon/home-git-worktrees?path=${encodeURIComponent(directoryPath)}`,
-  ), { signal });
-  if (!response.ok) throw new Error(`Unable to read home directory worktrees: ${response.status}`);
-  return projectWorktreesFromPayload(await response.json());
-}
-
-export async function checkoutProjectBranch(projectID: string, branch: string): Promise<ProjectBranches> {
-  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/checkout`), {
-    body: JSON.stringify({ branch }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) throw new Error(`Unable to checkout branch: ${response.status}`);
-  return projectBranchesFromPayload(await response.json());
-}
-
-export async function checkoutHomeDirectoryBranch(directoryPath: string, branch: string): Promise<ProjectBranches> {
-  const response = await fetch(await serverEndpoint(
-    `/__solomon/home-git-checkout?path=${encodeURIComponent(directoryPath)}`,
-  ), {
-    body: JSON.stringify({ branch }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) throw new Error(`Unable to checkout home directory branch: ${response.status}`);
-  return projectBranchesFromPayload(await response.json());
-}
+export { fetchProjectBranches, fetchHomeDirectoryBranches, fetchProjectGitHistory, fetchProjectGitStatus, commitProjectChanges, stageProjectChanges, unstageProjectChanges, restoreProjectChanges, fetchProjectWorktrees, fetchHomeDirectoryWorktrees, checkoutProjectBranch, checkoutHomeDirectoryBranch } from "./git";
 
 export function getCachedProjectSidebarData(): ProjectSidebarData | null {
   return projectSidebarCache ?? readProjectSidebarCache();
@@ -570,13 +459,7 @@ export async function saveFastMode(enabled: boolean): Promise<boolean> {
   return payload.fastMode;
 }
 
-export function normalizeReasoningEffort(value: string): ReasoningEffort {
-  const normalized = value.trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
-  if (normalized === "med") return "medium";
-  if (normalized === "x-high" || normalized === "extra-high") return "xhigh";
-  if (normalized === "none" || normalized === "low" || normalized === "medium" || normalized === "high" || normalized === "xhigh" || normalized === "max") return normalized;
-  return "none";
-}
+export { normalizeReasoningEffort } from "./reasoning";
 
 function cacheProjectSidebarData(data: ProjectSidebarData): void {
   try {
@@ -612,33 +495,5 @@ export async function operateProjectFile(projectID: string, operation: ProjectFi
   }
   window.dispatchEvent(new CustomEvent<ProjectFilesChanged>(PROJECT_FILES_CHANGED_EVENT, { detail: { ...operation, projectID } }));
 }
-export type SlashCommandSuggestion = { tag: string; description: string };
-const slashCommandCache = new Map<string, { commands: SlashCommandSuggestion[]; expiresAt: number }>();
-const slashCommandRequests = new Map<string, Promise<SlashCommandSuggestion[]>>();
-
-export function getCachedProjectSlashCommands(projectID: string | undefined, query: string): SlashCommandSuggestion[] | null {
-  const cached = slashCommandCache.get(projectID ?? "");
-  return cached ? filterSlashCommands(cached.commands, query) : null;
-}
-function filterSlashCommands(commands: SlashCommandSuggestion[], query: string) {
-  const prefix = `/${query.toLowerCase().replace(/^\//, "")}`;
-  return commands.filter((command) => command.tag.toLowerCase().startsWith(prefix));
-}
-export async function fetchProjectSlashCommands(projectID: string | undefined, query: string): Promise<SlashCommandSuggestion[]> {
-  const key = projectID ?? "";
-  const cached = slashCommandCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return filterSlashCommands(cached.commands, query);
-  let pending = slashCommandRequests.get(key);
-  if (!pending) {
-    const path = projectID ? `/__solomon/projects/${encodeURIComponent(projectID)}/slash-commands` : "/__solomon/slash-commands";
-    pending = (async () => {
-      const response = await fetch(await serverEndpoint(path));
-      if (!response.ok) throw new Error(`Unable to read project commands: ${response.status}`);
-      const commands: SlashCommandSuggestion[] = await response.json();
-      slashCommandCache.set(key, { commands, expiresAt: Date.now() + 30_000 });
-      return commands;
-    })().finally(() => slashCommandRequests.delete(key));
-    slashCommandRequests.set(key, pending);
-  }
-  return filterSlashCommands(await pending, query);
-}
+export { getCachedProjectSlashCommands, fetchProjectSlashCommands } from "./slash";
+export type { SlashCommandSuggestion } from "./slash";

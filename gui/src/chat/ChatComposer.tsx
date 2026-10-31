@@ -1,23 +1,16 @@
+import { ReasoningControl } from "./ReasoningControl";
+import { resolveReasoning, type ReasoningCapability } from "../projects/reasoning";
 import { composerDraftKey, useComposerDraft } from "./composerDrafts";
 import { isSlashCommand } from "./slashCommands";
 import { sendProjectCommand } from "./chatClient";
 import { notifyError } from "../notifications/store";
-import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { fetchProjectSidebarData, normalizeReasoningEffort, saveFastMode, saveReasoningEffort, type ReasoningEffort } from "../projects/projects";
 import { AtMentionInput } from "../home/AtMentionInput";
 import { onTerminalClip } from "../terminal-panel/clips";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
 import { ADD_FILE_TO_CHAT_EVENT, type FileChatReference } from "./fileReferences";
 import { ModelControl } from "../home/ModelControl";
-
-const reasoningOptions = [
-  { value: "none", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "Extra high" },
-  { value: "max", label: "Max" },
-] as const;
 
 export type ChatComposerProps = {
   "aria-label": string;
@@ -71,11 +64,14 @@ export function ChatComposer({
   const composerRef = useRef<HTMLFormElement>(null);
   const key = draftKey ?? composerDraftKey(projectID);
   const { draft, images, clips, setDraft, setImages, setClips, clearSentDraft } = useComposerDraft(key);
+  const [capability, setCapability] = useState<ReasoningCapability>();
   const [reasoning, setReasoning] = useState<ReasoningEffort>(initialReasoning);
   const [fastOn, setFastOn] = useState(initialFastMode);
   const [fastModeAvailable, setFastModeAvailable] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState("");
   const fastModeRequestRef = useRef(0);
+ const reasoningRequestRef = useRef(0);
+ const attemptedReasoningRef = useRef("");
   const [internalMode, setInternalMode] = useState<"agent" | "chat">(initialMode);
   const [internalOpenMenu, setInternalOpenMenu] = useState<ChatComposerMenu>(null);
   const mode = controlledMode ?? internalMode;
@@ -166,18 +162,30 @@ export function ChatComposer({
 
   function updateReasoning(nextReasoning: ReasoningEffort) {
     const previous = reasoning;
+ const requestID = ++reasoningRequestRef.current;
     setReasoning(nextReasoning);
     onReasoningChange?.(nextReasoning);
     void saveReasoningEffort(nextReasoning)
       .then((saved) => {
+ if (requestID !== reasoningRequestRef.current) return;
         setReasoning(saved);
         onReasoningChange?.(saved);
       })
       .catch(() => {
+ if (requestID !== reasoningRequestRef.current) return;
         setReasoning(previous);
         onReasoningChange?.(previous);
       });
   }
+
+  useEffect(() => {
+    const next = resolveReasoning(reasoning, capability);
+    const attempt = JSON.stringify([selectedProvider, capability, reasoning]);
+ if (next && next !== reasoning && attemptedReasoningRef.current !== attempt) {
+ attemptedReasoningRef.current = attempt;
+ updateReasoning(next);
+ }
+  }, [capability, reasoning]);
 
   async function submit() {
     const content = draft.trim();
@@ -235,6 +243,7 @@ export function ChatComposer({
       <div className="welcome-toolbar">
         <div className="welcome-toolbar-left">
           <ModelControl
+            onReasoningCapabilityChange={setCapability}
             onFastModeAvailableChange={(available) => {
               setFastModeAvailable(available);
             }}
@@ -257,6 +266,7 @@ export function ChatComposer({
           <span aria-hidden="true" className="welcome-toolbar-sep" />
           <div className="welcome-toolbar-modes">
             <ReasoningControl
+              capability={capability}
               fastAvailable={fastModeAvailable}
               fastOn={fastOn}
               onChange={updateReasoning}
@@ -293,100 +303,6 @@ export function ChatComposer({
   );
 }
 
-function ReasoningControl({ value, onChange, open, onOpenChange, fastAvailable = false, fastOn = false, onFastChange }: {
-  value: ReasoningEffort;
-  onChange: (value: ReasoningEffort) => void;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  fastAvailable?: boolean;
-  fastOn?: boolean;
-  onFastChange?: (on: boolean) => void;
-}) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const isOpen = open ?? internalOpen;
-  const controlRef = useRef<HTMLDivElement>(null);
-  const selectedIndex = Math.max(0, reasoningOptions.findIndex((option) => option.value === value));
-  const selectedLabel = reasoningOptions[selectedIndex]?.label ?? "None";
-
-  function setOpen(next: boolean) {
-    onOpenChange?.(next);
-    if (open === undefined) setInternalOpen(next);
-  }
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const close = (event: PointerEvent) => {
-      if (!controlRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [isOpen]);
-
-  return (
-    <div className="welcome-reasoning" ref={controlRef}>
-      <button
-        aria-expanded={isOpen}
-        aria-label={fastOn ? `Change reasoning level, fast mode on, ${selectedLabel}` : "Change reasoning level"}
-        className="welcome-reasoning-label"
-        onClick={() => setOpen(!isOpen)}
-        type="button"
-      >
-        <strong className="welcome-reasoning-value">
-          <span aria-hidden="true" className="welcome-reasoning-value-sizer">
-            <span>Extra high</span>
-            <span className="welcome-reasoning-fast-mark"><ComposerBoltIcon /></span>
-          </span>
-          <span className="welcome-reasoning-value-text">
-            <span>{selectedLabel}</span>
-            <span className={`welcome-reasoning-fast-mark${fastOn ? " is-on" : ""}`}><ComposerBoltIcon /></span>
-          </span>
-        </strong>
-        <ComposerChevronIcon className={isOpen ? "is-open" : undefined} />
-      </button>
-      {isOpen ? (
-        <div className={`welcome-reasoning-popover${fastAvailable ? " has-fast" : ""}`}>
-          <header>
-            <span>Reasoning level</span>
-          </header>
-          <div className={`welcome-reasoning-row${fastAvailable ? " has-fast" : ""}`}>
-            <div className="welcome-reasoning-scale">
-              <input
-                aria-label="Reasoning level"
-                aria-valuetext={selectedLabel}
-                max={reasoningOptions.length - 1}
-                min={0}
-                onChange={(event) => onChange(normalizeReasoningEffort(reasoningOptions[Number(event.target.value)]?.value ?? "none"))}
-                step={1}
-                style={{ "--reasoning-fill": `${(selectedIndex / (reasoningOptions.length - 1)) * 100}%` } as CSSProperties}
-                type="range"
-                value={selectedIndex}
-              />
-              <div aria-hidden="true" className="welcome-reasoning-ticks">
-                {reasoningOptions.map((option, index) => <span className={index <= selectedIndex ? "is-reached" : undefined} key={option.value}><i /><small>{option.label}</small></span>)}
-              </div>
-            </div>
-            {fastAvailable ? (
-              <div className="welcome-reasoning-fast-slot">
-                <button aria-pressed={fastOn} className={`welcome-reasoning-fast${fastOn ? " is-active" : ""}`} onClick={() => onFastChange?.(!fastOn)} type="button">
-                  <ComposerBoltIcon />
-                  <span>Fast</span>
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export function ComposerChevronIcon({ className }: { className?: string }) {
   return <svg aria-hidden="true" className={`welcome-chevron${className ? ` ${className}` : ""}`} viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg>;
 }
@@ -399,7 +315,7 @@ export function ComposerChatIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h11A2.5 2.5 0 0 1 21 6.5v7A2.5 2.5 0 0 1 18.5 16H12l-4 3v-3H7.5A2.5 2.5 0 0 1 5 13.5V6.5Z" /></svg>;
 }
 
-function ComposerBoltIcon() {
+export function ComposerBoltIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m13 2-8 12h6l-1 8 8-12h-6z" /></svg>;
 }
 

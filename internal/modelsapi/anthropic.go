@@ -3,6 +3,7 @@ package modelsapi
 import (
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"net/http"
 	"regexp"
 	"sort"
@@ -116,6 +117,7 @@ func ListAnthropicWithClient(ctx context.Context, baseURL, token string, oauthBe
 			return nil, claude.SDKError(err)
 		}
 		for _, model := range result.Data {
+			modelreasoning.Capture(baseURL, []byte(model.RawJSON()))
 			if id := strings.TrimSpace(model.ID); id != "" {
 				out = append(out, id)
 			}

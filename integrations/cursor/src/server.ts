@@ -1,7 +1,7 @@
 import http from "node:http";
 import { createHealthResponder } from "./health.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleChatCompletions, listAllModels, listModels, type ProxyConfig } from "./chat/index.js";
+import { handleChatCompletions, listAllModels, listModels, cursorModels, type ProxyConfig } from "./chat/index.js";
 import { sanitizeReflectedText, stripUnsafeControlChars, sanitizeModelId, isSafeToolName } from "./messages.js";
 import { clientAbortFromRequest } from "./run-control.js";
 import { sendJsonResponse } from "./openai-sse.js";
@@ -49,10 +49,13 @@ async function route(
     const all =
       url.searchParams.get("all") === "1" || url.searchParams.get("full") === "1";
     const ids = all ? await listAllModels(cfg.apiKey) : await listModels(cfg.apiKey);
+    const catalogue = await cursorModels(cfg.apiKey);
     sendJsonResponse(res, 200, {
       object: "list",
       data: ids.map((id) => ({
         id,
+        parameters: catalogue.find((model) => model.id === id)?.parameters,
+        variants: catalogue.find((model) => model.id === id)?.variants,
         object: "model",
         created: 0,
         owned_by: "cursor",

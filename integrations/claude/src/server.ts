@@ -6,10 +6,11 @@ export type ToolDefinition = { type?: string; function?: { name?: string; descri
 export type Completion = { content: string; toolCalls: Array<{ id: string; name: string; arguments: string }>; finishReason: string; usage: { promptTokens: number; completionTokens: number } };
 export type Runner = {
   models(): Promise<string[]>;
-  complete(input: { model: string; messages: ChatMessage[]; tools: ToolDefinition[] }, onDelta: (text: string) => void, signal: AbortSignal): Promise<Completion>;
+  modelCatalog?(): Promise<Array<{ id: string; supported_reasoning_levels?: string[] }>>;
+  complete(input: { model: string; messages: ChatMessage[]; tools: ToolDefinition[]; reasoningEffort?: string }, onDelta: (text: string) => void, signal: AbortSignal): Promise<Completion>;
 };
 
-type CompletionRequest = { model?: string; messages?: ChatMessage[]; tools?: ToolDefinition[]; stream?: boolean };
+type CompletionRequest = { reasoning_effort?: string; model?: string; messages?: ChatMessage[]; tools?: ToolDefinition[]; stream?: boolean };
 
 function authorized(header: string | undefined, token: string): boolean {
   const value = Buffer.from(header || "");
@@ -54,14 +55,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, token: string, 
     if (req.method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true });
     if (req.method === "GET" && (url.pathname === "/v1/models" || url.pathname === "/models")) {
       const ids = await runner.models();
-      return send(res, 200, { object: "list", data: ids.map((id) => ({ id, object: "model" })) });
+      return send(res, 200, { object: "list", data: runner.modelCatalog ? await runner.modelCatalog() : ids.map((id) => ({ id, object: "model" })) });
     }
     if (req.method !== "POST" || (url.pathname !== "/v1/chat/completions" && url.pathname !== "/chat/completions")) return send(res, 404, { error: { message: "not found" } });
     const request = JSON.parse(await readBody(req)) as CompletionRequest;
     const controller = new AbortController();
     req.on("aborted", () => controller.abort());
     let streamed = false;
-    const completion = await runner.complete({ model: request.model || "", messages: normalizeMessages(request.messages || []), tools: request.tools || [] }, (text) => {
+    const completion = await runner.complete({ model: request.model || "", reasoningEffort: request.reasoning_effort, messages: normalizeMessages(request.messages || []), tools: request.tools || [] }, (text) => {
       if (!request.stream || !text) return;
       if (!streamed) {
         res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });

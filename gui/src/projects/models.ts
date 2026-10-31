@@ -1,3 +1,4 @@
+import { reasoningFromPayload, type ReasoningCapability } from "./reasoning";
 import { serverEndpoint } from "../platform";
 
 const CURRENT_MODEL_CACHE_KEY = "solomon:current-model";
@@ -70,6 +71,7 @@ export type ModelInfo = {
 };
 
 export type ProviderCatalog = {
+ reasoning?: Record<string, ReasoningCapability>;
   complete: boolean;
   disabled: string[];
   fastModels?: string[];
@@ -385,6 +387,7 @@ function modelCatalogFromPayload(payload: unknown): ModelCatalog {
           : [];
         return [{
           provider: entry.provider,
+          reasoning: reasoningFromPayload("reasoning" in entry ? entry.reasoning : undefined),
           models,
           metadata,
           complete: "complete" in entry ? Boolean(entry.complete) : false,

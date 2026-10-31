@@ -98,6 +98,7 @@ func (h turnHost) StripCursorProxyInlineErrors(content string) (string, string) 
 	return stripCursorProxyInlineErrorsWithCorrection(content, h.Runtime.proxyToolCorrectionMessage)
 }
 func (h turnHost) ResolveTurnInvocations(turn llm.AssistantTurnResult, legacySW *tooling.LegacyStreamWriter) ([]tooling.Invocation, []string, bool, error) {
+	h.Runtime.LastFinishReason = turn.FinishReason
 	return h.Runtime.ResolveTurnInvocations(turn, legacySW)
 }
 func (h turnHost) RecordRejectedToolCalls(turn llm.AssistantTurnResult, turnIndex int, reason string) {

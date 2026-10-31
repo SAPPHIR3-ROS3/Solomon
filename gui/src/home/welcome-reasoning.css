@@ -304,3 +304,38 @@
 .welcome-reasoning-fast.is-active svg {
   fill: currentColor;
 }
+
+.welcome-reasoning-popover,
+.welcome-reasoning-popover.has-fast {
+  box-sizing: content-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  width: max-content;
+}
+
+.welcome-reasoning-row,
+.welcome-reasoning-row.has-fast {
+  align-items: flex-start;
+  display: flex;
+  gap: 24px;
+  justify-content: flex-start;
+  width: max-content;
+}
+
+.welcome-reasoning-row .welcome-reasoning-scale,
+.welcome-reasoning-row.has-fast .welcome-reasoning-scale {
+  flex: none;
+  width: var(--reasoning-scale-width, 220px);
+}
+
+.welcome-reasoning-unknown {
+  color: var(--color-error, #ef4444);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.welcome-reasoning-popover header {
+  line-height: 1.5;
+  min-width: 100%;
+  width: 0;
+}

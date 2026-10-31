@@ -18,7 +18,7 @@ export type ProxyConfig = {
 
 let cachedModels: { apiKey: string; models: ModelInfo[]; expiresAt: number } | undefined;
 
-async function cursorModels(apiKey: string): Promise<ModelInfo[]> {
+export async function cursorModels(apiKey: string): Promise<ModelInfo[]> {
   const now = Date.now();
   if (cachedModels?.apiKey === apiKey && cachedModels.expiresAt > now) {
     return cachedModels.models;

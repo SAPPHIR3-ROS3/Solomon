@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
@@ -97,11 +98,13 @@ func ListAvailableModelFlags(ctx context.Context, accessToken string) ([]ModelFl
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("cursor models status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
+	modelreasoning.CaptureList("cursor-sub", body)
 	flags := parseAvailableModelFlags(body)
 	if len(flags) == 0 {
 		return nil, fmt.Errorf("cursor models: empty list")
 	}
 	SetModelCaps(DedupeVariantFlags(flags))
+	captureVariantReasoning(flags)
 	return flags, nil
 }
 
@@ -148,6 +151,10 @@ func parseAvailableModelFlags(body []byte) []ModelFlag {
 		name = CanonicalCursorModelID(name)
 		if name == "" || seen[strings.ToLower(name)] || modelItemUnavailable(m) {
 			continue
+		}
+		if m != nil {
+			raw, _ := json.Marshal(m)
+			modelreasoning.Store("cursor-sub", name, modelreasoning.Parse(raw))
 		}
 		seen[strings.ToLower(name)] = true
 		out = append(out, ModelFlag{

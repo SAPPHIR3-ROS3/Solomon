@@ -28,7 +28,7 @@ export const userNameEndpoint = "/__solomon/user-name";
 export const reasoningEffortEndpoint = "/__solomon/reasoning-effort";
 export const fastModeEndpoint = "/__solomon/fast-mode";
 export const projectActionEndpoint = "/__solomon/projects/";
-export const reasoningEfforts = new Set(["none", "low", "medium", "high", "xhigh", "max"]);
+export const reasoningEfforts = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 export function solomonHome() {
   return process.env.SOLOMON_HOME?.trim() || path.join(homedir(), ".solomon");

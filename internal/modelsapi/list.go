@@ -1,8 +1,10 @@
 package modelsapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
@@ -21,6 +23,7 @@ type listResp struct {
 }
 
 type ListOpts struct {
+	Context          context.Context
 	ChatGPTAccountID string
 	UserAgent        string
 	AllModels        bool
@@ -47,7 +50,11 @@ func ListWithOpts(baseURL, bearer string, opts ListOpts) (out []string, err erro
 	if opts.AllModels {
 		u += "?all=1"
 	}
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	ctx := opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +78,7 @@ func ListWithOpts(baseURL, bearer string, opts ListOpts) (out []string, err erro
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("models API: %s: %s", resp.Status, string(b))
 	}
+	modelreasoning.CaptureList(baseURL, b)
 	var lr listResp
 	if err := json.Unmarshal(b, &lr); err != nil {
 		return nil, err

@@ -1,3 +1,4 @@
+import type { ReasoningCapability } from "../projects/reasoning";
 import { invalidateModelCatalogCache } from "../projects/models";
 import "./logos.css";
 import { ProviderIcon } from "./ProviderIcon";
@@ -22,6 +23,7 @@ const recentProvider = "__recent__";
 const emptyCatalog: ModelCatalog = { current: { provider: "", model: "" }, providers: [], recent: [] };
 
 type ModelControlProps = {
+ onReasoningCapabilityChange?: (capability: ReasoningCapability | undefined) => void;
   onFastModeAvailableChange?: (available: boolean) => void;
   onReasoningModeChange?: (mode: ReasoningMode) => void;
   onModelChange?: (choice: ModelChoice, modes?: { fastMode?: boolean; reasoningEffort?: string }) => void;
@@ -58,7 +60,7 @@ function modelMatchesQuery(provider: string, model: string, needle: string): boo
   return compactNeedle.length > 0 && compactHaystack.includes(compactNeedle);
 }
 
-export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange, onModelChange, open, onOpenChange }: ModelControlProps) {
+export function ModelControl({ onReasoningCapabilityChange, onFastModeAvailableChange, onReasoningModeChange, onModelChange, open, onOpenChange }: ModelControlProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
   const setOpen = (next: boolean) => {
@@ -80,6 +82,7 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
     const normalizedProvider = choice.provider.trim().toLowerCase();
     const provider = sourceCatalog.providers.find((group) => group.provider.trim().toLowerCase() === normalizedProvider);
     onFastModeAvailableChange?.(modelSupportsFast(provider, choice.model));
+ onReasoningCapabilityChange?.(provider?.reasoning?.[choice.model]);
     onReasoningModeChange?.(modelReasoningMode(provider, choice.model));
     onModelChange?.(choice);
   }
@@ -91,10 +94,11 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
       setCatalog(data);
       setLoadError(false);
       setCatalogLoaded(true);
+ notifyModelChange(selected, data);
     };
     window.addEventListener(MODEL_CATALOG_CHANGED_EVENT, applyCatalog);
     return () => window.removeEventListener(MODEL_CATALOG_CHANGED_EVENT, applyCatalog);
-  }, []);
+  }, [selected.provider, selected.model]);
 
   useEffect(() => {
     if (catalogLoaded) return;
@@ -197,7 +201,6 @@ export function ModelControl({ onFastModeAvailableChange, onReasoningModeChange,
   async function selectModel(choice: ModelChoice) {
     const previous = selected;
     setSelected(choice);
-    notifyModelChange(choice);
     setOpen(false);
     try {
       const saved = await saveCurrentModel(choice.provider, choice.model);

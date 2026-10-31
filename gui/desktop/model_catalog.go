@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"os"
 	"strings"
 	"sync"
@@ -26,12 +27,13 @@ type modelChoice struct {
 }
 
 type providerCatalog struct {
-	Complete         bool                     `json:"complete"`
-	SupportsFastMode bool                     `json:"supportsFastMode"`
-	Disabled         []string                 `json:"disabled,omitempty"`
-	Metadata         map[string]modelMetadata `json:"metadata"`
-	Models           []string                 `json:"models"`
-	Provider         string                   `json:"provider"`
+	Reasoning        map[string]modelreasoning.Capability `json:"reasoning"`
+	Complete         bool                                 `json:"complete"`
+	SupportsFastMode bool                                 `json:"supportsFastMode"`
+	Disabled         []string                             `json:"disabled,omitempty"`
+	Metadata         map[string]modelMetadata             `json:"metadata"`
+	Models           []string                             `json:"models"`
+	Provider         string                               `json:"provider"`
 }
 
 type modelMetadata struct {
@@ -112,7 +114,7 @@ func buildCatalog(cfg *config.Root, forceRefresh bool) catalogResponse {
 	}
 	var cached []providerCatalog
 	if !forceRefresh {
-		if ok, _ := modelcatalogcache.LoadToday(&cached); ok {
+		if ok, _ := modelcatalogcache.LoadToday(&cached); ok && reasoningCacheComplete(cached) {
 			result.Providers = mergeCachedProviders(providers, cached, cfg)
 			return result
 		}
@@ -143,6 +145,7 @@ func buildCatalog(cfg *config.Root, forceRefresh bool) catalogResponse {
 			}
 			result.Providers[index] = providerCatalog{
 				Complete:         complete,
+				Reasoning:        connect.ProviderReasoning(&provider, ids),
 				SupportsFastMode: config.FastModeSupportedByProvider(&provider),
 				Disabled:         config.HiddenModelIDs(cfg, provider.Name, ids),
 				Metadata:         modelsMetadata(modelsCatalog, provider, ids),
@@ -255,4 +258,13 @@ func ensureModelPresent(ids []string, model string) []string {
 		}
 	}
 	return append(ids, model)
+}
+
+func reasoningCacheComplete(providers []providerCatalog) bool {
+	for _, provider := range providers {
+		if provider.Reasoning == nil {
+			return false
+		}
+	}
+	return true
 }

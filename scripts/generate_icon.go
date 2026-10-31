@@ -20,12 +20,18 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	mark, err := logo.MarkPNG(512)
+	if err != nil {
+		fail(err)
+	}
 	svg := []byte(logo.IconSVG())
 	assets := []struct {
 		path string
 		data []byte
 	}{
 		{path: "icon.svg", data: svg},
+		{path: "site/assets/mark.svg", data: []byte(logo.MarkSVG())},
+		{path: "site/assets/mark.png", data: mark},
 		{path: "icon.png", data: png},
 		{path: "gui/desktop/build/appicon.png", data: png},
 		{path: "gui/desktop/assets/icon.png", data: png},

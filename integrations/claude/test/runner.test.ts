@@ -9,10 +9,10 @@ function pool(opts: { gate?: () => Promise<void>; admitTimeoutMs?: number } = {}
   const created: Fake[] = [];
   const runner = new ClaudeRunner("", {
     admitTimeoutMs: opts.admitTimeoutMs,
-    createSession(model) {
+    createSession(model, effort) {
       let waiting = false;
       const session: Fake = {
-        model, accepted: [], produced: null, busy: false, used: Date.now(), closed: false, actions: [],
+        model, effort, accepted: [], produced: null, busy: false, used: Date.now(), closed: false, actions: [],
         get awaitingTools() { return waiting; },
         async run(action) {
           session.actions.push(action);
@@ -94,4 +94,12 @@ test("idle expiry keeps conversations waiting on tool results", async (t) => {
   assert.equal(created[1].closed, true, "the idle session should expire");
   await ask(runner, [...chat, { role: "assistant", content: "", tool_calls: first.toolCalls }, { role: "tool", tool_call_id: first.toolCalls[0].id, content: "found" }]);
   assert.deepEqual(created[0].actions.at(-1), { type: "tools", results: [{ id: "call-0", output: "found" }] });
+});
+
+test("reasoning changes use a distinct SDK session", async () => {
+ const { runner, created } = pool();
+ const messages: ChatMessage[] = [{ role: "user", content: "hello" }];
+ for (const reasoningEffort of ["low", "high"]) await runner.complete({ model: "m", messages, tools: [], reasoningEffort }, () => {}, signal);
+ assert.deepEqual(created.map((session) => session.effort), ["low", "high"]);
+ await runner.close();
 });

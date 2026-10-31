@@ -20,6 +20,8 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `cmd/solomon/` | Binary entry: CLI flags, wizard, `Runtime` bootstrap | [Startup and CLI](startup-and-cli.md) |
 | `cmd/solomon/server/` | Detached local server lifecycle commands and log reader | [Local server](server.md) |
 | `cmd/solomon/server/detach/` | Platform-specific process detachment for the local server | [Local server](server.md) |
+| `internal/acp/` | ACP transport, session lifecycle, model configuration and client integration | [ACP integration](../user-guide/acp.md) |
+| `internal/modelreasoning/` | Automatic provider reasoning capability decoding and model-scoped metadata cache | [ACP integration](../user-guide/acp.md) |
 | `internal/server/` | Local HTTP host: health, Vite reverse proxy, process lifecycle | [Local server](server.md) |
 | `internal/guicustom/` | Local daemon client for chat-driven GUI customization without restarting sessions | [Local server](server.md#development-frontend) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |

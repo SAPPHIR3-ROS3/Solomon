@@ -53,7 +53,7 @@ func ApplyChatReasoningWithEffort(cfg *config.Root, p *openai.ChatCompletionNewP
 	if forceDisable {
 		p.ReasoningEffort = shared.ReasoningEffort("none")
 		addReasoningDisableExtras(extras)
-		applyChatExtraFields(p, extras)
+		applyChatExtraFields(cfg, p, extras)
 		return
 	}
 	if canonical, err := config.ParseReasoningEffortToken(override); strings.TrimSpace(override) != "" && err == nil {
@@ -62,11 +62,11 @@ func ApplyChatReasoningWithEffort(cfg *config.Root, p *openai.ChatCompletionNewP
 			addReasoningDisableExtras(extras)
 		}
 		clampCursorReasoning(cfg, p, extras)
-		applyChatExtraFields(p, extras)
+		applyChatExtraFields(cfg, p, extras)
 		return
 	}
 	if cfg == nil {
-		applyChatExtraFields(p, extras)
+		applyChatExtraFields(cfg, p, extras)
 		return
 	}
 	if eff := cfg.GlobalReasoningEffort(); eff != "" {
@@ -76,7 +76,7 @@ func ApplyChatReasoningWithEffort(cfg *config.Root, p *openai.ChatCompletionNewP
 		addReasoningDisableExtras(extras)
 	}
 	clampCursorReasoning(cfg, p, extras)
-	applyChatExtraFields(p, extras)
+	applyChatExtraFields(cfg, p, extras)
 }
 
 func ApplySimpleReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, forceDisable bool) {
@@ -89,7 +89,7 @@ func ApplySimpleReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, f
 		p.ReasoningEffort = shared.ReasoningEffort("none")
 		addReasoningDisableExtras(extras)
 	}
-	applyChatExtraFields(p, extras)
+	applyChatExtraFields(cfg, p, extras)
 }
 
 func reasoningDisableExtras() map[string]any {
@@ -138,6 +138,16 @@ func clampCursorReasoning(cfg *config.Root, p *openai.ChatCompletionNewParams, e
 	if provider == nil || !provider.IsCursorSub() {
 		return
 	}
+	if capability := config.ModelReasoning(provider, cfg.Current.Model); capability.Known {
+		p.ReasoningEffort = shared.ReasoningEffort(capability.Resolve(string(p.ReasoningEffort)))
+		if p.ReasoningEffort == "none" {
+			addReasoningDisableExtras(extras)
+		} else {
+			delete(extras, "enable_thinking")
+			delete(extras, "chat_template_kwargs")
+		}
+		return
+	}
 	switch cursorauth.ThinkingMode(cfg.Current.Model) {
 	case "none":
 		p.ReasoningEffort = shared.ReasoningEffort("none")
@@ -171,7 +181,19 @@ func ApplyPromptCache(p *openai.ChatCompletionNewParams, key string) {
 	p.SetExtraFields(extras)
 }
 
-func applyChatExtraFields(p *openai.ChatCompletionNewParams, extras map[string]any) {
+func applyChatExtraFields(cfg *config.Root, p *openai.ChatCompletionNewParams, extras map[string]any) {
+	if cfg != nil {
+		capability := config.ModelReasoning(config.ProviderByName(cfg, cfg.Current.Provider), cfg.Current.Model)
+		if capability.Known && (p.ReasoningEffort != "" || len(capability.Levels) == 0) {
+			p.ReasoningEffort = shared.ReasoningEffort(capability.Resolve(string(p.ReasoningEffort)))
+			if p.ReasoningEffort == "none" {
+				addReasoningDisableExtras(extras)
+			} else {
+				delete(extras, "enable_thinking")
+				delete(extras, "chat_template_kwargs")
+			}
+		}
+	}
 	if len(extras) == 0 {
 		return
 	}

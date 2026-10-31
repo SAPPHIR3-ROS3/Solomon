@@ -25,6 +25,7 @@ Usage:
   solomon tui [directory]
   solomon attach [directory]
   solomon desktop
+  solomon acp
   solomon exec [options] <prompt>
   solomon temp exec [options] <prompt>
   solomon server <command>
@@ -32,6 +33,7 @@ Usage:
   solomon interface [<n> <on|off>]
 
 Commands:
+  acp                             Serve Agent Client Protocol over stdio
   desktop                         Open the desktop application
   desktop install [release-tag]   Reinstall the desktop application
   interface [<n> <on|off>]         List or configure network interfaces

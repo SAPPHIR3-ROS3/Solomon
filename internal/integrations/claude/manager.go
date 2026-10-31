@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
@@ -142,7 +143,8 @@ func Models(ctx context.Context, cwd string) ([]string, error) {
 	defer resp.Body.Close()
 	var body struct {
 		Data []struct {
-			ID string `json:"id"`
+			ID     string          `json:"id"`
+			Levels json.RawMessage `json:"supported_reasoning_levels"`
 		} `json:"data"`
 		Error struct {
 			Message string `json:"message"`
@@ -156,6 +158,8 @@ func Models(ctx context.Context, cwd string) ([]string, error) {
 	}
 	ids := make([]string, 0, len(body.Data))
 	for _, model := range body.Data {
+		raw, _ := json.Marshal(map[string]any{"id": model.ID, "supported_reasoning_levels": model.Levels})
+		modelreasoning.Capture("claude-sub", raw)
 		ids = append(ids, model.ID)
 	}
 	return ids, nil

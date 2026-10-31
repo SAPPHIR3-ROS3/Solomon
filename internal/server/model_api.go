@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"net/http"
 	"sort"
 	"strings"
@@ -43,15 +44,16 @@ type apiModelMetadata struct {
 }
 
 type apiProviderCatalog struct {
-	Metadata            map[string]apiModelMetadata `json:"metadata"`
-	Complete            bool                        `json:"complete"`
-	Disabled            []string                    `json:"disabled,omitempty"`
-	FastModels          []string                    `json:"fastModels"`
-	ThinkingModels      []string                    `json:"thinkingModels"`
-	ThinkingLevelModels []string                    `json:"thinkingLevelModels"`
-	Models              []string                    `json:"models"`
-	Provider            string                      `json:"provider"`
-	SupportsFastMode    bool                        `json:"supportsFastMode"`
+	Reasoning           map[string]modelreasoning.Capability `json:"reasoning"`
+	Metadata            map[string]apiModelMetadata          `json:"metadata"`
+	Complete            bool                                 `json:"complete"`
+	Disabled            []string                             `json:"disabled,omitempty"`
+	FastModels          []string                             `json:"fastModels"`
+	ThinkingModels      []string                             `json:"thinkingModels"`
+	ThinkingLevelModels []string                             `json:"thinkingLevelModels"`
+	Models              []string                             `json:"models"`
+	Provider            string                               `json:"provider"`
+	SupportsFastMode    bool                                 `json:"supportsFastMode"`
 }
 
 type apiModelCatalog struct {
@@ -242,6 +244,7 @@ func (a *modelAPI) loadCatalog(forceRefresh bool) (apiModelCatalog, error) {
 			}
 			entry := apiProviderCatalog{
 				Complete:         liveCatalog,
+				Reasoning:        connect.ProviderReasoning(&provider, ids),
 				Disabled:         config.HiddenModelIDs(cfg, provider.Name, ids),
 				Models:           ids,
 				Provider:         provider.Name,

@@ -121,6 +121,9 @@ func IconSVG() string {
 
 // IconPNG returns a transparent, anti-aliased raster rendering of IconSVG.
 func IconPNG(size int) ([]byte, error) {
+	return renderIconPNG(size, true)
+}
+func renderIconPNG(size int, withBackground bool) ([]byte, error) {
 	if size < 1 {
 		return nil, fmt.Errorf("icon size must be positive")
 	}
@@ -132,19 +135,21 @@ func IconPNG(size int) ([]byte, error) {
 	background := parseIconColor(IconBackground)
 	border := parseIconColor(iconBorder)
 
-	for y := 0; y < largeSize; y++ {
-		for x := 0; x < largeSize; x++ {
-			px := (float64(x) + 0.5) / supersampling / outputScale
-			py := (float64(y) + 0.5) / supersampling / outputScale
-			if inRoundedRect(px, py, 0, 0, iconSize, iconSize, 112) {
-				large.SetNRGBA(x, y, border)
-				if inRoundedRect(px, py, borderWidth, borderWidth, iconSize-2*borderWidth, iconSize-2*borderWidth, 109) {
-					large.SetNRGBA(x, y, background)
+	if withBackground {
+		for y := 0; y < largeSize; y++ {
+			for x := 0; x < largeSize; x++ {
+				px := (float64(x) + 0.5) / supersampling / outputScale
+				py := (float64(y) + 0.5) / supersampling / outputScale
+				if inRoundedRect(px, py, 0, 0, iconSize, iconSize, 112) {
+					large.SetNRGBA(x, y, border)
+					if inRoundedRect(px, py, borderWidth, borderWidth, iconSize-2*borderWidth, iconSize-2*borderWidth, 109) {
+						large.SetNRGBA(x, y, background)
+					}
 				}
 			}
 		}
-	}
 
+	}
 	for _, dot := range iconDots() {
 		fill := parseIconColor(dot.fill)
 		left := max(0, int(math.Floor(dot.x*outputScale*supersampling)))

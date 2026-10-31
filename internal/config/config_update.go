@@ -45,6 +45,11 @@ func AssignCurrentModel(root *Root, providerName, modelID string) error {
 		NoteRecentModelUse(root, providerName, modelID)
 		applyModelMode(root, providerName, modelID)
 	}
+	capability := ModelReasoning(ProviderByName(root, providerName), modelID)
+	if capability.Known {
+		root.ReasoningEffort = capability.Resolve(root.ReasoningEffort)
+		RememberCurrentModelMode(root)
+	}
 	return nil
 }
 
@@ -55,6 +60,9 @@ func UpdateReasoningEffort(effort string) (*Root, error) {
 		return nil, err
 	}
 	return updateConfig(func(root *Root) error {
+		if err := validateModelReasoning(ProviderByName(root, root.Current.Provider), root.Current.Model, canonical); err != nil {
+			return err
+		}
 		root.ReasoningEffort = canonical
 		RememberCurrentModelMode(root)
 		return nil
@@ -99,7 +107,9 @@ func applyModelMode(root *Root, providerName, modelID string) {
 		RememberCurrentModelMode(root)
 		return
 	}
-	if canonical, err := ParseReasoningEffortToken(mode.ReasoningEffort); err == nil {
+	if mode.ReasoningEffort == "" {
+		root.ReasoningEffort = ""
+	} else if canonical, err := ParseReasoningEffortToken(mode.ReasoningEffort); err == nil {
 		root.ReasoningEffort = canonical
 	}
 	if mode.FastMode != nil {

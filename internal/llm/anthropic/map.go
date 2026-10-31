@@ -354,6 +354,9 @@ func oauthEffortFromConfig(cfg *config.Root, override string) string {
 		token = override
 	}
 	c, err := config.ParseReasoningEffortToken(token)
+	if capability := config.ModelReasoning(config.ProviderByName(cfg, cfg.Current.Provider), cfg.Current.Model); capability.Known {
+		return capability.Resolve(c)
+	}
 	if err != nil || c == "none" {
 		return "high"
 	}
