@@ -1,0 +1,1 @@
+import{n as e,t}from"./vendor~wikitext-Sbk8yY9d.js";t();export{e as default};
