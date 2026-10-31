@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +19,11 @@ import (
 )
 
 func TestACPBinaryProviderAndRestore(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), "solomon")
+	name := "solomon"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	binary := filepath.Join(t.TempDir(), name)
 	build := exec.Command("go", "build", "-o", binary, "./cmd/solomon")
 	build.Dir = ".."
 	if out, err := build.CombinedOutput(); err != nil {
