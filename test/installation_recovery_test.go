@@ -101,7 +101,7 @@ func TestServerCommandsReportErrorsAndStartIsIdempotent(t *testing.T) {
 
 func TestDaemonFallsBackFromOccupiedPort(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	listener, err := occupyWildcardPort()
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
