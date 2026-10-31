@@ -99,7 +99,7 @@ func TestServerCommandsReportErrorsAndStartIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestForegroundDaemonReportsOccupiedPort(t *testing.T) {
+func TestDaemonFallsBackFromOccupiedPort(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
 	listener, err := occupyWildcardPort()
 	if err != nil {
@@ -114,11 +114,16 @@ func TestForegroundDaemonReportsOccupiedPort(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("SOLOMON_SERVER_PORT", port)
-	if err := servercli.Run([]string{"run"}); err == nil || !strings.Contains(err.Error(), "listen tcp4") {
-		t.Fatalf("occupied port reported success: %v", err)
+	state, stop := startServerAtAddressForTest(t, serverruntime.Options{}, "")
+	if state.URL == "http://127.0.0.1:"+port {
+		t.Fatal("daemon reused occupied port")
 	}
+	if _, err := serverruntime.LoadRunningState(context.Background()); err != nil {
+		t.Fatalf("cannot discover fallback daemon: %v", err)
+	}
+	stop()
 	if _, err := serverruntime.LoadState(); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("failed bind left daemon state: %v", err)
+		t.Fatalf("shutdown left daemon state: %v", err)
 	}
 }
 
