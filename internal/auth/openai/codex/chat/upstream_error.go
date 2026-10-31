@@ -16,6 +16,7 @@ type upstreamErrorPayload struct {
 	Detail          string                `json:"detail"`
 	Message         string                `json:"message"`
 	Type            string                `json:"type"`
+	Code            string                `json:"code"`
 	PlanType        string                `json:"plan_type"`
 	ResetsAt        int64                 `json:"resets_at"`
 	ResetsInSeconds int64                 `json:"resets_in_seconds"`
@@ -23,8 +24,26 @@ type upstreamErrorPayload struct {
 }
 
 func ChatGPTSubUpstreamError(statusCode int, body []byte, model string) error {
+	var payload upstreamErrorPayload
+	if json.Unmarshal(body, &payload) == nil {
+		for payload.Error != nil {
+			payload = *payload.Error
+		}
+		for _, kind := range []string{payload.Type, payload.Code} {
+			switch kind {
+			case "invalid_request_error", "context_length_exceeded", "invalid_prompt", "unsupported_model":
+				statusCode = http.StatusBadRequest
+			case "authentication_error":
+				statusCode = http.StatusUnauthorized
+			case "permission_error":
+				statusCode = http.StatusForbidden
+			case "usage_limit_reached", "rate_limit_error", "rate_limit_exceeded":
+				statusCode = http.StatusTooManyRequests
+			}
+		}
+	}
 	msg := humanizeCodexUpstreamError(statusCode, parseCodexUpstreamDetail(body), strings.TrimSpace(model))
-	return fmt.Errorf("ChatGPT Sub: %s", msg)
+	return &UpstreamError{StatusCode: statusCode, Message: msg, Payload: append(json.RawMessage(nil), body...)}
 }
 
 func parseCodexUpstreamDetail(body []byte) string {

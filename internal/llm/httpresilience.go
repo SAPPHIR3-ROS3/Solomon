@@ -245,7 +245,7 @@ func logAPIFailure(hostKey, protocol string, attempt, max int, status int, err e
 	if errors.Is(err, context.Canceled) {
 		return
 	}
-	logging.Log(logging.ERROR_LOG_LEVEL, "LLM API request failed", logging.LogOptions{Params: map[string]any{
+	params := map[string]any{
 		"provider_host": hostKey,
 		"protocol":      protocol,
 		"attempt":       attempt,
@@ -253,7 +253,14 @@ func logAPIFailure(hostKey, protocol string, attempt, max int, status int, err e
 		"status_code":   status,
 		"retryable":     false,
 		"err":           err.Error(),
-	}})
+	}
+	var diagnostic interface{ DiagnosticFields() map[string]any }
+	if errors.As(err, &diagnostic) {
+		for key, value := range diagnostic.DiagnosticFields() {
+			params[key] = value
+		}
+	}
+	logging.Log(logging.ERROR_LOG_LEVEL, "LLM API request failed", logging.LogOptions{Params: params})
 }
 
 func RetryMessage(attempt, max int, err error, wait time.Duration) string {
