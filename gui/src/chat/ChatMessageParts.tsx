@@ -4,6 +4,7 @@ import type { ChatImage, ChatMessage } from "./chatTypes";
 import { ComposerCrownIcon } from "./ChatComposer";
 import type { ActiveSubagent } from "./chatViewTypes";
 import { CloseIcon } from "./ChatIcons";
+import { keepImagePreviewOpen } from "./imagePreview";
 import { MarkdownContent } from "./MarkdownContent";
 
 export function CheckpointLabel({ className, label }: { className?: string; label: string }) {
@@ -104,8 +105,8 @@ export function ChatImageAttachments({ images }: { images: ChatImage[] }) {
               <ChatImageArrowIcon direction="left" />
             </button>
           ) : null}
-          <div className="composer-image-lightbox-stage" onClick={(event) => event.stopPropagation()}>
-            <img alt={selectedImage.name} className="composer-image-lightbox-image" src={selectedImage.url} />
+          <div className="composer-image-lightbox-stage">
+            <img onClick={keepImagePreviewOpen} alt={selectedImage.name} className="composer-image-lightbox-image" src={selectedImage.url} />
           </div>
           {images.length > 1 ? (
             <button aria-label="Next image" className="composer-image-lightbox-nav is-next" onClick={(event) => { event.stopPropagation(); moveSelectedImage(1); }} type="button">

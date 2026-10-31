@@ -15,7 +15,10 @@ import "./imageTags.css";
 import { CheckIcon, CopyIcon } from "./ChatIcons";
 import { copyText } from "./chatClipboard";
 
+import { MessageImage } from "./MessageImage";
+
 const markdownComponents: Components = {
+  img: ({ src, alt }) => <MessageImage src={src} alt={alt} />,
   a: ({ children, href, ...props }) => (
     <a {...props} className={`${props.className ?? ""}${isFileLink(href) ? " chat-file-link" : ""}`.trim()} href={href} rel="noreferrer" target="_blank">{children}</a>
   ),

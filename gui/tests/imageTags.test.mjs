@@ -96,3 +96,11 @@ test('recovers a Java snippet with single-backtick delimiters as one code block'
   assert.ok(html.includes('>Java</div>'));
   assert.equal((html.match(/class="chat-code-line"/g) ?? []).length, code.split('\n').length);
 });
+
+ test('markdown images use the interactive image viewer', () => {
+  const html = render('![Generated sailboat](/images/sailboat.png)');
+  assert.ok(html.includes('class="chat-markdown-image"'));
+  assert.ok(html.includes('aria-label="Enlarge Generated sailboat"'));
+  assert.ok(html.includes('src="/images/sailboat.png"'));
+  assert.ok(html.includes('type="button"'));
+});
