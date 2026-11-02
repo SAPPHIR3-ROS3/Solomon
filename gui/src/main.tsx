@@ -1,6 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { fetchIdentities } from "./projects/identities";
+
+void fetchIdentities("").catch(() => {});
 import "./styles.css";
 import "./pulse.css";
 import "./theme/themes.css";

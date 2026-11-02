@@ -2,8 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { createFilesystemFolder, fetchFilesystemDirectoryListing, type ProjectDirectoryEntry } from "./projects";
 import type { LocalFolderSelection } from "./temporaryWorkspace";
 import "./new-project-dialog.css";
+import { GitCloneForm } from "./GitCloneForm";
 
 type NewProjectDialogProps = {
+  embedded?: boolean;
+  repositoryName?: string;
+  onRepositoryNameChange?: (name: string) => void;
+  maxFolderRows?: number;
   folderOnly?: boolean;
   initialPath?: string;
   title?: string;
@@ -20,14 +25,15 @@ const projectSources = [
     icon: <FolderIcon />,
   },
   {
-    description: "Clone a project from a remote repository (coming soon)",
+    description: "Clone a project from a remote repository ",
     id: "git",
     label: "Git URL",
     icon: <GitUrlIcon />,
   },
 ] as const;
 
-export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folderOnly = false, initialPath = "~", title }: NewProjectDialogProps) {
+export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folderOnly = false, initialPath = "~", title, embedded = false, repositoryName = "", onRepositoryNameChange, maxFolderRows = 10 }: NewProjectDialogProps) {
+  const [gitOpen, setGitOpen] = useState(false);
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [folderEntries, setFolderEntries] = useState<ProjectDirectoryEntry[]>([]);
@@ -57,6 +63,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
   useEffect(() => {
     if (!isOpen) return;
     setQuery("");
+    setGitOpen(false);
     setActiveSourceId(null);
     setFolderEntries([]);
     setFolderError("");
@@ -70,12 +77,13 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
     setCreateFolderError("");
     searchRef.current?.focus();
 
+    if (embedded) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [isOpen, folderOnly, initialPath]);
+  }, [isOpen, folderOnly, initialPath, embedded]);
 
   useEffect(() => {
     if (!isOpen || !isFolderPickerOpen) return;
@@ -112,7 +120,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
   ));
   const folderLocation = displayFolderPath(folderPath, homePath);
   const canGoUp = Boolean(folderPath && folderPath !== "~" && parentFolderPath(folderPath) !== folderPath);
-  const folderListRowCount = Math.min(Math.max(visibleFolderEntries.length + (canGoUp ? 1 : 0), 1), 10);
+  const folderListRowCount = Math.min(Math.max(visibleFolderEntries.length + (canGoUp ? 1 : 0), 1), maxFolderRows);
   const exactFolderMatch = query
     ? visibleFolderEntries.find((entry) => entry.name.toLowerCase() === query.trim().toLowerCase())
     : undefined;
@@ -198,7 +206,13 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
 
   async function confirmCurrentFolder() {
     if (isConfirming || isFolderLoading || !folderSelectionPath || folderSelectionPath === "~") return;
+    if (onRepositoryNameChange && (repositoryName === "." || repositoryName === ".." || /[/\\\0]/.test(repositoryName))) {
+      setFolderError("Enter a folder name without path separators."); return;
+    }
     const normalizedPath = normalizeFolderPath(folderSelectionPath);
+    if (repositoryName && folderEntries.some((entry) => entry.name === repositoryName)) {
+      setFolderError("A folder with this repository name already exists."); return;
+    }
     const pathParts = normalizedPath.split("/").filter(Boolean);
     setIsConfirming(true);
     setFolderError("");
@@ -206,8 +220,9 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
       await onConfirmLocalFolder({
         displayPath: displayFolderPath(normalizedPath, homePath),
         name: pathParts.at(-1) ?? (normalizedPath === "/" ? "/" : "Home"),
-        path: normalizedPath,
+        path: repositoryName ? `${normalizedPath}/${repositoryName}` : normalizedPath,
       });
+      if (embedded) setIsConfirming(false);
     } catch (error) {
       setFolderError(error instanceof Error ? error.message : "Unable to create project.");
       setIsConfirming(false);
@@ -216,18 +231,19 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
 
   if (!isOpen) return null;
 
+  const Container = embedded ? "div" : "section";
   return (
     <div
       aria-label={title ?? "Project source picker"}
-      className="new-project-dialog-backdrop"
+      className={embedded ? "new-project-dialog-embedded" : "new-project-dialog-backdrop"}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
       role="presentation"
     >
-      <section aria-label={title ?? "Project sources"} aria-modal="true" className="new-project-dialog" role="dialog">
-        <div className={`new-project-dialog-search${isFolderPickerOpen ? " is-folder-picker" : ""}`}>
-          {isFolderPickerOpen ? (
+      <Container aria-label={title ?? "Project sources"} aria-modal={embedded ? undefined : true} className={embedded ? undefined : "new-project-dialog"} role={embedded ? undefined : "dialog"}>
+        <div hidden={gitOpen} style={gitOpen ? { display: "none" } : undefined} className={`new-project-dialog-search${isFolderPickerOpen ? " is-folder-picker" : ""}`}>
+          {isFolderPickerOpen && !embedded ? (
             <button aria-label={folderOnly ? "Close folder picker" : "Back to project sources"} disabled={isFolderCreatePending} className="new-project-dialog-search-back" onClick={folderOnly ? onClose : goBackFromFolderPicker} type="button">
               <ChevronLeftIcon />
             </button>
@@ -245,8 +261,10 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
             placeholder={isFolderPickerOpen ? "Type a path to filter folders, then press Enter to open" : "Search project sources"}
             ref={searchRef}
             type={isFolderPickerOpen ? "text" : "search"}
-            value={isFolderPickerOpen ? folderInput : query}
+            style={onRepositoryNameChange ? { flex: "0 1 auto", width: `${Math.max(folderInput.length + (folderInput.endsWith("/") ? 0 : 1), 1)}ch` } : undefined}
+            value={isFolderPickerOpen ? onRepositoryNameChange && !folderInput.endsWith("/") ? `${folderInput}/` : folderInput : query}
           />
+          {onRepositoryNameChange ? <span className="git-clone-path-suffix"><input aria-label="Destination folder name" disabled={isConfirming} value={repositoryName} style={{ width: `${Math.max(repositoryName.length, 1)}ch` }} onChange={(event) => onRepositoryNameChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void confirmCurrentFolder(); } }} />{repositoryName ? <button className="git-clone-name-clear" aria-label="Clear destination folder name" disabled={isConfirming} type="button" onClick={(event) => { onRepositoryNameChange(""); event.currentTarget.parentElement?.querySelector("input")?.focus(); }}>×</button> : null}</span> : null}
           {isFolderPickerOpen ? (
             <button aria-label={`Use folder ${folderSelectionLabel}`} className="new-project-dialog-search-confirm" disabled={isConfirming || isFolderCreatePending || isFolderLoading || !folderSelectionPath || folderSelectionPath === "~"} onClick={() => void confirmCurrentFolder()} title="Use this folder" type="button">
               <CheckIcon />
@@ -254,13 +272,13 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
           ) : null}
         </div>
 
-        {isFolderPickerOpen ? (
+        {gitOpen ? <GitCloneForm onConfirm={onConfirmLocalFolder} onBack={() => setGitOpen(false)} /> : isFolderPickerOpen ? (
           <div className="new-project-dialog-folder-picker">
             <div
               aria-label={`Folders in ${folderLocation}`}
               className="new-project-dialog-folder-list"
               role="list"
-              style={{ height: `${folderListRowCount * 44}px` }}
+              style={{ height: `${(embedded ? maxFolderRows : folderListRowCount) * 44}px` }}
             >
               {canGoUp ? (
                 <button aria-label="Go to parent folder" disabled={isFolderCreatePending} className="new-project-dialog-folder-row" onClick={goToParentFolder} type="button">
@@ -306,9 +324,9 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
               {visibleSources.length ? visibleSources.map((source) => (
                 <button
                   className={`new-project-dialog-source${activeSourceId === source.id ? " is-active" : ""}`}
-                  disabled={source.id === "git"}
+
                   key={source.id}
-                  onClick={source.id === "local" ? openLocalFolderPicker : undefined}
+                  onClick={source.id === "local" ? openLocalFolderPicker : () => setGitOpen(true)}
                   onPointerEnter={() => setActiveSourceId(source.id)}
                   type="button"
                 >
@@ -324,7 +342,7 @@ export function NewProjectDialog({ isOpen, onConfirmLocalFolder, onClose, folder
             </div>
           </>
         )}
-      </section>
+      </Container>
     </div>
   );
 }

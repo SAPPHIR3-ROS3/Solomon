@@ -10,6 +10,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server/clone"
 	"github.com/gofrs/flock"
 	"net"
 	"net/http"
@@ -308,6 +309,7 @@ func Run(ctx context.Context, options Options) error {
 		chatAPI.handleProjectSlashCommands(w, r, "", root)
 	})
 	mux.HandleFunc("/__solomon/home-directories", projectAPI.handleHomeDirectoryEntries)
+	mux.HandleFunc("/__solomon/git-clone", clone.Handle)
 	mux.HandleFunc("/__solomon/filesystem-directories", projectAPI.handleFilesystemDirectoryEntries)
 	mux.HandleFunc("/__solomon/home-git-branches", projectAPI.handleHomeBranches)
 	mux.HandleFunc("/__solomon/home-git-worktrees", projectAPI.handleHomeWorktrees)
