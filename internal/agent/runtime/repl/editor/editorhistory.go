@@ -3,6 +3,7 @@ package editor
 import (
 	"bufio"
 	"bytes"
+	"io"
 )
 
 type HistoryTest struct {
@@ -55,6 +56,7 @@ func NewMultilineEditorForTest(host Host, history *HistoryTest, lines []string, 
 		row:     row,
 		col:     col,
 		width:   width,
+		out:     io.Discard,
 	}}
 }
 
@@ -169,4 +171,16 @@ func VisualRowsWithGhostForTest(width int, prompt, line, ghost string) int {
 
 func ReadInputRuneForTest(r *bufio.Reader) (rune, error) {
 	return readInputRune(r)
+}
+
+func (e *MultilineEditorTest) HandleRune(r rune) (bool, string, error) {
+	return e.handle(editorKey{r: r})
+}
+
+func (e *MultilineEditorTest) HandleSequence(seq string) (bool, string, error) {
+	return e.handle(editorKey{seq: seq})
+}
+
+func (e *MultilineEditorTest) HandlePaste(text string) (bool, string, error) {
+	return e.handle(editorKey{paste: true, text: text})
 }

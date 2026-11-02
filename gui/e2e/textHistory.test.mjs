@@ -12,6 +12,8 @@ import { launchDesktopWebKit } from '../scripts/webkit-driver.mjs';
 const fixture = `
 import React from 'react';
 import {createRoot} from 'react-dom/client';
+import {installTextHistory} from '/src/textHistory.ts';
+installTextHistory();
 import {ChatView} from '/src/chat/ChatView.tsx';
 import {ChatComposer} from '/src/chat/ChatComposer.tsx';
 import {applyLiveStreamEvent} from '/src/chat/chatClient.ts';

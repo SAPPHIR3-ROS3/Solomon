@@ -1,3 +1,4 @@
+import { installTextHistory } from "./textHistory";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
@@ -17,6 +18,8 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
   }
 }, true);
+
+installTextHistory();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

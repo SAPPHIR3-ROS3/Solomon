@@ -208,6 +208,7 @@ test("Enter inserts one newline and persists it across reopening", async () => {
     await page.keyboard.press("Enter");
     assert.equal(await page.evaluate(() => window.editorEnterPrevented), true);
     await page.keyboard.insertText("Second line");
+    await page.waitForFunction(id => JSON.parse(localStorage.getItem(`solomon.editor-session.v1.${id}`))?.files[0]?.content === "First line\nSecond line", projectA.id);
     const content = await page.evaluate((id) => JSON.parse(localStorage.getItem(`solomon.editor-session.v1.${id}`)).files[0].content, projectA.id);
     assert.equal(content, "First line\nSecond line");
     await waitForDisk(content);
@@ -293,4 +294,23 @@ test("editor tabs restore their own scroll and cursor across Agent switches and 
     await page.reload();await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller')?.scrollTop-top)<2,topB);
     assert.deepEqual(errors,[]);
   } finally {await context.close();}
+});
+
+
+test("undo and redo autosave the resulting content and survive view switches", async () => {
+  await writeFile(filePath(), "Original");
+  const { page, context, errors } = await editorPage();
+  try {
+    await openDraft(page);
+    await typeText(page, "Updated");
+    await waitForDisk("Updated");
+    await page.keyboard.press("Control+z");
+    await waitForDisk("Original");
+    await page.locator("#agent").click();
+    await page.locator("#editor").click();
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("Control+Shift+z");
+    await waitForDisk("Updated");
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
 });

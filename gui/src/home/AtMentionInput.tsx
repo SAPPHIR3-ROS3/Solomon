@@ -313,6 +313,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
         </button>
       </> : null}
       <textarea
+        data-text-history="local"
         aria-label={ariaLabel}
         aria-autocomplete="list"
         aria-controls={suggestions.length ? pickerID : undefined}

@@ -1,16 +1,19 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { defaultKeymap, insertNewlineAndIndent } from "@codemirror/commands";
+import { defaultKeymap, history, historyField, historyKeymap, insertNewlineAndIndent, redo } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { createSearchPanel } from "./searchPanel";
 import { openSearchPanel, search, searchKeymap } from "@codemirror/search";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Transaction } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
 import { cursorForeground } from "../syntax/cursorSyntax";
 import type { OpenFile, EditorViewState } from "./editorSession";
 
-export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onViewState }: {
+const histories = new Map<string, EditorState>();
+
+export function CodeEditor({ projectID, file, onChange, onCursor, onSave, viewState, onViewState }: {
+  projectID: string;
   file: OpenFile;
   onChange: (content: string) => void;
   onCursor: (cursor: { line: number; column: number }) => void;
@@ -24,6 +27,9 @@ export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onView
   callbacks.current = { onChange, onCursor, onSave, onViewState };
   useLayoutEffect(() => {
     if (!host.current) return;
+    const historyKey = JSON.stringify([projectID, file.id, file.path]);
+    const previous = histories.get(historyKey);
+    const cached = previous?.doc.toString() === file.content ? previous : undefined;
     let restoring = Boolean(viewState);
     let frame: number | undefined;
     const saveView = (view: EditorView) => {
@@ -38,6 +44,8 @@ export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onView
       doc: file.content,
       selection: viewState ? { anchor: Math.min(file.content.length, viewState.anchor), head: Math.min(file.content.length, viewState.head) } : undefined,
       extensions: [
+        history(),
+        ...(cached ? [historyField.init(() => cached.field(historyField))] : []),
         search({ top: true, createPanel: createSearchPanel }),
         lineNumbers(), ...cursorEditorHighlighting(file.path), EditorView.lineWrapping,
         indentUnit.compute(["doc"], state => /^\t/m.test(state.doc.toString()) ? "\t" : "  "), closeBrackets(),
@@ -60,6 +68,9 @@ export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onView
           }
         }),
         keymap.of([
+          { key: "Mod-Shift-z", run: redo, preventDefault: true },
+          { key: "Ctrl-y", run: redo, preventDefault: true },
+          ...historyKeymap,
           ...searchKeymap,
           ...closeBracketsKeymap,
           { key: "Enter", preventDefault: true, run: insertNewlineAndIndent, shift: insertNewlineAndIndent },
@@ -106,12 +117,15 @@ export function CodeEditor({ file, onChange, onCursor, onSave, viewState, onView
       if (frame !== undefined) cancelAnimationFrame(frame);
       saveView(view);
       viewRef.current = null;
+      histories.delete(historyKey);
+      histories.set(historyKey, view.state);
+      if (histories.size > 100) histories.delete(histories.keys().next().value!);
       view.destroy();
     };
-  }, [file.id, file.path]);
+  }, [projectID, file.id, file.path]);
   useEffect(() => {
     const view = viewRef.current;
-    if (view && view.state.doc.toString() !== file.content) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: file.content } });
+    if (view && view.state.doc.toString() !== file.content) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: file.content }, annotations: Transaction.addToHistory.of(false) });
   }, [file.content]);
   return <div className="editor-code" ref={host} />;
 }

@@ -41,6 +41,9 @@ type multilineEditor struct {
 	compCandidates  [][]rune
 	compIndex       int
 	compActive      bool
+	undoStack       []editSnapshot
+	redoStack       []editSnapshot
+	historyEpoch    uint64
 	out             io.Writer
 }
 
@@ -108,7 +111,7 @@ func ReadMultilineInitial(host Host, history *History, initial string) (string, 
 	}
 }
 
-func (e *multilineEditor) handle(key editorKey) (bool, string, error) {
+func (e *multilineEditor) handleKey(key editorKey) (bool, string, error) {
 	resetHistory := false
 	switch {
 	case key.paste:

@@ -163,6 +163,9 @@ func (e *multilineEditor) down() {
 
 func (e *multilineEditor) loadHistoryPrev() {
 	if s, ok := e.history.prev(e.string()); ok {
+		e.undoStack = nil
+		e.redoStack = nil
+		e.historyEpoch++
 		e.setString(s, 0)
 		e.clearSuggest()
 	}
@@ -170,6 +173,9 @@ func (e *multilineEditor) loadHistoryPrev() {
 
 func (e *multilineEditor) loadHistoryNext() {
 	if s, ok := e.history.next(); ok {
+		e.undoStack = nil
+		e.redoStack = nil
+		e.historyEpoch++
 		e.setString(s, len(strings.Split(s, "\n"))-1)
 		e.clearSuggest()
 	}
