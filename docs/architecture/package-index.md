@@ -23,6 +23,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/acp/` | ACP transport, session lifecycle, model configuration and client integration | [ACP integration](../user-guide/acp.md) |
 | `internal/modelreasoning/` | Automatic provider reasoning capability decoding and model-scoped metadata cache | [ACP integration](../user-guide/acp.md) |
 | `internal/server/` | Local HTTP host: health, Vite reverse proxy, process lifecycle | [Local server](server.md) |
+| `internal/server/clone/` | Git repository cloning and discovery of GitHub, Git credential helper, and SSH identities | [Local server](server.md) |
 | `internal/guicustom/` | Local daemon client for chat-driven GUI customization without restarting sessions | [Local server](server.md#development-frontend) |
 | `internal/agent/` | Root agent package: `SlashDispatch` re-export (`slash_forward.go`) | [Skills and slash](skills-and-slash.md) |
 | `internal/agent/runtime/` | REPL, turns, session I/O, MCP init, Cursor hooks | [Runtime hub](runtime.md) |
