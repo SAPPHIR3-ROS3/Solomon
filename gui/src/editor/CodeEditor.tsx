@@ -1,3 +1,4 @@
+import { gitMarkers, useGitMarkers } from "./gitMarkers";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyField, historyKeymap, insertNewlineAndIndent, redo } from "@codemirror/commands";
@@ -22,6 +23,7 @@ export function CodeEditor({ projectID, file, onChange, onCursor, onSave, viewSt
   onViewState: (state: EditorViewState) => void;
 }) {
   const viewRef = useRef<EditorView | null>(null);
+  useGitMarkers(viewRef, projectID, file.path, file.content);
   const host = useRef<HTMLDivElement>(null);
   const callbacks = useRef({ onChange, onCursor, onSave, onViewState });
   callbacks.current = { onChange, onCursor, onSave, onViewState };
@@ -47,7 +49,7 @@ export function CodeEditor({ projectID, file, onChange, onCursor, onSave, viewSt
         history(),
         ...(cached ? [historyField.init(() => cached.field(historyField))] : []),
         search({ top: true, createPanel: createSearchPanel }),
-        lineNumbers(), ...cursorEditorHighlighting(file.path), EditorView.lineWrapping,
+        lineNumbers(), ...gitMarkers, ...cursorEditorHighlighting(file.path), EditorView.lineWrapping,
         indentUnit.compute(["doc"], state => /^\t/m.test(state.doc.toString()) ? "\t" : "  "), closeBrackets(),
         EditorView.scrollHandler.of((editor, range, options) => {
           if (!restoring || viewState?.scrollAnchor === undefined || range.head !== Math.min(editor.state.doc.length, viewState.scrollAnchor) || options.y !== "start") return false;

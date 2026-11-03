@@ -1,3 +1,4 @@
+import { WorkspaceFilesProvider } from "./editor/WorkspaceFiles";
 import { useAgentPages } from "./shell/useAgentPages";
 import { watchImageDrops } from "./home/imageDrops";
 import { normalizeTemporaryWorkspacePath } from "./projects/temporaryPath";
@@ -458,6 +459,7 @@ export function App() {
         />
       ) : null}
       {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedChat ? (
+        <WorkspaceFilesProvider project={selectedWorkspace} onOpen={entry => { if (!selectedWorkspace) return; closeNavigationPanels(); setEditorFile({ projectID: selectedWorkspace.id, entry }); setActiveView("editor"); }}>
         <ChatView
           key={JSON.stringify([selectedChat.projectID, selectedChat.id])}
           bottomInset={isTerminalPanelOpen ? terminalPanelHeight : 0}
@@ -476,6 +478,7 @@ export function App() {
           workspaceName={selectedChat.workspaceName ?? selectedWorkspace?.name}
           workspacePath={selectedChat.workspacePath ?? selectedWorkspace?.path}
         />
+        </WorkspaceFilesProvider>
       ) : null}
       <NotificationToasts />
       <LinkContextMenu />

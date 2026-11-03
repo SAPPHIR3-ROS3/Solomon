@@ -75,3 +75,13 @@ test("an editing turn that cancels all pending changes hides the summary", () =>
  const html=renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages(chat.messages),isWorking:false}));
  assert.doesNotMatch(html,/file-changes-card|0 changed files|No pending file changes/);
 });
+
+const { workspaceFilePath } = await server.ssrLoadModule("/src/editor/WorkspaceFiles.tsx");
+test("summary file navigation only resolves workspace paths", () => {
+ assert.equal(workspaceFilePath("src/a.ts", "/work/project"), "src/a.ts");
+ assert.equal(workspaceFilePath("/work/project/src/a.ts", "/work/project/"), "src/a.ts");
+ assert.equal(workspaceFilePath("./src/../a.ts", "/work/project"), "a.ts");
+ for (const path of ["../a.ts", "src/../../a.ts", "/work/project-other/a.ts", "/outside/a.ts", "C:/outside/a.ts", ""]) {
+  assert.equal(workspaceFilePath(path, "/work/project"), null, path);
+ }
+});

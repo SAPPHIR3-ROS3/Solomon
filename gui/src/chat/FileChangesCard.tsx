@@ -1,3 +1,4 @@
+import { useWorkspaceFiles } from "../editor/WorkspaceFiles";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import type { ChatFileChange } from "./chatTypes";
@@ -19,10 +20,12 @@ function Counts({ added, removed, binary }: { added: number; removed: number; bi
 }
 function ChangeRow({ node, expanded, onToggle }: { node: FileChangeNode; expanded: Set<string>; onToggle: (path: string) => void }) {
   const open = expanded.has(node.path);
+  const fileAction = useWorkspaceFiles()(node.change?.path ?? node.path);
+  const FileRow = fileAction ? "button" : "div";
   return <li>
-    {node.change ? <div className="file-changes-row is-file" title={node.path}>
+    {node.change ? <FileRow className="file-changes-row is-file" title={node.path} onClick={fileAction} {...(fileAction ? { type: "button" as const, "aria-label": `Open ${node.path} in editor` } : {})}>
       <span className="file-changes-chevron-spacer" /><FileIcon fileName={node.name} /><span className="file-changes-path">{node.name}</span><Counts {...node} binary={node.change.binary} />
-    </div> : <>
+    </FileRow> : <>
       <button className="file-changes-row" type="button" aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${node.path}`} onClick={() => onToggle(node.path)} title={node.path}>
         <svg aria-hidden="true" className={`file-changes-chevron${open ? " is-open" : ""}`} viewBox="0 0 16 16"><path d="m6 4 4 4-4 4" /></svg>
         <FolderIcon name={node.name} open={open} /><span className="file-changes-path">{node.name}</span><Counts {...node} />

@@ -37,6 +37,10 @@ func (a *projectAPI) handleProjectFile(w http.ResponseWriter, r *http.Request, p
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
+	if r.Method == http.MethodGet && r.URL.Query().Get("revision") == "HEAD" {
+		a.handleEditorBaseline(w, r, root, target)
+		return
+	}
 	if r.Method == http.MethodGet {
 		file, openErr := os.Open(target)
 		if openErr != nil {
