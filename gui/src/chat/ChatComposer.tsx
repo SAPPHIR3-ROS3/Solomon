@@ -1,5 +1,5 @@
 import { ReasoningControl } from "./ReasoningControl";
-import { resolveReasoning, type ReasoningCapability } from "../projects/reasoning";
+import { type ReasoningCapability } from "../projects/reasoning";
 import { composerDraftKey, useComposerDraft } from "./composerDrafts";
 import { isSlashCommand } from "./slashCommands";
 import { sendProjectCommand } from "./chatClient";
@@ -68,10 +68,8 @@ export function ChatComposer({
   const [reasoning, setReasoning] = useState<ReasoningEffort>(initialReasoning);
   const [fastOn, setFastOn] = useState(initialFastMode);
   const [fastModeAvailable, setFastModeAvailable] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState("");
   const fastModeRequestRef = useRef(0);
  const reasoningRequestRef = useRef(0);
- const attemptedReasoningRef = useRef("");
   const [internalMode, setInternalMode] = useState<"agent" | "chat">(initialMode);
   const [internalOpenMenu, setInternalOpenMenu] = useState<ChatComposerMenu>(null);
   const mode = controlledMode ?? internalMode;
@@ -178,15 +176,6 @@ export function ChatComposer({
       });
   }
 
-  useEffect(() => {
-    const next = resolveReasoning(reasoning, capability);
-    const attempt = JSON.stringify([selectedProvider, capability, reasoning]);
- if (next && next !== reasoning && attemptedReasoningRef.current !== attempt) {
- attemptedReasoningRef.current = attempt;
- updateReasoning(next);
- }
-  }, [capability, reasoning]);
-
   async function submit() {
     const content = draft.trim();
     const isCommand = isSlashCommand(content);
@@ -248,7 +237,6 @@ export function ChatComposer({
               setFastModeAvailable(available);
             }}
             onModelChange={(choice, modes) => {
-              setSelectedProvider(choice.provider);
               onProviderChange?.(choice.provider);
               if (modes?.reasoningEffort) {
                 const saved = normalizeReasoningEffort(modes.reasoningEffort);

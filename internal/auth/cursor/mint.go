@@ -208,6 +208,13 @@ func cursorVariantRefs(model map[string]any) []cursorVariantRef {
 		slug, _ := entry["legacySlug"].(string)
 		send, _ := entry["variantStringRepresentation"].(string)
 		effort, fast := cursorVariantParameters(entry["parameterValues"])
+		blob := strings.ToLower(send + " " + slug)
+		if effort == "" {
+			effort = parameterEffort(blob)
+		}
+		if !fast {
+			fast = strings.Contains(blob, "fast=true")
+		}
 		refs = append(refs, cursorVariantRef{Slug: strings.TrimSpace(slug), SendID: strings.TrimSpace(send), Effort: effort, Fast: fast})
 	}
 	return refs

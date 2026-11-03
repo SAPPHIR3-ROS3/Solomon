@@ -28,7 +28,7 @@ export function ReasoningControl({ capability, value, onChange, open, onOpenChan
   const isOpen = open ?? internalOpen;
   const controlRef = useRef<HTMLDivElement>(null);
   const levels = reasoningOptions(capability);
-  const options = allReasoningOptions.filter((option) => levels.includes(option.value));
+  const options = allReasoningOptions.filter((option) => levels.includes(option.value) || (levels.length > 0 && option.value === value));
   const supported = options.length > 0;
   const scaleWidth = Math.max(44, (options.length - 1) * 44);
   const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));

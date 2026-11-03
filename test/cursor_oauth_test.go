@@ -398,6 +398,23 @@ func TestCursorStreamChatRejectsRPCErrorText(t *testing.T) {
 	}
 }
 
+func TestCursorGrokRepresentationEffortStaysLow(t *testing.T) {
+	body := []byte(`{"models":[{"name":"grok-9.3","parameters":[{"id":"reasoning","values":[{"value":"medium"}]}],"variants":[{"legacySlug":"cursor-grok-9.3","variantStringRepresentation":"grok-9.3[context=256k,reasoning_effort=low,fast=false]"},{"legacySlug":"cursor-grok-9.3","variantStringRepresentation":"grok-9.3[context=256k,reasoning_effort=medium,fast=true]"}]}]}`)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+	old := cursorauth.SetModelsEndpointForTest(srv.URL)
+	defer old()
+	if _, err := cursorauth.ListAvailableModelFlags(context.Background(), "access-1"); err != nil {
+		t.Fatal(err)
+	}
+	got := modelreasoning.Lookup("cursor-sub", "cursor-grok-9.3")
+	if got.Resolve("low") != "low" {
+		t.Fatalf("levels=%v resolved=%q", got.Levels, got.Resolve("low"))
+	}
+}
+
 func TestCursorGrokParameterEffortStaysLow(t *testing.T) {
 	body := []byte(`{"models":[{"name":"grok-9.2","parameters":[{"id":"reasoning","values":[{"value":"medium"}]}],"variants":[{"legacySlug":"cursor-grok-9.2","variantStringRepresentation":"grok-9.2-low","parameterValues":[{"id":"effort","value":"low"},{"id":"fast","value":"false"}]},{"legacySlug":"cursor-grok-9.2","variantStringRepresentation":"grok-9.2-medium","parameterValues":[{"id":"effort","value":"medium"},{"id":"fast","value":"false"}],"isDefaultNonMaxConfig":true},{"legacySlug":"cursor-grok-9.2-high","parameterValues":[{"id":"effort","value":"high"},{"id":"fast","value":"false"}]}]}]}`)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
