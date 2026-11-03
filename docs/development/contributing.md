@@ -4,7 +4,7 @@ Use this guide for a first local change. Keep the change focused, include a regr
 
 ## Prerequisites and checkout
 
-Install Git, Go at the version required by [go.mod](../../go.mod), Node.js 20+ with npm, and GNU Make. Native desktop development additionally requires the platform toolchain: GTK3/WebKitGTK 4.1 development packages on Linux, Xcode Command Line Tools on macOS, or the Windows desktop build prerequisites and WebView2. The CLI build does not require the Linux desktop headers.
+Install Git, Go at the version required by [go.mod](../../go.mod), Node.js 22+ with npm, and GNU Make. Native desktop development additionally requires the platform toolchain: GTK3/WebKitGTK 4.1 development packages on Linux, Xcode Command Line Tools on macOS, or the Windows desktop build prerequisites and WebView2. The CLI build does not require the Linux desktop headers.
 
 ```bash
 git clone https://github.com/SAPPHIR3-ROS3/Solomon.git
