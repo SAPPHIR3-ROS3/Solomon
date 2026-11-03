@@ -25,7 +25,7 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
 }
 
 $GoRequired = '1.27.3'
-$NodeRequired = '20.0.0'
+$NodeRequired = '22.0.0'
 $DefaultServerPort = 64000
 $GoRoot = Join-Path $env:USERPROFILE '.local\go'
 $script:InstalledLocalGo = $false

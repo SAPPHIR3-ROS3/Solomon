@@ -112,7 +112,7 @@ Markdown conversion. The only Node code is the unavoidable Playwright binding
 that loads the official `cloakbrowser` package and exposes a private
 JSON-lines process boundary.
 
-The public install path requires Node.js 20+, `cloakbrowser`, and
+The public install path requires Node.js 22+, `cloakbrowser`, and
 `playwright-core`; the installer downloads the official browser into the
 Solomon-managed cache. Runtime auto-update is disabled so the installed binary
 does not change behind Solomon's back.

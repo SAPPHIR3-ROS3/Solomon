@@ -318,7 +318,7 @@ catch { if ($_.Exception.Message -notlike '*offline checksum*') { throw } }
 if ([IO.File]::ReadAllText($original) -ne 'previous binary') { throw 'Original binary changed' }
 if (Get-ChildItem -LiteralPath $Fixture -Filter '.solomon-download-*') { throw 'Failed download leaked' }
 $env:SOLOMON_HOME = Join-Path $Fixture 'browser home'
-$NodeRequired = '20.0.0'
+$NodeRequired = '22.0.0'
 $cloak = Join-Path $env:SOLOMON_HOME 'cloakbrowser'
 foreach ($package in @('cloakbrowser', 'playwright-core')) {
   $path = Join-Path $cloak "node_modules/$package/package.json"

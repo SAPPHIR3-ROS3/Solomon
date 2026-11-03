@@ -2,7 +2,7 @@
 set -euo pipefail
 
 GO_REQUIRED="1.27.3"
-NODE_REQUIRED="20.0.0"
+NODE_REQUIRED="22.0.0"
 GO_INSTALL_ROOT="${HOME}/.local/go"
 INSTALLED_LOCAL_GO=0
 BREW_BIN_DIR=""
@@ -510,8 +510,8 @@ for e in json.load(sys.stdin):
 " || true)"
   fi
   if [[ -z "$major" ]]; then
-    echo '[install] Warning: could not resolve Node.js LTS from https://nodejs.org/dist/index.json (curl/python3 missing or request/JSON failure). Using Node.js 22 fallback.' >&2
-    major="22"
+    echo '[install] Warning: could not resolve Node.js LTS from https://nodejs.org/dist/index.json (curl/python3 missing or request/JSON failure). Using Node.js 24 fallback.' >&2
+    major="24"
   fi
   echo "$major"
 }
