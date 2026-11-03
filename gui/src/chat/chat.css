@@ -254,7 +254,7 @@
 .chat-tool-edit-line:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 1px; }
 .chat-tool-result { background: transparent; overflow: hidden; padding: 0 11px 8px; }
 .chat-tool-result.is-error { background: transparent; }
-.chat-tool-error-result { align-items: baseline; border-left: 2px solid var(--color-danger); gap: 8px; }
+.chat-tool-error-result { align-items: baseline; border-left: 2px solid var(--color-danger); display: flex; gap: 8px; margin-left: 11px; min-width: 0; }
 .chat-tool-error-result .chat-tool-result-prefix { color: var(--color-danger); font-weight: 650; }
 .chat-tool-error-result .chat-tool-result-text { color: color-mix(in srgb, #fff 86%, var(--color-danger)); }
 .chat-tool-result-toggle { align-items: baseline; appearance: none; background: transparent; border: 0; border-radius: 3px; color: var(--color-text); cursor: pointer; display: flex; font: 400 12px/1.45 "Geist Mono", ui-monospace, monospace; gap: 8px; margin: 0; min-width: 0; padding: 0; text-align: left; width: 100%; }
