@@ -14,6 +14,7 @@ import (
 
 	cursorauth "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/auth/cursor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 )
 
 func TestCursorAuthParamsLoginURL(t *testing.T) {
@@ -394,6 +395,26 @@ func TestCursorStreamChatRejectsRPCErrorText(t *testing.T) {
 	_, err := cursorauth.StreamChat(context.Background(), "session", "grok-4.6", []cursorauth.ChatTurn{{Role: "user", Content: "hi"}}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "streamUnifiedChatRequest") {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestCursorGrokReasoningKeepsVariantLevels(t *testing.T) {
+	body := []byte(`{"models":[{"name":"grok-9.1","parameters":[{"id":"reasoning","values":[{"value":"medium"}]}],"variants":[{"legacySlug":"cursor-grok-9.1-low","parameterValues":[{"id":"effort","value":"low"}]},{"legacySlug":"cursor-grok-9.1-medium","parameterValues":[{"id":"effort","value":"medium"}]},{"legacySlug":"cursor-grok-9.1-high","parameterValues":[{"id":"effort","value":"high"}]}]}]}`)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+	old := cursorauth.SetModelsEndpointForTest(srv.URL)
+	defer old()
+	if _, err := cursorauth.ListAvailableModelFlags(context.Background(), "access-1"); err != nil {
+		t.Fatal(err)
+	}
+	got := modelreasoning.Lookup("cursor-sub", "cursor-grok-9.1")
+	if !got.Known || strings.Join(got.Levels, ",") != "low,medium,high" {
+		t.Fatalf("levels=%v known=%v", got.Levels, got.Known)
+	}
+	if got.Resolve("low") != "low" {
+		t.Fatalf("low resolved to %q", got.Resolve("low"))
 	}
 }
 

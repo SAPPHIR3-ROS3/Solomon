@@ -10,7 +10,7 @@ export function resolveModelSelection(
   reasoningEffort: string | undefined,
   fastMode: boolean,
 ): ModelSelection {
-  const resolvedID = resolveFastModelID(models, resolveKnownModelID(models, id), fastMode);
+  const resolvedID = resolveFastModelID(models, resolveKnownModelID(models, id, reasoningEffort), fastMode);
   let info = models.find((m) => m.id === resolvedID);
   if (!info && !fastMode && isFastModelID(id)) {
     info = models.find((m) => m.id === id);
@@ -26,7 +26,7 @@ export function resolveModelSelection(
   return params.length > 0 ? { id: resolvedID, params } : { id: resolvedID };
 }
 
-function resolveKnownModelID(models: ModelInfo[], id: string): string {
+function resolveKnownModelID(models: ModelInfo[], id: string, reasoningEffort?: string): string {
   const raw = id.trim();
   const stripped = raw.toLowerCase().startsWith("cursor-") ? raw.slice("cursor-".length) : raw;
   const ids = models.map((m) => m.id).filter(Boolean);
@@ -38,12 +38,27 @@ function resolveKnownModelID(models: ModelInfo[], id: string): string {
     return stripped;
   }
   const family = stripped.replace(/-fast$/i, "");
-  const matches = ids.filter((candidate) => candidate === family || candidate.startsWith(`${family}.`) || candidate.startsWith(`${family}-`) || (family.startsWith("grok-4") && candidate.startsWith("grok-4")));
+  const matches = ids.filter((candidate) => candidate === family || candidate.startsWith(`${family}.`) || candidate.startsWith(`${family}-`));
   if (matches.length === 0) {
     return stripped;
   }
-  matches.sort();
-  return matches[matches.length - 1]!;
+  const exact = matches.find((candidate) => candidate === family);
+  if (exact) {
+    return exact;
+  }
+  const effort = normalizeReasoningEffort(reasoningEffort);
+  if (effort) {
+    const scored = matches.find((candidate) => candidate === `${family}-${effort}` || candidate.endsWith(`-${effort}`));
+    if (scored) {
+      return scored;
+    }
+  }
+  const plain = matches.filter((candidate) => !/-(none|minimal|low|medium|high|xhigh|max)(-fast)?$/i.test(candidate));
+  if (plain.length > 0) {
+    plain.sort();
+    return plain[plain.length - 1]!;
+  }
+  return stripped;
 }
 
 function resolveFastModelID(models: ModelInfo[], id: string, fastMode: boolean): string {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { proxyToolCorrectionMessage, processStreamEvent } from "../src/chat-helpers.js";
+import { resolveModelSelection } from "../src/model-selection.js";
 import { bridgeToolInvocation, unwrapSolomonMcpCall } from "../src/legacy.js";
 import {
   correctionHintForBlockedTool,
@@ -255,4 +256,14 @@ test("policy matrix: native MCP subagent passes, deferred MCP blocks (2.12)", ()
   const msg = proxyToolCorrectionMessage(["mcp:editFile"], new Set(NATIVE_ALLOW));
   assert.ok(msg.includes("searchTools"));
   assert.ok(msg.includes("Cursor built-ins are disabled"));
+});
+
+test("grok variant fallback keeps the requested effort", () => {
+  const models = [
+    { id: "grok-4.7-high" },
+    { id: "grok-4.7-low" },
+    { id: "grok-4.7-medium" },
+  ];
+  const selected = resolveModelSelection(models, "cursor-grok-4.7", "low", false);
+  assert.equal(selected.id, "grok-4.7-low");
 });
