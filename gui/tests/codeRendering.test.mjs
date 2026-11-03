@@ -56,6 +56,17 @@ test('recovers the recursive Python snippet from thread 125a0e35 with its indent
   assert.equal(render(JSON.parse(JSON.stringify({ content })).content), html);
 });
 
+test('keeps an unlabeled ASCII tree as text, including a collapsed single-backtick span', () => {
+  const tree = ['        5', '      /   \\', '     2     7', '    / \\   / \\', '   1   3 6   8'].join('\n');
+  for (const wrapped of [tick.repeat(3) + '\n' + tree + '\n' + tick.repeat(3), tick + '\n' + tree + '\n' + tick]) {
+    const html = render('Prima.\n\n' + wrapped + '\n\nDopo.');
+    assert.equal(html.includes('chat-tree'), false);
+    assert.equal((html.match(/class="chat-code-line"/g) ?? []).length, 5);
+    for (const line of tree.split('\n')) assert.ok(html.includes(line));
+    assert.ok(html.includes('<p>Dopo.</p>'));
+  }
+});
+
 test('preserves inline code, unknown labels and literal backticks', () => {
   assert.equal(render(tick + 'python' + tick), '<p><code>python</code></p>');
   for (const content of [tick + 'unknown\nexample\n' + tick, tick + 'python\nprint("' + tick + '")\n' + tick]) {

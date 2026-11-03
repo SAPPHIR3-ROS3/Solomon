@@ -204,8 +204,16 @@ function isFileLink(href?: string) {
   return href.startsWith("./") || href.startsWith("../") || href.startsWith("/") || /\.[a-z\d]{1,8}(?:[?#].*)?$/i.test(href);
 }
 
+function promoteMultilineCodeSpans(content: string) {
+  return content.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[ \t]*$|(?![\s\S]))|(^|[^`])`([^`]*\n[^`]*)`(?!`)/gm, (match, fence, prefix: string, body: string) => {
+    if (fence || !/^[\n\r]/.test(body)) return match;
+    const inner = body.replace(/^\n/, "").replace(/\n$/, "");
+    return `${prefix}\n\n\`\`\`\n${inner}\n\`\`\`\n`;
+  });
+}
+
 function normalizeCodeBlocks(content: string) {
-  const lines = content.split("\n");
+  const lines = promoteMultilineCodeSpans(content).split("\n");
   let fence: { marker: string; length: number } | undefined;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index].replace(/\r$/, "");

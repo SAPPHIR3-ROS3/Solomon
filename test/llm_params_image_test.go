@@ -56,6 +56,17 @@ func TestScrubLiteralImgPlaceholdersForAPI_reasoning(t *testing.T) {
 	}
 }
 
+func TestScrubLiteralImgPlaceholdersKeepsFencedCode(t *testing.T) {
+	const content = "prima\n\n```\n        5\n      /   \\\n```\n\ndopo `[img-1]`"
+	got := chatstore.ScrubLiteralImgPlaceholdersForAPI(content)
+	if !strings.Contains(got, "```\n        5\n      /   \\\n```") {
+		t.Fatalf("fence was damaged: %q", got)
+	}
+	if strings.Contains(got, "[img-") {
+		t.Fatalf("placeholder remained: %q", got)
+	}
+}
+
 func TestScrubLiteralImgPlaceholdersForAPI_danglingBracket(t *testing.T) {
 	got := chatstore.ScrubLiteralImgPlaceholdersForAPI("cerco `[img-` nel codice")
 	if strings.Contains(got, "[img-") {

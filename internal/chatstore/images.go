@@ -71,9 +71,27 @@ func StripAllImgPlaceholderLiterals(content string) string {
 	if content == "" {
 		return ""
 	}
-	next := imgLiteralBracketRegexp.ReplaceAllString(content, "")
-	next = strings.ReplaceAll(next, "``", "")
-	return next
+	lines := strings.Split(content, "\n")
+	fence := ""
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if fence != "" {
+			if strings.HasPrefix(trimmed, fence) && strings.Trim(trimmed, fence[:1]) == "" {
+				fence = ""
+			}
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		if indent <= 3 && (strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")) {
+			marker := trimmed[:3]
+			if !strings.ContainsAny(strings.TrimSpace(trimmed[3:]), "`~") {
+				fence = marker
+				continue
+			}
+		}
+		lines[index] = strings.ReplaceAll(imgLiteralBracketRegexp.ReplaceAllString(line, ""), "``", "")
+	}
+	return strings.Join(lines, "\n")
 }
 
 func ScrubLiteralImgPlaceholdersForAPI(content string) string {
