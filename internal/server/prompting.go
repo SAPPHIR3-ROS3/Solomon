@@ -111,13 +111,14 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 		if generateTitle {
 			go func() {
 				defer close(titleDone)
-				titleCtx, cancel := context.WithTimeout(a.daemonCtx, chatTitleTimeout)
-				defer cancel()
 				select {
 				case <-assistantRequestWritten:
 				case <-assistantDone:
-				case <-titleCtx.Done():
+				case <-a.daemonCtx.Done():
+					return
 				}
+				titleCtx, cancel := context.WithTimeout(a.daemonCtx, chatTitleTimeout)
+				defer cancel()
 				if title := rt.FinalizeChatTitle(titleCtx, titleInput); title != "" {
 					run.Emit(apiEvent("chat_title", map[string]any{
 						"chatID": chatID,

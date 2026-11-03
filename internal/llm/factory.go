@@ -166,13 +166,27 @@ func (b *cursorSubBackend) StreamTurn(ctx context.Context, req TurnRequest, cont
 }
 
 func (b *cursorSubBackend) StreamText(ctx context.Context, req SimpleCompletionRequest, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {
-	result, err := b.streamAgent(ctx, req.Model, req.System, []chatstore.Message{{Role: "user", Content: req.User}}, nil, nil, contentOut, "", opts)
+	result, err := b.detached().streamAgent(ctx, req.Model, req.System, []chatstore.Message{{Role: "user", Content: req.User}}, nil, nil, contentOut, cursorSimpleEffort(req), opts)
 	return result.Content, UsageStats{PromptTokens: result.Usage.PromptTokens, CachedPromptTokens: result.Usage.CachedPromptTokens, CacheCreationPromptTokens: result.Usage.CacheWriteTokens, ReasoningTokens: result.Usage.ReasoningTokens, ResponseTokens: result.Usage.CompletionTokens, TotalTokens: result.Usage.TotalTokens}, err
 }
 
 func (b *cursorSubBackend) CompleteText(ctx context.Context, req SimpleCompletionRequest) (string, error) {
-	result, err := b.streamAgent(ctx, req.Model, req.System, []chatstore.Message{{Role: "user", Content: req.User}}, nil, nil, io.Discard, "", StreamOpts{})
+	result, err := b.detached().streamAgent(ctx, req.Model, req.System, []chatstore.Message{{Role: "user", Content: req.User}}, nil, nil, io.Discard, cursorSimpleEffort(req), StreamOpts{})
 	return result.Content, err
+}
+
+func (b *cursorSubBackend) detached() *cursorSubBackend {
+	if b == nil {
+		return nil
+	}
+	return &cursorSubBackend{cfg: b.cfg, provider: b.provider, httpClient: b.httpClient}
+}
+
+func cursorSimpleEffort(req SimpleCompletionRequest) string {
+	if req.ForceDisableReasoning {
+		return "off"
+	}
+	return ""
 }
 
 func (b *cursorSubBackend) ListModels(ctx context.Context) ([]string, error) {

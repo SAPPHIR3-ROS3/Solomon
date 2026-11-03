@@ -21,6 +21,15 @@ var (
 	titleTagRe   = regexp.MustCompile(`(?s)<[^>]*>`)
 )
 
+func clipTitleSource(userLine string) string {
+	const maxRunes = 2000
+	runes := []rune(userLine)
+	if len(runes) <= maxRunes {
+		return userLine
+	}
+	return string(runes[:maxRunes])
+}
+
 func looksLikeToolMarkup(s string) bool {
 	l := strings.ToLower(s)
 	return strings.Contains(l, "<tool") ||
@@ -40,7 +49,7 @@ func FromPrompt(ctx context.Context, backend llm.CompletionBackend, client opena
 		logging.Log(logging.WARNING_LOG_LEVEL, "title RenderTitle failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return "", err
 	}
-	user := "User message to name:\n" + userLine
+	user := "User message to name:\n" + clipTitleSource(userLine)
 	if backend != nil {
 		t, err := backend.CompleteText(ctx, llm.SimpleCompletionRequest{
 			Cfg:                   cfg,
