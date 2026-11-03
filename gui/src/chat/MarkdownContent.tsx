@@ -1,7 +1,7 @@
 import { highlightCursorCode, cursorForeground } from "../syntax/cursorSyntax";
 import { currentNavigationID, measureNavigationHighlight } from "./navigationPerformance";
 import type { ThemedToken } from "@shikijs/types";
-import { isValidElement, memo, type ReactNode, useEffect, useState } from "react";
+import { Children, isValidElement, memo, type ReactNode, useEffect, useState } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Root, RootContent, PhrasingContent } from "mdast";
@@ -24,11 +24,23 @@ const markdownComponents: Components = {
   ),
   input: (props) => <input {...props} aria-label="Completed activity" className="chat-checkbox" disabled />,
   pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-  table: ({ children, ...props }) => (
-    <div className="chat-table-wrap">
-      <table {...props}>{children}</table>
-    </div>
-  ),
+  table: ({ children, ...props }) => {
+    const percents = tableColumnPercents(columnTextLengths(children));
+    return (
+      <div className="chat-table-wrap">
+        <table {...props}>
+          {percents.length > 0 ? (
+            <colgroup>
+              {percents.map((percent, index) => (
+                <col key={index} style={{ width: percent + "%" }} />
+              ))}
+            </colgroup>
+          ) : null}
+          {children}
+        </table>
+      </div>
+    );
+  },
 };
 
 // Only text nodes contain Markdown soft breaks; code and math remain literal.
@@ -149,6 +161,46 @@ function textFromNode(node: ReactNode): string {
     return textFromNode((node.props as { children?: ReactNode }).children);
   }
   return "";
+}
+
+function columnTextLengths(children: ReactNode): number[] {
+  const lengths: number[] = [];
+  const visit = (node: ReactNode) => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!isValidElement(node)) return;
+    const props = node.props as { children?: ReactNode };
+    if (node.type === "tr") {
+      let index = 0;
+      Children.forEach(props.children, (cell) => {
+        if (!isValidElement(cell) || (cell.type !== "td" && cell.type !== "th")) return;
+        const text = textFromNode(cell).replace(/\s+/g, " ").trim();
+        lengths[index] = (lengths[index] ?? 0) + text.length;
+        index += 1;
+      });
+      return;
+    }
+    visit(props.children);
+  };
+  visit(children);
+  return lengths;
+}
+
+export function tableColumnPercents(lengths: number[]): number[] {
+  const count = lengths.length;
+  if (count === 0) return [];
+  const total = lengths.reduce((sum, length) => sum + Math.max(0, length), 0);
+  const equal = 100 / count;
+  const raw = lengths.map((length) => {
+    const textShare = total <= 0 ? equal : (Math.max(0, length) / total) * 100;
+    return equal * 0.5 + textShare * 0.5;
+  });
+  const percents = raw.map((value) => Math.round(value * 100) / 100);
+  const assigned = percents.slice(0, -1).reduce((sum, value) => sum + value, 0);
+  percents[count - 1] = Math.round((100 - assigned) * 100) / 100;
+  return percents;
 }
 
 function codeLanguageFromNode(node: ReactNode): string | undefined {
