@@ -85,6 +85,13 @@ func DedupeVariantFlags(items []ModelFlag) ModelCaps {
 	return caps
 }
 
+type catalogVariant struct {
+	Base   string
+	SendID string
+	Effort string
+	Fast   bool
+}
+
 var (
 	fastMu         sync.Mutex
 	fastLoaded     bool
@@ -92,7 +99,61 @@ var (
 	thinkingToggle = map[string]bool{}
 	thinkingLevels = map[string]bool{}
 	knownVariants  []string
+	variantChoices []catalogVariant
 )
+
+func resetVariantChoices() {
+	fastMu.Lock()
+	defer fastMu.Unlock()
+	variantChoices = nil
+}
+
+func addVariantChoice(base, sendID, effort string, fast bool) {
+	base = strings.TrimSpace(base)
+	sendID = strings.TrimSpace(sendID)
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if base == "" {
+		return
+	}
+	fastMu.Lock()
+	defer fastMu.Unlock()
+	variantChoices = append(variantChoices, catalogVariant{Base: base, SendID: sendID, Effort: effort, Fast: fast})
+}
+
+func variantChoiceEfforts(base string) []string {
+	fastMu.Lock()
+	defer fastMu.Unlock()
+	var efforts []string
+	for _, choice := range variantChoices {
+		if strings.EqualFold(choice.Base, base) && choice.Effort != "" {
+			efforts = append(efforts, choice.Effort)
+		}
+	}
+	return efforts
+}
+
+func pickVariantChoice(base, effort string, fast bool) string {
+	want := cursorEffortSuffix(effort)
+	fastMu.Lock()
+	defer fastMu.Unlock()
+	for _, wantFast := range []bool{fast, false} {
+		if !fast && wantFast {
+			continue
+		}
+		for _, choice := range variantChoices {
+			if !strings.EqualFold(choice.Base, base) || choice.Fast != wantFast {
+				continue
+			}
+			if cursorEffortSuffix(choice.Effort) != want {
+				continue
+			}
+			if plain := plainVariantID(choice.SendID); plain != "" && !strings.EqualFold(plain, base) {
+				return plain
+			}
+		}
+	}
+	return ""
+}
 
 func SetModelCaps(caps ModelCaps) {
 	fastMu.Lock()
@@ -214,14 +275,28 @@ func pickCursorVariant(ids []string, base, level string, fast bool) string {
 		for _, id := range ids {
 			gotLevel, gotFast := cursorVariantEffort(id, base)
 			if gotLevel == search && gotFast == wantFast {
-				return id
+				if plain := plainVariantID(id); plain != "" {
+					return plain
+				}
 			}
 		}
 	}
 	return fallback
 }
 
+func plainVariantID(id string) string {
+	id = strings.TrimSpace(id)
+	if i := strings.IndexAny(id, "[(:"); i >= 0 {
+		id = strings.TrimSpace(id[:i])
+	}
+	return id
+}
+
 func cursorVariantEffort(id, base string) (level string, fast bool) {
+	if strings.IndexAny(id, "[(:") >= 0 {
+		low := strings.ToLower(id)
+		return parameterEffort(low), strings.Contains(low, "fast=true") || strings.Contains(low, "-fast")
+	}
 	rest := strings.TrimPrefix(strings.ToLower(id), strings.ToLower(base))
 	rest = strings.Trim(rest, "-")
 	fast = strings.Contains(rest, "fast")
@@ -230,6 +305,24 @@ func cursorVariantEffort(id, base string) (level string, fast bool) {
 	rest = strings.TrimPrefix(rest, "thinking-")
 	rest = strings.TrimPrefix(rest, "thinking")
 	return strings.Trim(rest, "-"), fast
+}
+
+func parameterEffort(id string) string {
+	const key = "reasoning_effort="
+	i := strings.Index(id, key)
+	if i < 0 {
+		return ""
+	}
+	rest := id[i+len(key):]
+	if end := strings.IndexAny(rest, ",]"); end >= 0 {
+		rest = rest[:end]
+	}
+	switch rest {
+	case "low", "medium", "high", "xhigh", "max", "minimal", "none":
+		return rest
+	default:
+		return ""
+	}
 }
 
 func cursorBaseModelID(id string) string {

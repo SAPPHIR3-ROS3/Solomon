@@ -85,7 +85,12 @@ type AgentSession struct {
 // OpenAgentSession uses Cursor's subscription Agent Connect endpoint directly.
 // The API key is exchanged for a short-lived access token; no local Cursor
 // process, CLI config or sidecar participates in the request.
-func OpenAgentSession(ctx context.Context, apiKey, model, system, user string, tools []AgentTool, history [][]byte, images []AgentImage) (*AgentSession, error) {
+type AgentModelParam struct {
+	ID    string
+	Value string
+}
+
+func OpenAgentSession(ctx context.Context, apiKey, model, system, user string, params []AgentModelParam, tools []AgentTool, history [][]byte, images []AgentImage) (*AgentSession, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, fmt.Errorf("Cursor Agent: missing subscription API key")
 	}
@@ -128,7 +133,7 @@ func OpenAgentSession(ctx context.Context, apiKey, model, system, user string, t
 		prefix = prefix[:15]
 	}
 	req.Header.Set("Cookie", "CursorCookie=Cookie-"+prefix)
-	payload, blobs, err := agentRunRequest(model, system, user, tools, history, images)
+	payload, blobs, err := agentRunRequest(model, system, user, params, tools, history, images)
 	if err != nil {
 		cancel()
 		reader.Close()
@@ -250,13 +255,32 @@ func agentToolWire(tool AgentTool) []byte {
 // preserving variant suffixes. The catalog prefixes Grok IDs with "cursor-".
 func ResolveAgentModelID(model string) string {
 	model = strings.TrimSpace(model)
+	if i := strings.IndexAny(model, "[(:"); i > 0 {
+		model = strings.TrimSpace(model[:i])
+	}
 	if strings.HasPrefix(strings.ToLower(model), "cursor-grok") {
 		return stripCursorModelPrefix(model)
 	}
 	return model
 }
 
-func agentRunRequest(model, system, user string, tools []AgentTool, history [][]byte, images []AgentImage) ([]byte, map[string][]byte, error) {
+func AgentWireModel(id string) string {
+	return ResolveAgentModelID(cursorBaseModelID(id))
+}
+
+func EncodeRequestedModel(model string, params []AgentModelParam) []byte {
+	requested := pbString(1, ResolveAgentModelID(model))
+	for _, param := range params {
+		id := strings.TrimSpace(param.ID)
+		if id == "" {
+			continue
+		}
+		requested = append(requested, pbBytes(3, append(pbString(1, id), pbString(2, param.Value)...))...)
+	}
+	return requested
+}
+
+func agentRunRequest(model, system, user string, params []AgentModelParam, tools []AgentTool, history [][]byte, images []AgentImage) ([]byte, map[string][]byte, error) {
 	model = ResolveAgentModelID(model)
 	blobs := make(map[string][]byte, len(history))
 	var state []byte
@@ -295,7 +319,7 @@ func agentRunRequest(model, system, user string, tools []AgentTool, history [][]
 		run = append(run, pbBytes(4, defs)...)
 	}
 	run = append(run, pbString(5, newCursorID())...)
-	run = append(run, pbBytes(9, pbString(1, model))...)
+	run = append(run, pbBytes(9, EncodeRequestedModel(model, params))...)
 	_ = system // supplied in RequestContext, not the RunRequest
 	return pbBytes(1, run), blobs, nil
 }

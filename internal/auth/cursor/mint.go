@@ -132,6 +132,7 @@ func parseAvailableModelFlags(body []byte) []ModelFlag {
 	list, _ := raw.([]any)
 	seen := map[string]bool{}
 	out := make([]ModelFlag, 0, len(list))
+	resetVariantChoices()
 	for _, item := range list {
 		m, _ := item.(map[string]any)
 		name := ""
@@ -164,6 +165,14 @@ func parseAvailableModelFlags(body []byte) []ModelFlag {
 			Thinking:       thinkingHas(full) || modelTreeHasKeyword(item, "thinking"),
 			ThinkingLevels: thinkingHasLevels(full) || modelTreeHasKeyword(item, "thinking-low", "thinking-medium", "thinking-high"),
 		})
+		for _, variant := range cursorVariantRefs(m) {
+			base := cursorBaseModelID(name)
+			sendID := variant.SendID
+			if sendID == "" {
+				sendID = variant.Slug
+			}
+			addVariantChoice(base, CanonicalCursorModelID(sendID), variant.Effort, variant.Fast)
+		}
 		for _, slug := range cursorLegacySlugs(m) {
 			slug = strings.TrimSpace(slug)
 			canon := CanonicalCursorModelID(slug)
@@ -176,6 +185,48 @@ func parseAvailableModelFlags(body []byte) []ModelFlag {
 		}
 	}
 	return out
+}
+
+type cursorVariantRef struct {
+	Slug   string
+	SendID string
+	Effort string
+	Fast   bool
+}
+
+func cursorVariantRefs(model map[string]any) []cursorVariantRef {
+	if model == nil {
+		return nil
+	}
+	raw, _ := model["variants"].([]any)
+	refs := make([]cursorVariantRef, 0, len(raw))
+	for _, item := range raw {
+		entry, _ := item.(map[string]any)
+		if entry == nil {
+			continue
+		}
+		slug, _ := entry["legacySlug"].(string)
+		send, _ := entry["variantStringRepresentation"].(string)
+		effort, fast := cursorVariantParameters(entry["parameterValues"])
+		refs = append(refs, cursorVariantRef{Slug: strings.TrimSpace(slug), SendID: strings.TrimSpace(send), Effort: effort, Fast: fast})
+	}
+	return refs
+}
+
+func cursorVariantParameters(raw any) (effort string, fast bool) {
+	list, _ := raw.([]any)
+	for _, item := range list {
+		entry, _ := item.(map[string]any)
+		id, _ := entry["id"].(string)
+		value, _ := entry["value"].(string)
+		switch strings.ToLower(strings.TrimSpace(id)) {
+		case "effort", "reasoning", "reasoning_effort", "thinking":
+			effort = value
+		case "fast":
+			fast = strings.EqualFold(strings.TrimSpace(value), "true") || strings.TrimSpace(value) == "1"
+		}
+	}
+	return effort, fast
 }
 
 func cursorLegacySlugs(model map[string]any) []string {

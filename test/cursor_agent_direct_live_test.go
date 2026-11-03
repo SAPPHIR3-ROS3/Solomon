@@ -46,7 +46,7 @@ func TestCursorAgentDirectLive(t *testing.T) {
 	if model == "" {
 		model = "cursor-grok-4.6-high"
 	}
-	s, err := cursorauth.OpenAgentSession(ctx, key, model, "Reply briefly.", "Reply with OK only.", nil, nil, nil)
+	s, err := cursorauth.OpenAgentSession(ctx, key, model, "Reply briefly.", "Reply with OK only.", nil, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

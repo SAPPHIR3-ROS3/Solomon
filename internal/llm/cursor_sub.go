@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -258,10 +259,21 @@ func (b *cursorSubBackend) selectAgentModel(selected, effort string, fast bool) 
 		selected = "composer-2.5"
 	}
 	resolved := cursorauth.ResolveChatModelID(selected, effort, fast)
-	if resolved != "" {
-		return resolved
+	if resolved == "" {
+		resolved = selected
 	}
-	return selected
+	return cursorauth.AgentWireModel(resolved)
+}
+
+func cursorAgentParams(effort string, fast bool) []cursorauth.AgentModelParam {
+	params := []cursorauth.AgentModelParam{{ID: "fast", Value: strconv.FormatBool(fast)}}
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	switch effort {
+	case "", "off":
+	default:
+		params = append(params, cursorauth.AgentModelParam{ID: "reasoning_effort", Value: effort})
+	}
+	return params
 }
 
 func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string, messages []chatstore.Message, imageFiles map[int]string, defs []ToolDef, out io.Writer, effort string, opts StreamOpts) (cursorauth.ChatResult, error) {
@@ -294,6 +306,7 @@ func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string
 			return cursorauth.ChatResult{}, err
 		}
 		fast := b.cfg != nil && b.cfg.EffectiveFastMode()
+		params := cursorAgentParams(effort, fast)
 		model = b.selectAgentModel(model, effort, fast)
 		user, media := latestCursorUser(messages, imageFiles)
 		if user == "" && len(media) == 0 {
@@ -306,13 +319,13 @@ func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string
 		if err != nil {
 			return cursorauth.ChatResult{}, err
 		}
-		session, err = cursorauth.OpenAgentSession(ctx, key, model, system, user, tools, history, media)
+		session, err = cursorauth.OpenAgentSession(ctx, key, model, system, user, params, tools, history, media)
 		if err != nil && strings.Contains(err.Error(), "token exchange") && (strings.Contains(err.Error(), "status 401") || strings.Contains(err.Error(), "status 403")) {
 			key, err = b.renewCursorAgentKey(ctx)
 			if err != nil {
 				return cursorauth.ChatResult{}, err
 			}
-			session, err = cursorauth.OpenAgentSession(ctx, key, model, system, user, tools, history, media)
+			session, err = cursorauth.OpenAgentSession(ctx, key, model, system, user, params, tools, history, media)
 		}
 		if err != nil {
 			return cursorauth.ChatResult{}, err

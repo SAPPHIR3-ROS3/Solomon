@@ -398,6 +398,29 @@ func TestCursorStreamChatRejectsRPCErrorText(t *testing.T) {
 	}
 }
 
+func TestCursorGrokParameterEffortStaysLow(t *testing.T) {
+	body := []byte(`{"models":[{"name":"grok-9.2","parameters":[{"id":"reasoning","values":[{"value":"medium"}]}],"variants":[{"legacySlug":"cursor-grok-9.2","variantStringRepresentation":"grok-9.2-low","parameterValues":[{"id":"effort","value":"low"},{"id":"fast","value":"false"}]},{"legacySlug":"cursor-grok-9.2","variantStringRepresentation":"grok-9.2-medium","parameterValues":[{"id":"effort","value":"medium"},{"id":"fast","value":"false"}],"isDefaultNonMaxConfig":true},{"legacySlug":"cursor-grok-9.2-high","parameterValues":[{"id":"effort","value":"high"},{"id":"fast","value":"false"}]}]}]}`)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+	old := cursorauth.SetModelsEndpointForTest(srv.URL)
+	defer old()
+	if _, err := cursorauth.ListAvailableModelFlags(context.Background(), "access-1"); err != nil {
+		t.Fatal(err)
+	}
+	got := modelreasoning.Lookup("cursor-sub", "cursor-grok-9.2")
+	if !got.Known || strings.Join(got.Levels, ",") != "low,medium,high" {
+		t.Fatalf("levels=%v known=%v", got.Levels, got.Known)
+	}
+	if got.Resolve("low") != "low" {
+		t.Fatalf("low resolved to %q", got.Resolve("low"))
+	}
+	if selected := cursorauth.ResolveChatModelID("cursor-grok-9.2", "low", false); selected != "cursor-grok-9.2-low" {
+		t.Fatalf("selected=%q", selected)
+	}
+}
+
 func TestCursorGrokReasoningKeepsVariantLevels(t *testing.T) {
 	body := []byte(`{"models":[{"name":"grok-9.1","parameters":[{"id":"reasoning","values":[{"value":"medium"}]}],"variants":[{"legacySlug":"cursor-grok-9.1-low","parameterValues":[{"id":"effort","value":"low"}]},{"legacySlug":"cursor-grok-9.1-medium","parameterValues":[{"id":"effort","value":"medium"}]},{"legacySlug":"cursor-grok-9.1-high","parameterValues":[{"id":"effort","value":"high"}]}]}]}`)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

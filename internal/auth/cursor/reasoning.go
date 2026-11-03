@@ -20,6 +20,7 @@ func captureVariantReasoning(flags []ModelFlag) {
 		if len(modelreasoning.Normalize([]string{level})) > 0 {
 			levels[base] = append(levels[base], level)
 		}
+		levels[base] = append(levels[base], variantChoiceEfforts(base)...)
 	}
 	for id, values := range levels {
 		current := modelreasoning.Lookup("cursor-sub", id)

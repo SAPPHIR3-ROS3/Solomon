@@ -462,6 +462,9 @@ func ResolveChatModelID(id, effort string, fast bool) string {
 		}
 		same = append(same, canon)
 	}
+	if picked := pickVariantChoice(base, effort, fast); picked != "" {
+		return picked
+	}
 	if len(same) == 0 {
 		return base
 	}
