@@ -108,6 +108,14 @@ export function IntegratedShell({
 
     const sendResize = () => {
       if (disposed || !visibleRef.current) return;
+      const pane = host.parentElement;
+      if (pane && pane.clientWidth > 0 && pane.clientHeight > 0) {
+        // FitAddon reads computed width/height. An absolute host without an
+        // explicit size reports the xterm canvas, so later pane resizes never
+        // change the PTY winsize. Pin the host to the pane box first.
+        host.style.width = `${pane.clientWidth}px`;
+        host.style.height = `${pane.clientHeight}px`;
+      }
       fitAddon.fit();
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
       socket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
@@ -213,7 +221,7 @@ export function IntegratedShell({
     const observer = new ResizeObserver(() => {
       if (visibleRef.current) sendResize();
     });
-    observer.observe(host);
+    observer.observe(host.parentElement ?? host);
 
     return () => {
       disposed = true;

@@ -52,11 +52,16 @@ export function BranchControl({
     const controller = new AbortController();
     onOpenChange?.(false);
     if (open === undefined) setInternalOpen(false);
+    setCurrent("");
+    setBranches([]);
+    setIsRepo(false);
+    setError("");
     const request = project?.id
       ? fetchProjectBranches(project.id, controller.signal)
       : fetchHomeDirectoryBranches(directoryPath ?? "", controller.signal);
     void request
       .then((info) => {
+        if (controller.signal.aborted) return;
         setCurrent(info.current);
         setBranches(info.branches);
         setIsRepo(info.isRepo);
@@ -74,21 +79,26 @@ export function BranchControl({
 
   useEffect(() => {
     if (!project?.id) return;
+    let cancelled = false;
     const refreshBranchState = (event: Event) => {
       if (!(event instanceof CustomEvent) || event.detail?.projectID !== project.id) return;
       void fetchProjectBranches(project.id)
         .then((info) => {
+          if (cancelled) return;
           setCurrent(info.current);
           setBranches(info.branches);
           setIsRepo(info.isRepo);
           setError("");
         })
         .catch(() => {
-          setError("Could not refresh branches");
+          if (!cancelled) setError("Could not refresh branches");
         });
     };
     window.addEventListener(PROJECT_GIT_BRANCH_CHANGED_EVENT, refreshBranchState);
-    return () => window.removeEventListener(PROJECT_GIT_BRANCH_CHANGED_EVENT, refreshBranchState);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(PROJECT_GIT_BRANCH_CHANGED_EVENT, refreshBranchState);
+    };
   }, [project?.id]);
 
   useEffect(() => {
@@ -210,8 +220,12 @@ export function WorktreeControl({
     const request = project?.id
       ? fetchProjectWorktrees(project.id, controller.signal)
       : fetchHomeDirectoryWorktrees(directoryPath ?? "", controller.signal);
+    setWorktrees([]);
     void request
-      .then((info) => setWorktrees(info.worktrees.filter((worktree) => !worktree.bare)))
+      .then((info) => {
+        if (controller.signal.aborted) return;
+        setWorktrees(info.worktrees.filter((worktree) => !worktree.bare));
+      })
       .catch(() => {
         if (controller.signal.aborted) return;
         setWorktrees([]);

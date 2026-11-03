@@ -4770,6 +4770,8 @@ button.right-side-panel-history-ref:hover {
 
 .terminal-panel-host.is-visible {
   display: block;
+  height: 100%;
+  width: 100%;
 }
 
 .terminal-add-to-chat {

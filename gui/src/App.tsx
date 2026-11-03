@@ -440,7 +440,7 @@ export function App() {
         workspaceFocus={workspaceFocus}
       />
       <NewProjectDialog isOpen={isNewProjectDialogOpen} onConfirmLocalFolder={selectLocalFolder} onClose={closeNewProjectDialog} />
-      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedChat ? (
+      {!isSettingsOpen && !isCustomizationOpen && !isActiveAgentsOpen && activeView === "agent" && selectedChat && selectedChat.projectID === selectedWorkspace?.id ? (
         <ChatTopbar
           breadcrumb={selectedChat.workspaceName ?? selectedWorkspace?.name}
           onOpenFolder={() => {

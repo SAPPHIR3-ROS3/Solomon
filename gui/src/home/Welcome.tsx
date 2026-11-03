@@ -120,29 +120,9 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
           const home = data.projects.find((project) => project.name === "Home") ?? null;
           setHomeStats(home ? { chatCount: home.chatCount, tokenStats: home.tokenStats ?? emptyProjectTokenStats } : null);
           if (home) cacheHomeStats(home);
-          const focus = workspaceFocusRef.current;
-          if (focus) {
-            const focused = data.projects.find((project) => project.id === focus.project.id) ?? focus.project;
-            setWorkspaceName(focused.name);
-            setSelectedProject(focused);
-            if (isVisibleRef.current) onWorkspaceChange?.(focused);
-            return;
-          }
-          if (workspaceNameOverrideRef.current) {
-            setWorkspaceName(workspaceNameOverrideRef.current);
-            setSelectedProject(null);
-            if (isVisibleRef.current) onWorkspaceChange?.(null);
-            return;
-          }
-          if (temporaryWorkspaceActiveRef.current && temporaryWorkspaceRef.current) {
-            setWorkspaceName(temporaryWorkspaceRef.current.name);
-            setSelectedProject(null);
-            if (isVisibleRef.current) onWorkspaceChange?.(null);
-            return;
-          }
-          setWorkspaceName(home?.name ?? "Home");
-          setSelectedProject(home);
-          if (isVisibleRef.current) onWorkspaceChange?.(home);
+          // Selection is applied by the effects below from the latest props.
+          // Applying it here races a click that has not re-rendered yet and
+          // puts the previous project name back over the new branch.
         })
         .catch(() => {
           if (requestController.signal.aborted || currentController !== requestController) return;
@@ -181,10 +161,11 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
 
   useEffect(() => {
     if (!isVisible || !workspaceFocus) return;
-    setWorkspaceName(workspaceFocus.project.name);
-    setSelectedProject(workspaceFocus.project);
-    onWorkspaceChange?.(workspaceFocus.project);
-  }, [isVisible, onWorkspaceChange, workspaceFocus]);
+    const focused = projects.find((project) => project.id === workspaceFocus.project.id) ?? workspaceFocus.project;
+    setWorkspaceName(focused.name);
+    setSelectedProject(focused);
+    onWorkspaceChange?.(focused);
+  }, [isVisible, onWorkspaceChange, projects, workspaceFocus]);
 
   useEffect(() => {
     setOpenMenu(null);
