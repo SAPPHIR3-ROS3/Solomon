@@ -23,9 +23,6 @@ func (r *Runtime) promptSurface() string {
 	if r == nil {
 		return prompt.SurfaceTerminal
 	}
-	if r.externalToolBridge() {
-		return prompt.SurfaceCursor
-	}
 	if s := strings.TrimSpace(r.Surface); s != "" {
 		return prompt.NormalizeSurface(s)
 	}

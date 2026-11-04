@@ -253,3 +253,32 @@ func TestAugmentNestedCustomSystem_legacyForce(t *testing.T) {
 		t.Fatalf("want deferred tool dump: %q", got)
 	}
 }
+
+func TestCursorProviderPreservesInteractionSurface(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	if err := prompt.EnsureTemplatesInstalled(); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"agent", "chat"} {
+		for _, surface := range []string{prompt.SurfaceDesktop, prompt.SurfaceWeb, prompt.SurfaceTerminal, prompt.SurfaceMachine} {
+			t.Run(mode+"/"+surface, func(t *testing.T) {
+				r := &agentruntime.Runtime{Mode: mode, Surface: surface, Cfg: &config.Root{}, Prov: &config.Provider{Name: config.ProviderNameCursorAPI, AuthKind: config.AuthKindCursorAPI}}
+				got, err := r.SystemPromptForTest(false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(got, "Interaction surface: "+surface) {
+					t.Fatalf("prompt does not preserve surface %q", surface)
+				}
+				if strings.Contains(got, "Cursor is the display surface") || strings.Contains(got, "relayed through the Cursor IDE") {
+					t.Fatal("prompt confuses provider with display surface")
+				}
+				for _, want := range []string{"Cursor proxy", "ASD-STE100", "Before declaring a technical limitation", "Presume good faith"} {
+					if !strings.Contains(got, want) {
+						t.Fatalf("prompt is missing %q", want)
+					}
+				}
+			})
+		}
+	}
+}

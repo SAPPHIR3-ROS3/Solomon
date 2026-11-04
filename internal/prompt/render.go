@@ -107,7 +107,6 @@ const (
 	SurfaceTerminal = "terminal"
 	SurfaceDesktop  = "desktop"
 	SurfaceWeb      = "web"
-	SurfaceCursor   = "cursor"
 	SurfaceMachine  = "machine"
 )
 
@@ -117,8 +116,6 @@ func NormalizeSurface(s string) string {
 		return SurfaceDesktop
 	case SurfaceWeb, "browser", "gui":
 		return SurfaceWeb
-	case SurfaceCursor, "bridge", "ide":
-		return SurfaceCursor
 	case SurfaceMachine, "ci", "headless", "jsonl":
 		return SurfaceMachine
 	default:
