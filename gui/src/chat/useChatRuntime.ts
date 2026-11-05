@@ -274,7 +274,7 @@ export function useChatRuntime(): ChatRuntime {
     const chat = getChat(chatID);
     if (!chat?.projectID) return;
     recordProjectChatActivity(chat.projectID, chatID);
-    const isRunning = streams.current.has(chatID) || chat.status === "running";
+    const isRunning = streams.current.has(chatID) || stopRequested.current.has(chatID) || chat.status === "running";
     if (isRunning || messageQueues.current.has(chatID)) {
       messageQueues.current.set(chatID, [...(messageQueues.current.get(chatID) ?? []), message]);
       publishMessageQueues();
@@ -288,8 +288,8 @@ export function useChatRuntime(): ChatRuntime {
     for (const chatID of messageQueues.current.keys()) {
       const chat = getChat(chatID);
       // Wait for the stream and its final snapshot before starting the next turn.
-      // Failed or interrupted runs leave the queue visible until another send.
-      if (!chat?.projectID || streams.current.has(chatID) || (chat.status !== "success" && chat.status !== undefined)) continue;
+      // A requested stop must finish on the server before the next turn starts.
+      if (!chat?.projectID || streams.current.has(chatID) || stopRequested.current.has(chatID) || (chat.status !== "success" && chat.status !== "interrupted" && chat.status !== undefined)) continue;
       sendNextQueuedMessage(chat);
     }
   }, [chats, streamingChatIDs, queuedMessages, sendNextQueuedMessage]);
@@ -490,8 +490,11 @@ export function useChatRuntime(): ChatRuntime {
     streams.current.delete(chatID);
     markStreaming(chatID, false);
     updateChat(chatID, (current) => ({ ...current, status: "interrupted" }));
-    void stopLiveChat(chat.projectID, chatID).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to stop chat"));
-  }, [markStreaming]);
+    void stopLiveChat(chat.projectID, chatID).then(() => {
+      stopRequested.current.delete(chatID);
+      publishMessageQueues();
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to stop chat"));
+  }, [markStreaming, publishMessageQueues]);
 
 	const stopTool = useCallback((chatID: string, messageID: string, toolID: string) => {
 		const chat = getChat(chatID);
