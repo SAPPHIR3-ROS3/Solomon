@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t,n;function r(){return(r=e((async()=>{if(t=await fetch(`/assets/syntax-cpp-BKcjEmQR.json`),!t.ok)throw Error(`Unable to load syntax grammar: `+t.status);n=await t.json()})))()}export{r as n,n as t};
