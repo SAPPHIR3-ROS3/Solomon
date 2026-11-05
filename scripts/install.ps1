@@ -346,7 +346,7 @@ function Install-CloakBrowser {
     Push-Location $cloakDir
     try {
         $script:InstallOperation = "Install npm packages cloakbrowser and playwright-core in $cloakDir"
-        & npm install --ignore-scripts --no-audit --no-fund cloakbrowser playwright-core
+        & npm install --ignore-scripts --no-audit --no-fund cloakbrowser@0.6.5 playwright-core
         if ($LASTEXITCODE -ne 0) { throw "npm install cloakbrowser failed (exit code $LASTEXITCODE). See the npm error above for registry, proxy, certificate, permissions or disk-space details." }
         Set-CloakBrowserDownloadTimeout -CloakDir $cloakDir
         $hadPreviousCache = Test-Path Env:CLOAKBROWSER_CACHE_DIR

@@ -653,7 +653,7 @@ install_cloakbrowser() {
   (
     cd "$cloak_dir"
     INSTALL_OPERATION="Install npm packages cloakbrowser and playwright-core in $cloak_dir"
-    npm install --ignore-scripts --no-audit --no-fund cloakbrowser playwright-core
+    npm install --ignore-scripts --no-audit --no-fund cloakbrowser@0.6.5 playwright-core
     INSTALL_OPERATION="Download, verify and extract CloakBrowser into $cloak_cache"
     CLOAKBROWSER_CACHE_DIR="$cloak_cache" npx --no-install cloakbrowser install
   )
