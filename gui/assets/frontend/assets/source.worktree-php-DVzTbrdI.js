@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t;function n(){return(n=e((()=>{t=`{"scopeName":"source.worktree-php","patterns":[{"include":"source.php"}],"name":"cursor:source.worktree-php"}`})))()}n();export{t as default};

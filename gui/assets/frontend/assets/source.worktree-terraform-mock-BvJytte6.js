@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t;function n(){return(n=e((()=>{t=`{"scopeName":"source.worktree-terraform-mock","patterns":[{"include":"source.hcl"}],"name":"cursor:source.worktree-terraform-mock"}`})))()}n();export{t as default};

@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t;function n(){return(n=e((()=>{t=`{"scopeName":"source.worktree-typescriptreact","patterns":[{"include":"source.tsx"}],"name":"cursor:source.worktree-typescriptreact"}`})))()}n();export{t as default};

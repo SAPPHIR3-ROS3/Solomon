@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-CNOWq4Kh.js";var t,n;function r(){return(r=e((async()=>{if(t=await fetch(`/assets/syntax-source.json.comments.snippets-BVUqVYXr.json`),!t.ok)throw Error(`Unable to load syntax grammar: `+t.status);n=await t.text()})))()}await r();export{n as default};
