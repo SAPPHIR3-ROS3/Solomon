@@ -25,7 +25,7 @@ func readEditorKey(r *bufio.Reader, interrupt <-chan struct{}) (editorKey, error
 			default:
 			}
 		}
-		if !stdinReady(50 * time.Millisecond) {
+		if r.Buffered() == 0 && !stdinReady(50*time.Millisecond) {
 			continue
 		}
 		ch, err := readInputRune(r)

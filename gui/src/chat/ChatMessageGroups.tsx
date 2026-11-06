@@ -1,5 +1,5 @@
 import { FileChangesCard } from "./FileChangesCard";
-import { memo, useEffect, useRef, useState, type MouseEvent } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { ChatMessage, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 import { ChatImageAttachments, CheckpointLabel, CompactionCard, InterruptedGenerationMarker } from "./ChatMessageParts";
@@ -305,17 +305,8 @@ function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagen
   const [reasoningCollapsedOverride, setReasoningCollapsedOverride] = useState<boolean | undefined>(undefined);
   const isReasoningCollapsed = reasoningCollapsedOverride ?? preferences.chat.startReasoningCollapsed;
   const toggleReasoning = () => setReasoningCollapsedOverride(!isReasoningCollapsed);
-  const canCollapseReasoning = message.role === "assistant" && Boolean(message.reasoning?.trim());
-
-  function handleMessageClick(event: MouseEvent<HTMLElement>) {
-    if (!canCollapseReasoning) return;
-    if (window.getSelection()?.toString()) return;
-    if (event.target instanceof HTMLElement && event.target.closest("a, button, input, textarea, select, summary")) return;
-    toggleReasoning();
-  }
-
   return (
-    <article className={"chat-message is-" + message.role} onClick={canCollapseReasoning ? handleMessageClick : undefined}>
+    <article className={"chat-message is-" + message.role}>
       {checkpoint && !(message.role === "assistant" && message.toolCalls?.length) ? <CheckpointLabel label={checkpoint.label} /> : null}
       {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
       {message.role === "assistant" && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} suppressBriefThought={suppressBriefThought} /> : null}

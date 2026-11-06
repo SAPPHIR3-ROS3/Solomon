@@ -60,6 +60,6 @@ func durationMillis(d time.Duration) uint32 {
 func pipeHasInput(handle syscall.Handle, kernel32 *syscall.LazyDLL) bool {
 	var avail uint32
 	peek := kernel32.NewProc("PeekNamedPipe")
-	r, _, _ := syscall.Syscall6(peek.Addr(), 6, uintptr(handle), 0, 0, 0, uintptr(unsafe.Pointer(&avail)), 0)
-	return r != 0 && avail > 0
+	r, _, err := syscall.Syscall6(peek.Addr(), 6, uintptr(handle), 0, 0, 0, uintptr(unsafe.Pointer(&avail)), 0)
+	return (r != 0 && avail > 0) || (r == 0 && err == syscall.ERROR_BROKEN_PIPE)
 }

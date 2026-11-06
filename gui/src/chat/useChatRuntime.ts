@@ -1,14 +1,14 @@
-import { notifyNotification } from "../notifications/store";
+import { deletePersistedMessage, removeQueuedMessage, settleChatStop } from "./messageDeletion";
+import { useDaemonStream } from "./useDaemonStream";
 import { isSlashCommand } from "./slashCommands";
 import { recordProjectChatActivity } from "../projects/chatActivity";
 import { beginNavigation, cancelNavigation, failNavigation, markNavigationSelection, measureNavigation, measureNavigationSync, setNavigationCache } from "./navigationPerformance";
-import { createChatStreamBatch } from "./streamBatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { sendProjectCommand, applyLiveStreamEvent, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, deleteLiveChatMessage, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type ChatStreamEventHandler, type LiveChat } from "./chatClient";
-import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, getUnreadCompletedChatIDs, rememberActiveChat, saveUnreadCompletedChatIDs, removeChat, saveChat, saveChatStreamCursor, updateChat, useChatStore } from "./chatStore";
+import { sendProjectCommand, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type LiveChat } from "./chatClient";
+import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, getUnreadCompletedChatIDs, rememberActiveChat, saveUnreadCompletedChatIDs, removeChat, saveChat, updateChat, useChatStore } from "./chatStore";
 import { subagentIsActive, subagentStatus } from "./ChatToolActivity";
 import type { Chat, ChatMessage } from "./chatTypes";
-import { markChatCompletionRead, markChatCompletionUnread, shouldMarkChatCompletionUnread } from "./unreadCompletion";
+import { markChatCompletionRead } from "./unreadCompletion";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
 import { fetchProjectBranches, fetchProjectWorktrees, projectWorktreeLabel, PROJECTS_CHANGED_EVENT, type Project } from "../projects/projects";
 
@@ -41,6 +41,7 @@ export function useChatRuntime(): ChatRuntime {
   const [streamingChatIDs, setStreamingChatIDs] = useState<Set<string>>(() => new Set());
   const [unreadCompletedChatIDs, setUnreadCompletedChatIDs] = useState<Set<string>>(getUnreadCompletedChatIDs);
   const [queuedMessages, setQueuedMessages] = useState<Map<string, ChatMessage[]>>(() => new Map());
+  const deletingMessages = useRef(new Set<string>());
   const messageQueues = useRef(new Map<string, ChatMessage[]>());
   const streams = useRef(new Map<string, AbortController>());
   const streamRetryTimers = useRef(new Map<string, number>());
@@ -83,7 +84,7 @@ export function useChatRuntime(): ChatRuntime {
     const refresh = () => {
       void fetchLiveChat(projectID, chatID)
         .then((latest) => {
-          if (cancelled) return;
+          if (cancelled || deletingMessages.current.has(chatID)) return;
           const current = getChat(chatID);
           const merged = current ? preserveLiveWorkState(current, latest) : latest;
           saveChat({ ...merged, ...workspace });
@@ -137,97 +138,7 @@ export function useChatRuntime(): ChatRuntime {
     setQueuedMessages(new Map(messageQueues.current));
   }, []);
 
-  const attachDaemonStream = useCallback((
-    chat: Chat,
-    open: (signal: AbortSignal, onEvent: ChatStreamEventHandler) => Promise<void>,
-    reconnectOpen?: (signal: AbortSignal, onEvent: ChatStreamEventHandler) => Promise<void>,
-  ) => {
-    const projectID = chat.projectID;
-    if (!projectID || streams.current.has(chat.id) || stopRequested.current.has(chat.id)) return;
-    const retryOpen = reconnectOpen ?? open;
-    let retryWhenDetached = false;
-    let receivedStreamError = false;
-    const retry = () => {
-      if (streams.current.has(chat.id) || streamRetryTimers.current.has(chat.id)) return;
-      const current = getChat(chat.id);
-      if (!current?.projectID || current.status !== "running" || stopRequested.current.has(chat.id)) return;
-      const attempts = streamRetryAttempts.current.get(chat.id) ?? 0;
-      const delay = Math.min(5000, 300 * (2 ** Math.min(attempts, 4)));
-      streamRetryAttempts.current.set(chat.id, attempts + 1);
-      const timer = window.setTimeout(() => {
-        streamRetryTimers.current.delete(chat.id);
-        const latest = getChat(chat.id);
-        if (latest?.status === "running" && !stopRequested.current.has(chat.id)) attachDaemonStream(latest, retryOpen, retryOpen);
-      }, delay);
-      streamRetryTimers.current.set(chat.id, timer);
-    };
-    const controller = new AbortController();
-    streams.current.set(chat.id, controller);
-    markStreaming(chat.id, true);
-    let currentCursor = getChatStreamCursor(projectID, chat.id);
-    const batch = createChatStreamBatch((events) => {
-      const previousCursor = currentCursor;
-      for (const { event, replay } of events) {
-        const eventSequence = typeof event.seq === "number" && Number.isFinite(event.seq) ? event.seq : undefined;
-        if (shouldMarkChatCompletionUnread({
-          chatID: chat.id,
-          currentCursor,
-          eventSequence,
-          eventType: typeof event.type === "string" ? event.type : "",
-          isReplay: replay,
-          selectedChatID: selectedChatIDRef.current,
-        })) {
-          setUnreadCompletedChatIDs((current) => markChatCompletionUnread(current, chat.id));
-        }
-        if (event.type === "notification" && !replay && typeof event.message === "string") {
-          notifyNotification(event.message, typeof event.level === "string" ? event.level : "system");
-        }
-        if (event.type === "error") {
-          receivedStreamError = true;
-          setError(streamErrorMessage(event));
-        } else if (event.type === "run_end") {
-          const exitCode = typeof event.exit_code === "number" && Number.isFinite(event.exit_code) ? event.exit_code : undefined;
-          if (exitCode !== undefined && exitCode !== 0 && !receivedStreamError) setError(runEndErrorMessage(event));
-        }
-        streamRetryAttempts.current.delete(chat.id);
-        if (eventSequence !== undefined && eventSequence > currentCursor) {
-          currentCursor = eventSequence;
-        }
-        if (event.type === "chat_title") window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
-      }
-      updateChat(chat.id, (current) => events.reduce((next, { event, imageOrigin, replay }) => (
-        applyLiveStreamEvent(next, event, imageOrigin, replay)
-      ), current as LiveChat));
-      if (currentCursor > previousCursor) saveChatStreamCursor(projectID, chat.id, currentCursor);
-    });
-    void open(controller.signal, batch.push)
-      .then(async () => {
-        batch.flush();
-        const latest = await fetchLiveChat(projectID, chat.id);
-        const current = getChat(chat.id);
-        const merged = current ? preserveLiveWorkState(current, latest) : latest;
-        saveChat({ ...merged, workspaceName: chat.workspaceName, workspacePath: chat.workspacePath, branch: chat.branch, worktree: chat.worktree });
-        window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
-        if (latest.status === "running" && !stopRequested.current.has(chat.id)) retryWhenDetached = true;
-        else {
-          streamRetryAttempts.current.delete(chat.id);
-          forgetChatStreamCursor(projectID, chat.id);
-        }
-      })
-      .catch((reason: unknown) => {
-        batch.flush();
-        if (isAbortError(reason)) return;
-        setError(reason instanceof Error ? reason.message : "Chat stream failed");
-        retryWhenDetached = true;
-      })
-      .finally(() => {
-        batch.flush();
-        if (streams.current.get(chat.id) !== controller) return;
-        streams.current.delete(chat.id);
-        markStreaming(chat.id, false);
-        if (retryWhenDetached && !controller.signal.aborted) retry();
-      });
-  }, [markStreaming]);
+  const attachDaemonStream = useDaemonStream({ streams, streamRetryTimers, streamRetryAttempts, stopRequested, selectedChatIDRef, markStreaming, setError, setUnreadCompletedChatIDs });
 
   const sendDaemonMessage = useCallback((chat: Chat, message: ChatMessage) => {
     if (!chat.projectID || streams.current.has(chat.id)) return;
@@ -274,7 +185,7 @@ export function useChatRuntime(): ChatRuntime {
     const chat = getChat(chatID);
     if (!chat?.projectID) return;
     recordProjectChatActivity(chat.projectID, chatID);
-    const isRunning = streams.current.has(chatID) || stopRequested.current.has(chatID) || chat.status === "running";
+    const isRunning = streams.current.has(chatID) || deletingMessages.current.has(chatID) || stopRequested.current.has(chatID) || chat.status === "running";
     if (isRunning || messageQueues.current.has(chatID)) {
       messageQueues.current.set(chatID, [...(messageQueues.current.get(chatID) ?? []), message]);
       publishMessageQueues();
@@ -289,7 +200,7 @@ export function useChatRuntime(): ChatRuntime {
       const chat = getChat(chatID);
       // Wait for the stream and its final snapshot before starting the next turn.
       // A requested stop must finish on the server before the next turn starts.
-      if (!chat?.projectID || streams.current.has(chatID) || stopRequested.current.has(chatID) || (chat.status !== "success" && chat.status !== "interrupted" && chat.status !== undefined)) continue;
+      if (!chat?.projectID || streams.current.has(chatID) || deletingMessages.current.has(chatID) || stopRequested.current.has(chatID) || (chat.status !== "success" && chat.status !== "interrupted" && chat.status !== undefined)) continue;
       sendNextQueuedMessage(chat);
     }
   }, [chats, streamingChatIDs, queuedMessages, sendNextQueuedMessage]);
@@ -414,19 +325,36 @@ export function useChatRuntime(): ChatRuntime {
       }
     }
   }, [cancelPendingRequests, reconnectDaemonStream]);
-
   const deleteMessage = useCallback(async (chatID: string, messageID: string) => {
     const chat = getChat(chatID);
-    if (!chat?.projectID) return;
+    if (!chat?.projectID || deletingMessages.current.has(chatID)) return;
+    setError("");
+    if (removeQueuedMessage(messageQueues.current, chatID, messageID)) { publishMessageQueues(); return; }
+    deletingMessages.current.add(chatID);
+    stopRequested.current.add(chatID);
+    const running = streams.current.has(chatID) || chat.status === "running";
+    streams.current.get(chatID)?.abort();
+    streams.current.delete(chatID);
+    markStreaming(chatID, false);
+    const timer = streamRetryTimers.current.get(chatID);
+    if (timer !== undefined) window.clearTimeout(timer);
+    streamRetryTimers.current.delete(chatID);
     try {
-      const latest = await deleteLiveChatMessage(chat.projectID, chatID, messageID);
+      const latest = await deletePersistedMessage(chat, messageID, running);
+      forgetChatStreamCursor(chat.projectID, chatID);
       saveChat({ ...latest, workspaceName: chat.workspaceName, workspacePath: chat.workspacePath, branch: chat.branch, worktree: chat.worktree });
+      setError("");
       window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
     } catch (reason: unknown) {
+      await fetchLiveChat(chat.projectID, chatID).then((latest) => updateChat(chatID, (current) => ({ ...current, ...latest }))).catch(() => undefined);
       setError(reason instanceof Error ? reason.message : "Unable to delete message");
+    } finally {
+      deletingMessages.current.delete(chatID);
+      stopRequested.current.delete(chatID);
+      updateChat(chatID, (current) => ({ ...current }));
+      publishMessageQueues();
     }
-  }, []);
-
+  }, [markStreaming, publishMessageQueues]);
   const renameChat = useCallback(async (projectID: string, chatID: string, title: string) => {
     const current = getChat(chatID);
     try {
@@ -481,6 +409,7 @@ export function useChatRuntime(): ChatRuntime {
   const stopChat = useCallback((chatID: string) => {
     const chat = getChat(chatID);
     if (!chat?.projectID) return;
+    if (deletingMessages.current.has(chatID)) return;
     stopRequested.current.add(chatID);
     const retryTimer = streamRetryTimers.current.get(chatID);
     if (retryTimer !== undefined) window.clearTimeout(retryTimer);
@@ -490,10 +419,10 @@ export function useChatRuntime(): ChatRuntime {
     streams.current.delete(chatID);
     markStreaming(chatID, false);
     updateChat(chatID, (current) => ({ ...current, status: "interrupted" }));
-    void stopLiveChat(chat.projectID, chatID).then(() => {
+    void settleChatStop(chat.projectID, chatID).then(() => {
       stopRequested.current.delete(chatID);
       publishMessageQueues();
-    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to stop chat"));
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to stop chat")).finally(() => { stopRequested.current.delete(chatID); updateChat(chatID, (current) => ({ ...current })); publishMessageQueues(); });
   }, [markStreaming, publishMessageQueues]);
 
 	const stopTool = useCallback((chatID: string, messageID: string, toolID: string) => {
@@ -564,25 +493,6 @@ async function fetchProjectContext(projectID: string, signal: AbortSignal, navig
   const current = available.find((worktree) => worktree.current) ?? available[0];
   if (!current) return { branch };
   return { branch, worktree: available.length === 1 ? "local" : projectWorktreeLabel(current.path) };
-}
-
-function streamErrorMessage(event: Record<string, unknown>): string {
-  for (const key of ["detail", "error", "message"]) {
-    const value = typeof event[key] === "string" ? event[key].trim() : "";
-    if (value && !isGenericErrorText(value)) return value;
-  }
-  const reason = typeof event.exit_reason === "string" ? event.exit_reason.trim().replace(/[_-]+/g, " ") : "";
-  return reason && !isGenericErrorText(reason) ? `Chat run failed: ${reason}.` : "Chat run failed.";
-}
-
-function runEndErrorMessage(event: Record<string, unknown>): string {
-  const reason = typeof event.exit_reason === "string" ? event.exit_reason.trim().replace(/[_-]+/g, " ") : "";
-  const code = typeof event.exit_code === "number" && Number.isFinite(event.exit_code) ? ` (code ${event.exit_code})` : "";
-  return reason && !isGenericErrorText(reason) ? `Chat run failed: ${reason}${code}.` : `Chat run failed${code}.`;
-}
-
-function isGenericErrorText(value: string): boolean {
-  return ["error", "failed", "failure", "run failed", "chat run failed"].includes(value.toLowerCase());
 }
 
 function isAbortError(reason: unknown): boolean {

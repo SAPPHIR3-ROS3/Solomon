@@ -296,20 +296,11 @@ func (e *multilineEditor) moveToCursor(cursorRow, cursorCol int) {
 
 func (e *multilineEditor) finish() {
 	e.moveToTop()
-	redrewFull := false
-	allRows := e.buildVisualRows()
-	if e.viewportTop > 0 || len(allRows) > e.rendered {
-		e.rendered = e.renderRows(allRows)
-		e.cursorLine = e.rendered - 1
-		e.viewportTop = 0
-		redrewFull = true
-	}
-	if e.rendered > 0 {
-		if !redrewFull && e.rendered > 1 {
-			fmt.Fprintf(e.out, "\x1b[%dB", e.rendered-1)
-		}
-		fmt.Fprint(e.out, "\r\n")
-	}
+	e.clearSuggest()
+	e.atMatches = nil
+	rows := e.renderRows(e.buildVisualRows())
+	e.clearRenderedTail(rows)
+	fmt.Fprint(e.out, "\r\n")
 	e.rendered = 0
 	e.cursorLine = 0
 	e.viewportTop = 0

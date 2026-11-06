@@ -37,6 +37,10 @@ function Fixture() {
   React.useLayoutEffect(() => markNavigationCommit(navigationID, runtime.selectedChat?.messages.length ?? 0, 0), [navigationID]);
   window.openChat = id => { void runtime.openProjectChat(project, id); };
   window.clearChat = runtime.clearSelection;
+  window.seedRunning = id => saveChat({id,title:id,projectID:project.id,source:'daemon',status:'running',messages:[{id:'message',role:'assistant',content:'Streaming answer'}]});
+  window.sendMessage = runtime.sendMessage;
+  window.deleteMessage = runtime.deleteMessage;
+  window.runtimeState = {error:runtime.error,queues:Object.fromEntries(runtime.queuedMessages),chats:runtime.chats};
   window.navigationState = { id: runtime.selectedChatID, loading: runtime.isLoading, error: runtime.error, branch: runtime.selectedChat?.branch };
   return <><section id="transcript">{runtime.selectedChat?.messages.map(message => <p key={message.id}>{message.content}</p>)}</section>{showPanel ? <NavigationPerformanceSettings query="" /> : null}</>;
 }
@@ -167,4 +171,43 @@ test("diagnostics record paint, request phases and browser stalls, survive reloa
   assert.equal(await page.evaluate(() => JSON.parse(window.copiedReport).samples.at(-1).id), sample.id);
   await page.getByRole('button', { name: 'Clear measurements', exact: true }).click();
   assert.equal(await page.evaluate(() => window.metrics().samples.length), 0);
+});
+
+
+test("queued deletion stays local and preserves the remaining queue", async t => {
+  const page = await fixture(t);
+  await page.evaluate(() => {
+    window.seedRunning('queue');
+    window.sendMessage('queue',{id:'queued-a',role:'user',content:'First'});
+    window.sendMessage('queue',{id:'queued-b',role:'user',content:'Second'});
+  });
+  await page.waitForFunction(() => window.runtimeState.queues.queue?.length === 2);
+  await page.evaluate(() => window.deleteMessage('queue','queued-a'));
+  await page.waitForFunction(() => window.runtimeState.queues.queue?.length === 1);
+  assert.deepEqual(await page.evaluate(() => window.runtimeState.queues.queue.map(message => message.id)),['queued-b']);
+  assert.equal(await page.evaluate(() => window.pending.length),0);
+  assert.equal(await page.evaluate(() => window.runtimeState.error),'');
+});
+
+test("streaming deletion waits for shutdown before deleting or sending the queue", async t => {
+  const page = await fixture(t);
+  await page.evaluate(() => {
+    window.seedRunning('running');
+    window.sendMessage('running',{id:'queued-next',role:'user',content:'Next'});
+  });
+  await page.waitForFunction(() => window.runtimeState.queues.running?.length === 1);
+  await page.evaluate(() => { window.deletionFinished = false; void window.deleteMessage('running','message').then(() => { window.deletionFinished = true; }); });
+  const running = {...snapshot('running','Streaming answer'),status:'running'};
+  await reply(page,'/chats/running',running);
+  await reply(page,'/stop',{});
+  await reply(page,'/chats/running',running);
+  assert.equal(await page.evaluate(() => window.pending.some(request => request.path.endsWith('/messages/message') || request.path.endsWith('/messages'))),false);
+  await reply(page,'/chats/running',snapshot('running','Stopped answer'));
+  await waitForRequest(page,'/messages/message');
+  assert.equal(await page.evaluate(() => window.pending.some(request => request.path.endsWith('/messages'))),false);
+  await reply(page,'/messages/message',{...snapshot('running',''),messages:[]});
+  await page.waitForFunction(() => window.deletionFinished);
+  await waitForRequest(page,'/messages');
+  assert.equal(await page.evaluate(() => window.runtimeState.error),'');
+  assert.equal(await page.evaluate(() => window.runtimeState.queues.running?.length ?? 0),0);
 });

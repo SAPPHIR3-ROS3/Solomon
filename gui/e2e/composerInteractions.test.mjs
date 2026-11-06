@@ -417,6 +417,18 @@ test('reasoning is available exactly when its text exists, including streamed an
   await page.evaluate(()=>document.querySelector('.chat-reasoning').click());
   await page.waitForFunction(()=>document.querySelector('.chat-reasoning')?.getAttribute('aria-expanded')==='false');
   assert.equal(await page.evaluate(()=>document.querySelectorAll('.chat-reasoning-copy').length),0);
+  await page.locator('.chat-response-content p').click();
+  assert.equal(await page.locator('.chat-reasoning').getAttribute('aria-expanded'),'false','answer text must not expand reasoning');
+  await page.locator('.chat-message.is-assistant').dispatchEvent('click');
+  assert.equal(await page.locator('.chat-reasoning').getAttribute('aria-expanded'),'false','message padding must not expand reasoning');
+  await page.locator('.chat-reasoning').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(()=>document.querySelector('.chat-reasoning')?.getAttribute('aria-expanded')==='true');
+  await page.locator('.chat-response-content p').click();
+  assert.equal(await page.locator('.chat-reasoning').getAttribute('aria-expanded'),'true','answer text must not collapse reasoning');
+  await page.locator('.chat-reasoning').focus();
+  await page.keyboard.press('Space');
+  await page.waitForFunction(()=>document.querySelector('.chat-reasoning')?.getAttribute('aria-expanded')==='false');
   await page.evaluate(()=>document.querySelector('.chat-reasoning').click());
   await page.waitForFunction(()=>document.querySelector('.chat-reasoning-copy')?.textContent==='Available reasoning text');
  }

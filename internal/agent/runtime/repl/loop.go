@@ -73,6 +73,7 @@ func Run(loop *Loop) error {
 			switch {
 			case errors.Is(err, io.EOF):
 				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (EOF)")
+				return nil
 			case errors.Is(err, readline.ErrInterrupt):
 				logging.Log(logging.INFO_LOG_LEVEL, "interactive session ended (Ctrl+C at prompt)")
 				if loop.SlashDeps != nil {
