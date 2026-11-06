@@ -119,14 +119,11 @@ func (r *Runtime) runSubagentFromTool(ctx context.Context, req agenttools.Subage
 		ProjectHex:       r.ProjHex,
 	}
 	res, err := r.runSubagentTool(ctx, cfg)
-	if err != nil {
-		return agenttools.SubagentResponse{}, err
-	}
 	return agenttools.SubagentResponse{
 		Output:    res.Output,
 		SubchatID: res.SubchatID,
 		Status:    res.Status,
-	}, nil
+	}, err
 }
 
 func (r *Runtime) startResearchFromTool(_ context.Context, query, category string) (research.JobRecord, error) {

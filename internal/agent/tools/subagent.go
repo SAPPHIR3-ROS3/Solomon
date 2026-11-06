@@ -127,7 +127,7 @@ func execSubagent(ctx context.Context, env *Env, raw json.RawMessage) (any, erro
 	})
 	env.SetMode(prev)
 	if err != nil {
-		return subagentResult{Error: err.Error()}, nil
+		return subagentResult{Error: err.Error(), Output: res.Output, SubchatID: res.SubchatID, Status: res.Status}, nil
 	}
 	return subagentResult{
 		OK:        true,
