@@ -211,3 +211,23 @@ test("streaming deletion waits for shutdown before deleting or sending the queue
   assert.equal(await page.evaluate(() => window.runtimeState.error),'');
   assert.equal(await page.evaluate(() => window.runtimeState.queues.running?.length ?? 0),0);
 });
+
+
+test("stream completion preserves Git metadata loaded after stream attachment", async t => {
+  const page = await fixture(t);
+  await page.evaluate(() => { window.seedRunning('metadata'); window.openChat('metadata'); });
+  await waitForRequest(page,'/events');
+  await reply(page,'/chats/metadata',{...snapshot('metadata','Streaming'),status:'running'});
+  await reply(page,'/branches',{isRepo:true,current:'main',branches:['main']});
+  await reply(page,'/worktrees',{worktrees:[{path:'/tmp/project',branch:'main',current:true,bare:false}]});
+  await page.waitForFunction(() => window.runtimeState.chats.find(chat => chat.id === 'metadata')?.worktree === 'local');
+  await page.evaluate(() => {
+    const index = window.pending.findIndex(request => request.path.endsWith('/events'));
+    const [request] = window.pending.splice(index,1);
+    request.resolve(new Response('',{headers:{'Content-Type':'text/event-stream'}}));
+  });
+  await reply(page,'/chats/metadata',snapshot('metadata','Finished'));
+  await page.getByText('Finished',{exact:true}).waitFor();
+  const context = await page.evaluate(() => { const chat = window.runtimeState.chats.find(chat => chat.id === 'metadata'); return {branch:chat.branch,worktree:chat.worktree}; });
+  assert.deepEqual(context,{branch:'main',worktree:'local'});
+});

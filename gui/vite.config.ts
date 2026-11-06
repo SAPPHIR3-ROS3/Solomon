@@ -83,6 +83,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: ["server", "server.tail6ad332.ts.net"],
     fs: {
       allow: [".."],
     },

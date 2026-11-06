@@ -92,7 +92,13 @@ export function useDaemonStream({ streams, streamRetryTimers, streamRetryAttempt
         if (controller.signal.aborted) return;
         const current = getChat(chat.id);
         const merged = current ? preserveLiveWorkState(current, latest) : latest;
-        saveChat({ ...merged, workspaceName: chat.workspaceName, workspacePath: chat.workspacePath, branch: chat.branch, worktree: chat.worktree });
+        saveChat({
+          ...merged,
+          workspaceName: current?.workspaceName ?? chat.workspaceName,
+          workspacePath: current?.workspacePath ?? chat.workspacePath,
+          branch: current?.branch ?? chat.branch,
+          worktree: current?.worktree ?? chat.worktree,
+        });
         window.dispatchEvent(new CustomEvent(PROJECTS_CHANGED_EVENT));
         if (latest.status === "running" && !stopRequested.current.has(chat.id)) retryWhenDetached = true;
         else {
