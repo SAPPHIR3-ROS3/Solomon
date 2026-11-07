@@ -107,6 +107,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/processidentity/` | Process creation identity for safe lifecycle cleanup on Linux, macOS and Windows | [Building and releases](../development/building-and-releases.md) |
 | `internal/lifecycle/` | Linux, Windows and macOS daemon/client update coordination and recovery | [Building and releases](../development/building-and-releases.md) |
 | `internal/logging/` | File logs under `~/.solomon/logs` | [Supporting packages](supporting-packages.md) |
+| `internal/memoryprofile/` | Bounded anonymous memory metrics for the daemon and verified Solomon desktop processes | [Memory diagnostics](../development/memory-diagnostics.md) |
 | `internal/termcolor/` | Lipgloss palette, usage line, `NO_COLOR` | [Supporting packages](supporting-packages.md) |
 | `internal/clipboard/` | Cross-platform image paste in REPL | [Supporting packages](supporting-packages.md) |
 | `internal/desktopgit/` | Machine-readable Git history and status parsing for the desktop bridge | [Supporting packages](supporting-packages.md) |
@@ -208,6 +209,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/logging/` | Support |
 | `internal/logo/` | Support |
 | `internal/mcp/` | Feature |
+| `internal/memoryprofile/` | Support |
 | `internal/modelcatalogcache/` | Support |
 | `internal/modelsapi/` | Support |
 | `internal/modelsdev/` | Support |
