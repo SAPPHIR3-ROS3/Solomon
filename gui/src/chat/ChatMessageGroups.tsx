@@ -138,7 +138,8 @@ const AssistantTurn = memo(function AssistantTurn({
     else if (isWorking && !wasWorking.current) setCollapsedOverride(undefined);
     wasWorking.current = isWorking;
   }, [autoCollapseToolCalls, isWorking, preferencesReady]);
-  const isToolActivityCollapsed = collapsedOverride ?? (Boolean(rateLimitNotice) || startToolCallsCollapsed || (preferencesReady && autoCollapseToolCalls && !isWorking));
+  const hasRunningTools = toolCalls.some((tool) => (tool.status ?? tool.result?.status ?? "running") === "running");
+  const isToolActivityCollapsed = !hasRunningTools && (collapsedOverride ?? (Boolean(rateLimitNotice) || startToolCallsCollapsed || (preferencesReady && autoCollapseToolCalls && !isWorking)));
   const timelineClassName = [
     "chat-assistant-timeline",
     hasToolCalls ? "has-tool-activity" : "",
@@ -328,7 +329,8 @@ function ToolActivity({ isCollapsed: controlledIsCollapsed, onOpenSubagent, onSt
   const startToolCallsCollapsed = useStartToolCallsCollapsed();
   const [localIsCollapsed, setLocalIsCollapsed] = useState<boolean | undefined>(undefined);
   const isControlled = onToggleCollapsed !== undefined;
-  const isCollapsed = controlledIsCollapsed ?? localIsCollapsed ?? startToolCallsCollapsed;
+  const hasRunningTools = toolCalls.some((tool) => (tool.status ?? tool.result?.status ?? "running") === "running");
+  const isCollapsed = !hasRunningTools && (controlledIsCollapsed ?? localIsCollapsed ?? startToolCallsCollapsed);
   const collapseLabel = toolActivityCollapseLabel(isCollapsed, toolCalls.length);
 
   function toggleCollapsed() {

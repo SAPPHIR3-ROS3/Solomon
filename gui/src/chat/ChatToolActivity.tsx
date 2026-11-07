@@ -6,6 +6,7 @@ import { cursorForeground } from "../syntax/cursorSyntax";
 import type { ChatToolCall, ChatToolResult } from "./chatTypes";
 import { CheckpointLabel } from "./ChatMessageParts";
 import { HammerIcon } from "./ChatIcons";
+import "./tool-activity.css";
 import { EditFileDiffCard, ToolResultCard } from "./ChatToolResults";
 import { toolCheckpoint } from "./chatMessageUtils";
 import { serverEndpoint } from "../platform";
@@ -15,11 +16,12 @@ const MISSING_TOOL_INTENT_LABEL = "Intent missing";
 
 
 function displayToolIntent(tool: ChatToolCall) {
+  if ((tool.status ?? tool.result?.status ?? "running") === "running" && !tool.intent?.trim()) return "Loading tool call…";
   return tool.intent?.trim() || MISSING_TOOL_INTENT_LABEL;
 }
 
 function toolIntentClassName(tool: ChatToolCall) {
-  return `chat-tool-intent${tool.intent?.trim() ? "" : " is-missing"}`;
+  return `chat-tool-intent${tool.intent?.trim() || (tool.status ?? tool.result?.status ?? "running") === "running" ? "" : " is-missing"}`;
 }
 
 function displaySubagentIntent(tool: ChatToolCall) {
@@ -90,6 +92,7 @@ export function ToolCallCard({ tool }: { tool: ChatToolCall }) {
         <summary className="chat-tool-summary">
           <i aria-hidden="true" className="chat-tool-status-dot" />
           <HammerIcon />
+          {status === "running" && !tool.intent?.trim() ? <span aria-label="Loading tool call" className="chat-tool-loading" role="status" /> : null}
           <span className={toolIntentClassName(tool)} title={displayToolIntent(tool)}>{displayToolIntent(tool)}</span>
           <svg aria-hidden="true" className="chat-tool-chevron" viewBox="0 0 24 24">
             <path d="m7 10 5 5 5-5" />
@@ -171,6 +174,7 @@ function OrchestrateToolCard({ tool }: { tool: ChatToolCall }) {
         <summary className="chat-tool-summary chat-code-mode-summary">
           <i aria-hidden="true" className="chat-tool-status-dot" />
           <HammerIcon />
+          {status === "running" && !tool.intent?.trim() ? <span aria-label="Loading tool call" className="chat-tool-loading" role="status" /> : null}
           <span className="chat-code-mode-label">CODE</span>
           <span className={toolIntentClassName(tool)} title={displayToolIntent(tool)}>{displayToolIntent(tool)}</span>
           <svg aria-hidden="true" className="chat-tool-chevron" viewBox="0 0 24 24">

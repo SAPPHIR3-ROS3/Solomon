@@ -87,8 +87,12 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   }
 
   if (type === "tool_start") {
+    if (chat.messages.at(-1)?.role !== "assistant") {
+      chat = { ...chat, messages: [...chat.messages, { id: `stream-tool-${stringValue(event.id) || chat.messages.length}`, role: "assistant", content: "", toolCalls: [] }] };
+    }
     const incoming = toolCallFromPayload({
       arguments: event.arguments,
+      intent: event.intent,
       checkpointBranch: event.checkpoint_branch ?? event.checkpointBranch,
       checkpointSeq: event.checkpoint_seq ?? event.checkpointSeq,
       id: event.id,

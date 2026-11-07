@@ -1,0 +1,18 @@
+.chat-tool-loading {
+  animation: tool-loading-spin 850ms linear infinite;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  flex: 0 0 auto;
+  height: 10px;
+  width: 10px;
+}
+
+@keyframes tool-loading-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-tool-loading { animation: none; }
+}
