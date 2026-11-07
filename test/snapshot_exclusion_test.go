@@ -11,7 +11,9 @@ import (
 
 func TestSnapshotExcludesOwnStorageAndAliases(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("TMPDIR", root)
+	for _, name := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(name, root)
+	}
 	if err := os.WriteFile(filepath.Join(root, "normal.txt"), []byte("normal"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -24,17 +26,14 @@ func TestSnapshotExcludesOwnStorageAndAliases(t *testing.T) {
 	if len(dirs) != 1 {
 		t.Fatalf("snapshot dirs: %v", dirs)
 	}
-	alias := filepath.Join(root, "alias")
-	if err := os.Symlink(dirs[0], alias); err != nil {
-		t.Skip(err)
-	}
-	for _, targets := range [][]string{nil, {dirs[0]}, {alias}, {root}} {
+	check := func(t *testing.T, targets []string) {
+		t.Helper()
 		snapshot, err := filechanges.CapturePaths(root, targets)
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer snapshot.Close()
 		changes, err := filechanges.Compare(before, snapshot)
-		snapshot.Close()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -44,6 +43,16 @@ func TestSnapshotExcludesOwnStorageAndAliases(t *testing.T) {
 			}
 		}
 	}
+	t.Run("default", func(t *testing.T) { check(t, nil) })
+	t.Run("explicit", func(t *testing.T) { check(t, []string{dirs[0]}) })
+	t.Run("parent", func(t *testing.T) { check(t, []string{root}) })
+	t.Run("alias", func(t *testing.T) {
+		alias := filepath.Join(root, "alias")
+		if err := os.Symlink(dirs[0], alias); err != nil {
+			t.Skip(err)
+		}
+		check(t, []string{alias})
+	})
 }
 
 func TestSessionLoadDropsOnlyInternalSnapshotChanges(t *testing.T) {
