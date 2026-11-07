@@ -3,10 +3,10 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/memoryprofile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
 	"net/http"
-	"runtime"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -42,13 +42,7 @@ func handleReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "unable to read logs"})
 		return
 	}
-	payload, err := json.Marshal(map[string]string{
-		"sentAt":  logging.ReportStamp(),
-		"version": reportVersion(),
-		"os":      runtime.GOOS + "/" + runtime.GOARCH,
-		"note":    logging.RedactReport(note),
-		"logs":    logs,
-	})
+	payload, err := buildReportPayload(note, logs, memoryprofile.Default.Report())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "unable to build report"})
 		return

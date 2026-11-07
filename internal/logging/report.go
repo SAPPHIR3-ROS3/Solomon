@@ -11,7 +11,8 @@ import (
 	"time"
 )
 
-const ReportByteLimit = 32 * 1024
+const ReportByteLimit = 48 * 1024
+const ReportLogByteLimit = 32 * 1024
 const ReportNoteLimit = 500
 
 var reportEmail = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
@@ -84,11 +85,11 @@ func ReportLogs() (string, error) {
 			}
 			newestFirst = append(newestFirst, line)
 			raw += len(line) + 1
-			if raw >= ReportByteLimit*8 {
+			if raw >= ReportLogByteLimit*8 {
 				break
 			}
 		}
-		if raw >= ReportByteLimit*8 {
+		if raw >= ReportLogByteLimit*8 {
 			break
 		}
 	}
@@ -99,11 +100,11 @@ func ReportLogs() (string, error) {
 	for i, line := range newestFirst {
 		redacted[i] = RedactReport(line)
 	}
-	for len(redacted) > 0 && reportSize(redacted) > ReportByteLimit {
+	for len(redacted) > 0 && reportSize(redacted) > ReportLogByteLimit {
 		redacted = redacted[1:]
 	}
-	if len(redacted) == 1 && len(redacted[0]) > ReportByteLimit {
-		redacted[0] = redacted[0][len(redacted[0])-ReportByteLimit:]
+	if len(redacted) == 1 && len(redacted[0]) > ReportLogByteLimit {
+		redacted[0] = redacted[0][len(redacted[0])-ReportLogByteLimit:]
 	}
 	return strings.Join(redacted, "\n"), nil
 }

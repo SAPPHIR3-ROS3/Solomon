@@ -51,6 +51,9 @@ func CapturePaths(root string, targets []string) (*Snapshot, error) {
 			if !filepath.IsAbs(target) {
 				target = filepath.Join(root, target)
 			}
+			if IsInternalSnapshotPath(target) {
+				continue
+			}
 			info, err := os.Stat(target)
 			if err == nil && info.IsDir() {
 				names, err := projectChangePaths(target)
@@ -67,6 +70,9 @@ func CapturePaths(root string, targets []string) (*Snapshot, error) {
 		}
 	}
 	for source := range paths {
+		if IsInternalSnapshotPath(source) {
+			continue
+		}
 		info, err := os.Stat(source)
 		if os.IsNotExist(err) || errors.Is(err, os.ErrPermission) {
 			continue
@@ -125,7 +131,7 @@ func projectChangePaths(root string) ([]string, error) {
 	if output, err := cmd.Output(); err == nil {
 		var names []string
 		for _, name := range strings.Split(string(output), "\x00") {
-			if name != "" {
+			if name != "" && !IsInternalSnapshotPath(filepath.Join(root, name)) {
 				names = append(names, filepath.FromSlash(name))
 			}
 		}
@@ -260,6 +266,9 @@ func ParsePatch(name string, output []byte) Change {
 }
 
 func skipSnapshotDirectory(name string) bool {
+	if strings.HasPrefix(name, "solomon-changes-") {
+		return true
+	}
 	switch name {
 	case ".git", ".solomon", ".cache", ".local", "node_modules", ".venv", "venv":
 		return true

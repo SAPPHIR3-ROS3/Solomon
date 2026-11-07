@@ -1,3 +1,4 @@
+import { useSubagentRefresh } from "./useSubagentRefresh";
 import { deletePersistedMessage, removeQueuedMessage, settleChatStop } from "./messageDeletion";
 import { useDaemonStream } from "./useDaemonStream";
 import { isSlashCommand } from "./slashCommands";
@@ -70,33 +71,7 @@ export function useChatRuntime(): ChatRuntime {
     message.toolCalls?.some((tool) => tool.name === "subagent" && subagentIsActive(subagentStatus(tool)))
   )) ?? false;
 
-  useEffect(() => {
-    if (!selectedChat?.projectID || !selectedSubagentsActive) return;
-    const projectID = selectedChat.projectID;
-    const chatID = selectedChat.id;
-    const workspace = {
-      workspaceName: selectedChat.workspaceName,
-      workspacePath: selectedChat.workspacePath,
-      branch: selectedChat.branch,
-      worktree: selectedChat.worktree,
-    };
-    let cancelled = false;
-    const refresh = () => {
-      void fetchLiveChat(projectID, chatID)
-        .then((latest) => {
-          if (cancelled || deletingMessages.current.has(chatID)) return;
-          const current = getChat(chatID);
-          const merged = current ? preserveLiveWorkState(current, latest) : latest;
-          saveChat({ ...merged, ...workspace });
-        })
-        .catch(() => undefined);
-    };
-    const timer = window.setInterval(refresh, 1000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [selectedChat?.id, selectedChat?.projectID, selectedChat?.workspaceName, selectedChat?.workspacePath, selectedChat?.branch, selectedChat?.worktree, selectedSubagentsActive]);
+  useSubagentRefresh(selectedChat, selectedSubagentsActive, deletingMessages);
 
   const cancelPendingRequests = useCallback(() => {
     cancelNavigation(navigationIDRef.current);

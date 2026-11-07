@@ -14,10 +14,11 @@ func FinishSessionLoad(s *Session) (repaired bool) {
 	if s == nil {
 		return false
 	}
+	repaired = removeInternalSnapshots(s)
 	MigrateLegacyCheckpointsToBase0(s)
 	ReconcileCheckpointLast(s)
 	broken, userAdj, empty, neutralized := RepairSessionMalformedImages(s)
-	return SessionRepairChanged(broken, userAdj, empty, neutralized)
+	return repaired || SessionRepairChanged(broken, userAdj, empty, neutralized)
 }
 
 func MigrateLegacyCheckpointsToBase0(s *Session) {

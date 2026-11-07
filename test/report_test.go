@@ -42,7 +42,7 @@ func TestReportRedactsAndKeepsNewestLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(logs, "DEBUG") || len(logs) == 0 || len(logs) > logging.ReportByteLimit {
+	if strings.Contains(logs, "DEBUG") || len(logs) == 0 || len(logs) > logging.ReportLogByteLimit {
 		t.Fatalf("report logs = %d bytes, debug=%v", len(logs), strings.Contains(logs, "DEBUG"))
 	}
 }
@@ -75,6 +75,10 @@ func TestReportAPIPostsAnonymizedBody(t *testing.T) {
 	if response.Code != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
 		t.Fatalf("status %d %s", response.Code, body)
+	}
+	var memory map[string]any
+	if err := json.Unmarshal([]byte(got["memory"]), &memory); err != nil {
+		t.Fatalf("missing memory metrics: %v", err)
 	}
 	if got["note"] != "see <email>" || strings.Contains(got["logs"], "sk-abcdefghijklmnopqrstuvwxyz") || strings.Contains(got["logs"], "/tmp/secret-path") {
 		t.Fatalf("payload %#v", got)

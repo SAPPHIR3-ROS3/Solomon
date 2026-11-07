@@ -269,7 +269,7 @@ func (a *chatAPI) loadProjectSidebarData() (apiProjectSidebar, error) {
 }
 
 func (a *chatAPI) projectInfo(root, id string) (apiProject, error) {
-	sessions, err := chatstore.ListRecent(id, 10000)
+	sessions, err := chatstore.ListSummaries(id, 10000)
 	if err != nil {
 		return apiProject{}, err
 	}

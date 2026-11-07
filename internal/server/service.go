@@ -7,6 +7,7 @@ import (
 	"fmt"
 	guibundle "github.com/SAPPHIR3-ROS3/Solomon/v2026/gui"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/memoryprofile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
@@ -167,6 +168,10 @@ func Run(ctx context.Context, options Options) error {
 		return fmt.Errorf("a Solomon daemon already owns %s", home)
 	}
 	defer lock.Close()
+	profileCtx, stopProfile := context.WithCancel(ctx)
+	defer stopProfile()
+	memoryprofile.Default = memoryprofile.New(home)
+	go memoryprofile.Default.Run(profileCtx)
 	// Only recover children whose creation identity still matches the saved PID.
 	if previous, err := LoadState(); err == nil && previous.VitePID > 1 && previous.ViteIdentity != "" && processidentity.Read(previous.VitePID) == previous.ViteIdentity {
 		killManagedTree(previous.VitePID)
@@ -282,6 +287,10 @@ func Run(ctx context.Context, options Options) error {
 	})
 	mux.HandleFunc("GET /__solomon/notifications", handleNotifications)
 	mux.HandleFunc("POST /__solomon/report", handleReport)
+	mux.HandleFunc("GET /__solomon/memory", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, memoryprofile.Default.Report())
+	})
 	mux.HandleFunc(chatAPIPath, chatAPI.handleProjects)
 	mux.HandleFunc(chatAPIPath+"/", func(w http.ResponseWriter, r *http.Request) {
 		if chatAPI.handlesProjectRoute(r.URL.Path) {
