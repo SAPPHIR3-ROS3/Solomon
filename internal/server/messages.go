@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 	"net/url"
@@ -197,7 +198,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 }
 
 func isHiddenSessionMessage(message chatstore.Message) bool {
-	if message.GUIHidden || message.Role == "tool" {
+	if message.GUIHidden || message.Role == "tool" || (message.Role == "user" && agentruntime.IsInternalToolCorrection(message.Content)) {
 		return true
 	}
 	// Command lines are marked GUIHidden when recorded; a skill request starting with "/" stays visible.

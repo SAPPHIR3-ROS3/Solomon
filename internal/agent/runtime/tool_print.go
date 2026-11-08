@@ -307,7 +307,7 @@ func (r *Runtime) handleRejectedNativeToolCall() error {
 	}
 	r.mutateSession(func(s *chatstore.Session) {
 		seq := checkpoint.Bump(s)
-		um := chatstore.Message{Role: "user", Content: legacyNativeToolRejectedUserMsg}
+		um := chatstore.Message{Role: "user", Content: legacyNativeToolRejectedUserMsg, GUIHidden: true}
 		checkpoint.StampMsg(&um, s, seq)
 		s.Messages = append(s.Messages, um)
 		s.LastMessageAt = time.Now()
@@ -370,7 +370,7 @@ func (r *Runtime) injectToolCorrectionUserMsg(correction string) error {
 	}
 	r.mutateSession(func(s *chatstore.Session) {
 		seq := checkpoint.Bump(s)
-		um := chatstore.Message{Role: "user", Content: correction}
+		um := chatstore.Message{Role: "user", Content: correction, GUIHidden: true}
 		checkpoint.StampMsg(&um, s, seq)
 		s.Messages = append(s.Messages, um)
 		s.LastMessageAt = time.Now()
@@ -456,4 +456,13 @@ func stripANSI(s string) string {
 		b.WriteByte(s[i])
 	}
 	return b.String()
+}
+
+func IsInternalToolCorrection(content string) bool {
+	switch strings.TrimSpace(content) {
+	case legacyToolJSONCorrectionUserMsg, toolIntentCorrectionUserMsg, nativeToolCorrectionUserMsg, nativeBridgeToolCorrectionUserMsg, legacyNativeToolRejectedUserMsg:
+		return true
+	default:
+		return false
+	}
 }

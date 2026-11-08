@@ -1,3 +1,4 @@
+import { isInternalToolCorrection } from "./corrections";
 import type { Chat, ChatMessage, ChatStats, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 
@@ -83,6 +84,7 @@ function addToolCheckpoints(message: ChatMessage, sequence: number, branch: stri
 }
 
 export function groupChatTurns(messages: IndexedChatMessage[]): IndexedChatMessage[][] {
+  messages = messages.filter(entry => !isInternalToolCorrection(entry.message));
   const groups: IndexedChatMessage[][] = [];
 
   for (let index = 0; index < messages.length; index += 1) {

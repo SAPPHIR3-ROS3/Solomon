@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const server = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: "automatic" } });
 const { ChatMessageGroups } = await server.ssrLoadModule("/src/chat/ChatMessageGroups.tsx");
-const { liveWorkedForSeconds, indexChatMessages } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
+const { liveWorkedForSeconds, indexChatMessages, groupChatTurns } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
 
 test("resend appears only on the latest user turn between delete and copy", () => {
   const messages = indexChatMessages([
@@ -174,4 +174,18 @@ test("completed work duration is visible on every assistant turn", () => {
  const html = renderToStaticMarkup(createElement(ChatMessageGroups, {messages:indexChatMessages(messages)}));
  assert.match(html, /worked for 14s/);
  assert.match(html, /worked for 27s/);
+});
+
+test("persisted internal corrections keep assistant work in one visible turn", async () => {
+  const messages = indexChatMessages([
+    { id: "u", role: "user", content: "Continue" },
+    { id: "a1", role: "assistant", content: "Working" },
+    { id: "correction", role: "user", content: "Your previous native API tool call was rejected. Every native tool call requires a non-empty string intent. Retry with a native Solomon tool_call whose JSON arguments match the declared schema and include a non-empty intent string. Do not emit XML, markdown pseudo-calls, or plain-text tool narration unless you mean to answer without tools." },
+    { id: "a2", role: "assistant", content: "Recovered" },
+  ]);
+  assert.deepEqual(groupChatTurns(messages).map(group => group.map(entry => entry.message.id)), [["u"], ["a1", "a2"]]);
+  const html = renderToStaticMarkup(createElement(ChatMessageGroups, { messages }));
+  assert.doesNotMatch(html, /Your previous native API tool call/);
+  assert.match(html, /Working/);
+  assert.match(html, /Recovered/);
 });

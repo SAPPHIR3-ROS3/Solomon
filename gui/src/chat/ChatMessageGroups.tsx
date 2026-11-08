@@ -23,7 +23,7 @@ export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !==
   const autoCollapseToolCalls = preferences.chat.autoCloseToolCalls;
   const startToolCallsCollapsed = preferences.chat.startToolCallsCollapsed;
   const groups = groupChatTurns(messages);
-  const lastUserID = messages.filter(entry => entry.message.role === "user").at(-1)?.message.id;
+  const lastUserID = groups.flat().filter(entry => entry.message.role === "user").at(-1)?.message.id;
 
 
   return (

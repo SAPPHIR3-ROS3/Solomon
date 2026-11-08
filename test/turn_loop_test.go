@@ -307,7 +307,7 @@ func TestRunAgentTurns_rejectedNativeToolCallGetsTerminalResult(t *testing.T) {
 	if toolResult.Role != "tool" || toolResult.ToolCallID != "rejected-1" || !strings.Contains(toolResult.Content, "missing tool intent") {
 		t.Fatalf("terminal rejected result=%+v", toolResult)
 	}
-	if rt.Session.Messages[3].Role != "user" || !strings.Contains(rt.Session.Messages[3].Content, "non-empty string intent") {
+	if rt.Session.Messages[3].Role != "user" || !rt.Session.Messages[3].GUIHidden || !strings.Contains(rt.Session.Messages[3].Content, "non-empty string intent") {
 		t.Fatalf("correction message=%+v", rt.Session.Messages[3])
 	}
 	if rt.Session.Messages[4].Content != "recovered" {

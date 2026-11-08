@@ -71,7 +71,7 @@ func apiStatsForMessageTurn(message chatstore.Message, source []chatstore.Messag
 	start := 0
 	for i := index - 1; i >= 0; i-- {
 		candidate := source[i]
-		if candidate.Role == "user" && !candidate.GUIHidden && !candidate.CreatedAt.IsZero() &&
+		if candidate.Role == "user" && !isHiddenSessionMessage(candidate) && !candidate.CreatedAt.IsZero() &&
 			!strings.HasPrefix(strings.TrimSpace(candidate.Content), "tool_result(") {
 			start = i + 1
 			break
@@ -102,7 +102,7 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 	}
 	results := make(map[string]chatstore.Message)
 	for _, candidate := range messages[messageIndex+1:] {
-		if candidate.Role == "user" {
+		if candidate.Role == "user" && !isHiddenSessionMessage(candidate) {
 			break
 		}
 		if candidate.Role == "tool" && candidate.ToolCallID != "" {
