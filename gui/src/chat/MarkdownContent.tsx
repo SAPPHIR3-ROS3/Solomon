@@ -257,7 +257,7 @@ function isFileLink(href?: string) {
 }
 
 function promoteMultilineCodeSpans(content: string) {
-  return content.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[ \t]*$|(?![\s\S]))|(^|[^`])`([^`]*\n[^`]*)`(?!`)/gm, (match, fence, prefix: string, body: string) => {
+  return content.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[ \t]*$|(?![\s\S]))|(^|[^`])`([^`]*)`(?!`)/gm, (match, fence, prefix: string, body: string) => {
     if (fence || !/^[\n\r]/.test(body)) return match;
     const inner = body.replace(/^\n/, "").replace(/\n$/, "");
     return `${prefix}\n\n\`\`\`\n${inner}\n\`\`\`\n`;

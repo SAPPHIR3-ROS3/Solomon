@@ -71,6 +71,10 @@ func ArchiveUncompactedState(sess *Session, at time.Time) {
 }
 
 func ApplyCompaction(sess *Session, body string, at time.Time) {
+	ApplyCompactionWithPendingMessages(sess, body, at, nil)
+}
+
+func ApplyCompactionWithPendingMessages(sess *Session, body string, at time.Time, pending []Message) {
 	prev := 0
 	if sess != nil {
 		prev = len(sess.Messages)
@@ -84,6 +88,7 @@ func ApplyCompaction(sess *Session, body string, at time.Time) {
 	if restored, ok := sess.Capabilities.RestoreMessage(); ok {
 		sess.Messages = append(sess.Messages, restored)
 	}
+	sess.Messages = append(sess.Messages, pending...)
 	sess.Branches = nil
 	sess.CheckpointBranchSuffix = ""
 	sess.ForkChildCount = nil

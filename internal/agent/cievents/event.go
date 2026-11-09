@@ -8,15 +8,16 @@ import (
 const SchemaVersion = 1
 
 const (
-	TypeRunStart       = "run_start"
-	TypeAssistantStart = "assistant_start"
-	TypeAssistantDelta = "assistant_delta"
-	TypeAssistantEnd   = "assistant_end"
-	TypeToolStart      = "tool_start"
-	TypeSubagentStart  = "subagent_start"
-	TypeToolResult     = "tool_result"
-	TypeError          = "error"
-	TypeRunEnd         = "run_end"
+	TypeRunStart         = "run_start"
+	TypeAssistantStart   = "assistant_start"
+	TypeAssistantDelta   = "assistant_delta"
+	TypeAssistantEnd     = "assistant_end"
+	TypeToolStart        = "tool_start"
+	TypeSubagentStart    = "subagent_start"
+	TypeToolResult       = "tool_result"
+	TypeError            = "error"
+	TypeRunEnd           = "run_end"
+	TypeContextCompacted = "context_compacted"
 )
 
 const (
@@ -41,6 +42,13 @@ func RunStart(prompt, model, provider, projHex string, ephemeral bool) Event {
 	e["provider"] = provider
 	e["proj_hex"] = projHex
 	e["ephemeral"] = ephemeral
+	return e
+}
+
+func ContextCompacted(projectID, chatID string) Event {
+	e := baseEvent(TypeContextCompacted)
+	e["project_id"] = projectID
+	e["chat_id"] = chatID
 	return e
 }
 

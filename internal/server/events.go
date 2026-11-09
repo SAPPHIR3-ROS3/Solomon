@@ -45,6 +45,13 @@ func newChatRun(parent context.Context) *chatRun {
 }
 
 func (r *chatRun) Emit(ev cievents.Event) {
+	if ev["type"] == cievents.TypeContextCompacted {
+		projectID, _ := ev["project_id"].(string)
+		chatID, _ := ev["chat_id"].(string)
+		if sess, err := chatstore.ReadSession(projectID, chatID); err == nil {
+			ev = apiEvent("chat_snapshot", map[string]any{"chat": apiChatFromSession(projectID, sess, r)})
+		}
+	}
 	if ev["type"] == "error" {
 		if message, ok := ev["error"].(string); ok {
 			logging.RecordNotification("error", message)

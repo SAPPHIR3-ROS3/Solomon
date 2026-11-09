@@ -25,6 +25,7 @@ type turnScriptBackend struct {
 	mu       sync.Mutex
 	turnN    int
 	textN    int
+	requests []llm.TurnRequest
 }
 
 func (b *turnScriptBackend) Protocol() llm.Protocol { return b.protocol }
@@ -32,6 +33,7 @@ func (b *turnScriptBackend) Protocol() llm.Protocol { return b.protocol }
 func (b *turnScriptBackend) StreamTurn(ctx context.Context, req llm.TurnRequest, contentOut io.Writer, opts llm.StreamOpts) (llm.AssistantTurnResult, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.requests = append(b.requests, req)
 	i := b.turnN
 	b.turnN++
 	if i < len(b.turnErr) && b.turnErr[i] != nil {
@@ -407,40 +409,6 @@ func TestRunAgentTurns_streamError(t *testing.T) {
 	err := rt.RunAgentTurnsForTest(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "stream failed") {
 		t.Fatalf("expected stream error, got %v", err)
-	}
-}
-
-func TestRunAgentTurns_ephemeralAutoCompaction(t *testing.T) {
-	summary := "compact summary for turn loop test"
-	backend := &turnScriptBackend{
-		protocol: llm.ProtocolOpenAI,
-		turns: []llm.AssistantTurnResult{
-			{Content: "before compact", Usage: llm.UsageStats{PromptTokens: 5000}},
-			{Content: "after compact"},
-		},
-		texts: []string{summary},
-	}
-	rt := newTurnLoopRuntime(t, backend, nil, func(r *agentruntime.Runtime) {
-		r.EphemeralSession = true
-		r.CompactionThresholdTokens = 100
-	})
-	if err := rt.RunAgentTurnsForTest(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if backend.textN != 1 {
-		t.Fatalf("StreamText calls=%d", backend.textN)
-	}
-	if backend.turnN != 2 {
-		t.Fatalf("StreamTurn calls=%d", backend.turnN)
-	}
-	if len(rt.Session.Messages) != 2 {
-		t.Fatalf("messages=%d", len(rt.Session.Messages))
-	}
-	if !strings.Contains(rt.Session.Messages[0].Content, summary) {
-		t.Fatalf("compact body=%q", rt.Session.Messages[0].Content)
-	}
-	if rt.Session.Messages[1].Content != "after compact" {
-		t.Fatalf("final assistant=%+v", rt.Session.Messages[1])
 	}
 }
 

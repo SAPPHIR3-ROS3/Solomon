@@ -8,9 +8,19 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 )
+
+func ChatRunEventsForTest(events ...cievents.Event) []cievents.Event {
+	run := newChatRun(context.Background())
+	defer run.cancel()
+	for _, event := range events {
+		run.Emit(event)
+	}
+	return run.events
+}
 
 type DevelopmentFrontendForTest struct{ frontend *developmentFrontend }
 

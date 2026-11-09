@@ -9,6 +9,24 @@ const { createChatStreamBatch } = await server.ssrLoadModule("/src/chat/streamBa
 const { applyLiveStreamEvent } = await server.ssrLoadModule("/src/chat/chatClient.ts");
 const { saveChat, getChat, updateChat, clearChatStore } = await server.ssrLoadModule("/src/chat/chatStore.ts");
 
+test("a live compaction snapshot shows the summary before the next assistant response", () => {
+  let chat = { id: "chat", projectID: "project", messages: [], source: "daemon", status: "running" };
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: {
+    id: "chat", status: "running", messages: [
+      { id: "compaction-0", role: "assistant", kind: "compaction", content: "", summary: "Continue the prototype.", retainedMessages: [{ role: "user", content: "Earlier request" }] },
+      { id: "m-1", role: "user", content: "Next request" },
+    ],
+  } });
+  assert.equal(chat.status, "running");
+  assert.equal(chat.messages[0].kind, "compaction");
+  assert.equal(chat.messages[0].summary, "Continue the prototype.");
+  assert.equal(chat.messages[0].retainedMessages[0].content, "Earlier request");
+  chat = applyLiveStreamEvent(chat, { type: "assistant_start", turn: 0, checkpoint_seq: 0 });
+  chat = applyLiveStreamEvent(chat, { type: "assistant_delta", channel: "content", delta: "New answer" });
+  assert.deepEqual(chat.messages.map(message => message.content), ["", "Next request", "New answer"]);
+  assert.equal(chat.messages[0].kind, "compaction");
+});
+
 test("a burst publishes once with exact text and the latest sequence", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const published = [];

@@ -12,6 +12,15 @@ const { MarkdownContent } = await server.ssrLoadModule('/src/chat/MarkdownConten
 const render = (content) => renderToStaticMarkup(createElement(MarkdownContent, { content }));
 const tick = String.fromCharCode(96);
 
+test('keeps adjacent inline code in summary lists without inventing code blocks', () => {
+  const content = '1. header intent\n2. `Tool: orchestrate`\n3. **`SDK calls N · 2.12s`**, niente label Execution\n4. `Source`\n5. `Result`\n\n`Source · Go` ridotto a solo `Source`.';
+  const html = render(content);
+  assert.equal((html.match(/class="chat-code-block"/g) ?? []).length, 0);
+  assert.ok(html.includes('<strong><code>SDK calls N · 2.12s</code></strong>'));
+  assert.ok(html.includes('<li><code>Source</code></li>'));
+  assert.ok(html.includes('<li><code>Result</code></li>'));
+});
+
 test('recovers dotenv and PowerShell blocks from thread 45b61937', () => {
   const env = 'OPENMEDIAGEN_BIND_HOST=127.0.0.1\nOPENMEDIAGEN_PORT=8000\n\nOPENMEDIAGEN_MODELS_DIR=./models\nOPENMEDIAGEN_OUTPUT_DIR=./output\n\nOPENMEDIAGEN_API_KEY=\nOPENMEDIAGEN_HF_TOKEN=';
   for (const [language, code] of [['dotenv', env], ['powershell', 'docker compose up -d --build']]) {

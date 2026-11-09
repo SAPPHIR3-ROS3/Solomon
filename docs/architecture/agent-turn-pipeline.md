@@ -132,7 +132,7 @@ After each tool returns, `applyToolOutput` (via [`internal/tooloutput/`](../../i
 ## Extension points
 
 - New tool: implement in `internal/agent/tools/`, register in `params.go` and `exec.go` mode guards.
-- Compaction: `compaction_threshold_tokens` in config; slash `/summarize`.
+- Compaction: `compaction_threshold_tokens` in config; slash `/summarize`. Automatic compaction checks the last assistant's reported prompt tokens before the next request, including after completed tool batches. A final reply does not trigger an extra request. Pending user messages remain intact after the summary, and the original transcript is archived. A failed summary stops the request without replacing history.
 
 ## Related code
 

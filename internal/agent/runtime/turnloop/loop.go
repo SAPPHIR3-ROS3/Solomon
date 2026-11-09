@@ -110,6 +110,9 @@ func Run(ctx context.Context, h Host) error {
 		toolDefs = llm.ToolDefsFromOpenAI(tools)
 	}
 	for {
+		if err := compactBeforeRequest(runCtx, h); err != nil {
+			return err
+		}
 		msgs, imageFiles := h.SessionMessagesSnapshot()
 		provider := h.Config().Current.Provider
 		if p := h.Provider(); p != nil && p.Name != "" {
@@ -308,27 +311,6 @@ func Run(ctx context.Context, h Host) error {
 			flushUsageStats()
 			if h.MachineMode() {
 				h.SetCIFinalContent(turn.Content)
-			}
-			if !explicitStop && turn.Usage.PromptTokens > 0 && turn.Usage.PromptTokens >= h.CompactionThreshold() {
-				deps := h.SlashDeps(runCtx)
-				if h.EphemeralSession() {
-					body, err := commands.SummarizeBody(deps)
-					if err != nil {
-						logging.Log(logging.WARNING_LOG_LEVEL, "ephemeral auto-summarize failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-						commands.PrintSystemf(out, "auto-compact: %v", err)
-						return nil
-					}
-					h.MutateSession(func(s *chatstore.Session) {
-						chatstore.ApplyCompaction(s, body, time.Now())
-					})
-					h.PersistSessionOrLog("ephemeralCompaction")
-					commands.PrintSystem(out, "context summarized")
-					continue
-				}
-				if err := commands.Summarize(deps); err != nil {
-					logging.Log(logging.WARNING_LOG_LEVEL, "auto-compact failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-					commands.PrintSystemf(out, "auto-compact: %v", err)
-				}
 			}
 			return nil
 		}
