@@ -17,7 +17,10 @@ notifications. The existing seven-day retention remains in effect.
   excluded. Successful subprocesses shorter than one second remain quiet.
 - Git baseline subprocesses inherit the HTTP request identifier. This connects
   an editor request to a specific Git PID and distinguishes cancellation from
-  the five-second baseline deadline.
+  the five-second baseline deadline. Files absent from the committed tree,
+  repositories without commits, and ordinary non-repository probes are normal
+  results. Canceled editor requests do not create error notifications; actual
+  Git failures still retain process diagnostics.
 - On Linux, signal exits also record available system memory, parent RSS and
   swap, and cumulative kernel and cgroup OOM counters when readable. Counters
   are evidence to correlate with the event; a nonzero historical counter alone
