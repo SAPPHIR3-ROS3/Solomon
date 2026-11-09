@@ -1,3 +1,4 @@
+import { reportGUIError } from "../diagnostics";
 import { useSyncExternalStore } from "react";
 import { serverEndpoint } from "../platform";
 
@@ -92,6 +93,7 @@ function savePreferences(patch: SettingsPatch): Promise<void> {
     const payload = await requestSettings(patch);
     publish({ ...state, userName: payload.general?.userName ?? state.userName, advanced: payload.advanced ?? state.advanced, responseLanguage: payload.general?.responseLanguage ?? state.responseLanguage, chat: resolvedChat(payload), ready: true, error: null });
   }).catch(error => {
+ reportGUIError(error, "settings-save");
     publish({ ...state, error: error instanceof Error ? error.message : "Unable to save GUI settings" });
     throw error;
   });

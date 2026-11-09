@@ -3,10 +3,13 @@
 package server
 
 import (
+	"context"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"os"
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -45,6 +48,7 @@ func (p *unixTerminalProcess) Kill() error {
 		return nil
 	}
 	// PTY children own a session/process group. Stop their workers as well.
+	logging.ProcessTermination(p.cmd.Process.Pid, "terminal", "terminal_close")
 	return syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
 }
 
@@ -53,6 +57,11 @@ func (p *unixTerminalProcess) Resize(cols, rows uint16) error {
 }
 
 func (p *unixTerminalProcess) Wait() error {
-	p.waitOnce.Do(func() { p.waitErr = p.cmd.Wait(); p.cleanup() })
+	p.waitOnce.Do(func() {
+		started := time.Now()
+		p.waitErr = p.cmd.Wait()
+		logging.ProcessFinished(context.Background(), p.cmd, "terminal.wait", started, p.waitErr)
+		p.cleanup()
+	})
 	return p.waitErr
 }

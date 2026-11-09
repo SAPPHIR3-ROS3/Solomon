@@ -3,8 +3,10 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/gofrs/flock"
@@ -118,28 +120,43 @@ func applyModelMode(root *Root, providerName, modelID string) {
 	}
 }
 
-func updateConfig(mutate func(*Root) error) (*Root, error) {
+func updateConfig(mutate func(*Root) error) (result *Root, err error) {
+	started := time.Now()
+	stage := "resolve_path"
+	defer func() {
+		params := map[string]any{"stage": stage, "duration_ms": time.Since(started).Milliseconds(), "outcome": "success"}
+		if err != nil {
+			params["outcome"] = "failed"
+			params["error_type"] = fmt.Sprintf("%T", err)
+		}
+		logging.Diagnostic("configuration update finished", params)
+	}()
 	cfgPath, err := paths.ConfigPath()
 	if err != nil {
 		return nil, err
 	}
+	stage = "lock"
 	lock := flock.New(filepath.Join(filepath.Dir(cfgPath), "config.lock"))
 	if err := lock.Lock(); err != nil {
 		return nil, err
 	}
 	defer lock.Unlock()
 
+	stage = "load"
 	root, err := Load()
 	if err != nil {
 		return nil, err
 	}
+	stage = "mutate"
 	if err := mutate(root); err != nil {
 		return nil, err
 	}
+	stage = "validate"
 	normalizeRoot(root)
 	if err := validateRoot(context.Background(), root); err != nil {
 		return nil, err
 	}
+	stage = "save"
 	if err := saveUnlocked(root); err != nil {
 		return nil, err
 	}

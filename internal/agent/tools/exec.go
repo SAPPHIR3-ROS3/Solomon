@@ -16,7 +16,13 @@ func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (r
 	defer func() {
 		params := toolCallLogParams(env, mode, inv)
 		params["duration_ms"] = time.Since(started).Milliseconds()
+		if ctx.Err() != nil {
+			params["context_error"] = ctx.Err().Error()
+		}
 		if resultMap, ok := result.(map[string]any); ok {
+			if exit, exists := resultMap["exit"]; exists {
+				params["exit"] = exit
+			}
 			if calls, exists := resultMap["tool_calls"]; exists {
 				params["child_tool_calls"] = calls
 			}

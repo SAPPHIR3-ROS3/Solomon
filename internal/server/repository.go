@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/desktopgit"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net/http"
 	"os"
 	"os/exec"
@@ -212,7 +213,9 @@ func runGit(root string, args ...string) (string, error) {
 	defer cancel()
 	command := exec.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...)
 	configureManagedProcess(command)
+	started := time.Now()
 	output, err := command.Output()
+	logging.ProcessFinished(ctx, command, "repository."+args[0], started, err)
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", ctx.Err()

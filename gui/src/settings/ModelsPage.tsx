@@ -1,3 +1,4 @@
+import { reportGUIError } from "../diagnostics";
 import { SearchIcon, PlusIcon, RefreshIcon, CheckIcon, CloseIcon, DisclosureIcon } from "./ModelIcons";
 import { ProviderRow } from "./ProviderRow";
 import { disconnectProvider } from "../projects/disconnect";
@@ -88,7 +89,7 @@ export function ModelsPage() {
     const timer = window.setInterval(() => {
       void fetchProviderQuotas().then((quotas) => {
         if (active) setState((current) => ({ ...current, quotas }));
-      }).catch(() => {});
+      }).catch((error: unknown) => reportGUIError(error, "background-refresh"));
     }, 2 * 60 * 1000);
     return () => {
       active = false;
@@ -98,7 +99,7 @@ export function ModelsPage() {
 
   async function loadCatalog(forceRefresh = false) {
     setState((current) => ({ ...current, error: "", loading: true }));
-    void fetchProviderQuotas().then((quotas) => setState((current) => ({ ...current, quotas }))).catch(() => {});
+    void fetchProviderQuotas().then((quotas) => setState((current) => ({ ...current, quotas }))).catch((error: unknown) => reportGUIError(error, "background-refresh"));
     try {
       const catalog = await fetchModelCatalog(forceRefresh);
       const unavailable = forceRefresh ? catalog.providers.filter((provider) => !provider.complete) : [];

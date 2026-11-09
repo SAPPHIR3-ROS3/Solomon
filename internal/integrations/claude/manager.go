@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
@@ -92,7 +93,10 @@ func Ensure(ctx context.Context, cwd string) (baseURL, token string, err error) 
 	if err != nil {
 		return "", "", err
 	}
-	logFile, _ := sidecarLog()
+	logFile, logErr := sidecarLog()
+	if logErr != nil {
+		logging.Diagnostic("Claude sidecar log unavailable", map[string]any{"error": logErr.Error()})
+	}
 	if logFile != nil {
 		cmd.Stderr = logFile
 	} else {
@@ -115,7 +119,9 @@ func Ensure(ctx context.Context, cwd string) (baseURL, token string, err error) 
 	}
 	running = &sidecar{cmd: cmd, stdin: stdin, base: base, token: token, cwd: cwd}
 	go func(cmd *exec.Cmd) {
-		_ = cmd.Wait()
+		started := time.Now()
+		err := cmd.Wait()
+		logging.ProcessFinished(context.Background(), cmd, "claude.sidecar.wait", started, err)
 		mu.Lock()
 		if running != nil && running.cmd == cmd {
 			running = nil

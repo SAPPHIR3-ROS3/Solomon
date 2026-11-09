@@ -1,3 +1,4 @@
+import { reportGUIError } from "../diagnostics";
 import { useTextHistory } from "./useTextHistory";
 import { overlayTags, insertImageTags, removeImageTag, jumpAcrossImageTag, imageAtCursor, snapSelectionOutsideImageTag, positionImageTags, pickerPositionFor, resizeInput, type ImageTagPosition } from "./atMention/helpers";
 import { Toolbar, useLightboxTools } from "./atMention/Toolbar";
@@ -62,7 +63,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
     setSuggestions([]);
     setSelected(0);
     contextRef.current = null;
-    void fetchProjectSlashCommands(projectID, "").catch(() => {});
+    void fetchProjectSlashCommands(projectID, "").catch((error: unknown) => reportGUIError(error, "autocomplete"));
   }, [projectID]);
 
   useLayoutEffect(() => {

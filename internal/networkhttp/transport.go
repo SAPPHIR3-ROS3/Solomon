@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 	"io"
 	"net"
@@ -50,12 +52,39 @@ func NewRetrying(base *http.Transport) *Transport {
 	return t
 }
 
-func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *Transport) RoundTrip(req *http.Request) (response *http.Response, err error) {
+	started := time.Now()
+	defer func() {
+		if err != nil || (response != nil && response.StatusCode >= 400) || time.Since(started) >= 5*time.Second {
+			params := map[string]any{"method": req.Method, "host": req.URL.Hostname(), "duration_ms": time.Since(started).Milliseconds()}
+			if response != nil {
+				params["status"] = response.StatusCode
+			}
+			if err != nil {
+				params["error_type"] = fmt.Sprintf("%T", err)
+				var networkError net.Error
+				if errors.As(err, &networkError) {
+					params["timeout"] = networkError.Timeout()
+				}
+				cause := err
+				for count := 0; count < 8 && errors.Unwrap(cause) != nil; count++ {
+					cause = errors.Unwrap(cause)
+				}
+				params["cause_type"] = fmt.Sprintf("%T", cause)
+				params["route_changed"] = errors.Is(err, ErrRouteChanged)
+			}
+			if req.Context().Err() != nil {
+				params["context_error"] = req.Context().Err().Error()
+			}
+			logging.Diagnostic("outbound HTTP request finished", params)
+		}
+	}()
 	t.mu.Lock()
 	key := t.routeKey()
 	if t.current == nil || key != t.key {
 		if t.current != nil {
 			t.current.CloseIdleConnections()
+			logging.Diagnostic("HTTP connection pool replaced", map[string]any{"reason": "route_changed"})
 		}
 		t.current = t.base.Clone()
 		t.key = key
@@ -89,7 +118,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 		}
 	}()
-	response, err := current.RoundTrip(req.Clone(ctx))
+	response, err = current.RoundTrip(req.Clone(ctx))
 	if err != nil {
 		if errors.Is(context.Cause(ctx), ErrRouteChanged) {
 			err = ErrRouteChanged
@@ -110,6 +139,9 @@ type routeBody struct {
 func (b *routeBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	if err != nil {
+		if !errors.Is(err, io.EOF) {
+			logging.Diagnostic("outbound HTTP response interrupted", map[string]any{"error_type": fmt.Sprintf("%T", err), "route_changed": errors.Is(context.Cause(b.ctx), ErrRouteChanged)})
+		}
 		if errors.Is(context.Cause(b.ctx), ErrRouteChanged) {
 			err = ErrRouteChanged
 		}

@@ -67,6 +67,8 @@ type Config struct {
 }
 
 type LogOptions struct {
+	Diagnostic   bool
+	CallerSkip   int
 	Params       map[string]any
 	Override     bool
 	WriteConsole *bool
@@ -199,7 +201,10 @@ func Log(currentLogLevel int, message string, options ...LogOptions) {
 	}
 
 	date := time.Now().Format(time.RFC3339)
-	programCounter, filename, line, _ := runtime.Caller(1)
+	if logOptions.Diagnostic {
+		date = time.Now().Format(time.RFC3339Nano)
+	}
+	programCounter, filename, line, _ := runtime.Caller(1 + logOptions.CallerSkip)
 	caller := runtime.FuncForPC(programCounter).Name()
 	file := filepath.Base(filename)
 
@@ -209,11 +214,14 @@ func Log(currentLogLevel int, message string, options ...LogOptions) {
 
 	consoleMessage := renderMessage(date, currentLogLevel, file, line, caller, message, parameters, true)
 	fileMessage := renderMessage(date, currentLogLevel, file, line, caller, message, parameters, false)
+	if logOptions.Diagnostic {
+		fileMessage = strings.Replace(fileMessage, "["+logLevel[currentLogLevel]+"]", "[DIAGNOSTIC]", 1)
+	}
 
 	logMu.Lock()
 	defer logMu.Unlock()
 
-	if currentLogLevel == ERROR_LOG_LEVEL || currentLogLevel == WARNING_LOG_LEVEL {
+	if !logOptions.Diagnostic && (currentLogLevel == ERROR_LOG_LEVEL || currentLogLevel == WARNING_LOG_LEVEL) {
 		text := message
 		if parameters != nil {
 			text += f.Sprintf(" | %v", parameters)
@@ -226,7 +234,7 @@ func Log(currentLogLevel int, message string, options ...LogOptions) {
 	}
 
 	if writeFile {
-		_ = writeFileLog(logDir, fileMessage, retention)
+		storageFailure("write_log", writeFileLog(logDir, fileMessage, retention))
 	}
 }
 

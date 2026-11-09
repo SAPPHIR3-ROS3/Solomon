@@ -8,6 +8,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/slash"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"io"
 	"net/http"
 	"net/http/httptrace"
@@ -130,7 +131,9 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 			close(titleDone)
 		}
 
-		_ = rt.RunPromptOnce(assistantCtx, content)
+		if err := rt.RunPromptOnce(assistantCtx, content); err != nil {
+			logging.Diagnostic("chat prompt failed", map[string]any{"error_type": fmt.Sprintf("%T", err), "canceled": assistantCtx.Err() != nil})
+		}
 		close(assistantDone)
 		<-titleDone
 		_ = rt.Close()

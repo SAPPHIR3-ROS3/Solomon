@@ -287,6 +287,7 @@ func Run(ctx context.Context, options Options) error {
 	})
 	mux.HandleFunc("GET /__solomon/notifications", handleNotifications)
 	mux.HandleFunc("POST /__solomon/report", handleReport)
+	mux.HandleFunc("POST /__solomon/client-diagnostics", handleClientDiagnostic)
 	mux.HandleFunc("GET /__solomon/memory", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusOK, memoryprofile.Default.Report())
@@ -352,7 +353,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/provider-quotas/reset", modelAPI.handleQuotaReset)
 	mux.HandleFunc("/__solomon/terminal", terminalAPI.handleWebSocket)
 	mux.Handle("/", frontend)
-	httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	httpServer.Handler = requestDiagnostics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !allowNetworkRequest(w, r) {
 			return
 		}
@@ -370,7 +371,7 @@ func Run(ctx context.Context, options Options) error {
 				}
 			}
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range")
-			w.Header().Set("Access-Control-Expose-Headers", "Accept-Ranges, Content-Length, Content-Range")
+			w.Header().Set("Access-Control-Expose-Headers", "Accept-Ranges, Content-Length, Content-Range, X-Solomon-Request-ID")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			if r.Method == http.MethodOptions {
 				if origin == "" {
@@ -382,7 +383,7 @@ func Run(ctx context.Context, options Options) error {
 			}
 		}
 		mux.ServeHTTP(w, r)
-	})
+	}))
 
 	shutdownDone := make(chan struct{})
 	go func() {
@@ -463,5 +464,7 @@ func viteCommand(directory string, port int) *exec.Cmd {
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		recordResponseError(w, err)
+	}
 }

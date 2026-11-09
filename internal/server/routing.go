@@ -440,6 +440,7 @@ func writeAPIError(w http.ResponseWriter, status int, err error) {
 	if err != nil {
 		message = err.Error()
 	}
+	recordResponseError(w, err)
 	logging.RecordNotification("error", message)
 	writeJSON(w, status, map[string]string{"error": message})
 }

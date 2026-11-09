@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net"
 	"net/url"
 	"os/exec"
@@ -20,7 +21,9 @@ func appendTailscaleMagicDNS(addresses []ReachableAddress, port int) []Reachable
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "tailscale", "status", "--json")
 		configureManagedProcess(cmd)
+		started := time.Now()
 		data, err := cmd.Output()
+		logging.ProcessFinished(ctx, cmd, "network.magicdns", started, err)
 		if err == nil {
 			if dns, ok := tailscaleMagicDNSAddress(addresses, port, data); ok {
 				return append(addresses, dns)

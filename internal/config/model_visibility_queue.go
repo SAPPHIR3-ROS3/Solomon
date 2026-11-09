@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"strings"
 	"sync"
 )
@@ -71,7 +71,7 @@ func (q *ModelVisibilityQueue) run() {
 		q.mu.Unlock()
 
 		if err := q.write(update.provider, update.model, update.enabled); err != nil {
-			log.Printf("persist model visibility: %v", err)
+			logging.Diagnostic("model visibility persistence failed", map[string]any{"error_type": fmt.Sprintf("%T", err)})
 		}
 
 		q.mu.Lock()

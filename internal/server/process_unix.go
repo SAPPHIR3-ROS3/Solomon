@@ -3,6 +3,7 @@
 package server
 
 import (
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"os/exec"
 	"syscall"
 
@@ -20,11 +21,13 @@ func stopManagedProcess(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
+	logging.ProcessTermination(cmd.Process.Pid, "server.managed", "managed_stop")
 	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	_, _ = cmd.Process.Wait()
 }
 
 func ForceStopPID(pid int) {
+	logging.ProcessTermination(pid, "server.force_stop", "force_stop_requested")
 	if pid <= 1 {
 		return
 	}
@@ -45,6 +48,7 @@ func ForceStop(state State) {
 }
 
 func forceStopProcess(pid int) {
+	logging.ProcessTermination(pid, "server.force_stop", "force_stop_requested")
 	if pid <= 1 {
 		return
 	}
@@ -56,6 +60,7 @@ func forceStopProcess(pid int) {
 }
 
 func killManagedTree(pid int) {
+	logging.ProcessTermination(pid, "server.managed_tree", "managed_tree_cleanup")
 	if pid > 1 {
 		_ = syscall.Kill(-pid, syscall.SIGKILL)
 	}

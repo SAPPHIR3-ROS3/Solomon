@@ -80,7 +80,9 @@ func execShell(ctx context.Context, env *Env, raw json.RawMessage) (any, error) 
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	c := NewShellCommand(cctx, wd, command)
+	started := time.Now()
 	out, err := c.CombinedOutput()
+	logging.ProcessFinished(cctx, c, "tool.shell", started, err)
 	exit := 0
 	if err != nil {
 		var ee *exec.ExitError
@@ -90,7 +92,7 @@ func execShell(ctx context.Context, env *Env, raw json.RawMessage) (any, error) 
 	}
 	m := map[string]any{"exit": exit, "output": string(out), "intent": intent}
 	if err != nil && !errors.As(err, new(*exec.ExitError)) {
-		logging.Log(logging.WARNING_LOG_LEVEL, "shell command failed", logging.LogOptions{Params: map[string]any{"command": command, "err": err.Error()}})
+		logging.Log(logging.WARNING_LOG_LEVEL, "shell command failed", logging.LogOptions{Params: map[string]any{"error_type": fmt.Sprintf("%T", err), "intent": intent}})
 		m["shell_error"] = err.Error()
 	}
 	return m, nil

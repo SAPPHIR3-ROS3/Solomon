@@ -1,10 +1,12 @@
+import { installDiagnostics, reportGUIError } from "./diagnostics";
 import { installTextHistory } from "./textHistory";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { fetchIdentities } from "./projects/identities";
 
-void fetchIdentities("").catch(() => {});
+installDiagnostics();
+void fetchIdentities("").catch((error: unknown) => reportGUIError(error, "startup-identities"));
 import "./styles.css";
 import "./pulse.css";
 import "./theme/themes.css";
@@ -21,7 +23,11 @@ document.addEventListener("keydown", (event) => {
 
 installTextHistory();
 
-createRoot(document.getElementById("root")!).render(
+createRoot(document.getElementById("root")!, {
+ onUncaughtError: (error) => reportGUIError(error, "react-uncaught"),
+ onCaughtError: (error) => reportGUIError(error, "react-caught"),
+ onRecoverableError: (error) => reportGUIError(error, "react-recoverable"),
+}).render(
   <StrictMode>
     <App />
   </StrictMode>,

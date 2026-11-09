@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -54,12 +55,16 @@ func (t *commandTransport) Connect(ctx context.Context) (sdkmcp.Connection, erro
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP stdio IO transport connect failed", logging.LogOptions{Params: map[string]any{"command": t.command, "err": err.Error()}})
 		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		started := time.Now()
+		waitErr := cmd.Wait()
+		logging.ProcessFinished(ctx, cmd, "mcp.stdio.wait", started, waitErr)
 		return nil, err
 	}
 	waitDone := make(chan struct{})
 	go func() {
-		_ = cmd.Wait()
+		started := time.Now()
+		waitErr := cmd.Wait()
+		logging.ProcessFinished(ctx, cmd, "mcp.stdio.wait", started, waitErr)
 		close(waitDone)
 	}()
 	return &processConnection{Connection: conn, cmd: cmd, waitDone: waitDone}, nil
@@ -74,6 +79,7 @@ type processConnection struct {
 func (c *processConnection) Close() error {
 	err := c.Connection.Close()
 	if c.cmd.Process != nil {
+		logging.ProcessTermination(c.cmd.Process.Pid, "mcp.stdio", "connection_closed")
 		_ = c.cmd.Process.Kill()
 	}
 	<-c.waitDone

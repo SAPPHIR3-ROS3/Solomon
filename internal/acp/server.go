@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/gofrs/flock"
 	"io"
 	"os"
@@ -68,6 +69,7 @@ func (s *Server) send(v any) {
 		return
 	}
 	if err := json.NewEncoder(s.out).Encode(v); err != nil {
+		logging.Diagnostic("ACP output failed", map[string]any{"error_type": fmt.Sprintf("%T", err)})
 		s.outputErr = err
 		if s.stop != nil {
 			s.stop()
@@ -80,6 +82,7 @@ func (s *Server) reply(id json.RawMessage, result any, code int, message string)
 	}
 	m := map[string]any{"jsonrpc": "2.0", "id": id}
 	if code != 0 {
+		logging.Diagnostic("ACP request failed", map[string]any{"code": code, "error": message})
 		m["error"] = map[string]any{"code": code, "message": message}
 	} else {
 		m["result"] = result

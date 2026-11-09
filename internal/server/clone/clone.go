@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net/http"
 	"net/url"
 	"os"
@@ -135,7 +136,10 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	args = append(args, "clone", "--", request.URL, cloneTarget)
 	command := exec.CommandContext(ctx, "git", args...)
 	command.Env = environment
-	if command.Run() != nil {
+	started := time.Now()
+	runErr := command.Run()
+	logging.ProcessFinished(ctx, command, "repository.clone", started, runErr)
+	if runErr != nil {
 		http.Error(w, "Clone failed. Check repository URL, access rights and selected identity, or use other credentials.", 400)
 		return
 	}

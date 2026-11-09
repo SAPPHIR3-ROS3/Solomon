@@ -2,10 +2,13 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/cloak"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"sync"
 	"time"
 )
@@ -41,11 +44,13 @@ func (a *chatAPI) beginRun(key string) (*chatRun, bool) {
 		return nil, false
 	}
 	run := newChatRun(a.daemonCtx)
+	logging.Diagnostic("chat run started", map[string]any{"run_id": fmt.Sprintf("%x", sha256.Sum256([]byte(key)))[:16]})
 	a.active[key] = run
 	return run, true
 }
 
 func (a *chatAPI) finishRun(key string, run *chatRun) {
+	logging.Diagnostic("chat run finished", map[string]any{"run_id": fmt.Sprintf("%x", sha256.Sum256([]byte(key)))[:16], "duration_ms": time.Since(run.startedAt).Milliseconds(), "canceled": run.ctx.Err() != nil})
 	run.finish()
 	a.activeMu.Lock()
 	if a.active[key] == run {
@@ -68,6 +73,7 @@ func (a *chatAPI) cancelRun(key string) bool {
 	if !ok {
 		return false
 	}
+	logging.Diagnostic("chat run cancellation requested", map[string]any{"run_id": fmt.Sprintf("%x", sha256.Sum256([]byte(key)))[:16]})
 	run.cancel()
 	return true
 }

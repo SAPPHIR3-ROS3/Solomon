@@ -255,7 +255,12 @@ func ReadActiveSubagents() (*ActiveSubagentsFile, error) {
 	return &f, nil
 }
 
-func WriteActiveSubagents(f *ActiveSubagentsFile) error {
+func WriteActiveSubagents(f *ActiveSubagentsFile) (err error) {
+	defer func() {
+		if err != nil {
+			logging.Diagnostic("active subagents persistence failed", map[string]any{"error": err.Error()})
+		}
+	}()
 	if err := paths.EnsureSubagentsDir(); err != nil {
 		return err
 	}

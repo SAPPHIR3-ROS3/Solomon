@@ -181,7 +181,9 @@ func (c *Client) Close() error {
 		_ = c.in.Close()
 	}
 	if c.cmd != nil && c.cmd.Process != nil {
-		_ = c.cmd.Wait()
+		started := time.Now()
+		err := c.cmd.Wait()
+		logging.ProcessFinished(context.Background(), c.cmd, "sandbox.worker.wait", started, err)
 	}
 	return nil
 }
@@ -360,6 +362,7 @@ func (c *Client) markBroken() {
 		_ = c.in.Close()
 	}
 	if c.cmd != nil && c.cmd.Process != nil {
+		logging.ProcessTermination(c.cmd.Process.Pid, "sandbox.worker", "ipc_broken")
 		_ = c.cmd.Process.Kill()
 		_, _ = c.cmd.Process.Wait()
 	}

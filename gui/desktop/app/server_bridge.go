@@ -1,6 +1,8 @@
 package app
 
 import (
+	"errors"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net"
 	"net/http"
 	"time"
@@ -20,6 +22,10 @@ func startDesktopProxy() (*ServerBridge, func(), error) {
 		return nil, nil, err
 	}
 	server := &http.Server{Handler: serverruntime.DesktopProxy(), ReadHeaderTimeout: 5 * time.Second}
-	go func() { _ = server.Serve(listener) }()
+	go func() {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logging.Diagnostic("desktop bridge stopped unexpectedly", map[string]any{"error": err.Error()})
+		}
+	}()
 	return &ServerBridge{url: "http://" + listener.Addr().String()}, func() { _ = server.Close() }, nil
 }

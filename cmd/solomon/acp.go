@@ -207,6 +207,15 @@ func runACP() error {
 	if err != nil {
 		return err
 	}
+	if err := logging.Configure(logging.Config{Dir: filepath.Join(home, "logs"), WriteFile: true, Retention: 7}); err != nil {
+		return err
+	}
+	if cfg, err := config.LoadOptional(); err == nil && cfg != nil && cfg.LogLevel != "" {
+		if level, err := logging.ParseLevel(cfg.LogLevel); err == nil {
+			_ = logging.SetGlobalLevel(level)
+		}
+	}
+	logging.Diagnostic("ACP starting", nil)
 	server := acp.New(protocolOut, newACPRunner)
 	server.SetVersion(commands.LocalVersionString())
 	if err = server.SetStorage(filepath.Join(home, "acp", "sessions")); err != nil {

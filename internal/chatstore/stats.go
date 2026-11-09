@@ -2,6 +2,7 @@ package chatstore
 
 import (
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"os"
 	"path/filepath"
 	"sync"
@@ -87,6 +88,7 @@ func loadProjectStatsFile(projectHex string) (*projectStatsFile, error) {
 	}
 	var f projectStatsFile
 	if err := json.Unmarshal(b, &f); err != nil || f.Version != projectStatsVersion || f.Chats == nil {
+		logging.Diagnostic("chat statistics cache rejected", map[string]any{"invalid_json": err != nil, "version": f.Version, "missing_chats": f.Chats == nil})
 		return nil, nil
 	}
 	return &f, nil

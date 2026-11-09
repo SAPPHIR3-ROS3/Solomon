@@ -198,6 +198,7 @@ func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port in
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
 	} else {
+		logging.Diagnostic("Cursor sidecar log unavailable", map[string]any{"error": err.Error()})
 		cmd.Stdout = io.Discard
 		cmd.Stderr = io.Discard
 	}
@@ -213,7 +214,9 @@ func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port in
 }
 
 func watchSidecarProcess(cmd *exec.Cmd, dir, apiKey, cwd string, allowCursorInternalTools bool, port int) {
-	_ = cmd.Wait()
+	started := time.Now()
+	err := cmd.Wait()
+	logging.ProcessFinished(context.Background(), cmd, "cursor.sidecar.wait", started, err)
 	mu.Lock()
 	shouldRestart := running != nil && running.cmd == cmd
 	if shouldRestart {
@@ -242,6 +245,7 @@ func stopLocked() {
 	ps := running
 	running = nil
 	if ps.cmd != nil && ps.cmd.Process != nil && ps.cmd.ProcessState == nil {
+		logging.ProcessTermination(ps.cmd.Process.Pid, "cursor.sidecar", "sidecar_stop")
 		_ = ps.cmd.Process.Kill()
 	}
 	if ps.logFile != nil {

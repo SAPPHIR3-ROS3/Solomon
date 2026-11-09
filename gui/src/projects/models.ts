@@ -1,3 +1,4 @@
+import { reportGUIError } from "../diagnostics";
 import { reasoningFromPayload, type ReasoningCapability } from "./reasoning";
 import { serverEndpoint } from "../platform";
 
@@ -127,7 +128,7 @@ export function getCachedProviderQuotas(): ProviderQuota[] | null {
 }
 
 export function prefetchProviderQuotas(): void {
-  void fetchProviderQuotas().catch(() => {});
+  void fetchProviderQuotas().catch((error: unknown) => reportGUIError(error, "background-refresh"));
 }
 
 export async function fetchProviderQuotas(): Promise<ProviderQuota[]> {

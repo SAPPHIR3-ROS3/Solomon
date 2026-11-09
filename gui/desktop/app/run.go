@@ -22,6 +22,9 @@ import (
 var appIcon []byte
 
 func Run() {
+	if err := configureDiagnostics(); err != nil {
+		log.Printf("configure desktop logging: %v", err)
+	}
 	if err := ensureDesktopServer(); err != nil {
 		log.Printf("daemon startup: %v", err)
 	}

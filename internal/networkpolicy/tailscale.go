@@ -3,6 +3,7 @@ package networkpolicy
 import (
 	"context"
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net"
 	"os/exec"
 	"strconv"
@@ -23,7 +24,10 @@ type TailscaleInfo struct {
 func enrichTailscale(rows []Interface) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	data, err := exec.CommandContext(ctx, "tailscale", "status", "--json").Output()
+	cmd := exec.CommandContext(ctx, "tailscale", "status", "--json")
+	started := time.Now()
+	data, err := cmd.Output()
+	logging.ProcessFinished(ctx, cmd, "network.tailscale", started, err)
 	if err != nil {
 		return
 	}

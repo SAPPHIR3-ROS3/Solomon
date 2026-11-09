@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net/http"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +33,10 @@ func editorBaseline(parent context.Context, root, target string) (string, bool, 
 	git := func(args ...string) ([]byte, error) {
 		command := exec.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...)
 		configureManagedProcess(command)
-		return command.Output()
+		started := time.Now()
+		output, err := command.Output()
+		logging.ProcessFinished(ctx, command, "editor.baseline."+args[0], started, err)
+		return output, err
 	}
 	inside, err := git("rev-parse", "--is-inside-work-tree")
 	if err != nil || strings.TrimSpace(string(inside)) != "true" {

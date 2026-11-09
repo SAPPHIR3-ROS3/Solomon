@@ -3,11 +3,13 @@ package updater
 import (
 	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logo"
 )
@@ -42,7 +44,10 @@ func registerDesktop(ctx context.Context, tag, cli, target string, progress io.W
 		return err
 	}
 	if command, err := exec.LookPath("update-desktop-database"); err == nil {
-		_ = exec.CommandContext(ctx, command, dir).Run()
+		cmd := exec.CommandContext(ctx, command, dir)
+		started := time.Now()
+		err := cmd.Run()
+		logging.ProcessFinished(ctx, cmd, "updater.desktop_database", started, err)
 	}
 	fmt.Fprintln(progress, "Solomon registered in the application menu.")
 	return nil

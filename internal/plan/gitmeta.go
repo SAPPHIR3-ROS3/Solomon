@@ -1,9 +1,12 @@
 package plan
 
 import (
+	"context"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type GitMeta struct {
@@ -30,7 +33,9 @@ func GitMetaFromRoot(projRoot string) GitMeta {
 func gitOutput(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	started := time.Now()
 	out, err := cmd.Output()
+	logging.ProcessFinished(context.Background(), cmd, "plan.git."+args[0], started, err)
 	if err != nil {
 		return "", err
 	}

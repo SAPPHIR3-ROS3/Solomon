@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"io"
 	"io/fs"
 	"os"
@@ -128,7 +129,10 @@ func projectChangePaths(root string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ".")
-	if output, err := cmd.Output(); err == nil {
+	started := time.Now()
+	output, commandErr := cmd.Output()
+	logging.ProcessFinished(ctx, cmd, "filechanges.list", started, commandErr)
+	if commandErr == nil {
 		var names []string
 		for _, name := range strings.Split(string(output), "\x00") {
 			if name != "" && !IsInternalSnapshotPath(filepath.Join(root, name)) {
@@ -137,6 +141,7 @@ func projectChangePaths(root string) ([]string, error) {
 		}
 		return names, nil
 	}
+	logging.Diagnostic("file change tracking filesystem fallback", map[string]any{"reason": "git_failed"})
 	var names []string
 	home, _ := os.UserHomeDir()
 	shallow := filepath.Clean(root) == filepath.Clean(home) || filepath.Clean(root) == string(filepath.Separator)
@@ -214,7 +219,12 @@ func Compare(before, after *Snapshot) ([]Change, error) {
 			}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		output, err := exec.CommandContext(ctx, "git", "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--unified=0", "--", oldPath, newPath).Output()
+		cmd := exec.CommandContext(ctx, "git", "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--unified=0", "--", oldPath, newPath)
+		started := time.Now()
+		output, err := cmd.Output()
+		if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+			logging.ProcessFinished(ctx, cmd, "filechanges.diff", started, err)
+		}
 		cancel()
 		if err != nil {
 			if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {

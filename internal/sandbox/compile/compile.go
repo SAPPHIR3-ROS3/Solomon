@@ -2,10 +2,12 @@ package compile
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
@@ -89,7 +91,10 @@ func BuildWASM(opts Options) ([]byte, error) {
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	started := time.Now()
+	buildErr := cmd.Run()
+	logging.ProcessFinished(context.Background(), cmd, "sandbox.compile", started, buildErr)
+	if err := buildErr; err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()

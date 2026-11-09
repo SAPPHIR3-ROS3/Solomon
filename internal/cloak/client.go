@@ -348,7 +348,9 @@ func (c *Client) startLocked() error {
 }
 
 func (c *Client) waitProcess(cmd *exec.Cmd) {
+	started := time.Now()
 	err := cmd.Wait()
+	logging.ProcessFinished(context.Background(), cmd, "cloak.bridge.wait", started, err)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.cmd != cmd {

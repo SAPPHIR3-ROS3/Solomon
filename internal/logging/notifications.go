@@ -52,14 +52,16 @@ func recordNotificationLocked(entry Notification) {
 		return
 	}
 	if err := os.MkdirAll(globalLogDir, 0o700); err != nil {
+		storageFailure("notification_directory", err)
 		return
 	}
 	file, err := os.OpenFile(filepath.Join(globalLogDir, "notifications.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
+		storageFailure("notification_open", err)
 		return
 	}
 	defer file.Close()
-	_ = json.NewEncoder(file).Encode(entry)
+	storageFailure("notification_write", json.NewEncoder(file).Encode(entry))
 }
 
 var notificationLogPattern = regexp.MustCompile(`^\[([^]]+)\]\[(ERROR|WARNING|SYSTEM)\]\[[^]]*\]\[[^]]*\] (.*)$`)

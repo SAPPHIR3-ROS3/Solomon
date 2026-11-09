@@ -2,10 +2,12 @@ package clipboard
 
 import (
 	"context"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // ReadImage reads image bytes without changing the clipboard.
@@ -28,7 +30,10 @@ func ReadImage(ctx context.Context) ([]byte, error) {
 					if offered != mime {
 						continue
 					}
-					data, err := exec.CommandContext(ctx, source.name, source.read(mime)...).Output()
+					cmd := exec.CommandContext(ctx, source.name, source.read(mime)...)
+					started := time.Now()
+					data, err := cmd.Output()
+					logging.ProcessFinished(ctx, cmd, "clipboard.read_image", started, err)
 					if err == nil && len(data) > 0 {
 						return data, nil
 					}

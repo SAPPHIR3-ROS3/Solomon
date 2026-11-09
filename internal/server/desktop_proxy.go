@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -70,8 +72,13 @@ func desktopProxy(frontend bool) http.Handler {
 			return
 		}
 		proxy := httputil.NewSingleHostReverseProxy(target)
+		proxy.ErrorHandler = func(w http.ResponseWriter, request *http.Request, err error) {
+			logging.Diagnostic("desktop API proxy failed", map[string]any{"method": request.Method, "error_type": fmt.Sprintf("%T", err), "canceled": request.Context().Err() != nil})
+			http.Error(w, "Solomon daemon is unavailable", http.StatusBadGateway)
+		}
 		if frontend && !isAPI {
-			proxy.ErrorHandler = func(w http.ResponseWriter, request *http.Request, _ error) {
+			proxy.ErrorHandler = func(w http.ResponseWriter, request *http.Request, err error) {
+				logging.Diagnostic("desktop frontend fallback", map[string]any{"error_type": fmt.Sprintf("%T", err)})
 				productionFrontend().ServeHTTP(w, request)
 			}
 		}

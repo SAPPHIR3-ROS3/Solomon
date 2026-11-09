@@ -2,8 +2,10 @@ package agentruntime
 
 import (
 	"context"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/repl/shellhist"
@@ -38,7 +40,12 @@ func (r *Runtime) runUserShellLine(ctx context.Context, script string) error {
 	c.Stdin = os.Stdin
 	release := r.releaseTTYForSubprocess()
 	defer release()
-	_, err := tools.WithFileChangeTrackingPaths(ctx, r.toolEnv(tooling.Invocation{}), tools.ShellFileChangePaths(r.ProjRoot, script), func() (any, error) { return nil, c.Run() })
+	_, err := tools.WithFileChangeTrackingPaths(ctx, r.toolEnv(tooling.Invocation{}), tools.ShellFileChangePaths(r.ProjRoot, script), func() (any, error) {
+		started := time.Now()
+		err := c.Run()
+		logging.ProcessFinished(ctx, c, "user.shell", started, err)
+		return nil, err
+	})
 	if err != nil {
 		return err
 	}

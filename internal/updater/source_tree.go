@@ -1,10 +1,13 @@
 package updater
 
 import (
+	"context"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // SnapshotSourceTree records the source inputs before release binaries and their
@@ -24,7 +27,9 @@ func SnapshotSourceTree(root string) (string, error) {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+index)
+		started := time.Now()
 		output, err := cmd.CombinedOutput()
+		logging.ProcessFinished(context.Background(), cmd, "updater.source."+args[0], started, err)
 		if err != nil {
 			return "", fmt.Errorf("source snapshot git %s: %w: %s", args[0], err, output)
 		}

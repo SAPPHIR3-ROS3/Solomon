@@ -1,3 +1,4 @@
+import { reportGUIError } from "../diagnostics";
 import { useEffect, type RefObject } from "react";
 import { fetchLiveChat, preserveLiveWorkState } from "./chatClient";
 import { getChat, saveChat } from "./chatStore";
@@ -29,7 +30,8 @@ export function startRefresh(task: (signal: AbortSignal) => Promise<void>) {
   const refresh = async () => {
     try {
       await task(controller.signal);
-    } catch {
+    } catch (error) {
+ if (!controller.signal.aborted) reportGUIError(error, "background-refresh");
     } finally {
       if (!controller.signal.aborted) timer = window.setTimeout(refresh, 1000);
     }

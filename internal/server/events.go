@@ -54,6 +54,7 @@ func (r *chatRun) Emit(ev cievents.Event) {
 	}
 	if ev["type"] == "error" {
 		if message, ok := ev["error"].(string); ok {
+			logging.Diagnostic("chat run error", map[string]any{"error": message, "duration_ms": time.Since(r.startedAt).Milliseconds()})
 			logging.RecordNotification("error", message)
 		}
 	}
@@ -157,9 +158,11 @@ func (a *chatAPI) handleChatEvents(w http.ResponseWriter, r *http.Request, proje
 		return
 	}
 	writeSSEHeaders(w)
-	_ = writeSSE(w, apiEvent("chat_snapshot", map[string]any{
+	if err := writeSSE(w, apiEvent("chat_snapshot", map[string]any{
 		"chat": apiChatFromSession(projectID, sess, nil),
-	}))
+	})); err != nil {
+		streamFailure(r.Context(), "snapshot", err)
+	}
 }
 
 func (a *chatAPI) streamChatRun(w http.ResponseWriter, r *http.Request, run *chatRun, startingAfter int64) {
@@ -170,6 +173,7 @@ func (a *chatAPI) streamChatRun(w http.ResponseWriter, r *http.Request, run *cha
 	defer heartbeat.Stop()
 	for _, event := range replay {
 		if err := writeSSE(w, event); err != nil {
+			streamFailure(r.Context(), "event", err)
 			return
 		}
 	}
@@ -177,10 +181,12 @@ func (a *chatAPI) streamChatRun(w http.ResponseWriter, r *http.Request, run *cha
 		select {
 		case event := <-events:
 			if err := writeSSE(w, event); err != nil {
+				streamFailure(r.Context(), "event", err)
 				return
 			}
 		case <-heartbeat.C:
 			if err := writeSSEComment(w, "keep-alive"); err != nil {
+				streamFailure(r.Context(), "heartbeat", err)
 				return
 			}
 		case <-done:
@@ -188,6 +194,7 @@ func (a *chatAPI) streamChatRun(w http.ResponseWriter, r *http.Request, run *cha
 				select {
 				case event := <-events:
 					if err := writeSSE(w, event); err != nil {
+						streamFailure(r.Context(), "event", err)
 						return
 					}
 				default:

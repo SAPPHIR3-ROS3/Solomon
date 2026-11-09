@@ -228,10 +228,12 @@ func loadAllSessions(projectHex string) ([]*Session, error) {
 		fp := filepath.Join(d, name)
 		b, err := os.ReadFile(fp)
 		if err != nil {
+			logging.Diagnostic("chat list entry skipped", map[string]any{"stage": "read", "error_type": fmt.Sprintf("%T", err)})
 			continue
 		}
 		var s Session
-		if json.Unmarshal(b, &s) != nil {
+		if err := json.Unmarshal(b, &s); err != nil {
+			logging.Diagnostic("chat list entry skipped", map[string]any{"stage": "decode", "error_type": fmt.Sprintf("%T", err)})
 			continue
 		}
 		_ = FinishSessionLoad(&s)

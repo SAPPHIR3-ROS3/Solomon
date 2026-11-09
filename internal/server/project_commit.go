@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net/http"
 	"os"
 	"os/exec"
@@ -46,7 +47,9 @@ func (a *projectAPI) handleProjectCommit(w http.ResponseWriter, r *http.Request,
 	command := exec.CommandContext(ctx, "git", "-C", root, "commit", "-m", message)
 	configureManagedProcess(command)
 	command.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	started := time.Now()
 	output, err := command.CombinedOutput()
+	logging.ProcessFinished(ctx, command, "repository.commit", started, err)
 	if err != nil {
 		detail := strings.TrimSpace(string(output))
 		if ctx.Err() != nil {
