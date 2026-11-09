@@ -90,6 +90,7 @@ test("subagent model omits fast when disabled", () => {
     { id: "last", role: "assistant", content: "", toolCalls: [{ id: "b", name: "exec", intent: "Verify the fix" }, { id: "c", name: "exec" }] },
   ]);
   assert.match(html, /<p>Verify the fix<\/p>/);
+  assert.doesNotMatch(html, /<span>Intent<\/span>/);
   assert.doesNotMatch(html, /Complete task instructions/);
 });
 

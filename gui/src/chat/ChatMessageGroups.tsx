@@ -477,7 +477,6 @@ export function SubagentChatPanel({ isLoading = false, messages, onCollapse, too
       </header>
       <div className="chat-subchat-body">
         <div className="chat-subchat-intent">
-          <span>Intent</span>
           <p>{latestIntent}</p>
         </div>
         <div className="chat-subchat-transcript">
