@@ -137,6 +137,15 @@ test("il contatore illumina le lettere in onda durante il lavoro e diventa giall
   assert.match(pulse, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.app-shell \.chat-worked-for\.is-live \.chat-worked-for-wave(?:\s*,[^{}]+)?\s*\{\s*animation: none;/);
 });
 
+test("the footer displays recorded times and omits unknown historical times", () => {
+  for (const createdAt of [1700000000000, undefined, NaN]) {
+    const message = { id: "timestamp", role: "user", content: "text", createdAt };
+    const html = renderToStaticMarkup(createElement(MessageFooter, { index: 0, message }));
+    if (Number.isFinite(createdAt)) assert.ok(html.includes(`dateTime="${new Date(createdAt).toISOString()}"`));
+    else assert.doesNotMatch(html, /<time/);
+  }
+});
+
 test("il footer mostra copia, dati e ora in questo ordine", () => {
   for (const role of ["assistant", "user"]) {
     const message = { id: "footer-order", role, content: "test", createdAt: 1700000000000, stats: {} };

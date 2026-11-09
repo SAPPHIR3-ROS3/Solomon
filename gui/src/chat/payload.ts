@@ -11,6 +11,7 @@ export function messageFromPayload(payload: unknown, index: number, imageOrigin:
     checkpointBranch: stringValue(record.checkpointBranch) || undefined,
     checkpointSeq: numberValue(record.checkpointSeq, undefined),
     content: stringValue(record.content),
+    createdAt: dateToMilliseconds(stringValue(record.createdAt)),
     id: stringValue(record.id) || `m-${index}`,
     images: imagesFromPayload(record.images, imageOrigin),
     role,

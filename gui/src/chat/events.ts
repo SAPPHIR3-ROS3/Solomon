@@ -59,6 +59,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
     const assistant: ChatMessage = {
       checkpointSeq,
       content: "",
+      createdAt: workStartedAt,
       id: `stream-assistant-${turn}-${Date.now()}`,
       reasoning: "",
       role: "assistant",

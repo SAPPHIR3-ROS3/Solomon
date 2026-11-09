@@ -9,6 +9,12 @@ const { createChatStreamBatch } = await server.ssrLoadModule("/src/chat/streamBa
 const { applyLiveStreamEvent } = await server.ssrLoadModule("/src/chat/chatClient.ts");
 const { saveChat, getChat, updateChat, clearChatStore } = await server.ssrLoadModule("/src/chat/chatStore.ts");
 
+test("replayed assistant messages use the event time", () => {
+  const ts = "2026-10-20T13:00:00Z";
+  const chat = applyLiveStreamEvent({ id: "chat", projectID: "project", messages: [], source: "daemon" }, { type: "assistant_start", ts, turn: 0 }, "", true);
+  assert.equal(chat.messages[0].createdAt, Date.parse(ts));
+});
+
 test("a live compaction snapshot shows the summary before the next assistant response", () => {
   let chat = { id: "chat", projectID: "project", messages: [], source: "daemon", status: "running" };
   chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: {

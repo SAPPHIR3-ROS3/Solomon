@@ -6,9 +6,8 @@ import { copyText } from "./chatClipboard";
 export function MessageFooter({ index, message, onRequestDelete, onRegenerate }: { index: number; message: ChatMessage; onRequestDelete?: () => void; onRegenerate?: () => void }) {
   const [copied, setCopied] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
-  const [legacyCreatedAt] = useState(() => Date.now());
   const statsRef = useRef<HTMLDivElement>(null);
-  const createdAt = message.createdAt ?? legacyCreatedAt;
+  const createdAt = message.createdAt;
   const stats = message.role === "assistant" ? message.stats : undefined;
 
   useEffect(() => {
@@ -76,7 +75,7 @@ export function MessageFooter({ index, message, onRequestDelete, onRegenerate }:
           {isStatsOpen ? <MessageStatsPopover id={`message-stats-${message.id}`} stats={stats} workedFor={message.workedFor} /> : null}
         </div>
       ) : null}
-      <time dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time>
+      {createdAt !== undefined && Number.isFinite(createdAt) ? <time dateTime={new Date(createdAt).toISOString()}>{formatMessageTime(createdAt)}</time> : null}
     </footer>
   );
 }
