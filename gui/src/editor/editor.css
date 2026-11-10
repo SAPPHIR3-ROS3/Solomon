@@ -32,7 +32,7 @@
 .editor-tabs div button:last-child { width:28px;font-size:15px; }
 .editor-tabs i { color:var(--color-accent);font-size:8px;font-style:normal; }
 .editor-breadcrumb { height:32px;padding:0 15px;display:flex;align-items:center;gap:7px;border-bottom:1px solid color-mix(in srgb,var(--color-border) 50%,transparent);color:var(--color-text-muted);font-size:9px; }
-.editor-breadcrumb span:not(:last-child)::after { content:"›";margin-left:7px;color:color-mix(in srgb,var(--color-text-muted) 50%,transparent); }
+.editor-breadcrumb span:has(+ span)::after { content:"›";margin-left:7px;color:color-mix(in srgb,var(--color-text-muted) 50%,transparent); }
 .editor-code { grid-row:3;min-height:0;overflow:hidden;user-select:text; }
 .editor-code .cm-editor { background:transparent;color:var(--color-text); }
 .editor-code .cm-scroller { overflow:auto;line-height:1.4; }
@@ -426,3 +426,7 @@
 
 .editor-code-container { grid-column:1;grid-row:4;position:relative;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column; }
 .editor-code-container > .editor-code { flex:1;min-height:0; }
+
+.editor-path-copy { width:20px; height:24px; padding:0; display:grid; place-items:center; flex:none; border:0; border-radius:6px; background:transparent; color:var(--color-text-muted); cursor:pointer; }
+.editor-path-copy:hover { background:var(--color-surface-raised); color:var(--color-text); }
+.editor-path-copy svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.6; }

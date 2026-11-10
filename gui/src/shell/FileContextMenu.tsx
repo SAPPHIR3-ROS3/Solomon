@@ -11,6 +11,7 @@ type FileDialog = { kind: "rename" | "delete" | "paste" | "restore"; entry: Proj
 type Options = {
   projectID?: string;
   allowAddToChat?: boolean;
+  clipboardDisabled?: boolean;
   rootPath?: string;
   canRestore?: (entry: ProjectDirectoryEntry) => boolean;
   onOpenFile?: (entry: ProjectDirectoryEntry) => void;
@@ -18,7 +19,7 @@ type Options = {
   onToggleDirectory: (entry: ProjectDirectoryEntry) => void;
 };
 
-export function useFileContextMenu({ projectID, allowAddToChat, rootPath, canRestore, onOpenFile, onOpenFileInNewTab, onToggleDirectory }: Options) {
+export function useFileContextMenu({ projectID, allowAddToChat, clipboardDisabled = false, rootPath, canRestore, onOpenFile, onOpenFileInNewTab, onToggleDirectory }: Options) {
   const [target, setTarget] = useState<{ entry: ProjectDirectoryEntry; x: number; y: number } | null>(null);
   const [dialog, setDialog] = useState<FileDialog | null>(null);
   const [value, setValue] = useState("");
@@ -49,7 +50,7 @@ export function useFileContextMenu({ projectID, allowAddToChat, rootPath, canRes
     const bounds = menu.getBoundingClientRect();
     menu.style.left = `${Math.max(8, Math.min(target.x, window.innerWidth - bounds.width - 8))}px`;
     menu.style.top = `${Math.max(8, Math.min(target.y, window.innerHeight - bounds.height - 8))}px`;
-    menu.querySelector<HTMLButtonElement>("button")?.focus();
+    menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   }, [target]);
   function show(entry: ProjectDirectoryEntry, button: HTMLButtonElement, x: number, y: number) {
     triggerRef.current = button; setError(""); setTarget({ entry, x, y });
@@ -120,6 +121,7 @@ export function useFileContextMenu({ projectID, allowAddToChat, rootPath, canRes
   const entry = target?.entry;
   const absolutePath = entry && rootPath ? (/^(?:\/|[A-Za-z]:[\\/])/.test(entry.path) ? entry.path : `${rootPath.replace(/[\\/]$/, "")}/${entry.path}`) : undefined;
   return {
+    rename: (entry: ProjectDirectoryEntry, button: HTMLButtonElement) => { triggerRef.current = button; beginDialog("rename", entry); },
     open: (event: MouseEvent<HTMLButtonElement>, entry: ProjectDirectoryEntry) => { event.preventDefault(); event.stopPropagation(); show(entry, event.currentTarget, event.clientX, event.clientY); },
     openWithKeyboard: (event: ReactKeyboardEvent<HTMLButtonElement>, entry: ProjectDirectoryEntry) => {
       if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
@@ -135,10 +137,10 @@ export function useFileContextMenu({ projectID, allowAddToChat, rootPath, canRes
       {projectID ? <>
         {canRestore?.(entry) ? <button className="is-danger" role="menuitem" type="button" onClick={() => beginDialog("restore", entry)}>Restore changes</button> : null}
         {allowAddToChat ? <button disabled={busy} role="menuitem" type="button" onClick={() => void attach(entry)}>Add to chat</button> : null}
-        <div className="project-context-menu-divider" role="separator" />
-        <button role="menuitem" type="button" onClick={() => { fileClipboard = { projectID, entry, cut: true }; close(); }}>Cut</button>
-        <button role="menuitem" type="button" onClick={() => { fileClipboard = { projectID, entry, cut: false }; close(); }}>Copy</button>
-        <button disabled={!fileClipboard || fileClipboard.projectID !== projectID} role="menuitem" type="button" onClick={() => beginDialog("paste", entry)}>Paste</button>
+        {entry.isDirectory || onOpenFile || onOpenFileInNewTab || canRestore?.(entry) || allowAddToChat ? <div className="project-context-menu-divider" role="separator" /> : null}
+        <button disabled={clipboardDisabled} role="menuitem" type="button" onClick={() => { fileClipboard = { projectID, entry, cut: true }; close(); }}>Cut</button>
+        <button disabled={clipboardDisabled} role="menuitem" type="button" onClick={() => { fileClipboard = { projectID, entry, cut: false }; close(); }}>Copy</button>
+        <button disabled={clipboardDisabled || !fileClipboard || fileClipboard.projectID !== projectID} role="menuitem" type="button" onClick={() => beginDialog("paste", entry)}>Paste</button>
         <button role="menuitem" type="button" onClick={() => beginDialog("rename", entry)}>Rename</button>
         <button className="is-danger" role="menuitem" type="button" onClick={() => beginDialog("delete", entry)}>Delete</button>
         <div className="project-context-menu-divider" role="separator" />

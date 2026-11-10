@@ -1,3 +1,4 @@
+import { useFileContextMenu } from "../shell/FileContextMenu";
 import { lazy, Suspense } from "react";
 const PdfPreview = lazy(() => import("./PdfPreview").then((module) => ({ default: module.PdfPreview })));
 import { isPdfFile } from "./previews";
@@ -51,6 +52,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const [message, setMessage] = useState("");
   const [languageStatusHost, setLanguageStatusHost] = useState<HTMLDivElement | null>(null);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
+  const tabMenu = useFileContextMenu({ projectID: project?.id, rootPath: project?.path, clipboardDisabled: true, onToggleDirectory: () => undefined });
   const openFileTimer = useRef<number | undefined>(undefined);
 
   const viewsRef = useRef(restoredSession.views ?? {});
@@ -365,15 +367,6 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     if (sessionRef.current.activeTabId === id) setActiveTabId(remaining[Math.min(index, remaining.length - 1)]?.id ?? "");
   }
 
-  function duplicateFile(file: OpenFile) {
-    const duplicate = { ...file, id: `editor-tab-${nextTabId.current++}` };
-    setFiles((current) => {
-      const index = current.findIndex((item) => item.id === file.id);
-      return [...current.slice(0, index + 1), duplicate, ...current.slice(index + 1)];
-    });
-    setActiveTabId(duplicate.id);
-  }
-
   function moveFile(targetId: string) {
     const sourceId = draggedTab.current;
     if (!sourceId || sourceId === targetId) return;
@@ -476,8 +469,9 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       <button aria-label="Resize editor side panel" className="editor-resize" onDoubleClick={() => setSideWidth(248)} onPointerDown={(event) => startSideResize(event, sideWidth, setSideWidth, setSideResizing)} title="Drag to resize" type="button" />
     </aside>
     <main className="editor-workbench">
-      {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to duplicate" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onDoubleClick={() => duplicateFile(file)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
-      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={isPreviewFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isPdfFile(active.path) ? <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfPreview key={active.id} projectID={project.id} path={active.path} /></Suspense> : isPreviewFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <CodeEditor statusBar={languageStatusHost} projectID={project.id} key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
+      {tabMenu.menu}
+      {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to rename" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onContextMenu={(event) => tabMenu.open(event, { path: file.path, name: baseName(file.path), isDirectory: false })} onKeyDown={(event) => tabMenu.openWithKeyboard(event, { path: file.path, name: baseName(file.path), isDirectory: false })} onDoubleClick={(event) => tabMenu.rename({ path: file.path, name: baseName(file.path), isDirectory: false }, event.currentTarget)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
+      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Copy relative file path" title="Copy relative file path" className="editor-path-copy" type="button" onClick={() => { if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(active.path).catch(() => copyTextFallback(active.path)); else copyTextFallback(active.path); }}><CopyIcon /></button><button aria-label="Save file" className="editor-save" disabled={isPreviewFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isPdfFile(active.path) ? <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfPreview key={active.id} projectID={project.id} path={active.path} /></Suspense> : isPreviewFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <CodeEditor statusBar={languageStatusHost} projectID={project.id} key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
     <footer className="editor-status">
