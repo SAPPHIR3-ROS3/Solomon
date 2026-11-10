@@ -110,6 +110,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/memoryprofile/` | Bounded anonymous memory metrics for the daemon and verified Solomon desktop processes | [Memory diagnostics](../development/memory-diagnostics.md) |
 | `internal/termcolor/` | Lipgloss palette, usage line, `NO_COLOR` | [Supporting packages](supporting-packages.md) |
 | `internal/clipboard/` | Cross-platform image paste in REPL | [Supporting packages](supporting-packages.md) |
+| `internal/programming/` | Language server command discovery, automatic server catalog and protocol message framing | [Local server](server.md) |
 | `internal/desktopgit/` | Machine-readable Git history and status parsing for the desktop bridge | [Supporting packages](supporting-packages.md) |
 | `internal/title/` | Chat title slug and LLM refinement | [Supporting packages](supporting-packages.md) |
 | `internal/modelsapi/` | List models from provider API | [Supporting packages](supporting-packages.md) |
