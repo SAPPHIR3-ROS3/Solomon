@@ -17,9 +17,9 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 
 ## 3 — LSP
 
-- **Stato:** nessun aggancio LSP.
-- **Cosa manca (se lo vorrai):** un client LSP (anche minimale) che alimenti il contesto: diagnostiche, simboli, "go to definition", errori di compilazione nel buffer del workspace — senza dover aprire l'IDE.
-- **Nota:** è un ampliamento netto di superficie (processo server, protocollo, caching); utile soprattutto per **errori e navigazione**, non per sostituire l'IDE.
+- **Stato:** supporto iniziale nell'editor GUI: rilevamento dei server già installati, selezione e configurazione per linguaggio in `config.toml`, sincronizzazione dei documenti, diagnostiche, completamento, hover e fallback interno. Le preferenze sono disponibili in **Programming Languages** e il server si seleziona anche dalla barra dell'editor.
+- **Cosa manca:** rendere le informazioni LSP disponibili al **contesto dell'agente** anche senza editor GUI aperto; aggiungere simboli, "go to definition", riferimenti e refactoring; condividere e mantenere le sessioni per workspace con caching e validazione multipiattaforma.
+- **Nota:** la voce resta aperta: il supporto iniziale GUI è implementato, ma non copre ancora l'obiettivo di assistenza e navigazione nel contesto dell'agente. Vedi [Programming Languages](docs/user-guide/programming-languages.md).
 
 ## 4 — Memoria (MemPalace) e Obsidian
 

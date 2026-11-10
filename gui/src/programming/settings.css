@@ -1,0 +1,14 @@
+.programming-languages { display:grid;gap:10px;margin-top:20px; }
+.programming-language { border:1px solid var(--color-border);border-radius:8px; }
+.programming-language-heading { width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;text-align:left;border:0;background:transparent;color:var(--color-text);cursor:pointer;font:inherit; }
+.programming-language-heading > span:first-child { display:grid;gap:4px; }
+.programming-language-heading small { color:var(--color-text-muted);font:11px var(--font-mono); }
+.programming-server-available { color:#82d2ae;font-size:12px; }
+.programming-server-fallback { color:var(--color-text-muted);font-size:12px; }
+.programming-language-preferences { display:grid;gap:16px;padding:0 16px 16px; }
+.programming-language-preferences > label,.programming-language-assistance { display:grid;gap:8px;color:var(--color-text);font-size:13px; }
+.programming-language-preferences textarea { width:100%;box-sizing:border-box;border:1px solid var(--color-border);border-radius:6px;padding:8px;background:var(--color-canvas);color:var(--color-text);font:12px var(--font-mono); }
+.programming-language-preferences textarea { min-height:90px;resize:vertical; }
+.programming-language-preferences fieldset { display:flex;flex-wrap:wrap;gap:16px;border:1px solid var(--color-border);border-radius:6px;padding:12px; }
+.programming-language-preferences fieldset label { display:flex;align-items:center;gap:6px;font-size:13px; }
+.programming-language-preferences p,.programming-note { overflow-wrap:anywhere;font-size:12px;line-height:1.6;color:var(--color-text-muted); }

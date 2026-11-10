@@ -3,6 +3,7 @@ const PdfPreview = lazy(() => import("./PdfPreview").then((module) => ({ default
 import { isPdfFile } from "./previews";
 import { startSideResize } from "./resize";
 import { CodeEditor } from "./CodeEditor";
+import { GitBranchIcon, CheckIcon, CopyIcon, Chevron } from "./icons";
 import { EditorNotifications } from "./Notifications";
 import { ImagePreview } from "./ImagePreview";
 import { isPreviewFile } from "./previews";
@@ -48,6 +49,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const branchControlRef = useRef<HTMLDivElement>(null);
   const [branchLoading, setBranchLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [languageStatusHost, setLanguageStatusHost] = useState<HTMLDivElement | null>(null);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const openFileTimer = useRef<number | undefined>(undefined);
 
@@ -475,7 +477,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     </aside>
     <main className="editor-workbench">
       {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to duplicate" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onDoubleClick={() => duplicateFile(file)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
-      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={isPreviewFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isPdfFile(active.path) ? <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfPreview key={active.id} projectID={project.id} path={active.path} /></Suspense> : isPreviewFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <CodeEditor projectID={project.id} key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
+      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Save file" className="editor-save" disabled={isPreviewFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isPdfFile(active.path) ? <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfPreview key={active.id} projectID={project.id} path={active.path} /></Suspense> : isPreviewFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <CodeEditor statusBar={languageStatusHost} projectID={project.id} key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
     <footer className="editor-status">
@@ -485,11 +487,10 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
           {branchOptions.length ? branchOptions.map((option) => <button aria-selected={option === branch} key={option} onClick={() => void selectBranch(option)} role="option" type="button"><GitBranchIcon /><span>{option}</span>{option === branch ? <CheckIcon /> : null}</button>) : <span>No local branches.</span>}
         </div> : null}
       </div> : <span className="editor-status-branch">No repository</span>}
-      <span className="editor-status-spacer"/>{active && isPreviewFile(active.path) ? <span>{isPdfFile(active.path) ? "PDF" : "Image"} preview · Read only</span> : <><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span></>}
+      <span className="editor-status-spacer"/>{active && isPreviewFile(active.path) ? <span>{isPdfFile(active.path) ? "PDF" : "Image"} preview · Read only</span> : <><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span><div ref={setLanguageStatusHost} className="editor-language-slot" /></>}
       <EditorNotifications /></footer>
   </section></>;
 }
-
 
 const without=(set:Set<string>,value:string)=>{const next=new Set(set);next.delete(value);return next}; const baseName=(path:string)=>path.split(/[\\/]/).at(-1)??path; const statusLabel=(code="")=>code==="M"?"modified":code==="A"||code==="U"?"added":code==="D"?"deleted":code==="R"?"renamed":"clean";
 function displayWorkspaceName(name:string){return name && name === name.toUpperCase() ? `${name[0]}${name.slice(1).toLowerCase()}` : name;}
@@ -497,4 +498,3 @@ function abbreviateHomePath(path:string){const normalized=path.replace(/\\/g,"/"
 function FileIcon({ fileName }: { fileName: string }) {
   return <img className="workspace-file-icon" src={`/vscode-icons/${fileIconName(fileName)}.svg`} alt="" />;
 }
-function GitBranchIcon(){return <svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10M8 11h5a5 5 0 005-4"/></svg>} function CheckIcon(){return <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>} function CopyIcon(){return <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>} function Chevron({open}:{open:boolean}){return <svg className={open?"open":""} viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>}

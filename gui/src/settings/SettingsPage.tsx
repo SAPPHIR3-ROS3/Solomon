@@ -3,8 +3,10 @@ import { prefetchProviderQuotas } from "../projects/projects";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { NavigationPerformanceSettings } from "./NavigationPerformanceSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { ProgrammingLanguages } from "../programming/Settings";
 import { NetworkSettings } from "./NetworkSettings";
 import { ChatSettings } from "./ChatSettings";
+import "./layout.css";
 
 const ModelsPage = lazy(() => import("./ModelsPage").then(module => ({ default: module.ModelsPage })));
 
@@ -15,7 +17,7 @@ type SettingsPageProps = {
   onHome: () => void;
 };
 
-type SettingsSection = "network" | "general" | "chat" | "models" | "advanced" | "docs";
+type SettingsSection = "programming-languages" | "network" | "general" | "chat" | "models" | "advanced" | "docs";
 
 const locationEvent = "solomon-settings-location";
 
@@ -116,6 +118,9 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
             <NetworkIcon />
             <span>Network</span>
           </button>
+          <button aria-current={section === "programming-languages" ? "page" : undefined} className="settings-section-link" onClick={() => setSection("programming-languages")} type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18" /></svg><span>Programming Languages</span>
+          </button>
           <button
             aria-current={section === "advanced" ? "page" : undefined}
             className="settings-section-link"
@@ -146,6 +151,7 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
 
       <main aria-label="Settings content" className="settings-main">
         {isSearching || section === "network" ? <NetworkSettings query={query} /> : null}
+        {isSearching || section === "programming-languages" ? <ProgrammingLanguages query={query} /> : null}
         {isSearching || section === "general" ? <GeneralSettings query={query} /> : null}
         {isSearching || section === "chat" ? <ChatSettings query={query} /> : null}
         {isSearching || section === "advanced" ? <AdvancedSettings query={query} /> : null}

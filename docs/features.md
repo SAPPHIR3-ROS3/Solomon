@@ -260,9 +260,11 @@ Modern shells show ghost-text suggestions from local history; coding-agent REPLs
 
 `readFile`, `editFile` (create/overwrite, patch, delete via `delete: true`, rename/move via `renameTo`), and `find` (glob + regexp) cover filesystem work in build mode today. What remains **(in the future)** is a unified **sandbox** (path jail, symlink/`..` policy) and optional confirmations — not a separate rename tool. See [Security sandbox and path policy (in the future)](#security-sandbox-and-path-policy-in-the-future).
 
-### LSP-backed code intelligence **(in the future)**
+### LSP-backed code intelligence **(initial GUI support)**
 
-Some IDE-integrated and terminal agents experiment with LSP; Solomon would attach language servers for diagnostics, definitions, and errors without opening an IDE. Large surface area (process lifecycle, caching, per-language servers).
+The GUI editor connects to installed language servers for document synchronization, diagnostics, completion, and hover. **Programming Languages** settings persist per-language server selection and options in `config.toml`; the editor status bar also offers server selection. Internal syntax highlighting remains available when no server is installed or a connection fails. See [Programming Languages](user-guide/programming-languages.md).
+
+Agent-context integration without an open GUI editor, symbols, definitions, references, refactoring, and shared workspace sessions/caching remain future work. The LSP item in [TODO](../TODO.md#3--lsp) therefore remains open.
 
 ### macOS Cmd+V image paste **(in the future)**
 

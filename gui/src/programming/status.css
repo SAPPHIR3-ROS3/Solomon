@@ -1,0 +1,9 @@
+.editor-language-slot { display:flex;align-items:center;align-self:stretch;min-width:0;max-width:min(40vw,240px);flex:0 1 auto; }
+.editor-status .editor-language-control { display:flex;align-items:center;max-width:100%;height:100%; }
+.editor-status .editor-language-control .editor-language-status { justify-content:center;height:100%;padding-inline:6px;font:inherit;white-space:nowrap; }
+.editor-language-menu { left:auto;right:0; }
+.editor-status .editor-language-menu button { grid-template-columns:minmax(0,1fr); }
+.editor-language-menu button:disabled { opacity:.5;cursor:wait; }
+.editor-language-menu button:focus-visible { outline:1px solid var(--color-accent);outline-offset:-1px; }
+.editor-language-empty,.editor-language-error { display:block;padding:7px;color:var(--color-text-muted);font:10px var(--font-mono);white-space:nowrap; }
+.editor-language-error { color:var(--color-error,var(--color-text-muted)); }

@@ -1,3 +1,4 @@
+import { recordHighlightedLanguage } from "../programming/languages";
 import { isPreviewFile } from "./previews";
 import { saveProjectFile } from "../projects/projects";
 
@@ -17,6 +18,7 @@ export function loadEditorSession(projectID?: string): EditorSession {
     const value = JSON.parse(window.localStorage.getItem(storageKey(projectID)) ?? "null");
     if (!value || typeof value !== "object") return emptySession();
     const restoredFiles = Array.isArray(value.files) ? value.files.filter((file: OpenFile) => file && typeof file.id === "string" && typeof file.path === "string" && typeof file.content === "string" && typeof file.saved === "string") : [];
+    for (const file of restoredFiles) recordHighlightedLanguage(file.path, file.content.split("\n", 1)[0]);
     const files = restoredFiles.map((file: OpenFile) => isPreviewFile(file.path) ? { ...file, content: "", saved: "" } : file);
     const views: Record<string, EditorViewState> = {};
     if (value.views && typeof value.views === "object") {

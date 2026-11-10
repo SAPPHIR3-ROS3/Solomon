@@ -1,0 +1,2 @@
+.settings-page { --settings-panel-width:max(304px,var(--left-panel-width,248px)); }
+.settings-navigation .settings-section-link > span { white-space:nowrap; }

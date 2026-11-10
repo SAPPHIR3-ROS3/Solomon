@@ -1,5 +1,7 @@
 import { gitMarkers, useGitMarkers } from "./gitMarkers";
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { LanguageStatus } from "../programming/Status";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyField, historyKeymap, insertNewlineAndIndent, redo } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
@@ -12,9 +14,12 @@ import { cursorForeground } from "../syntax/cursorSyntax";
 import type { OpenFile, EditorViewState } from "./editorSession";
 import { indentationGuides } from "./indentationGuides";
 
+import { languageServerCompartment, useLanguageServer } from "../programming/useLanguageServer";
+
 const histories = new Map<string, EditorState>();
 
-export function CodeEditor({ projectID, file, onChange, onCursor, onSave, viewState, onViewState }: {
+export function CodeEditor({ statusBar, projectID, file, onChange, onCursor, onSave, viewState, onViewState }: {
+  statusBar?: HTMLElement | null;
   projectID: string;
   file: OpenFile;
   onChange: (content: string) => void;
@@ -24,6 +29,7 @@ export function CodeEditor({ projectID, file, onChange, onCursor, onSave, viewSt
   onViewState: (state: EditorViewState) => void;
 }) {
   const viewRef = useRef<EditorView | null>(null);
+  const languageStatus = useLanguageServer(viewRef, projectID, file.id, file.path, file.saved);
   useGitMarkers(viewRef, projectID, file.path, file.content);
   const host = useRef<HTMLDivElement>(null);
   const callbacks = useRef({ onChange, onCursor, onSave, onViewState });
@@ -49,6 +55,7 @@ export function CodeEditor({ projectID, file, onChange, onCursor, onSave, viewSt
       extensions: [
         EditorState.allowMultipleSelections.of(true),
         drawSelection(),
+        languageServerCompartment.of([]),
         indentationGuides(file.path),
         history(),
         ...(cached ? [historyField.init(() => cached.field(historyField))] : []),
@@ -133,6 +140,6 @@ export function CodeEditor({ projectID, file, onChange, onCursor, onSave, viewSt
     const view = viewRef.current;
     if (view && view.state.doc.toString() !== file.content) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: file.content }, annotations: Transaction.addToHistory.of(false) });
   }, [file.content]);
-  return <div className="editor-code" ref={host} />;
+  return <div className="editor-code-container"><div className="editor-code" ref={host} />{statusBar ? createPortal(<LanguageStatus path={file.path} firstLine={file.content.split("\n", 1)[0]} status={languageStatus} />, statusBar) : null}</div>;
 }
 
