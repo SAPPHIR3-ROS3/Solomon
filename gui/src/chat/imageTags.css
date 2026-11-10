@@ -8,6 +8,10 @@
   position: static;
 }
 
+.composer-image-tag.chat-terminal-tag {
+  font-size: 0.8em;
+}
+
 .chat-markdown-image { background: transparent; border: 0; cursor: zoom-in; box-sizing: border-box; display: inline-block; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; padding: 0; vertical-align: middle; }
 .chat-markdown-image img { display: block; width: 100%; height: auto; max-width: 100%; object-fit: contain; }
 .chat-message-images { max-width: 100%; min-width: 0; }

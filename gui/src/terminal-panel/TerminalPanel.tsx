@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { TerminalPanelIcon } from "../shell/TerminalPanelToggle";
 import { IntegratedShell } from "./IntegratedShell";
+import "./tabs.css";
 import { moveTerminalTabs, resizedPaneWeights, terminalGridColumns, type TerminalPane, type TerminalTab } from "./terminalLayout";
 
 function TerminalIcon() {
@@ -45,10 +46,6 @@ function createProjectSession(): ProjectTerminalSession {
   };
 }
 
-function sessionHasArmedTerminal(session: ProjectTerminalSession) {
-  return session.panes.some((pane) => pane.tabs.some((tab) => tab.hasRunCommand));
-}
-
 function sessionHasRunningTerminal(session: ProjectTerminalSession) {
   return session.panes.some((pane) => pane.tabs.some((tab) => tab.isRunning));
 }
@@ -76,6 +73,8 @@ export function TerminalPanel({
   projectId,
   workingDirectory = "",
 }: TerminalPanelProps) {
+  const [renamingTab, setRenamingTab] = useState<string | null>(null);
+  const [tabName, setTabName] = useState("");
   const [isResizing, setIsResizing] = useState(false);
   const [sessions, setSessions] = useState<Record<string, ProjectTerminalSession>>({});
   const draggedTab = useRef<{ projectId: string; tabId: string } | null>(null);
@@ -106,13 +105,13 @@ export function TerminalPanel({
       for (const id of next) if (!previous.has(id)) notify(id, true);
     };
     const entries = Object.entries(sessions);
-    const nextArmed = new Set(entries.flatMap(([id, session]) => (sessionHasArmedTerminal(session) ? [id] : [])));
+    const nextArmed = new Set(entries.flatMap(([id, session]) => (sessionHasRunningTerminal(session) || (isOpen && id === projectId) ? [id] : [])));
     const nextRunning = new Set(entries.flatMap(([id, session]) => (sessionHasRunningTerminal(session) ? [id] : [])));
     syncFlag(knownArmedRef.current, nextArmed, armedNotifyRef.current);
     syncFlag(knownRunningRef.current, nextRunning, runningNotifyRef.current);
     knownArmedRef.current = nextArmed;
     knownRunningRef.current = nextRunning;
-  }, [sessions]);
+  }, [sessions, isOpen, projectId]);
 
   function startResize(event: React.PointerEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -148,10 +147,10 @@ export function TerminalPanel({
     }));
   }
 
-  function addTerminalTab(targetProjectId: string, paneId: string, source?: TerminalTab) {
+  function addTerminalTab(targetProjectId: string, paneId: string) {
     updateSession(targetProjectId, (session) => {
       const tabId = `terminal-tab-${session.nextTabId}`;
-      const tab = { ...createTerminalTab(tabId), title: source?.title ?? "Terminal" };
+      const tab = createTerminalTab(tabId);
       return {
         ...session,
         nextTabId: session.nextTabId + 1,
@@ -273,6 +272,12 @@ export function TerminalPanel({
     }));
   }
 
+  function finishRename(targetProjectId: string, paneId: string, tabId: string) {
+    const title = tabName.trim();
+    if (title) updatePane(targetProjectId, paneId, (pane) => ({ ...pane, tabs: pane.tabs.map((tab) => tab.id === tabId ? { ...tab, title, customTitle: true } : tab) }));
+    setRenamingTab(null);
+  }
+
   const sessionEntries = Object.entries(sessions);
 
   return (
@@ -309,13 +314,18 @@ export function TerminalPanel({
                         <nav aria-label={`Terminal tabs ${paneIndex + 1}`} className="terminal-tabs" onDragOver={(event) => { if (draggedTab.current?.projectId === sessionProjectId) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveTerminalTab(sessionProjectId, pane.id); }}>
                           {pane.tabs.map((tab) => (
                             <div className={`terminal-tab${tab.id === pane.activeTabId ? " is-active" : ""}`} key={tab.id} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); moveTerminalTab(sessionProjectId, pane.id, tab.id); }}>
+                              {renamingTab === `${sessionProjectId}:${tab.id}` ? (
+                                <input aria-label="Terminal tab name" className="terminal-tab-name" autoFocus value={tabName} onChange={(event) => setTabName(event.target.value)} onFocus={(event) => event.currentTarget.select()} onBlur={() => finishRename(sessionProjectId, pane.id, tab.id)} onKeyDown={(event) => { if (event.key === "Enter") finishRename(sessionProjectId, pane.id, tab.id); if (event.key === "Escape") setRenamingTab(null); }} />
+                              ) : null}
                               <button
+                                aria-hidden={renamingTab === `${sessionProjectId}:${tab.id}`}
+                                style={renamingTab === `${sessionProjectId}:${tab.id}` ? { visibility: "hidden" } : undefined}
                                 className="terminal-tab-trigger"
                                 draggable
-                                title="Drag to reorder or move; double-click to duplicate"
+                                title="Drag to reorder or move; double-click to rename"
                                 onDragStart={(event) => { draggedTab.current = { projectId: sessionProjectId, tabId: tab.id }; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-terminal-tab", tab.id); }}
                                 onDragEnd={() => { draggedTab.current = null; }}
-                                onDoubleClick={() => addTerminalTab(sessionProjectId, pane.id, tab)}
+                                onDoubleClick={() => { setTabName(tab.title); setRenamingTab(`${sessionProjectId}:${tab.id}`); }}
                                 onClick={() => updatePane(sessionProjectId, pane.id, (current) => ({ ...current, activeTabId: tab.id }))}
                                 type="button"
                               >
@@ -376,6 +386,7 @@ export function TerminalPanel({
                 <IntegratedShell
                   onCommandSubmit={() => markCommandRun(sessionProjectId, tab.id)}
                   onRunningChange={(running) => setTabRunning(sessionProjectId, tab.id, running)}
+                  onTitleChange={(title) => updatePane(sessionProjectId, pane.id, (current) => ({ ...current, tabs: current.tabs.map((item) => item.id === tab.id && !item.customTitle && item.title !== title ? { ...item, title } : item) }))}
                   onTerminateReady={(terminate) => {
                     const key = `${sessionProjectId}:${tab.id}`;
                     if (terminate) terminateTabs.current.set(key, terminate);

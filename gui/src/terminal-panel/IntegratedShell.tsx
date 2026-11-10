@@ -10,6 +10,7 @@ import { terminalSocketUrl, terminateTerminalSession } from "./terminalSocket";
 export function IntegratedShell({
   onCommandSubmit,
   onRunningChange,
+  onTitleChange,
   onTerminateReady,
   tabId,
   visible,
@@ -17,6 +18,7 @@ export function IntegratedShell({
 }: {
   onCommandSubmit: () => void;
   onRunningChange: (running: boolean) => void;
+  onTitleChange?: (title: string) => void;
   onTerminateReady?: (terminate: (() => void) | null) => void;
   tabId: string;
   visible: boolean;
@@ -28,6 +30,8 @@ export function IntegratedShell({
   const visibleRef = useRef(visible);
   const commandSubmitRef = useRef(onCommandSubmit);
   const runningChangeRef = useRef(onRunningChange);
+  const titleChangeRef = useRef(onTitleChange);
+  titleChangeRef.current = onTitleChange;
   const terminateReadyRef = useRef(onTerminateReady);
   const [initialDirectory, setInitialDirectory] = useState<string | null>(null);
   commandSubmitRef.current = onCommandSubmit;
@@ -83,6 +87,7 @@ export function IntegratedShell({
     let serverRejected = false;
     let disposed = false;
     let closing = false;
+    let lastStatus = "";
     const storedSession = loadStoredTerminalSession(tabId);
     const sessionIDRef = { current: storedSession.id };
     // A new renderer has no scrollback, even when the daemon session survives.
@@ -151,7 +156,7 @@ export function IntegratedShell({
         if (typeof event.data === "string") {
           if (event.data.startsWith("{")) {
             try {
-              const message = JSON.parse(event.data) as { data?: string; id?: string; message?: string; running?: boolean; seq?: number; type?: string };
+              const message = JSON.parse(event.data) as { data?: string; id?: string; message?: string; running?: boolean; title?: string; seq?: number; type?: string };
               if (message.type === "solomon-error") {
                 serverRejected = true;
                 runningChangeRef.current(false);
@@ -172,7 +177,12 @@ export function IntegratedShell({
                 return;
               }
               if (message.type === "solomon-status" && typeof message.running === "boolean") {
-                runningChangeRef.current(message.running);
+                const status = `${message.running}:${message.title ?? ""}`;
+                if (status !== lastStatus) {
+                  lastStatus = status;
+                  runningChangeRef.current(message.running);
+                  if (message.title) titleChangeRef.current?.(message.title);
+                }
                 return;
               }
               if (message.type === "solomon-exit") {
@@ -204,6 +214,7 @@ export function IntegratedShell({
       nextSocket.onerror = () => nextSocket.close();
       nextSocket.onclose = () => {
         if (disposed || closing) return;
+        lastStatus = "";
         runningChangeRef.current(false);
         if (!disposed && !serverRejected && socket === nextSocket) scheduleRetry();
       };

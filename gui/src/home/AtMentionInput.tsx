@@ -80,7 +80,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
 
   useLayoutEffect(() => {
     const input = inputRef.current;
-    if (images.length && input && document.activeElement !== input) input.focus();
+    if ((images.length || clips.length) && input && document.activeElement !== input) input.focus();
     resizeInput(inputRef.current);
     setImageTagPositions(positionImageTags(inputRef.current, shellRef.current, value, overlayTags(images, clips)));
   }, [clips, images, value]);
@@ -243,7 +243,8 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
   function removeImage(image: ComposerImageAttachment) {
     const removal = removeImageTag(value, image.tag);
     onChange(removal.value);
-    onImagesChange?.(images.filter((candidate) => candidate.id !== image.id));
+    if (image.id < 0) onClipsChange?.(clips.filter((clip) => clip.tag !== image.tag));
+    else onImagesChange?.(images.filter((candidate) => candidate.id !== image.id));
     requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.setSelectionRange(removal.cursor, removal.cursor);
@@ -265,6 +266,8 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
 
   function removeImageFromKeyboard(image: ComposerImageAttachment, event: KeyboardEvent<HTMLTextAreaElement>) {
     event.preventDefault();
+    textHistory.capture();
+    textHistory.record(removeImageTag(value, image.tag).value, event.currentTarget, "deleteContent");
     removeImage(image);
   }
 
@@ -390,7 +393,7 @@ export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips 
       />
       <div aria-hidden="true" className="composer-image-tag-layer">
         {imageTagPositions.map((position) => {
-          const image = images.find((candidate) => candidate.id === position.id);
+          const image = overlayTags(images, clips).find((candidate) => candidate.id === position.id);
           return image ? (
             <span className={image.tag.startsWith("[terminal-") ? "composer-image-tag composer-terminal-tag" : "composer-image-tag"} key={image.id} style={{ left: position.left, top: position.top, width: position.width }}>
               {position.text}

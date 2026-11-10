@@ -136,7 +136,7 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
       if (!response) return;
       // Ignore controls, line numbers and duplicate math accessibility markup.
       const walker = response ? document.createTreeWalker(response, NodeFilter.SHOW_TEXT, {
-        acceptNode: node => node.parentElement?.closest("button, .chat-code-toolbar, .chat-line-number, .katex, .chat-image-tag")
+        acceptNode: node => node.parentElement?.closest("button, .chat-code-toolbar, .chat-line-number, .katex, .chat-image-tag, .chat-terminal-tag")
           ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
       }) : undefined;
       const nodes: Text[] = [];

@@ -457,3 +457,31 @@ test('reasoning is available exactly when its text exists, including streamed an
   assert.equal(await page.evaluate(()=>document.querySelector('.chat-reasoning-copy')?.textContent??''),available?'Actual tool reasoning':'');
  }
 });
+
+
+test('terminal clips use green image-style badges and atomic keyboard editing', async()=>{
+ await load();
+ await page.evaluate(()=>window.setComposer(''));
+ await page.waitForFunction(()=>document.querySelector('textarea[aria-label="Message"]').value==='');
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('solomon-terminal-clip',{detail:{start:38,end:68,tag:'[terminal-L38-L68]',text:'terminal output'}})));
+ const badge=page.locator('.composer-terminal-tag');
+ await badge.waitFor();
+ assert.equal(await badge.textContent(),'[terminal-L38-L68]');
+ const style=await badge.evaluate(element=>({background:getComputedStyle(element).backgroundColor,width:element.getBoundingClientRect().width,parent:element.parentElement.getBoundingClientRect().width}));
+ assert.equal(style.background,'rgb(18, 59, 40)');
+ assert.ok(style.width<style.parent);
+ const input=page.locator('textarea[aria-label="Message"]');
+ await input.evaluate(element=>{element.focus();element.setSelectionRange(element.value.length,element.value.length);});
+ await input.press('ArrowLeft');
+ assert.equal(await input.evaluate(element=>element.selectionStart),0);
+ await input.press('Delete');
+ assert.equal(await input.inputValue(),'');
+ assert.equal(await badge.count(),0);
+ await input.press('Control+z');
+ await badge.waitFor();
+ assert.equal(await input.inputValue(),'[terminal-L38-L68] ');
+ await input.evaluate(element=>element.setSelectionRange(element.value.length,element.value.length));
+ await input.press('Backspace');
+ assert.equal(await input.inputValue(),'');
+ assert.equal(await badge.count(),0);
+});

@@ -129,10 +129,7 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		return
 	}
-	if err := writeTerminalJSON(connection, map[string]any{
-		"running": session.Info().Running,
-		"type":    "solomon-status",
-	}); err != nil {
+	if err := writeTerminalJSON(connection, terminalCommandStatus(session)); err != nil {
 		return
 	}
 	for _, output := range replay {
@@ -163,8 +160,14 @@ func (a *terminalAPI) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	statusTicker := time.NewTicker(200 * time.Millisecond)
+	defer statusTicker.Stop()
 	for {
 		select {
+		case <-statusTicker.C:
+			if err := writeTerminalJSON(connection, terminalCommandStatus(session)); err != nil {
+				return
+			}
 		case output := <-events:
 			if err := writeTerminalOutput(connection, output); err != nil {
 				return
@@ -287,4 +290,14 @@ func parseUintQuery(value string) (uint64, error) {
 		return 0, nil
 	}
 	return strconv.ParseUint(value, 10, 64)
+}
+
+func terminalCommandStatus(session *terminalSession) map[string]any {
+	status := map[string]any{"running": false, "type": "solomon-status"}
+	if process, ok := session.process.(interface{ Foreground() (bool, string) }); ok {
+		running, title := process.Foreground()
+		status["running"] = running && session.Info().Running
+		status["title"] = title
+	}
+	return status
 }

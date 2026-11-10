@@ -3,6 +3,7 @@ export type TerminalTab = {
   id: string;
   isRunning: boolean;
   title: string;
+  customTitle?: boolean;
 };
 
 export type TerminalPane = {
