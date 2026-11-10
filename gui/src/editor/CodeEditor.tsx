@@ -6,10 +6,11 @@ import { indentUnit } from "@codemirror/language";
 import { createSearchPanel } from "./searchPanel";
 import { openSearchPanel, search, searchKeymap } from "@codemirror/search";
 import { EditorState, Transaction } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { drawSelection, EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
 import { cursorForeground } from "../syntax/cursorSyntax";
 import type { OpenFile, EditorViewState } from "./editorSession";
+import { indentationGuides } from "./indentationGuides";
 
 const histories = new Map<string, EditorState>();
 
@@ -46,6 +47,9 @@ export function CodeEditor({ projectID, file, onChange, onCursor, onSave, viewSt
       doc: file.content,
       selection: viewState ? { anchor: Math.min(file.content.length, viewState.anchor), head: Math.min(file.content.length, viewState.head) } : undefined,
       extensions: [
+        EditorState.allowMultipleSelections.of(true),
+        drawSelection(),
+        indentationGuides(file.path),
         history(),
         ...(cached ? [historyField.init(() => cached.field(historyField))] : []),
         search({ top: true, createPanel: createSearchPanel }),
