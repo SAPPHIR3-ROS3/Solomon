@@ -3,6 +3,7 @@ const PdfPreview = lazy(() => import("./PdfPreview").then((module) => ({ default
 import { isPdfFile } from "./previews";
 import { startSideResize } from "./resize";
 import { CodeEditor } from "./CodeEditor";
+import { EditorNotifications } from "./Notifications";
 import { ImagePreview } from "./ImagePreview";
 import { isPreviewFile } from "./previews";
 import { fileIconName } from "../fileIcons";
@@ -13,7 +14,6 @@ import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon, SearchIco
 import { SidePanelToggle } from "../shell/SidePanelToggle";
 import { CreateEntryActions } from "./CreateEntryActions";
 import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, sameProjectDirectoryEntries, sameProjectGitHistory, sameProjectGitStatus, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
-
 import { loadEditorSession, storeEditorSession, saveEditorFile, waitForEditorSaves, type OpenFile, type EditorSession } from "./editorSession";
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
 const EMPTY_HISTORY: ProjectGitHistory = { commits: [], current: "", isRepo: false };
@@ -486,7 +486,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
         </div> : null}
       </div> : <span className="editor-status-branch">No repository</span>}
       <span className="editor-status-spacer"/>{active && isPreviewFile(active.path) ? <span>{isPdfFile(active.path) ? "PDF" : "Image"} preview · Read only</span> : <><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 2</span><span>UTF-8</span></>}
-    </footer>
+      <EditorNotifications /></footer>
   </section></>;
 }
 
