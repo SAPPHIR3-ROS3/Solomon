@@ -89,6 +89,7 @@ func aggregateTurnUsageCalls(calls []turnUsageCall) (turnUsageCall, bool) {
 	out.outputTPS = 0
 	out.promptTPS = 0
 	out.turnWallSecs = 0
+	var outputSeconds, promptSeconds, outputTokens, promptTokens float64
 	for _, c := range calls {
 		out.promptTokens += c.promptTokens
 		out.cachedPromptTokens = SumCacheTokens(out.cachedPromptTokens, c.cachedPromptTokens)
@@ -102,12 +103,22 @@ func aggregateTurnUsageCalls(calls []turnUsageCall) (turnUsageCall, bool) {
 			out.totalTokens += c.promptTokens + c.reasoningTokens + c.responseTokens
 		}
 		out.turnWallSecs += c.turnWallSecs
-		out.outputTPS += c.outputTPS
-		out.promptTPS += c.promptTPS
+		if c.outputTPS > 0 {
+			tokens := float64(c.reasoningTokens + c.responseTokens)
+			outputTokens += tokens
+			outputSeconds += tokens / c.outputTPS
+		}
+		if c.promptTPS > 0 {
+			promptTokens += float64(c.promptTokens)
+			promptSeconds += float64(c.promptTokens) / c.promptTPS
+		}
 	}
-	n := float64(len(calls))
-	out.outputTPS /= n
-	out.promptTPS /= n
+	if outputSeconds > 0 {
+		out.outputTPS = outputTokens / outputSeconds
+	}
+	if promptSeconds > 0 {
+		out.promptTPS = promptTokens / promptSeconds
+	}
 	out.ttftSecs = calls[0].ttftSecs
 	if out.totalTokens <= 0 {
 		out.totalTokens = out.promptTokens + out.reasoningTokens + out.responseTokens

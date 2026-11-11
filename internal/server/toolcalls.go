@@ -13,86 +13,19 @@ func apiStatsFromMessage(message chatstore.Message) *apiStats {
 	if message.Provider == "" && message.Model == "" && message.ReasoningEffort == "" && !message.CacheUsageTracked && !message.TurnDisplaySaved && message.PromptTokens == 0 && message.CachedPromptTokens == 0 && message.CacheCreationPromptTokens == 0 && message.UserPromptTokens == 0 && message.ReasoningTokens == 0 && message.ResponseTokens == 0 && message.TurnTotalTokens == 0 && message.TurnWallSecs == 0 {
 		return nil
 	}
-	contextTokens := message.TurnContextTokens
-	if contextTokens == 0 {
-		contextTokens = message.PromptTokens
-	}
-	userTokens := message.TurnUserTokens
-	if userTokens == 0 {
-		userTokens = message.UserPromptTokens
-	}
-	cachedPromptTokens := chatstore.CacheTokenCount(message.CachedPromptTokens, message.CacheUsageTracked)
-	if message.TurnDisplaySaved && (message.CacheUsageTracked || message.TurnCachedPromptTokens != 0) {
-		cachedPromptTokens = message.TurnCachedPromptTokens
-	}
-	cacheCreationPromptTokens := chatstore.CacheTokenCount(message.CacheCreationPromptTokens, message.CacheUsageTracked)
-	if message.TurnDisplaySaved && (message.CacheUsageTracked || message.TurnCacheCreationPromptTokens != 0) {
-		cacheCreationPromptTokens = message.TurnCacheCreationPromptTokens
-	}
-	reasoningTokens := message.TurnReasonTokens
-	if reasoningTokens == 0 {
-		reasoningTokens = message.ReasoningTokens
-	}
-	responseTokens := message.TurnRespTokens
-	if responseTokens == 0 {
-		responseTokens = message.ResponseTokens
-	}
-	totalTokens := message.TurnTotalDisplay
+	totalTokens := message.TurnTotalTokens
 	if totalTokens == 0 {
-		totalTokens = message.TurnTotalTokens
-	}
-	outputTPS := message.TurnOutputTPS
-	if outputTPS == 0 {
-		outputTPS = message.OutputTPS
-	}
-	ttft := message.TurnTTFTSecs
-	if ttft == 0 {
-		ttft = message.TTFTSecs
-	}
-	promptTPS := message.TurnPromptTPS
-	if promptTPS == 0 {
-		promptTPS = message.PromptTPS
+		totalTokens = message.PromptTokens + message.ReasoningTokens + message.ResponseTokens
 	}
 	return &apiStats{
-		TurnAggregate: message.TurnDisplaySaved,
-		Provider:      message.Provider, Model: message.Model, ReasoningEffort: message.ReasoningEffort,
-		ContextTokens: contextTokens, CachedPromptTokens: cachedPromptTokens, CacheCreationPromptTokens: cacheCreationPromptTokens,
-		OutputTokensPerSecond: outputTPS, PromptTokensPerSecond: promptTPS,
-		ReasoningTokens: reasoningTokens, ResponseTokens: responseTokens, TotalTokens: totalTokens,
-		TTFTSeconds: ttft, UserTokens: userTokens,
+		Provider: message.Provider, Model: message.Model, ReasoningEffort: message.ReasoningEffort,
+		ContextTokens:             message.PromptTokens,
+		CachedPromptTokens:        chatstore.CacheTokenCount(message.CachedPromptTokens, message.CacheUsageTracked),
+		CacheCreationPromptTokens: chatstore.CacheTokenCount(message.CacheCreationPromptTokens, message.CacheUsageTracked),
+		OutputTokensPerSecond:     message.OutputTPS, PromptTokensPerSecond: message.PromptTPS,
+		ReasoningTokens: message.ReasoningTokens, ResponseTokens: message.ResponseTokens, TotalTokens: totalTokens,
+		TTFTSeconds: message.TTFTSecs, UserTokens: message.UserPromptTokens,
 	}
-}
-
-func apiStatsForMessageTurn(message chatstore.Message, source []chatstore.Message, index int) *apiStats {
-	stats := apiStatsFromMessage(message)
-	if stats == nil || !message.TurnDisplaySaved || index < 0 || index >= len(source) {
-		return stats
-	}
-	start := 0
-	for i := index - 1; i >= 0; i-- {
-		candidate := source[i]
-		if candidate.Role == "user" && !isHiddenSessionMessage(candidate) && !candidate.CreatedAt.IsZero() &&
-			!strings.HasPrefix(strings.TrimSpace(candidate.Content), "tool_result(") {
-			start = i + 1
-			break
-		}
-	}
-	contextTok, userTok, reasonTok, responseTok, totalTok, cachedTok, cacheWriteTok,
-		outputTPS, ttftSecs, promptTPS, _, _, ok := chatstore.StoredUsageLineForTurnRange(source, start, index+1)
-	if !ok {
-		return stats
-	}
-	stats.ContextTokens = contextTok
-	stats.UserTokens = userTok
-	stats.ReasoningTokens = reasonTok
-	stats.ResponseTokens = responseTok
-	stats.TotalTokens = totalTok
-	stats.CachedPromptTokens = cachedTok
-	stats.CacheCreationPromptTokens = cacheWriteTok
-	stats.OutputTokensPerSecond = outputTPS
-	stats.TTFTSeconds = ttftSecs
-	stats.PromptTokensPerSecond = promptTPS
-	return stats
 }
 
 func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstore.Message, messageIndex int, runActive bool, includeNested bool) []apiToolCall {

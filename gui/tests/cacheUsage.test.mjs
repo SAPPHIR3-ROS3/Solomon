@@ -6,11 +6,11 @@ const server = await createServer({ root: fileURLToPath(new URL("..", import.met
 after(() => server.close());
 const { assistantFooterMessage, indexChatMessages } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
 const footer = (stats) => assistantFooterMessage(indexChatMessages(stats.map((stats, i) => ({ id: String(i), role: "assistant", content: "", stats })))).stats;
-test("cache totals distinguish reported zero, missing values and incomplete turns", () => {
- assert.equal(footer([{cachedPromptTokens: 0}, {cachedPromptTokens: 0}]).cachedPromptTokens, 0);
- assert.equal(footer([{cachedPromptTokens: 12}, {cachedPromptTokens: -1}]).cachedPromptTokens, -1);
- assert.equal(footer([{cachedPromptTokens: 12}, {}]).cachedPromptTokens, -1);
- assert.equal(footer([{cachedPromptTokens: 12}, {cachedPromptTokens: 8}]).cachedPromptTokens, 20);
- assert.equal(footer([{cacheCreationPromptTokens: 2}, {}]).cacheCreationPromptTokens, -1);
- assert.equal(footer([{cachedPromptTokens: 12}, {turnAggregate: true, cachedPromptTokens: -1}]).cachedPromptTokens, -1);
+test("all statistics refer to the latest request, including reported zero and unknown cache", () => {
+ const previous = {contextTokens: 177974, cachedPromptTokens: 177792, reasoningTokens: 163, responseTokens: 1155, totalTokens: 179292, outputTokensPerSecond: 10, promptTokensPerSecond: 100, ttftSeconds: 1};
+ const latest = {contextTokens: 180689, cachedPromptTokens: 180480, cacheCreationPromptTokens: 0, reasoningTokens: 0, responseTokens: 53, totalTokens: 180742, outputTokensPerSecond: 30, promptTokensPerSecond: 300, ttftSeconds: 2};
+ assert.deepEqual(footer([previous, latest]), latest);
+ assert.deepEqual(footer([previous, {...latest, cachedPromptTokens: 0}]), {...latest, cachedPromptTokens: 0});
+ assert.deepEqual(footer([previous, {...latest, cachedPromptTokens: -1}]), {...latest, cachedPromptTokens: -1});
+ assert.deepEqual(footer([previous, {...latest, turnAggregate: false}]), {...latest, turnAggregate: false});
 });

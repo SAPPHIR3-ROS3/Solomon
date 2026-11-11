@@ -89,3 +89,22 @@ func TestAggregateCacheUnknown(t *testing.T) {
 		t.Fatalf("unexpected aggregate: %+v", u)
 	}
 }
+
+func TestUsageRatesWeightedByProcessingTime(t *testing.T) {
+	usages := []llm.UsageStats{
+		{PromptTokens: 100, ResponseTokens: 10, OutputTPS: 10, PromptTPS: 100},
+		{PromptTokens: 900, ResponseTokens: 90, OutputTPS: 30, PromptTPS: 300},
+	}
+	live := llm.AggregateConsecutiveTurnUsage(usages)
+	if live.OutputTPS != 25 || live.PromptTPS != 250 {
+		t.Fatalf("live rates: %+v", live)
+	}
+	messages := []chatstore.Message{
+		{Role: "assistant", PromptTokens: 100, ResponseTokens: 10, OutputTPS: 10, PromptTPS: 100},
+		{Role: "assistant", PromptTokens: 900, ResponseTokens: 90, OutputTPS: 30, PromptTPS: 300},
+	}
+	_, _, _, _, _, _, _, output, _, prompt, _, _, ok := chatstore.StoredUsageLineForTurnRange(messages, 0, 2)
+	if !ok || output != 25 || prompt != 250 {
+		t.Fatalf("stored rates: %v %v %v", ok, output, prompt)
+	}
+}

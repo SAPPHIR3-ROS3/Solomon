@@ -178,7 +178,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 		value.FileChangesRecorded = message.FileChangesRecorded
 		value.Reasoning = reasoning
 		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive, true)
-		value.Stats = apiStatsForMessageTurn(message, source, index)
+		value.Stats = apiStatsFromMessage(message)
 		value.ThoughtFor = message.TurnTTFTSecs
 		if value.ThoughtFor == 0 {
 			value.ThoughtFor = message.TTFTSecs

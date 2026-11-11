@@ -300,6 +300,7 @@ func AggregateConsecutiveTurnUsage(usages []apitype.UsageStats) apitype.UsageSta
 	out.OutputTPS = 0
 	out.PromptTPS = 0
 	out.TurnWallSecs = 0
+	var outputSeconds, promptSeconds, outputTokens, promptTokens float64
 	for _, u := range usages {
 		out.PromptTokens += u.PromptTokens
 		out.CachedPromptTokens = chatstore.SumCacheTokens(out.CachedPromptTokens, u.CachedPromptTokens)
@@ -312,12 +313,22 @@ func AggregateConsecutiveTurnUsage(usages []apitype.UsageStats) apitype.UsageSta
 			out.TotalTokens += u.PromptTokens + u.ReasoningTokens + u.ResponseTokens
 		}
 		out.TurnWallSecs += u.TurnWallSecs
-		out.OutputTPS += u.OutputTPS
-		out.PromptTPS += u.PromptTPS
+		if u.OutputTPS > 0 {
+			tokens := float64(u.ReasoningTokens + u.ResponseTokens)
+			outputTokens += tokens
+			outputSeconds += tokens / u.OutputTPS
+		}
+		if u.PromptTPS > 0 {
+			promptTokens += float64(u.PromptTokens)
+			promptSeconds += float64(u.PromptTokens) / u.PromptTPS
+		}
 	}
-	n := float64(len(usages))
-	out.OutputTPS /= n
-	out.PromptTPS /= n
+	if outputSeconds > 0 {
+		out.OutputTPS = outputTokens / outputSeconds
+	}
+	if promptSeconds > 0 {
+		out.PromptTPS = promptTokens / promptSeconds
+	}
 	out.TTFTSecs = usages[0].TTFTSecs
 	if out.TotalTokens <= 0 {
 		out.TotalTokens = out.PromptTokens + out.ReasoningTokens + out.ResponseTokens

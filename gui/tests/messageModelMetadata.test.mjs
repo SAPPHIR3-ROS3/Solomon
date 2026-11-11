@@ -15,7 +15,7 @@ test("history preserves recorded message times through assistant grouping", () =
   assert.equal(assistantFooterMessage(indexChatMessages(chat.messages.slice(1))).createdAt, Date.parse(dates[2]));
 });
 
-test("message info keeps recorded providers and models when grouping a turn", () => {
+test("message info shows the latest request provider and model when grouping a turn", () => {
   const messages = [
     { provider: "provider-a", model: "model-a" },
     { provider: "provider-a", model: "model-a" },
@@ -25,8 +25,8 @@ test("message info keeps recorded providers and models when grouping a turn", ()
   assert.equal(chat.messages[0].stats.provider, "provider-a");
   assert.equal(chat.messages[0].stats.model, "model-a");
   const footer = assistantFooterMessage(indexChatMessages(chat.messages));
-  assert.equal(footer.stats.provider, "provider-a, provider-b");
-  assert.equal(footer.stats.model, "model-a, model-b");
+  assert.equal(footer.stats.provider, "provider-b");
+  assert.equal(footer.stats.model, "model-b");
 });
 
 test("legacy statistics keep unknown provider and model unset", () => {

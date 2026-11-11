@@ -136,53 +136,19 @@ export function assistantFooterMessage(entries: IndexedChatMessage[]): ChatMessa
     id: `assistant-turn-footer-${first.id}`,
     images: messages.flatMap((message) => message.images ?? []),
     reasoning: undefined,
-    stats: aggregateAssistantStats(messages),
+    stats: latestAssistantStats(messages),
     toolCalls: undefined,
     workedFor: sumDefined(messages.map((message) => message.workedFor)),
   };
 }
 
-function aggregateAssistantStats(messages: ChatMessage[]): ChatStats | undefined {
-  const stats = messages.flatMap((message) => message.stats ? [message.stats] : []);
-  if (stats.length === 0) return undefined;
-  if (stats.length === 1) return stats[0];
-
-  const turnAggregate = [...stats].reverse().find((current) => current.turnAggregate);
-  const reasoningTokens = turnAggregate?.reasoningTokens ?? stats.reduce((total, current) => total + current.reasoningTokens, 0);
-  const responseTokens = turnAggregate?.responseTokens ?? stats.reduce((total, current) => total + current.responseTokens, 0);
-  const contextTokens = turnAggregate?.contextTokens ?? stats.reduce((total, current) => total + current.contextTokens, 0);
-  const userTokens = turnAggregate?.userTokens ?? stats.reduce((total, current) => total + current.userTokens, 0);
-  const cachedPromptTokens = turnAggregate?.cachedPromptTokens ?? stats.reduce((total, current) => total < 0 || (current.cachedPromptTokens ?? -1) < 0 ? -1 : total + current.cachedPromptTokens!, 0);
-  const cacheCreationPromptTokens = turnAggregate?.cacheCreationPromptTokens ?? stats.reduce((total, current) => total < 0 || (current.cacheCreationPromptTokens ?? -1) < 0 ? -1 : total + current.cacheCreationPromptTokens!, 0);
-  const outputTokensPerSecond = turnAggregate?.outputTokensPerSecond ?? average(stats.map((current) => current.outputTokensPerSecond));
-  const promptTokensPerSecond = turnAggregate?.promptTokensPerSecond ?? average(stats.map((current) => current.promptTokensPerSecond));
-  const totalTokens = turnAggregate?.totalTokens ?? stats.reduce((total, current) => total + current.totalTokens, 0);
-
-  return {
-    reasoningEffort: [...new Set(stats.map((current) => current.reasoningEffort).filter(Boolean))].join(", ") || undefined,
-    provider: [...new Set(stats.map((current) => current.provider).filter(Boolean))].join(", ") || undefined,
-    model: [...new Set(stats.map((current) => current.model).filter(Boolean))].join(", ") || undefined,
-    contextTokens,
-    cachedPromptTokens,
-    cacheCreationPromptTokens,
-    outputTokensPerSecond,
-    promptTokensPerSecond,
-    reasoningTokens,
-    responseTokens,
-    totalTokens,
-    ttftSeconds: turnAggregate?.ttftSeconds ?? stats[0].ttftSeconds,
-    userTokens,
-  };
+function latestAssistantStats(messages: ChatMessage[]): ChatStats | undefined {
+  return [...messages].reverse().find((message) => message.stats)?.stats;
 }
 
 function sumDefined(values: Array<number | undefined>) {
   const defined = values.filter((value): value is number => value !== undefined && Number.isFinite(value));
   return defined.length ? defined.reduce((total, value) => total + value, 0) : undefined;
-}
-
-function average(values: number[]) {
-  if (values.length === 0) return 0;
-  return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
 function formatCheckpointLabel(sequence: number, branch: string) {

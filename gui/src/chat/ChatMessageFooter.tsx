@@ -61,13 +61,13 @@ export function MessageFooter({ index, message, onRequestDelete, onRegenerate }:
           <button
             aria-controls={`message-stats-${message.id}`}
             aria-expanded={isStatsOpen}
-            aria-label={isStatsOpen ? "Hide turn statistics" : "Show turn statistics"}
+            aria-label={isStatsOpen ? "Hide last request statistics" : "Show last request statistics"}
             className="chat-stats-trigger"
             onClick={(event) => {
               event.stopPropagation();
               setIsStatsOpen((current) => !current);
             }}
-            title={isStatsOpen ? "Hide turn statistics" : "Show turn statistics"}
+            title={isStatsOpen ? "Hide last request statistics" : "Show last request statistics"}
             type="button"
           >
             <InfoIcon />
@@ -100,21 +100,20 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
     ["model", stats.model || "—"],
     ["reasoning effort", stats.reasoningEffort || "—"],
     ["context", formatStatsTokenCount(stats.contextTokens)],
-    ["user", formatStatsTokenCount(stats.userTokens)],
     ["cached input", stats.cachedPromptTokens == null || stats.cachedPromptTokens < 0 ? "—" : formatStatsTokenCount(stats.cachedPromptTokens)],
     ["cache write", stats.cacheCreationPromptTokens == null || stats.cacheCreationPromptTokens < 0 ? "—" : formatStatsTokenCount(stats.cacheCreationPromptTokens)],
     ["reasoning", formatStatsTokenCount(stats.reasoningTokens)],
     ["response", formatStatsTokenCount(stats.responseTokens)],
     ["total", formatStatsTokenCount(stats.totalTokens)],
-    ["t/s", `${formatStatsDecimal(stats.outputTokensPerSecond)} t/s`],
-    ["ttft", `${formatStatsDecimal(stats.ttftSeconds)}s`],
-    ["pp", `${formatStatsDecimal(stats.promptTokensPerSecond)} t/s`],
-    ["worked for", workedFor === undefined ? "—" : formatWorkedDuration(workedFor)],
+    ["output t/s", `${formatStatsDecimal(stats.outputTokensPerSecond)} t/s`],
+    ["first token", `${formatStatsDecimal(stats.ttftSeconds)}s`],
+    ["input t/s", `${formatStatsDecimal(stats.promptTokensPerSecond)} t/s`],
+    ["turn duration", workedFor === undefined ? "—" : formatWorkedDuration(workedFor)],
   ] as const;
 
   return (
-    <div aria-label="Turn statistics" className="chat-stats-popover" id={id} role="dialog">
-      <div className="chat-stats-title">Turn statistics</div>
+    <div aria-label="Last request statistics" className="chat-stats-popover" id={id} role="dialog">
+      <div className="chat-stats-title">Last request statistics</div>
       <dl>
         {rows.map(([label, value]) => (
           <div className={`chat-stats-row${label === "total" ? " is-total" : ""}`} key={label}>
@@ -123,7 +122,7 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
           </div>
         ))}
       </dl>
-      <div className="chat-stats-note">Cached input and cache write are input breakdowns included in the total.</div>
+      <div className="chat-stats-note">All token, cache and speed counters refer to the last request. Cache counters are included in context. Turn duration covers the whole turn.</div>
     </div>
   );
 }
