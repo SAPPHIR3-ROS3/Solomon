@@ -1,0 +1,14 @@
+@font-face {
+  font-family: "Solomon Emoji";
+  src: local("Apple Color Emoji"), local("Segoe UI Emoji"), local("Noto Color Emoji");
+  unicode-range: U+200D, U+20E3, U+231A-231B, U+23E9-23F3, U+23F8-23FA, U+25AA-25AB, U+25B6, U+25C0, U+25FB-25FE, U+2600-27BF, U+2934-2935, U+2B05-2B07, U+2B1B-2B1C, U+2B50, U+2B55, U+3030, U+303D, U+3297, U+3299, U+FE0F, U+1F000-1FAFF, U+E0020-E007F;
+}
+
+.chat-message,
+.chat-reasoning-brief,
+.chat-compaction-markdown,
+.chat-retained-content,
+.chat-retained-message.is-user .chat-retained-content,
+.welcome-input {
+  font-family: "Solomon Emoji", "Geist", ui-sans-serif, system-ui, sans-serif;
+}

@@ -13,6 +13,7 @@ import "./theme/themes.css";
 import "./typography.css";
 import "./editor/editor.css";
 import "./responsive.css";
+import "./emoji.css";
 
 // Keep Tab available to editors and completion menus without moving focus.
 document.addEventListener("keydown", (event) => {
