@@ -131,12 +131,15 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
 export function ReasoningBlock({ isCollapsed, isLive = false, message, onToggle, suppressBriefThought = false, suppressThoughtFor = false }: { isCollapsed: boolean; isLive?: boolean; message: ChatMessage; onToggle: () => void; suppressBriefThought?: boolean; suppressThoughtFor?: boolean }) {
   const reasoning = message.reasoning?.trim();
   const thoughtFor = message.thoughtFor ?? message.stats?.ttftSeconds;
+  const isThinking = isLive && !message.content.trim() && !message.toolCalls?.length && thoughtFor === undefined;
+  const liveThoughtFor = useLiveThoughtDuration(isThinking, message.workStartedAt ?? message.createdAt);
   if (!reasoning) {
+    if (isCollapsed && isThinking) return <ReasoningSummaryBlock isLive seconds={liveThoughtFor} />;
     if (suppressBriefThought) return null;
     return message.content.trim() || message.toolCalls?.length || (thoughtFor !== undefined && thoughtFor > 0) ? <BriefThought /> : null;
   }
 
-  const displayedThoughtFor = suppressThoughtFor ? undefined : thoughtFor;
+  const displayedThoughtFor = suppressThoughtFor ? undefined : thoughtFor ?? (isThinking ? liveThoughtFor : undefined);
 
   return (
     <div
@@ -159,11 +162,24 @@ export function ReasoningBlock({ isCollapsed, isLive = false, message, onToggle,
       title="Click to collapse or expand reasoning"
     >
       {!isCollapsed && reasoning ? <div className="chat-reasoning-copy">{reasoning}</div> : null}
-      {(displayedThoughtFor !== undefined && displayedThoughtFor > 0) || isCollapsed ? (
-        <div className="chat-thought-for"><span className="chat-reasoning-wave">{displayedThoughtFor !== undefined && displayedThoughtFor > 0 ? formatThoughtDuration(displayedThoughtFor) : isLive ? "thinking" : "thought briefly"}</span></div>
+      {(displayedThoughtFor !== undefined && (displayedThoughtFor > 0 || isThinking)) || isCollapsed ? (
+        <div className="chat-thought-for"><span className="chat-reasoning-wave">{displayedThoughtFor !== undefined && (displayedThoughtFor > 0 || isThinking) ? isThinking ? `thought for ${formatWorkedDuration(displayedThoughtFor)}` : formatThoughtDuration(displayedThoughtFor) : isLive ? "thinking" : "thought briefly"}</span></div>
       ) : null}
     </div>
   );
+}
+
+function useLiveThoughtDuration(isThinking: boolean, startedAt?: number) {
+  const [fallbackStartedAt] = useState(Date.now);
+  const start = startedAt ?? fallbackStartedAt;
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!isThinking) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isThinking, start]);
+  return Math.max(0, (now - start) / 1000);
 }
 
 export function BriefThought() {
@@ -171,11 +187,11 @@ export function BriefThought() {
 }
 
 export function ReasoningSummaryBlock({ isLive = false, seconds }: { isLive?: boolean; seconds: number }) {
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  if (!Number.isFinite(seconds) || seconds < 0 || (!isLive && seconds === 0)) return null;
 
   return (
     <div aria-label="Model reasoning" className={`chat-reasoning chat-reasoning-summary${isLive ? " is-live" : ""}`}>
-      <div className="chat-thought-for"><span className="chat-reasoning-wave">{formatThoughtDuration(seconds)}</span></div>
+      <div className="chat-thought-for"><span className="chat-reasoning-wave">{isLive ? `thought for ${formatWorkedDuration(seconds)}` : formatThoughtDuration(seconds)}</span></div>
     </div>
   );
 }

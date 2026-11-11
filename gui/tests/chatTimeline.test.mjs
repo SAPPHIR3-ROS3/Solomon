@@ -111,6 +111,25 @@ test("reasoning controls require actual text rather than first-token timing", ()
   }
 });
 
+test("collapsed reasoning shows its duration while waiting and streaming", () => {
+  const originalNow = Date.now;
+  Date.now = () => 15000;
+  try {
+    for (const reasoning of ["", "Streaming reasoning"]) {
+      const message = {id:"live",role:"assistant",content:"",reasoning,workStartedAt:10000};
+      const html = renderToStaticMarkup(createElement(ReasoningBlock,{message,isCollapsed:true,isLive:true,onToggle(){}}));
+      assert.match(html,/thought for 5s/);
+      assert.match(html,/is-live/);
+      assert.doesNotMatch(html,/chat-reasoning-copy/);
+      const completed = renderToStaticMarkup(createElement(ReasoningBlock,{message:{...message,reasoning:"Done",thoughtFor:3},isCollapsed:true,onToggle(){}}));
+      assert.match(completed,/thought for 3s/);
+      assert.doesNotMatch(completed,/is-live/);
+    }
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test("il contatore illumina le lettere in onda durante il lavoro e diventa giallo alla fine", async () => {
   const active = renderToStaticMarkup(createElement(WorkedForCounter, { isLive: true, seconds: 12 }));
   const completed = renderToStaticMarkup(createElement(WorkedForCounter, { isLive: false, seconds: 12 }));
