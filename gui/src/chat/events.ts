@@ -83,7 +83,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
       ...message,
       content: stringValue(event.content) || message.content,
       reasoning: stringValue(event.reasoning) || message.reasoning,
-      toolCalls: toolCalls.length ? toolCalls.map((tool) => mergeSubagentTool(message.toolCalls?.find((previous) => previous.id === tool.id), tool)) : message.toolCalls,
+      toolCalls: toolCalls.length ? mergeSubagentCalls(message.toolCalls, toolCalls) : message.toolCalls,
     }));
   }
 
@@ -145,10 +145,18 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
 
 export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat {
   const previousTools = new Map(previous.messages.flatMap((message) => (message.toolCalls ?? []).map((tool) => [tool.id, tool] as const)));
-  const messages = preserveOptimisticMessages(previous, next.messages).map((message) => ({
-    ...message,
-    toolCalls: message.toolCalls?.map((tool) => mergeSubagentTool(previousTools.get(tool.id), tool)),
-  }));
+  const messages = preserveOptimisticMessages(previous, next.messages).map((message) => {
+    const previousMessage = previous.messages.find((candidate) => candidate.role === message.role && (
+      candidate.id === message.id
+      || (message.checkpointSeq !== undefined && candidate.checkpointSeq === message.checkpointSeq && candidate.checkpointBranch === message.checkpointBranch)
+      || message.toolCalls?.some((tool) => candidate.toolCalls?.some((previousTool) => previousTool.id === tool.id))
+    ));
+    const tools = mergeSubagentCalls(previousMessage?.toolCalls, message.toolCalls ?? []);
+    return {
+      ...message,
+      toolCalls: tools.length ? tools.map((tool) => mergeSubagentTool(previousTools.get(tool.id), tool)) : message.toolCalls,
+    };
+  });
   const startedAtByCheckpoint = new Map<number, number>();
   for (const message of previous.messages) {
     if (message.role !== "assistant" || message.checkpointSeq === undefined || message.workStartedAt === undefined) continue;
@@ -224,4 +232,14 @@ function mergeSubagentTool(previous: ChatToolCall | undefined, incoming: ChatToo
   const status = subchatStatus === "running" || subchatStatus === "queued" ? "running"
     : subchatStatus === "done" ? "success" : subchatStatus ? "error" : incoming.status;
   return { ...incoming, result, status };
+}
+
+function mergeSubagentCalls(previous: ChatToolCall[] | undefined, incoming: ChatToolCall[]): ChatToolCall[] {
+  const incomingByID = new Map(incoming.map((tool) => [tool.id, tool]));
+  const retained = (previous ?? []).flatMap((tool) => {
+    const next = incomingByID.get(tool.id);
+    incomingByID.delete(tool.id);
+    return next ? [mergeSubagentTool(tool, next)] : tool.name === "subagent" ? [tool] : [];
+  });
+  return [...retained, ...incomingByID.values()];
 }

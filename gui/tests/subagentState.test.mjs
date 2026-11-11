@@ -61,3 +61,32 @@ test("replaced subchat identities do not inherit old terminal state", () => {
   assert.equal(getTool(next, "first").result.subchatId, "new-child");
   assert.equal(getTool(next, "first").result.subchatStatus, "running");
 });
+
+
+test("partial assistant end lists retain existing subagent cards", () => {
+  const previous = chatWith(agent("first"));
+  const next = applyLiveStreamEvent(previous, { type: "assistant_end", tool_calls: [{ id: "read", name: "read_file" }] });
+  assert.deepEqual(next.messages[0].toolCalls.map(tool => tool.id), ["first", "read"]);
+  assert.equal(getTool(next, "first").result.subchatId, "child-first");
+});
+
+test("snapshots with missing tool calls retain subagent cards in their original message", () => {
+  const previous = chatWith(agent("first"), agent("second", "done"));
+  previous.messages[0].checkpointSeq = 1;
+  for (const toolCalls of [undefined, [], [{ id: "read", name: "read_file" }]]) {
+    const next = preserveLiveWorkState(previous, {
+      ...previous,
+      messages: [{ ...previous.messages[0], id: "persisted-first", toolCalls }, previous.messages[1]],
+    });
+    assert.equal(next.messages[0].toolCalls[0].id, "first");
+    assert.equal(getTool(next, "first").result.subchatId, "child-first");
+    assert.equal(getTool(next, "second").result.subchatStatus, "done");
+    assert.equal(next.messages.flatMap(message => message.toolCalls ?? []).filter(tool => tool.id === "first").length, 1);
+  }
+});
+
+test("snapshot reconciliation does not restore deleted messages", () => {
+  const previous = chatWith(agent("first"), agent("second"));
+  const next = preserveLiveWorkState(previous, { ...previous, messages: [previous.messages[1]] });
+  assert.equal(getTool(next, "first"), undefined);
+});
