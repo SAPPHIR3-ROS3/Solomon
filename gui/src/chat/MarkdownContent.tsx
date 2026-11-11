@@ -4,7 +4,6 @@ import type { ThemedToken } from "@shikijs/types";
 import { Children, isValidElement, memo, type ReactNode, useEffect, useState } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Root, RootContent, PhrasingContent } from "mdast";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { normalizeMathDelimiters } from "./mathDelimiters";
@@ -43,23 +42,6 @@ const markdownComponents: Components = {
   },
 };
 
-// Only text nodes contain Markdown soft breaks; code and math remain literal.
-function remarkUserLineBreaks() {
-  return (tree: Root) => {
-    function transform(parent: { children: (RootContent | PhrasingContent)[] }) {
-      parent.children = parent.children.flatMap((node): (RootContent | PhrasingContent)[] => {
-        if (node.type === "text") {
-          return node.value.split(/\r?\n/).flatMap((value, index) =>
-            index ? [{ type: "break" }, { type: "text", value }] : [{ type: "text", value }]);
-        }
-        if ("children" in node) transform(node);
-        return [node];
-      });
-    }
-    transform(tree);
-  };
-}
-
 // Thread switches remount the transcript. Keep a bounded in-memory cache of
 // parsed trees so reopening a thread does not repeat Markdown/math processing.
 // These are React descriptions, never mounted DOM or component state.
@@ -69,7 +51,8 @@ const MAX_CACHED_CHARS = 2_000_000;
 let cachedChars = 0;
 
 export const MarkdownContent = memo(function MarkdownContent({ content, preserveLineBreaks = false }: { content: string; preserveLineBreaks?: boolean }) {
-  const cacheKey = `${preserveLineBreaks ? "breaks:" : "markdown:"}${content}`;
+  if (preserveLineBreaks) return <div className="chat-user-text">{content}</div>;
+  const cacheKey = content;
   const cached = markdownTrees.get(cacheKey);
   if (cached !== undefined) {
     markdownTrees.delete(cacheKey);
@@ -80,7 +63,7 @@ export const MarkdownContent = memo(function MarkdownContent({ content, preserve
   // stateful children remain React elements and keep their normal lifecycle.
   const tree = Markdown({
     components: markdownComponents,
-    remarkPlugins: preserveLineBreaks ? [remarkGfm, remarkMath, remarkUserLineBreaks] : [remarkGfm, remarkMath],
+    remarkPlugins: [remarkGfm, remarkMath],
     rehypePlugins: [rehypeImageTags, [rehypeKatex, { trust: false }]],
     children: escapeImageTags(normalizeMathDelimiters(normalizeCodeBlocks(content))),
   });

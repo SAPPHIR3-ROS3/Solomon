@@ -88,16 +88,11 @@ test('preserves inline code, unknown labels and literal backticks', () => {
 });
 
 
-test('GUI user messages preserve soft line breaks without changing assistant rendering or code', () => {
-  const content = 'prima riga\nseconda **riga**\nterza riga';
+test('user messages retain the exact input whitespace and indentation', () => {
+  const content = 'mentre ci sono ancora elementi in level:\n  distance+1\n  per ogni elemento e in level:\n    se e non è in visited:\n      nextlevel += g[e]\n      visited += [e]\n  level = next level\n  nextlevel = set vuoto';
   const renderUser = (text) => renderToStaticMarkup(createElement(MarkdownContent, { content: text, preserveLineBreaks: true }));
-  const standard = render(content);
-  assert.equal(standard, '<p>prima riga\nseconda <strong>riga</strong>\nterza riga</p>');
-  assert.equal(renderUser(content), '<p>prima riga<br/>\nseconda <strong>riga</strong><br/>\nterza riga</p>');
-  assert.equal(render(content), standard, 'cached user rendering must not affect assistant messages');
-  assert.equal(renderUser('prima\n\nseconda'), '<p>prima</p>\n<p>seconda</p>');
-  assert.equal(renderUser('prima  \nseconda'), '<p>prima<br/>\nseconda</p>');
-  const code = tick.repeat(3) + 'text\nprima\nseconda\n' + tick.repeat(3);
-  assert.equal(renderUser(code), render(code), 'code blocks must remain literal');
-  assert.equal(renderUser(tick + 'prima\nseconda' + tick), render(tick + 'prima\nseconda' + tick));
+  assert.equal(renderUser(content), '<div class="chat-user-text">' + content + '</div>');
+  assert.equal(renderUser('prima\n\n  seconda\n\tterza  riga'), '<div class="chat-user-text">prima\n\n  seconda\n\tterza  riga</div>');
+  assert.equal(renderUser('**literal** <tag>'), '<div class="chat-user-text">**literal** &lt;tag&gt;</div>');
+  assert.equal(render('prima\n**seconda**'), '<p>prima\n<strong>seconda</strong></p>');
 });
