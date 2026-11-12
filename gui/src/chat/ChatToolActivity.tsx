@@ -25,7 +25,7 @@ function toolIntentClassName(tool: ChatToolCall) {
 }
 
 function displaySubagentIntent(tool: ChatToolCall) {
-  const intent = displayToolIntent(tool).replace(/\s+/g, " ");
+  const intent = (tool.intent?.trim() || MISSING_TOOL_INTENT_LABEL).replace(/\s+/g, " ");
   const words = intent.split(" ");
   const brief = Array.from(words.slice(0, 8).join(" ")).slice(0, 80).join("").trimEnd();
   return brief + (brief !== intent ? "…" : "");

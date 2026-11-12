@@ -232,13 +232,13 @@ func SummarizeBody(d Deps) (string, error) {
 	if len(msgs) == 0 {
 		return "", fmt.Errorf("no messages to summarize")
 	}
+	if d.Backend == nil {
+		return "", fmt.Errorf("LLM backend not configured")
+	}
 	progress := NewSummarizeProgress(d.Out)
 	transcript := FormatChatTranscript(msgs)
 	sys, userPrompt := summarizePromptFromTemplate(transcript, d.Cfg.EffectiveResponseLanguage(), d.Cfg.ReasoningEffortIsNone())
 	const sep = "================================================================================"
-	if d.Backend == nil {
-		return "", fmt.Errorf("LLM backend not configured")
-	}
 	summary, usage, err := d.Backend.StreamText(d.Ctx, llm.SimpleCompletionRequest{
 		Cfg:                   d.Cfg,
 		Model:                 d.Model(),

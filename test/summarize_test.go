@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -198,5 +199,29 @@ func TestApplyCompaction_appendsOnRecompact(t *testing.T) {
 	}
 	if sess.UncompactedRaw[1].Messages[0].Content != "after first compact" {
 		t.Fatalf("second dump=%+v", sess.UncompactedRaw[1].Messages)
+	}
+}
+
+func TestSummarizeBodyNilBackendDoesNotLeakProgress(t *testing.T) {
+	sess := &chatstore.Session{Messages: []chatstore.Message{
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: "hi there"},
+	}}
+	baseline := runtime.NumGoroutine()
+	time.Sleep(20 * time.Millisecond)
+	if current := runtime.NumGoroutine(); current < baseline {
+		baseline = current
+	}
+	_, err := commands.SummarizeBody(testDeps(sess))
+	if err == nil || !strings.Contains(err.Error(), "LLM backend not configured") {
+		t.Fatalf("error=%v, want LLM backend not configured", err)
+	}
+	after := runtime.NumGoroutine()
+	time.Sleep(20 * time.Millisecond)
+	if current := runtime.NumGoroutine(); current < after {
+		after = current
+	}
+	if leaked := after - baseline; leaked > 0 {
+		t.Fatalf("SummarizeProgress goroutine leaked: +%d after nil-backend early return", leaked)
 	}
 }

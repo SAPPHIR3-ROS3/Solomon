@@ -115,11 +115,12 @@ export function liveWorkedForSeconds(chat: Chat, now: number): number | undefine
   if (lastAssistantGroupIndex < 0 || lastAssistantGroupIndex !== groups.length - 1) return undefined;
 
   const lastAssistantGroup = groups[lastAssistantGroupIndex];
-  const startTimes = lastAssistantGroup
+  const explicitStarts = lastAssistantGroup
     .map(({ message }) => message.workStartedAt)
-    .filter((value): value is number => plausibleWorkStart(value, now));
+    .filter((value): value is number => value !== undefined);
+  const startTimes = explicitStarts.filter((value) => plausibleWorkStart(value, now));
   const assistantStartedAt = startTimes.length ? Math.min(...startTimes) : undefined;
-  const startedAt = plausibleWorkStart(assistantStartedAt, now) ? assistantStartedAt : chat.runStartedAt;
+  const startedAt = plausibleWorkStart(assistantStartedAt, now) ? assistantStartedAt : explicitStarts.length ? undefined : chat.runStartedAt;
   if (!plausibleWorkStart(startedAt, now)) return undefined;
   return Math.max(0, (now - startedAt!) / 1000);
 }
@@ -127,6 +128,10 @@ export function liveWorkedForSeconds(chat: Chat, now: number): number | undefine
 function plausibleWorkStart(value: number | undefined, now: number) {
   if (value === undefined || !Number.isFinite(value) || value <= 0 || value > now + 5000) return false;
   return now < 1e12 || value >= 1e11;
+}
+
+export function isEmptyAssistantPlaceholder(message: ChatMessage) {
+  return message.status !== "interrupted" && !message.content.trim() && !message.reasoning?.trim() && !message.toolCalls?.length && !message.images?.length;
 }
 
 export function assistantFooterMessage(entries: IndexedChatMessage[]): ChatMessage {

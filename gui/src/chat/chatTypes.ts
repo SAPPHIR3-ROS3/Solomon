@@ -110,6 +110,7 @@ export type ChatMessage = {
   createdAt?: number;
   historyAvailable?: boolean;
   id: string;
+  presentationID?: string;
   images?: ChatImage[];
   kind?: "compaction";
   role: "assistant" | "user";
@@ -136,6 +137,7 @@ export type Chat = {
   projectID?: string;
   /** Browser-only fallback for runs restored while the stream is already active. */
   runStartedAt?: number;
+  knownCompactionIDs?: string[];
   rateLimitNotice?: string;
   status?: "error" | "interrupted" | "running" | "success";
   title: string;

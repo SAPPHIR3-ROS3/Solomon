@@ -10,6 +10,8 @@ const server = await createServer({ root: fileURLToPath(new URL("..", import.met
 const { ChatMessageGroups } = await server.ssrLoadModule("/src/chat/ChatMessageGroups.tsx");
 const { liveWorkedForSeconds, indexChatMessages, groupChatTurns, toolActivityCollapsed } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
 const { reconcileHistoryWindow, tailHistoryStart } = await server.ssrLoadModule("/src/chat/useChatHistoryWindow.ts");
+const { chatPresentationKey } = await server.ssrLoadModule("/src/chat/chatPresentationKey.ts");
+const { applyLiveStreamEvent } = await server.ssrLoadModule("/src/chat/chatClient.ts");
 
 test("resend appears only on the latest user turn between delete and copy", () => {
   const messages = indexChatMessages([
@@ -240,7 +242,83 @@ test("il footer e il popover dei dati sono allineati a destra", async () => {
   assert.match(css, /\.chat-stats-popover\s*\{[^}]*right: 0;/);
 });
 
+test("presentation keys stay stable when a snapshot adds checkpoint sequence", () => {
+  const optimistic = { id: "user-123", role: "user", content: "hello [img-1]", images: [{ name: "shot.png", url: "blob:shot" }] };
+  let chat = { id: "chat", projectID: "project", source: "daemon", title: "Chat", messages: [optimistic] };
+  const userKey = chatPresentationKey(chat.messages[0]);
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "m-0", role: "user", content: "hello", checkpointSeq: 0, images: [{ name: "shot.png", url: "/img/1" }] },
+  ] } });
+  assert.equal(chatPresentationKey(chat.messages[0]), userKey);
+  assert.equal(chat.messages[0].presentationID, "user-123");
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "m-0", role: "user", content: "hello", checkpointSeq: 0 },
+  ] } });
+  assert.equal(chatPresentationKey(chat.messages[0]), userKey);
+
+  let tools = { id: "chat", projectID: "project", source: "daemon", title: "Chat", messages: [] };
+  tools = applyLiveStreamEvent(tools, { type: "tool_start", id: "tool-1", name: "shell", arguments: { command: "ls" }, checkpoint_seq: 2 });
+  const toolKey = chatPresentationKey(tools.messages[0]);
+  assert.equal(tools.messages[0].checkpointSeq, undefined);
+  tools = applyLiveStreamEvent(tools, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "m-1", role: "assistant", content: "", checkpointSeq: 1, toolCalls: [{ id: "tool-1", name: "shell", checkpointSeq: 2, status: "success", result: { status: "success", output: "done" } }] },
+  ] } });
+  assert.equal(chatPresentationKey(tools.messages[0]), toolKey);
+  assert.equal(tools.messages[0].checkpointSeq, 1);
+
+  let streamed = { id: "chat", projectID: "project", source: "daemon", title: "Chat", messages: [] };
+  streamed = applyLiveStreamEvent(streamed, { type: "assistant_start", turn: 0, checkpoint_seq: 3 });
+  const assistantKey = chatPresentationKey(streamed.messages[0]);
+  assert.equal(assistantKey, "assistant:checkpoint:3");
+  streamed = applyLiveStreamEvent(streamed, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "m-2", role: "assistant", content: "done", checkpointSeq: 3 },
+  ] } });
+  assert.equal(chatPresentationKey(streamed.messages[0]), assistantKey);
+  assert.equal(streamed.messages[0].presentationID, undefined);
+});
+
 await server.close();
+
+test("streaming keeps the whole tool turn above collapse until the answer settles", () => {
+  const originalNow = Date.now;
+  Date.now = () => 15000;
+  try {
+    const tool = { id: "t", name: "shell", status: "success", result: { output: "done", status: "success" } };
+    const base = [
+      { id: "u", role: "user", content: "Go" },
+      { id: "tools", role: "assistant", content: "", workStartedAt: 10000, toolCalls: [tool] },
+    ];
+    const waiting = renderToStaticMarkup(createElement(ChatMessageGroups, {
+      isWorking: true,
+      liveWorkedFor: 5,
+      messages: indexChatMessages([...base, { id: "pending", role: "assistant", content: "", workStartedAt: 12000 }]),
+    }));
+    const waitingCollapse = waiting.indexOf("chat-tool-collapse-all");
+    assert.equal(waiting.indexOf('data-message-id="pending"'), -1);
+    assert.ok(waiting.indexOf('data-message-id="tools"') < waitingCollapse);
+    assert.match(waiting, /thought for 5s/);
+    assert.doesNotMatch(waiting, /thought briefly/);
+    const partial = renderToStaticMarkup(createElement(ChatMessageGroups, {
+      isWorking: true,
+      liveWorkedFor: 6,
+      messages: indexChatMessages([...base, { id: "pending", role: "assistant", content: "Partial answer", reasoning: "Still thinking", workStartedAt: 12000 }]),
+    }));
+    const partialCollapse = partial.indexOf("chat-tool-collapse-all");
+    assert.ok(partial.indexOf("Still thinking") < partialCollapse);
+    assert.ok(partial.indexOf("Partial answer") < partialCollapse);
+    assert.match(partial, /thought for 3s/);
+    const done = renderToStaticMarkup(createElement(ChatMessageGroups, {
+      isWorking: false,
+      messages: indexChatMessages([...base, { id: "pending", role: "assistant", content: "Final answer", reasoning: "Last thought", thoughtFor: 4, workStartedAt: 12000 }]),
+    }));
+    const doneCollapse = done.indexOf("chat-tool-collapse-all");
+    assert.ok(done.indexOf("Last thought") > doneCollapse);
+    assert.ok(done.indexOf("Final answer") > doneCollapse);
+    assert.ok(done.indexOf('data-message-id="tools"') < doneCollapse);
+  } finally {
+    Date.now = originalNow;
+  }
+});
 
 test("completed work duration is visible on every assistant turn", () => {
  const messages = [

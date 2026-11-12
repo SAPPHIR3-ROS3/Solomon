@@ -145,18 +145,20 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
 
 export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat {
   const previousTools = new Map(previous.messages.flatMap((message) => (message.toolCalls ?? []).map((tool) => [tool.id, tool] as const)));
-  const nextCompactions = new Set(next.messages.filter((message) => message.kind === "compaction").map((message) => message.id));
-  const sameCompaction = previous.messages.some((message) => message.kind === "compaction" && nextCompactions.has(message.id));
-  const loadedHistory = sameCompaction ? previous.messages.filter((message) => message.id.startsWith("m-archive-")) : [];
-  const messages = preserveOptimisticMessages(previous, [...loadedHistory, ...next.messages.map((message) => loadedHistory.length > 0 && message.historyAvailable ? { ...message, historyAvailable: false } : message)]).map((message) => {
+  const archive = retainedArchive(previous, next);
+  const seeded = preserveOptimisticMessages(previous, [...archive.history, ...next.messages.map((message) => archive.history.length > 0 && message.historyAvailable ? { ...message, historyAvailable: false } : message)]);
+  const presentationIDs = presentationIDsFor(previous.messages, seeded);
+  const messages = seeded.map((message, index) => {
     const previousMessage = previous.messages.find((candidate) => candidate.role === message.role && (
       candidate.id === message.id
       || (message.checkpointSeq !== undefined && candidate.checkpointSeq === message.checkpointSeq && candidate.checkpointBranch === message.checkpointBranch)
       || message.toolCalls?.some((tool) => candidate.toolCalls?.some((previousTool) => previousTool.id === tool.id))
     ));
     const tools = mergeSubagentCalls(previousMessage?.toolCalls, message.toolCalls ?? []);
+    const presentationID = presentationIDs[index];
     return {
       ...message,
+      ...(presentationID ? { presentationID } : {}),
       toolCalls: tools.length ? tools.map((tool) => mergeSubagentTool(previousTools.get(tool.id), tool)) : message.toolCalls,
     };
   });
@@ -168,6 +170,7 @@ export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat 
   }
   return {
     ...next,
+    knownCompactionIDs: archive.knownCompactionIDs,
     status: next.status ?? (previous.status && previous.status !== "running" ? previous.status : undefined),
     messages: messages.map((message) => {
       if (message.role !== "assistant" || message.workStartedAt !== undefined || message.checkpointSeq === undefined) return message;
@@ -199,6 +202,66 @@ function preserveOptimisticMessages(previous: Chat, nextMessages: ChatMessage[])
 
   const optimisticMessages = previous.messages.filter(isOptimisticUserMessage);
   return optimisticMessages.length ? [...optimisticMessages] : nextMessages;
+}
+
+function compactionNumber(id: string): number | undefined {
+  const match = /^compaction-(\d+)$/.exec(id);
+  return match ? Number(match[1]) : undefined;
+}
+
+function retainedArchive(previous: Chat, next: LiveChat): { history: ChatMessage[]; knownCompactionIDs?: string[] } {
+  const known = new Set(previous.knownCompactionIDs ?? []);
+  for (const message of previous.messages) if (message.kind === "compaction") known.add(message.id);
+  const nextIDs = next.messages.filter((message) => message.kind === "compaction").map((message) => message.id);
+  let maxKnown = -1;
+  for (const id of known) {
+    const index = compactionNumber(id);
+    if (index !== undefined && index > maxKnown) maxKnown = index;
+  }
+  const valid = nextIDs.some((id) => known.has(id) || (maxKnown >= 0 && (compactionNumber(id) ?? -1) > maxKnown));
+  for (const id of nextIDs) known.add(id);
+  return {
+    history: valid ? previous.messages.filter((message) => message.id.startsWith("m-archive-") && !next.messages.some((candidate) => candidate.id === message.id)) : [],
+    knownCompactionIDs: known.size ? [...known] : undefined,
+  };
+}
+
+function localUserIdentity(message: ChatMessage): string | undefined {
+  if (message.role !== "user" || message.checkpointSeq !== undefined) return undefined;
+  const identity = message.presentationID ?? message.id;
+  return identity.startsWith("user-") || identity.startsWith("stream-user-") ? identity : undefined;
+}
+
+function carriedPresentationID(message: ChatMessage | undefined): string | undefined {
+  if (!message) return undefined;
+  return message.presentationID ?? (message.checkpointSeq === undefined ? message.id : undefined);
+}
+
+function presentationIDsFor(previous: ChatMessage[], next: ChatMessage[]): Array<string | undefined> {
+  const claimed = new Set<ChatMessage>();
+  const strong = next.map((message) => {
+    const match = previous.find((candidate) => !claimed.has(candidate) && candidate.role === message.role && (
+      candidate.id === message.id
+      || (message.checkpointSeq !== undefined && candidate.checkpointSeq === message.checkpointSeq && candidate.checkpointBranch === message.checkpointBranch)
+      || message.toolCalls?.some((tool) => candidate.toolCalls?.some((previousTool) => previousTool.id === tool.id))
+    ));
+    if (match) claimed.add(match);
+    return match;
+  });
+  const locals = previous.filter((message) => !claimed.has(message) && localUserIdentity(message));
+  const used = new Set<ChatMessage>();
+  const paired = new Map<number, ChatMessage>();
+  const openIndexes = next.flatMap((message, index) => !strong[index] && message.role === "user" ? [index] : []);
+  for (const index of openIndexes) {
+    const match = locals.find((candidate) => !used.has(candidate) && candidate.content === next[index].content);
+    if (!match) continue;
+    used.add(match);
+    paired.set(index, match);
+  }
+  const leftoverLocals = locals.filter((candidate) => !used.has(candidate));
+  const leftoverIndexes = openIndexes.filter((index) => !paired.has(index));
+  if (leftoverLocals.length === 1 && leftoverIndexes.length === 1) paired.set(leftoverIndexes[0], leftoverLocals[0]);
+  return next.map((_, index) => carriedPresentationID(strong[index] ?? paired.get(index)));
 }
 
 function updateLastAssistant(chat: LiveChat, update: (message: ChatMessage) => ChatMessage): LiveChat {

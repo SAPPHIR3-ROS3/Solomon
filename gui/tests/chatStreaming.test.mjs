@@ -44,7 +44,41 @@ test("a newer compaction replaces the previous summary instead of stacking it", 
     { id: "compaction-1", role: "assistant", kind: "compaction", content: "", summary: "Second summary", historyAvailable: true },
     { id: "m-1", role: "user", content: "pending" },
   ] } });
-  assert.deepEqual(chat.messages.map((message) => message.summary ?? message.content), ["Second summary", "pending"]);
+  assert.deepEqual(chat.messages.map((message) => message.summary ?? message.content), ["old request", "Second summary", "pending"]);
+  assert.equal(chat.messages.filter((message) => message.kind === "compaction").length, 1);
+  assert.equal(chat.messages.find((message) => message.kind === "compaction").historyAvailable, false);
+});
+
+test("later and already seen compaction cards keep loaded archive", () => {
+  let chat = { id: "chat", projectID: "project", messages: [], source: "daemon", status: "running" };
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "m-archive-0-0", role: "user", content: "old request" },
+    { id: "compaction-0", role: "assistant", kind: "compaction", content: "", summary: "First summary" },
+    { id: "m-1", role: "user", content: "next" },
+  ] } });
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "compaction-2", role: "assistant", kind: "compaction", content: "", summary: "Later summary", historyAvailable: true },
+    { id: "m-1", role: "user", content: "next" },
+  ] } });
+  assert.deepEqual(chat.messages.map((message) => message.summary ?? message.content), ["old request", "Later summary", "next"]);
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "compaction-0", role: "assistant", kind: "compaction", content: "", summary: "First summary", historyAvailable: true },
+    { id: "m-1", role: "user", content: "next" },
+  ] } });
+  assert.deepEqual(chat.messages.map((message) => message.summary ?? message.content), ["old request", "First summary", "next"]);
+  assert.equal(chat.messages.filter((message) => message.kind === "compaction").length, 1);
+});
+
+test("an unrelated compaction card drops loaded archive", () => {
+  let chat = { id: "chat", projectID: "project", messages: [], source: "daemon", status: "running" };
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "m-archive-0-0", role: "user", content: "old request" },
+    { id: "compaction-5", role: "assistant", kind: "compaction", content: "", summary: "Fifth summary" },
+  ] } });
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "compaction-1", role: "assistant", kind: "compaction", content: "", summary: "Other summary", historyAvailable: true },
+  ] } });
+  assert.deepEqual(chat.messages.map((message) => message.summary ?? message.content), ["Other summary"]);
 });
 
 test("the same compaction keeps loaded history and a single summary", () => {

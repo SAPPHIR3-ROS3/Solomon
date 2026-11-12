@@ -54,12 +54,21 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
     let flights: Flight[] = [];
     let geometryDirty = true;
     let canvasBounds = canvas.getBoundingClientRect();
-    const cardSelector = ".chat-message, .chat-code-block, .chat-tool-card, .chat-subagent-card, .chat-tool-collapse-all, .welcome-composer";
+    const occluderSelector = ".chat-message.is-user, .chat-tool-card, .chat-subagent-card, .chat-tool-collapse-all, .chat-tool-activity-controls, .chat-code-toolbar, .welcome-composer, .chat-rate-limit, .chat-assistant-footer, .chat-message-footer, .chat-checkpoint-label, .chat-tool-checkpoints-collapsed";
+    const textHostSelector = ".chat-message.is-assistant, .chat-code-block, .chat-compaction, .chat-interrupted, .chat-load-earlier, .file-changes-card";
+    const watchSelector = `${occluderSelector}, ${textHostSelector}`;
     const visibleCards = new Set<HTMLElement>();
     const watchedCards = new Set<HTMLElement>();
     let masksDirty = true;
+    let maskFlightKey = "";
     let masks: { x: number; y: number; width: number; height: number; radii: number[] }[] = [];
-    const cardSizing = new ResizeObserver(invalidateGeometry);
+    const dirtyTextHosts = new Set<HTMLElement>();
+    const textMaskCache = new Map<HTMLElement, { x: number; y: number; width: number; height: number }[]>();
+    let previousFlightHosts = new Set<HTMLElement>();
+    const cardSizing = new ResizeObserver((entries) => {
+      for (const entry of entries) dirtyTextHosts.add(entry.target as HTMLElement);
+      invalidateGeometry();
+    });
     const visibility = new IntersectionObserver(entries => {
       for (const entry of entries) {
         const element = entry.target as HTMLElement;
@@ -75,7 +84,7 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
     }, { root: view });
     function watchCards(node: Node, added: boolean) {
       if (!(node instanceof HTMLElement)) return;
-      const cards = [...(node.matches(cardSelector) ? [node] : []), ...node.querySelectorAll<HTMLElement>(cardSelector)];
+      const cards = [...(node.matches(watchSelector) ? [node] : []), ...node.querySelectorAll<HTMLElement>(watchSelector)];
       for (const card of cards) {
         if (added) {
           if (!watchedCards.has(card)) { watchedCards.add(card); visibility.observe(card); }
@@ -84,10 +93,22 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
           visibleCards.delete(card);
           visibility.unobserve(card);
           cardSizing.unobserve(card);
+          textMaskCache.delete(card);
+          dirtyTextHosts.delete(card);
         }
       }
     }
     function invalidateGeometry() { masksDirty = true; geometryDirty = true; }
+    function markTextHostsDirty(root: HTMLElement) {
+      const outer = root.closest(textHostSelector);
+      if (outer instanceof HTMLElement) dirtyTextHosts.add(outer);
+      root.querySelectorAll<HTMLElement>(textHostSelector).forEach((host) => dirtyTextHosts.add(host));
+    }
+    function flightHost(node: Node) {
+      const parent = node instanceof HTMLElement ? node : node.parentElement;
+      const host = parent?.closest(textHostSelector);
+      return host instanceof HTMLElement ? host : undefined;
+    }
     const freshParticle = (alpha: number): Particle => ({
       x: Math.random(), y: Math.random(), phase: Math.random() * Math.PI * 2,
       glyph: alphabet[Math.floor(Math.random() * alphabet.length)],
@@ -130,10 +151,12 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
 
     function scan() {
       geometryDirty = true;
+      masksDirty = true;
       const { messageID: domID, responseKey: id, working: active } = latest.current;
       if (!domID || !id) return;
       const response = shell!.querySelector<HTMLElement>(`.chat-response-content[data-message-id="${CSS.escape(domID)}"]`);
       if (!response) return;
+      markTextHostsDirty(response);
       // Ignore controls, line numbers and duplicate math accessibility markup.
       const walker = response ? document.createTreeWalker(response, NodeFilter.SHOW_TEXT, {
         acceptNode: node => node.parentElement?.closest("button, .chat-code-toolbar, .chat-line-number, .katex, .chat-image-tag, .chat-terminal-tag")
@@ -242,6 +265,8 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
       for (const record of records) {
         record.removedNodes.forEach(node => watchCards(node, false));
         record.addedNodes.forEach(node => watchCards(node, true));
+        const host = flightHost(record.target);
+        if (host) dirtyTextHosts.add(host);
       }
     });
     // Text changes are already delivered through React props. Watching them
@@ -295,30 +320,6 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
         context!.fillText(particle.glyph, 0, 0);
         context!.restore();
       }
-      // Cache geometry between layout changes, and only measure visible cards.
-      // Walking all historical tool cards every frame stalls long transcripts.
-      if (masksDirty) {
-        masksDirty = false;
-        masks = [];
-        for (const element of visibleCards) {
-          const rect = element.getBoundingClientRect();
-          if (!rect.width || !rect.height || rect.bottom <= bounds.top || rect.top >= bounds.bottom || rect.right <= bounds.left || rect.left >= bounds.right) continue;
-          const style = getComputedStyle(element);
-          masks.push({ x: rect.left - bounds.left, y: rect.top - bounds.top, width: rect.width, height: rect.height,
-            radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(value => parseFloat(value) || 0) });
-        }
-      }
-      context!.save();
-      context!.globalAlpha = 1;
-      context!.globalCompositeOperation = "destination-out";
-      context!.fillStyle = "#000";
-      for (const mask of masks) {
-        context!.beginPath();
-        context!.roundRect(mask.x, mask.y, mask.width, mask.height, mask.radii);
-        context!.fill();
-      }
-      context!.restore();
-      context!.globalAlpha = 1;
       flights = flights.filter(flight => {
         const progress = Math.max(0, (now - flight.start) / DURATION);
         if (progress >= 1 || !flight.visible || !flight.range.startContainer.isConnected) {
@@ -335,6 +336,90 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
         context!.fillText(flight.glyph, x, y);
         return true;
       });
+      const flightKey = flights.map((flight) => flight.messageID + ":" + flight.offset + ":" + flight.glyph).join("|");
+      if (flightKey !== maskFlightKey) {
+        maskFlightKey = flightKey;
+        masksDirty = true;
+      }
+      // Occluders are one rectangle each. Text masks stay cached per card and
+      // are remeasured only for the card that is streaming, resizing, or hiding
+      // a glyph that is still in flight.
+      if (masksDirty) {
+        masksDirty = false;
+        masks = [];
+        const flightHosts = new Set<HTMLElement>();
+        for (const flight of flights) {
+          const host = flightHost(flight.range.startContainer);
+          if (host) flightHosts.add(host);
+        }
+        const overlaps = (rect: DOMRect) => rect.width > 0 && rect.height > 0 && rect.bottom > bounds.top && rect.top < bounds.bottom && rect.right > bounds.left && rect.left < bounds.right;
+        for (const element of visibleCards) {
+          const rect = element.getBoundingClientRect();
+          if (element.matches(occluderSelector) && overlaps(rect)) {
+            const style = getComputedStyle(element);
+            masks.push({ x: rect.left - bounds.left, y: rect.top - bounds.top, width: rect.width, height: rect.height,
+              radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(value => parseFloat(value) || 0) });
+          }
+          if (!element.matches(textHostSelector)) continue;
+          const refreshText = !textMaskCache.has(element) || dirtyTextHosts.has(element) || flightHosts.has(element) || previousFlightHosts.has(element);
+          if (refreshText) {
+            dirtyTextHosts.delete(element);
+            const origin = rect.width ? rect : element.getBoundingClientRect();
+            const local: { x: number; y: number; width: number; height: number }[] = [];
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+              acceptNode(node) {
+                const text = node as Text;
+                if (!text.data.trim()) return NodeFilter.FILTER_REJECT;
+                const parent = text.parentElement;
+                if (!parent || parent.closest(occluderSelector) || parent.closest(textHostSelector) !== element) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+              },
+            });
+            while (walker.nextNode()) {
+              const text = walker.currentNode as Text;
+              const hidden = flights.filter((flight) => flight.range.startContainer === text).map((flight) => [flight.range.startOffset, flight.range.endOffset] as [number, number]).sort((left, right) => left[0] - right[0]);
+              let cursor = 0;
+              const gaps: [number, number][] = [];
+              for (const [start, end] of hidden) {
+                if (start > cursor) gaps.push([cursor, start]);
+                cursor = Math.max(cursor, end);
+              }
+              if (cursor < text.length) gaps.push([cursor, text.length]);
+              for (const [start, end] of gaps) {
+                const from = Math.max(0, Math.min(start, text.length));
+                const to = Math.max(from, Math.min(end, text.length));
+                if (to <= from) continue;
+                const range = document.createRange();
+                range.setStart(text, from);
+                range.setEnd(text, to);
+                for (const box of range.getClientRects()) {
+                  if (!box.width || !box.height) continue;
+                  local.push({ x: box.left - origin.left - 1, y: box.top - origin.top - 1, width: box.width + 2, height: box.height + 2 });
+                }
+              }
+            }
+            textMaskCache.set(element, local);
+          }
+          const origin = rect;
+          for (const box of textMaskCache.get(element) ?? []) {
+            const painted = { left: origin.left + box.x, top: origin.top + box.y, right: origin.left + box.x + box.width, bottom: origin.top + box.y + box.height, width: box.width, height: box.height } as DOMRect;
+            if (!overlaps(painted)) continue;
+            masks.push({ x: painted.left - bounds.left, y: painted.top - bounds.top, width: box.width, height: box.height, radii: [0, 0, 0, 0] });
+          }
+        }
+        for (const host of [...dirtyTextHosts]) if (!watchedCards.has(host)) dirtyTextHosts.delete(host);
+        previousFlightHosts = flightHosts;
+      }
+      context!.save();
+      context!.globalAlpha = 1;
+      context!.globalCompositeOperation = "destination-out";
+      context!.fillStyle = "#000";
+      for (const mask of masks) {
+        context!.beginPath();
+        context!.roundRect(mask.x, mask.y, mask.width, mask.height, mask.radii);
+        context!.fill();
+      }
+      context!.restore();
       context!.globalAlpha = 1;
       frame = requestAnimationFrame(draw);
     }

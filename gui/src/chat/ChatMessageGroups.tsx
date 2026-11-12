@@ -4,7 +4,7 @@ import type { ChatMessage, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 import { ChatImageAttachments, CheckpointLabel, CompactionCard, InterruptedGenerationMarker } from "./ChatMessageParts";
 import { SubagentCard, ToolCallCard, subagentDisplayStatus } from "./ChatToolActivity";
-import { assistantFooterMessage, groupChatTurns, indexChatMessages, parseChatBannerError, toolActivityCollapsed, toolCheckpoint } from "./chatMessageUtils";
+import { assistantFooterMessage, groupChatTurns, indexChatMessages, isEmptyAssistantPlaceholder, parseChatBannerError, toolActivityCollapsed, toolCheckpoint } from "./chatMessageUtils";
 import { BriefThought, LiveThoughtSummary, MessageFooter, ReasoningBlock, ReasoningSummaryBlock, WorkedForCounter } from "./ChatMessageFooter";
 import { CollapseSubchatIcon } from "./ChatIcons";
 import { MarkdownContent } from "./MarkdownContent";
@@ -123,14 +123,14 @@ const AssistantTurn = memo(function AssistantTurn({
   const lastToolEntryIndex = entries.reduce((lastIndex, entry, index) => (
     entry.message.toolCalls?.length ? index : lastIndex
   ), -1);
-  const responseIndex = hasAnyToolCalls ? findFinalResponseIndex(entries, lastToolEntryIndex) : -1;
+  const responseIndex = hasAnyToolCalls && !isWorking ? findFinalResponseIndex(entries, lastToolEntryIndex) : -1;
   const responseEntry = responseIndex >= 0 ? entries[responseIndex] : undefined;
   const rawActivityEntries = responseEntry ? entries.filter((_, index) => index !== responseIndex) : entries;
   const toolCalls = rawActivityEntries.flatMap(({ message }) => message.toolCalls ?? []);
   const hasToolCalls = toolCalls.length > 0;
-  const latestMessage = entries.at(-1)?.message;
-  const activeGenerationMessageID = isWorking && latestMessage && (Boolean(latestMessage.content.trim()) || Boolean(latestMessage.toolCalls?.length) || Boolean(latestMessage.reasoning?.trim())) ? latestMessage.id : undefined;
+  const activeGenerationMessageID = isWorking ? ([...entries].reverse().find((entry) => !isEmptyAssistantPlaceholder(entry.message)) ?? entries.at(-1))?.message.id : undefined;
   const activityEntries = withActivityCheckpoints(rawActivityEntries, toolCalls);
+  const shownActivityEntries = activityEntries.filter((entry) => !isEmptyAssistantPlaceholder(entry.message));
   const [collapsedOverride, setCollapsedOverride] = useState<boolean | undefined>(undefined);
   const wasWorking = useRef(isWorking);
   useEffect(() => {
@@ -163,7 +163,7 @@ const AssistantTurn = memo(function AssistantTurn({
   return (
     <div className="chat-turn is-assistant">
       <div className={timelineClassName}>
-        {(!hasToolCalls || !isToolActivityCollapsed) ? activityEntries.map((entry, entryIndex) => {
+        {(!hasToolCalls || !isToolActivityCollapsed) ? shownActivityEntries.map((entry, entryIndex) => {
           const actions = messageActions(entry, { onOpenSubagent, onStopTool });
           const toolActivity = hasToolCalls ? {
             isCollapsed: isToolActivityCollapsed,
@@ -177,7 +177,7 @@ const AssistantTurn = memo(function AssistantTurn({
               message={entry.message}
               onOpenSubagent={actions.onOpenSubagent}
               onStopTool={actions.onStopTool}
-              suppressBriefThought={isRepeatedBriefThought(activityEntries, entryIndex)}
+              suppressBriefThought={isRepeatedBriefThought(shownActivityEntries, entryIndex)}
               toolActivity={toolActivity}
             />
           );

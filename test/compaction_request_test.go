@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -118,5 +119,50 @@ func TestRunAgentTurns_autoCompactionFailureStopsRequest(t *testing.T) {
 		if len(rt.Session.Messages) != 3 || len(rt.Session.UncompactedRaw) != 0 {
 			t.Fatal("failed compaction changed history")
 		}
+	}
+}
+
+type compactInterruptBackend struct {
+	*turnScriptBackend
+	textStarted chan struct{}
+}
+
+func (b *compactInterruptBackend) StreamText(ctx context.Context, req llm.SimpleCompletionRequest, contentOut io.Writer, opts llm.StreamOpts) (string, llm.UsageStats, error) {
+	close(b.textStarted)
+	<-ctx.Done()
+	return "", llm.UsageStats{}, ctx.Err()
+}
+
+func TestRunAgentTurns_interruptDuringAutoCompaction(t *testing.T) {
+	backend := &compactInterruptBackend{
+		turnScriptBackend: &turnScriptBackend{protocol: llm.ProtocolOpenAI},
+		textStarted:       make(chan struct{}),
+	}
+	sess := &chatstore.Session{ID: "compact-interrupt", Messages: []chatstore.Message{
+		{Role: "user", Content: "old question"},
+		{Role: "assistant", Content: "old answer", PromptTokens: 5000},
+		{Role: "user", Content: "new question"},
+	}}
+	rt := newTurnLoopRuntime(t, backend, sess, func(r *agentruntime.Runtime) {
+		r.CompactionThresholdTokens = 100
+	})
+	errCh := make(chan error, 1)
+	go func() { errCh <- rt.RunAgentTurnsForTest(context.Background()) }()
+	select {
+	case <-backend.textStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("auto-compaction did not start")
+	}
+	agentruntime.StopAgentGenerationForTest()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("interrupt during auto-compaction returned error, want generation stopped outcome: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("turn loop did not stop after interrupt")
+	}
+	if backend.turnN != 0 {
+		t.Fatalf("StreamTurn calls=%d, want 0 (request must not start after interrupted compaction)", backend.turnN)
 	}
 }

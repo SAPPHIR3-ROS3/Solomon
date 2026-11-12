@@ -92,6 +92,36 @@ test('preserves inline code, unknown labels and literal backticks', () => {
 });
 
 
+test('keeps an unclosed inline code tail as plain text', () => {
+  for (const marker of [tick, tick.repeat(2)]) {
+    const html = render('Run ' + marker + 'echo $HOME then continue');
+    assert.equal(html.includes('<code>'), false);
+    assert.equal((html.match(/class="chat-code-block"/g) ?? []).length, 0);
+    assert.ok(html.includes(marker + 'echo $HOME then continue'));
+  }
+  const partial = render('Here:\n' + tick + 'python\n');
+  assert.equal(partial.includes('<code>'), false);
+  assert.equal((partial.match(/class="chat-code-block"/g) ?? []).length, 0);
+  assert.ok(partial.includes(tick + 'python'));
+});
+
+test('renders closed inline code as code', () => {
+  const html = render('Run ' + tick + 'echo $HOME' + tick + ' then continue');
+  assert.ok(html.includes('<code>echo $HOME</code>'));
+  assert.ok(html.includes('then continue'));
+  assert.equal((html.match(/class="chat-code-block"/g) ?? []).length, 0);
+  const doubled = render('Run ' + tick.repeat(2) + 'echo $HOME' + tick.repeat(2) + ' then continue');
+  assert.ok(doubled.includes('<code>echo $HOME</code>'));
+});
+
+test('renders an unclosed fence as a code block immediately', () => {
+  const html = render(tick.repeat(3) + 'python\nprint(1)\n');
+  assert.equal((html.match(/class="chat-code-block"/g) ?? []).length, 1);
+  assert.ok(html.includes('>python</div>'));
+  assert.ok(html.includes('>print(1)</span>'));
+  assert.equal(render('Here:\n' + tick + 'python\n').includes('chat-code-block'), false);
+});
+
 test('code snippets wrap long lines inside the block', async () => {
   const css = await readFile(new URL('../src/chat/chat.css', import.meta.url), 'utf8');
   assert.match(css, /\.chat-code-block pre \{[^}]*overflow-x: hidden;/);

@@ -119,6 +119,19 @@ func Run(ctx context.Context, h Host) error {
 			return nil
 		}
 		if err := compactBeforeRequest(runCtx, h); err != nil {
+			if interruptedDuringGeneration(ctx, runCtx, err, stopErr) {
+				flushUsageStats()
+				logging.Log(logging.INFO_LOG_LEVEL, h.GenerationStoppedMessage())
+				if !h.MachineMode() {
+					h.ShowGenerationStopped(out)
+				}
+				return nil
+			}
+			flushUsageStats()
+			logging.Log(logging.ERROR_LOG_LEVEL, "auto-compact failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+			if h.MachineMode() {
+				return h.WrapLLMErr(err)
+			}
 			return err
 		}
 		msgs, imageFiles := h.SessionMessagesSnapshot()
