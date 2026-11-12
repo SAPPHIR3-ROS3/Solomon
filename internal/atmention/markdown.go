@@ -17,86 +17,55 @@ func FindDocumentTags(s string) []DocumentTag {
 	if strings.TrimSpace(s) == "" {
 		return nil
 	}
+	lines := strings.Split(s, "\n")
 	var out []DocumentTag
 	offset := 0
-	plainStart := 0
+	inFence := false
 	fenceMarker := ""
-	for _, line := range strings.SplitAfter(s, "\n") {
+	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if fenceMarker == "" {
-			if marker, ok := fenceOpen(trimmed); ok {
-				out = append(out, scanPlainText(s[plainStart:offset], plainStart)...)
-				fenceMarker = marker
+		if !inFence {
+			if m, ok := fenceOpen(trimmed); ok {
+				inFence = true
+				fenceMarker = m
+				offset += len(line) + 1
+				continue
 			}
+			out = append(out, scanPlainLine(line, offset)...)
 		} else if fenceClose(trimmed, fenceMarker) {
+			inFence = false
 			fenceMarker = ""
-			plainStart = offset + len(line)
 		}
-		offset += len(line)
-	}
-	if fenceMarker == "" {
-		out = append(out, scanPlainText(s[plainStart:], plainStart)...)
+		offset += len(line) + 1
 	}
 	return out
 }
 
 func fenceOpen(trimmed string) (marker string, ok bool) {
-	if len(trimmed) < 3 || (trimmed[0] != '`' && trimmed[0] != '~') {
-		return "", false
+	for _, m := range []string{"```", "~~~"} {
+		if trimmed == m || strings.HasPrefix(trimmed, m+" ") {
+			return m, true
+		}
 	}
-	end := delimiterEnd(trimmed, 0)
-	if end < 3 || (trimmed[0] == '`' && strings.Contains(trimmed[end:], "`")) {
-		return "", false
-	}
-	return trimmed[:end], true
+	return "", false
 }
 
 func fenceClose(trimmed, marker string) bool {
-	if trimmed == "" || trimmed[0] != marker[0] {
-		return false
-	}
-	end := delimiterEnd(trimmed, 0)
-	return end >= len(marker) && strings.TrimSpace(trimmed[end:]) == ""
+	return trimmed == marker || strings.HasPrefix(trimmed, marker+" ")
 }
 
-func delimiterEnd(text string, start int) int {
-	end := start + 1
-	for end < len(text) && text[end] == text[start] {
-		end++
-	}
-	return end
-}
-
-func inlineCodeEnd(text string, start, width int) int {
-	for i := start; i < len(text); {
-		if text[i] != '`' {
+func scanPlainLine(line string, lineOffset int) []DocumentTag {
+	var out []DocumentTag
+	inInline := false
+	i := 0
+	for i < len(line) {
+		if line[i] == '`' {
+			inInline = !inInline
 			i++
 			continue
 		}
-		end := delimiterEnd(text, i)
-		if end-i == width {
-			return end
-		}
-		i = end
-	}
-	return -1
-}
-
-func scanPlainText(text string, textOffset int) []DocumentTag {
-	var out []DocumentTag
-	i := 0
-	for i < len(text) {
-		if text[i] == '`' {
-			end := delimiterEnd(text, i)
-			if close := inlineCodeEnd(text, end, end-i); close >= 0 {
-				i = close
-			} else {
-				i = end
-			}
-			continue
-		}
-		if text[i] == '@' {
-			rest := text[i:]
+		if !inInline && line[i] == '@' {
+			rest := line[i:]
 			loc := documentTagRE.FindStringSubmatchIndex(rest)
 			if loc == nil {
 				i++
@@ -104,8 +73,8 @@ func scanPlainText(text string, textOffset int) []DocumentTag {
 			}
 			path := rest[loc[2]:loc[3]]
 			out = append(out, DocumentTag{
-				Start: textOffset + i,
-				End:   textOffset + i + loc[1],
+				Start: lineOffset + i,
+				End:   lineOffset + i + loc[1],
 				Path:  path,
 			})
 			i += loc[1]

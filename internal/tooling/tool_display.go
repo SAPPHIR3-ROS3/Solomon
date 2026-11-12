@@ -130,6 +130,26 @@ func appendFindToolParameter(lines *[]string, label, value string) {
 	*lines = append(*lines, termcolor.WrapTool("      "+label+": "+value))
 }
 
+func jsonDisplayBool(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var b bool
+	if json.Unmarshal(raw, &b) == nil {
+		return b
+	}
+	var s string
+	if json.Unmarshal(raw, &s) != nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 func formatShellToolDisplayLines(m map[string]json.RawMessage) []string {
 	body := jsonDisplayString(m["command"])
 	if t := jsonDisplayIntPtr(m["timeoutSeconds"]); t != nil {
@@ -328,6 +348,28 @@ func parseToolDisplayArgs(raw json.RawMessage) map[string]json.RawMessage {
 	return map[string]json.RawMessage{}
 }
 
+func jsonDisplayString(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+func jsonDisplayIntPtr(raw json.RawMessage) *int {
+	if len(raw) == 0 {
+		return nil
+	}
+	var n int
+	if json.Unmarshal(raw, &n) == nil {
+		return &n
+	}
+	return nil
+}
+
 func FormatToolResultDisplayLines(toolName string, payload string) []string {
 	toolName = strings.TrimSpace(toolName)
 	label := toolName
@@ -411,7 +453,32 @@ func formatToolResultBody(toolName string, m map[string]json.RawMessage) string 
 		}
 		return "→ done"
 	case "orchestrate":
-		return formatOrchestrateResultBody(m)
+		if jsonDisplayBool(m["truncated"]) {
+			if p := jsonDisplayString(m["spill_path"]); p != "" {
+				body := "→ truncated"
+				if n, ok := jsonDisplayInt(m["tool_calls"]); ok {
+					body += fmt.Sprintf(" (%d sdk calls)", n)
+				}
+				body += " • " + p
+				return body
+			}
+		}
+		if out := strings.TrimSpace(jsonDisplayString(m["output"])); out != "" {
+			return "→ " + firstDisplayLine(out, 160)
+		}
+		if errMsg := jsonDisplayString(m["compile_error"]); errMsg != "" {
+			return "→ compile error"
+		}
+		if errMsg := jsonDisplayString(m["error"]); errMsg != "" {
+			return "→ " + firstDisplayLine(errMsg, 120)
+		}
+		if ok := jsonDisplayBool(m["ok"]); ok {
+			if n, ok := jsonDisplayInt(m["tool_calls"]); ok {
+				return fmt.Sprintf("→ ok (%d sdk calls)", n)
+			}
+			return "→ ok"
+		}
+		return ""
 	case "deepResearch":
 		if body := formatResearchToolResultBody(m); body != "" {
 			return body
@@ -488,4 +555,30 @@ func compactToolResultJSON(m map[string]json.RawMessage, maxRunes int) string {
 		return "→ (result)"
 	}
 	return "→ " + truncateDisplayRunes(string(b), maxRunes)
+}
+
+func jsonDisplayInt(raw json.RawMessage) (int, bool) {
+	if len(raw) == 0 {
+		return 0, false
+	}
+	var n int
+	if json.Unmarshal(raw, &n) == nil {
+		return n, true
+	}
+	return 0, false
+}
+
+func firstDisplayLine(s string, maxRunes int) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	return truncateDisplayRunes(strings.TrimSpace(s), maxRunes)
+}
+
+func truncateDisplayRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max]) + "…"
 }

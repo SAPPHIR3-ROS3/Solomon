@@ -14,38 +14,18 @@ import (
 
 type Options struct {
 	Source     string
-	Inputs     map[string]string
 	ModuleRoot string
 	CacheDir   string
 	MCPTools   []MCPToolBinding
 }
 
-func BuildWASM(opts Options) (wasm []byte, buildFailure error) {
-	phase := "parse"
-	defer func() {
-		if buildFailure != nil {
-			buildFailure = classifyFailure(buildFailure, phase)
-		}
-	}()
+func BuildWASM(opts Options) ([]byte, error) {
 	if strings.TrimSpace(opts.Source) == "" {
 		return nil, fmt.Errorf("orchestrate: empty source")
 	}
-	src, parseErr := RewriteSDKImports(opts.Source)
-	if parseErr != nil {
-		return nil, fmt.Errorf("compile: %s", orchestrateParseError(parseErr, opts.Source))
-	}
-	src, parseErr = RewriteMCPCalls(src, opts.MCPTools)
-	if parseErr != nil {
-		return nil, fmt.Errorf("compile: %s", orchestrateParseError(parseErr, opts.Source))
-	}
-	if !strings.Contains(src, "package main") {
-		return nil, fmt.Errorf("orchestrate: source must contain package main")
-	}
-	phase = "toolchain"
 	if err := checkGoToolchain(); err != nil {
 		return nil, err
 	}
-	phase = "module"
 	modRoot := opts.ModuleRoot
 	if modRoot == "" {
 		var err error
@@ -58,7 +38,6 @@ func BuildWASM(opts Options) (wasm []byte, buildFailure error) {
 	if err != nil {
 		return nil, err
 	}
-	phase = "storage"
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -73,10 +52,18 @@ func BuildWASM(opts Options) (wasm []byte, buildFailure error) {
 	}
 	defer os.RemoveAll(slotDir)
 
-	if err := os.WriteFile(filepath.Join(slotDir, "main.go"), []byte(src), 0o600); err != nil {
-		return nil, err
+	src, parseErr := RewriteSDKImports(opts.Source)
+	if parseErr != nil {
+		return nil, fmt.Errorf("compile: %s", orchestrateParseError(parseErr, opts.Source))
 	}
-	if err := writeInputs(slotDir, opts.Inputs); err != nil {
+	src, parseErr = RewriteMCPCalls(src, opts.MCPTools)
+	if parseErr != nil {
+		return nil, fmt.Errorf("compile: %s", orchestrateParseError(parseErr, opts.Source))
+	}
+	if !strings.Contains(src, "package main") {
+		return nil, fmt.Errorf("orchestrate: source must contain package main")
+	}
+	if err := os.WriteFile(filepath.Join(slotDir, "main.go"), []byte(src), 0o600); err != nil {
 		return nil, err
 	}
 	outPath := filepath.Join(slotDir, "script.wasm")
@@ -93,7 +80,6 @@ func BuildWASM(opts Options) (wasm []byte, buildFailure error) {
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
-	phase = "build"
 	cmd, err := goCommand("build", "-mod=mod", "-o", outPath, ".")
 	if err != nil {
 		return nil, err
@@ -118,8 +104,7 @@ func BuildWASM(opts Options) (wasm []byte, buildFailure error) {
 		logging.Log(logging.DEBUG_LOG_LEVEL, "sandbox orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": compileErr.Error()}})
 		return nil, compileErr
 	}
-	phase = "artifact"
-	wasm, err = os.ReadFile(outPath)
+	wasm, err := os.ReadFile(outPath)
 	if err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox wasm read failed", logging.LogOptions{Params: map[string]any{"path": outPath, "err": err.Error()}})
 		return nil, err

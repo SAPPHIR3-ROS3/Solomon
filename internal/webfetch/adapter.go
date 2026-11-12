@@ -25,9 +25,6 @@ type Fetcher interface {
 }
 
 type Attempt struct {
-	BudgetMs   int64  `json:"budgetMs,omitempty"`
-	ErrorKind  string `json:"errorKind,omitempty"`
-	Retryable  bool   `json:"retryable,omitempty"`
 	Backend    string `json:"backend"`
 	Success    bool   `json:"success"`
 	Error      string `json:"error,omitempty"`

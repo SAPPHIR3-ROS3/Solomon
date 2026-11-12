@@ -3,7 +3,6 @@ import { EditorState } from "@codemirror/state";
 import { EditorView as CodeMirrorView, lineNumbers } from "@codemirror/view";
 import { cursorEditorHighlighting } from "../syntax/cursorEditorHighlighting";
 import { cursorForeground } from "../syntax/cursorSyntax";
-import { syntaxDisplayPolicy } from "../syntax/displayPolicy";
 import type { ChatToolCall, ChatToolResult } from "./chatTypes";
 import { CheckpointLabel } from "./ChatMessageParts";
 import { HammerIcon } from "./ChatIcons";
@@ -244,7 +243,7 @@ function CodeModeSource({ source }: { source: string }) {
         doc: displaySource,
         extensions: [
           lineNumbers(),
-          ...syntaxDisplayPolicy(),
+          CodeMirrorView.lineWrapping,
           EditorState.readOnly.of(true),
           CodeMirrorView.editable.of(false),
           ...cursorEditorHighlighting("go"),

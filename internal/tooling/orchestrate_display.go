@@ -3,7 +3,6 @@ package tooling
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 )
@@ -72,43 +71,4 @@ func formatOrchestrateSourceLine(num int, src string, width int) string {
 	numPart := termcolor.WrapThinking(fmt.Sprintf("%*d", width, num))
 	codePart := highlightGoLine(expandDisplayTabs(src))
 	return numPart + " " + codePart
-}
-
-func formatOrchestrateResultBody(m map[string]json.RawMessage) string {
-	if jsonDisplayString(m["status"]) == "partial" {
-		failed, _ := jsonDisplayInt(m["failed_tool_calls"])
-		return fmt.Sprintf("→ partial (%d failed sdk calls)", failed)
-	}
-	if jsonDisplayString(m["status"]) == "error" {
-		if message := jsonDisplayString(m["error"]); message != "" {
-			return "→ error: " + firstDisplayLine(message, 120)
-		}
-	}
-	if jsonDisplayBool(m["truncated"]) {
-		if p := jsonDisplayString(m["spill_path"]); p != "" {
-			body := "→ truncated"
-			if n, ok := jsonDisplayInt(m["tool_calls"]); ok {
-				body += fmt.Sprintf(" (%d sdk calls)", n)
-			}
-			body += " • " + p
-			return body
-		}
-	}
-	if out := strings.TrimSpace(jsonDisplayString(m["output"])); out != "" {
-		return "→ " + firstDisplayLine(out, 160)
-	}
-	if errMsg := jsonDisplayString(m["compile_error"]); errMsg != "" {
-		return "→ compile error"
-	}
-	if errMsg := jsonDisplayString(m["error"]); errMsg != "" {
-		return "→ " + firstDisplayLine(errMsg, 120)
-	}
-	if ok := jsonDisplayBool(m["ok"]); ok {
-		if n, ok := jsonDisplayInt(m["tool_calls"]); ok {
-			return fmt.Sprintf("→ ok (%d sdk calls)", n)
-		}
-		return "→ ok"
-	}
-	return ""
-
 }

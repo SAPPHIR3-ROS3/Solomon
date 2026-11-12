@@ -31,10 +31,7 @@ type AtMentionInputProps = {
 };
 
 type InputSuggestion = ProjectAtMentionSuggestion & { description?: string };
-const emptyImages: ComposerImageAttachment[] = [];
-const emptyClips: ComposerTerminalClip[] = [];
-
-export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips = emptyClips, images = emptyImages, onChange, onClipsChange, onImagesChange, onKeyDown, placeholder, projectID, value }: AtMentionInputProps) {
+export function AtMentionInput({ "aria-label": ariaLabel, className = "", clips = [], images = [], onChange, onClipsChange, onImagesChange, onKeyDown, placeholder, projectID, value }: AtMentionInputProps) {
   const pickerID = useId();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const textHistory = useTextHistory({ inputRef, value, images, clips, onChange, onImagesChange, onClipsChange });

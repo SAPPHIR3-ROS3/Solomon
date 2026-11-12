@@ -101,7 +101,6 @@ func writeJSON(w io.Writer, v any) error {
 
 func Main() {
 	logging.LogInit(logging.INFO_LOG_LEVEL)
-	_ = logging.Configure(logging.Config{WriteConsole: false})
 	ctx := context.Background()
 	if err := Serve(ctx, os.Stdin, os.Stdout); err != nil {
 		logging.Log(logging.ERROR_LOG_LEVEL, "sandbox worker exited with error", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

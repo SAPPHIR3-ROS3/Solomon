@@ -38,9 +38,6 @@ type FetchWebMetadata struct {
 }
 
 type FetchWebAttempt struct {
-	BudgetMs   int64  `json:"budgetMs,omitempty"`
-	ErrorKind  string `json:"errorKind,omitempty"`
-	Retryable  bool   `json:"retryable,omitempty"`
 	Backend    string `json:"backend"`
 	Success    bool   `json:"success"`
 	Error      string `json:"error,omitempty"`
@@ -145,12 +142,10 @@ type TreeResult struct {
 }
 
 type EditResult struct {
-	StartLine int
-	EndLine   int
-	OK        bool
-	Action    string
-	Reason    string
-	From      string
-	To        string
-	Intent    string
+	OK     bool
+	Action string
+	Reason string
+	From   string
+	To     string
+	Intent string
 }

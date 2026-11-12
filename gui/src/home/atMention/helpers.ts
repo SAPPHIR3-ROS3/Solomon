@@ -73,19 +73,18 @@ export function positionImageTags(input: HTMLTextAreaElement | null, shell: HTML
   copyTextareaStyles(computed, mirror);
   const inputRect = input.getBoundingClientRect();
   mirror.style.cssText += `;height:auto;left:${inputRect.left}px;overflow:hidden;position:fixed;top:${inputRect.top}px;visibility:hidden;width:${input.clientWidth}px;`;
-  const bounds = images.flatMap(image => {
-    const start = value.indexOf(image.tag);
-    return start < 0 ? [] : [{ start, end: start + image.tag.length, image }];
-  }).sort((left, right) => left.start - right.start);
+  const bounds = imageTagBounds(value, images).sort((left, right) => left.start - right.start);
   const markers: Array<{ id: number; label: HTMLSpanElement; marker: HTMLSpanElement }> = [];
   let cursor = 0;
   for (const bound of bounds) {
     mirror.append(document.createTextNode(value.slice(cursor, bound.start)));
     const marker = document.createElement("span");
     marker.style.whiteSpace = "nowrap";
+    if (value[bound.start] === " ") marker.append(document.createTextNode("\u00a0"));
     const label = document.createElement("span");
     label.textContent = bound.image.tag;
     marker.append(label);
+    if (value[bound.end - 1] === " ") marker.append(document.createTextNode("\u00a0"));
     mirror.append(marker);
     markers.push({ id: bound.image.id, label, marker });
     cursor = Math.max(cursor, bound.end);

@@ -25,10 +25,7 @@ function NotificationBody({ entry }: { entry: Notification }) {
     } catch { setCopyState("failed"); }
   }
   const copyLabel = copyState === "copied" ? "Notification copied" : copyState === "failed" ? "Unable to copy notification, try again" : "Copy notification text";
-  const separator = entry.message.indexOf("|");
-  const summary = separator >= 0 ? entry.message.slice(0, separator).trim() : "";
-  const detail = separator >= 0 ? entry.message.slice(separator + 1).trim() : "";
-  return <><div className="notification-meta"><strong>{entry.level === "error" ? "Error" : entry.level === "warning" ? "Warning" : "System"}</strong><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString()}</time><button aria-label={copyLabel} className="notification-copy" onClick={() => void copyNotification()} title={copyLabel} type="button">{copyState === "copied" ? <CheckIcon /> : <CopyIcon />}</button></div>{summary && detail ? <details className="notification-message"><summary>{summary}</summary><p>{detail}</p></details> : <p>{entry.message}</p>}</>;
+  return <><div className="notification-meta"><strong>{entry.level === "error" ? "Error" : entry.level === "warning" ? "Warning" : "System"}</strong><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString()}</time><button aria-label={copyLabel} className="notification-copy" onClick={() => void copyNotification()} title={copyLabel} type="button">{copyState === "copied" ? <CheckIcon /> : <CopyIcon />}</button></div><p>{entry.message}</p></>;
 }
 function RelatedNotifications({ entry }: { entry: NotificationGroup }) {
   if (!entry.children.length) return null;

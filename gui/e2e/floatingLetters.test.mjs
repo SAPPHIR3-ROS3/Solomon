@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { existsSync } from "node:fs";
@@ -68,15 +65,14 @@ function Fixture() {
 }
 createRoot(document.getElementById('root')).render(<Fixture />);
 `;
-const testCacheDir = mkdtempSync(join(tmpdir(), "solomon-vite-test-"));
-const server = await createServer({ cacheDir: testCacheDir,
+const server = await createServer({
   root: fileURLToPath(new URL("..", import.meta.url)), configFile: false,
   plugins: [{ name: "floating-fixture", resolveId: id => ["/__floating.tsx", "/__floating_view.tsx", "/__snapshot.tsx"].includes(id) ? id : undefined,
     load: id => id === "/__floating.tsx" ? fixture : id === "/__floating_view.tsx" ? viewFixture : id === "/__snapshot.tsx" ? snapshotFixture : undefined }],
   server: { host: "127.0.0.1", port: 0, hmr: false }, esbuild: { jsx: "automatic" },
 });
 await server.listen();
-after(async () => { await server.close(); rmSync(testCacheDir, { recursive: true, force: true }); });
+after(() => server.close());
 const executablePath = process.env.SOLOMON_TEST_BROWSER || ["/usr/bin/chromium", "/usr/bin/google-chrome"].find(existsSync);
 assert.ok(executablePath, "Install Chromium or set SOLOMON_TEST_BROWSER");
 const browser = await chromium.launch({ executablePath, headless: true, args: ["--no-sandbox"] });

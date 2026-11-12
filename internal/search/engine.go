@@ -111,9 +111,6 @@ func runEngine(ctx context.Context, engineKey string, e Engine, req Request, for
 		logging.Log(logging.WARNING_LOG_LEVEL, "search engine unavailable", logging.LogOptions{Params: map[string]any{"engine": engineKey, "err": err.Error()}})
 		return Response{}, err
 	}
-	if err := ValidateConfiguration(engineKey, req.Extras); err != nil {
-		return Response{}, err
-	}
 	out, err := e.Search(ctx, req)
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "search engine request failed", logging.LogOptions{Params: map[string]any{"engine": engineKey, "query": req.Query, "err": err.Error()}})

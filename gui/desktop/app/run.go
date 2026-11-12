@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"log"
-	"os"
 	"os/signal"
 	"syscall"
 
@@ -38,7 +37,6 @@ func Run() {
 	var cleanupClient func()
 	if err := wails.Run(&options.App{
 		Title:                    "Solomon",
-		Debug:                    options.Debug{OpenInspectorOnStartup: os.Getenv("SOLOMON_WEB_INSPECTOR") == "1"},
 		Width:                    1280,
 		Height:                   840,
 		EnableDefaultContextMenu: true,
@@ -85,9 +83,8 @@ func Run() {
 			TitleBar: mac.TitleBarHiddenInset(),
 		},
 		Linux: &linux.Options{
-			Icon:             appIcon,
-			ProgramName:      "solomon",
-			WebviewGpuPolicy: webviewGPUPolicy(),
+			Icon:        appIcon,
+			ProgramName: "solomon",
 		},
 	}); err != nil {
 		log.Fatal(err)

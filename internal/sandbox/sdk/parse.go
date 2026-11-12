@@ -178,14 +178,12 @@ func parseEditResult(raw json.RawMessage) (EditResult, error) {
 		return EditResult{}, err
 	}
 	return EditResult{
-		StartLine: intField(m, "start_line"),
-		EndLine:   intField(m, "end_line"),
-		OK:        boolField(m, "ok"),
-		Action:    strField(m, "action"),
-		Reason:    strField(m, "reason"),
-		From:      strField(m, "from"),
-		To:        strField(m, "to"),
-		Intent:    strField(m, "intent"),
+		OK:     boolField(m, "ok"),
+		Action: strField(m, "action"),
+		Reason: strField(m, "reason"),
+		From:   strField(m, "from"),
+		To:     strField(m, "to"),
+		Intent: strField(m, "intent"),
 	}, nil
 }
 
@@ -235,9 +233,6 @@ func parseFetchWebResult(m map[string]any) FetchWebResult {
 			for _, item := range attempts {
 				if attempt, ok := item.(map[string]any); ok {
 					metadata.Attempts = append(metadata.Attempts, FetchWebAttempt{
-						BudgetMs:   int64(intField(attempt, "budgetMs")),
-						ErrorKind:  strField(attempt, "errorKind"),
-						Retryable:  boolField(attempt, "retryable"),
 						Backend:    strField(attempt, "backend"),
 						Success:    boolField(attempt, "success"),
 						Error:      strField(attempt, "error"),

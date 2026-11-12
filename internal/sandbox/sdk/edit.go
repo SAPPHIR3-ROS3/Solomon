@@ -1,12 +1,5 @@
 package sdk
 
-import "fmt"
-
-type EditRange struct {
-	StartLine int
-	EndLine   int
-}
-
 func ReplaceInFileResult(path, oldString, newString, intent string) (EditResult, error) {
 	return editCall(path, oldString, newString, intent, false, "")
 }
@@ -23,8 +16,8 @@ func RenameFileResult(path, renameTo, intent string) (EditResult, error) {
 	return editCall(path, "", "", intent, false, renameTo)
 }
 
-func EditFileResult(path, oldString, newString, intent string, delete bool, lines ...EditRange) (EditResult, error) {
-	return editCall(path, oldString, newString, intent, delete, "", lines...)
+func EditFileResult(path, oldString, newString, intent string, delete bool) (EditResult, error) {
+	return editCall(path, oldString, newString, intent, delete, "")
 }
 
 func ReplaceInFile(path, oldString, newString, intent string) error {
@@ -59,33 +52,18 @@ func RenameFile(path, renameTo, intent string) error {
 	return editErr(r)
 }
 
-func EditFile(path, oldString, newString, intent string, delete bool, lines ...EditRange) error {
-	r, err := EditFileResult(path, oldString, newString, intent, delete, lines...)
+func EditFile(path, oldString, newString, intent string, delete bool) error {
+	r, err := EditFileResult(path, oldString, newString, intent, delete)
 	if err != nil {
 		return err
 	}
 	return editErr(r)
 }
 
-func editCall(path, oldString, newString, intent string, delete bool, renameTo string, lines ...EditRange) (EditResult, error) {
+func editCall(path, oldString, newString, intent string, delete bool, renameTo string) (EditResult, error) {
 	args := map[string]any{
 		"path": path, "oldString": oldString, "newString": newString,
 		"intent": intent, "delete": delete,
-	}
-	if len(lines) > 1 {
-		return EditResult{}, fmt.Errorf("editFile accepts at most one optional line range")
-	}
-	if len(lines) == 1 {
-		selected := lines[0]
-		if selected.StartLine == 0 && selected.EndLine == 0 {
-			return EditResult{}, fmt.Errorf("editFile range requires startLine or endLine")
-		}
-		if selected.StartLine != 0 {
-			args["startLine"] = selected.StartLine
-		}
-		if selected.EndLine != 0 {
-			args["endLine"] = selected.EndLine
-		}
 	}
 	if renameTo != "" {
 		args["renameTo"] = renameTo

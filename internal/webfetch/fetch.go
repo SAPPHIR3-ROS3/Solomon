@@ -14,7 +14,6 @@ import (
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/transport"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/requestbudget"
 )
 
 const (
@@ -57,26 +56,21 @@ func FetchURL(ctx context.Context, rawURL string, timeoutSec int, cfg *config.Ro
 			sec = MaxTimeoutSecs
 		}
 	}
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(sec)*time.Second)
-	defer cancel()
 	var lastErr error
 	for attempt := 1; attempt <= maxFetchRetries; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return Result{}, err
-		}
 		if attempt > 1 {
-			if err := requestbudget.Wait(ctx, retryWait(attempt, lastErr)); err != nil {
-				return Result{}, errors.Join(lastErr, err)
+			wait := retryWait(attempt, lastErr)
+			if wait > 0 {
+				timer := time.NewTimer(wait)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return Result{}, ctx.Err()
+				case <-timer.C:
+				}
 			}
 		}
-		attemptCtx, cancelAttempt, budget := requestbudget.Attempt(ctx, maxFetchRetries-attempt+1)
-		started := time.Now()
-		res, err := fetchOnce(attemptCtx, rawURL, sec, cfg)
-		if err == nil && attemptCtx.Err() != nil {
-			err = attemptCtx.Err()
-		}
-		cancelAttempt()
-		logFetchAttempt(u.Host, attempt, budget, time.Since(started), err)
+		res, err := fetchOnce(ctx, rawURL, sec, cfg)
 		if err == nil {
 			return res, nil
 		}
@@ -217,8 +211,20 @@ func looksCloudflare(snippet string) bool {
 }
 
 func retryableFetchError(err error) bool {
-	_, retryable := classifyFetchFailure(err)
-	return retryable
+	var he *fetchHTTPError
+	if errors.As(err, &he) {
+		switch he.status {
+		case 408, 429, 502, 503:
+			return true
+		default:
+			return false
+		}
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func retryWait(attempt int, err error) time.Duration {

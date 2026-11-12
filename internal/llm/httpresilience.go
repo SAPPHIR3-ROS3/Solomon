@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,9 +47,6 @@ func ClassifyAPIError(err error, circuitOpen bool) (ErrorClass, int, time.Durati
 		return ErrorCircuitOpen, 0, 0
 	}
 	if err == nil {
-		return ErrorPermanent, 0, 0
-	}
-	if errors.Is(err, context.Canceled) {
 		return ErrorPermanent, 0, 0
 	}
 	if errors.Is(err, ErrStreamAccumulatorRejected) {
@@ -99,10 +97,6 @@ func isRetryableNetErr(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	var dnsError *net.DNSError
-	if errors.As(err, &dnsError) && dnsError.IsNotFound {
-		return false
-	}
 	var ne net.Error
 	if errors.As(err, &ne) && ne.Timeout() {
 		return true
@@ -120,13 +114,22 @@ func isRetryableNetErr(err error) bool {
 		"tls handshake timeout",
 		"no such host",
 		"stream error",
-		"goaway",
 	} {
 		if strings.Contains(msg, sub) {
 			return true
 		}
 	}
 	return false
+}
+
+func statusCodeFromMessage(msg string) int {
+	msg = strings.ToLower(msg)
+	for _, code := range []int{429, 404, 401, 403, 503, 502, 500, 504, 408} {
+		if strings.Contains(msg, strconv.Itoa(code)) {
+			return code
+		}
+	}
+	return 0
 }
 
 func BackoffDelay(policy config.APIResiliencePolicy, attempt int, retryAfter time.Duration, rng *rand.Rand) time.Duration {
@@ -225,17 +228,16 @@ func NewResilientHTTPClient(policy config.APIResiliencePolicy) *http.Client {
 	}
 }
 
-func logAPIRetry(hostKey, protocol string, attempt, max int, status int, wait time.Duration, err error, attemptBudget time.Duration) {
+func logAPIRetry(hostKey, protocol string, attempt, max int, status int, wait time.Duration, err error) {
 	logging.Log(logging.WARNING_LOG_LEVEL, "LLM API retry", logging.LogOptions{Params: map[string]any{
-		"provider_host":     hostKey,
-		"protocol":          protocol,
-		"attempt":           attempt,
-		"max_retries":       max,
-		"status_code":       status,
-		"retryable":         true,
-		"wait_ms":           wait.Milliseconds(),
-		"attempt_budget_ms": attemptBudget.Milliseconds(),
-		"err":               err.Error(),
+		"provider_host": hostKey,
+		"protocol":      protocol,
+		"attempt":       attempt,
+		"max_retries":   max,
+		"status_code":   status,
+		"retryable":     true,
+		"wait_ms":       wait.Milliseconds(),
+		"err":           err.Error(),
 	}})
 }
 
