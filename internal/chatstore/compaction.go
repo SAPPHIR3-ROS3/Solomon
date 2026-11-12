@@ -122,3 +122,56 @@ func IsCompactionSummary(message Message) bool {
 	}
 	return strings.ContainsRune("-=─━", first)
 }
+
+func ConversationSummaryText(body string) string {
+	lines := strings.Split(strings.TrimSpace(body), "\n")
+	var sections []string
+	start := -1
+	flush := func(end int) {
+		if start < 0 || start >= end {
+			return
+		}
+		from, to := start, end
+		for from < to && summarySeparatorLine(lines[from]) {
+			from++
+		}
+		for to > from && summarySeparatorLine(lines[to-1]) {
+			to--
+		}
+		if text := strings.TrimSpace(strings.Join(lines[from:to], "\n")); text != "" {
+			sections = append(sections, text)
+		}
+		start = -1
+	}
+	for index, line := range lines {
+		switch strings.TrimSpace(line) {
+		case "[Conversation summary]":
+			flush(index)
+			start = index + 1
+		case "[Retained messages]":
+			flush(index)
+		}
+	}
+	flush(len(lines))
+	if len(sections) == 0 {
+		return strings.TrimSpace(body)
+	}
+	return sections[len(sections)-1]
+}
+
+func summarySeparatorLine(line string) bool {
+	line = strings.TrimSpace(line)
+	if len(line) < 3 {
+		return false
+	}
+	first := []rune(line)[0]
+	if !strings.ContainsRune("-=─━", first) {
+		return false
+	}
+	for _, char := range line {
+		if char != first {
+			return false
+		}
+	}
+	return true
+}

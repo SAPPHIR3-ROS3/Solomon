@@ -83,12 +83,10 @@ export function ToolCallCard({ tool }: { tool: ChatToolCall }) {
     (isDeletePlan && status === "success") ||
     (isFetchWeb && status === "success")
   );
-  const [isOpen, setIsOpen] = useState(false);
-
   return (
     <div className={`chat-tool-card is-${status}`} data-checkpoint={checkpoint?.label}>
       {checkpoint ? <CheckpointLabel className="chat-tool-checkpoint-label" label={checkpoint.label} /> : null}
-      <details aria-busy={status === "running"} onToggle={(event) => setIsOpen(event.currentTarget.open)} open={isOpen}>
+      <details aria-busy={status === "running"}>
         <summary className="chat-tool-summary">
           <i aria-hidden="true" className="chat-tool-status-dot" />
           <HammerIcon />
@@ -159,7 +157,6 @@ export function ToolCallCard({ tool }: { tool: ChatToolCall }) {
 function OrchestrateToolCard({ tool }: { tool: ChatToolCall }) {
   const status = tool.status ?? tool.result?.status ?? "running";
   const checkpoint = toolCheckpoint(tool);
-  const [isOpen, setIsOpen] = useState(false);
   const [isSourceOpen, setIsSourceOpen] = useState(false);
   const result = tool.result;
   const sdkCalls = result?.sdkCalls;
@@ -170,7 +167,7 @@ function OrchestrateToolCard({ tool }: { tool: ChatToolCall }) {
   return (
     <div className={`chat-tool-card chat-code-mode-card is-${status}`} data-checkpoint={checkpoint?.label}>
       {checkpoint ? <CheckpointLabel className="chat-tool-checkpoint-label" label={checkpoint.label} /> : null}
-      <details aria-busy={status === "running"} onToggle={(event) => setIsOpen(event.currentTarget.open)} open={isOpen}>
+      <details aria-busy={status === "running"}>
         <summary className="chat-tool-summary chat-code-mode-summary">
           <i aria-hidden="true" className="chat-tool-status-dot" />
           <HammerIcon />

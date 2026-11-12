@@ -145,7 +145,10 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
 
 export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat {
   const previousTools = new Map(previous.messages.flatMap((message) => (message.toolCalls ?? []).map((tool) => [tool.id, tool] as const)));
-  const messages = preserveOptimisticMessages(previous, next.messages).map((message) => {
+  const nextCompactions = new Set(next.messages.filter((message) => message.kind === "compaction").map((message) => message.id));
+  const sameCompaction = previous.messages.some((message) => message.kind === "compaction" && nextCompactions.has(message.id));
+  const loadedHistory = sameCompaction ? previous.messages.filter((message) => message.id.startsWith("m-archive-")) : [];
+  const messages = preserveOptimisticMessages(previous, [...loadedHistory, ...next.messages.map((message) => loadedHistory.length > 0 && message.historyAvailable ? { ...message, historyAvailable: false } : message)]).map((message) => {
     const previousMessage = previous.messages.find((candidate) => candidate.role === message.role && (
       candidate.id === message.id
       || (message.checkpointSeq !== undefined && candidate.checkpointSeq === message.checkpointSeq && candidate.checkpointBranch === message.checkpointBranch)

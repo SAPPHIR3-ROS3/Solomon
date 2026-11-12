@@ -108,6 +108,7 @@ export type ChatMessage = {
   checkpointSeq?: number;
   clips?: ChatClip[];
   createdAt?: number;
+  historyAvailable?: boolean;
   id: string;
   images?: ChatImage[];
   kind?: "compaction";

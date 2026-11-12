@@ -29,6 +29,17 @@ export type ChatStreamEvent = Record<string, unknown>;
 
 export type ChatStreamEventHandler = (event: ChatStreamEvent, replay?: boolean, imageOrigin?: string) => void;
 
+export async function fetchChatHistory(projectID: string, chatID: string): Promise<Chat["messages"]> {
+  const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/history`);
+  const response = await chatRequest("Unable to load earlier messages", endpoint, { cache: "no-store" });
+  const payload = await readResponsePayload(response, "Unable to load earlier messages");
+  const origin = assetOrigin(endpoint);
+  return arrayValue(objectValue(payload).messages).flatMap((message, index) => {
+    const parsed = messageFromPayload(message, index, origin);
+    return parsed ? [parsed] : [];
+  });
+}
+
 export async function fetchLiveChat(projectID: string, chatID: string, signal?: AbortSignal, navigationID?: number): Promise<LiveChat> {
   const endpoint = await measureNavigation(navigationID, "chat.endpoint", () => serverEndpoint(chatPath(projectID, chatID)));
   const response = await measureNavigation(navigationID, "chat.headers", () => chatRequest("Unable to load chat", endpoint, { cache: "no-store", signal }));

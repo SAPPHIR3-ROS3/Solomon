@@ -44,6 +44,20 @@ func TestMessageReasoningEffortSurvivesStorageAndAPI(t *testing.T) {
 	}
 }
 
+func TestWorkedForDoesNotRepeatSavedTurnWall(t *testing.T) {
+	start := time.Date(2026, 11, 12, 1, 0, 0, 0, time.UTC)
+	source := []chatstore.Message{
+		{Role: "assistant", CreatedAt: start, TurnWallSecs: 10, ToolWallSecs: 20, ToolCalls: []chatstore.ToolCall{{Name: "shell", ID: "a"}}},
+		{Role: "tool", ToolCallID: "a"},
+		{Role: "assistant", Content: "Done", CreatedAt: start.Add(30 * time.Second), TurnWallSecs: 8, TurnWallDisplay: 18, TurnDisplaySaved: true},
+	}
+	first, visible := server.ChatMessageFromSessionForTest("", "", source[0], source, 0, nil, false, "first")
+	last, lastVisible := server.ChatMessageFromSessionForTest("", "", source[2], source, 2, nil, false, "last")
+	if !visible || !lastVisible || first.WorkedFor != 20 || last.WorkedFor != 18 || first.WorkedFor+last.WorkedFor != 38 {
+		t.Fatalf("first=%v last=%v visible=%v/%v; want 20 and 18", first.WorkedFor, last.WorkedFor, visible, lastVisible)
+	}
+}
+
 func TestLegacySynchronousSubagentWait(t *testing.T) {
 	start := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 	source := []chatstore.Message{

@@ -96,6 +96,7 @@ func Run(ctx context.Context, h Host) error {
 	turnSeparatorPending := !h.MachineMode()
 	consecutiveProxyCorrections := 0
 	compileRetryState := CompileRetryState{}
+	var budget toolBudget
 	sys, err := h.SystemPrompt(h.Config().ReasoningEffortIsNone())
 	if err != nil {
 		return err
@@ -110,6 +111,13 @@ func Run(ctx context.Context, h Host) error {
 		toolDefs = llm.ToolDefsFromOpenAI(tools)
 	}
 	for {
+		if budget.exhausted() {
+			flushUsageStats()
+			if !h.MachineMode() {
+				commands.PrintSystemf(out, "stopped after %d tool calls. Send another message to continue", budget.executions)
+			}
+			return nil
+		}
 		if err := compactBeforeRequest(runCtx, h); err != nil {
 			return err
 		}
@@ -314,6 +322,7 @@ func Run(ctx context.Context, h Host) error {
 			}
 			return nil
 		}
+		budget.note(invs)
 		stopAfterToolBatch := false
 		stopReason := ""
 		type preparedToolCall struct {

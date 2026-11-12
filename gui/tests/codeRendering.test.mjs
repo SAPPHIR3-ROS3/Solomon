@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { createElement } from 'react';
@@ -60,7 +61,7 @@ test('recovers the recursive Python snippet from thread 125a0e35 with its indent
   const html = render(content);
   assert.equal(html, render(content.replace(tick + 'python\n', tick.repeat(3) + 'python\n').replace('\n' + tick + '\n', '\n' + tick.repeat(3) + '\n')));
   assert.equal((html.match(/class="chat-code-line"/g) ?? []).length, 19);
-  assert.ok(html.includes('            memo[cell] = paths(row - 1, col) + paths(row, col - 1)'));
+  assert.ok(html.includes('class="chat-line-indent">            </span><span class="chat-line-body">memo[cell] = paths(row - 1, col) + paths(row, col - 1)</span>'));
   assert.ok(html.includes('<p>Il risultato è <code>2</code>.</p>'));
   assert.equal(render(JSON.parse(JSON.stringify({ content })).content), html);
 });
@@ -71,7 +72,10 @@ test('keeps an unlabeled ASCII tree as text, including a collapsed single-backti
     const html = render('Prima.\n\n' + wrapped + '\n\nDopo.');
     assert.equal(html.includes('chat-tree'), false);
     assert.equal((html.match(/class="chat-code-line"/g) ?? []).length, 5);
-    for (const line of tree.split('\n')) assert.ok(html.includes(line));
+    for (const line of tree.split('\n')) {
+      const indent = line.match(/^[ \t]*/)?.[0] ?? '';
+      assert.ok(html.includes('class="chat-line-indent">' + indent + '</span><span class="chat-line-body">' + line.slice(indent.length) + '</span>'));
+    }
     assert.ok(html.includes('<p>Dopo.</p>'));
   }
 });
@@ -87,6 +91,20 @@ test('preserves inline code, unknown labels and literal backticks', () => {
   assert.ok(html.includes('>' + tick + 'python</span>'));
 });
 
+
+test('code snippets wrap long lines inside the block', async () => {
+  const css = await readFile(new URL('../src/chat/chat.css', import.meta.url), 'utf8');
+  assert.match(css, /\.chat-code-block pre \{[^}]*overflow-x: hidden;/);
+  assert.match(css, /\.chat-code-block pre code \{[^}]*white-space: pre-wrap;/);
+  assert.match(css, /\.chat-code-block \{[^}]*tab-size: 2;/);
+  assert.match(css, /\.chat-line-content \{[^}]*min-width: 0;[^}]*white-space: pre-wrap;/);
+  assert.match(css, /\.chat-line-indent \{[^}]*white-space: pre;/);
+  assert.match(css, /\.chat-line-body \{[^}]*min-width: 0;[^}]*white-space: pre-wrap;/);
+  const indented = render(tick.repeat(3) + 'python\n' + 'def f():\n\treturn value\n  keep\n' + tick.repeat(3));
+  assert.ok(indented.includes('class="chat-line-indent">\t</span>'));
+  assert.ok(indented.includes('class="chat-line-indent">  </span>'));
+  assert.ok(indented.includes('>return value</span>'));
+});
 
 test('user messages retain the exact input whitespace and indentation', () => {
   const content = 'mentre ci sono ancora elementi in level:\n  distance+1\n  per ogni elemento e in level:\n    se e non è in visited:\n      nextlevel += g[e]\n      visited += [e]\n  level = next level\n  nextlevel = set vuoto';

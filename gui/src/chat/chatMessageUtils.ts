@@ -117,11 +117,16 @@ export function liveWorkedForSeconds(chat: Chat, now: number): number | undefine
   const lastAssistantGroup = groups[lastAssistantGroupIndex];
   const startTimes = lastAssistantGroup
     .map(({ message }) => message.workStartedAt)
-    .filter((value): value is number => value !== undefined && Number.isFinite(value));
+    .filter((value): value is number => plausibleWorkStart(value, now));
   const assistantStartedAt = startTimes.length ? Math.min(...startTimes) : undefined;
-  const startedAt = assistantStartedAt ?? chat.runStartedAt;
-  if (startedAt === undefined || !Number.isFinite(startedAt)) return undefined;
-  return Math.max(0, (now - startedAt) / 1000);
+  const startedAt = plausibleWorkStart(assistantStartedAt, now) ? assistantStartedAt : chat.runStartedAt;
+  if (!plausibleWorkStart(startedAt, now)) return undefined;
+  return Math.max(0, (now - startedAt!) / 1000);
+}
+
+function plausibleWorkStart(value: number | undefined, now: number) {
+  if (value === undefined || !Number.isFinite(value) || value <= 0 || value > now + 5000) return false;
+  return now < 1e12 || value >= 1e11;
 }
 
 export function assistantFooterMessage(entries: IndexedChatMessage[]): ChatMessage {
@@ -258,6 +263,11 @@ function formatErrorResetLabel(resetsAt: number, resetsInSeconds: number): strin
   if (when && wait) return `Resets ${when.toLocaleString()} · ${wait}`;
   if (when) return `Resets ${when.toLocaleString()}`;
   return wait ? `Resets ${wait}` : undefined;
+}
+
+export function toolActivityCollapsed(input: { autoCloseToolCalls: boolean; hasRunningTools: boolean; isWorking: boolean; override?: boolean; preferencesReady: boolean; rateLimited: boolean; startToolCallsCollapsed: boolean }) {
+  const collapseFinished = !input.isWorking && (input.startToolCallsCollapsed || (input.preferencesReady && input.autoCloseToolCalls));
+  return !input.hasRunningTools && (input.override ?? (input.rateLimited || collapseFinished));
 }
 
 function formatResetWait(seconds: number): string | undefined {

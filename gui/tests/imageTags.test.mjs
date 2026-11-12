@@ -75,7 +75,7 @@ test('decorates terminal selection tags', () => {
   const tree = 'Nome corso.zip\n└── Nome corso/\n    ├── indice.html\n    └── Comunicazioni/';
   const html = render('La struttura:\n\n' + tick + 'text\n' + tree + '\n' + tick);
   assert.equal(html, render('La struttura:\n\n' + tick.repeat(3) + 'text\n' + tree + '\n' + tick.repeat(3)));
-  assert.ok(html.includes('    ├── indice.html'));
+  assert.ok(html.includes('class="chat-line-indent">    </span><span class="chat-line-body">├── indice.html</span>'));
   assert.equal((html.match(/class="chat-code-line"/g) ?? []).length, 4);
 });
 

@@ -129,6 +129,11 @@ func (a *chatAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch parts[3] {
+	case "history":
+		if len(parts) == 4 && r.Method == http.MethodGet {
+			a.handleChatHistory(w, r, projectID, chatID)
+			return
+		}
 	case "messages":
 		if len(parts) == 4 && r.Method == http.MethodPost {
 			a.handleSendChatMessage(w, r, projectID, root, chatID)

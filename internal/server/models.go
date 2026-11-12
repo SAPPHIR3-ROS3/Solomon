@@ -62,6 +62,7 @@ type apiMessage struct {
 	CheckpointBranch    string                        `json:"checkpointBranch,omitempty"`
 	CheckpointSeq       *int                          `json:"checkpointSeq,omitempty"`
 	Content             string                        `json:"content"`
+	HistoryAvailable    bool                          `json:"historyAvailable,omitempty"`
 	ID                  string                        `json:"id"`
 	Images              []apiImage                    `json:"images,omitempty"`
 	Kind                string                        `json:"kind,omitempty"`

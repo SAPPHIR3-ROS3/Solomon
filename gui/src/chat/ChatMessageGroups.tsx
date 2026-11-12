@@ -4,10 +4,11 @@ import type { ChatMessage, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 import { ChatImageAttachments, CheckpointLabel, CompactionCard, InterruptedGenerationMarker } from "./ChatMessageParts";
 import { SubagentCard, ToolCallCard, subagentDisplayStatus } from "./ChatToolActivity";
-import { assistantFooterMessage, groupChatTurns, indexChatMessages, parseChatBannerError, toolCheckpoint } from "./chatMessageUtils";
-import { BriefThought, MessageFooter, ReasoningBlock, ReasoningSummaryBlock, WorkedForCounter } from "./ChatMessageFooter";
+import { assistantFooterMessage, groupChatTurns, indexChatMessages, parseChatBannerError, toolActivityCollapsed, toolCheckpoint } from "./chatMessageUtils";
+import { BriefThought, LiveThoughtSummary, MessageFooter, ReasoningBlock, ReasoningSummaryBlock, WorkedForCounter } from "./ChatMessageFooter";
 import { CollapseSubchatIcon } from "./ChatIcons";
 import { MarkdownContent } from "./MarkdownContent";
+import { chatPresentationKey } from "./chatPresentationKey";
 import { useStartToolCallsCollapsed, useGUIChatPreferencesState } from "../settings/chatPreferences";
 
 type ChatMessageGroupHandlers = {
@@ -31,7 +32,7 @@ export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !==
       {groups.map((entries, groupIndex) => {
         const first = entries[0];
         const isLast = groupIndex === groups.length - 1;
-        if (first.message.kind === "compaction") return <CompactionCard key={first.message.id} message={first.message} />;
+        if (first.message.kind === "compaction") return <CompactionCard key={chatPresentationKey(first.message)} message={first.message} />;
 
         if (first.message.role === "assistant") {
           const activeWorkedFor = isWorking && isLast ? liveWorkedFor : undefined;
@@ -43,7 +44,7 @@ export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !==
               activeWorkedFor={activeWorkedFor}
               isWorking={isWorking && isLast}
               entries={entries}
-              key={first.message.id}
+              key={chatPresentationKey(first.message)}
               onOpenSubagent={onOpenSubagent}
               onStopTool={onStopTool}
               rateLimitNotice={isLast ? rateLimitNotice : undefined}
@@ -53,7 +54,7 @@ export function ChatMessageGroups({ liveWorkedFor, isWorking = liveWorkedFor !==
         return (
           <UserTurn
             entry={first}
-            key={first.message.id}
+            key={chatPresentationKey(first.message)}
             onOpenSubagent={onOpenSubagent}
             onRegenerate={!isWorking && first.message.id === lastUserID ? onRegenerate : undefined}
             onRequestDelete={onRequestDelete}
@@ -128,7 +129,7 @@ const AssistantTurn = memo(function AssistantTurn({
   const toolCalls = rawActivityEntries.flatMap(({ message }) => message.toolCalls ?? []);
   const hasToolCalls = toolCalls.length > 0;
   const latestMessage = entries.at(-1)?.message;
-  const activeGenerationMessageID = isWorking && (latestMessage?.toolCalls?.length ?? 0) === 0 ? latestMessage?.id : undefined;
+  const activeGenerationMessageID = isWorking && latestMessage && (Boolean(latestMessage.content.trim()) || Boolean(latestMessage.toolCalls?.length) || Boolean(latestMessage.reasoning?.trim())) ? latestMessage.id : undefined;
   const activityEntries = withActivityCheckpoints(rawActivityEntries, toolCalls);
   const [collapsedOverride, setCollapsedOverride] = useState<boolean | undefined>(undefined);
   const wasWorking = useRef(isWorking);
@@ -139,7 +140,15 @@ const AssistantTurn = memo(function AssistantTurn({
     wasWorking.current = isWorking;
   }, [autoCollapseToolCalls, isWorking, preferencesReady]);
   const hasRunningTools = toolCalls.some((tool) => (tool.status ?? tool.result?.status ?? "running") === "running");
-  const isToolActivityCollapsed = !hasRunningTools && (collapsedOverride ?? (Boolean(rateLimitNotice) || startToolCallsCollapsed || (preferencesReady && autoCollapseToolCalls && !isWorking)));
+  const isToolActivityCollapsed = toolActivityCollapsed({
+    autoCloseToolCalls: autoCollapseToolCalls,
+    hasRunningTools,
+    isWorking,
+    override: collapsedOverride,
+    preferencesReady,
+    rateLimited: Boolean(rateLimitNotice),
+    startToolCallsCollapsed,
+  });
   const timelineClassName = [
     "chat-assistant-timeline",
     hasToolCalls ? "has-tool-activity" : "",
@@ -164,7 +173,7 @@ const AssistantTurn = memo(function AssistantTurn({
             <AssistantMessageBlock
               checkpoint={entry.checkpoint}
               isWorking={entry.message.id === activeGenerationMessageID}
-              key={entry.message.id}
+              key={chatPresentationKey(entry.message)}
               message={entry.message}
               onOpenSubagent={actions.onOpenSubagent}
               onStopTool={actions.onStopTool}
@@ -194,7 +203,7 @@ const AssistantTurn = memo(function AssistantTurn({
           onStopTool={responseActions?.onStopTool}
         />
       ) : null}
-      {!isWorking ? entries.flatMap(({ message }) => message.fileChanges?.length ? [<FileChangesCard key={message.id} changes={message.fileChanges} />] : []) : null}
+      {!isWorking ? entries.flatMap(({ message }) => message.fileChanges?.length ? [<FileChangesCard key={chatPresentationKey(message)} changes={message.fileChanges} />] : []) : null}
       <div className="chat-assistant-footer">
         {(activeWorkedFor !== undefined || footerMessage.workedFor !== undefined) ? (
           <WorkedForCounter isLive={activeWorkedFor !== undefined} seconds={activeWorkedFor ?? footerMessage.workedFor!} />
@@ -330,7 +339,7 @@ function ToolActivity({ isCollapsed: controlledIsCollapsed, onOpenSubagent, onSt
   const [localIsCollapsed, setLocalIsCollapsed] = useState<boolean | undefined>(undefined);
   const isControlled = onToggleCollapsed !== undefined;
   const hasRunningTools = toolCalls.some((tool) => (tool.status ?? tool.result?.status ?? "running") === "running");
-  const isCollapsed = !hasRunningTools && (controlledIsCollapsed ?? localIsCollapsed ?? startToolCallsCollapsed);
+  const isCollapsed = controlledIsCollapsed ?? (!hasRunningTools && (localIsCollapsed ?? startToolCallsCollapsed));
   const collapseLabel = toolActivityCollapseLabel(isCollapsed, toolCalls.length);
 
   function toggleCollapsed() {
@@ -378,7 +387,7 @@ function ToolActivityCollapseControl({ entries, isCollapsed, isWorking, onToggle
       {isCollapsed ? <CollapsedActivityCheckpoints entries={entries} toolCalls={toolCalls} /> : null}
       {isCollapsed && (thoughtFor !== undefined || !hasReasoning) ? (
         <div className="chat-tool-collapsed-summary">
-          {thoughtFor !== undefined ? <ReasoningSummaryBlock isLive={isWorking} seconds={thoughtFor} /> : <BriefThought />}
+          {thoughtFor !== undefined ? <ReasoningSummaryBlock isLive={isWorking} seconds={thoughtFor} /> : isWorking ? <LiveThoughtSummary startedAt={entries.find(({ message }) => message.workStartedAt !== undefined)?.message.workStartedAt ?? entries[0]?.message.createdAt} /> : <BriefThought />}
         </div>
       ) : null}
       <button aria-expanded={!isCollapsed} aria-label={collapseLabel} className="chat-tool-collapse-all" onClick={onToggleCollapsed} type="button">

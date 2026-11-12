@@ -42,7 +42,7 @@ func TestServerRuntime_chatSnapshotCompactionKeepsHistoryInScrollablePayload(t *
 		t.Fatal(err)
 	}
 	separator := "---"
-	summaryBody := separator + "\n[Conversation summary]\n" + separator + "\n\nKeep the API history visible.\n\n" + separator + "\n[Retained messages]\n" + separator + "\n\nUser:\nEarlier question\n\nAssistant:\nEarlier answer\n\n" + separator
+	summaryBody := separator + "\n[Conversation summary]\n" + separator + "\n\nOld summary that must not stick.\n\n" + separator + "\n[Conversation summary]\n" + separator + "\n\nKeep the API history visible.\n\n" + separator + "\n[Retained messages]\n" + separator + "\n\nUser:\nEarlier question\n\nAssistant:\nEarlier answer\n\n" + separator
 	currentAnswer := "La compaction usa [Conversation summary] e [Retained messages] come marcatori."
 	sess.Messages = []chatstore.Message{
 		{Role: "assistant", Content: summaryBody},
@@ -84,27 +84,41 @@ func TestServerRuntime_chatSnapshotCompactionKeepsHistoryInScrollablePayload(t *
 	if err := json.NewDecoder(response.Body).Decode(&opened); err != nil {
 		t.Fatal(err)
 	}
-	if len(opened.Messages) != 5 {
-		t.Fatalf("messages = %d, want older archived messages, compaction, and current messages", len(opened.Messages))
+	if len(opened.Messages) != 3 {
+		t.Fatalf("messages = %d, want the latest compaction and the current messages", len(opened.Messages))
 	}
-	if opened.Messages[0].Content != "Archived message 0" || opened.Messages[1].Content != "Archived message 1" {
-		t.Fatalf("older archived messages not available before compaction: %+v", opened.Messages[:2])
-	}
-	compaction := opened.Messages[2]
+	compaction := opened.Messages[0]
 	if compaction.Kind != "compaction" || compaction.Content != "" {
 		t.Fatalf("unexpected compaction marker: %+v", compaction)
 	}
-	if compaction.Summary != "Keep the API history visible." {
+	if compaction.Summary != "Keep the API history visible." || strings.Contains(compaction.Summary, "Old summary") {
 		t.Fatalf("summary = %q", compaction.Summary)
 	}
 	if len(compaction.RetainedMessages) != 8 || compaction.RetainedMessages[0].Content != "Archived message 2" || compaction.RetainedMessages[7].Content != "Archived message 9" {
 		t.Fatalf("retained messages = %+v", compaction.RetainedMessages)
 	}
-	if opened.Messages[3].Content != "Current question" || opened.Messages[4].Content != currentAnswer {
+	if opened.Messages[1].Content != "Current question" || opened.Messages[2].Content != currentAnswer {
 		t.Fatalf("current messages are not in the scrollable payload: %+v", opened.Messages)
 	}
+	historyResponse, err := http.Get(server.URL + "/__solomon/projects/" + created.Project.ID + "/chats/" + createdChat.ID + "/history")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer historyResponse.Body.Close()
+	var history struct {
+		Messages []struct {
+			Content string `json:"content"`
+			Kind    string `json:"kind"`
+		} `json:"messages"`
+	}
+	if err := json.NewDecoder(historyResponse.Body).Decode(&history); err != nil {
+		t.Fatal(err)
+	}
+	if len(history.Messages) != 2 || history.Messages[0].Content != "Archived message 0" || history.Messages[1].Content != "Archived message 1" || history.Messages[0].Kind == "compaction" || history.Messages[1].Kind == "compaction" {
+		t.Fatalf("earlier history = %+v", history.Messages)
+	}
 	for index, message := range opened.Messages {
-		if index == 1 || index == 4 {
+		if index == 2 {
 			continue
 		}
 		if strings.Contains(message.Content, "[Conversation summary]") {

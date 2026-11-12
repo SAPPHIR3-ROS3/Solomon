@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ChatImage, ChatMessage } from "./chatTypes";
 import { ComposerCrownIcon } from "./ChatComposer";
@@ -129,7 +129,7 @@ export function ChatImageArrowIcon({ direction }: { direction: "left" | "right" 
   );
 }
 
-export function CompactionCard({ message }: { message: ChatMessage }) {
+export const CompactionCard = memo(function CompactionCard({ message }: { message: ChatMessage }) {
   const retainedMessages = message.retainedMessages ?? [];
 
   return (
@@ -142,7 +142,7 @@ export function CompactionCard({ message }: { message: ChatMessage }) {
           </svg>
         </summary>
         <div className="chat-compaction-body">
-          <details className="chat-compaction-section" open>
+          <details className="chat-compaction-section" defaultOpen>
             <summary className="chat-compaction-section-summary">
               <span className="chat-compaction-eyebrow">Summary</span>
               <svg aria-hidden="true" className="chat-compaction-section-chevron" viewBox="0 0 24 24">
@@ -155,7 +155,7 @@ export function CompactionCard({ message }: { message: ChatMessage }) {
               </div>
             </div>
           </details>
-          <details className="chat-compaction-section" open>
+          <details className="chat-compaction-section" defaultOpen>
             <summary className="chat-compaction-section-summary">
               <span className="chat-compaction-eyebrow">Recent messages</span>
               <svg aria-hidden="true" className="chat-compaction-section-chevron" viewBox="0 0 24 24">
@@ -179,6 +179,10 @@ export function CompactionCard({ message }: { message: ChatMessage }) {
       </details>
     </section>
   );
+}, (previous, next) => previous.message.id === next.message.id && previous.message.summary === next.message.summary && retainedSignature(previous.message) === retainedSignature(next.message));
+
+function retainedSignature(message: ChatMessage) {
+  return (message.retainedMessages ?? []).map((retained) => `${retained.role}\n${retained.content}`).join("\n");
 }
 
 export function ModeSwitchNotice({ onCancel, progress }: { onCancel: () => void; progress: number }) {

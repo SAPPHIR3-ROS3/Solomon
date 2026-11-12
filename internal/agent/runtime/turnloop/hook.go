@@ -6,7 +6,46 @@ import (
 	"sync"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
+
+const maxToolExecutionsPerRun = 256
+const maxIdenticalToolRounds = 6
+
+var toolExecutionLimit = maxToolExecutionsPerRun
+
+func SetToolExecutionLimitForTest(limit int) func() {
+	previous := toolExecutionLimit
+	toolExecutionLimit = limit
+	return func() { toolExecutionLimit = previous }
+}
+
+type toolBudget struct {
+	executions int
+	identical  int
+	last       string
+}
+
+func (b *toolBudget) note(invs []tooling.Invocation) {
+	b.executions += len(invs)
+	var signature strings.Builder
+	for _, inv := range invs {
+		signature.WriteString(inv.Name)
+		signature.WriteByte(0)
+		signature.Write(inv.Args)
+		signature.WriteByte(0)
+	}
+	if signature.String() == b.last {
+		b.identical++
+		return
+	}
+	b.last = signature.String()
+	b.identical = 1
+}
+
+func (b toolBudget) exhausted() bool {
+	return b.executions >= toolExecutionLimit || (b.identical >= maxIdenticalToolRounds && b.executions > 0)
+}
 
 var (
 	generationStopMu sync.Mutex

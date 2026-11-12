@@ -66,33 +66,19 @@ func sessionTitle(sess *chatstore.Session) string {
 }
 
 func apiMessagesFromSession(projectID, ownerID string, messages []chatstore.Message, imageFiles map[int]string, dumps []chatstore.UncompactedDump, runActive bool) []apiMessage {
-	out := make([]apiMessage, 0, len(messages)+len(dumps)*8)
-	for dumpIndex := range dumps {
-		archive := archiveMessagesForDisplay(dumps, dumpIndex)
+	out := make([]apiMessage, 0, len(messages)+1)
+	if lastDump := len(dumps) - 1; lastDump >= 0 {
+		archive := archiveMessagesForDisplay(dumps, lastDump)
 		visibleCount := countDisplayableMessages(archive)
 		retainedCount := chatMinInt(8, visibleCount)
-		visibleIndex := 0
-		for sourceIndex, archivedMessage := range archive {
-			if isHiddenSessionMessage(archivedMessage) || isCompactionSummaryMessage(archivedMessage) {
-				continue
-			}
-			if visibleIndex >= visibleCount-retainedCount {
-				visibleIndex++
-				continue
-			}
-			if value, ok := apiMessageFromSession(projectID, ownerID, archivedMessage, archive, sourceIndex, imageFiles, runActive, fmt.Sprintf("m-archive-%d-%d", dumpIndex, sourceIndex)); ok {
-				out = append(out, value)
-			}
-			visibleIndex++
-		}
-		retained := retainedMessagesForDisplay(projectID, ownerID, archive, imageFiles, visibleCount-retainedCount)
 		out = append(out, apiMessage{
 			Content:          "",
-			ID:               fmt.Sprintf("compaction-%d", dumpIndex),
+			HistoryAvailable: hasEarlierHistory(dumps),
+			ID:               fmt.Sprintf("compaction-%d", lastDump),
 			Kind:             "compaction",
-			RetainedMessages: retained,
+			RetainedMessages: retainedMessagesForDisplay(projectID, ownerID, archive, imageFiles, visibleCount-retainedCount),
 			Role:             "assistant",
-			Summary:          compactionSummary(messages, dumps, dumpIndex),
+			Summary:          compactionSummary(messages, dumps, lastDump),
 		})
 	}
 	for index, message := range messages {
@@ -101,6 +87,44 @@ func apiMessagesFromSession(projectID, ownerID string, messages []chatstore.Mess
 		}
 		if value, ok := apiMessageFromSession(projectID, ownerID, message, messages, index, imageFiles, runActive, fmt.Sprintf("m-%d", index)); ok {
 			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func hasEarlierHistory(dumps []chatstore.UncompactedDump) bool {
+	if len(dumps) > 1 {
+		return true
+	}
+	if len(dumps) == 0 {
+		return false
+	}
+	return countDisplayableMessages(archiveMessagesForDisplay(dumps, 0)) > 8
+}
+
+func apiEarlierMessages(projectID, ownerID string, messages []chatstore.Message, imageFiles map[int]string, dumps []chatstore.UncompactedDump, runActive bool) []apiMessage {
+	lastDump := len(dumps) - 1
+	if lastDump < 0 {
+		return nil
+	}
+	out := make([]apiMessage, 0)
+	for dumpIndex := 0; dumpIndex <= lastDump; dumpIndex++ {
+		archive := archiveMessagesForDisplay(dumps, dumpIndex)
+		visibleCount := countDisplayableMessages(archive)
+		retainedCount := chatMinInt(8, visibleCount)
+		visibleIndex := 0
+		for sourceIndex, archivedMessage := range archive {
+			if isHiddenSessionMessage(archivedMessage) || isCompactionSummaryMessage(archivedMessage) {
+				continue
+			}
+			if dumpIndex == lastDump && visibleIndex >= visibleCount-retainedCount {
+				visibleIndex++
+				continue
+			}
+			if value, ok := apiMessageFromSession(projectID, ownerID, archivedMessage, archive, sourceIndex, imageFiles, runActive, fmt.Sprintf("m-archive-%d-%d", dumpIndex, sourceIndex)); ok {
+				out = append(out, value)
+			}
+			visibleIndex++
 		}
 	}
 	return out
@@ -174,7 +198,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 		value.CreatedAt = message.CreatedAt.Local().Format(time.RFC3339Nano)
 	}
 	if role == "assistant" {
-		value.FileChanges = message.FileChanges
+		value.FileChanges = fileChangesForAPI(message.FileChanges)
 		value.FileChangesRecorded = message.FileChangesRecorded
 		value.Reasoning = reasoning
 		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive, true)
@@ -183,11 +207,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 		if value.ThoughtFor == 0 {
 			value.ThoughtFor = message.TTFTSecs
 		}
-		value.WorkedFor = message.TurnWallDisplay
-		if value.WorkedFor == 0 {
-			value.WorkedFor = message.TurnWallSecs
-		}
-		value.WorkedFor += messageToolWallSeconds(message, source, index)
+		value.WorkedFor = workedForSeconds(message, source, index)
 	}
 	if chatstore.MessageCheckpointTagVisible(message) {
 		seq := message.CheckpointSeq
@@ -221,7 +241,9 @@ func compactionSummary(messages []chatstore.Message, dumps []chatstore.Uncompact
 	}
 	for _, message := range source {
 		if isCompactionSummaryMessage(message) {
-			return compactSummaryText(message.Content)
+			if text := chatstore.ConversationSummaryText(message.Content); text != "" {
+				return text
+			}
 		}
 	}
 	return fmt.Sprintf("Context compacted after archived turn %d.", dumpIndex+1)
@@ -229,48 +251,6 @@ func compactionSummary(messages []chatstore.Message, dumps []chatstore.Uncompact
 
 func isCompactionSummaryMessage(message chatstore.Message) bool {
 	return chatstore.IsCompactionSummary(message)
-}
-
-func compactSummaryText(body string) string {
-	lines := strings.Split(strings.TrimSpace(body), "\n")
-	start := -1
-	end := len(lines)
-	for index, line := range lines {
-		if strings.TrimSpace(line) == "[Conversation summary]" {
-			start = index + 1
-			break
-		}
-	}
-	if start < 0 {
-		return strings.TrimSpace(body)
-	}
-	for index := start; index < len(lines); index++ {
-		if strings.TrimSpace(lines[index]) == "[Retained messages]" {
-			end = index
-			break
-		}
-	}
-	for start < end && isCompactSummarySeparator(lines[start]) {
-		start++
-	}
-	for end > start && isCompactSummarySeparator(lines[end-1]) {
-		end--
-	}
-	return strings.TrimSpace(strings.Join(lines[start:end], "\n"))
-}
-
-func isCompactSummarySeparator(line string) bool {
-	line = strings.TrimSpace(line)
-	if len(line) < 3 {
-		return false
-	}
-	first := line[0]
-	for index := 1; index < len(line); index++ {
-		if line[index] != first {
-			return false
-		}
-	}
-	return first == '-' || first == '='
 }
 
 func displayContentAndImages(projectID, ownerID, content string, imageFiles map[int]string) (string, []apiImage) {
@@ -315,6 +295,33 @@ func chatTitleInput(content string, hasImages bool) string {
 	return content
 }
 
+func workedForSeconds(message chatstore.Message, source []chatstore.Message, index int) float64 {
+	wall := message.TurnWallDisplay
+	if wall == 0 {
+		wall = message.TurnWallSecs
+	}
+	if message.TurnWallDisplay == 0 && laterAssistantHasTurnWallDisplay(source, index) {
+		wall = 0
+	}
+	return wall + messageToolWallSeconds(message, source, index)
+}
+
+func laterAssistantHasTurnWallDisplay(source []chatstore.Message, index int) bool {
+	for i := index + 1; i < len(source); i++ {
+		next := source[i]
+		if next.Role == "tool" || isHiddenSessionMessage(next) {
+			continue
+		}
+		if next.Role != "assistant" {
+			return false
+		}
+		if next.TurnWallDisplay > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func messageToolWallSeconds(message chatstore.Message, source []chatstore.Message, index int) float64 {
 	if message.ToolWallSecs > 0 {
 		return message.ToolWallSecs
@@ -337,4 +344,17 @@ func messageToolWallSeconds(message chatstore.Message, source []chatstore.Messag
 		return 0
 	}
 	return 0
+}
+
+func fileChangesForAPI(changes []chatstore.FileChangeSummary) []chatstore.FileChangeSummary {
+	if len(changes) == 0 {
+		return nil
+	}
+	out := make([]chatstore.FileChangeSummary, len(changes))
+	for i, change := range changes {
+		change.AddedLines = nil
+		change.RemovedLines = nil
+		out[i] = change
+	}
+	return out
 }

@@ -12,7 +12,8 @@ import { markNavigationCommit, navigationForChat } from "./navigationPerformance
 import type { Chat, ChatMessage, ChatToolCall } from "./chatTypes";
 import { ChatComposer, type ChatComposerMenu } from "./ChatComposer";
 import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTypes";
-import { snapshotComposerImages } from "./chatClient";
+import { fetchChatHistory, snapshotComposerImages } from "./chatClient";
+import { updateChat } from "./chatStore";
 import { useChatScroll } from "./useChatScroll";
 import { ChatImageAttachments, ModeSwitchNotice, SubagentActivityIndicator } from "./ChatMessageParts";
 import { ChatMessageGroups, RateLimitNotice, SubagentChatPanel } from "./ChatMessageGroups";
@@ -108,10 +109,24 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
     viewRef,
   });
   const history = useChatHistoryWindow(composerDraftKey(chat.projectID, chat.id), chat.messages, messagesShellRef);
+  const serverHistory = chat.messages.some((message) => message.historyAvailable);
+  async function loadEarlierMessages() {
+    if (history.start > 0) {
+      history.loadEarlier();
+      return;
+    }
+    if (!serverHistory || !chat.projectID) return;
+    const earlier = await fetchChatHistory(chat.projectID, chat.id);
+    updateChat(chat.id, (current) => {
+      if (current.messages.some((message) => message.id.startsWith("m-archive-"))) return current;
+      return { ...current, messages: [...earlier, ...current.messages.map((message) => message.historyAvailable ? { ...message, historyAvailable: false } : message)] };
+    });
+    history.notePrepended(earlier.length);
+  }
   function handleMessagesScroll() {
     onMessagesScroll();
     const shell = messagesShellRef.current;
-    if (shell && shell.scrollTop < 300 && shell.scrollHeight - shell.scrollTop - shell.clientHeight > 48) history.loadEarlier();
+    if (shell && shell.scrollTop < 300 && shell.scrollHeight - shell.scrollTop - shell.clientHeight > 48) history.loadEarlierFromScroll();
   }
   const activeSubagents: ActiveSubagent[] = chat.messages.flatMap((message) => (
     (message.toolCalls ?? [])
@@ -257,7 +272,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
       {chatPreferences.floatingLetters ? <FloatingLetters density={chatPreferences.floatingLettersDensity} key={chat.id} content={animatedMessage?.content ?? ""} messageID={animatedMessage?.role === "assistant" ? animatedMessage.id : undefined} responseKey={animatedMessage ? chatPresentationKey(animatedMessage) : undefined} working={isChatWorking || animationMessageID !== undefined} viewRef={viewRef} /> : null}
       <div aria-live="polite" className="chat-messages-shell" onKeyDown={onMessagesKeyDown} onPointerDown={onMessagesPointerDown} onScroll={handleMessagesScroll} onWheel={onMessagesWheel} ref={messagesShellRef} tabIndex={0}>
         <div className="chat-messages" ref={messagesRef}>
-          {history.start > 0 ? <button className="chat-load-earlier" onClick={history.loadEarlier} type="button">Load earlier messages</button> : null}
+          {history.start > 0 || serverHistory ? <button className="chat-load-earlier" onClick={() => void loadEarlierMessages()} type="button">Load earlier messages</button> : null}
           {chat.messages.length ? (
             <ChatMessageGroups
               isWorking={isChatWorking}

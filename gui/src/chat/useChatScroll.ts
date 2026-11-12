@@ -46,6 +46,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
   const messagesShellRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
+  const [dockHeight, setDockHeight] = useState<number | null>(null);
   const isFollowingBottomRef = useRef(true);
   const lastScrollTopRef = useRef(0);
   const scrollFrameRef = useRef<number | null>(null);
@@ -62,15 +63,16 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
   }, []);
 
   const scheduleScrollToBottom = useCallback(() => {
-    if (!isFollowingBottomRef.current || userScrollIntentRef.current || isAnimatingScrollRef.current || scrollFrameRef.current !== null) return;
-
-    scrollFrameRef.current = window.requestAnimationFrame(() => {
-      scrollFrameRef.current = null;
-      const shell = messagesShellRef.current;
-      if (!shell || !isFollowingBottomRef.current || userScrollIntentRef.current) return;
-      shell.scrollTop = Math.max(0, shell.scrollHeight - shell.clientHeight);
+    if (!isFollowingBottomRef.current || userScrollIntentRef.current || isAnimatingScrollRef.current) return;
+    const shell = messagesShellRef.current;
+    if (!shell) return;
+    const top = Math.max(0, shell.scrollHeight - shell.clientHeight);
+    if (Math.abs(shell.scrollTop - top) <= SCROLL_POSITION_EPSILON_PX) {
       lastScrollTopRef.current = shell.scrollTop;
-    });
+      return;
+    }
+    shell.scrollTop = top;
+    lastScrollTopRef.current = shell.scrollTop;
   }, []);
 
   const markUserScrollIntent = useCallback(() => {
@@ -176,14 +178,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
       setIsAwayFromBottom(Boolean(shell && !isFollowingBottomRef.current && shell.scrollHeight - shell.scrollTop - shell.clientHeight > FOLLOW_BOTTOM_THRESHOLD_PX));
       scheduleScrollToBottom();
     };
-    if (restoringRef.current) {
-      if (shell) shell.scrollTop = saved!.top;
-      // Composer measurement changes the bottom padding before this frame.
-      scrollFrameRef.current = window.requestAnimationFrame(() => {
-        scrollFrameRef.current = null;
-        restore();
-      });
-    } else restore();
+    restore();
     return () => {
       writePosition(chatID, { top: restoringRef.current && saved ? saved.top : lastScrollTopRef.current, following: isFollowingBottomRef.current });
       cancelScheduledScroll();
@@ -191,36 +186,32 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
   }, [cancelScheduledScroll, chatID, scheduleScrollToBottom]);
 
   useLayoutEffect(() => {
-    scheduleScrollToBottom();
-  }, [contentKey, scheduleScrollToBottom]);
-
-  useLayoutEffect(() => {
     const view = viewRef.current;
     const dock = composerDockRef.current;
     const composer = composerRef.current;
-    const messages = messagesRef.current;
-    if (!view || !dock || !composer || !messages) return;
+    if (view && dock && composer && dockHeight !== null) {
+      const next = dockHeight + "px";
+      if (view.style.getPropertyValue("--chat-composer-dock-height") !== next) view.style.setProperty("--chat-composer-dock-height", next);
+      const surfaceTop = Math.max(0, Math.round(composer.getBoundingClientRect().top - dock.getBoundingClientRect().top)) + "px";
+      if (view.style.getPropertyValue("--chat-composer-surface-top") !== surfaceTop) view.style.setProperty("--chat-composer-surface-top", surfaceTop);
+    }
+    scheduleScrollToBottom();
+  }, [contentKey, dockHeight, scheduleScrollToBottom, viewRef, composerDockRef, composerRef]);
 
-    const measureLayout = () => {
-      const dockRect = dock.getBoundingClientRect();
-      const composerRect = composer.getBoundingClientRect();
-      view.style.setProperty("--chat-composer-dock-height", String(Math.ceil(dockRect.height)) + "px");
-      view.style.setProperty("--chat-composer-surface-top", String(Math.max(0, composerRect.top - dockRect.top)) + "px");
-      const shell = messagesShellRef.current;
-      if (shell) setIsAwayFromBottom(!isFollowingBottomRef.current && shell.scrollHeight - shell.scrollTop - shell.clientHeight > FOLLOW_BOTTOM_THRESHOLD_PX);
-      scheduleScrollToBottom();
+  useLayoutEffect(() => {
+    const dock = composerDockRef.current;
+    const view = viewRef.current;
+    if (!dock || !view) return;
+    const read = () => {
+      const height = Math.round(dock.getBoundingClientRect().height);
+      setDockHeight((current) => current !== null && Math.abs(current - height) < 2 ? current : height);
     };
-
-    measureLayout();
+    read();
     if (typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver(measureLayout);
+    const observer = new ResizeObserver(read);
     observer.observe(dock);
-    observer.observe(composer);
-    observer.observe(messages);
-    observer.observe(messagesShellRef.current ?? messages);
     return () => observer.disconnect();
-  }, [bottomInset, composerDockRef, composerRef, scheduleScrollToBottom, viewRef]);
+  }, [bottomInset, composerDockRef, viewRef]);
 
   useLayoutEffect(() => () => {
     cancelScheduledScroll();

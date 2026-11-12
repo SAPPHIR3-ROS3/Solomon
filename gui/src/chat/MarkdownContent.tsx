@@ -124,18 +124,54 @@ function CodeBlock({ children }: { children?: ReactNode }) {
       </div>
       <pre>
         <code className="chat-code-lines">
-          {codeLines.map((line, index) => (
-            <span className="chat-code-line" key={index}>
-              <span aria-hidden="true" className="chat-line-number">{index + 1}</span>
-              <span className="chat-line-content">{tokens?.[index]?.length ? tokens[index].map((token, tokenIndex) => <span key={tokenIndex} style={{ color: token.color ?? cursorForeground, fontStyle: (token.fontStyle ?? 0) & 1 ? "italic" : "normal", fontWeight: (token.fontStyle ?? 0) & 2 ? 700 : 400, textDecoration: (token.fontStyle ?? 0) & 4 ? "underline" : "none" }}>{token.content}</span>) : line || " "}</span>
-            </span>
-          ))}
+          {codeLines.map((line, index) => {
+            const parts = codeLineParts(line, tokens?.[index]);
+            return (
+              <span className="chat-code-line" key={index}>
+                <span aria-hidden="true" className="chat-line-number">{index + 1}</span>
+                <span className="chat-line-content">
+                  {parts.indent ? <span className="chat-line-indent">{parts.indent}</span> : null}
+                  <span className="chat-line-body">{parts.tokens?.length ? parts.tokens.map((token, tokenIndex) => <span key={tokenIndex} style={{ color: token.color ?? cursorForeground, fontStyle: (token.fontStyle ?? 0) & 1 ? "italic" : "normal", fontWeight: (token.fontStyle ?? 0) & 2 ? 700 : 400, textDecoration: (token.fontStyle ?? 0) & 4 ? "underline" : "none" }}>{token.content}</span>) : parts.body || (parts.indent ? "" : " ")}</span>
+                </span>
+              </span>
+            );
+          })}
         </code>
       </pre>
     </div>
   );
 }
 
+
+function codeLineParts(line: string, tokens?: ThemedToken[]) {
+  const indent = /^[ \t]*/.exec(line)?.[0] ?? "";
+  const peeled = peelIndent(tokens, indent);
+  return { indent, body: line.slice(indent.length), tokens: peeled };
+}
+
+function peelIndent(tokens: ThemedToken[] | undefined, indent: string) {
+  if (!tokens?.length || !indent) return tokens;
+  const body: ThemedToken[] = [];
+  let remaining = indent;
+  for (const token of tokens) {
+    if (!remaining) {
+      body.push(token);
+      continue;
+    }
+    if (token.content.length > 0 && remaining.startsWith(token.content) && /^[ \t]+$/.test(token.content)) {
+      remaining = remaining.slice(token.content.length);
+      continue;
+    }
+    if (token.content.startsWith(remaining)) {
+      const content = token.content.slice(remaining.length);
+      remaining = "";
+      if (content) body.push({ ...token, content });
+      continue;
+    }
+    return tokens;
+  }
+  return remaining ? tokens : body;
+}
 
 function textFromNode(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);

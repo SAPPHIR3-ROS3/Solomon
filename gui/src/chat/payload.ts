@@ -26,6 +26,7 @@ export function messageFromPayload(payload: unknown, index: number, imageOrigin:
         removedLines: Array.isArray(change.removedLines) ? change.removedLines.filter((line): line is string => typeof line === "string") : [] }];
     });
   }
+  if (record.historyAvailable === true) message.historyAvailable = true;
   if (record.kind === "compaction") message.kind = "compaction";
   if (typeof record.reasoning === "string") message.reasoning = record.reasoning;
   if (record.stats) message.stats = statsFromPayload(record.stats);

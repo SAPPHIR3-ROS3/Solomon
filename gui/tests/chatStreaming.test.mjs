@@ -33,6 +33,35 @@ test("a live compaction snapshot shows the summary before the next assistant res
   assert.equal(chat.messages[0].kind, "compaction");
 });
 
+test("a newer compaction replaces the previous summary instead of stacking it", () => {
+  let chat = { id: "chat", projectID: "project", messages: [], source: "daemon", status: "running" };
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "m-archive-0-0", role: "user", content: "old request" },
+    { id: "compaction-0", role: "assistant", kind: "compaction", content: "", summary: "First summary" },
+    { id: "m-1", role: "user", content: "next" },
+  ] } });
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "compaction-1", role: "assistant", kind: "compaction", content: "", summary: "Second summary", historyAvailable: true },
+    { id: "m-1", role: "user", content: "pending" },
+  ] } });
+  assert.deepEqual(chat.messages.map((message) => message.summary ?? message.content), ["Second summary", "pending"]);
+});
+
+test("the same compaction keeps loaded history and a single summary", () => {
+  let chat = { id: "chat", projectID: "project", messages: [], source: "daemon", status: "running" };
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "m-archive-0-0", role: "user", content: "old request" },
+    { id: "compaction-0", role: "assistant", kind: "compaction", content: "", summary: "Only summary" },
+    { id: "m-1", role: "user", content: "next" },
+  ] } });
+  chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: { id: "chat", messages: [
+    { id: "compaction-0", role: "assistant", kind: "compaction", content: "", summary: "Only summary", historyAvailable: true },
+    { id: "m-1", role: "user", content: "next" },
+  ] } });
+  assert.deepEqual(chat.messages.map((message) => message.summary ?? message.content), ["old request", "Only summary", "next"]);
+  assert.equal(chat.messages.filter((message) => message.kind === "compaction").length, 1);
+});
+
 test("a burst publishes once with exact text and the latest sequence", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const published = [];

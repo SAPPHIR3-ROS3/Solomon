@@ -39,6 +39,12 @@ func FormatChatTranscript(msgs []chatstore.Message) string {
 		case "user":
 			fmt.Fprintf(&b, "User:\n%s\n\n", m.Content)
 		case "assistant":
+			if chatstore.IsCompactionSummary(m) {
+				if text := chatstore.ConversationSummaryText(m.Content); text != "" {
+					fmt.Fprintf(&b, "Assistant:\n%s\n\n", text)
+				}
+				continue
+			}
 			_, cshow := chatstore.AssistantDisplayParts(m)
 			if cshow != "" {
 				fmt.Fprintf(&b, "Assistant:\n%s\n\n", cshow)
@@ -105,6 +111,9 @@ func FormatRetainedMessages(msgs []chatstore.Message) string {
 			}
 			appendRetainedEntry(&entries, "user", m.Content)
 		case "assistant":
+			if chatstore.IsCompactionSummary(m) {
+				continue
+			}
 			var parts []string
 			_, cshow := chatstore.AssistantDisplayParts(m)
 			if cshow != "" {

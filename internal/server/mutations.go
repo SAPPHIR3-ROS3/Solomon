@@ -68,6 +68,21 @@ func (a *chatAPI) handleChat(w http.ResponseWriter, r *http.Request, projectID, 
 	writeJSON(w, http.StatusOK, apiChatFromSession(projectID, sess, a.getRun(projectID+"\x00"+chatID)))
 }
 
+func (a *chatAPI) handleChatHistory(w http.ResponseWriter, r *http.Request, projectID, chatID string) {
+	sess, err := chatstore.ReadSession(projectID, chatID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, os.ErrNotExist) {
+			status = http.StatusNotFound
+		}
+		writeAPIError(w, status, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"messages": apiEarlierMessages(projectID, sess.ID, sess.Messages, sess.ImageFiles, sess.UncompactedRaw, a.runActive(projectID+"\x00"+chatID)),
+	})
+}
+
 func (a *chatAPI) handleRenameChat(w http.ResponseWriter, r *http.Request, projectID, chatID string) {
 	if a.runActive(projectID + "\x00" + chatID) {
 		writeAPIError(w, http.StatusConflict, errors.New("chat is running"))

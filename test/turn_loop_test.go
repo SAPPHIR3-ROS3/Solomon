@@ -11,6 +11,7 @@ import (
 	"time"
 
 	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/turnloop"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
@@ -116,6 +117,22 @@ func TestRunAgentTurns_simpleAssistantReply(t *testing.T) {
 	}
 	if rt.Session.Messages[1].Role != "assistant" || rt.Session.Messages[1].Content != "hello back" {
 		t.Fatalf("assistant=%+v", rt.Session.Messages[1])
+	}
+}
+
+func TestRunAgentTurns_stopsRepeatedToolCalls(t *testing.T) {
+	restore := turnloop.SetToolExecutionLimitForTest(2)
+	defer restore()
+	backend := &turnScriptBackend{protocol: llm.ProtocolOpenAI}
+	for index := 0; index < 5; index++ {
+		backend.turns = append(backend.turns, llm.AssistantTurnResult{ToolCalls: []llm.AssistantToolCall{{ID: "again", Name: "searchTools", Arguments: searchToolsArgs()}}})
+	}
+	rt := newTurnLoopRuntime(t, backend, nil, nil)
+	if err := rt.RunAgentTurnsForTest(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if backend.turnN != 2 {
+		t.Fatalf("StreamTurn calls=%d, want the tool budget to stop the run", backend.turnN)
 	}
 }
 

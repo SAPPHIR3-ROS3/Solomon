@@ -40,5 +40,32 @@ func removeInternalSnapshots(session *Session) bool {
 	for i := range session.UncompactedRaw {
 		clean(session.UncompactedRaw[i].Messages)
 	}
+	return changed || dropStoredDiffLines(session)
+}
+
+func dropStoredDiffLines(session *Session) bool {
+	if session == nil {
+		return false
+	}
+	changed := false
+	strip := func(messages []Message) {
+		for i := range messages {
+			for j := range messages[i].FileChanges {
+				if len(messages[i].FileChanges[j].AddedLines) == 0 && len(messages[i].FileChanges[j].RemovedLines) == 0 {
+					continue
+				}
+				messages[i].FileChanges[j].AddedLines = nil
+				messages[i].FileChanges[j].RemovedLines = nil
+				changed = true
+			}
+		}
+	}
+	strip(session.Messages)
+	for i := range session.Branches {
+		strip(session.Branches[i].Messages)
+	}
+	for i := range session.UncompactedRaw {
+		strip(session.UncompactedRaw[i].Messages)
+	}
 	return changed
 }

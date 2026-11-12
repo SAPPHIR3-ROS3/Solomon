@@ -54,7 +54,7 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
     let flights: Flight[] = [];
     let geometryDirty = true;
     let canvasBounds = canvas.getBoundingClientRect();
-    const cardSelector = ".chat-message.is-user, .chat-tool-card, .chat-subagent-card, .chat-tool-collapse-all, .welcome-composer";
+    const cardSelector = ".chat-message, .chat-code-block, .chat-tool-card, .chat-subagent-card, .chat-tool-collapse-all, .welcome-composer";
     const visibleCards = new Set<HTMLElement>();
     const watchedCards = new Set<HTMLElement>();
     let masksDirty = true;
@@ -295,22 +295,6 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
         context!.fillText(particle.glyph, 0, 0);
         context!.restore();
       }
-      flights = flights.filter(flight => {
-        const progress = Math.max(0, (now - flight.start) / DURATION);
-        if (progress >= 1 || !flight.visible || !flight.range.startContainer.isConnected) {
-          if (flight.particle) replaceParticle(flight.particle);
-          highlight?.delete(flight.range);
-          return false;
-        }
-        const eased = 1 - (1 - progress) ** 3;
-        const x = flight.x + (flight.targetX - flight.x) * eased;
-        const y = flight.y + (flight.targetY - flight.y) * eased - Math.sin(progress * Math.PI) * 35;
-        context!.font = flight.font;
-        context!.fillStyle = flight.color;
-        context!.globalAlpha = 0.35 + eased * 0.65;
-        context!.fillText(flight.glyph, x, y);
-        return true;
-      });
       // Cache geometry between layout changes, and only measure visible cards.
       // Walking all historical tool cards every frame stalls long transcripts.
       if (masksDirty) {
@@ -334,6 +318,23 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
         context!.fill();
       }
       context!.restore();
+      context!.globalAlpha = 1;
+      flights = flights.filter(flight => {
+        const progress = Math.max(0, (now - flight.start) / DURATION);
+        if (progress >= 1 || !flight.visible || !flight.range.startContainer.isConnected) {
+          if (flight.particle) replaceParticle(flight.particle);
+          highlight?.delete(flight.range);
+          return false;
+        }
+        const eased = 1 - (1 - progress) ** 3;
+        const x = flight.x + (flight.targetX - flight.x) * eased;
+        const y = flight.y + (flight.targetY - flight.y) * eased - Math.sin(progress * Math.PI) * 35;
+        context!.font = flight.font;
+        context!.fillStyle = flight.color;
+        context!.globalAlpha = 0.35 + eased * 0.65;
+        context!.fillText(flight.glyph, x, y);
+        return true;
+      });
       context!.globalAlpha = 1;
       frame = requestAnimationFrame(draw);
     }

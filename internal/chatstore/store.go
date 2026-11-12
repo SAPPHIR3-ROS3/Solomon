@@ -199,7 +199,9 @@ func ReadSession(projectHex, chatIDHex string) (sess *Session, err error) {
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil, err
 	}
-	_ = FinishSessionLoad(&s)
+	if FinishSessionLoad(&s) {
+		_ = WriteSession(projectHex, &s)
+	}
 	sess = &s
 	return sess, nil
 }

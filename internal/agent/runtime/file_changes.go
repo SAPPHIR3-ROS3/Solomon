@@ -201,20 +201,12 @@ func (r *Runtime) saveTurnFileChanges(seq int) error {
 		var summary []chatstore.FileChangeSummary
 		for name, entry := range s.FileChanges {
 			c := chatstore.FileChangeSummary{Path: name, Binary: entry.Binary}
-			for line, count := range entry.AddedLines {
+			for _, count := range entry.AddedLines {
 				c.Added += count
-				for i := 0; i < count; i++ {
-					c.AddedLines = append(c.AddedLines, line)
-				}
 			}
-			for line, count := range entry.RemovedLines {
+			for _, count := range entry.RemovedLines {
 				c.Removed += count
-				for i := 0; i < count; i++ {
-					c.RemovedLines = append(c.RemovedLines, line)
-				}
 			}
-			sort.Strings(c.AddedLines)
-			sort.Strings(c.RemovedLines)
 			summary = append(summary, c)
 		}
 		sort.Slice(summary, func(i, j int) bool { return summary[i].Path < summary[j].Path })

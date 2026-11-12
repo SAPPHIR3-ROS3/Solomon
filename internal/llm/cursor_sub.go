@@ -332,6 +332,7 @@ func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string
 		}
 	}
 	result := cursorauth.ChatResult{FinishReason: FinishReasonStop, Usage: cursorauth.ChatUsage{CachedPromptTokens: -1, CacheWriteTokens: -1}}
+	rejectedTools := 0
 	for {
 		event, ok := session.Next(ctx)
 		if !ok {
@@ -416,12 +417,18 @@ func (b *cursorSubBackend) streamAgent(ctx context.Context, model, system string
 				}
 			}
 			if !allowed {
+				rejectedTools++
+				if rejectedTools > 8 {
+					session.Close()
+					return cursorauth.ChatResult{}, fmt.Errorf("Cursor Agent repeated unavailable tool calls")
+				}
 				if err := session.ToolResult(*event.Tool, `{"error":"tool unavailable in Solomon"}`, true); err != nil {
 					session.Close()
 					return cursorauth.ChatResult{}, err
 				}
 				continue
 			}
+			rejectedTools = 0
 			b.pending = &cursorPendingTool{session: session, call: *event.Tool}
 			result.ToolCalls = []cursorauth.ChatToolCall{{ID: event.Tool.ID, Name: event.Tool.Name, Arguments: event.Tool.Arguments}}
 			result.FinishReason = FinishReasonToolCalls

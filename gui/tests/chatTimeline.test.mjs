@@ -8,7 +8,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const server = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: "automatic" } });
 const { ChatMessageGroups } = await server.ssrLoadModule("/src/chat/ChatMessageGroups.tsx");
-const { liveWorkedForSeconds, indexChatMessages, groupChatTurns } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
+const { liveWorkedForSeconds, indexChatMessages, groupChatTurns, toolActivityCollapsed } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
+const { reconcileHistoryWindow, tailHistoryStart } = await server.ssrLoadModule("/src/chat/useChatHistoryWindow.ts");
 
 test("resend appears only on the latest user turn between delete and copy", () => {
   const messages = indexChatMessages([
@@ -58,6 +59,51 @@ test("a pending user turn does not attach its live timer to the previous answer"
   const active = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages(running.messages),isWorking:true,liveWorkedFor:3}));
   assert.equal((active.match(/chat-worked-for is-live/g)??[]).length,1);
   assert.ok(active.indexOf('chat-worked-for is-live')>active.indexOf('Next question'));
+  assert.equal(liveWorkedForSeconds({...running, messages:[{id:'a', role:'assistant', content:'', workStartedAt:0}]}, 25000), undefined);
+});
+
+test("opening a longer transcript keeps the recent page instead of the stale start", () => {
+  const short = Array.from({ length: 10 }, (_, index) => ({ id: `m-${index}`, role: index % 2 ? "assistant" : "user" }));
+  const opened = { key: "chat", start: tailHistoryStart(short), length: short.length, headID: short[0].id, pinned: true };
+  assert.equal(opened.start, 0);
+  const full = Array.from({ length: 100 }, (_, index) => ({ id: `m-${index}`, role: index % 2 ? "assistant" : "user" }));
+  const replaced = reconcileHistoryWindow(opened, full);
+  assert.equal(replaced.start, 40);
+  assert.equal(replaced.pinned, true);
+  const grown = reconcileHistoryWindow(replaced, [...full, { id: "m-100", role: "assistant" }]);
+  assert.equal(grown.start, replaced.start);
+  const older = Array.from({ length: 20 }, (_, index) => ({ id: `archive-${index}`, role: index % 2 ? "assistant" : "user" }));
+  const kept = reconcileHistoryWindow({ ...replaced, pinned: false, start: 40 }, [...older, ...full]);
+  assert.equal(kept.start, 40);
+  const pinned = reconcileHistoryWindow(replaced, [...older, ...full]);
+  assert.equal(pinned.start, tailHistoryStart([...older, ...full]));
+});
+
+test("a running turn keeps tool calls mounted between calls", () => {
+  const base = { autoCloseToolCalls: true, hasRunningTools: false, override: undefined, preferencesReady: true, rateLimited: false, startToolCallsCollapsed: true };
+  assert.equal(toolActivityCollapsed({ ...base, isWorking: true }), false);
+  assert.equal(toolActivityCollapsed({ ...base, isWorking: true, hasRunningTools: true }), false);
+  assert.equal(toolActivityCollapsed({ ...base, isWorking: false }), true);
+  assert.equal(toolActivityCollapsed({ ...base, isWorking: true, override: true }), true);
+});
+
+test("collapsed tool activity keeps a single thought summary", () => {
+  const tool = (id) => ({ id, name: "shell", status: "success", result: { output: "done", status: "success" } });
+  const indexed = (id, sequence, thoughtFor, reasoning) => ({
+    checkpoint: { branch: "", label: "[#" + String(sequence).padStart(3, "0") + "]", sequence },
+    index: sequence,
+    message: { content: "", id, reasoning, role: "assistant", thoughtFor, toolCalls: [tool(id + "-tool")] },
+    toolMessageIDs: new Map(),
+  });
+  const html = renderToStaticMarkup(createElement(ChatMessageGroups, {
+    messages: [
+      indexed("a1", 1, 6, "first"),
+      indexed("a2", 2, 8, "second"),
+      indexed("a3", 3, 5, "third"),
+    ],
+    rateLimitNotice: "HTTP 429",
+  }));
+  assert.deepEqual(html.match(/thought for \d+s/g), ["thought for 19s"]);
 });
 
 test("groups intermediate assistant replies into expanded tool activity by default", () => {
@@ -111,20 +157,24 @@ test("reasoning controls require actual text rather than first-token timing", ()
   }
 });
 
-test("collapsed reasoning shows its duration while waiting and streaming", () => {
+test("thought for appears with the first tool call or streamed reply", () => {
   const originalNow = Date.now;
   Date.now = () => 15000;
   try {
-    for (const reasoning of ["", "Streaming reasoning"]) {
-      const message = {id:"live",role:"assistant",content:"",reasoning,workStartedAt:10000};
-      const html = renderToStaticMarkup(createElement(ReasoningBlock,{message,isCollapsed:true,isLive:true,onToggle(){}}));
-      assert.match(html,/thought for 5s/);
-      assert.match(html,/is-live/);
-      assert.doesNotMatch(html,/chat-reasoning-copy/);
-      const completed = renderToStaticMarkup(createElement(ReasoningBlock,{message:{...message,reasoning:"Done",thoughtFor:3},isCollapsed:true,onToggle(){}}));
-      assert.match(completed,/thought for 3s/);
-      assert.doesNotMatch(completed,/is-live/);
-    }
+    const waiting = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"live",role:"assistant",content:"",reasoning:"",workStartedAt:10000},isCollapsed:true,isLive:true,onToggle(){}}));
+    assert.doesNotMatch(waiting, /thought for|thought briefly/);
+    const reasoning = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"live",role:"assistant",content:"",reasoning:"Streaming reasoning",workStartedAt:10000},isCollapsed:true,isLive:true,onToggle(){}}));
+    assert.match(reasoning, /thought for 5s/);
+    assert.match(reasoning, /is-live/);
+    assert.doesNotMatch(reasoning, /chat-reasoning-copy/);
+    const tool = renderToStaticMarkup(createElement(ChatMessageGroups,{isWorking:true,liveWorkedFor:5,messages:indexChatMessages([{id:"u",role:"user",content:"Go"},{id:"a",role:"assistant",content:"",workStartedAt:10000,toolCalls:[{id:"t",name:"shell",status:"running"}]}])}));
+    assert.match(tool, /worked for 5s/);
+    assert.match(tool, /thought for 5s/);
+    const reply = renderToStaticMarkup(createElement(ChatMessageGroups,{isWorking:true,liveWorkedFor:5,messages:indexChatMessages([{id:"u",role:"user",content:"Go"},{id:"a",role:"assistant",content:"Hello",workStartedAt:10000}])}));
+    assert.match(reply, /thought for 5s/);
+    const completed = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"live",role:"assistant",content:"",reasoning:"Done",thoughtFor:3,workStartedAt:10000},isCollapsed:true,onToggle(){}}));
+    assert.match(completed, /thought for 3s/);
+    assert.doesNotMatch(completed, /is-live/);
   } finally {
     Date.now = originalNow;
   }
