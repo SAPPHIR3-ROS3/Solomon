@@ -49,3 +49,7 @@
 .notification-child { border-left: 2px solid var(--color-border); padding: 5px 0 5px 8px; margin-top: 4px; }
 .notification-toast:has(.notification-related) { height: auto; min-height: 0; max-height: 240px; overflow-y: auto; }
 .notification-toast > .notification-related { flex-shrink: 0; }
+
+.notification-details { margin-top: 5px; font-size: 11px; flex-shrink: 0; }
+.notification-details summary { cursor: pointer; color: var(--color-text-muted); }
+.notification-toast:has(.notification-details) { max-height: 240px; overflow-y: auto; }
