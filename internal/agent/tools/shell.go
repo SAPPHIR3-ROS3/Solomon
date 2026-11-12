@@ -14,6 +14,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/prompt"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/shellpolicy"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 
 	"github.com/openai/openai-go/v2"
@@ -22,7 +23,7 @@ import (
 func signatureShell(command string) {}
 
 func shellOpenAI() openai.ChatCompletionToolUnionParam {
-	return nativeToolUnion("shell", "Run a shell command in the harness working directory.", map[string]any{
+	return nativeToolUnion("shell", "Run a shell command in the harness working directory. "+shellpolicy.Guidance, map[string]any{
 		"command": map[string]any{"type": "string", "description": "Shell command to run"},
 		"intent":  map[string]any{"type": "string", "description": "Brief phrase describing why this command is being run"},
 		"timeoutSeconds": map[string]any{
@@ -37,7 +38,7 @@ func appendShellDump(b *dumpBuilder) error {
 	if err != nil {
 		return err
 	}
-	b.addBlock("shell", "Run a shell command in the harness working directory. Requires intent (brief purpose). Optional JSON fields may tweak behavior.", sig)
+	b.addBlock("shell", "Run a shell command in the harness working directory. Requires intent (brief purpose). Optional JSON fields may tweak behavior. "+shellpolicy.Guidance, sig)
 	return nil
 }
 
@@ -65,6 +66,9 @@ func execShell(ctx context.Context, env *Env, raw json.RawMessage) (any, error) 
 	if strings.TrimSpace(intent) == "" {
 		return nil, fmt.Errorf("intent must be a non-empty brief phrase")
 	}
+	if err := shellpolicy.Validate(command); err != nil {
+		return nil, err
+	}
 	if env.ActivateInstructionsFromShellCommand != nil {
 		env.ActivateInstructionsFromShellCommand(command)
 	}
@@ -88,6 +92,8 @@ func execShell(ctx context.Context, env *Env, raw json.RawMessage) (any, error) 
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			exit = ee.ExitCode()
+		} else {
+			exit = -1
 		}
 	}
 	m := map[string]any{"exit": exit, "output": string(out), "intent": intent}

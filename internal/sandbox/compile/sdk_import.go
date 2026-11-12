@@ -99,6 +99,7 @@ func orchestrateParseError(parseErr error, src string) string {
 			msg += "\nHint: check the preceding statement and its string or expression delimiters. Put separate Go statements on separate lines rather than joining them into one dense line."
 		}
 	}
+	msg += "\nPayloads containing complex escaping should be supplied in orchestrate.inputs and read with sdk.Input(name), rather than embedded in Go source."
 	if SourceReferencesSDKAlias(src) {
 		msg += "\nSDK import rewriting requires valid Go syntax; fix the reported syntax error first."
 	}

@@ -86,3 +86,13 @@ body { font-size: 17px; }
 .chat-message table { font-size: 14px; }
 .chat-message th { font-size: 12px; }
 .chat-code-block pre code { font-size: 14.3px; }
+
+.terminal-panel-host .xterm,
+.terminal-panel-host .xterm *,
+.chat-code-block code,
+.chat-code-block code span,
+.cm-content,
+.cm-content * {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}

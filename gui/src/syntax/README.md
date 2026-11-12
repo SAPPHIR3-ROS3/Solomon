@@ -4,7 +4,7 @@ The editor, Markdown code blocks, and CODE source panels share Cursor Dark token
 colors and font styles through Shiki's TextMate/Oniguruma engine. Semantic tokens
 from language servers are deliberately excluded from this implementation.
 
-`cursor-dark.json`, `cursor-languages.json`, and `grammars/` are snapshots from the
+`../../../tui/syntax/cursor-dark.json`, `cursor-languages.json`, and `grammars/` are snapshots from the
 local Cursor installation. `SOURCES.json` records the version, original extension
 paths, and declared licenses. Grammar scopes, includes, and injections are kept
 intact. `cursorGrammars.ts` loads the chosen grammar and its dependencies on demand.

@@ -8,6 +8,7 @@ import (
 	"unicode"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/compile"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/sandbox/shellpolicy"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"github.com/openai/openai-go/v2"
 )
@@ -34,9 +35,9 @@ func deferredCatalog() []deferredTool {
 		{Name: "removeTodo", Description: "Remove a todo line by SHA1", SDKCall: "RemoveTodo(sha1, intent string) (map[string]any, error)", Mode: "agent", SearchTerms: "plan todo remove delete"},
 		{Name: "checkPlan", Description: "Inspect plan status and remaining todos or full body", SDKCall: "CheckPlan(name string, full bool, intent string) (map[string]any, error)", Mode: "agent", SearchTerms: "plan status inspect"},
 		{Name: "deletePlan", Description: "Delete a plan file", SDKCall: "DeletePlan(name, intent string) (map[string]any, error)", Mode: "agent", SearchTerms: "plan delete remove"},
-		{Name: "shell", Description: "Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error. In orchestrate scripts assign the return value to a variable and fmt.Println it — output is not auto-included in the tool result.", SDKCall: "Shell(command, intent string) (string, error); ShellWithTimeout(command, intent string, secs int) (string, error); ShellResult(command, intent string) (ShellOutput, error); ShellResultWithTimeout(command, intent string, secs int) (ShellOutput, error)", Mode: "deferred", SearchTerms: "shell command bash zsh exec terminal run"},
+		{Name: "shell", Description: shellpolicy.Guidance + " Run a shell command in the project workspace; returns combined stdout/stderr and non-zero exit as error. In orchestrate scripts assign the return value to a variable and fmt.Println it — output is not auto-included in the tool result.", SDKCall: "Shell(command, intent string) (string, error); ShellWithTimeout(command, intent string, secs int) (string, error); ShellResult(command, intent string) (ShellOutput, error); ShellResultWithTimeout(command, intent string, secs int) (ShellOutput, error)", Mode: "deferred", SearchTerms: "shell command bash zsh exec terminal run"},
 		{Name: "readFile", Description: readFileDescription, SDKCall: "ReadFile(path, intent string) (string, error); ReadFileLines(path string, start, end int, intent string) (string, error); ReadFileFromLine(path string, start int, intent string) (string, error); ReadFileUntilLine(path string, end int, intent string) (string, error); ReadFileInfo(path, intent string) (ReadResult, error); ReadFileLinesInfo(path string, start, end int, intent string) (ReadResult, error); ReadFileFromLineInfo(path string, start int, intent string) (ReadResult, error); ReadFileUntilLineInfo(path string, end int, intent string) (ReadResult, error)", Mode: "deferred", SearchTerms: "read file files content text open load image images picture screenshot vision png jpg jpeg webp"},
-		{Name: "editFile", Description: "Replace oldString once with newString; empty oldString creates/overwrites; delete=true removes; renameTo moves/renames", SDKCall: "ReplaceInFile(path, oldString, newString, intent string) error; WriteFile(path, content, intent string) error; DeleteFile(path, intent string) error; RenameFile(path, renameTo, intent string) error; EditFile(path, oldString, newString, intent string, delete bool) error; ReplaceInFileResult(path, oldString, newString, intent string) (EditResult, error); WriteFileResult(path, content, intent string) (EditResult, error); DeleteFileResult(path, intent string) (EditResult, error); RenameFileResult(path, renameTo, intent string) (EditResult, error); EditFileResult(path, oldString, newString, intent string, delete bool) (EditResult, error)", Mode: "deferred", SearchTerms: "write edit replace patch file save overwrite"},
+		{Name: "editFile", Description: editFileDescription, SDKCall: "ReplaceInFile(path, oldString, newString, intent string) error; WriteFile(path, content, intent string) error; DeleteFile(path, intent string) error; RenameFile(path, renameTo, intent string) error; EditFile(path, oldString, newString, intent string, delete bool) error; ReplaceInFileResult(path, oldString, newString, intent string) (EditResult, error); WriteFileResult(path, content, intent string) (EditResult, error); DeleteFileResult(path, intent string) (EditResult, error); RenameFileResult(path, renameTo, intent string) (EditResult, error); EditFileResult(path, oldString, newString, intent string, delete bool, lines ...EditRange) (EditResult, error)", Mode: "deferred", SearchTerms: "write edit replace patch file save overwrite lines range startLine endLine"},
 		{Name: "find", Description: "Search files by glob (files=true) or content regexp (files=false)", SDKCall: "Find(pattern string, files bool, intent string) (string, error); FindIn(dir, pattern string, files bool, intent string) (string, error); FindTimeout(pattern string, files bool, secs int, intent string) (string, error); FindInTimeout(dir, pattern string, files bool, secs int, intent string) (string, error); FindInfo(pattern string, files bool, intent string) (FindResult, error); Glob(pattern, intent string) ([]string, error); GlobIn(dir, pattern, intent string) ([]string, error); GlobLimit(pattern string, headLimit int, intent string) ([]string, error); GlobTimeout(pattern string, secs int, intent string) ([]string, error); Grep(pattern, intent string) (string, error); GrepIn(dir, pattern, intent string) (string, error); GrepLines(pattern, intent string) ([]GrepLine, error); GrepCountEntries(pattern, intent string) ([]GrepCountEntry, error)", Mode: "deferred", SearchTerms: "glob find grep search pattern files list"},
 		{Name: "listDir", Description: "List files and immediate subdirectories in one directory (non-recursive)", SDKCall: "ListDir(path, intent string) ([]ListDirEntry, error); ListDirInfo(path, intent string) (ListDirResult, error)", Mode: "deferred", SearchTerms: "list directory folder ls dir entries files folders"},
 		{Name: "tree", Description: "Render ASCII directory tree under a path", SDKCall: "Tree(path, intent string) (string, error); TreeDepth(path string, maxDepth int, intent string) (string, error); TreeInfo(path, intent string) (TreeResult, error)", Mode: "deferred", SearchTerms: "tree directory structure hierarchy folders files ascii"},
@@ -51,8 +52,13 @@ func sdkQuickReference() map[string]any {
 	return map[string]any{
 		"imports":      compile.SDKImportPathsForModel,
 		"script_shape": "package main with func main(); compile errors if source is incomplete",
+		"inputs":       "sdk.Input(name string) (string, error) reads an orchestrate.inputs value verbatim; this is a local accessor, not a host tool call, and requires no intent",
 		"stdout":       "fmt.Print/Println/Printf output is captured and returned in orchestrate tool result field output; sdk.Shell return values are not — assign to a variable and fmt.Println it",
 		"contract": []string{
+			outcomeGuidance,
+			"For known whole-line edits, use sdk.EditFile(path, expectedOld, replacement, intent, false, sdk.EditRange{StartLine: first, EndLine: last}); omitted bounds default to first/last line. For exact text replacements, use sdk.ReplaceInFile. Do not compute string offsets for these operations.",
+			compile.InputGuidance,
+			shellpolicy.Guidance,
 			"Import the sandbox SDK only as import \"sdk\"; do not import the canonical internal package path.",
 			"Every SDK call that reaches a host tool has a final non-empty intent string; without it, the call is rejected and not executed.",
 			"Check every returned error before using the result.",
@@ -67,6 +73,7 @@ func sdkQuickReference() map[string]any {
 			"Every sdk function that performs a tool call requires a final non-empty intent string; without it, the call is rejected and not executed. This includes reads, searches, plans, web, research, shell, and edits",
 		},
 		"examples": []string{
+			`pattern, err := sdk.Input("pattern")`,
 			`content, err := sdk.ReadFile("TODO.md", "inspect the todo list")`,
 			`r, err := sdk.ReadFileLinesInfo("main.go", 10, 50, "inspect the entrypoint")`,
 			`paths, err := sdk.Glob("**/*.go", "find Go files")`,
@@ -77,7 +84,8 @@ func sdkQuickReference() map[string]any {
 			`tree, err := sdk.Tree("internal", "inspect the internal tree")`,
 			`err := sdk.WriteFile("f.txt", "hello", "create file")`,
 			`err := sdk.ReplaceInFile("f.md", "old", "new", "replace section")`,
-			`out, err := sdk.Shell("wc -m TODO.md", "count characters")`,
+			`err := sdk.EditFile("f.go", "", "replacement", "replace lines", false, sdk.EditRange{StartLine: 10, EndLine: 20})`,
+			`fmt.Println(len([]rune(content)))`,
 			`fmt.Println(out)`,
 			`res, err := sdk.ShellResult("go test ./...", "run tests")`,
 			`fmt.Println(res.Output)`,
@@ -92,12 +100,12 @@ import (
 )
 
 func main() {
-	out, err := sdk.Shell("pwd", "inspect the workspace")
+	entries, err := sdk.ListDir(".", "inspect the workspace")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(out)
+	fmt.Println(entries)
 }`,
 	}
 }

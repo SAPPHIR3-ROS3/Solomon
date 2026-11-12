@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -5,8 +8,9 @@ import { createServer } from 'vite';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-const server = await createServer({ root, configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: 'automatic' } });
-after(() => server.close());
+const testCacheDir = mkdtempSync(join(tmpdir(), "solomon-vite-test-"));
+const server = await createServer({ cacheDir: testCacheDir, root, configFile: false, server: { middlewareMode: true, hmr: false }, esbuild: { jsx: 'automatic' } });
+after(async () => { await server.close(); rmSync(testCacheDir, { recursive: true, force: true }); });
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 const { MarkdownContent } = await server.ssrLoadModule('/src/chat/MarkdownContent.tsx');
@@ -103,4 +107,15 @@ test('recovers a Java snippet with single-backtick delimiters as one code block'
   assert.ok(html.includes('aria-label="Enlarge Generated sailboat"'));
   assert.ok(html.includes('src="/images/sailboat.png"'));
   assert.ok(html.includes('type="button"'));
+});
+
+
+test('user messages highlight image and terminal tags while preserving literal text', () => {
+  const html = renderToStaticMarkup(createElement(MarkdownContent, {
+    content: 'Before [img-16] [img-17] [img-18]\n**literal** [terminal-L3-L7]', preserveLineBreaks: true,
+  }));
+  assert.equal(badges(html), 3);
+  assert.ok(html.includes('chat-terminal-tag'));
+  assert.ok(html.includes('\n**literal**'));
+  assert.ok(!html.includes('<strong>'));
 });

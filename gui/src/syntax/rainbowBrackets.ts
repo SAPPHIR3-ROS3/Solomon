@@ -1,6 +1,8 @@
 import type { ThemedToken } from "@shikijs/types";
 
-const colors = ["#ffd700", "#ff00ff", "#87cefa"];
+import cursorTheme from "../../../tui/syntax/cursor-dark.json";
+
+const colors = cursorTheme.solomonBracketColors;
 const closing: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
 
 // Keep the stack across tokens and lines, but never count literal/comment text.

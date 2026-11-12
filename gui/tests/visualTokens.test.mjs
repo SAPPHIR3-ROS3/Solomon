@@ -1,10 +1,14 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { createServer } from "vite";
 import { fileURLToPath } from "node:url";
 
-const server = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: {middlewareMode:true,hmr:false} });
-after(() => server.close());
+const testCacheDir = mkdtempSync(join(tmpdir(), "solomon-vite-test-"));
+const server = await createServer({ cacheDir: testCacheDir, root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: {middlewareMode:true,hmr:false} });
+after(async () => { await server.close(); rmSync(testCacheDir, { recursive: true, force: true }); });
 const { nextVisualTokenEnd } = await server.ssrLoadModule('/src/chat/usePacedChatMessages.ts');
 
 test("visual tokens preserve Unicode graphemes, whitespace and the complete response", () => {

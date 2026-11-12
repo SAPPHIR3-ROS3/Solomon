@@ -1,4 +1,4 @@
-.PHONY: solomon build install hot-install install-prepare install-deploy test check-docs loc-chart server-stop desktop-dev desktop-build desktop-install gui-build gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: solomon build install hot-install install-prepare install-deploy test check-docs loc-chart server-stop tui-dev desktop-dev desktop-build desktop-install gui-build gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -110,6 +110,9 @@ cursor-stop:
 server-stop:
 	go run $(BUILD_FLAGS) ./cmd/solomon server stop
 
+tui-dev:
+	cd "tui prototipe" && go run ./cmd/tui-dev 4
+
 # Run Wails against the URL advertised by the running Solomon dev server.
 desktop-dev:
 	$(MAKE) gui-deps
@@ -140,6 +143,12 @@ export PKG_CONFIG_PATH := $(DESKTOP_PKGCONFIG)$(if $(PKG_CONFIG_PATH),:$(PKG_CON
 # Include the local root in CGO's cache key as well as pkg-config's search path.
 export CGO_CPPFLAGS := $(CGO_CPPFLAGS) -I$(DESKTOP_DEVLIBS)/usr/include
 endif
+.PHONY: desktop-inspector
+desktop-inspector:
+	@pkg-config --exists gtk+-3.0 webkit2gtk-4.1
+	mkdir -p gui/desktop/build/bin
+	CGO_ENABLED=1 go build -tags production,debug,devtools,webkit2_41 $(BUILD_FLAGS) -o gui/desktop/build/bin/solomon-inspector ./gui/desktop
+
 desktop-build: gui-build
 	@pkg-config --exists gtk+-3.0 webkit2gtk-4.1 || { echo "Missing desktop development packages: install libgtk-3-dev and libwebkit2gtk-4.1-dev." >&2; exit 1; }
 	mkdir -p gui/desktop/build/bin
@@ -205,6 +214,7 @@ solomon build: cursor-bundle gui-build
 
 test: cursor-bundle
 	go test ./... -count=1
+	$(MAKE) -C tui test
 
 check-docs:
 	go run scripts/check_doc_paths.go

@@ -2,6 +2,7 @@ package tooling
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
@@ -19,7 +20,19 @@ func formatEditFileToolDisplayLines(m map[string]json.RawMessage) []string {
 	}
 	oldS := jsonDisplayString(m["oldString"])
 	newS := jsonDisplayString(m["newString"])
-	out := []string{termcolor.ToolHeaderLine("editFile", path)}
+	label := path
+	start, end := jsonDisplayIntPtr(m["startLine"]), jsonDisplayIntPtr(m["endLine"])
+	if start != nil || end != nil {
+		first, last := 1, "EOF"
+		if start != nil {
+			first = *start
+		}
+		if end != nil {
+			last = fmt.Sprint(*end)
+		}
+		label = fmt.Sprintf("%s (lines %d-%s)", path, first, last)
+	}
+	out := []string{termcolor.ToolHeaderLine("editFile", label)}
 	removed, added := editFileDiffRemovedAdded(oldS, newS)
 	out = append(out, formatEditFileDiffSide(removed, termcolor.WrapEditFileOldStringLine)...)
 	out = append(out, formatEditFileDiffSide(added, termcolor.WrapEditFileNewStringLine)...)

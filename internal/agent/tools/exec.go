@@ -7,6 +7,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/validation"
 )
 
 func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (result any, err error) {
@@ -20,25 +21,31 @@ func Exec(ctx context.Context, env *Env, mode string, inv tooling.Invocation) (r
 			params["context_error"] = ctx.Err().Error()
 		}
 		if resultMap, ok := result.(map[string]any); ok {
-			if exit, exists := resultMap["exit"]; exists {
-				params["exit"] = exit
-			}
 			if calls, exists := resultMap["tool_calls"]; exists {
 				params["child_tool_calls"] = calls
 			}
 			if okValue, exists := resultMap["ok"]; exists {
 				params["ok"] = okValue
 			}
+			for _, key := range []string{"status", "failed_tool_calls", "exit", "error_kind", "phase", "retry_action", "retryable"} {
+				if value, exists := resultMap[key]; exists {
+					params[key] = value
+				}
+			}
 		}
 		if err != nil {
 			params["error"] = err.Error()
+			if category := validation.Kind(err); category != "" {
+				params["error_kind"] = category
+				params["retryable"] = false
+			}
 			logging.Log(logging.WARNING_LOG_LEVEL, "tool call failed", logging.LogOptions{Params: params})
 			return
 		}
 		logging.Log(logging.INFO_LOG_LEVEL, "tool call completed", logging.LogOptions{Params: params})
 	}()
-	if err := tooling.ValidateToolIntent(inv.Args); err != nil {
-		return nil, fmt.Errorf("%s: %w", inv.Name, err)
+	if err := validateArguments(inv); err != nil {
+		return nil, err
 	}
 	return resolveToolInvocation(ctx, env, mode, inv)
 }

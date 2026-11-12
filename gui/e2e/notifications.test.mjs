@@ -15,10 +15,10 @@ test("composer history scrolls and new notifications expire after ten seconds", 
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const commandRequests = [];
-    let notifications = Array.from({ length: 12 }, (_, index) => ({ id: String(index), createdAt: new Date(Date.now() - index * 60000).toISOString(), level: index === 0 ? "error" : "system", message: `Historical notice ${index}` }));
+    let notifications = Array.from({ length: 12 }, (_, index) => ({ id: String(index), createdAt: new Date(Date.now() - index * 60000).toISOString(), level: index === 0 ? "error" : "system", message: index === 0 ? "Historical notice 0 | Technical details | extra" : `Historical notice ${index}` }));
     await page.route("**/__solomon/**", async (route) => {
       const url = route.request().url();
-      if (route.request().method() === "POST") commandRequests.push({ path: new URL(url).pathname, body: route.request().postDataJSON() });
+      if (route.request().method() === "POST" && new URL(url).pathname.endsWith("/commands")) commandRequests.push({ path: new URL(url).pathname, body: route.request().postDataJSON() });
       const data = url.endsWith("/notifications") ? notifications : url.includes("models") ? { current: { provider: "", model: "" }, providers: [], recent: [] } : { projects: [], reasoningEffort: "none", fastMode: false };
       await route.fulfill({ json: data });
     });
@@ -71,7 +71,14 @@ test("composer history scrolls and new notifications expire after ten seconds", 
     assert.ok(await page.locator(".notification-history").evaluate((node) => node.scrollHeight > node.clientHeight));
     await page.locator(".notification-entry").first().getByRole("button", { name: "Copy notification text", exact: true }).click();
     await page.locator(".notification-entry").first().getByRole("button", { name: "Notification copied", exact: true }).waitFor();
-    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "Historical notice 0");
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "Historical notice 0 | Technical details | extra");
+    const details = page.locator(".notification-entry").first().locator(".notification-message");
+    assert.equal(await details.locator("summary").innerText(), "Historical notice 0");
+    assert.equal(await details.locator("p").isVisible(), false);
+    await details.locator("summary").click();
+    assert.equal(await details.locator("p").innerText(), "Technical details | extra");
+    await details.locator("summary").click();
+    assert.equal(await details.locator("p").isVisible(), false);
     await page.keyboard.press("Escape");
     assert.equal(await page.getByRole("dialog").count(), 0);
     notifications = [{ id: "new", createdAt: new Date().toISOString(), level: "system", message: "New system notice" }, ...notifications];

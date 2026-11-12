@@ -3,6 +3,7 @@ module github.com/SAPPHIR3-ROS3/Solomon/v2026
 go 1.27.3
 
 require (
+ github.com/SAPPHIR3-ROS3/Solomon/v2026/tui v0.0.0
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.2
 	github.com/anthropics/anthropic-sdk-go v1.84.0
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -91,3 +92,5 @@ require (
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 )
+
+replace github.com/SAPPHIR3-ROS3/Solomon/v2026/tui => ./tui

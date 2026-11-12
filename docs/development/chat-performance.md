@@ -119,7 +119,8 @@ appears when its streamed text arrives. Collapsed tool summaries aggregate only
 the durations of messages containing reasoning text.
 
 Floating-letter presentation has a separate queue: a visual token contains up to
-four Unicode graphemes and advances every 60 ms. Fast network chunks and dropped
+four Unicode graphemes and advances every 60 ms.
+The first queued token starts on the next animation frame. Fast network chunks and dropped
 frames never reveal a full line to catch up. A finished stream drains its queue;
 disabling the effect or reduced-motion preference reveals the stored text
 immediately. Navigating away cancels the queue and reopening a thread does not

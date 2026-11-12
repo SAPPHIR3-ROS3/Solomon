@@ -128,6 +128,9 @@ const AssistantTurn = memo(function AssistantTurn({
   const toolCalls = rawActivityEntries.flatMap(({ message }) => message.toolCalls ?? []);
   const hasToolCalls = toolCalls.length > 0;
   const latestMessage = entries.at(-1)?.message;
+  const preferences = useGUIChatPreferencesState();
+  const isInitialCollapsedReasoning = isWorking && preferences.chat.startReasoningCollapsed
+    && entries.length === 1 && !latestMessage?.content.trim() && !hasAnyToolCalls;
   const activeGenerationMessageID = isWorking && (latestMessage?.toolCalls?.length ?? 0) === 0 ? latestMessage?.id : undefined;
   const activityEntries = withActivityCheckpoints(rawActivityEntries, toolCalls);
   const [collapsedOverride, setCollapsedOverride] = useState<boolean | undefined>(undefined);
@@ -196,7 +199,7 @@ const AssistantTurn = memo(function AssistantTurn({
       ) : null}
       {!isWorking ? entries.flatMap(({ message }) => message.fileChanges?.length ? [<FileChangesCard key={message.id} changes={message.fileChanges} />] : []) : null}
       <div className="chat-assistant-footer">
-        {(activeWorkedFor !== undefined || footerMessage.workedFor !== undefined) ? (
+        {!isInitialCollapsedReasoning && (activeWorkedFor !== undefined || footerMessage.workedFor !== undefined) ? (
           <WorkedForCounter isLive={activeWorkedFor !== undefined} seconds={activeWorkedFor ?? footerMessage.workedFor!} />
         ) : null}
         {activeWorkedFor !== undefined ? null : (

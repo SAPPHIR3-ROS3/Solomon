@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/requestbudget"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
 )
 
@@ -145,6 +146,11 @@ func (r *Router) Fetch(ctx context.Context, req Request) (Result, error) {
 	if len(r.adapters) == 0 {
 		return Result{}, errors.New("web fetch router has no configured adapters")
 	}
+	ctx, cancel := context.WithTimeout(ctx, fetchTimeout(req))
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
 	primary, err := r.reservePrimary()
 	if err != nil {
 		return Result{}, err
@@ -153,20 +159,30 @@ func (r *Router) Fetch(ctx context.Context, req Request) (Result, error) {
 	attempts := make([]Attempt, 0, len(order))
 	errs := make([]error, 0, len(order))
 	for index, backend := range order {
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, err)
+			break
+		}
 		if index > 0 {
 			if err := r.reserveAttempt(backend); err != nil {
 				return Result{}, err
 			}
 		}
 		started := time.Now()
-		result, fetchErr := r.adapters[backend].Fetch(ctx, req)
-		attempt := Attempt{Backend: backend, Success: fetchErr == nil, DurationMs: time.Since(started).Milliseconds()}
+		attemptCtx, cancelAttempt, budget := requestbudget.Attempt(ctx, len(order)-index)
+		result, fetchErr := r.adapters[backend].Fetch(attemptCtx, req)
+		if fetchErr == nil && attemptCtx.Err() != nil {
+			fetchErr = attemptCtx.Err()
+		}
+		cancelAttempt()
+		attempt := Attempt{Backend: backend, Success: fetchErr == nil, DurationMs: time.Since(started).Milliseconds(), BudgetMs: budget.Milliseconds()}
 		if fetchErr != nil {
 			attempt.Error = fetchErr.Error()
+			attempt.ErrorKind, attempt.Retryable = classifyFetchFailure(fetchErr)
 			attempts = append(attempts, attempt)
 			errs = append(errs, fmt.Errorf("%s: %w", backend, fetchErr))
 			logging.Log(logging.WARNING_LOG_LEVEL, "web fetch backend failed", logging.LogOptions{Params: map[string]any{
-				"backend": backend, "url": req.URL, "fallback": index > 0, "err": fetchErr.Error(),
+				"backend": backend, "url": req.URL, "fallback": index > 0, "err": fetchErr.Error(), "error_kind": attempt.ErrorKind, "retryable": attempt.Retryable, "budget_ms": attempt.BudgetMs,
 			}})
 			continue
 		}
@@ -174,6 +190,7 @@ func (r *Router) Fetch(ctx context.Context, req Request) (Result, error) {
 			fetchErr = fmt.Errorf("%w: %s", ErrNoContent, backend)
 			attempt.Success = false
 			attempt.Error = fetchErr.Error()
+			attempt.ErrorKind, attempt.Retryable = classifyFetchFailure(fetchErr)
 			attempts = append(attempts, attempt)
 			errs = append(errs, fetchErr)
 			continue

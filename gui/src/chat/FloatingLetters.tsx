@@ -49,6 +49,7 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
     if (highlight) api.CSS.highlights!.set(highlightName, highlight);
     let width = 0, height = 0, frame = 0, previousFrame = 0;
     let seedComposerSides = true;
+    let composerSize = "";
     const renderedResponses = new Map<string, string>();
     let initialized = false;
     let flights: Flight[] = [];
@@ -99,6 +100,14 @@ export function FloatingLetters({ content, density = "medium", messageID, respon
     let ambientColor = getComputedStyle(view).getPropertyValue("--color-text-muted").trim() || "#888";
 
     function resize() {
+      const dockRect = dock?.getBoundingClientRect();
+      const nextComposerSize = dockRect ? `${dockRect.width}:${dockRect.height}` : "";
+      if (composerSize && composerSize !== nextComposerSize) {
+        for (const flight of flights) if (flight.particle?.hidden) replaceParticle(flight.particle);
+        flights = [];
+        highlight?.clear();
+      }
+      composerSize = nextComposerSize;
       invalidateGeometry();
       const rect = shell!.getBoundingClientRect();
       const parent = view!.getBoundingClientRect();

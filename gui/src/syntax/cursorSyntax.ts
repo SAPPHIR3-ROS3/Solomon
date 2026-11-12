@@ -1,5 +1,6 @@
 import type { HighlighterCore, LanguageRegistration, ThemedToken, RegexEngine, ThemeRegistrationRaw } from "@shikijs/types";
-import cursorTheme from "./cursor-dark.json";
+import cursorTheme from "../../../tui/syntax/cursor-dark.json";
+import { recordHighlightedLanguage } from "../programming/languages";
 import cursorLanguages from "./cursor-languages.json";
 import { cursorGrammars } from "./cursorGrammars";
 
@@ -24,6 +25,7 @@ function fallbackHighlighter() {
 }
 
 export async function cursorTokenizer(pathOrLanguage: string, firstLine = "") {
+  recordHighlightedLanguage(pathOrLanguage, firstLine);
   const name = pathOrLanguage.replaceAll("\\", "/").split("/").at(-1)?.toLowerCase() ?? "";
   const labelAlias = name === "shell" ? "shellscript" : name;
   // Plain code fences need neither the language catalog nor the WASM engine.

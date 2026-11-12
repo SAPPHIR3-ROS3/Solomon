@@ -10,6 +10,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/validation"
 
 	"github.com/openai/openai-go/v2"
 )
@@ -20,7 +21,7 @@ const (
 	webSearchDefaultTimeoutS = 30
 	webSearchMaxTimeoutSecs  = 120
 	webSearchMaxResultsCap   = 50
-	webSearchDescription     = `Runs a web search. Set engine to internal to use the host-managed Exa/Parallel MCP router with the native CloakBrowser fallback; internal MCP servers are configured in mcp.json and require no embedded API key. Legacy direct engines remain available during migration: duckduckgo, searxng, googlepse, brave, bing. maxResults default 10 (cap 50).`
+	webSearchDescription     = `Runs a web search. Set engine to internal to use the host-managed Exa/Parallel MCP router with the native CloakBrowser fallback; internal MCP servers are configured in mcp.json and require no embedded API key. Legacy engines: duckduckgo; searxng requires baseURL; googlepse requires apiKey and cx; brave/bing require apiKey. Existing settings are merged before per-call extras. Missing settings return a configuration error before a network request; never invent credentials or silently switch engines. maxResults default 10 (cap 50).`
 )
 
 type webSearchArgs struct {
@@ -68,7 +69,7 @@ func webSearchOpenAI() openai.ChatCompletionToolUnionParam {
 		},
 		"engine": map[string]any{
 			"type":        "string",
-			"description": `Overrides effective engine if set (default from config or duckduckgo during migration; use internal for the MCP router).`,
+			"description": `Overrides the engine selected by configuration. internal requires the configured MCP search runtime; legacy engines require their provider settings.`,
 		},
 		"maxResults": map[string]any{
 			"type":        "integer",
@@ -132,14 +133,29 @@ func execWebSearch(ctx context.Context, env *Env, raw json.RawMessage) (any, err
 		}
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, time.Duration(sec)*time.Second)
-	defer cancel()
-
 	var cfg *config.Root
 	if env != nil {
 		cfg = env.Cfg
 	}
 	extras := MergeWebSearchExtras(cfg, engine, a.Extras)
+
+	if err := search.ValidateConfiguration(engine, extras); err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(engine, search.InternalEngineName) {
+		if _, err := search.Lookup(engine); err != nil {
+			kind := "configuration"
+			if a.Engine != "" {
+				kind = "arguments"
+			}
+			return nil, &validation.Issue{Kind: kind, Component: "webSearch", Field: "engine", Problem: "unsupported search engine; select internal or a registered legacy engine", Cause: err}
+		}
+	}
+	if strings.EqualFold(engine, search.InternalEngineName) && (env == nil || env.WebSearch == nil) {
+		return nil, validation.Configuration("webSearch", "engine", "internal search runtime is unavailable; configure its MCP servers or select a configured engine")
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, time.Duration(sec)*time.Second)
+	defer cancel()
 
 	request := search.Request{
 		Query:      a.Query,

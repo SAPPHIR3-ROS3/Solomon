@@ -46,6 +46,60 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
 | `customizeUI` | agent and chat; prepare and switch Solomon's frontend without restarting the daemon |
 
+### Editing whole-line ranges
+
+`editFile` accepts optional `startLine` and `endLine` (1-based, inclusive), matching `readFile`. Supplying either selects range editing on an existing file; the omitted bound defaults to the first or last line. `newString` is required, including an explicit empty string to delete the selected lines. Non-empty `oldString` checks the selected content before writing and may include or omit the final selected line ending. A mismatch returns `ok=false` without changing the file. Invalid, null, reversed, or out-of-bounds ranges are rejected; range editing cannot be combined with delete or rename.
+
+The SDK adds an optional final `sdk.EditRange{StartLine: first, EndLine: last}` argument to `sdk.EditFile` and `sdk.EditFileResult`; existing calls remain valid. Zero-valued SDK bounds are omitted. A range with both bounds omitted is rejected by the SDK. Typed results include `StartLine` and `EndLine`. For example, `sdk.EditFile("file.go", expectedOld, replacement, "update function", false, sdk.EditRange{StartLine: 10, EndLine: 20})` replaces those whole lines. Use line numbers from a current read or search, not guessed offsets. Prefer `sdk.ReplaceInFile` for exact substring replacements, including changes within a line.
+
+Unselected bytes and their line endings are preserved. The selected lines include their line terminators; when a non-empty replacement lacks a trailing newline, it inherits the last selected line's LF or CRLF ending, preventing concatenation with the next line. Explicit trailing newlines are respected, and the last line without a terminator stays unterminated unless the replacement supplies one. Empty replacements remove the entire selected span. Normal edit checkpointing and file-change tracking apply. Tool displays identify the selected line interval.
+
+### Tool arguments and provider configuration
+
+Dispatch validates a JSON object and non-empty intent before activating instructions or executing tools. Read/edit paths, shell commands, search queries, and fetch URLs must be non-empty strings. Explicit numeric bounds, timeouts, and result limits must be positive integers rather than null, strings, or negative values; reversed line ranges are rejected. Existing positive upper-limit clamping remains unchanged. Supplied edit text must be a string, delete must be boolean, and search extras must be an object. Errors retain the underlying missing-intent sentinel where applicable.
+
+`validation.Issue` separates `arguments`, `configuration`, and `policy` errors, including component and field names without copying supplied values. These categories are logged and retained in orchestration tool-error summaries. Legacy search configuration is checked after merging configured values with per-call extras: Brave/Bing need apiKey, Google PSE also needs cx, and SearxNG needs an absolute HTTP(S) baseURL. Missing/blank settings and malformed endpoints fail before network calls. Wrong value types are argument errors. An explicitly unknown engine is an argument error; an unknown configured engine or unavailable internal search runtime is a configuration error. No credentials, engine selection, or configuration files are changed automatically.
+
+### Failure classification
+
+Build failures carry `error_kind`, `phase`, `retryable`, and `retry_action`. Source syntax/type errors retain `error_type=compile_error`, `phase=compile`, and the `compile_error` field; their precise parse/build step is in `stage`, and `retry_action=fix_source` allows the bounded source-repair loop. Toolchain, filesystem, dependency, network, timeout, and cancellation failures have distinct error types and do not enter that loop. `fix_environment` requires setup repair; `retry_build` denotes a transient build failure without authorizing workspace replay. Typed build errors preserve their underlying cause for `errors.Is`/`errors.As`.
+
+Execution failures distinguish runtime, IPC protocol, cancellation, and timeout errors and return `retryable=false` with `retry_action=inspect_execution`: a possibly executed script must not be blindly replayed. Individual tool-error summaries also include `category`, in addition to the transport/result kind. Unknown compiler failures are conservatively treated as environment failures rather than inventing a source correction.
+
+### Orchestration outcomes
+
+Runtime results distinguish script completion from host-call outcomes. `status=success` and `ok=true` mean the script finished normally and no observed host tool reported failure. `status=partial`, `script_ok=true`, and `ok=false` mean the script finished but at least one host call failed. `status=error` and `script_ok=false` mean the script itself failed. Build and execution failures also include the classification described above.
+
+Host errors, non-zero shell exit codes, shell launch errors, top-level `ok=false`, `isError=true`, and non-empty top-level `error` results are counted. The result includes `observed_tool_calls`, `successful_tool_calls`, `failed_tool_calls`, and up to sixteen `tool_errors` entries containing the observed completion number, tool name, kind, and a bounded message. Additional entries set `tool_errors_truncated=true` while retaining the full failure count. Arguments and shell output are not copied into these summaries. Counters are scoped to one orchestration invocation; observed calls can span worker IPC recovery attempts, while the legacy `tool_calls` field describes the final worker run.
+
+Caught or printed errors remain visible as partial results. Later calls can still run, including deliberate fallback operations; partial results do not automatically replay scripts or mutations. The model must explain whether a fallback completed the task or a failure remains. Tool summaries prioritize partial/error status over optimistic script output. This reporting uses structured host results, not keyword searches in stdout or arbitrary nested data, and cannot detect errors swallowed inside a shell command that returns exit code zero or purely local Go mistakes caught by the script.
+
+Shell process startup failures now return a non-zero sentinel exit code (`-1`) so SDK callers receive an error. Worker logging is disabled on the IPC stdout channel; a script panic is returned through the JSON protocol instead of corrupting it with console log lines.
+
+### Orchestration input strings
+
+`orchestrate` accepts optional `inputs`, an object mapping names to plain-text strings. Keep regexes, replacement text, complex commands, and multiline content there instead of embedding them in Go literals. JSON escaping still applies once to the API request; do not add Go escaping to input values. Existing content should normally be read through the SDK.
+
+For example, supply `"inputs": {"pattern": "\\d+\\.txt"}` in the JSON request, and obtain the literal regex with `pattern, err := sdk.Input("pattern")` inside `main()`. Check the error before passing the value to a search helper. The accessor is local, requires no intent, and does not issue a host tool call. Missing keys return an error; empty values remain valid.
+
+The compiler creates a separate initialization file using `strconv.Quote` for both keys and values. This preserves backslashes, quotes, backticks, newlines, Unicode, and NUL characters without treating payload text as executable Go. Inputs belong to one WASM invocation and do not leak into later runs. Supplying inputs does not repair invalid source: syntax failures still return `compile_error`, with up to eight structured diagnostics (`line`, `column`, `message`, optional `hint`) and input guidance. Existing valid Go escapes keep their original semantics.
+
+### Go compilation diagnostics
+
+Source compilation failures include up to eight structured diagnostics. Compiler messages retain their original text and source position, with a category and recovery hint for imports, undefined symbols, repeated `:=`, unused variables, function return counts, and SDK signatures. Syntax errors continue to use parser diagnostics. The tool description and discovery guidance explain explicit imports, Go string functions, `strings.Index` versus `strings.Cut`, and signature discovery. Diagnostics do not rewrite source or execute a partially compiled script. Regression coverage is in test/go_diagnostics_test.go.
+
+### Go-only orchestration
+
+Orchestration logic belongs in Go and the SDK: JSON parsing, filtering, calculations, and file transformations must not be delegated to generated Python, JavaScript, or other interpreter programs. Project source files may still use their target language, and existing project test/build entrypoints remain runnable. Moving orchestration code into a temporary file or encoded payload is also prohibited by the tool contract.
+
+`internal/sandbox/shellpolicy` validates all model-invoked shell tools, including deferred/legacy dispatch without an orchestrate parent, before instruction activation or process creation. User-entered terminal commands use a separate path. It rejects recognized inline interpreter invocations (including eval flags, stdin, pipelines, common launchers, and remote SSH commands), heredocs, backtick substitutions, dynamic executable names, and nested shell eval commands. Ordinary `$(...)` substitutions are recursively validated when used as argument values; substitution-generated executable names are rejected. Simple shell counters are supported; arithmetic containing command substitutions or dynamic expansions is rejected. Normal host commands and existing script/test entrypoints are supported. The validator is a command-policy check, not a complete shell interpreter or an isolation boundary: it does not inspect arbitrary project scripts or executable aliases. The same Go-only rule is included in the agent template, orchestration tool descriptions, and SDK discovery responses.
+
+The policy also examines common indirect launchers: xargs, find -exec/-execdir/-ok, docker/podman run/exec (including entrypoint and compose), kubectl exec, env split-string, leading redirections, and SSH command-bearing options. It rejects shell alias/source/eval setup and encoded inline preload programs. Unknown launcher options are conservatively rejected. Once an actual project script is selected, its arguments remain data; for example, node file.js -e expected is distinct from node -e code. Python warning/implementation options and Node preloads are parsed before the script boundary.
+
+This remains a preventive command check rather than a security sandbox. It does not inspect arbitrary script contents, existing shell startup configuration, custom executables, unrecognized executable aliases, container image behavior, or project runner configuration. Those can execute code outside the visible command. A stronger guarantee would require a narrower execution surface or process isolation, not additional keyword matching.
+
+Regression coverage is in test/orchestrate_shell_policy_test.go, test/shell_wrappers_test.go, and test/argument_configuration_test.go, including rejected compound commands that must not create marker files.
+
 ### Image reads
 
 `readFile` recognizes PNG, JPEG, and WebP by their binary signatures, including files without an extension. `sdk.ReadFile(path, intent)` automatically attaches the image to the orchestrate result even when the script does not print its return value. The returned string describes the image; `sdk.ReadFileInfo` also exposes `Type`, `MIMEType`, `Width`, `Height`, and `SizeBytes`. Existing text reads and their line ranges retain their behavior. Image reads reject line ranges, malformed image headers, and files larger than 5 MiB.

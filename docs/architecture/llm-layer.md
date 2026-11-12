@@ -179,3 +179,11 @@ so explicit zero survives JSON `omitempty`; legacy zero without this marker
 is unknown. The chat API uses the same `-1` sentinel, shown as `—` in the GUI
 and `n/a` in terminal and transcript output. Anthropic prompt totals include
 ordinary input, cache reads, and cache creation tokens.
+
+## Shared retry time budgets
+
+`internal/requestbudget` splits the remaining parent deadline equally among attempts still available. Unused time is reclaimed for later attempts; child timeouts preserve the parent context, while parent cancellation stops the sequence. Backoff and `Retry-After` consume the same overall budget. A delay that cannot fit ends the sequence without issuing an early retry, preserving both the last failure and the budget error. Deadlines are cooperative: adapters and providers must honor their contexts.
+
+The resilient LLM wrapper applies the configured `ReadTimeout` once to the full sequence, also respecting an earlier caller deadline, and passes a child context to each provider attempt. Without either deadline the wrapper remains unbounded by time, retaining its attempt count limit. Existing retry/circuit policy remains in place; HTTP/2 GOAWAY is classified as transient. Retry logs include the attempt budget. This does not add any workspace-script or mutation replay.
+
+The web-fetch router bounds the complete fallback chain by the request timeout and distributes the remaining time among the remaining backends. It checks parent cancellation before starting another backend. Attempt metadata includes `budgetMs`, `errorKind`, and `retryable`, also exposed by the SDK. Provider-specific fallbacks can still run after a permanent failure of a different provider; that is separate from repeating the same request to the same backend. Legacy direct HTTP fetching shares its timeout across all GET attempts and their waits; transient statuses include 408, 429, 500, 502, 503, and 504. Cancellation, permanent HTTP failures, and DNS NXDOMAIN are not retried. HTTP attempt logs omit URL paths, queries, arguments, and response bodies.

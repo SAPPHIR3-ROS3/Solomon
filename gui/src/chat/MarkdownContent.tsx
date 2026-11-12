@@ -51,7 +51,11 @@ const MAX_CACHED_CHARS = 2_000_000;
 let cachedChars = 0;
 
 export const MarkdownContent = memo(function MarkdownContent({ content, preserveLineBreaks = false }: { content: string; preserveLineBreaks?: boolean }) {
-  if (preserveLineBreaks) return <div className="chat-user-text">{content}</div>;
+  if (preserveLineBreaks) return <div className="chat-user-text">{content.split(/(\[(?:img-\d+|terminal-L\d+-L\d+)\])/g).map((part, index) => (
+    /^\[(?:img-\d+|terminal-L\d+-L\d+)\]$/.test(part)
+      ? <span className={`composer-image-tag ${part.startsWith("[terminal-") ? "chat-terminal-tag" : "chat-image-tag"}`} key={index}>{part}</span>
+      : part
+  ))}</div>;
   const cacheKey = content;
   const cached = markdownTrees.get(cacheKey);
   if (cached !== undefined) {

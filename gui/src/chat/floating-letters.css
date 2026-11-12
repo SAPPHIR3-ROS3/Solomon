@@ -1,4 +1,8 @@
 .chat-floating-letters {
+  contain: strict;
+  isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
   position: absolute;
   pointer-events: none;
   user-select: none;

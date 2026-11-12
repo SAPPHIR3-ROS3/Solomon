@@ -22,7 +22,7 @@ func TestFormatGo_displayFormatsCompactSourceWithoutChangingInvalidFallback(t *t
 		Source string `json:"source"`
 	}
 	decodeServerTestJSON(t, response, &payload)
-	if !strings.Contains(payload.Source, "func main() {") || !strings.Contains(payload.Source, "\tfmt.Println") {
+	if !strings.Contains(payload.Source, "func main() {") || !strings.Contains(payload.Source, "  fmt.Println") {
 		t.Fatalf("formatted source missing indent: %q", payload.Source)
 	}
 	if strings.Contains(payload.Source, "package main;") {

@@ -1,10 +1,14 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 
-const server = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false } });
-after(() => server.close());
+const testCacheDir = mkdtempSync(join(tmpdir(), "solomon-vite-test-"));
+const server = await createServer({ cacheDir: testCacheDir, root: fileURLToPath(new URL("..", import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false } });
+after(async () => { await server.close(); rmSync(testCacheDir, { recursive: true, force: true }); });
 const { createChatStreamBatch } = await server.ssrLoadModule("/src/chat/streamBatch.ts");
 const { applyLiveStreamEvent } = await server.ssrLoadModule("/src/chat/chatClient.ts");
 const { saveChat, getChat, updateChat, clearChatStore } = await server.ssrLoadModule("/src/chat/chatStore.ts");

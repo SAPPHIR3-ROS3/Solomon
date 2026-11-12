@@ -114,6 +114,7 @@ test('dropped images share pasted previews, editing and sent attachments', async
   {name:'pasted.png',hasBytes:true},{name:'dropped one.png',hasBytes:true},{name:'dropped two.png',hasBytes:true},
  ]);
  await page.waitForFunction(()=>document.querySelectorAll('.chat-message-images .composer-image-preview').length===3);
+ assert.equal(await page.locator('.chat-user-text .chat-image-tag').count(),3);
  await page.waitForFunction(()=>document.querySelectorAll('.welcome-composer .composer-image-preview').length===0);
 });
 

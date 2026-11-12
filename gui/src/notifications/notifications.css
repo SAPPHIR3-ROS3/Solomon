@@ -49,3 +49,8 @@
 .notification-child { border-left: 2px solid var(--color-border); padding: 5px 0 5px 8px; margin-top: 4px; }
 .notification-toast:has(.notification-related) { height: auto; min-height: 0; max-height: 240px; overflow-y: auto; }
 .notification-toast > .notification-related { flex-shrink: 0; }
+
+.notification-message { margin-top: 3px; min-width: 0; font-size: 12px; line-height: 1.35; }
+.notification-message summary { cursor: pointer; overflow-wrap: anywhere; white-space: pre-wrap; }
+.notification-message p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.notification-toast:has(.notification-message[open]) { max-height: 240px; overflow-y: auto; }

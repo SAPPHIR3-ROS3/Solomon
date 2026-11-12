@@ -83,7 +83,7 @@ export function usePacedChatMessages(key: string, messages: ChatMessage[], enabl
     Object.assign(current, { key, enabled, messages });
     if (changed && !reset) redraw(value => value + 1);
     if (enabled && !media?.matches && !document.hidden && !current.frame && [...current.responses.values()].some(response => response.shown !== response.source)) {
-      current.nextAt = performance.now() + TOKEN_INTERVAL_MS;
+      current.nextAt = performance.now();
       current.frame = requestAnimationFrame(step);
     }
   }, [key, messages, enabled, media]);
