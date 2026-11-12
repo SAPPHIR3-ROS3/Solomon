@@ -129,6 +129,12 @@ export function ChatImageArrowIcon({ direction }: { direction: "left" | "right" 
   );
 }
 
+function openSectionOnce(node: HTMLDetailsElement | null) {
+  if (!node || node.dataset.initialOpen) return;
+  node.open = true;
+  node.dataset.initialOpen = "";
+}
+
 export const CompactionCard = memo(function CompactionCard({ message }: { message: ChatMessage }) {
   const retainedMessages = message.retainedMessages ?? [];
 
@@ -142,7 +148,7 @@ export const CompactionCard = memo(function CompactionCard({ message }: { messag
           </svg>
         </summary>
         <div className="chat-compaction-body">
-          <details className="chat-compaction-section" defaultOpen>
+          <details className="chat-compaction-section" ref={openSectionOnce}>
             <summary className="chat-compaction-section-summary">
               <span className="chat-compaction-eyebrow">Summary</span>
               <svg aria-hidden="true" className="chat-compaction-section-chevron" viewBox="0 0 24 24">
@@ -155,7 +161,7 @@ export const CompactionCard = memo(function CompactionCard({ message }: { messag
               </div>
             </div>
           </details>
-          <details className="chat-compaction-section" defaultOpen>
+          <details className="chat-compaction-section" ref={openSectionOnce}>
             <summary className="chat-compaction-section-summary">
               <span className="chat-compaction-eyebrow">Recent messages</span>
               <svg aria-hidden="true" className="chat-compaction-section-chevron" viewBox="0 0 24 24">
