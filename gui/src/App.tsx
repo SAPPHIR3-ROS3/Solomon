@@ -46,7 +46,7 @@ export function App() {
   const [client, setClient] = useState(initialClient);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [isRightSidePanelOpen, setIsRightSidePanelOpen] = useState(false);
-  const [isTerminalPanelOpen, setIsTerminalPanelOpen] = useState(false);
+  const [openTerminalProjects, setOpenTerminalProjects] = useState<Record<string, boolean>>({});
   const [hasOpenedTerminalPanel, setHasOpenedTerminalPanel] = useState(false);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [editorFile, setEditorFile] = useState<{ projectID: string; entry: import("./projects/projects").ProjectDirectoryEntry } | null>(null);
@@ -59,6 +59,14 @@ export function App() {
   const [activeTemporaryWorkspaceID, setActiveTemporaryWorkspaceID] = useState<string | null>(null);
   const [welcomeKeepAliveHeight, setWelcomeKeepAliveHeight] = useState(0);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Project | null>(null);
+  const terminalProjectId = selectedWorkspace?.id ?? (activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace.id : "home");
+  const isTerminalPanelOpen = openTerminalProjects[terminalProjectId] ?? false;
+  function setIsTerminalPanelOpen(value: boolean | ((open: boolean) => boolean), projectId = terminalProjectId) {
+    setOpenTerminalProjects((current) => ({
+      ...current,
+      [projectId]: typeof value === "function" ? value(current[projectId] ?? false) : value,
+    }));
+  }
   const resolvingMessageProject = useRef(false);
   const [isResolvingMessageProject, setIsResolvingMessageProject] = useState(false);
   const [welcomeResetToken, setWelcomeResetToken] = useState(0);
@@ -217,7 +225,7 @@ export function App() {
     setWorkspaceFocus({ project, token: Date.now() });
     setSelectedResearch(null);
     setHasOpenedTerminalPanel(true);
-    setIsTerminalPanelOpen(true);
+    setIsTerminalPanelOpen(true, project.id);
   }
 
   async function openActiveAgent(projectID: string, projectName: string, node: ActiveAgentNode) {
@@ -399,7 +407,7 @@ export function App() {
           onHeightChange={handleTerminalHeightChange}
           onProjectArmedChange={handleProjectTerminalArmedChange}
           onProjectRunningChange={handleProjectTerminalRunningChange}
-          projectId={selectedWorkspace?.id ?? (activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace.id : "home")}
+          projectId={terminalProjectId}
           workingDirectory={selectedWorkspace?.path ?? (activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace.path : "")}
         />
       ) : null}
