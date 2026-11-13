@@ -1,3 +1,4 @@
+import { useToolTimeline } from "./useToolTimeline";
 import { FileChangesCard } from "./FileChangesCard";
 import { memo, useEffect, useRef, useState } from "react";
 import type { ChatMessage, ChatToolCall } from "./chatTypes";
@@ -149,6 +150,7 @@ const AssistantTurn = memo(function AssistantTurn({
     rateLimited: Boolean(rateLimitNotice),
     startToolCallsCollapsed,
   });
+  const timelineRef = useToolTimeline();
   const timelineClassName = [
     "chat-assistant-timeline",
     hasToolCalls ? "has-tool-activity" : "",
@@ -162,7 +164,7 @@ const AssistantTurn = memo(function AssistantTurn({
 
   return (
     <div className="chat-turn is-assistant">
-      <div className={timelineClassName}>
+      <div className={timelineClassName} ref={timelineRef}>
         {(!hasToolCalls || !isToolActivityCollapsed) ? shownActivityEntries.map((entry, entryIndex) => {
           const actions = messageActions(entry, { onOpenSubagent, onStopTool });
           const toolActivity = hasToolCalls ? {

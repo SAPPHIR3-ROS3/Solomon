@@ -129,15 +129,14 @@
 .chat-tool-activity { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 18px; padding-left: 9px; position: relative; }
 .chat-tool-activity::before { background: color-mix(in srgb, var(--color-border) 72%, var(--color-accent)); bottom: 16px; content: ""; left: 9px; pointer-events: none; position: absolute; top: 19px; width: 1px; }
 .chat-tool-activity.is-collapsed::before { display: none; }
-.chat-tool-card { background: color-mix(in srgb, var(--color-canvas) 82%, var(--color-surface)); border: 0; border-left: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent)); border-radius: 0; overflow: visible; padding-left: 12px; position: relative; }
+.chat-tool-card { --chat-tool-background: color-mix(in srgb, var(--color-canvas) 82%, var(--color-surface)); background: transparent; border: 0; border-left: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent)); border-radius: 0; overflow: visible; padding-left: 12px; position: relative; }
+.chat-tool-card > details { background: var(--chat-tool-background); border-radius: 8px; }
 .chat-tool-card details:not([open]) > .chat-tool-body { display: none; }
 .chat-tool-card::after { border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent); border-radius: 8px; content: ""; inset: 0 0 0 12px; pointer-events: none; position: absolute; }
 .chat-tool-card.is-error { border-left-color: color-mix(in srgb, var(--color-danger) 62%, var(--color-border)); }
 .chat-tool-card.is-error::after { border-color: color-mix(in srgb, var(--color-danger) 48%, var(--color-border)); }
-.chat-code-mode-card { --chat-code-mode-accent: var(--color-accent); background: color-mix(in srgb, var(--color-canvas) 84%, var(--color-surface)); border-left-color: color-mix(in srgb, var(--chat-code-mode-accent) 70%, var(--color-border)); }
-.chat-code-mode-card::after { border-color: color-mix(in srgb, var(--chat-code-mode-accent) 28%, var(--color-border)); }
+.chat-code-mode-card { --chat-code-mode-accent: var(--color-accent); --chat-tool-background: color-mix(in srgb, var(--color-canvas) 84%, var(--color-surface)); border-left-color: color-mix(in srgb, var(--chat-code-mode-accent) 70%, var(--color-border)); }
 .chat-code-mode-card.is-error { border-left-color: color-mix(in srgb, var(--color-danger) 68%, var(--color-border)); }
-.chat-code-mode-card.is-error::after { border-color: color-mix(in srgb, var(--color-danger) 50%, var(--color-border)); }
 .chat-subagent-card { background: transparent; border: 0; border-left: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent)); border-radius: 0; cursor: pointer; overflow: visible; padding: 0 0 0 12px; position: relative; }
 .chat-subagent-card::after { border: 1px solid color-mix(in srgb, var(--color-border) 78%, transparent); border-radius: 9px; content: ""; inset: 0 0 0 12px; pointer-events: none; position: absolute; }
 .chat-subagent-card.is-interrupted { border-left-color: color-mix(in srgb, var(--color-danger) 62%, var(--color-border)); }

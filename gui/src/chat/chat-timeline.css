@@ -30,9 +30,24 @@
   left: 26px;
   pointer-events: none;
   position: absolute;
-  top: 0;
+  top: var(--chat-timeline-start, 100%);
   width: 1px;
   z-index: 0;
+}
+
+.chat-assistant-timeline.has-tool-activity [data-timeline-first] {
+  border-left-color: transparent;
+}
+
+.chat-assistant-timeline.has-tool-activity [data-timeline-first]::before {
+  background: var(--chat-timeline-line-color);
+  bottom: 0;
+  content: "";
+  left: -1px;
+  pointer-events: none;
+  position: absolute;
+  top: var(--chat-timeline-card-start);
+  width: 1px;
 }
 
 .chat-assistant-timeline.has-tool-activity.is-tool-activity-collapsed::before {
