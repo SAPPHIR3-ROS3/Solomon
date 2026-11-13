@@ -9,7 +9,7 @@ import rehypeKatex from "rehype-katex";
 import { normalizeMathDelimiters } from "./mathDelimiters";
 import "katex/dist/katex.min.css";
 import "./math.css";
-import { rehypeImageTags } from "./rehypeImageTags";
+import { decorateText, rehypeImageTags } from "./rehypeImageTags";
 import "./imageTags.css";
 import { CheckIcon, CopyIcon } from "./ChatIcons";
 import { copyText } from "./chatClipboard";
@@ -51,7 +51,9 @@ const MAX_CACHED_CHARS = 2_000_000;
 let cachedChars = 0;
 
 export const MarkdownContent = memo(function MarkdownContent({ content, preserveLineBreaks = false }: { content: string; preserveLineBreaks?: boolean }) {
-  if (preserveLineBreaks) return <div className="chat-user-text">{content}</div>;
+  if (preserveLineBreaks) return <div className="chat-user-text">{decorateText({ type: "text", value: content }).map((node, index) => node.type === "text"
+    ? node.value
+    : <span className={(node.properties.className as string[]).join(" ")} key={index}>{node.children.map(child => child.type === "text" ? child.value : "").join("")}</span>)}</div>;
   const cacheKey = content;
   const cached = markdownTrees.get(cacheKey);
   if (cached !== undefined) {

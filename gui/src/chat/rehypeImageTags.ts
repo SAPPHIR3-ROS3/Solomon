@@ -19,7 +19,7 @@ export function rehypeImageTags() {
   };
 }
 
-function decorateText(node: Text): Array<Text | Element> {
+export function decorateText(node: Text): Array<Text | Element> {
   const result: Array<Text | Element> = [];
   let offset = 0;
   const pattern = /\[(?:img-\d+|terminal-L\d+-L\d+)\]/g;

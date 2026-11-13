@@ -14,6 +14,17 @@ const tag = (id) => '[' + 'img-' + id + ']';
 const render = (content) => renderToStaticMarkup(createElement(MarkdownContent, { content }));
 const badges = (html) => (html.match(/class="composer-image-tag chat-image-tag"/g) ?? []).length;
 
+test('sent user text keeps image badges, literal formatting and line breaks after reopening', () => {
+  const content = '[img-0] **literal**\n  [img-12] <script>alert(1)</script>\n[terminal-L3-L7]';
+  const renderUser = value => renderToStaticMarkup(createElement(MarkdownContent, { content: value, preserveLineBreaks: true }));
+  const html = renderUser(content);
+  assert.equal(badges(html), 2);
+  assert.ok(html.includes('chat-terminal-tag'));
+  assert.ok(html.includes(' **literal**\n  <span'));
+  assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;\n'));
+  assert.equal(renderUser(JSON.parse(JSON.stringify({ content })).content), html);
+});
+
 test('sent and reopened content renders identical badges without metadata', () => {
   const content = 'Before ' + tag(0) + ' ' + tag(12) + ' ' + tag(0) + ' after';
   const saved = JSON.parse(JSON.stringify({ content }));
