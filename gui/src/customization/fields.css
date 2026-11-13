@@ -1,0 +1,30 @@
+.customization-text-input {
+  appearance: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  font: 13px/1.4 "Geist", ui-sans-serif, system-ui, sans-serif;
+  height: 44px;
+  min-width: 0;
+  outline: 0;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.customization-text-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.customization-text-input:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 20%, transparent);
+}
+
+.customization-text-input:disabled {
+  opacity: 0.6;
+}
+
+.customization-skills-head {
+  margin-bottom: 20px;
+}

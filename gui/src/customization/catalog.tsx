@@ -161,6 +161,8 @@ export function CatalogList({
   query,
   onToggle,
   isSaving = false,
+  onEdit,
+  onRemove,
 }: {
   emptyLabel: string;
   isLoading: boolean;
@@ -169,7 +171,18 @@ export function CatalogList({
   query: string;
   onToggle?: (item: CustomizationCatalogItem) => void;
   isSaving?: boolean;
+  onEdit?: (item: CustomizationCatalogItem) => void;
+  onRemove?: (item: CustomizationCatalogItem) => void;
 }) {
+  const [menuId, setMenuId] = useState<string | null>(null);
+  useEffect(() => {
+    if (menuId === null) return;
+    const close = () => setMenuId(null);
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("click", close); window.removeEventListener("keydown", escape); };
+  }, [menuId]);
   return (
     <div className="customization-rules">
       {items.map((item) => (
@@ -193,7 +206,15 @@ export function CatalogList({
               title={item.disabled ? "Disabled — enable MCP" : "Enabled — disable MCP"}
               type="button"
             ><span /></button>
-          ) : <button aria-label={`More options for ${kind} ${item.title}`} className="customization-rule-more" type="button">
+          ) : onEdit && onRemove ? (
+            <div className="customization-rule-more-wrap" onClick={(event) => event.stopPropagation()}>
+              <button aria-label={`More options for ${kind} ${item.title}`} aria-expanded={menuId === item.id} aria-haspopup="menu" className="customization-rule-more" disabled={isSaving} onClick={() => setMenuId(menuId === item.id ? null : item.id)} type="button"><MoreIcon /></button>
+              {menuId === item.id ? <div className="customization-rule-menu" role="menu">
+                <button role="menuitem" type="button" onClick={() => { setMenuId(null); onEdit(item); }}>Edit</button>
+                <button className="is-danger" role="menuitem" type="button" onClick={() => { setMenuId(null); onRemove(item); }}>Remove</button>
+              </div> : null}
+            </div>
+          ) : <button aria-label={`More options for ${kind} ${item.title}`}  className="customization-rule-more" type="button">
             <MoreIcon />
           </button>}
         </div>

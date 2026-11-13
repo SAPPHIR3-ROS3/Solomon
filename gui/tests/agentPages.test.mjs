@@ -72,3 +72,40 @@ test("wide desktop navigation preserves docked panels", async () => {
     assert.equal(await page.getByRole("button", { name: "Agents Customization", exact: true }).getAttribute("aria-pressed"), "true");
   } finally { await page.close(); }
 });
+
+for (const valid of [true, false]) {
+  test(`skill Edit ${valid ? "loads Markdown and saves changes" : "keeps the page usable when Markdown is missing"}`, async () => {
+    const page = await openPage("/agents/customization");
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    const skill = { id: "fixture", title: "Fixture skill", detail: "Fixture description" };
+    let saved;
+    await page.route("**/__solomon/skills*", route => {
+      const request = route.request();
+      if (request.method() === "PATCH") {
+        saved = request.postDataJSON().content;
+        return route.fulfill({ json: { skills: [skill] } });
+      }
+      const editing = new URL(request.url()).searchParams.has("id");
+      return route.fulfill({ json: editing && valid ? { content: "---\nname: Fixture skill\n---\nOriginal instructions" } : { skills: [skill] } });
+    });
+    try {
+      await page.getByRole("tab", { name: "Skills", exact: true }).click();
+      await page.getByRole("button", { name: "More options for skill Fixture skill", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+      if (valid) {
+        const editor = page.getByRole("textbox", { name: "Skill Markdown", exact: true });
+        await editor.waitFor();
+        assert.match(await editor.inputValue(), /Original instructions/);
+        await editor.fill("Updated instructions");
+        await page.getByRole("button", { name: "Save", exact: true }).click();
+        await page.getByRole("button", { name: "More options for skill Fixture skill", exact: true }).waitFor();
+        assert.equal(saved, "Updated instructions");
+      } else {
+        await page.getByRole("alert").filter({ hasText: "did not return the skill Markdown" }).waitFor();
+        await page.getByRole("button", { name: "More options for skill Fixture skill", exact: true }).waitFor();
+      }
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  });
+}

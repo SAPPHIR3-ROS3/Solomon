@@ -13,6 +13,14 @@ import (
 )
 
 func (a *customizationAPI) handleSkills(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPatch || r.Method == http.MethodDelete || (r.Method == http.MethodGet && r.URL.Query().Get("id") != "") {
+		a.editSkill(w, r)
+		return
+	}
+	if r.Method == http.MethodPost {
+		a.addSkill(w, r)
+		return
+	}
 	a.handleCatalogGET(w, r, "skills", readGlobalSkills)
 }
 

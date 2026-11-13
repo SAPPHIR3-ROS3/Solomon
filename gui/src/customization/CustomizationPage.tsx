@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { CatalogList, EditableCatalogList, RulesList, SearchIcon, catalogMatches, useRolesTableEditor } from "./catalog";
 import { SystemPromptsPanel } from "./prompts";
 import { GlobalAgentsPanel } from "./globalAgents";
+import { SkillsList } from "./SkillsList";
+import { AddSkillPanel } from "./AddSkillPanel";
 import { NewSubagentPanel } from "./NewSubagentPanel";
 import {
   createCustomizationRule,
@@ -22,7 +24,6 @@ import {
   type CustomizationRule,
   type SubagentScore,
 } from "./rules";
-
 const CATALOG_POLL_MS = 1000;
 type DropIndicator = {
   position: "before" | "after";
@@ -31,6 +32,8 @@ type DropIndicator = {
 
 export function CustomizationPage() {
   const [activeFilter, setActiveFilter] = useState<CustomizationFilter>("System Prompts");
+  const [isEditingSkill, setIsEditingSkill] = useState(false);
+  const [isAddingSkill, setIsAddingSkill] = useState(false);
   const [query, setQuery] = useState("");
   const [isCreatingRule, setIsCreatingRule] = useState(false);
   const [newRuleText, setNewRuleText] = useState("");
@@ -72,7 +75,7 @@ export function CustomizationPage() {
   const visibleMcps = mcps.filter((item) => catalogMatches(item, normalizedQuery));
   const visibleSubagents = subagents.filter((item) => catalogMatches(item, normalizedQuery));
   const canReorderRules = !isCreatingRule && !isSavingRuleOrder && !query.trim() && editingRuleId === null && !isDeletingRule;
-  interactionLock.current = isCreatingRule || isCreatingSubagent || isSavingMcp || draggedRuleId !== null || isSavingRuleOrder || editingRuleId !== null || isSavingRuleText || isDeletingRule || editingSubagentId !== null || isSavingSubagent || isDeletingSubagent || rolesTable.isBusy;
+  interactionLock.current = isEditingSkill || isAddingSkill || isCreatingRule || isCreatingSubagent || isSavingMcp || draggedRuleId !== null || isSavingRuleOrder || editingRuleId !== null || isSavingRuleText || isDeletingRule || editingSubagentId !== null || isSavingSubagent || isDeletingSubagent || rolesTable.isBusy;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -372,10 +375,10 @@ export function CustomizationPage() {
           </label>
         </div>
 
-        <Filters activeFilter={activeFilter} disabled={isCreatingSubagent} onChange={setActiveFilter} />
+        <Filters activeFilter={activeFilter} disabled={isCreatingSubagent} onChange={(filter) => { if (filter !== activeFilter) setIsAddingSkill(false); setActiveFilter(filter); }} />
 
         {activeFilter !== "System Prompts" && activeFilter !== "Global AGENTS.md" ? (
-          <div className="customization-list-head">
+          <div className={`customization-list-head${activeFilter === "Skills" ? " customization-skills-head" : ""}`}>
             <div className="customization-list-head-title">
               <h1>
                 {activeFilter}
@@ -383,11 +386,13 @@ export function CustomizationPage() {
               </h1>
               {!isCreatingSubagent ? rolesTable.button : null}
             </div>
+            {activeFilter === "Skills" ? <button className="customization-new" disabled={interactionLock.current} onClick={() => setIsAddingSkill(true)} type="button">+ Add</button> : null}
             {activeFilter === "Rules" ? <button className="customization-new" disabled={interactionLock.current} onClick={() => { setMenuRuleId(null); setNewRuleText(""); setNewRuleError(""); setIsCreatingRule(true); }} type="button">+ New</button> : null}
             {activeFilter === "Subagents" ? <button className="customization-new" disabled={isCreatingSubagent || interactionLock.current} onClick={() => { setMenuSubagentId(null); setIsCreatingSubagent(true); }} type="button">+ New</button> : null}
           </div>
         ) : null}
         {rolesTable.panel}
+        {activeFilter === "Skills" && isAddingSkill ? <AddSkillPanel onCancel={() => setIsAddingSkill(false)} onAdded={(items) => { setSkills(items); setQuery(""); setIsAddingSkill(false); }} /> : null}
         {activeFilter === "Subagents" && isCreatingSubagent ? <NewSubagentPanel onCancel={() => setIsCreatingSubagent(false)} onCreated={(items) => { setSubagents(items); setQuery(""); setIsCreatingSubagent(false); }} /> : null}
         {activeFilter === "Rules" && isCreatingRule ? (
           <form aria-label="New rule" className="customization-rule-editor" onSubmit={(event) => { event.preventDefault(); void saveNewRule(); }}>
@@ -439,13 +444,7 @@ export function CustomizationPage() {
           />
         ) : null}
         {activeFilter === "Skills" ? (
-          <CatalogList
-            emptyLabel="No global Solomon skills configured yet."
-            isLoading={isLoadingCatalog}
-            items={visibleSkills}
-            kind="skill"
-            query={query}
-          />
+          <SkillsList items={visibleSkills} isLoading={isLoadingCatalog} query={query} onChanged={setSkills} onBusy={setIsEditingSkill} />
         ) : null}
         {activeFilter === "MCPs" ? (
           <>
