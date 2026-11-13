@@ -3,8 +3,10 @@ import { useGUIChatPreferencesState } from "../settings/chatPreferences";
 import { composerDraftKey } from "../chat/composerDrafts";
 import { NotificationControl } from "../notifications/Notifications";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import asciiBanner from "../../../internal/logo/logo.txt?raw";
-import asciiColors from "../../../internal/logo/colors.txt?raw";
+import { AsciiBanner } from "./AsciiBanner";
+export { AsciiBanner } from "./AsciiBanner";
+import { WorkspaceControl, FolderIcon, ChevronIcon } from "./WorkspaceControl";
+import { CatalogCounts, useCatalogCounts } from "./CatalogCounts";
 import { serverEndpoint } from "../platform";
 import {
   cacheHomeStats,
@@ -54,10 +56,10 @@ type Visibility = {
   tokenCount: boolean;
 };
 
-const asciiColorRows = asciiColors.trim().split(/\r?\n/).map((row) => row.trim().split(/\s+/));
 
 export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspaceActive = false, isVisible = true, onComposerBoundsChange, onKeepAliveHeightChange, onOpenNewProject, onOpenTemporaryWorkspace, onTemporaryWorkspacePathChange, onSend, onWorkspaceChange, resetToken = 0, temporaryWorkspace = null, workspaceNameOverride = null, workspaceFocus = null }: WelcomeProps) {
   const { chat: chatPreferences } = useGUIChatPreferencesState();
+  const catalogCounts = useCatalogCounts(isVisible);
   const [quotaProvider, setQuotaProvider] = useState("");
   const [userName, setUserName] = useState(() => getCachedUserName() ?? "");
   const [projects, setProjects] = useState<Project[]>(() => getCachedProjectSidebarData()?.projects ?? []);
@@ -227,7 +229,7 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
     if (measureComposerRef.current) observer.observe(measureComposerRef.current);
     update();
     return () => observer.disconnect();
-  }, [bottomInset, homeStats?.chatCount, homeStats?.tokenStats?.total, selectedProject?.chatCount, selectedProject?.tokenStats?.total, userName, version, workspaceNameOverride]);
+  }, [catalogCounts.skills, catalogCounts.mcps, bottomInset, homeStats?.chatCount, homeStats?.tokenStats?.total, selectedProject?.chatCount, selectedProject?.tokenStats?.total, userName, version, workspaceNameOverride]);
 
   const displayName = userName || "User";
   const homeStatsFallback = !workspaceNameOverride && (!selectedProject || selectedProject.name === "Home") ? homeStats : null;
@@ -275,8 +277,9 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
           <div className="welcome-chat-count">
             <strong>{formatChatCount(displayChatCount)}</strong> {displayChatCount === 1 ? "chat" : "chats"}
           </div>
+          <CatalogCounts counts={catalogCounts} />
           <div className="welcome-token-count" title="Approximate tokens used in this folder">
-            <WelcomeTokenBreakdown stats={tokenStats} />
+            <WelcomeTokenTotal stats={tokenStats} />
           </div>
         </div>
       </div>
@@ -374,8 +377,9 @@ export function Welcome({ bottomInset = 0, isSending = false, isTemporaryWorkspa
             <div className="welcome-chat-count">
               <strong>{formatChatCount(displayChatCount)}</strong> {displayChatCount === 1 ? "chat" : "chats"}
             </div>
+            <CatalogCounts counts={catalogCounts} />
             <div className="welcome-token-count" title="Approximate tokens used in this folder">
-              <WelcomeTokenBreakdown stats={tokenStats} />
+              <WelcomeTokenTotal stats={tokenStats} />
             </div>
           </div>
         ) : null}
@@ -403,17 +407,11 @@ function formatChatCount(value: number): string {
   return Math.max(0, Math.round(value)).toLocaleString("en-US");
 }
 
-function WelcomeTokenBreakdown({ stats }: { stats: ProjectTokenStats }) {
+function WelcomeTokenTotal({ stats }: { stats: ProjectTokenStats }) {
   const total = stats.total || stats.user + stats.reasoning + stats.response;
   return (
-    <span aria-label={`Approximate tokens: ${stats.user} user, ${stats.reasoning} reasoning, ${stats.response} response, ${total} total`} className="welcome-token-breakdown">
+    <span aria-label={`Approximate total tokens: ${total}`} className="welcome-token-breakdown">
       <span className="welcome-token-approximation">~</span>
-      <span className="welcome-token-part is-user">{formatTokenValue(stats.user)}</span>
-      <i className="welcome-token-separator">+</i>
-      <span className="welcome-token-part is-reasoning">{formatTokenValue(stats.reasoning)}</span>
-      <i className="welcome-token-separator">+</i>
-      <span className="welcome-token-part is-response">{formatTokenValue(stats.response)}</span>
-      <i className="welcome-token-separator">=</i>
       <span className="welcome-token-part is-total">{formatTokenValue(total)}</span>
       <span className="welcome-token-label">tokens</span>
     </span>
@@ -427,253 +425,4 @@ function formatTokenValue(value: number): string {
 function projectPathsMatch(left: string, right: string): boolean {
   const normalize = (value: string) => value.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   return normalize(left) === normalize(right);
-}
-
-function WorkspaceControl({
-  onOpenNewProject,
-  workspaceName,
-  projects,
-  homeProject,
-  open,
-  onOpenChange,
-  onSelect,
-  onSelectTemporaryWorkspace,
-  temporaryWorkspace,
-}: {
-  onOpenNewProject?: () => void;
-  workspaceName: string;
-  projects: Project[];
-  homeProject?: Project;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelect: (project?: Project) => void;
-  onSelectTemporaryWorkspace?: () => void;
-  temporaryWorkspace?: TemporaryWorkspace | null;
-}) {
-  const [showAll, setShowAll] = useState(false);
-  const [query, setQuery] = useState("");
-  const listRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const normalizedQuery = query.trim().toLowerCase();
-  const matches = (name: string, path: string) => !normalizedQuery || name.toLowerCase().includes(normalizedQuery) || path.toLowerCase().includes(normalizedQuery);
-  const visibleTemporaryWorkspace = temporaryWorkspace && matches(temporaryWorkspace.name, temporaryWorkspace.path) ? temporaryWorkspace : null;
-  const controlRef = useRef<HTMLDivElement>(null);
-  const recentProjects = [...projects]
-    .sort((a, b) => latestProjectActivity(b) - latestProjectActivity(a))
-    .filter((project) => matches(project.name, project.path))
-    .slice(0, showAll || normalizedQuery ? undefined : 5);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setShowAll(false);
-    const list = listRef.current;
-    const search = searchRef.current;
-    if (list && search) {
-      list.scrollTop = search.offsetHeight;
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => {
-      if (!controlRef.current?.contains(event.target as Node)) onOpenChange(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onOpenChange(false);
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onOpenChange, open]);
-
-  const selectProject = (project?: Project) => {
-    onSelect(project);
-    onOpenChange(false);
-  };
-
-  return (
-    <div className="welcome-workspace-control" ref={controlRef}>
-      <button
-        aria-expanded={open}
-        aria-haspopup="menu"
-        className="welcome-workspace"
-        onClick={() => onOpenChange(!open)}
-        type="button"
-      >
-        <FolderIcon />
-        <span>{workspaceName}</span>
-        <ChevronIcon className={open ? "is-open" : undefined} />
-      </button>
-      {open ? (
-        <div aria-label="Project directory" className="welcome-workspace-menu" ref={listRef} role="menu">
-          <div className="welcome-workspace-list">
-            <div className="welcome-workspace-search" ref={searchRef}>
-              <input aria-label="Search projects" placeholder="Search projects…" type="search" value={query} onChange={(event) => { setQuery(event.target.value); if (listRef.current) listRef.current.scrollTop = 0; }} onFocus={() => { if (listRef.current) listRef.current.scrollTop = 0; }} />
-            </div>
-            <div className="welcome-workspace-recents">
-            {visibleTemporaryWorkspace ? (
-              <button
-                className="welcome-workspace-project is-temporary"
-                onClick={() => {
-                  onSelectTemporaryWorkspace?.();
-                  onOpenChange(false);
-                }}
-                role="menuitem"
-                title={visibleTemporaryWorkspace.displayPath}
-                type="button"
-              >
-                <FolderIcon />
-                <span>{visibleTemporaryWorkspace.name}</span>
-              </button>
-            ) : null}
-            {recentProjects.length ? recentProjects.map((project) => (
-              <button
-                className="welcome-workspace-project"
-                key={project.id}
-                onClick={() => selectProject(project)}
-                role="menuitem"
-                title={project.path}
-                type="button"
-              >
-                <FolderIcon />
-                <span>{project.name}</span>
-              </button>
-            )) : <span className="welcome-workspace-empty">{normalizedQuery ? "No matching projects" : "No recent projects"}</span>}
-            </div>
-          </div>
-          {!normalizedQuery && !showAll && projects.length > 5 ? <button
-            className="welcome-workspace-show-more"
-            onClick={() => setShowAll(true)}
-            role="menuitem"
-            type="button"
-          >
-            Show more
-          </button> : null}
-          <div aria-hidden="true" className="welcome-workspace-divider" role="separator" />
-          <div className="welcome-workspace-actions">
-            <button aria-current={workspaceName === "Home" ? "page" : undefined} onClick={() => selectProject(homeProject)} role="menuitem" type="button">
-              <HomeIcon />
-              <span>Home</span>
-            </button>
-            <button
-              onClick={() => {
-                onOpenChange(false);
-                onOpenNewProject?.();
-              }}
-              role="menuitem"
-              type="button"
-            >
-              <PlusIcon />
-              <span>New Project</span>
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function latestProjectActivity(project: Project): number {
-  const latest = project.chats.reduce((mostRecent, chat) => Math.max(mostRecent, Date.parse(chat.lastMessageAt) || 0), 0);
-  return latest;
-}
-
-export function AsciiBanner() {
-  const lines = asciiBanner.trimEnd().split(/\r?\n/);
-  return (
-    <pre className="welcome-ascii-banner" aria-hidden="true">
-      {lines.map((line, rowIndex) => {
-        const colors = asciiColorRows[rowIndex] ?? [];
-        const width = Math.max(line.length, colors.length);
-        const padded = line.padEnd(width, " ");
-        return (
-          <span className="welcome-ascii-row" key={rowIndex}>
-            {Array.from(padded).map((character, columnIndex) => (
-              <span
-                className="welcome-ascii-cell"
-                key={columnIndex}
-                style={{ color: logoColor(colors[columnIndex] ?? "000000") }}
-              >
-                {character === " " ? "\u00a0" : character}
-              </span>
-            ))}
-          </span>
-        );
-      })}
-    </pre>
-  );
-}
-
-function logoColor(hex: string) {
-  const channels = [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
-  const [red, green, blue] = channels;
-  const max = Math.max(red, green, blue);
-  const min = Math.min(red, green, blue);
-  let lightness = (max + min) / 2;
-  let hue = 0;
-  let saturation = 0;
-  if (max !== min) {
-    const delta = max - min;
-    saturation = delta / (lightness > 0.5 ? 2 - max - min : max + min);
-    if (max === red) hue = ((green - blue) / delta + (blue > green ? 6 : 0)) / 6;
-    else if (max === green) hue = ((blue - red) / delta + 2) / 6;
-    else hue = ((red - green) / delta + 4) / 6;
-  }
-  saturation = Math.min(1, saturation * 1.38);
-  if (saturation >= 0.05 && hue >= 0.065 && hue <= 0.23) {
-    saturation = Math.min(1, saturation * 1.48);
-    lightness = Math.min(0.94, lightness + (1 - lightness) * 0.11);
-  }
-  const hueChannel = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  const q = lightness < 0.5 ? lightness * (1 + saturation) : lightness + saturation - lightness * saturation;
-  const p = 2 * lightness - q;
-  const rgb = saturation === 0
-    ? [lightness, lightness, lightness]
-    : [hueChannel(p, q, hue + 1 / 3), hueChannel(p, q, hue), hueChannel(p, q, hue - 1 / 3)];
-  const enhanced = rgb.map((channel) => Math.max(0, Math.min(255, Math.round(128 + 1.14 * (Math.round(channel * 255) - 128)))));
-  return `rgb(${enhanced.join(" ")})`;
-}
-
-function FolderIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
-      <path d="M9 21v-7h6v7" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={`welcome-chevron${className ? ` ${className}` : ""}`} viewBox="0 0 24 24">
-      <path d="m7 10 5 5 5-5" />
-    </svg>
-  );
 }
