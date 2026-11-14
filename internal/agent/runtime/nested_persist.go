@@ -254,7 +254,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			flushUsageStats()
 			sess.Status = chatstore.SubStatusDone
 			sess.Messages = msgs
-			_ = r.persistSubSession(sess)
+			if err := r.persistSubSession(sess); err != nil {
+				return NestedRunResult{Output: transcript.String(), SubchatID: id, Status: sess.Status}, err
+			}
 			if cfg.RunInBackground {
 				_ = globalSubagentRegistry.removeActiveEntry(id)
 			}
@@ -358,7 +360,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	}
 	flushUsageStats()
 	sess.Status = chatstore.SubStatusDone
-	_ = r.persistSubSession(sess)
+	if err := r.persistSubSession(sess); err != nil {
+		return NestedRunResult{Output: transcript.String(), SubchatID: id, Status: sess.Status}, err
+	}
 	return NestedRunResult{Output: transcript.String(), SubchatID: id, Status: sess.Status}, nil
 }
 

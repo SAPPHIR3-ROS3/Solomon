@@ -110,7 +110,7 @@ export function normalizeToolResult(payload: unknown, error = ""): ChatToolResul
   if (typeof record.subchatId === "string") result.subchatId = record.subchatId;
   if (typeof record.subchat_id === "string") result.subchatId = record.subchat_id;
   const subchatStatus = record.subagentStatus ?? record.subchatStatus ?? (result.subchatId ? record.status : undefined);
-  if (typeof subchatStatus === "string" && ["cancelled", "done", "paused", "queued", "running"].includes(subchatStatus)) {
+  if (typeof subchatStatus === "string" && ["cancelled", "done", "failed", "paused", "queued", "running"].includes(subchatStatus)) {
     result.subchatStatus = subchatStatus as ChatToolResult["subchatStatus"];
   }
   if (typeof record.phase === "string") result.phase = record.phase;
@@ -214,7 +214,7 @@ export function stringValue(value: unknown): string {
 }
 
 export function subchatStatusFromPayload(value: unknown): ChatToolResult["subchatStatus"] | undefined {
-  if (typeof value !== "string" || !["cancelled", "done", "paused", "queued", "running"].includes(value)) return undefined;
+  if (typeof value !== "string" || !["cancelled", "done", "failed", "paused", "queued", "running"].includes(value)) return undefined;
   return value as ChatToolResult["subchatStatus"];
 }
 

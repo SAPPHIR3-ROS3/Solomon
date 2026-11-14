@@ -124,7 +124,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   if (type === "tool_result") {
     const id = stringValue(event.id);
     const result = normalizeToolResult(event.result, stringValue(event.error));
-    return updateTool(chat, id, (tool) => mergeSubagentTool(tool, { ...tool, result, status: result.status }, true));
+    return updateTool(chat, id, (tool) => mergeSubagentTool(tool, { ...tool, result, status: result.status }));
   }
 
   if (type === "chat_interrupted") {
@@ -293,15 +293,16 @@ function updateTool(chat: LiveChat, id: string, update: (tool: ChatToolCall) => 
   };
 }
 
-function mergeSubagentTool(previous: ChatToolCall | undefined, incoming: ChatToolCall, completed = false): ChatToolCall {
+function mergeSubagentTool(previous: ChatToolCall | undefined, incoming: ChatToolCall): ChatToolCall {
   if (incoming.name !== "subagent" || !previous?.result?.subchatId) return incoming;
   if (incoming.result?.subchatId && incoming.result.subchatId !== previous.result.subchatId) return incoming;
   const currentStatus = previous.result.subchatStatus;
   const nextStatus = incoming.result?.subchatStatus;
   const terminal = currentStatus && currentStatus !== "running" && currentStatus !== "queued";
   const preserveFinal = terminal && (!nextStatus || nextStatus === "running" || nextStatus === "queued");
-  const failed = completed && incoming.result?.status === "error";
-  const subchatStatus = preserveFinal ? currentStatus : nextStatus ?? (failed ? "paused" : currentStatus);
+  const failed = incoming.result?.status === "error" || incoming.status === "error" || incoming.status === "interrupted";
+  const finishedSync = incoming.sync && incoming.status === "success" && incoming.result?.status === "success";
+  const subchatStatus = preserveFinal ? currentStatus : nextStatus ?? (failed ? "failed" : finishedSync ? "done" : currentStatus);
   const result = { ...previous.result, ...incoming.result, subchatStatus };
   const status = subchatStatus === "running" || subchatStatus === "queued" ? "running"
     : subchatStatus === "done" ? "success" : subchatStatus ? "error" : incoming.status;

@@ -15,7 +15,7 @@ test("failed results retain the subchat link and leave concurrent agents active"
   const next = applyLiveStreamEvent(previous, { type: "tool_result", id: "first", result: { ok: false, error: "Provider unavailable" } });
   const failed = getTool(next, "first");
   assert.equal(failed.result.subchatId, "child-first");
-  assert.equal(failed.result.subchatStatus, "paused");
+  assert.equal(failed.result.subchatStatus, "failed");
   assert.equal(failed.result.error, "Provider unavailable");
   assert.equal(failed.status, "error");
   assert.equal(getTool(next, "second").result.subchatStatus, "running");
@@ -120,4 +120,25 @@ test("shared checkpoints do not duplicate subagents in later chain messages", ()
     { id: "later", role: "assistant", checkpointSeq: 1, content: "Working", toolCalls: [] },
   ] });
   assert.equal(next.messages.flatMap(message => message.toolCalls ?? []).length, 1);
+});
+
+test("failed snapshots without subchat metadata stop previously running agents", () => {
+  const previous = chatWith(agent("first"));
+  const next = preserveLiveWorkState(previous, { ...previous, messages: [{
+    ...previous.messages[0], toolCalls: [{ id: "first", name: "subagent", status: "error", result: { status: "error", error: "Run ended" } }],
+  }] });
+  assert.equal(getTool(next, "first").result.subchatStatus, "failed");
+  assert.equal(getTool(next, "first").status, "error");
+});
+
+test("completed synchronous results close running agents without inventing a pause", () => {
+  const previous = chatWith({ ...agent("first"), sync: true });
+  const next = applyLiveStreamEvent(previous, { type: "tool_result", id: "first", result: { ok: true, output: "Finished" } });
+  assert.equal(getTool(next, "first").result.subchatStatus, "done");
+  assert.equal(getTool(next, "first").status, "success");
+});
+
+test("background spawn acknowledgements keep agents running", () => {
+  const next = applyLiveStreamEvent(chatWith(agent("first")), { type: "tool_result", id: "first", result: { ok: true } });
+  assert.equal(getTool(next, "first").result.subchatStatus, "running");
 });

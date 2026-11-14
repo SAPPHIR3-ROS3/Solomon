@@ -124,11 +124,7 @@ func writeJSONAtomic(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return writeSessionFile(path, b)
 }
 
 func WriteSubSession(projectHex string, s *SubSession) (err error) {
