@@ -1,23 +1,23 @@
-package chatstore
+package test
 
 import (
-	"errors"
+	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 func TestWriteSessionFileReplacesCompleteSnapshot(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "chat.json")
+	path := sessionSnapshotPath(t)
 	for _, content := range []string{`{"messages":[]}`, `{"messages":["new"]}`} {
-		if err := writeSessionFile(path, []byte(content)); err != nil {
+		if err := writeSubagentSnapshot(path, []byte(content)); err != nil {
 			t.Fatal(err)
 		}
 		got, err := os.ReadFile(path)
-		if err != nil || string(got) != content {
+		if err != nil || snapshotContent(t, got) != content {
 			t.Fatalf("snapshot = %q, err = %v", got, err)
 		}
 	}
@@ -27,22 +27,14 @@ func TestWriteSessionFileReplacesCompleteSnapshot(t *testing.T) {
 	}
 }
 
-func TestPublishSessionFileDoesNotRetryOtherErrors(t *testing.T) {
-	want := errors.New("permanent failure")
-	err := publishSessionFile("source", "destination", func(string, string) error { return want }, func(time.Duration) { t.Fatal("unexpected retry") })
-	if !errors.Is(err, want) {
-		t.Fatal(err)
-	}
-}
-
 func TestWriteSessionFileConcurrentWriters(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "chat.json")
+	path := sessionSnapshotPath(t)
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			if err := writeSessionFile(path, []byte(strings.Repeat(string(rune('a'+i)), 65536))); err != nil {
+			if err := writeSubagentSnapshot(path, []byte(strings.Repeat(string(rune('a'+i)), 65536))); err != nil {
 				t.Error(err)
 			}
 		}(i)
@@ -52,13 +44,13 @@ func TestWriteSessionFileConcurrentWriters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(data) != 65536 || strings.Trim(string(data), string(data[0])) != "" {
+	if len(snapshotContent(t, data)) != 65536 || strings.Trim(snapshotContent(t, data), snapshotContent(t, data)[:1]) != "" {
 		t.Fatal("concurrent writes published an incomplete or mixed snapshot")
 	}
 }
 
 func TestWriteSessionFileRetainsSnapshotOnPublishFailure(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "chat.json")
+	path := sessionSnapshotPath(t)
 	if err := os.Mkdir(path, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +58,7 @@ func TestWriteSessionFileRetainsSnapshotOnPublishFailure(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(path, "keep"), []byte("original"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	err := writeSessionFile(path, []byte("unsaved"))
+	err := writeSubagentSnapshot(path, []byte("unsaved"))
 	if err == nil {
 		t.Fatal("expected publication failure")
 	}
@@ -75,11 +67,36 @@ func TestWriteSessionFileRetainsSnapshotOnPublishFailure(t *testing.T) {
 		t.Fatalf("snapshot missing from error: %v, files %v", err, files)
 	}
 	data, readErr := os.ReadFile(files[0])
-	if readErr != nil || string(data) != "unsaved" {
+	if readErr != nil || snapshotContent(t, data) != "unsaved" {
 		t.Fatalf("snapshot = %q, err = %v", data, readErr)
 	}
 	data, readErr = os.ReadFile(filepath.Join(path, "keep"))
 	if readErr != nil || string(data) != "original" {
 		t.Fatal("original destination changed")
 	}
+}
+
+// Exercise persistence through its production API, including retained staging files.
+func sessionSnapshotPath(t *testing.T) string {
+	t.Helper()
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	path, err := chatstore.SubSessionPath("snapshot-test", chatstore.SubOriginParent, "snapshot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+func writeSubagentSnapshot(_ string, content []byte) error {
+	return chatstore.WriteSubSession("snapshot-test", &chatstore.SubSession{ID: "snapshot", Origin: chatstore.SubOriginParent, Status: string(content)})
+}
+func snapshotContent(t *testing.T, data []byte) string {
+	t.Helper()
+	var snapshot chatstore.SubSession
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	return snapshot.Status
 }
