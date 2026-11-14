@@ -15,6 +15,7 @@ import { CheckIcon, CopyIcon } from "./ChatIcons";
 import { copyText } from "./chatClipboard";
 
 import { MessageImage } from "./MessageImage";
+import { MermaidPreview } from "./MermaidPreview";
 
 const markdownComponents: Components = {
   img: ({ src, alt }) => <MessageImage src={src} alt={alt} />,
@@ -110,20 +111,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
     }
   }
 
-  return (
-    <div className="chat-code-block">
-      <div className="chat-code-toolbar">
-        <div className="chat-code-language">{language ?? "Code"}</div>
-        <button
-          aria-label={copied ? "Code copied" : "Copy code"}
-          className="chat-copy-code"
-          onClick={() => void copyCode()}
-          title={copied ? "Code copied" : "Copy code"}
-          type="button"
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-        </button>
-      </div>
+  const source = (
       <pre>
         <code className="chat-code-lines">
           {codeLines.map((line, index) => {
@@ -140,6 +128,24 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           })}
         </code>
       </pre>
+  );
+  if (language?.toLowerCase() === "mermaid" || language?.toLowerCase() === "mmd") return <MermaidPreview code={code} source={source} />;
+
+  return (
+    <div className="chat-code-block">
+      <div className="chat-code-toolbar">
+        <div className="chat-code-language">{language ?? "Code"}</div>
+        <button
+          aria-label={copied ? "Code copied" : "Copy code"}
+          className="chat-copy-code"
+          onClick={() => void copyCode()}
+          title={copied ? "Code copied" : "Copy code"}
+          type="button"
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </button>
+      </div>
+      {source}
     </div>
   );
 }

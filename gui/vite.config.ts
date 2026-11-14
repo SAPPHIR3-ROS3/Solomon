@@ -64,7 +64,7 @@ export default defineConfig({
       "@codemirror/autocomplete", "@codemirror/commands", "@codemirror/language",
       "@codemirror/state", "@codemirror/view", "@xterm/addon-fit",
       "@shikijs/core", "@shikijs/engine-oniguruma", "@shikijs/engine-oniguruma/wasm-inlined",
-      "react-markdown", "remark-gfm", "remark-math", "rehype-katex", "katex",
+      "react-markdown", "remark-gfm", "remark-math", "rehype-katex", "katex", "mermaid",
     ],
   },
   build: {

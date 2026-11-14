@@ -1,0 +1,25 @@
+.editor-document {
+  grid-column: 1;
+  grid-row: 4;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editor-document-controls { margin-left: auto; flex-shrink: 0; }
+.editor-document-controls .chat-mermaid-switch { padding: 1px; }
+.editor-document-controls .chat-mermaid-switch button { padding: 1px 8px; font-size: 11px; line-height: 18px; }
+
+.editor-document-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px clamp(16px, 4vw, 64px);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.editor-document > .editor-code-container { flex: 1; }
