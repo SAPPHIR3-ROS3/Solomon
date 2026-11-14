@@ -90,3 +90,24 @@ test("snapshot reconciliation does not restore deleted messages", () => {
   const next = preserveLiveWorkState(previous, { ...previous, messages: [previous.messages[1]] });
   assert.equal(getTool(next, "first"), undefined);
 });
+
+test("terminal snapshots close activity while other subagents keep running", () => {
+  for (const state of ["done", "paused", "cancelled"]) {
+    const previous = chatWith(agent("first"), agent("second"));
+    const snapshot = liveChatFromPayload({
+      ...previous,
+      messages: previous.messages.map(message => ({
+        ...message,
+        toolCalls: message.toolCalls.map(tool => tool.id === "first" ? {
+          ...tool,
+          status: state === "done" ? "success" : "error",
+          result: { status: "success", subchatId: "child-first", subagentStatus: state },
+        } : tool),
+      })),
+    }, "project");
+    const next = preserveLiveWorkState(previous, snapshot);
+    assert.equal(getTool(next, "first").result.subchatStatus, state);
+    assert.equal(getTool(next, "first").status, state === "done" ? "success" : "error");
+    assert.equal(getTool(next, "second").status, "running");
+  }
+});

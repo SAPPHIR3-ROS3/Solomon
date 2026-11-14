@@ -53,7 +53,7 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 			subchatSessions, _ = chatstore.ListSubSessions(projectID)
 		}
 		for _, subchat := range subchatSessions {
-			if subchat == nil || subchat.ParentChatID != parentChatID || subchat.ParentToolCallID != parentToolCallID {
+			if subchat == nil || (subchat.ParentChatID != parentChatID && subchat.ParentSubchatID != parentChatID) || subchat.ParentToolCallID != parentToolCallID {
 				continue
 			}
 			if subchat.ProjectHex != "" && subchat.ProjectHex != projectID {
@@ -150,11 +150,19 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 					subchat = subSession
 				}
 			}
-			if subStatus, ok := tool.Result["subagentStatus"].(string); ok && chatstore.SubSessionRunning(subStatus) {
-				tool.Status = "running"
+			if subStatus, ok := tool.Result["subagentStatus"].(string); ok {
+				switch subStatus {
+				case chatstore.SubStatusRunning, chatstore.SubStatusQueued:
+					tool.Status = "running"
+				case chatstore.SubStatusDone:
+					tool.Status = "success"
+				case chatstore.SubStatusPaused, chatstore.SubStatusCancelled:
+					tool.Status = "error"
+				}
 			}
 		}
 		if subchat != nil {
+			tool.SubagentDepth, tool.ParentSubchatID = subagentHierarchy(projectID, subchat)
 			tool.Model = subchat.RoleModel
 			tool.Provider = subchat.RoleProvider
 			tool.FastMode = subchat.FastMode
@@ -179,13 +187,13 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 		}
 		out = append(out, tool)
 		if includeNested && call.Name == "subagent" && subchat != nil {
-			out = append(out, nestedSubagentToolCalls(projectID, parentChatID, subchat, map[string]bool{}, runActive)...)
+			out = append(out, nestedSubagentToolCalls(projectID, parentChatID, subchat, map[string]bool{}, runActive, tool.SubagentDepth)...)
 		}
 	}
 	return out
 }
 
-func nestedSubagentToolCalls(projectID, parentChatID string, subchat *chatstore.SubSession, seen map[string]bool, runActive bool) []apiToolCall {
+func nestedSubagentToolCalls(projectID, parentChatID string, subchat *chatstore.SubSession, seen map[string]bool, runActive bool, depth int) []apiToolCall {
 	if subchat == nil || seen[subchat.ID] {
 		return nil
 	}
@@ -197,10 +205,12 @@ func nestedSubagentToolCalls(projectID, parentChatID string, subchat *chatstore.
 			if call.Name != "subagent" {
 				continue
 			}
+			call.ParentSubchatID = subchat.ID
+			call.SubagentDepth = max(call.SubagentDepth, depth+1)
 			out = append(out, call)
 			if childID := stringField(call.Result, "subchatId"); childID != "" && !seen[childID] {
 				if child, err := chatstore.FindSubSessionByID(projectID, childID); err == nil {
-					out = append(out, nestedSubagentToolCalls(projectID, parentChatID, child, seen, live)...)
+					out = append(out, nestedSubagentToolCalls(projectID, parentChatID, child, seen, live, call.SubagentDepth)...)
 				}
 			}
 		}

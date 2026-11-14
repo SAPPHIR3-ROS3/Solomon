@@ -11,6 +11,7 @@ type rootLegacyFile struct {
 	RecentModelUses           []RecentModelUse                `toml:"recent_model_uses,omitempty"`
 	HiddenModels              map[string][]string             `toml:"hidden_models,omitempty"`
 	SubagentTimeoutMinutes    int                             `toml:"subagent_timeout_minutes"`
+	SubagentMaxDepth          int                             `toml:"subagent_max_depth"`
 	ReasoningEffort           string                          `toml:"reasoning_effort"`
 	SubagentReasoningEffort   string                          `toml:"subagent_reasoning_effort"`
 	FastMode                  *bool                           `toml:"fast_mode,omitempty"`
@@ -53,6 +54,7 @@ type rootFile struct {
 	RecentModels              map[string][]string             `toml:"recent_models,omitempty"`
 	HiddenModels              map[string][]string             `toml:"hidden_models,omitempty"`
 	SubagentTimeoutMinutes    int                             `toml:"subagent_timeout_minutes"`
+	SubagentMaxDepth          int                             `toml:"subagent_max_depth"`
 	ReasoningEffort           string                          `toml:"reasoning_effort"`
 	SubagentReasoningEffort   string                          `toml:"subagent_reasoning_effort"`
 	FastMode                  *bool                           `toml:"fast_mode,omitempty"`
@@ -112,6 +114,7 @@ func rootFromFile(f *rootFile) *Root {
 		RecentModels:                 f.RecentModels,
 		HiddenModels:                 f.HiddenModels,
 		SubagentTimeoutMinutes:       f.SubagentTimeoutMinutes,
+		SubagentMaxDepth:             f.SubagentMaxDepth,
 		ReasoningEffort:              f.ReasoningEffort,
 		SubagentReasoningEffort:      f.SubagentReasoningEffort,
 		FastMode:                     f.FastMode,
@@ -165,6 +168,7 @@ func rootToFile(r *Root) *rootFile {
 		RecentModels:              r.RecentModels,
 		HiddenModels:              nil,
 		SubagentTimeoutMinutes:    r.SubagentTimeoutMinutes,
+		SubagentMaxDepth:          r.SubagentMaxDepth,
 		ReasoningEffort:           r.ReasoningEffort,
 		SubagentReasoningEffort:   r.SubagentReasoningEffort,
 		FastMode:                  r.FastMode,
@@ -242,6 +246,7 @@ func rootFromLegacy(f *rootLegacyFile) *Root {
 		Current:                      f.Current,
 		HiddenModels:                 f.HiddenModels,
 		SubagentTimeoutMinutes:       f.SubagentTimeoutMinutes,
+		SubagentMaxDepth:             f.SubagentMaxDepth,
 		ReasoningEffort:              f.ReasoningEffort,
 		SubagentReasoningEffort:      f.SubagentReasoningEffort,
 		FastMode:                     f.FastMode,

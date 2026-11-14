@@ -34,6 +34,8 @@ type QueuedTask struct {
 }
 
 type PendingSubagentSpawn struct {
+	ParentSubchatID    string    `json:"parent_subchat_id,omitempty"`
+	Depth              int       `json:"depth,omitempty"`
 	RequesterSubchatID string    `json:"requester_subchat_id"`
 	RequesterOrigin    string    `json:"requester_origin"`
 	ParentChatID       string    `json:"parent_chat_id,omitempty"`
@@ -53,6 +55,8 @@ type PendingSubagentSpawn struct {
 }
 
 type SubSession struct {
+	ParentSubchatID  string                 `json:"parent_subchat_id,omitempty"`
+	Depth            int                    `json:"depth,omitempty"`
 	FastMode         *bool                  `json:"fast_mode,omitempty"`
 	Capabilities     CapabilityRegistry     `json:"capabilities,omitempty"`
 	ID               string                 `json:"id"`

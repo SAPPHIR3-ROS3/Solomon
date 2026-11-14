@@ -106,6 +106,8 @@ type apiStats struct {
 }
 
 type apiToolCall struct {
+	SubagentDepth    int                `json:"subagentDepth,omitempty"`
+	ParentSubchatID  string             `json:"parentSubchatId,omitempty"`
 	CheckpointBranch string             `json:"checkpointBranch,omitempty"`
 	CheckpointSeq    *int               `json:"checkpointSeq,omitempty"`
 	DefaultOpen      bool               `json:"defaultOpen,omitempty"`

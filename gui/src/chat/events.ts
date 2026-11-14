@@ -297,7 +297,7 @@ function mergeSubagentTool(previous: ChatToolCall | undefined, incoming: ChatToo
   const result = { ...previous.result, ...incoming.result, subchatStatus };
   const status = subchatStatus === "running" || subchatStatus === "queued" ? "running"
     : subchatStatus === "done" ? "success" : subchatStatus ? "error" : incoming.status;
-  return { ...incoming, result, status };
+  return { ...incoming, subagentDepth: incoming.subagentDepth ?? previous.subagentDepth, parentSubchatId: incoming.parentSubchatId ?? previous.parentSubchatId, result, status };
 }
 
 function mergeSubagentCalls(previous: ChatToolCall[] | undefined, incoming: ChatToolCall[]): ChatToolCall[] {

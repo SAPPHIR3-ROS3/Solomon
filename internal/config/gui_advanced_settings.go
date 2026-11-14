@@ -12,7 +12,7 @@ import (
 func guiAdvancedSpecs() map[string]SettingSpec {
 	all := SettingsSpecs()
 	specs := map[string]SettingSpec{}
-	for _, key := range []string{"compaction_threshold_tokens", "subagent_timeout_minutes", "research_max_rounds", "research_max_urls_per_round", "research_max_content_chars"} {
+	for _, key := range []string{"compaction_threshold_tokens", "subagent_timeout_minutes", "subagent_max_depth", "research_max_rounds", "research_max_urls_per_round", "research_max_content_chars"} {
 		specs[key] = all[key]
 	}
 	specs["server_port"] = SettingSpec{Type: "integer", Min: 1, Max: 65535}
@@ -107,6 +107,7 @@ func guiAdvancedValues(root *Root) map[string]any {
 	return map[string]any{
 		"compaction_threshold_tokens": EffectiveCompactionThresholdTokens(root),
 		"subagent_timeout_minutes":    SubagentTimeout(root),
+		"subagent_max_depth":          SubagentDepthLimit(root),
 		"log_level":                   level,
 		"install_layout":              root.EffectiveInstallLayout(),
 		"server_port":                 root.EffectiveServerPort(),

@@ -9,6 +9,7 @@ import "./development-settings.css";
 const fields = [
   { key: "server_port", label: "Server port", description: "TCP port used at the next server startup.", min: 1, max: 65535 },
   { key: "compaction_threshold_tokens", label: "Compaction threshold", description: "Conversation tokens before automatic context compaction.", min: 32768, max: 1048576 },
+  { key: "subagent_max_depth", label: "Subagent recursion limit", description: "Maximum subagent depth. The main agent is level 0; direct subagents are level 1. Default: 4.", min: 1, max: 32 },
   { key: "subagent_timeout_minutes", label: "Subagent timeout", description: "Maximum duration of a subagent run, in minutes.", min: 1, max: 180 },
   { key: "log_level", label: "Log level", description: "Logging verbosity. Takes effect at the next application startup.", options: ["error", "warning", "info", "debug", "result"] },
   { key: "install_layout", label: "Install layout", description: "split keeps the CLI server and the desktop client separate. standalone is one binary. Updates download this layout, and changing it switches the installation.", options: ["split", "standalone"] },

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { serverEndpoint } from "../platform";
 
 export type ActiveAgentNode = {
+  subagentDepth?: number;
+  parentSubchatId?: string;
   children?: ActiveAgentNode[];
   id: string;
   kind: "chat" | "subagent";
@@ -130,20 +132,21 @@ export function ActiveAgentsPage({ onOpenAgent }: ActiveAgentsPageProps) {
   );
 }
 
-function AgentTreeItem({ node, onOpen }: { node: ActiveAgentNode; onOpen: (node: ActiveAgentNode) => void }) {
+export function AgentTreeItem({ node, onOpen, depth = 0 }: { node: ActiveAgentNode; onOpen: (node: ActiveAgentNode) => void; depth?: number }) {
+  const level = node.kind === "chat" ? 0 : node.subagentDepth ?? Math.max(1, depth);
   const children = node.children ?? [];
   return (
-    <li className={`active-agents-node is-${node.kind}${node.status ? ` is-${node.status}` : ""}`}>
+    <li data-subagent-depth={level} className={`active-agents-node is-${node.kind}${node.status ? ` is-${node.status}` : ""}`}>
       <button onClick={() => onOpen(node)} type="button">
         <i aria-hidden="true" className="active-agents-status" />
-        <span className="active-agents-kind">{node.kind === "chat" ? "Agent" : "Subagent"}</span>
+        <span className="active-agents-kind">{node.kind === "chat" ? "Agent" : level > 1 ? `L${level} Subagent` : "Subagent"}</span>
         <span className="active-agents-title">{node.title}</span>
         {node.status ? <span className="active-agents-badge">{node.status}</span> : null}
       </button>
       {children.length ? (
         <ul>
           {children.map((child) => (
-            <AgentTreeItem key={child.id} node={child} onOpen={onOpen} />
+            <AgentTreeItem key={child.id} node={child} onOpen={onOpen} depth={level + 1} />
           ))}
         </ul>
       ) : null}
@@ -176,7 +179,7 @@ function agentProjectFromPayload(value: unknown): ActiveAgentProject | null {
   };
 }
 
-function activeAgentNodesFromPayload(value: unknown): ActiveAgentNode[] {
+export function activeAgentNodesFromPayload(value: unknown): ActiveAgentNode[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const record = value as Record<string, unknown>;
   if ((record.kind !== "chat" && record.kind !== "subagent") || typeof record.id !== "string" || typeof record.title !== "string" || typeof record.projectID !== "string") return [];
@@ -185,6 +188,8 @@ function activeAgentNodesFromPayload(value: unknown): ActiveAgentNode[] {
     ? record.children.flatMap((entry) => activeAgentNodesFromPayload(entry))
     : [];
   const node: ActiveAgentNode = {
+    subagentDepth: typeof record.subagentDepth === "number" ? record.subagentDepth : undefined,
+    parentSubchatId: typeof record.parentSubchatId === "string" ? record.parentSubchatId : undefined,
     children: children.length ? children : undefined,
     id: record.id,
     kind: record.kind,
@@ -192,10 +197,10 @@ function activeAgentNodesFromPayload(value: unknown): ActiveAgentNode[] {
     parentToolCallID: typeof record.parentToolCallID === "string" ? record.parentToolCallID : undefined,
     projectID: record.projectID,
     rootChatID: typeof record.rootChatID === "string" ? record.rootChatID : undefined,
-    status: ACTIVE_AGENT_STATUSES.has(status) ? status : "",
+    status,
     task: typeof record.task === "string" ? record.task : undefined,
     title: record.title,
   };
-  if (ACTIVE_AGENT_STATUSES.has(status) || (record.kind === "chat" && children.length)) return [node];
+  if (ACTIVE_AGENT_STATUSES.has(status) || children.length) return [node];
   return children;
 }

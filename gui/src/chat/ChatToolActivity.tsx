@@ -1,3 +1,5 @@
+import { subagentLabel } from "./subagents/hierarchy";
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { EditorState } from "@codemirror/state";
 import { EditorView as CodeMirrorView, lineNumbers } from "@codemirror/view";
@@ -316,7 +318,10 @@ export function SubagentCard({ onOpenSubagent, onStopTool, tool }: { onOpenSubag
 
   return (
     <section
-      aria-label="Open subagent chat"
+      aria-label={`Open ${subagentLabel(tool)} chat`}
+      data-subagent-depth={tool.subagentDepth ?? 1}
+      data-parent-subchat={tool.parentSubchatId}
+      style={{ "--subagent-depth": tool.subagentDepth ?? 1 } as CSSProperties}
 		className={`chat-subagent-card is-${displayStatus}`}
 		data-checkpoint={checkpoint?.label}
 		onClick={() => {
@@ -334,7 +339,7 @@ export function SubagentCard({ onOpenSubagent, onStopTool, tool }: { onOpenSubag
       <div className="chat-subagent-content">
         <div className="chat-subagent-heading">
           <i aria-hidden="true" className="chat-subagent-status-dot" />
-          <span className="chat-subagent-title">Subagent</span>
+          <span className="chat-subagent-title">{subagentLabel(tool)}</span>
           {tool.provider ? <span className="chat-subagent-mode">{tool.provider}</span> : null}
           {tool.model ? <span className="chat-subagent-mode">{tool.model}{tool.reasoningEffort || tool.fastMode ? `(${[tool.reasoningEffort, tool.fastMode ? "fast" : undefined].filter(Boolean).join(" ")})` : ""}</span> : null}
           {tool.sync ? <span className="chat-subagent-mode">sync</span> : null}

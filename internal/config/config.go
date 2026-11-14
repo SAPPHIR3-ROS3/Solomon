@@ -98,6 +98,7 @@ type Root struct {
 	RecentModels                 map[string][]string             `toml:"recent_models,omitempty"`
 	HiddenModels                 map[string][]string             `toml:"hidden_models,omitempty"`
 	SubagentTimeoutMinutes       int                             `toml:"subagent_timeout_minutes"`
+	SubagentMaxDepth             int                             `toml:"subagent_max_depth"`
 	ReasoningEffort              string                          `toml:"reasoning_effort"`
 	SubagentReasoningEffort      string                          `toml:"subagent_reasoning_effort"`
 	FastMode                     *bool                           `toml:"fast_mode,omitempty"`

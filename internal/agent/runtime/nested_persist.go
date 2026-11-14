@@ -48,6 +48,14 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	if err != nil {
 		return NestedRunResult{}, err
 	}
+	defer func() {
+		if chatstore.SubSessionRunning(sess.Status) {
+			sess.Status = chatstore.SubStatusPaused
+			_ = r.persistSubSession(sess)
+		}
+	}()
+	ctx = context.WithValue(ctx, subagentDepthKey{}, subagentSessionDepth(sess))
+	ctx = context.WithValue(ctx, subagentCallerKey{}, sess.ID)
 	system := cfg.SysPrompt
 	if system == "" {
 		p := cfg.SysPromptPath

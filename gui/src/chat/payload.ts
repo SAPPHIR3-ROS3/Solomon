@@ -52,6 +52,8 @@ export function toolCallFromPayload(payload: unknown, index: number, _imageOrigi
   const result = record.result ? normalizeToolResult(record.result, stringValue(record.error)) : undefined;
   const name = stringValue(record.name) || "tool";
   return {
+    subagentDepth: numberValue(record.subagentDepth, undefined),
+    parentSubchatId: stringValue(record.parentSubchatId) || undefined,
     checkpointBranch: stringValue(record.checkpointBranch ?? record.checkpoint_branch) || undefined,
     checkpointSeq: numberValue(record.checkpointSeq ?? record.checkpoint_seq, undefined),
     defaultOpen: typeof record.defaultOpen === "boolean" ? record.defaultOpen : undefined,

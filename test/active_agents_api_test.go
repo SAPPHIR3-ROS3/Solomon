@@ -149,3 +149,71 @@ func TestServerRuntime_activeAgentsTreeIncludesNestedSubagents(t *testing.T) {
 		t.Fatalf("nested root = %+v", agent.Children[0].Children[0])
 	}
 }
+
+func TestServerActiveAgentsRetainCallerHierarchy(t *testing.T) {
+	server, stop := startServerForTest(t, serverruntime.Options{})
+	defer stop()
+	response := postJSONForServerTest(t, server.URL+"/__solomon/projects", map[string]string{"path": t.TempDir()})
+	var project struct {
+		Project struct {
+			ID string `json:"id"`
+		} `json:"project"`
+	}
+	decodeServerTestJSON(t, response, &project)
+	response = postJSONForServerTest(t, server.URL+"/__solomon/projects/"+project.Project.ID+"/chats", map[string]string{})
+	var chat struct {
+		ID string `json:"id"`
+	}
+	decodeServerTestJSON(t, response, &chat)
+	for _, status := range []string{chatstore.SubStatusRunning, chatstore.SubStatusDone} {
+		t.Run(status, func(t *testing.T) {
+			parent := &chatstore.SubSession{ID: "caller", Title: "Caller", Depth: 1, Status: status, Origin: chatstore.SubOriginParent, ProjectHex: project.Project.ID, ParentChatID: chat.ID}
+			child := &chatstore.SubSession{ID: "child", Title: "Child", Depth: 2, Status: chatstore.SubStatusRunning, Origin: chatstore.SubOriginParent, ProjectHex: project.Project.ID, ParentChatID: chat.ID, ParentSubchatID: parent.ID}
+			for _, sub := range []*chatstore.SubSession{parent, child} {
+				if err := chatstore.WriteSubSession(project.Project.ID, sub); err != nil {
+					t.Fatal(err)
+				}
+			}
+			res, err := http.Get(server.URL + "/__solomon/active-agents")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer res.Body.Close()
+			type node struct {
+				ID       string            `json:"id"`
+				Depth    int               `json:"subagentDepth"`
+				Parent   string            `json:"parentSubchatId"`
+				Status   string            `json:"status"`
+				Children []json.RawMessage `json:"children"`
+			}
+			var payload struct {
+				Projects []struct {
+					Agents []node `json:"agents"`
+				} `json:"projects"`
+			}
+			if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Projects) != 1 || len(payload.Projects[0].Agents) != 1 {
+				t.Fatalf("unexpected roots: %+v", payload)
+			}
+			root := payload.Projects[0].Agents[0]
+			if root.ID != chat.ID || len(root.Children) != 1 {
+				t.Fatalf("caller missing: %+v", root)
+			}
+			var caller, descendant node
+			if err := json.Unmarshal(root.Children[0], &caller); err != nil {
+				t.Fatal(err)
+			}
+			if caller.ID != parent.ID || caller.Status != status || caller.Depth != 1 || len(caller.Children) != 1 {
+				t.Fatalf("wrong caller: %+v", caller)
+			}
+			if err := json.Unmarshal(caller.Children[0], &descendant); err != nil {
+				t.Fatal(err)
+			}
+			if descendant.ID != child.ID || descendant.Parent != parent.ID || descendant.Depth != 2 {
+				t.Fatalf("child flattened: %+v", descendant)
+			}
+		})
+	}
+}

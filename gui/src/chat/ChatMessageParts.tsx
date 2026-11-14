@@ -1,4 +1,5 @@
-import { memo, useEffect, useState } from "react";
+import { orderSubagentTools, subagentLabel } from "./subagents/hierarchy";
+import { memo, useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { ChatImage, ChatMessage } from "./chatTypes";
 import { ComposerCrownIcon } from "./ChatComposer";
@@ -227,18 +228,23 @@ export function SubagentActivityIndicator({ isExpanded, onOpenSubagent, onToggle
       </button>
       {isExpanded ? (
         <div className="chat-subagent-indicator-list">
-          {subagents.map(({ messageID, tool }) => (
+          {orderSubagentTools(subagents.map(entry => entry.tool)).map(tool => {
+            const messageID = subagents.find(entry => entry.tool.id === tool.id)!.messageID;
+            return (
             <button
-              aria-label={`Open subagent chat: ${tool.input ?? "Untitled subagent"}`}
+              aria-label={`Open ${subagentLabel(tool)} chat: ${tool.input ?? "Untitled subagent"}`}
+              data-subagent-depth={tool.subagentDepth ?? 1}
               className="chat-subagent-indicator-item"
+              style={{ "--subagent-indent": `${Math.max(0, (tool.subagentDepth ?? 1) - 1) * 16}px` } as CSSProperties}
               key={tool.id}
               onClick={() => onOpenSubagent(messageID, tool.id)}
               type="button"
             >
               <i aria-hidden="true" className="chat-subagent-indicator-item-dot" />
+              <span className="chat-subagent-indicator-level">{subagentLabel(tool)}</span>
               <span>{tool.input ?? "Untitled subagent"}</span>
             </button>
-          ))}
+          ); })}
         </div>
       ) : null}
     </section>

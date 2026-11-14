@@ -1,0 +1,63 @@
+.chat-subagent-card {
+  margin-inline-start: calc(max(0, var(--subagent-depth, 1) - var(--subagent-base-depth, 1)) * 20px);
+}
+
+.chat-subchat-back {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  margin-inline-start: auto;
+  padding: 4px 8px;
+}
+
+.chat-subagent-tree {
+  position: relative;
+}
+
+.chat-subagent-tree > .chat-subagent-card {
+  margin-inline-start: 0;
+}
+
+.chat-subagent-children {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-block-start: 12px;
+  margin-inline-start: 20px;
+  position: relative;
+}
+
+.chat-subagent-children::before {
+  border-inline-start: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent));
+  content: "";
+  height: 12px;
+  border-block-end: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent));
+  inset-inline-start: -20px;
+  pointer-events: none;
+  position: absolute;
+  top: -12px;
+  width: 20px;
+}
+
+.chat-subagent-children::after {
+  border-inline-start: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent));
+  bottom: 0;
+  content: "";
+  inset-inline-start: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+}
+
+.chat-subagent-indicator-item {
+  margin-inline-start: var(--subagent-indent, 0px);
+  width: calc(100% - var(--subagent-indent, 0px));
+}
+
+.chat-subagent-indicator-item > .chat-subagent-indicator-level {
+  color: var(--color-text-muted);
+  flex: 0 0 auto;
+}

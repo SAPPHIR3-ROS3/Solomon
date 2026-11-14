@@ -13,6 +13,10 @@ import (
 )
 
 func (r *Runtime) delegateSubagentFromNested(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
+	cfg = subagentConfigDepth(ctx, cfg)
+	if err := r.validateSubagentDepth(cfg.Depth); err != nil && cfg.ResumeID == "" {
+		return NestedRunResult{}, err
+	}
 	st := r.getNestedState()
 	if st == nil {
 		return NestedRunResult{}, fmt.Errorf("nested subagent state missing")
@@ -26,6 +30,8 @@ func (r *Runtime) delegateSubagentFromNested(ctx context.Context, cfg NestedRunC
 		return res, err
 	}
 	pending := chatstore.PendingSubagentSpawn{
+		ParentSubchatID:    cfg.ParentSubchatID,
+		Depth:              cfg.Depth,
 		RequesterSubchatID: st.subchatID,
 		RequesterOrigin:    st.origin,
 		ParentChatID:       st.parentChatID,
@@ -72,6 +78,8 @@ func (r *Runtime) consumePendingSubagentSpawns() {
 		}
 		spawn, _ := time.Parse(time.RFC3339Nano, p.SpawnISO)
 		cfg := NestedRunConfig{
+			ParentSubchatID:  p.ParentSubchatID,
+			Depth:            p.Depth,
 			SysPromptPath:    p.SysPromptPath,
 			Task:             p.Task,
 			ResumeID:         p.Resume,
@@ -101,6 +109,8 @@ func (r *Runtime) execToolNestedAware(ctx context.Context, inv tooling.Invocatio
 		if err != nil {
 			return nil, err
 		}
+		cfg.ParentToolCallID = inv.ToolCallID
+		cfg.ToolCall.ID = inv.ToolCallID
 		res, err := r.delegateSubagentFromNested(ctx, cfg)
 		if err != nil {
 			return map[string]any{"error": err.Error()}, nil

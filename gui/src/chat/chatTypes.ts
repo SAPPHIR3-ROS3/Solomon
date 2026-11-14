@@ -57,6 +57,8 @@ export type ChatToolParameter = {
 };
 
 export type ChatToolCall = {
+  subagentDepth?: number;
+  parentSubchatId?: string;
   checkpointBranch?: string;
   checkpointSeq?: number;
   defaultOpen?: boolean;

@@ -1,3 +1,5 @@
+import { SubchatNavigator } from "./subagents/Navigator";
+import "./subagents/style.css";
 import { ProviderQuotaControl } from "../home/ProviderQuotaControl";
 import { usePacedChatMessages } from "./usePacedChatMessages";
 import { chatPresentationKey } from "./chatPresentationKey";
@@ -16,7 +18,7 @@ import { fetchChatHistory, snapshotComposerImages } from "./chatClient";
 import { updateChat } from "./chatStore";
 import { useChatScroll } from "./useChatScroll";
 import { ChatImageAttachments, ModeSwitchNotice, SubagentActivityIndicator } from "./ChatMessageParts";
-import { ChatMessageGroups, RateLimitNotice, SubagentChatPanel } from "./ChatMessageGroups";
+import { ChatMessageGroups, RateLimitNotice } from "./ChatMessageGroups";
 import { indexChatMessages, liveWorkedForSeconds } from "./chatMessageUtils";
 import { subagentIsActive, subagentStatus } from "./ChatToolActivity";
 import { BranchIcon, CloseIcon, FolderIcon, WorktreeIcon } from "./ChatIcons";
@@ -70,8 +72,6 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const openSubagentMessage = useCallback((messageID: string, toolID: string) => setOpenSubagent({ messageID, toolID }), []);
   const stopMessageTool = useCallback((messageID: string, toolID: string) => onStopTool(chat.id, messageID, toolID), [chat.id, onStopTool]);
   const [forcedSubagent, setForcedSubagent] = useState<OpenSubagentRequest | null>(null);
-  const [subchatMessages, setSubchatMessages] = useState<ChatMessage[] | null>(null);
-  const [isSubchatLoading, setIsSubchatLoading] = useState(false);
   const [isSubagentIndicatorExpanded, setIsSubagentIndicatorExpanded] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const currentBranch = branch ?? chat.branch;
@@ -138,7 +138,6 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
     : undefined;
   const openSubagentTool = matchedOpenTool ?? (forcedSubagent ? syntheticSubagentTool(forcedSubagent) : undefined);
   const openSubchatID = openSubagentTool?.result?.subchatId;
-  const openSubagentState = openSubagentTool ? subagentStatus(openSubagentTool) : "";
   const navigationID = navigationForChat(chat.projectID, chat.id);
   useLayoutEffect(() => markNavigationCommit(navigationID, chat.messages.length,
     chat.messages.reduce((total, message) => total + message.content.length + (message.reasoning?.length ?? 0), 0)), [navigationID]);
@@ -169,40 +168,6 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
     return () => window.clearInterval(timer);
   }, [chat.id, isChatWorking]);
 
-  useEffect(() => {
-    if (!openSubagentTool || !openSubchatID || !loadSubchat) {
-      setSubchatMessages(null);
-      setIsSubchatLoading(false);
-      return;
-    }
-    let cancelled = false;
-    let refreshInFlight = false;
-    let isInitialLoad = true;
-    setSubchatMessages(null);
-    setIsSubchatLoading(true);
-    const refresh = async () => {
-      if (cancelled || refreshInFlight) return;
-      refreshInFlight = true;
-      try {
-        const messages = await loadSubchat(openSubchatID);
-        if (!cancelled) setSubchatMessages(messages);
-      } catch {
-        if (!cancelled && isInitialLoad) setSubchatMessages([]);
-      } finally {
-        refreshInFlight = false;
-        if (!cancelled && isInitialLoad) {
-          isInitialLoad = false;
-          setIsSubchatLoading(false);
-        }
-      }
-    };
-    void refresh();
-    const pollID = subagentIsActive(openSubagentState) ? window.setInterval(() => void refresh(), 1000) : undefined;
-    return () => {
-      cancelled = true;
-      if (pollID !== undefined) window.clearInterval(pollID);
-    };
-  }, [loadSubchat, openSubagentState, openSubchatID]);
 
   useEffect(() => {
     if (activeSubagents.length === 0) setIsSubagentIndicatorExpanded(false);
@@ -287,7 +252,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
           ) : chat.rateLimitNotice ? <RateLimitNotice raw={chat.rateLimitNotice} /> : <p className="chat-empty">This chat is ready for the first message.</p>}
         </div>
       </div>
-		{openSubagentTool && openSubchatID ? <SubagentChatPanel isLoading={isSubchatLoading} messages={subchatMessages ?? undefined} onCollapse={() => { setOpenSubagent(null); setForcedSubagent(null); }} tool={openSubagentTool} /> : null}
+		{openSubagentTool && openSubchatID ? <SubchatNavigator key={openSubchatID} loadSubchat={loadSubchat} tools={chat.messages.flatMap(message => message.toolCalls ?? [])} root={openSubagentTool} onCollapse={() => { setOpenSubagent(null); setForcedSubagent(null); }} /> : null}
       <div className="welcome-composer-dock chat-composer-dock" ref={composerDockRef}>
         <button aria-hidden={!isAwayFromBottom} aria-label="Scroll to bottom" className={`chat-scroll-to-bottom${isAwayFromBottom ? " is-visible" : ""}`} disabled={!isAwayFromBottom} onClick={scrollToBottom} tabIndex={isAwayFromBottom ? 0 : -1} title="Scroll to bottom" type="button">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14m-6-6 6 6 6-6" /></svg>

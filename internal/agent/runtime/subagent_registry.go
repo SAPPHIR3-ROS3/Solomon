@@ -9,6 +9,8 @@ import (
 )
 
 type NestedRunConfig struct {
+	ParentSubchatID  string
+	Depth            int
 	SysPromptPath    string
 	Task             string
 	ResumeID         string

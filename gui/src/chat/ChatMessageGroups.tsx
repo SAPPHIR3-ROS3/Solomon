@@ -1,13 +1,12 @@
+import { SubagentTree } from "./subagents/Tree";
 import { useToolTimeline } from "./useToolTimeline";
 import { FileChangesCard } from "./FileChangesCard";
 import { memo, useEffect, useRef, useState } from "react";
 import type { ChatMessage, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 import { ChatImageAttachments, CheckpointLabel, CompactionCard, InterruptedGenerationMarker } from "./ChatMessageParts";
-import { SubagentCard, ToolCallCard, subagentDisplayStatus } from "./ChatToolActivity";
-import { assistantFooterMessage, groupChatTurns, indexChatMessages, isEmptyAssistantPlaceholder, parseChatBannerError, toolActivityCollapsed, toolCheckpoint } from "./chatMessageUtils";
+import { assistantFooterMessage, groupChatTurns, isEmptyAssistantPlaceholder, parseChatBannerError, toolActivityCollapsed, toolCheckpoint } from "./chatMessageUtils";
 import { BriefThought, LiveThoughtSummary, MessageFooter, ReasoningBlock, ReasoningSummaryBlock, WorkedForCounter } from "./ChatMessageFooter";
-import { CollapseSubchatIcon } from "./ChatIcons";
 import { MarkdownContent } from "./MarkdownContent";
 import { chatPresentationKey } from "./chatPresentationKey";
 import { useStartToolCallsCollapsed, useGUIChatPreferencesState } from "../settings/chatPreferences";
@@ -357,11 +356,7 @@ function ToolActivity({ isCollapsed: controlledIsCollapsed, onOpenSubagent, onSt
   return (
     <section aria-label="Tool activity" className={"chat-tool-activity" + (isCollapsed ? " is-collapsed" : "")} onClick={(event) => event.stopPropagation()}>
       {isCollapsed ? <CollapsedToolCheckpoints toolCalls={toolCalls} /> : null}
-      {!isCollapsed ? toolCalls.map((tool) => (
-        tool.name === "subagent"
-          ? <SubagentCard key={tool.id} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} tool={tool} />
-          : <ToolCallCard key={tool.id} tool={tool} />
-      )) : null}
+      {!isCollapsed ? <SubagentTree tools={toolCalls} onOpenSubagent={onOpenSubagent} onStopTool={onStopTool} /> : null}
       {!isControlled ? (
         <button aria-expanded={!isCollapsed} aria-label={collapseLabel} className="chat-tool-collapse-all" onClick={toggleCollapsed} type="button">
           {collapseLabel}
@@ -442,58 +437,4 @@ function CollapsedCheckpointRail({ checkpoints }: { checkpoints: CheckpointMetad
 }
 
 
-export function SubagentChatPanel({ isLoading = false, messages, onCollapse, tool }: { isLoading?: boolean; messages?: ChatMessage[]; onCollapse: () => void; tool: ChatToolCall }) {
-  const status = subagentDisplayStatus(tool);
-  const normalizeTask = (content: string) => content.replace(/\r\n?/g, "\n").trim();
-  // Collapse consecutive copies even when the card belongs to a resumed task.
-  let previousUserContent: string | undefined;
-  const transcript = (messages ?? []).filter((message) => {
-    if (message.role !== "user") {
-      previousUserContent = undefined;
-      return true;
-    }
-    const content = normalizeTask(message.content);
-    const duplicate = Boolean(content) && content === previousUserContent && !message.images?.length;
-    previousUserContent = content;
-    return !duplicate;
-  });
-  const latestIntent = [...transcript].reverse()
-    .flatMap((message) => [...(message.toolCalls ?? [])].reverse())
-    .find((call) => call.intent?.trim())?.intent?.trim() || tool.intent?.trim() || "Intent missing";
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCollapse();
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onCollapse]);
-
-  return (
-    <section
-      aria-label="Subagent chat"
-      aria-modal="true"
-      className={`chat-subchat-panel is-${status}`}
-      onClick={(event) => event.stopPropagation()}
-      role="dialog"
-    >
-      <header className="chat-subchat-header">
-        <div className="chat-subchat-heading">
-          <i aria-hidden="true" className="chat-subchat-status-dot" />
-          <span className="chat-subchat-title">Subagent chat</span>
-        </div>
-        <button aria-label="Collapse subagent chat" className="chat-subchat-collapse" onClick={onCollapse} title="Collapse subagent chat" type="button">
-          <CollapseSubchatIcon />
-        </button>
-      </header>
-      <div className="chat-subchat-body">
-        <div className="chat-subchat-intent">
-          <p>{latestIntent}</p>
-        </div>
-        <div className="chat-subchat-transcript">
-          {isLoading ? <p className="chat-empty">Loading subchat…</p> : transcript.length ? <ChatMessageGroups isWorking={status === "running" || status === "queued"} messages={indexChatMessages(transcript)} /> : <p className="chat-empty">No subchat messages yet.</p>}
-        </div>
-      </div>
-    </section>
-  );
-}
+export { SubagentChatPanel } from "./subagents/Panel";

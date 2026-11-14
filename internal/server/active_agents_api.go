@@ -21,6 +21,8 @@ type apiActiveAgentProject struct {
 }
 
 type apiActiveAgentNode struct {
+	SubagentDepth    int                  `json:"subagentDepth,omitempty"`
+	ParentSubchatID  string               `json:"parentSubchatId,omitempty"`
 	Model            string               `json:"model,omitempty"`
 	Reasoning        string               `json:"reasoning,omitempty"`
 	Fast             *bool                `json:"fast,omitempty"`
@@ -113,14 +115,30 @@ func activeAgentsForProject(project apiProject, running map[string]struct{}) []a
 	liveSubs := make([]*chatstore.SubSession, 0, len(subs))
 	subByID := make(map[string]*chatstore.SubSession)
 	for _, sub := range subs {
-		if sub == nil || !liveSubagentStatus(sub.Status) {
+		if sub == nil {
 			continue
 		}
 		if sub.ProjectHex != "" && sub.ProjectHex != project.ID {
 			continue
 		}
-		liveSubs = append(liveSubs, sub)
+		if liveSubagentStatus(sub.Status) {
+			liveSubs = append(liveSubs, sub)
+		}
 		subByID[sub.ID] = sub
+	}
+	included := make(map[string]bool)
+	for _, sub := range liveSubs {
+		included[sub.ID] = true
+	}
+	for index := 0; index < len(liveSubs); index++ {
+		_, parentID := subagentHierarchy(project.ID, liveSubs[index])
+		if parentID == "" {
+			parentID = liveSubs[index].ParentChatID
+		}
+		if parent := subByID[parentID]; parent != nil && !included[parentID] {
+			included[parentID] = true
+			liveSubs = append(liveSubs, parent)
+		}
 	}
 	chatTitles := make(map[string]string, len(project.Chats))
 	for _, chat := range project.Chats {
@@ -145,7 +163,10 @@ func activeAgentsForProject(project apiProject, running map[string]struct{}) []a
 	orphans := make([]apiActiveAgentNode, 0)
 	for _, sub := range liveSubs {
 		node := subagentNode(project.ID, sub, chatTitles, subByID)
-		parentID := strings.TrimSpace(sub.ParentChatID)
+		parentID := strings.TrimSpace(node.ParentSubchatID)
+		if parentID == "" {
+			parentID = strings.TrimSpace(sub.ParentChatID)
+		}
 		if _, isSub := subByID[parentID]; isSub {
 			children[parentID] = append(children[parentID], node)
 			continue
@@ -247,7 +268,10 @@ func withChildren(node apiActiveAgentNode, children map[string][]apiActiveAgentN
 }
 
 func subagentNode(projectID string, sub *chatstore.SubSession, chatTitles map[string]string, subByID map[string]*chatstore.SubSession) apiActiveAgentNode {
+	depth, parent := subagentHierarchy(projectID, sub)
 	return apiActiveAgentNode{
+		SubagentDepth:    depth,
+		ParentSubchatID:  parent,
 		Kind:             "subagent",
 		ID:               sub.ID,
 		Title:            subSessionTitle(sub),

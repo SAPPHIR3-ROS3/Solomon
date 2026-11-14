@@ -32,6 +32,17 @@ func (r *Runtime) getNestedState() *activeNestedState {
 }
 
 func (r *Runtime) runSubagentTool(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
+	cfg = subagentConfigDepth(ctx, cfg)
+	if cfg.ResumeID != "" {
+		sess, err := chatstore.FindSubSessionByID(r.ProjHex, cfg.ResumeID)
+		if err != nil {
+			return NestedRunResult{}, err
+		}
+		cfg.Depth = subagentSessionDepth(sess)
+	}
+	if err := r.validateSubagentDepth(cfg.Depth); err != nil {
+		return NestedRunResult{}, err
+	}
 	if r.nestedActive() {
 		return r.delegateSubagentFromNested(ctx, cfg)
 	}
@@ -92,6 +103,7 @@ func (r *Runtime) startSubagentBackground(ctx context.Context, cfg NestedRunConf
 }
 
 func cfgWithID(cfg NestedRunConfig, sess *chatstore.SubSession) NestedRunConfig {
+	cfg.Depth = sess.Depth
 	cfg.ResumeID = sess.ID
 	cfg.Origin = sess.Origin
 	cfg.ProjectHex = sess.ProjectHex
@@ -116,6 +128,10 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 		if err != nil {
 			return nil, "", err
 		}
+		if err := r.validateSubagentDepth(subagentSessionDepth(sess)); err != nil {
+			return nil, "", err
+		}
+		sess.Depth = subagentSessionDepth(sess)
 		if cfg.Task != "" {
 			sess.Messages = append(sess.Messages, chatstore.Message{Role: "user", Content: cfg.Task})
 			sess.LastMessageAt = time.Now().UTC()
@@ -128,6 +144,10 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 		}
 		sess.Status = chatstore.SubStatusRunning
 		return sess, sess.ID, nil
+	}
+	cfg = subagentConfigDepth(ctx, cfg)
+	if err := r.validateSubagentDepth(cfg.Depth); err != nil {
+		return nil, "", err
 	}
 	if strings.TrimSpace(cfg.Task) == "" {
 		return nil, "", fmt.Errorf("task is required for new subagent")
@@ -166,6 +186,8 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 	}
 	fastMode := r.Cfg.FastModeEnabledForProvider(fastProvider)
 	sess := &chatstore.SubSession{
+		ParentSubchatID:  cfg.ParentSubchatID,
+		Depth:            cfg.Depth,
 		FastMode:         &fastMode,
 		ID:               id,
 		Title:            t,

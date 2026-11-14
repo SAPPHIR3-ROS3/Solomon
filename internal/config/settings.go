@@ -30,6 +30,7 @@ func SettingsSpecs() map[string]SettingSpec {
 		"fast_mode":                   {Field: "FastMode", Type: "boolean"},
 		"anonymize":                   {Field: "Anonymize", Type: "boolean"},
 		"autoupdate":                  {Field: "AutoUpdate", Type: "boolean"},
+		"subagent_max_depth":          {Field: "SubagentMaxDepth", Type: "integer", Min: 1, Max: 32},
 		"subagent_timeout_minutes":    {Field: "SubagentTimeoutMinutes", Type: "integer", Min: 1, Max: 180},
 		"max_response_tokens":         {Field: "MaxResponseTokens", Type: "integer", Min: 1, Max: 1048576},
 		"compaction_threshold_tokens": {Field: "CompactionThresholdTokens", Type: "integer", Min: MinCompactionThresholdTokens, Max: 1048576},
