@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-sJBDdmOt.js";var t;function n(){return(n=e((()=>{t=`{"scopeName":"source.worktree-typescript","patterns":[{"include":"source.ts"}],"name":"cursor:source.worktree-typescript"}`})))()}n();export{t as default};
