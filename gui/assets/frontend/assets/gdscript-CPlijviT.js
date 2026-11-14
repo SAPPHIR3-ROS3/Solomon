@@ -1,0 +1,1 @@
+import{n as e,t}from"./gdscript-uobfTB0b.js";e();export{t as default};
