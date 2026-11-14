@@ -8,6 +8,7 @@ import { projectsPlugin } from "./projectsPlugin.ts";
 import { customizationPlugin } from "./customizationPlugin.ts";
 import { guiSettingsPlugin } from "./guiSettingsPlugin.ts";
 import { modelsPlugin } from "./modelsPlugin.ts";
+import { bundleBudgetsPlugin, largeVendorGroups } from "./bundleBudgets.ts";
 import { syntaxAssetsPlugin } from "./syntaxAssetsPlugin.ts";
 
 const localIconPath = fileURLToPath(new URL("./icon.svg", import.meta.url));
@@ -53,7 +54,7 @@ export default defineConfig({
   // Keep browser-test configurations from invalidating the live desktop's
   // optimized dependency URLs while tests run alongside the development app.
   cacheDir: process.env.SOLOMON_VITE_CACHE_DIR || "node_modules/.vite-solomon-dev",
-  plugins: [react(), guiSettingsPlugin(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin(), syntaxAssetsPlugin()],
+  plugins: [react(), guiSettingsPlugin(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin(), syntaxAssetsPlugin(), bundleBudgetsPlugin()],
   optimizeDeps: {
     // Avoid scanning/prebundling every lazy syntax grammar on startup.
     // Prebundle the shared UI dependencies (including nested CommonJS), while
@@ -73,6 +74,7 @@ export default defineConfig({
         strictExecutionOrder: true,
         codeSplitting: {
           groups: [
+            ...largeVendorGroups,
             // Let Vite preserve stylesheet import order (responsive overrides
             // must follow the base styles) independently of JavaScript groups.
             { name: "vendor", test: id => /node_modules/.test(id) && !/\.css(?:\?|$)/.test(id), minSize: 50_000, maxSize: 250_000, entriesAware: true, includeDependenciesRecursively: false },
