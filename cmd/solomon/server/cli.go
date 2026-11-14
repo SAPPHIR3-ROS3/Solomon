@@ -27,6 +27,15 @@ func Run(args []string) error {
 		usage()
 		return fmt.Errorf("missing server subcommand")
 	}
+	// Server commands bypass the main CLI logging setup. Persist startup
+	// notifications so the daemon and GUI can read them after this process exits.
+	home, err := paths.SolomonHome()
+	if err != nil {
+		return err
+	}
+	if err := logging.Configure(logging.Config{Dir: filepath.Join(home, "logs"), WriteFile: true}); err != nil {
+		return err
+	}
 	switch args[0] {
 	case "customize":
 		if len(args) > 2 {

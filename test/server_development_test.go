@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 func TestSavedDevServerSettingsControlDefaultStartup(t *testing.T) {
@@ -44,12 +46,33 @@ func TestSavedDevServerSettingsControlDefaultStartup(t *testing.T) {
 	if err != nil || mode != "normal" || source != "" {
 		t.Fatalf("restart preference: %s %s, %v", mode, source, err)
 	}
-	// A removed source folder must fail before a default startup/restart occurs.
+	// A removed source folder must not prevent default startup/restart.
 	if err := os.WriteFile(path, []byte("[server]\ndev_mode=true\ndev_directory='/missing/gui'\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := config.ResolveServerDevelopment("normal", ""); err == nil {
-		t.Fatal("accepted missing dev directory")
+	mode, source, err = config.ResolveServerDevelopment("normal", "")
+	if err != nil || mode != "normal" || source != "" {
+		t.Fatalf("missing source fallback: %s %s, %v", mode, source, err)
+	}
+	notices, err := logging.ReadNotifications()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, notice := range notices {
+		if notice.Level == "warning" && strings.Contains(notice.Message, "continuing with the default bundled interface") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("missing fallback notification")
+	}
+	if _, err := config.ValidateDevDirectory("/missing/gui"); err == nil {
+		t.Fatal("explicit validation accepted missing dev directory")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "[server]\ndev_mode=true\ndev_directory='/missing/gui'\n" {
+		t.Fatalf("saved preferences changed: %s, %v", data, err)
 	}
 }
 

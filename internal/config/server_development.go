@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	toml "github.com/pelletier/go-toml/v2"
 )
@@ -94,7 +95,10 @@ func ResolveServerDevelopment(mode, directory string) (string, string, error) {
 	}
 	directory, err = ValidateDevDirectory(file.Server.DevDirectory)
 	if err != nil {
-		return "", "", err
+		message := fmt.Sprintf("Saved GUI development directory is unavailable; continuing with the default bundled interface. Saved path: %s. %v", file.Server.DevDirectory, err)
+		fmt.Fprintln(os.Stderr, "warning:", message)
+		logging.RecordNotification("warning", message)
+		return "normal", "", nil
 	}
 	return "dev", directory, nil
 }
