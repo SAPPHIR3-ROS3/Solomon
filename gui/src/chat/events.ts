@@ -148,13 +148,21 @@ export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat 
   const archive = retainedArchive(previous, next);
   const seeded = preserveOptimisticMessages(previous, [...archive.history, ...next.messages.map((message) => archive.history.length > 0 && message.historyAvailable ? { ...message, historyAvailable: false } : message)]);
   const presentationIDs = presentationIDsFor(previous.messages, seeded);
+  const retainedToolIDs = new Set<string>();
   const messages = seeded.map((message, index) => {
     const previousMessage = previous.messages.find((candidate) => candidate.role === message.role && (
       candidate.id === message.id
       || (message.checkpointSeq !== undefined && candidate.checkpointSeq === message.checkpointSeq && candidate.checkpointBranch === message.checkpointBranch)
       || message.toolCalls?.some((tool) => candidate.toolCalls?.some((previousTool) => previousTool.id === tool.id))
     ));
-    const tools = mergeSubagentCalls(previousMessage?.toolCalls, message.toolCalls ?? []);
+    // A checkpoint can span several assistant messages. Retain a live agent
+    // only in its owning message, never copy it into every checkpoint match.
+    const retainedTools = previousMessage?.toolCalls?.filter((tool) =>
+      !seeded.some((candidate) => candidate !== message && candidate.toolCalls?.some((incoming) => incoming.id === tool.id))
+      && !retainedToolIDs.has(tool.id)
+    );
+    const tools = mergeSubagentCalls(retainedTools, message.toolCalls ?? []);
+    tools.forEach((tool) => retainedToolIDs.add(tool.id));
     const presentationID = presentationIDs[index];
     return {
       ...message,

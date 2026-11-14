@@ -111,3 +111,13 @@ test("terminal snapshots close activity while other subagents keep running", () 
     assert.equal(getTool(next, "second").status, "running");
   }
 });
+
+test("shared checkpoints do not duplicate subagents in later chain messages", () => {
+  const previous = chatWith(agent("first"));
+  previous.messages[0].checkpointSeq = 1;
+  const next = preserveLiveWorkState(previous, { ...previous, messages: [
+    previous.messages[0],
+    { id: "later", role: "assistant", checkpointSeq: 1, content: "Working", toolCalls: [] },
+  ] });
+  assert.equal(next.messages.flatMap(message => message.toolCalls ?? []).length, 1);
+});
