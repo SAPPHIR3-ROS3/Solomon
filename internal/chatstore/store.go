@@ -132,11 +132,7 @@ func WriteSession(projectHex string, s *Session) (err error) {
 	if err != nil {
 		return err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, p); err != nil {
+	if err := writeSessionFile(p, b); err != nil {
 		return err
 	}
 	if err := touchProjectStatsAfterWrite(projectHex, s); err != nil {
