@@ -1,0 +1,297 @@
+name: Release smoke checks
+description: Verify published installation, desktop assets and upgrades
+runs:
+  using: composite
+  steps:
+    - name: Wait for release assets to be available
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: |
+        set -euo pipefail
+        asset="solomon-${RELEASE_TAG}-linux-amd64"
+        url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${asset}"
+        for attempt in $(seq 1 30); do
+          if curl -fsI "$url" >/dev/null 2>&1; then
+            echo "Release assets available (attempt ${attempt})"
+            exit 0
+          fi
+          echo "Waiting for release assets... (${attempt}/30)"
+          sleep 2
+        done
+        echo "Release assets not available after 60s: ${url}" >&2
+        exit 1
+
+    - name: Run README install command (macOS / Linux)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: |
+        set -euo pipefail
+        curl -fsSL "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.sh" | bash -s -- "${RELEASE_TAG}"
+
+    - name: Run README install command (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: |
+        $script = irm "https://raw.githubusercontent.com/SAPPHIR3-ROS3/Solomon/main/scripts/install.ps1"
+        $block = [scriptblock]::Create($script)
+        & $block -Version $env:RELEASE_TAG
+
+    - name: Smoke test installed binary (macOS / Linux)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        gopath_bin="$(go env GOPATH)/bin"
+        gobin="$(go env GOBIN 2>/dev/null | tr -d '\r\n')"
+        if [[ -n "$gobin" ]]; then
+          expected_bin="$gobin"
+        else
+          expected_bin="$gopath_bin"
+        fi
+        case ":${PATH}:" in
+          *":${expected_bin}:"*) ;;
+          *)
+            echo "Go install bin not in PATH: ${expected_bin}" >&2
+            echo "PATH=${PATH}" >&2
+            exit 1
+            ;;
+        esac
+        if ! command -v solomon >/dev/null 2>&1; then
+          echo "solomon not found in PATH" >&2
+          exit 1
+        fi
+        solomon version
+        for rc in "$HOME/.zshrc" "$HOME/.profile"; do
+          [[ -f "$rc" ]] || { echo "missing ${rc}" >&2; exit 1; }
+          grep -Fq '# solomon-installer-gopath' "$rc" || {
+            echo "missing gopath marker in ${rc}" >&2
+            exit 1
+          }
+          grep -Fq 'go env GOBIN' "$rc" || {
+            echo "missing GOBIN handling in ${rc}" >&2
+            exit 1
+          }
+        done
+        if [[ "$(uname -s)" == Darwin ]]; then
+          bash_rc="$HOME/.bash_profile"
+        else
+          bash_rc="$HOME/.bashrc"
+        fi
+        [[ -f "$bash_rc" ]] || { echo "missing ${bash_rc}" >&2; exit 1; }
+        grep -Fq '# solomon-installer-gopath' "$bash_rc" || {
+          echo "missing gopath marker in ${bash_rc}" >&2
+          exit 1
+        }
+        grep -Fq 'go env GOBIN' "$bash_rc" || {
+          echo "missing GOBIN handling in ${bash_rc}" >&2
+          exit 1
+        }
+        exe="$expected_bin/solomon"
+        if [[ ! -x "$exe" ]]; then
+          echo "Installed binary not found at $exe" >&2
+          exit 1
+        fi
+        "$exe" version
+        case "$(uname -s)" in
+          Darwin) desktop="$HOME/Applications/Solomon.app/Contents/MacOS/solomon-desktop" ;;
+          Linux) desktop="$expected_bin/solomon-desktop" ;;
+        esac
+        [[ -x "$desktop" ]] || { echo "Desktop missing: $desktop" >&2; exit 1; }
+        [[ -f "$desktop.install.json" ]] || { echo "Desktop setup marker missing" >&2; exit 1; }
+
+    - name: Smoke test installed binary (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $gobin = (go env GOBIN).Trim()
+        if ($gobin) {
+          $expectedBin = $gobin
+        } else {
+          $expectedBin = Join-Path (go env GOPATH) 'bin'
+        }
+        if ($env:Path -notlike "*$expectedBin*") {
+          throw "Go install bin not in session PATH: $expectedBin"
+        }
+        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+        if ($userPath -notlike "*$expectedBin*") {
+          throw "Go install bin not in user PATH: $expectedBin"
+        }
+        $cmd = Get-Command solomon -ErrorAction SilentlyContinue
+        if (-not $cmd) {
+          throw 'solomon not found in PATH'
+        }
+        & solomon version
+        $profile = $PROFILE.CurrentUserAllHosts
+        if (-not $profile) {
+          $profile = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'PowerShell\profile.ps1'
+        }
+        if (-not (Test-Path $profile)) {
+          throw "PowerShell profile not found: $profile"
+        }
+        $content = Get-Content -Path $profile -Raw
+        if (-not $content.Contains('go env GOBIN')) {
+          throw 'missing GOBIN handling in PowerShell profile'
+        }
+        $exe = Join-Path $expectedBin 'solomon.exe'
+        if (-not (Test-Path $exe)) {
+          throw "Installed binary not found at $exe"
+        }
+        & $exe version
+
+        $desktop = Join-Path $expectedBin 'solomon-desktop.exe'
+        if (-not (Test-Path -LiteralPath $desktop)) { throw 'Desktop executable missing' }
+        $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Solomon\Solomon.lnk'
+        $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($link)
+        if ($shortcut.TargetPath -ne $desktop) { throw 'Incorrect Start menu desktop target' }
+        $app = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Solomon'
+        if ($app.DisplayName -ne 'Solomon') { throw 'Solomon missing from Windows apps' }
+
+    - name: Smoke test upgrade path (macOS / Linux)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GH_TOKEN: ${{ github.token }}
+      run: bash scripts/check_upgrade_smoke.sh
+
+    - name: Verify go install completes the desktop package (macOS / Linux)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: |
+        set -euo pipefail
+        export GOBIN="$RUNNER_TEMP/go-install-bin"
+        mkdir -p "$GOBIN"
+        for attempt in $(seq 1 15); do
+          if go install "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@${RELEASE_TAG}"; then break; fi
+          if [[ "$attempt" == 15 ]]; then exit 1; fi
+          sleep 2
+        done
+        "$GOBIN/solomon" version
+        if [[ "$(uname -s)" == Darwin ]]; then
+          desktop="$HOME/Applications/Solomon.app/Contents/MacOS/solomon-desktop"
+          [[ "$(readlink "$(dirname "$desktop")/solomon")" == "$GOBIN/solomon" ]]
+        else
+          desktop="$GOBIN/solomon-desktop"
+          grep -Fq "$desktop" "$HOME/.local/share/applications/solomon.desktop"
+        fi
+        [[ -x "$desktop" && -f "$desktop.install.json" ]]
+
+    - name: Verify go install completes the desktop package (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: |
+        $env:GOBIN = Join-Path $env:RUNNER_TEMP 'go-install-bin'
+        New-Item -ItemType Directory -Force -Path $env:GOBIN | Out-Null
+        for ($attempt = 1; $attempt -le 15; $attempt++) {
+          go install "github.com/SAPPHIR3-ROS3/Solomon/v2026/cmd/solomon@$env:RELEASE_TAG"
+          if ($LASTEXITCODE -eq 0) { break }
+          if ($attempt -eq 15) { throw 'go install failed' }
+          Start-Sleep -Seconds 2
+        }
+        & (Join-Path $env:GOBIN 'solomon.exe') version
+        if ($LASTEXITCODE -ne 0) { throw 'First-launch desktop setup failed' }
+        $desktop = Join-Path $env:GOBIN 'solomon-desktop.exe'
+        if (-not (Test-Path -LiteralPath "$desktop.install.json")) { throw 'Desktop setup missing' }
+        $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Solomon\Solomon.lnk'
+        $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($link)
+        if ($shortcut.TargetPath -ne $desktop) { throw 'go install did not register the GUI' }
+
+    - name: Smoke test upgrade path (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GH_TOKEN: ${{ github.token }}
+      run: ./scripts/check_upgrade_smoke.ps1
+
+    - id: asset_meta_unix
+      name: Resolve release asset name (macOS / Linux)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: |
+        set -euo pipefail
+        case "$(uname -s)" in
+          Linux) goos="linux" ;;
+          Darwin) goos="darwin" ;;
+          *)
+            echo "Unsupported runner OS: $(uname -s)" >&2
+            exit 1
+            ;;
+        esac
+        case "$(uname -m)" in
+          x86_64) goarch="amd64" ;;
+          arm64|aarch64) goarch="arm64" ;;
+          *)
+            echo "Unsupported runner arch: $(uname -m)" >&2
+            exit 1
+            ;;
+        esac
+        asset="solomon-${RELEASE_TAG}-${goos}-${goarch}"
+        echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+    - name: Download and smoke test release asset (macOS / Linux)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        ASSET_NAME: ${{ steps.asset_meta_unix.outputs.asset }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${ASSET_NAME}" ]]; then
+          echo "Release asset name was not resolved" >&2
+          exit 1
+        fi
+        exe="$RUNNER_TEMP/$ASSET_NAME"
+        curl -fL "https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${ASSET_NAME}" -o "$exe"
+        chmod +x "$exe"
+        if [[ ! -x "$exe" ]]; then
+          echo "Downloaded asset is not executable: $exe" >&2
+          exit 1
+        fi
+        "$exe" version
+
+    - id: asset_meta_windows
+      name: Resolve release asset name (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: |
+        switch ($env:PROCESSOR_ARCHITECTURE.ToUpperInvariant()) {
+          'AMD64' { $arch = 'amd64' }
+          'ARM64' { $arch = 'arm64' }
+          default { throw "Unsupported runner arch: $env:PROCESSOR_ARCHITECTURE" }
+        }
+        $asset = "solomon-$env:RELEASE_TAG-windows-$arch.exe"
+        "asset=$asset" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    - name: Download and smoke test release asset (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        ASSET_NAME: ${{ steps.asset_meta_windows.outputs.asset }}
+      run: |
+        if (-not $env:ASSET_NAME) {
+          throw 'Release asset name was not resolved'
+        }
+        $exe = Join-Path $env:RUNNER_TEMP $env:ASSET_NAME
+        $url = "https://github.com/${{ github.repository }}/releases/download/$env:RELEASE_TAG/$env:ASSET_NAME"
+        Invoke-WebRequest -Uri $url -OutFile $exe
+        if (-not (Test-Path $exe)) {
+          throw "Downloaded asset not found at $exe"
+        }
+        & $exe version
