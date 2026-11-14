@@ -155,7 +155,7 @@ export function attachProjectActionEndpoint(server: { middlewares: { use: (route
     const match = route.match(/^\/?([a-f0-9]{64})(?:\/(disk|removal-info|file-operation|file|files|research|history|status|branches|checkout|worktrees|commit))?\/?$/);
     if (match?.[2] === "file-operation") {
       if (request.method !== "POST") { respondWithJson(response, 405, { error: "Method not allowed" }); return; }
-      void readJsonBody(request).then((payload) => projectFileOperation(match[1], payload))
+      void readJsonBody(request, 96 * 1024 * 1024).then((payload) => projectFileOperation(match[1], payload))
         .then(() => respondWithJson(response, 200, { ok: true }))
         .catch((error) => respondWithJson(response, 400, { error: error instanceof Error ? error.message : "File operation failed" }));
       return;

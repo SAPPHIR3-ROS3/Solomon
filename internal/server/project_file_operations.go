@@ -10,14 +10,15 @@ import (
 )
 
 type projectFileOperation struct {
-	Action      string `json:"action"`
-	Path        string `json:"path"`
-	Destination string `json:"destination"`
+	Action      string  `json:"action"`
+	Path        string  `json:"path"`
+	Destination string  `json:"destination"`
+	Content     *string `json:"content,omitempty"`
 }
 
 func (a *projectAPI) handleProjectFileOperation(w http.ResponseWriter, r *http.Request, projectID string) {
 	var request projectFileOperation
-	if err := decodeJSONBody(w, r, &request, 8192); err != nil {
+	if err := decodeJSONBody(w, r, &request, 96<<20); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -33,6 +34,9 @@ func (a *projectAPI) handleProjectFileOperation(w http.ResponseWriter, r *http.R
 }
 
 func performProjectFileOperation(root string, request projectFileOperation) error {
+	if request.Action == "import" {
+		return importProjectEntry(root, request)
+	}
 	if request.Action != "rename" && request.Action != "delete" && request.Action != "copy" && request.Action != "move" && request.Action != "create-file" && request.Action != "create-folder" {
 		return errors.New("invalid file action")
 	}

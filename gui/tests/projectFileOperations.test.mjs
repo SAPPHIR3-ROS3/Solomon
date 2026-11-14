@@ -77,3 +77,23 @@ test("development API rejects workspace deletion and escaping destinations", asy
   assert.equal((await operate({ action: "copy", path: "original.txt", destination: "escape/copy.txt" })).status, 400);
   assert.equal(await readFile(path.join(fixture, "outside", "file.txt"), "utf8"), "untouched");
 });
+
+test("development API imports external and browser files without overwriting", async () => {
+  const external = path.join(fixture, "external.bin");
+  const bytes = Buffer.from([0, 255, 128, 13, 10, 42]);
+  await writeFile(external, bytes);
+  assert.equal((await operate({ action: "import", path: external, destination: "external.bin" })).status, 200);
+  assert.deepEqual(await readFile(path.join(workspace, "external.bin")), bytes);
+  assert.deepEqual(await readFile(external), bytes);
+  assert.equal((await operate({ action: "import", path: "upload.bin", destination: "upload.bin", content: bytes.toString("base64") })).status, 200);
+  assert.deepEqual(await readFile(path.join(workspace, "upload.bin")), bytes);
+  assert.equal((await operate({ action: "import", path: external, destination: "external.bin" })).status, 400);
+  assert.equal((await operate({ action: "import", path: "upload.bin", destination: "upload.bin", content: "" })).status, 400);
+  for (const destination of ["../escape.bin", ".", "/tmp/escape.bin"]) {
+    assert.equal((await operate({ action: "import", path: external, destination })).status, 400);
+  }
+  assert.equal((await operate({ action: "import", path: "bad", destination: "invalid.bin", content: "!" })).status, 400);
+  const large = Buffer.alloc(8192, 42);
+  assert.equal((await operate({ action: "import", path: "large.bin", destination: "large.bin", content: large.toString("base64") })).status, 200);
+  assert.deepEqual(await readFile(path.join(workspace, "large.bin")), large);
+});

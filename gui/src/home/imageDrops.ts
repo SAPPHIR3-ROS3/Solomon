@@ -1,5 +1,6 @@
 import { nativeImageDropPaths } from "./clipboardImages";
 
+export const NATIVE_FILE_DROP_EVENT = "solomon:native-file-drop";
 export const NATIVE_IMAGE_DROP_EVENT = "solomon:native-image-drop";
 let nativeDropsRegistered = false;
 
@@ -21,7 +22,8 @@ export function watchImageDrops(): () => void {
   window.addEventListener("drop", guard, true);
   const runtime = window.runtime;
   if (runtime?.OnFileDrop) {
-    runtime.OnFileDrop((_x, _y, paths) => {
+    runtime.OnFileDrop((x, y, paths) => {
+      window.dispatchEvent(new CustomEvent(NATIVE_FILE_DROP_EVENT, {detail: { x, y, paths }}));
       window.dispatchEvent(new CustomEvent(NATIVE_IMAGE_DROP_EVENT, {detail: paths}));
     }, false);
     nativeDropsRegistered = true;

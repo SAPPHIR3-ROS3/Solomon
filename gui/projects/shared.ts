@@ -65,21 +65,10 @@ export function readTextBody(request: UserNameRequest): Promise<string> {
   });
 }
 
-export function readJsonBody(request: UserNameRequest): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    request.on("data", (chunk) => {
-      body += String(chunk);
-      if (body.length > 2048) reject(new Error("Request body is too large"));
-    });
-    request.once("error", reject);
-    request.once("end", () => {
-      try {
-        resolve(JSON.parse(body));
-      } catch {
-        reject(new Error("Invalid JSON"));
-      }
-    });
+export function readJsonBody(request: UserNameRequest, maxBytes = 2048): Promise<unknown> {
+  return readRequestBody(request, maxBytes).then(body => {
+    try { return JSON.parse(new TextDecoder().decode(body)); }
+    catch { throw new Error("Invalid JSON"); }
   });
 }
 

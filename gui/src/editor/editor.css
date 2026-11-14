@@ -430,3 +430,29 @@
 .editor-path-copy { width:20px; height:24px; padding:0; display:grid; place-items:center; flex:none; border:0; border-radius:6px; background:transparent; color:var(--color-text-muted); cursor:pointer; }
 .editor-path-copy:hover { background:var(--color-surface-raised); color:var(--color-text); }
 .editor-path-copy svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.6; }
+
+.editor-sidebar .is-drop-target {
+  background: color-mix(in srgb, var(--accent, #8c9eff) 20%, transparent);
+  outline: 1px solid var(--accent, #8c9eff);
+  outline-offset: -1px;
+}
+
+.editor-file-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #8993ab;
+  border-radius: 6px;
+  background: #252934;
+  color: #edf0f7;
+  opacity: .8;
+  box-shadow: 0 4px 14px #0005;
+  pointer-events: none;
+}
+
+.editor-file-drag-ghost img { width: 18px; height: 18px; }
+.editor-file-drag-ghost span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

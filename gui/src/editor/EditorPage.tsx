@@ -1,3 +1,4 @@
+import { useFileDrag } from "./fileDrag";
 import { useFileContextMenu } from "../shell/FileContextMenu";
 import { lazy, Suspense } from "react";
 const PdfPreview = lazy(() => import("./PdfPreview").then((module) => ({ default: module.PdfPreview })));
@@ -433,6 +434,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const fileStatus = useMemo(() => ({ ...git.changes, ...git.staged }), [git]);
   const entryMap = useMemo(() => ({ "": entries, ...children }), [entries, children]);
   if (!project) return <>
+  const fileDragHost = useFileDrag(project?.id, entryMap, setMessage);
     <SidePanelToggle isOpen={!sideCollapsed} onToggle={() => setSideCollapsed((current) => !current)} />
     <section className={`editor-page editor-empty${sideCollapsed ? " side-collapsed" : ""}`} style={{ bottom: bottomInset }}><div><AsciiBanner /><strong>Open a folder to use the editor</strong></div></section>
   </>;
@@ -444,7 +446,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     {!sideCollapsed ? <button aria-label="Go to home" className="editor-top-wordmark" onClick={onHome} style={editorLayoutStyle} type="button">SOLOMON</button> : null}
     <div className={`editor-top-path${sideCollapsed ? " is-collapsed" : ""}`} style={editorLayoutStyle} title={project.path}><span>{abbreviateHomePath(project.path)}</span><button aria-label="Copy project path" title="Copy project path" onClick={() => { if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(project.path).catch(() => copyTextFallback(project.path)); else copyTextFallback(project.path); }}><CopyIcon /></button></div>
     <section className={`editor-page${sideCollapsed ? " side-collapsed" : ""}`} style={{ ...editorLayoutStyle, bottom: bottomInset }}>
-    <aside className={`editor-sidebar${sideResizing ? " is-resizing" : ""}`} id="side-panel">
+    <aside ref={fileDragHost} className={`editor-sidebar${sideResizing ? " is-resizing" : ""}`} id="side-panel">
       <header aria-label="Explorer views" className="right-side-panel-head editor-side-panel-head">
         <div aria-label="Explorer view" className="right-side-panel-view-actions" role="tablist">
           <button aria-controls="editor-files" aria-label="Files" aria-selected={sideView === "files"} className={sideView === "files" ? "is-active" : ""} onClick={() => setSideView("files")} role="tab" title="Files" type="button"><NewDocumentIcon /></button>

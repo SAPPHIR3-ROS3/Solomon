@@ -206,9 +206,26 @@ export async function projectResearchReport(projectID: string, researchID: strin
 }
 
 export async function projectFileOperation(projectID: string, payload: unknown) {
-  const request = payload as { action?: string; path?: string; destination?: string } | null;
-  if (!request || !["rename", "delete", "copy", "move", "create-file", "create-folder"].includes(request.action ?? "") || typeof request.path !== "string") throw new Error("Invalid file action");
+  const request = payload as { action?: string; path?: string; destination?: string; content?: string } | null;
+  if (!request || !["rename", "delete", "copy", "move", "create-file", "create-folder", "import"].includes(request.action ?? "") || typeof request.path !== "string") throw new Error("Invalid file action");
   const root = await projectFilePath(projectID, ".");
+  if (request.action === "import") {
+    if (typeof request.destination !== "string" || !request.destination.trim() || path.isAbsolute(request.destination)) throw new Error("Invalid destination");
+    const destination = path.normalize(request.destination);
+    if (destination === "." || destination === ".." || destination.startsWith(`..${path.sep}`)) throw new Error("Invalid destination");
+    const parent = await projectFilePath(projectID, path.dirname(destination));
+    const target = path.join(parent, path.basename(destination));
+    if (request.content !== undefined) {
+      if (typeof request.content !== "string" || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(request.content)) throw new Error("Invalid file content");
+      await writeFile(target, Buffer.from(request.content, "base64"), { flag: "wx" });
+    } else {
+      if (!path.isAbsolute(request.path)) throw new Error("Invalid external source");
+      const source = await realpath(request.path);
+      if (target === source || target.startsWith(`${source}${path.sep}`)) throw new Error("Destination is inside source");
+      await copyProjectEntry(request.path, target);
+    }
+    return;
+  }
   if (request.action === "create-file" || request.action === "create-folder") {
     const name = path.normalize(request.path);
     if (!request.path.trim() || path.isAbsolute(name) || name === "." || name === ".." || name.startsWith(`..${path.sep}`)) throw new Error("Invalid new entry path");
