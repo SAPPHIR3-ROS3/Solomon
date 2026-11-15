@@ -1,0 +1,20 @@
+svg text, svg foreignObject { display: none !important; }
+.radarGraticule { fill: #DEDEDE !important; fill-opacity: .3 !important; stroke: #174875 !important; stroke-opacity: 1 !important; }
+.radarAxisLine { stroke: #174875 !important; }
+.radarCurve-0, .radarLegendBox-0 { fill: #3b8fd1 !important; stroke: #3b8fd1 !important; fill-opacity: .5 !important; stroke-width: 2 !important; }
+.radarLegendBox-0 { fill-opacity: .8 !important; }
+.radarCurve-1, .radarLegendBox-1 { fill: #ffc704 !important; stroke: #ffc704 !important; fill-opacity: .5 !important; stroke-width: 2 !important; }
+.radarLegendBox-1 { fill-opacity: .8 !important; }
+.radarCurve-2, .radarLegendBox-2 { fill: #e8e5df !important; stroke: #e8e5df !important; fill-opacity: .5 !important; stroke-width: 2 !important; }
+.radarLegendBox-2 { fill-opacity: .8 !important; }
+.radarCurve-3, .radarLegendBox-3 { fill: #237a52 !important; stroke: #237a52 !important; fill-opacity: .5 !important; stroke-width: 2 !important; }
+.radarLegendBox-3 { fill-opacity: .8 !important; }
+.radarCurve-4, .radarLegendBox-4 { fill: #a83b3b !important; stroke: #a83b3b !important; fill-opacity: .5 !important; stroke-width: 2 !important; }
+.radarLegendBox-4 { fill-opacity: .8 !important; }
+.radarCurve-5, .radarLegendBox-5 { fill: #9ca3aa !important; stroke: #9ca3aa !important; fill-opacity: .5 !important; stroke-width: 2 !important; }
+.radarLegendBox-5 { fill-opacity: .8 !important; }
+.pieCircle { stroke: none !important; stroke-width: 0 !important; }
+.pieOuterCircle, .legend rect { display: none !important; }
+
+.radarGraticule, .radarAxisLine, [class^="radarCurve-"], [class^="radarLegendBox-"] { stroke: none !important; stroke-width: 0 !important; }
+[class^="radarLegendBox-"] { display: none !important; }

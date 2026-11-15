@@ -1,0 +1,18 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "background": "transparent",
+    "darkMode": true,
+    "lineColor": "#3b8fd1",
+    "pie1": "#3b8fd1",
+    "pie2": "#ffc704",
+    "pie3": "#e8e5df",
+    "pieOpacity": 1,
+    "pieOuterStrokeColor": "#174875",
+    "pieStrokeColor": "#174875",
+    "primaryBorderColor": "#3b8fd1",
+    "primaryColor": "#0d3566",
+    "primaryTextColor": "#e8e5df",
+    "textColor": "#e8e5df"
+  }
+}

@@ -18,6 +18,15 @@ func sampleMessages() []message {
 	for _, entry := range fixture.Entries {
 		result = append(result, message{entry.Role, entry.Text})
 	}
+	result = append(result, message{"SOURCE", "Prototype artifacts\nThe following examples demonstrate UI states and are not events from the archived conversation."})
+	for _, entry := range galleryMessages() {
+		if entry.role != "SOURCE" && entry.role != "YOU" && entry.role != "SOLOMON" {
+			result = append(result, entry)
+		}
+	}
+	for _, name := range []string{"Mermaid", "File summary", "Compaction", "Worked for", "Subagent activity", "Subagent chat", "Rate limit", "Interrupted generation", "Mode switch", "Message actions"} {
+		result = append(result, message{"COMPONENT", name})
+	}
 	return result
 }
 
@@ -36,7 +45,7 @@ func galleryMessages() []message {
 		{"DIFF", "gui/src/editor/EditorPage.tsx · diff\n@@ image tab rendering @@\n- return <CodeEditor file={file} />;\n+ if (isImageFile(file.path)) {\n+   return <ImagePreview file={file} />;\n+ }\n+ return <CodeEditor file={file} />;"},
 		{"MEDIA", "Actual image attachment\nicon.png"},
 		{"MARKDOWN", "Markdown document\n# Image preview\n\nImages open in a read-only tab.\n\n| Format | Preview | Save |\n| --- | --- | --- |\n| PNG    | yes     | no   |\n| JPEG   | yes     | no   |\n| SVG    | yes     | no   |\n\n- Preserve aspect ratio\n- Show dimensions\n- Recover from invalid images"},
-		{"SUBAGENT", "Subagent\n● editor-regressions  completed\n  Model: gpt-6.1-sol\n  Reasoning: high\n  Fast: true\n  Task: verify image tabs do not trigger autosave\n  Result: preview checks passed\n  Subchat: mock-editor-regressions\n○ accessibility-review  queued"},
+		{"SUBAGENT", "Subagent\n● editor-regressions  completed\n  Model: gpt-6.1-sol\n  Reasoning: high\n  Fast: true\n  Task: verify image tabs do not trigger autosave\n  Result: preview checks passed\n  Subchat: mock-editor-regressions\n○ accessibility-review  queued\n  Depth: 2"},
 		{"ERROR", "Tool failure\nImage decode failed: unsupported header\nThe file was not modified.\nRetry: inspect MIME type and original bytes."},
 		{"PERMISSION", "Permission request\nAction: read a file outside the selected workspace\nPath: /example/reference.png\n[a] Allow once   [d] Deny\nThis screen does not request or grant access."},
 		{"SHELL", "Shell session\n$ go test ./test\nok  example/test  0.214s\n$ git diff --stat\n EditorPage.tsx | 6 +++++-\n 1 file changed, 5 insertions(+), 1 deletion(-)"},

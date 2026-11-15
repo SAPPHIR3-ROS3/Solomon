@@ -11,19 +11,14 @@ func (m model) supplementaryComponent(name string, width int) (string, bool) {
 	sample := m
 	sample.details = m.componentState != 1
 	sample.sectionPrefix = fmt.Sprintf("component-%d.0.", m.componentIndex)
-	section := func(title, body string) string {
-		return sample.toolSection("MARKDOWN", title, body, max(8, width-6))
-	}
 	var body string
 	switch name {
+	case "Mermaid":
+		body = mermaidGallery(max(8, width-3), sample.details)
 	case "File summary":
 		body = m.fileSummary(width)
 	case "Compaction":
-		body = section("Context compacted", "Conversation context has been compacted.")
-		if sample.details {
-			body += "\n" + section("Summary", "## Current task\nAdd read-only image previews to the editor.\n\n- Preserve binary files\n- Keep text autosave unchanged\n- Verify PNG and JPEG previews")
-			body += "\n" + section("Recent messages", "You: Verify image tabs do not trigger autosave.\n\nAssistant: Image previews use the binary endpoint and remain read-only.")
-		}
+		body = m.compactionCard(max(8, width-6))
 	case "Reasoning":
 		content := text("thought for 2s", muted)
 		if m.componentState == 0 {

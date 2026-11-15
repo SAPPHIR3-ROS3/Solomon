@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -12,6 +13,7 @@ func (m model) subagentCard(raw string, width int) string {
 		body = raw
 	}
 	cards := []string{}
+	depth := 1
 	name, task, status := "", "", "queued"
 	modelName, reasoning, fast := "", "", false
 	flush := func() {
@@ -26,7 +28,11 @@ func (m model) subagentCard(raw string, width int) string {
 		if status == "queued" {
 			dot = text("○", muted)
 		}
-		heading := bold("Subagent", ink)
+		label := "Subagent"
+		if depth > 1 {
+			label = "L" + strconv.Itoa(depth) + " Subagent"
+		}
+		heading := bold(label, ink)
 		if modelName != "" {
 			heading += "  " + text("["+modelName+"]", muted)
 		}
@@ -43,16 +49,18 @@ func (m model) subagentCard(raw string, width int) string {
 		if status == "queued" {
 			heading += "  " + text("Queued", muted)
 		}
-		innerWidth := max(1, width-10)
+		indent := strings.Repeat(" ", (depth-1)*2)
+		cardWidth := max(8, width-len(indent))
+		innerWidth := max(1, cardWidth-10)
 		content := lipgloss.NewStyle().Width(innerWidth).Render(heading) + "\n" + text(lipgloss.NewStyle().Width(innerWidth).Render(intent), ink)
-		framed := box(content, max(8, width-6), lipgloss.Height(content)+2, border, true)
+		framed := box(content, max(8, cardWidth-6), lipgloss.Height(content)+2, border, true)
 		rows := strings.Split(framed, "\n")
 		for i := range rows {
 			gutter := "   "
 			if i == 1 {
 				gutter = " " + dot + " "
 			}
-			rows[i] = gutter + rows[i]
+			rows[i] = indent + gutter + rows[i]
 		}
 		cards = append(cards, strings.Join(rows, "\n"))
 	}
@@ -61,6 +69,7 @@ func (m model) subagentCard(raw string, width int) string {
 		if strings.HasPrefix(value, "● ") || strings.HasPrefix(value, "○ ") {
 			flush()
 			fields := strings.Fields(value)
+			depth = 1
 			name, task, status = "Subagent", "", "queued"
 			modelName, reasoning, fast = "", "", false
 			if len(fields) > 1 {
@@ -75,6 +84,10 @@ func (m model) subagentCard(raw string, width int) string {
 		if ok {
 			content = strings.TrimSpace(content)
 			switch label {
+			case "Depth":
+				if parsed, err := strconv.Atoi(content); err == nil {
+					depth = max(1, min(parsed, 16))
+				}
 			case "Task":
 				task = content
 			case "Model":

@@ -27,19 +27,36 @@ func imagePreview(width int) string {
 	if previewError != nil {
 		return text("Image decode failed: "+previewError.Error(), "#FF5555")
 	}
-	bounds := previewImage.Bounds()
-	columns := min(max(1, width-2), 72)
+	output := []string{bold("Image attachment · icon.png", cyan), text(fmt.Sprintf("%d × %d · %d bytes · actual image pixels", previewImage.Bounds().Dx(), previewImage.Bounds().Dy(), len(previewPNG)), muted), renderRaster(previewImage, width, 72, 26)}
+	result := strings.Join(output, "\n")
+	imageRows[width] = result
+	return result
+}
+func rasterPixel(picture image.Image, x, y, width, height int) [4]uint32 {
+	b := picture.Bounds()
+	sx := b.Min.X + min(b.Dx()-1, x*b.Dx()/width)
+	sy := b.Min.Y + min(b.Dy()-1, y*b.Dy()/height)
+	r, g, blue, a := picture.At(sx, sy).RGBA()
+	if a == 0 {
+		return [4]uint32{}
+	}
+	return [4]uint32{r * 255 / a, g * 255 / a, blue * 255 / a, a >> 8}
+}
+
+func renderRaster(picture image.Image, width, maxColumns, maxRows int) string {
+	bounds := picture.Bounds()
+	columns := min(max(1, width-2), maxColumns)
 	rows := max(1, int(math.Round(float64(columns)*float64(bounds.Dy())/float64(bounds.Dx())/2)))
-	if rows > 26 {
-		rows = 26
+	if rows > maxRows {
+		rows = maxRows
 		columns = max(1, int(math.Round(float64(rows)*2*float64(bounds.Dx())/float64(bounds.Dy()))))
 	}
-	output := []string{bold("Image attachment · icon.png", cyan), text(fmt.Sprintf("%d × %d · %d bytes · actual image pixels", bounds.Dx(), bounds.Dy(), len(previewPNG)), muted)}
+	output := []string{}
 	for y := 0; y < rows; y++ {
 		var line strings.Builder
 		for x := 0; x < columns; x++ {
-			upper := imagePixel(x, y*2, columns, rows*2)
-			lower := imagePixel(x, y*2+1, columns, rows*2)
+			upper := rasterPixel(picture, x, y*2, columns, rows*2)
+			lower := rasterPixel(picture, x, y*2+1, columns, rows*2)
 			if upper[3] < 32 && lower[3] < 32 {
 				line.WriteByte(' ')
 				continue
@@ -56,17 +73,5 @@ func imagePreview(width int) string {
 		}
 		output = append(output, line.String())
 	}
-	result := strings.Join(output, "\n")
-	imageRows[width] = result
-	return result
-}
-func imagePixel(x, y, width, height int) [4]uint32 {
-	b := previewImage.Bounds()
-	sx := b.Min.X + min(b.Dx()-1, x*b.Dx()/width)
-	sy := b.Min.Y + min(b.Dy()-1, y*b.Dy()/height)
-	r, g, blue, a := previewImage.At(sx, sy).RGBA()
-	if a == 0 {
-		return [4]uint32{}
-	}
-	return [4]uint32{r * 255 / a, g * 255 / a, blue * 255 / a, a >> 8}
+	return strings.Join(output, "\n")
 }

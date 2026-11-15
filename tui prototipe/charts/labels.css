@@ -1,0 +1,8 @@
+svg text, svg foreignObject { display: none !important; }
+.links .link { mix-blend-mode: normal !important; }
+.links { stroke-opacity: 1 !important; }
+.links .link:nth-child(1) path { stroke: #f28e2c !important; }
+.links .link:nth-child(2) path { stroke: #e15759 !important; }
+.links .link:nth-child(3) path { stroke: #76b7b2 !important; }
+.links .link:nth-child(4) path { stroke: #59a14f !important; }
+.links .link:nth-child(5) path { stroke: #edc949 !important; }

@@ -17,6 +17,7 @@ func Default() []Component {
 		{"tool_result", "Tool result", "Complete tool output"},
 		{"user", "User message", "User message frame"},
 		{"image", "Image", "Decoded image pixels"},
+		{"mermaid", "Mermaid", "All diagram families in one terminal gallery"},
 		{"markdown", "Markdown", "Formatted prose, lists and tables"},
 		{"subagent", "Subagent", "Nested agent status"},
 		{"checkpoint", "Checkpoint", "Session checkpoint summary"},

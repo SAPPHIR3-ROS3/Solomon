@@ -184,7 +184,9 @@ func insetToolCard(rows []string, width int, status string) string {
 		for _, line := range highlightedWrappedLine(row, max(1, width)) {
 			gutter := "   "
 			if first {
-				gutter = " " + status + " "
+				if status != "" {
+					gutter = " " + status + " "
+				}
 				first = false
 			}
 			frame = append(frame, gutter+text("│", border)+fit(line, width, 1)+text("│", border))

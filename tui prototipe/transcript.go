@@ -111,6 +111,8 @@ func (m model) renderEntry(entry message, index, width int) []string {
 		body = toolStatusIndicator("success") + " " + text(artifactTitle(entry.text), "#FFF69D")
 	case "NOTICE":
 		body = card.notification(entry.text, index, width)
+	case "COMPONENT":
+		body, _ = card.supplementaryComponent(entry.text, width)
 	case "SUBAGENT":
 		body = card.subagentCard(entry.text, width)
 	case "MEDIA":
