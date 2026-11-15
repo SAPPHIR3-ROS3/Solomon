@@ -1,4 +1,5 @@
 import { SubchatNavigator } from "./subagents/Navigator";
+import { DiagramUnitContext, useDiagramUnit } from "./diagramSizing";
 import "./subagents/style.css";
 import { ProviderQuotaControl } from "../home/ProviderQuotaControl";
 import { usePacedChatMessages } from "./usePacedChatMessages";
@@ -79,6 +80,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const viewRef = useRef<HTMLElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
+  const diagramUnit = useDiagramUnit(viewRef, composerRef);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const isChatWorking = chat.status === "running" || (isStreaming && chat.status === undefined);
   const { messages: displayedMessages, animationMessageID } = usePacedChatMessages(composerDraftKey(chat.projectID, chat.id), chat.messages, chatPreferences.floatingLetters);
@@ -232,6 +234,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   }
 
   return (
+    <DiagramUnitContext.Provider value={diagramUnit}>
     <section aria-label={`Chat: ${chat.title}`} className="chat-view" ref={viewRef} style={{ bottom: Math.max(0, bottomInset) } as CSSProperties}>
       <div aria-hidden="true" className="chat-background-crown"><BackgroundCrown /></div>
       {chatPreferences.floatingLetters ? <FloatingLetters density={chatPreferences.floatingLettersDensity} key={chat.id} content={animatedMessage?.content ?? ""} messageID={animatedMessage?.role === "assistant" ? animatedMessage.id : undefined} responseKey={animatedMessage ? chatPresentationKey(animatedMessage) : undefined} working={isChatWorking || animationMessageID !== undefined} viewRef={viewRef} /> : null}
@@ -345,6 +348,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
         </div>
       ) : null}
     </section>
+    </DiagramUnitContext.Provider>
   );
 }
 

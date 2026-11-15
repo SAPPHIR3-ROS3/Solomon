@@ -330,7 +330,7 @@ function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagen
           toolCalls={message.toolCalls}
         />
       ) : null}
-      <div className="chat-response-content" data-message-id={message.id}><MarkdownContent content={message.content} preserveLineBreaks={message.role === "user"} /></div>
+      <div className="chat-response-content" data-message-id={message.id}><MarkdownContent content={message.content} preserveLineBreaks={message.role === "user"} isStreaming={isWorking} /></div>
     </article>
   );
 }

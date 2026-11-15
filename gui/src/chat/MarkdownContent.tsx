@@ -1,7 +1,7 @@
 import { highlightCursorCode, cursorForeground } from "../syntax/cursorSyntax";
 import { currentNavigationID, measureNavigationHighlight } from "./navigationPerformance";
 import type { ThemedToken } from "@shikijs/types";
-import { Children, isValidElement, memo, type ReactNode, useEffect, useState } from "react";
+import { Children, createContext, isValidElement, memo, type ReactNode, useContext, useEffect, useState } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -47,11 +47,16 @@ const markdownComponents: Components = {
 // parsed trees so reopening a thread does not repeat Markdown/math processing.
 // These are React descriptions, never mounted DOM or component state.
 const markdownTrees = new Map<string, ReactNode>();
+const StreamingContext = createContext(false);
 const MAX_CACHED_TREES = 512;
 const MAX_CACHED_CHARS = 2_000_000;
 let cachedChars = 0;
 
-export const MarkdownContent = memo(function MarkdownContent({ content, preserveLineBreaks = false }: { content: string; preserveLineBreaks?: boolean }) {
+export const MarkdownContent = memo(function MarkdownContent({ content, preserveLineBreaks = false, isStreaming = false }: { content: string; preserveLineBreaks?: boolean; isStreaming?: boolean }) {
+  return <StreamingContext.Provider value={isStreaming}><MarkdownTree content={content} preserveLineBreaks={preserveLineBreaks} /></StreamingContext.Provider>;
+});
+
+const MarkdownTree = memo(function MarkdownTree({ content, preserveLineBreaks = false }: { content: string; preserveLineBreaks?: boolean }) {
   if (preserveLineBreaks) return <div className="chat-user-text">{decorateText({ type: "text", value: content }).map((node, index) => node.type === "text"
     ? node.value
     : <span className={(node.properties.className as string[]).join(" ")} key={index}>{node.children.map(child => child.type === "text" ? child.value : "").join("")}</span>)}</div>;
@@ -83,12 +88,14 @@ export const MarkdownContent = memo(function MarkdownContent({ content, preserve
 });
 
 function CodeBlock({ children }: { children?: ReactNode }) {
+  const isStreaming = useContext(StreamingContext);
   const [copied, setCopied] = useState(false);
   const code = textFromNode(children);
   const codeLines = code.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
   const language = codeLanguageFromNode(children);
   const [highlighted, setHighlighted] = useState<{ source: string; language: string; tokens: ThemedToken[][] }>();
   useEffect(() => {
+    if (language?.toLowerCase() === "mermaid" || language?.toLowerCase() === "mmd") return;
     let cancelled = false;
     const navigationID = currentNavigationID();
     // During streaming keep plain code visible; tokenize once updates settle.
@@ -129,7 +136,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
         </code>
       </pre>
   );
-  if (language?.toLowerCase() === "mermaid" || language?.toLowerCase() === "mmd") return <MermaidPreview code={code} source={source} />;
+  if (language?.toLowerCase() === "mermaid" || language?.toLowerCase() === "mmd") return <MermaidPreview code={code} source={source} isStreaming={isStreaming} />;
 
   return (
     <div className="chat-code-block">

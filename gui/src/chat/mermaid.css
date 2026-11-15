@@ -1,7 +1,29 @@
 .chat-mermaid-preview {
-  padding: 16px;
-  overflow: auto;
+  position: relative;
+  min-height: 160px;
+  overflow: hidden;
+  box-sizing: content-box;
+  transition: height 320ms cubic-bezier(.22, 1, .36, 1);
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.chat-mermaid-content {
+  padding: 24px 16px 40px;
+}
+
+.chat-mermaid-placeholder {
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-mermaid-update {
+  position: absolute;
+  bottom: 10px;
+  left: 16px;
+  right: 16px;
   background: var(--color-surface);
 }
 
@@ -11,6 +33,20 @@
   max-width: 100%;
   height: auto;
   margin: 0 auto;
+  animation: mermaid-appear 320ms ease-out;
+}
+
+@keyframes mermaid-appear {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-mermaid-immediate { transition: none; }
+.chat-mermaid-immediate img { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-mermaid-preview { transition: none; }
+  .chat-mermaid-preview img { animation: none; }
 }
 
 .chat-mermaid-status {

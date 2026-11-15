@@ -1,11 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { CheckIcon, CopyIcon } from "./ChatIcons";
 import { copyText } from "./chatClipboard";
+import { MermaidDiagram } from "./MermaidDiagram";
 import "./mermaid.css";
+import { cachedDiagram, cacheDiagram } from "./mermaidCache";
+import { chartPalette } from "./chartTheme";
+import { themeDiagram } from "./diagramTheme";
+import { normalizeMermaidSource } from "./mermaidSource";
 
 let renderer: Promise<typeof import("mermaid")["default"]> | undefined;
+let zenUML: Promise<void> | undefined;
 let nextID = 0;
-
+const rendering = new Map<string, Promise<string>>();
 function loadRenderer() {
   renderer ??= import("mermaid").then(({ default: mermaid }) => {
     const styles = getComputedStyle(document.documentElement);
@@ -14,11 +20,13 @@ function loadRenderer() {
     const raised = color("surface-raised", "#0d3566");
     const text = color("text", "#e8e5df");
     const accent = color("accent", "#3b8fd1");
+    const { series } = chartPalette();
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
       theme: "base",
       themeVariables: {
+        ...Object.fromEntries(Array.from({ length: 12 }, (_, index) => [`cScale${index}`, series[index % series.length]])),
         darkMode: true,
         background: surface,
         primaryColor: raised,
@@ -52,6 +60,7 @@ function loadRenderer() {
         noteBorderColor: accent,
       },
       htmlLabels: false,
+      sankey: { linkColor: "target" },
       suppressErrorRendering: true,
       maxTextSize: 50_000,
     });
@@ -63,30 +72,62 @@ function loadRenderer() {
   return renderer;
 }
 
-export function MermaidPreview({ code, source }: { code: string; source: ReactNode }) {
+export function MermaidPreview({ code, source, isStreaming = false }: { code: string; source: ReactNode; isStreaming?: boolean }) {
   const [view, setView] = useState<"graph" | "source">("graph");
   const [copied, setCopied] = useState<string>();
-  const [result, setResult] = useState<{ code: string; svg?: string; error?: string }>();
+  const [result, setResult] = useState<{ code: string; svg?: string; error?: string } | undefined>(() => {
+    const svg = cachedDiagram(code);
+    return svg ? { code, svg } : undefined;
+  });
+  const [lastSVG, setLastSVG] = useState<string | undefined>(() => cachedDiagram(code));
 
   useEffect(() => {
+    const cached = cachedDiagram(code);
+    if (cached) {
+      setResult(previous => previous?.code === code && previous.svg === cached ? previous : { code, svg: cached });
+      setLastSVG(cached);
+      return;
+    }
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const mermaid = await loadRenderer();
-          if (cancelled) return;
-          const { svg } = await mermaid.render(`solomon-mermaid-${++nextID}`, code);
-          if (!cancelled) setResult({ code, svg });
+          const ready = cachedDiagram(code);
+          let task = ready ? Promise.resolve(ready) : rendering.get(code);
+          if (!task) {
+            task = (async () => {
+              const mermaid = await loadRenderer();
+              if (/^\s*zenuml\b/i.test(code)) {
+                zenUML ??= import("@mermaid-js/mermaid-zenuml").then(async ({ default: diagram }) => {
+                  await mermaid.registerExternalDiagrams([diagram]);
+                }).catch(error => {
+                  zenUML = undefined;
+                  throw error;
+                });
+                await zenUML;
+              }
+              const rendered = await mermaid.render(`solomon-mermaid-${++nextID}`, normalizeMermaidSource(code));
+              const svg = themeDiagram(code, rendered.svg);
+              cacheDiagram(code, svg);
+              return svg;
+            })().finally(() => rendering.delete(code));
+            rendering.set(code, task);
+          }
+          const svg = await task;
+          if (!cancelled) {
+            setResult({ code, svg });
+            setLastSVG(svg);
+          }
         } catch (error) {
           if (!cancelled) setResult({ code, error: error instanceof Error ? error.message : String(error) });
         }
       })();
-    }, 300);
+    }, isStreaming ? 300 : 0);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [code]);
+  }, [code, isStreaming]);
 
   const current = result?.code === code ? result : undefined;
   const value = view === "graph" ? current?.svg : code;
@@ -116,15 +157,7 @@ export function MermaidPreview({ code, source }: { code: string; source: ReactNo
         </button>
       </div>
       {view === "source" ? source : (
-        <div className="chat-mermaid-preview" aria-live="polite">
-          {current?.svg ? (
-            <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(current.svg)}`} alt="Mermaid diagram" />
-          ) : (
-            <span className="chat-mermaid-status" title={current?.error}>
-              {current ? "Preview unavailable. Check the Mermaid source." : "Preparing diagram preview…"}
-            </span>
-          )}
-        </div>
+        <MermaidDiagram svg={lastSVG} pending={!current} error={current?.error} isStreaming={isStreaming} />
       )}
     </div>
   );
