@@ -2,6 +2,18 @@ package tools
 
 func BuildDeferredToolDump() (string, error) {
 	b := &dumpBuilder{}
+	for _, tool := range deferredCatalog() {
+		switch tool.Name {
+		case "createDir":
+			b.addBlock(tool.Name, tool.Description, "createDir(path, intent string)")
+		case "httpRequest":
+			b.addBlock(tool.Name, tool.Description, "httpRequest(url, method string, headers map[string]string, body, bodyBase64 string, timeoutSeconds int, maxBytes int64, intent string)")
+		case "stat":
+			b.addBlock(tool.Name, tool.Description, "stat(path, intent string)")
+		case "copyFile":
+			b.addBlock(tool.Name, tool.Description, "copyFile(path, destination, intent string)")
+		}
+	}
 	if err := appendDeepResearchDump(b); err != nil {
 		return "", err
 	}

@@ -87,7 +87,7 @@ func isInternalToolName(name string) bool {
 	case "docsRetrieval", "readChat",
 		"createPlan", "editPlan", "buildPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
 		"shell", "readFile", "editFile", "find", "listDir", "tree", "subagent", "fetchWeb", "webSearch",
-		"deepResearch", "researchStatus", "cloakBrowser",
+		"deepResearch", "researchStatus", "cloakBrowser", "httpRequest", "stat", "copyFile", "createDir",
 		"searchTools", "orchestrate", "settings", "customizeUI", "switchMode", "listSubAgents":
 		return true
 	default:
@@ -192,6 +192,14 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 		return execCloakBrowser(ctx, env, inv.Args)
 	case "fetchWeb":
 		return execFetchWeb(ctx, env, inv.Args)
+	case "httpRequest":
+		return execHTTPRequest(ctx, inv.Args)
+	case "stat":
+		return execStat(env, inv.Args)
+	case "createDir":
+		return execCreateDir(env, inv.Args)
+	case "copyFile":
+		return WithFileChangeTrackingPaths(ctx, env, copyInvocationPaths(env, inv.Args), func() (any, error) { return execCopyFile(env, inv.Args) })
 	case "webSearch":
 		return execWebSearch(ctx, env, inv.Args)
 	case "deepResearch":

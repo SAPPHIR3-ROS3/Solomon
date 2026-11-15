@@ -56,7 +56,9 @@ var cursorRedirectExtra = map[string]struct{}{
 
 var deferredSolomonToolNames = map[string]struct{}{
 	"readFile": {}, "shell": {}, "editFile": {}, "find": {}, "listDir": {},
-	"fetchWeb": {}, "webSearch": {}, "createPlan": {}, "editPlan": {}, "buildPlan": {},
+	"httpRequest": {}, "stat": {}, "copyFile": {},
+	"createDir": {},
+	"fetchWeb":  {}, "webSearch": {}, "createPlan": {}, "editPlan": {}, "buildPlan": {},
 }
 
 func isBrowserCursorTool(name string) bool {

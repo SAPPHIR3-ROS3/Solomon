@@ -40,7 +40,7 @@ Built-in OpenAI function tools implemented in Go (plan and build sets), plus rou
 | `createPlan`, `editPlan`, `buildPlan`, todos | agent when `PlanningActive` (or deferred via orchestrate) |
 | `subagent` | agent (native tool_call only; not deferred / orchestrate); optional `roleProvider` + `roleModel` from `[[roles.subagent]]` |
 | `listSubAgents` | agent (lists configured subagent role pool) |
-| `shell`, `readFile`, `editFile`, `find`, `fetchWeb`, `webSearch`, skills | deferred (orchestrate / legacy XML) |
+| `shell`, `readFile`, `editFile`, `find`, `fetchWeb`, `webSearch`, `httpRequest`, `stat`, `copyFile`, `createDir`, skills | deferred (orchestrate / legacy XML) |
 | `deepResearch`, `researchStatus` | chat native; deferred in agent mode (orchestrate / legacy XML) |
 | `searchTools`, `orchestrate`, `switchMode` | agent |
 | `fetchWeb`, `webSearch`, `switchMode` | chat |
@@ -75,6 +75,16 @@ Deep research follows the same surface split: chat receives native
 deferred entries through `searchTools` and executes them through `orchestrate`.
 The asynchronous lifecycle, persistence, and GUI report surface are described
 in [Deep research](research.md).
+
+## Raw HTTP and file operations
+
+`sdk.CreateDir(path, intent)` creates a directory and missing parents with mode 0755 subject to the host umask. It succeeds when the directory already exists without changing its permissions, and fails if a path component is a file. Empty directories are not preserved by Git checkpoints.
+
+`sdk.HTTPRequest(sdk.HTTPRequestOptions{URL: url}, intent)` sends raw HTTP requests, including to local APIs. Options include `Method`, `Headers`, text `Body` or `BodyBase64`, `TimeoutSeconds` (default 30, maximum 120), and `MaxBytes` (default 1 MiB, maximum 2 MiB). The result contains `Status`, `Headers`, decoded `Body []byte`, `Bytes`, `URL`, and `Truncated`. Non-2xx statuses are returned normally; transport errors are Go errors. Redirects are returned without following them. The host tool transports binary content as base64; the SDK decodes it. Process the response in Go and print only necessary information. Use `FetchWeb` for page-to-Markdown extraction instead.
+
+`sdk.Stat(path, intent)` returns existence, type, size, permission bits and UTC modification time. It inspects symlinks themselves, including broken symlinks. Missing paths return `Exists=false`; other filesystem errors remain errors.
+
+`sdk.CopyFile(path, destination, intent)` copies a regular file, including binary contents, preserving permission bits and creating parent directories. It refuses existing destinations and records checkpoint/file-change information. It does not copy directory trees or preserve ownership and timestamps. `sdk.MoveFile` aliases the existing `sdk.RenameFile`; both use the existing rename operation and refuse existing destinations. Cross-filesystem moves are not supported. `sdk.DeleteFile` already removes a file; it does not recursively delete directories. Discover all signatures through `searchTools`.
 
 ## Subagent roles
 
