@@ -42,11 +42,38 @@
   width: 20px;
 }
 
-.chat-subagent-children::after {
+.chat-subagent-children > .chat-subagent-tree::before {
   border-inline-start: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent));
   bottom: 0;
   content: "";
   inset-inline-start: 0;
+  pointer-events: none;
+  position: absolute;
+  top: -12px;
+}
+
+.chat-subagent-children > .chat-subagent-tree:first-child::before {
+  top: 0;
+}
+
+.chat-subagent-children > .chat-subagent-tree:last-child::before {
+  bottom: auto;
+  height: 34px;
+}
+
+.chat-subagent-children > .chat-subagent-tree:only-child::before {
+  height: 22px;
+}
+
+.chat-subagent-tree:not(:has(> .chat-subagent-children)) > .chat-subagent-card {
+  border-inline-start-color: transparent;
+}
+
+.chat-subagent-tree:not(:has(> .chat-subagent-children)) > .chat-subagent-card::before {
+  border-inline-start: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent));
+  content: "";
+  height: 22px;
+  inset-inline-start: -1px;
   pointer-events: none;
   position: absolute;
   top: 0;
