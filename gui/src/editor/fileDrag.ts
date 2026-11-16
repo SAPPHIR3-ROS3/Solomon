@@ -52,9 +52,12 @@ export function useFileDrag(projectID: string | undefined, entries: Record<strin
       const button = row(event.target);
       if (button) {
         const entry = entryFor(button);
-        return entry?.isDirectory ? { node: button, path: entry.path } : null;
+        if (entry?.isDirectory) return { node: button, path: entry.path };
+        if (source) return null;
+        const folder = entry?.path.split("/").slice(0, -1).join("/") ?? "";
+        return { node: button, path: folder };
       }
-      const root = event.target instanceof Element ? event.target.closest<HTMLElement>(".editor-root, .editor-file-list") : null;
+      const root = event.target instanceof Element ? event.target.closest<HTMLElement>(".editor-root, .editor-file-list, .editor-page") : null;
       return root ? { node: root, path: "" } : null;
     }
     function start(event: DragEvent) {
@@ -97,6 +100,7 @@ export function useFileDrag(projectID: string | undefined, entries: Record<strin
       if (!source && isExternalFileDrag(event.dataTransfer)) {
         event.preventDefault();
         if (!target || busy) { cleanup(); return; }
+        event.stopPropagation();
         if (usesNativeFileDrops()) { cleanup(); return; }
         const data = event.dataTransfer!;
         if (Array.from(data.items).some(item => item.webkitGetAsEntry?.()?.isDirectory)) {
@@ -126,7 +130,7 @@ export function useFileDrag(projectID: string | undefined, entries: Record<strin
     observer.observe(element, { childList: true, subtree: true });
     element.addEventListener("dragstart", start);
     element.addEventListener("dragover", over);
-    element.addEventListener("drop", drop);
+    element.addEventListener("drop", drop, true);
     element.addEventListener("dragleave", leave);
     window.addEventListener("dragend", cleanup);
     window.addEventListener(NATIVE_FILE_DROP_EVENT, nativeDrop);
@@ -134,7 +138,7 @@ export function useFileDrag(projectID: string | undefined, entries: Record<strin
       observer.disconnect();
       element.removeEventListener("dragstart", start);
       element.removeEventListener("dragover", over);
-      element.removeEventListener("drop", drop);
+      element.removeEventListener("drop", drop, true);
       element.removeEventListener("dragleave", leave);
       window.removeEventListener("dragend", cleanup);
       window.removeEventListener(NATIVE_FILE_DROP_EVENT, nativeDrop);

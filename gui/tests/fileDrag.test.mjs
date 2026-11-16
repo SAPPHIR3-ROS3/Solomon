@@ -11,11 +11,11 @@ test("explorer drag previews entries, moves into folders and rejects descendants
   const browser = await chromium.launch({ executablePath: "/usr/bin/chromium", headless: true, args: ["--no-sandbox"] });
   try {
     const page = await browser.newPage();
-    await page.setContent(`<aside><header class="editor-root">Root</header><nav class="editor-file-list">
+    await page.setContent(`<section class="editor-page"><main class="editor-code">Editor</main><aside><header class="editor-root">Root</header><nav class="editor-file-list">
       <div class="right-side-panel-file"><button class="right-side-panel-file-row" title="a.txt">a.txt</button></div>
       <div class="right-side-panel-file"><button class="right-side-panel-file-row" title="folder">folder</button><div>
         <div class="right-side-panel-file"><button class="right-side-panel-file-row" title="nested">nested</button></div>
-      </div></div></nav></aside>`);
+      </div></div></nav></aside></section>`);
     await page.evaluate(`(() => { ${code}
       window.moves = [];
       window.imports = [];
@@ -29,7 +29,7 @@ test("explorer drag previews entries, moves into folders and rejects descendants
       function useEffect(effect) { window.install = effect; }
       async function operateProjectFile(project, operation) { window.moves.push({ project, ...operation }); }
       const host = useFileDrag('project', { '': [{ name: 'a.txt', path: 'a.txt', isDirectory: false }, { name: 'folder', path: 'folder', isDirectory: true }], folder: [{ name: 'nested', path: 'folder/nested', isDirectory: true }] }, message => { throw Error(message); });
-      host.current = document.querySelector('aside');
+      host.current = document.querySelector('.editor-page');
       window.dispose = window.install();
       window.fire = (title, type, external = false) => {
         const target = title === 'root' ? document.querySelector('.editor-root') : document.querySelector('[title="' + title + '"]');
@@ -70,6 +70,15 @@ test("explorer drag previews entries, moves into folders and rejects descendants
     });
     await page.waitForFunction(() => imports.length === 3);
     assert.deepEqual(await page.evaluate(() => imports[2]), { action: "import", path: "/outside/report.pdf", destination: "folder/report.pdf" });
+    await page.evaluate(() => { nativeDrops = false; document.querySelector('.editor-code').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: (() => { const data = new DataTransfer(); data.items.add(new File(['hello'], 'desktop.txt')); return data; })() })); });
+    await page.waitForFunction(() => imports.length === 4);
+    assert.equal(await page.evaluate(() => imports[3].destination), "desktop.txt");
+    await page.evaluate(() => {
+      const rect = document.querySelector('.editor-code').getBoundingClientRect();
+      window.dispatchEvent(new CustomEvent('solomon:native-file-drop', { detail: { x: rect.x + 2, y: rect.y + 2, paths: ['/outside/native.txt'] } }));
+    });
+    await page.waitForFunction(() => imports.length === 5);
+    assert.equal(await page.evaluate(() => imports[4].destination), "native.txt");
     await page.evaluate(() => dispose());
   } finally {
     await browser.close();
