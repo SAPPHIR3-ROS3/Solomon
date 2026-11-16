@@ -109,3 +109,95 @@ for (const valid of [true, false]) {
     } finally { await page.close(); }
   });
 }
+
+test("research navigation and context menu deletion preserve usable views", async () => {
+  const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+  page.setDefaultTimeout(10000);
+  const project = { id: "project", name: "Workspace", path: "/workspace", chatCount: 1, chats: [{ id: "chat", title: "Original chat", lastMessageAt: "2026-11-16T00:00:00Z" }] };
+  let reportRequests = 0;
+  let deleteRequests = 0;
+  await page.route("**/__solomon/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/__solomon/projects") return route.fulfill({ json: { projects: [project] } });
+    if (path === "/__solomon/active-agents") return route.fulfill({ json: { projects: [{ id: project.id, name: project.name, agents: [{ id: "chat", kind: "chat", projectID: project.id, title: "Original chat", status: "running" }] }] } });
+    if (path === "/__solomon/projects/project/chats/chat") return route.fulfill({ json: { id: "chat", title: "Original chat", messages: [{ id: "message", role: "user", content: "Keep this conversation visible" }] } });
+    if (path === "/__solomon/projects/project/research/done" && route.request().method() === "DELETE") return route.fulfill({ status: 204 });
+    if (path === "/__solomon/projects/project/research/failed" && route.request().method() === "DELETE") {
+      deleteRequests++;
+      return deleteRequests === 1 ? route.fulfill({ status: 500, json: { error: "Deletion unavailable" } }) : route.fulfill({ status: 204 });
+    }
+    if (path === "/__solomon/projects/project/research") return route.fulfill({ json: [{ id: "failed", title: "Failed research", status: "failed", error: "Search connection closed" }, { id: "done", title: "Completed research", status: "done" }] });
+    if (path.endsWith("/report")) { reportRequests++; return route.fulfill({ contentType: "text/html", body: "<html><body>Research report</body></html>" }); }
+    return route.fulfill({ json: { projects: [], providers: [], entries: [], messages: [], branches: [] } });
+  });
+  try {
+    await page.goto(url + "/agents");
+    await page.locator(".active-agents-node > button").click();
+    await page.getByText("Keep this conversation visible", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Expand right side panel", exact: true }).click();
+    await page.getByRole("tab", { name: "Deep research", exact: true }).click();
+    await page.locator(".right-side-panel-research-item").filter({ hasText: "Failed research" }).click();
+    await page.getByText("Deep Research failed: Search connection closed", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Dismiss notification", exact: true }).click();
+    assert.equal(await page.locator(".research-report-view").count(), 0);
+    assert.equal(reportRequests, 0);
+    assert.equal(await page.getByText("Keep this conversation visible", { exact: true }).isVisible(), true);
+    await page.locator(".right-side-panel-research-item").filter({ hasText: "Completed research" }).click();
+    await page.getByRole("region", { name: "Deep research: Completed research", exact: true }).waitFor();
+    const expand = page.getByRole("button", { name: "Expand side panel", exact: true });
+    if (await expand.isVisible()) await expand.click();
+    await page.locator(".side-panel-chat").filter({ hasText: "Original chat" }).click();
+    await page.getByText("Keep this conversation visible", { exact: true }).waitFor();
+    assert.equal(await page.locator(".research-report-view").count(), 0);
+    const expandRight = page.getByRole("button", { name: "Expand right side panel", exact: true });
+    if (await expandRight.isVisible()) await expandRight.click();
+    await page.getByRole("tab", { name: "Deep research", exact: true }).click();
+    const failed = page.locator(".right-side-panel-research-item").filter({ hasText: "Failed research" });
+    await failed.click({ button: "right" });
+    const menu = page.getByRole("menu", { name: "Deep research actions" });
+    await menu.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem("solomon:notification-errors") ?? "[]").some(entry => entry.message === "Deletion unavailable"));
+    assert.equal(await failed.count(), 1);
+    const dismissError = page.getByRole("button", { name: "Dismiss notification", exact: true });
+    if (await dismissError.isVisible()) await dismissError.click();
+    if (!(await menu.isVisible())) await failed.click({ button: "right" });
+    await menu.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    await failed.waitFor({ state: "detached" });
+    assert.equal(deleteRequests, 2);
+    assert.equal(await page.locator(".research-report-view").count(), 0);
+    const completed = page.locator(".right-side-panel-research-item").filter({ hasText: "Completed research" });
+    await completed.focus();
+    await completed.press("Shift+F10");
+    await menu.waitFor();
+    await page.keyboard.press("Escape");
+    await menu.waitFor({ state: "detached" });
+    await completed.click();
+    await page.getByRole("region", { name: "Deep research: Completed research", exact: true }).waitFor();
+    if (await expandRight.isVisible()) await expandRight.click();
+    await page.getByRole("tab", { name: "Deep research", exact: true }).click();
+    await completed.click({ button: "right" });
+    await menu.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    await completed.waitFor({ state: "detached" });
+    await page.locator(".research-report-view").waitFor({ state: "detached" });
+  } finally { await page.close(); }
+});
+
+test("active research exposes Delete through its context menu", async () => {
+  const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+  let deleted = false;
+  await page.route("**/__solomon/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/__solomon/active-agents") return route.fulfill({ json: { projects: deleted ? [] : [{ id: "project", name: "Workspace", agents: [{ id: "research", kind: "research", title: "Running research", projectID: "project", status: "running" }] }] } });
+    if (path === "/__solomon/projects/project/research/research" && route.request().method() === "DELETE") { deleted = true; return route.fulfill({ status: 204 }); }
+    return route.fulfill({ json: { projects: [], providers: [] } });
+  });
+  try {
+    await page.goto(url + "/agents");
+    const research = page.locator(".active-agents-node.is-research > button");
+    await research.click({ button: "right" });
+    await page.getByRole("menu", { name: "Deep research actions" }).getByRole("menuitem", { name: "Delete", exact: true }).click();
+    await research.waitFor({ state: "detached" });
+    assert.equal(deleted, true);
+    assert.equal(new URL(page.url()).pathname, "/agents");
+  } finally { await page.close(); }
+});

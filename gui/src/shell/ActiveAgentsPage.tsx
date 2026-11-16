@@ -1,3 +1,4 @@
+import { useResearchContextMenu } from "../research/ContextMenu";
 import { useEffect, useState } from "react";
 import { serverEndpoint } from "../platform";
 
@@ -6,11 +7,12 @@ export type ActiveAgentNode = {
   parentSubchatId?: string;
   children?: ActiveAgentNode[];
   id: string;
-  kind: "chat" | "subagent";
+  kind: "chat" | "subagent" | "research";
   parentChatID?: string;
   parentToolCallID?: string;
   projectID: string;
   rootChatID?: string;
+  phase?: string;
   status: string;
   task?: string;
   title: string;
@@ -36,7 +38,7 @@ export function activeAgentChatIDsFromProjects(projects: ActiveAgentProject[]): 
   const chatIDs = new Set<string>();
   const visit = (node: ActiveAgentNode) => {
     if (node.kind === "chat" && (ACTIVE_AGENT_STATUSES.has(node.status) || Boolean(node.children?.length))) chatIDs.add(node.id);
-    if (node.kind === "subagent" && node.rootChatID) chatIDs.add(node.rootChatID);
+    if ((node.kind === "subagent" || node.kind === "research") && node.rootChatID) chatIDs.add(node.rootChatID);
     node.children?.forEach(visit);
   };
   projects.forEach((project) => project.agents.forEach(visit));
@@ -110,7 +112,7 @@ export function ActiveAgentsPage({ onOpenAgent }: ActiveAgentsPageProps) {
       <div className="customization-content">
         <header className="active-agents-header">
           <h1>Active agents</h1>
-          <p>Live agents and nested subagents across your projects.</p>
+          <p>Live agents, nested subagents and deep research across your projects.</p>
         </header>
         {isLoading ? <p className="active-agents-empty">Loading active agents…</p> : null}
         {error ? <p className="active-agents-empty">{error}</p> : null}
@@ -135,14 +137,16 @@ export function ActiveAgentsPage({ onOpenAgent }: ActiveAgentsPageProps) {
 export function AgentTreeItem({ node, onOpen, depth = 0 }: { node: ActiveAgentNode; onOpen: (node: ActiveAgentNode) => void; depth?: number }) {
   const level = node.kind === "chat" ? 0 : node.subagentDepth ?? Math.max(1, depth);
   const children = node.children ?? [];
+  const researchMenu = useResearchContextMenu(node.projectID, () => prefetchActiveAgents());
   return (
     <li data-subagent-depth={level} className={`active-agents-node is-${node.kind}${node.status ? ` is-${node.status}` : ""}`}>
-      <button onClick={() => onOpen(node)} type="button">
+      <button onClick={() => onOpen(node)} onContextMenu={node.kind === "research" ? event => researchMenu.open(event, node) : undefined} onKeyDown={node.kind === "research" ? event => researchMenu.openWithKeyboard(event, node) : undefined} type="button">
         <i aria-hidden="true" className="active-agents-status" />
-        <span className="active-agents-kind">{node.kind === "chat" ? "Agent" : level > 1 ? `L${level} Subagent` : "Subagent"}</span>
+        <span className="active-agents-kind">{node.kind === "research" ? "Deep Research" : node.kind === "chat" ? "Agent" : level > 1 ? `L${level} Subagent` : "Subagent"}</span>
         <span className="active-agents-title">{node.title}</span>
-        {node.status ? <span className="active-agents-badge">{node.status}</span> : null}
+        {node.status ? <span className="active-agents-badge">{node.status}{node.phase ? ` · ${node.phase}` : ""}</span> : null}
       </button>
+      {researchMenu.menu}
       {children.length ? (
         <ul>
           {children.map((child) => (
@@ -182,7 +186,7 @@ function agentProjectFromPayload(value: unknown): ActiveAgentProject | null {
 export function activeAgentNodesFromPayload(value: unknown): ActiveAgentNode[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const record = value as Record<string, unknown>;
-  if ((record.kind !== "chat" && record.kind !== "subagent") || typeof record.id !== "string" || typeof record.title !== "string" || typeof record.projectID !== "string") return [];
+  if ((record.kind !== "chat" && record.kind !== "subagent" && record.kind !== "research") || typeof record.id !== "string" || typeof record.title !== "string" || typeof record.projectID !== "string") return [];
   const status = typeof record.status === "string" ? record.status.trim().toLowerCase() : "";
   const children = Array.isArray(record.children)
     ? record.children.flatMap((entry) => activeAgentNodesFromPayload(entry))
@@ -197,6 +201,7 @@ export function activeAgentNodesFromPayload(value: unknown): ActiveAgentNode[] {
     parentToolCallID: typeof record.parentToolCallID === "string" ? record.parentToolCallID : undefined,
     projectID: record.projectID,
     rootChatID: typeof record.rootChatID === "string" ? record.rootChatID : undefined,
+    phase: typeof record.phase === "string" ? record.phase : undefined,
     status,
     task: typeof record.task === "string" ? record.task : undefined,
     title: record.title,

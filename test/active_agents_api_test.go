@@ -217,3 +217,46 @@ func TestServerActiveAgentsRetainCallerHierarchy(t *testing.T) {
 		})
 	}
 }
+
+func TestServerActiveAgentsIncludesRunningResearch(t *testing.T) {
+	server, stop := startServerForTest(t, serverruntime.Options{})
+	defer stop()
+	response := postJSONForServerTest(t, server.URL+"/__solomon/projects", map[string]string{"path": t.TempDir()})
+	var created struct {
+		Project struct {
+			ID string `json:"id"`
+		} `json:"project"`
+	}
+	decodeServerTestJSON(t, response, &created)
+	for _, status := range []string{"running", "done", "paused", "failed"} {
+		if err := chatstore.WriteResearchJobFile(created.Project.ID, status, map[string]string{
+			"id": status, "slug": status, "title": "Research", "status": status, "phase": "reading", "project_hex": created.Project.ID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := http.Get(server.URL + "/__solomon/active-agents")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var payload struct {
+		Projects []struct {
+			Agents []struct {
+				Kind  string `json:"kind"`
+				ID    string `json:"id"`
+				Phase string `json:"phase"`
+			} `json:"agents"`
+		} `json:"projects"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Projects) != 1 || len(payload.Projects[0].Agents) != 1 {
+		t.Fatalf("unexpected active research: %+v", payload)
+	}
+	job := payload.Projects[0].Agents[0]
+	if job.Kind != "research" || job.ID != "running" || job.Phase != "reading" {
+		t.Fatalf("unexpected research: %+v", job)
+	}
+}

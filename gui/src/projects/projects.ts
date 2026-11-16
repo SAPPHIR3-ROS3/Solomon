@@ -111,6 +111,7 @@ export type ProjectAtMentionSuggestion = {
 };
 
 export type ProjectResearch = {
+  error?: string;
   finishedAt: string;
   id: string;
   maxRounds?: number;

@@ -12,6 +12,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/research"
 )
 
 type apiActiveAgentProject struct {
@@ -27,6 +28,7 @@ type apiActiveAgentNode struct {
 	Reasoning        string               `json:"reasoning,omitempty"`
 	Fast             *bool                `json:"fast,omitempty"`
 	Intent           string               `json:"intent,omitempty"`
+	Phase            string               `json:"phase,omitempty"`
 	Kind             string               `json:"kind"`
 	ID               string               `json:"id"`
 	Title            string               `json:"title"`
@@ -221,6 +223,18 @@ func activeAgentsForProject(project apiProject, running map[string]struct{}) []a
 	for _, orphan := range orphans {
 		agents = append(agents, withChildren(orphan, children))
 	}
+	jobs, _ := research.GlobalManager().List(project.ID)
+	for _, job := range jobs {
+		if job.Status != research.StatusRunning {
+			continue
+		}
+		agents = append(agents, apiActiveAgentNode{
+			Kind: "research", ID: job.ID, Title: job.Title, Status: job.Status,
+			Phase: job.Phase, Task: job.Question, Intent: job.Question,
+			ProjectID: project.ID, ParentChatID: job.ParentChatID,
+			RootChatID: rootChatID(job.ParentChatID, chatTitles, subByID), Model: job.Stats.Model,
+		})
+	}
 	for i := range agents {
 		enrichActiveAgent(&agents[i])
 	}
@@ -331,6 +345,9 @@ func subSessionTask(sub *chatstore.SubSession) string {
 
 func enrichActiveAgent(node *apiActiveAgentNode) {
 	var messages []chatstore.Message
+	if node.Kind == "research" {
+		return
+	}
 	if node.Kind == "subagent" {
 		if sub, err := chatstore.FindSubSessionByID(node.ProjectID, node.ID); err == nil && sub != nil {
 			node.Model, node.Reasoning, node.Fast = sub.RoleModel, sub.ReasoningEffort, sub.FastMode

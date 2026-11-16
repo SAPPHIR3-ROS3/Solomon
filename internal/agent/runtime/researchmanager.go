@@ -21,7 +21,8 @@ func (r *Runtime) startResearchJob(ctx context.Context, query, category string) 
 		parentChatID = r.Session.ID
 	}
 	out := r.Out
-	return research.GlobalManager().Start(ctx, research.StartRequest{
+	webSearch, webFetch, release := r.researchWebResources()
+	record, err := research.GlobalManager().Start(ctx, research.StartRequest{
 		Question:     query,
 		Category:     category,
 		ProjectHex:   r.ProjHex,
@@ -29,8 +30,8 @@ func (r *Runtime) startResearchJob(ctx context.Context, query, category string) 
 		Model:        r.Model,
 		Cfg:          r.Cfg,
 		Backend:      r.Backend,
-		Search:       r.WebSearch,
-		Fetch:        r.WebFetch,
+		Search:       webSearch,
+		Fetch:        webFetch,
 		OnProgress: func(rec research.JobRecord, ev research.ProgressEvent) {
 			if r.machineMode() {
 				return
@@ -38,6 +39,7 @@ func (r *Runtime) startResearchJob(ctx context.Context, query, category string) 
 			turnloop.WriteSystemDeferred(out, research.FormatProgressLine(rec, ev))
 		},
 		OnDone: func(rec research.JobRecord) {
+			defer release()
 			if r.machineMode() {
 				return
 			}
@@ -53,6 +55,10 @@ func (r *Runtime) startResearchJob(ctx context.Context, query, category string) 
 			}
 		},
 	})
+	if err != nil {
+		release()
+	}
+	return record, err
 }
 
 func (r *Runtime) ResearchStatus(target string) (research.JobRecord, error) {
@@ -76,13 +82,14 @@ func (r *Runtime) ResumeResearch(target string) (research.JobRecord, error) {
 		return research.JobRecord{}, fmt.Errorf("research persistence disabled for ephemeral parent session")
 	}
 	out := r.Out
-	return research.GlobalManager().Resume(context.Background(), r.ProjHex, target, research.StartRequest{
+	webSearch, webFetch, release := r.researchWebResources()
+	record, err := research.GlobalManager().Resume(context.Background(), r.ProjHex, target, research.StartRequest{
 		ProjectHex: r.ProjHex,
 		Model:      r.Model,
 		Cfg:        r.Cfg,
 		Backend:    r.Backend,
-		Search:     r.WebSearch,
-		Fetch:      r.WebFetch,
+		Search:     webSearch,
+		Fetch:      webFetch,
 		OnProgress: func(rec research.JobRecord, ev research.ProgressEvent) {
 			if r.machineMode() {
 				return
@@ -90,6 +97,7 @@ func (r *Runtime) ResumeResearch(target string) (research.JobRecord, error) {
 			turnloop.WriteSystemDeferred(out, research.FormatProgressLine(rec, ev))
 		},
 		OnDone: func(rec research.JobRecord) {
+			defer release()
 			if r.machineMode() {
 				return
 			}
@@ -105,6 +113,10 @@ func (r *Runtime) ResumeResearch(target string) (research.JobRecord, error) {
 			}
 		},
 	})
+	if err != nil {
+		release()
+	}
+	return record, err
 }
 
 func (r *Runtime) ListResearch() ([]research.JobRecord, error) {

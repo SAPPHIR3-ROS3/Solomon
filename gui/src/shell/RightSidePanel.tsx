@@ -1,4 +1,5 @@
 import { FileBrowser } from "./right-panel/Browser";
+import { useResearchContextMenu } from "../research/ContextMenu";
 import { FileEntries, entryMatchesFilter } from "./right-panel/Files";
 import { GitHistoryView } from "./right-panel/History";
 import { NewDocumentIcon, GitHistoryIcon, ResearchIcon } from "./right-panel/icons";
@@ -72,6 +73,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
   const [research, setResearch] = useState<ProjectResearch[]>([]);
   const [researchError, setResearchError] = useState("");
   const [researchLoading, setResearchLoading] = useState(false);
+  const researchMenu = useResearchContextMenu(project?.id, id => setResearch(current => current.filter(job => job.id !== id)));
   const [gitHistory, setGitHistory] = useState<ProjectGitHistory>(EMPTY_GIT_HISTORY);
   const [gitHistoryError, setGitHistoryError] = useState("");
   const [gitHistoryLoading, setGitHistoryLoading] = useState(false);
@@ -378,7 +380,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
         {researchLoading ? <p className="right-side-panel-message">Loading deep research…</p> : null}
         {researchError ? <p className="right-side-panel-message" role="status">{researchError}</p> : null}
         {!researchLoading && !researchError && project && research.length === 0 ? <p className="right-side-panel-message">No deep research in this folder.</p> : null}
-        {!researchLoading && !researchError ? research.map((job) => <button className={`right-side-panel-research-item is-${job.status || "unknown"}`} key={job.id} onClick={() => onOpenResearch(job)} type="button">
+        {!researchLoading && !researchError ? research.map((job) => <button className={`right-side-panel-research-item is-${job.status || "unknown"}`} key={job.id} onClick={() => onOpenResearch(job)} onContextMenu={event => researchMenu.open(event, job)} onKeyDown={event => researchMenu.openWithKeyboard(event, job)} type="button">
           <ResearchIcon />
           <div>
             <h2>{job.title}</h2>
@@ -387,6 +389,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
           {job.status !== "done" && job.status !== "running" ? <span className={`right-side-panel-research-status is-${job.status || "unknown"}`}>{researchStatusLabel(job.status)}</span> : null}
         </button>) : null}
       </section>}
+      {researchMenu.menu}
     </aside>
   );
 }

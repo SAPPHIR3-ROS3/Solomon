@@ -119,6 +119,23 @@ func (a *projectAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) 
 		a.handleProjectResearch(w, projectID)
 		return
 	}
+	if len(parts) == 3 && parts[1] == "research" && r.Method == http.MethodDelete {
+		researchID, decodeErr := decodePathPart(parts[2])
+		if decodeErr != nil {
+			writeAPIError(w, http.StatusBadRequest, decodeErr)
+			return
+		}
+		if _, err := research.GlobalManager().Get(projectID, researchID); err != nil {
+			writeAPIError(w, http.StatusNotFound, err)
+			return
+		}
+		if err := research.GlobalManager().Delete(projectID, researchID); err != nil {
+			writeAPIError(w, http.StatusInternalServerError, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if len(parts) == 4 && parts[1] == "research" && parts[3] == "report" && r.Method == http.MethodGet {
 		researchID, decodeErr := decodePathPart(parts[2])
 		if decodeErr != nil {

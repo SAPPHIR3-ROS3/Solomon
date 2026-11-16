@@ -73,6 +73,7 @@ export function projectResearchFromPayload(payload: unknown): ProjectResearch[] 
     if (!title) return [];
     const stats = record.stats && typeof record.stats === "object" ? record.stats as Record<string, unknown> : {};
     return [{
+      error: typeof record.error === "string" ? record.error : undefined,
       finishedAt: typeof record.finished_at === "string" ? record.finished_at : "",
       id: typeof record.id === "string" ? record.id : title,
       maxRounds: typeof record.max_rounds === "number" ? record.max_rounds : undefined,

@@ -23,7 +23,8 @@ import { CustomizationPage } from "./customization/CustomizationPage";
 import { Welcome } from "./home/Welcome";
 import { NewProjectDialog } from "./projects/NewProjectDialog";
 import { hideSettings, isSettingsPath, SettingsPage, showSettings, subscribeSettingsLocation } from "./settings/SettingsPage";
-import { createProjectFromFolder, resolveMessageProject, fetchProjectSidebarData, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
+import { createProjectFromFolder, resolveMessageProject, fetchProjectSidebarData, fetchProjectResearch, prefetchModelCatalog, prefetchProjectSidebarData, type Project, type ProjectResearch } from "./projects/projects";
+import { canOpenResearch, watchResearchDeletion } from "./research/navigation";
 import { ResearchReportView } from "./research/ResearchReportView";
 import { useChatRuntime } from "./chat/useChatRuntime";
 import { beginNavigation } from "./chat/navigationPerformance";
@@ -33,7 +34,6 @@ import { EditorPage } from "./editor/EditorPage";
 import { watchDaemonLifecycle } from "./daemonLifecycle";
 import { watchExternalLinks } from "./externalLinks";
 import { LinkContextMenu } from "./shell/LinkContextMenu";
-
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 240;
 const MIN_TERMINAL_PANEL_HEIGHT = 120;
 const FALLBACK_KEEP_ALIVE_HEIGHT = 96;
@@ -86,33 +86,26 @@ export function App() {
     streamingChatIDs,
     queuedMessages,
   } = chatRuntime;
-
   useEffect(() => {
     void detectClient().then(setClient);
   }, []);
-
   useEffect(() => subscribeSettingsLocation(() => setIsSettingsOpen(isSettingsPath())), []);
-
   useEffect(() => {
     applyTheme(savedTheme());
   }, []);
-
   useEffect(() => {
     prefetchProjectSidebarData();
     prefetchModelCatalog();
     prefetchActiveAgents();
   }, []);
-
   useEffect(() => {
     setTerminalPanelHeight((height) => Math.min(height, maxTerminalPanelHeight));
   }, [maxTerminalPanelHeight]);
-
   const closeNavigationPanels = useCallback(() => {
     if (!panelOverlayOpen && !window.matchMedia("(max-width: 720px), (pointer: coarse) and (max-width: 1024px)").matches) return;
     setIsSidePanelOpen(false);
     setIsRightSidePanelOpen(false);
   }, [panelOverlayOpen]);
-
   function goHome() {
     closeNavigationPanels();
     chatRuntime.clearSelection();
@@ -129,16 +122,13 @@ export function App() {
     setSelectedWorkspace(null);
     setWorkspaceFocus(null);
   }
-
   function openNewProjectDialog() {
     closeNavigationPanels();
     setIsNewProjectDialogOpen(true);
   }
-
   function closeNewProjectDialog() {
     setIsNewProjectDialogOpen(false);
   }
-
   async function selectLocalFolder(selection: LocalFolderSelection) {
     const project = await createProjectFromFolder(selection.path);
     setTemporaryWorkspace(null);
@@ -146,7 +136,6 @@ export function App() {
     setIsNewProjectDialogOpen(false);
     openProjectNewChat(project);
   }
-
   function openTemporaryWorkspace() {
     closeNavigationPanels();
     if (!temporaryWorkspace) return;
@@ -158,7 +147,6 @@ export function App() {
     setSelectedWorkspace(null);
     setWorkspaceFocus(null);
   }
-
   function selectTemporaryWorkspacePath(worktreePath: string) {
     if (!temporaryWorkspace) return;
     const normalizedPath = normalizeTemporaryWorkspacePath(worktreePath);
@@ -231,6 +219,19 @@ export function App() {
   async function openActiveAgent(projectID: string, projectName: string, node: ActiveAgentNode) {
     const sidebar = await fetchProjectSidebarData();
     const project = sidebar.projects.find((candidate) => candidate.id === projectID);
+    if (project && node.kind === "research") {
+      const jobs = await fetchProjectResearch(projectID);
+      const research = jobs.find((job) => job.id === node.id);
+      if (!research || !canOpenResearch(research)) return;
+      closeNavigationPanels();
+      chatRuntime.clearSelection();
+      setIsActiveAgentsOpen(false);
+      setActiveView("agent");
+      setActiveTemporaryWorkspaceID(null);
+      setSelectedWorkspace(project);
+      setSelectedResearch({ project, research });
+      return;
+    }
     const chatID = node.kind === "chat" ? node.id : (node.rootChatID || node.parentChatID || "");
     if (!project || !chatID) return;
     setOpenSubagentRequest(node.kind === "subagent"
@@ -238,7 +239,6 @@ export function App() {
       : null);
     await openProjectChat({ ...project, name: projectName }, chatID);
   }
-
   const selectedTemporaryWorkspace = activeTemporaryWorkspaceID === temporaryWorkspace?.id ? temporaryWorkspace : null;
   const workspaceNameOverride = selectedTemporaryWorkspace?.name ?? null;
 
@@ -252,12 +252,14 @@ export function App() {
   }, []);
 
   useEffect(() => watchNotifications(), []);
+  useEffect(() => watchResearchDeletion((projectID, id) => setSelectedResearch(current => current?.project.id === projectID && current.research.id === id ? null : current)), []);
   useEffect(() => { if (chatError) notifyError(chatError); }, [chatError]);
 
   const openProjectChat = useCallback(async (project: Project, chatID: string) => {
     setIsActiveAgentsOpen(false);
     setIsCustomizationOpen(false);
     setActiveView("agent");
+    setSelectedResearch(null);
     const isDifferentChat = selectedChat?.id !== chatID || selectedChat?.projectID !== project.id;
     if (!isDifferentChat) {
       setIsSidePanelOpen(false);
@@ -275,7 +277,6 @@ export function App() {
     setActiveTemporaryWorkspaceID(null);
     setSelectedWorkspace(project);
     setWorkspaceFocus({ project, token: Date.now() });
-    setSelectedResearch(null);
     await chatRuntime.openProjectChat(project, chatID, navigationID);
   }, [chatRuntime.openProjectChat, closeNavigationPanels, panelOverlayOpen, selectedChat?.id, selectedChat?.projectID]);
 
@@ -351,7 +352,7 @@ export function App() {
           onOpenFile={(entry) => { if (!selectedWorkspace) return; closeNavigationPanels(); setEditorFile({ projectID: selectedWorkspace.id, entry }); setActiveView("editor"); }}
           onWidthChange={resizeRightPanel}
           onOpenResearch={(research) => {
-            if (!selectedWorkspace) return;
+            if (!selectedWorkspace || !canOpenResearch(research)) return;
             closeNavigationPanels();
             chatRuntime.clearSelection();
             setSelectedResearch({
