@@ -255,7 +255,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
           ) : chat.rateLimitNotice ? <RateLimitNotice raw={chat.rateLimitNotice} /> : <p className="chat-empty">This chat is ready for the first message.</p>}
         </div>
       </div>
-		{openSubagentTool && openSubchatID ? <SubchatNavigator key={openSubchatID} loadSubchat={loadSubchat} tools={chat.messages.flatMap(message => message.toolCalls ?? [])} root={openSubagentTool} onCollapse={() => { setOpenSubagent(null); setForcedSubagent(null); }} /> : null}
+		{openSubagentTool ? <SubchatNavigator key={openSubchatID ?? openSubagentTool.id} loadSubchat={loadSubchat} tools={chat.messages.flatMap(message => message.toolCalls ?? [])} root={openSubagentTool} onCollapse={() => { setOpenSubagent(null); setForcedSubagent(null); }} /> : null}
       <div className="welcome-composer-dock chat-composer-dock" ref={composerDockRef}>
         <button aria-hidden={!isAwayFromBottom} aria-label="Scroll to bottom" className={`chat-scroll-to-bottom${isAwayFromBottom ? " is-visible" : ""}`} disabled={!isAwayFromBottom} onClick={scrollToBottom} tabIndex={isAwayFromBottom ? 0 : -1} title="Scroll to bottom" type="button">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14m-6-6 6 6 6-6" /></svg>

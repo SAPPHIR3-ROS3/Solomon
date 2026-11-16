@@ -141,6 +141,11 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 			tool.Status = "running"
 		}
 		if tool.Name == "subagent" && tool.Result != nil {
+			if stringField(tool.Result, "subchatId") == "" {
+				if resumeID := stringField(args, "resume"); resumeID != "" {
+					tool.Result["subchatId"] = resumeID
+				}
+			}
 			if stringField(tool.Result, "subchatId") == "" && subchat != nil {
 				tool.Result["subchatId"] = subchat.ID
 			}
@@ -156,7 +161,7 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 					tool.Status = "running"
 				case chatstore.SubStatusDone:
 					tool.Status = "success"
-				case chatstore.SubStatusPaused, chatstore.SubStatusCancelled:
+				case chatstore.SubStatusPaused, chatstore.SubStatusCancelled, "failed", "interrupted":
 					tool.Status = "error"
 				}
 			}

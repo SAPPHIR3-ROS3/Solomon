@@ -67,11 +67,11 @@ export function useChatRuntime(): ChatRuntime {
     () => chats.find((chat) => chat.id === selectedChatID) ?? null,
     [chats, selectedChatID],
   );
-  const selectedSubagentsActive = selectedChat?.messages.some((message) => (
-    message.toolCalls?.some((tool) => tool.name === "subagent" && subagentIsActive(subagentStatus(tool)))
+  const selectedSubagentsTracked = selectedChat?.messages.some((message) => (
+    message.toolCalls?.some((tool) => tool.name === "subagent" && (Boolean(tool.result?.subchatId) || subagentIsActive(subagentStatus(tool))))
   )) ?? false;
 
-  useSubagentRefresh(selectedChat, selectedSubagentsActive, deletingMessages);
+  useSubagentRefresh(selectedChat, selectedSubagentsTracked, deletingMessages);
 
   const cancelPendingRequests = useCallback(() => {
     cancelNavigation(navigationIDRef.current);

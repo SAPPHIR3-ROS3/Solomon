@@ -8,6 +8,7 @@ import { CollapseSubchatIcon } from "../ChatIcons";
 
 export function SubagentChatPanel({ isLoading = false, messages, onBack, onCollapse, onOpenSubagent, tool }: { isLoading?: boolean; messages?: ChatMessage[]; onBack?: () => void; onCollapse: () => void; onOpenSubagent?: (messageID: string, toolID: string) => void; tool: ChatToolCall }) {
   const status = subagentDisplayStatus(tool);
+  const failure = tool.result?.status === "error" ? tool.result?.error?.trim() || tool.result?.output?.trim() || tool.result?.summary?.trim() : undefined;
   const normalizeTask = (content: string) => content.replace(/\r\n?/g, "\n").trim();
   let previousUserContent: string | undefined;
   const transcript = (messages ?? []).filter((message) => {
@@ -55,6 +56,7 @@ export function SubagentChatPanel({ isLoading = false, messages, onBack, onColla
         <div className="chat-subchat-intent">
           <p>{latestIntent}</p>
         </div>
+        {failure ? <pre className="chat-subchat-error" role="alert">{failure}</pre> : null}
         <div className="chat-subchat-transcript">
           {isLoading ? <p className="chat-empty">Loading subchat…</p> : transcript.length ? <ChatMessageGroups onOpenSubagent={onOpenSubagent} isWorking={status === "running" || status === "queued"} messages={indexChatMessages(transcript)} /> : <p className="chat-empty">No subchat messages yet.</p>}
         </div>

@@ -48,8 +48,12 @@ export function SubchatNavigator({ loadSubchat, onCollapse, root, tools }: {
     onCollapse={onCollapse}
     onOpenSubagent={(messageID, toolID) => {
       const child = messages.find(message => message.id === messageID)?.toolCalls?.find(call => call.id === toolID);
-      if (!child?.result?.subchatId) return;
+      if (!child) return;
       const next = { ...child, subagentDepth: child.subagentDepth ?? (tool.subagentDepth ?? 1) + 1 };
+      if (!next.result?.subchatId) {
+        setPath(current => [...current, next]);
+        return;
+      }
       setPath(current => openSubchatPath([root, ...current.filter(frame => frame.result?.subchatId !== root.result?.subchatId)], next).slice(1));
     }}
     tool={tool}

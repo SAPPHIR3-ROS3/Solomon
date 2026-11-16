@@ -55,7 +55,7 @@ func (r *Runtime) runSubagentTool(ctx context.Context, cfg NestedRunConfig) (Nes
 		}
 	}
 	if cfg.ResumeID != "" && globalSubagentRegistry.isRunning(cfg.ResumeID) {
-		return NestedRunResult{}, fmt.Errorf("subchat %s is running; use /subagent stop first", cfg.ResumeID)
+		return NestedRunResult{SubchatID: cfg.ResumeID, Status: chatstore.SubStatusRunning}, fmt.Errorf("subchat %s is running; use /subagent stop first", cfg.ResumeID)
 	}
 	if cfg.RunInBackground {
 		return r.startSubagentBackground(ctx, cfg)

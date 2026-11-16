@@ -42,7 +42,7 @@ export type ChatToolResult = {
   researchStatus?: "cancelled" | "done" | "failed" | "paused" | "running";
   round?: number;
   sdkCalls?: number;
-  subchatStatus?: "cancelled" | "done" | "failed" | "paused" | "queued" | "running";
+  subchatStatus?: "cancelled" | "done" | "failed" | "interrupted" | "paused" | "queued" | "running";
   subchatId?: string;
   summary?: string;
   status: "error" | "success";

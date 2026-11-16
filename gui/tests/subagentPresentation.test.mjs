@@ -102,3 +102,16 @@ test("duplicate user tasks are hidden even if the card input differs", () => {
   ], { input: "Continue the previous work" });
   assert.equal(html.split(content).length - 1, 1);
 });
+
+test("failed subagents expose their error even without a subchat", () => {
+  const html = renderPanel([], { status: "error", result: { status: "error", error: "Provider authentication failed" } });
+  assert.match(html, /role="alert">Provider authentication failed/);
+  assert.match(html, /Collapse subagent chat/);
+  assert.match(renderPanel([], { status: "error", result: { status: "error", output: "Unable to start agent" } }), /role="alert">Unable to start agent/);
+});
+
+test("running subchats still show errors from rejected resume attempts", () => {
+  const html = renderPanel([], { status: "error", result: { status: "error", subchatStatus: "running", error: "Already running" } });
+  assert.match(html, /chat-subchat-panel is-running/);
+  assert.match(html, /role="alert">Already running/);
+});

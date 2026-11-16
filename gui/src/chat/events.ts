@@ -100,6 +100,9 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
       name: event.name,
       status: "running",
     }, chat.messages.length);
+    if (chat.messages.some(message => message.toolCalls?.some(tool => tool.id === incoming.id))) {
+      return updateTool(chat, incoming.id, tool => mergeSubagentTool(tool, incoming));
+    }
     return updateLastAssistant(chat, (message) => {
       const current = message.toolCalls ?? [];
       const existing = current.findIndex((tool) => tool.id === incoming.id);
@@ -161,13 +164,13 @@ export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat 
       !seeded.some((candidate) => candidate !== message && candidate.toolCalls?.some((incoming) => incoming.id === tool.id))
       && !retainedToolIDs.has(tool.id)
     );
-    const tools = mergeSubagentCalls(retainedTools, message.toolCalls ?? []);
+    const tools = mergeSubagentCalls(retainedTools, message.toolCalls ?? [], true);
     tools.forEach((tool) => retainedToolIDs.add(tool.id));
     const presentationID = presentationIDs[index];
     return {
       ...message,
       ...(presentationID ? { presentationID } : {}),
-      toolCalls: tools.length ? tools.map((tool) => mergeSubagentTool(previousTools.get(tool.id), tool)) : message.toolCalls,
+      toolCalls: tools.length ? tools.map((tool) => mergeSubagentTool(previousTools.get(tool.id), tool, true)) : message.toolCalls,
     };
   });
   const startedAtByCheckpoint = new Map<number, number>();
@@ -293,13 +296,18 @@ function updateTool(chat: LiveChat, id: string, update: (tool: ChatToolCall) => 
   };
 }
 
-function mergeSubagentTool(previous: ChatToolCall | undefined, incoming: ChatToolCall): ChatToolCall {
-  if (incoming.name !== "subagent" || !previous?.result?.subchatId) return incoming;
+function mergeSubagentTool(previous: ChatToolCall | undefined, incoming: ChatToolCall, authoritative = false): ChatToolCall {
+  if (incoming.name !== "subagent") return incoming;
+  const incomingState = incoming.result?.subchatStatus;
+  if (incomingState) {
+    incoming = { ...incoming, status: incomingState === "running" || incomingState === "queued" ? "running" : incomingState === "done" ? "success" : "error" };
+  }
+  if (!previous?.result?.subchatId) return incoming;
   if (incoming.result?.subchatId && incoming.result.subchatId !== previous.result.subchatId) return incoming;
   const currentStatus = previous.result.subchatStatus;
   const nextStatus = incoming.result?.subchatStatus;
   const terminal = currentStatus && currentStatus !== "running" && currentStatus !== "queued";
-  const preserveFinal = terminal && (!nextStatus || nextStatus === "running" || nextStatus === "queued");
+  const preserveFinal = !authoritative && terminal && (!nextStatus || nextStatus === "running" || nextStatus === "queued");
   const failed = incoming.result?.status === "error" || incoming.status === "error" || incoming.status === "interrupted";
   const finishedSync = incoming.sync && incoming.status === "success" && incoming.result?.status === "success";
   const subchatStatus = preserveFinal ? currentStatus : nextStatus ?? (failed ? "failed" : finishedSync ? "done" : currentStatus);
@@ -309,12 +317,12 @@ function mergeSubagentTool(previous: ChatToolCall | undefined, incoming: ChatToo
   return { ...incoming, subagentDepth: incoming.subagentDepth ?? previous.subagentDepth, parentSubchatId: incoming.parentSubchatId ?? previous.parentSubchatId, result, status };
 }
 
-function mergeSubagentCalls(previous: ChatToolCall[] | undefined, incoming: ChatToolCall[]): ChatToolCall[] {
+function mergeSubagentCalls(previous: ChatToolCall[] | undefined, incoming: ChatToolCall[], authoritative = false): ChatToolCall[] {
   const incomingByID = new Map(incoming.map((tool) => [tool.id, tool]));
   const retained = (previous ?? []).flatMap((tool) => {
     const next = incomingByID.get(tool.id);
     incomingByID.delete(tool.id);
-    return next ? [mergeSubagentTool(tool, next)] : tool.name === "subagent" ? [tool] : [];
+    return next ? [mergeSubagentTool(tool, next, authoritative)] : tool.name === "subagent" ? [tool] : [];
   });
   return [...retained, ...incomingByID.values()];
 }

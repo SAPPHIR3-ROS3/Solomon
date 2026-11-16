@@ -142,3 +142,35 @@ test("background spawn acknowledgements keep agents running", () => {
   const next = applyLiveStreamEvent(chatWith(agent("first")), { type: "tool_result", id: "first", result: { ok: true } });
   assert.equal(getTool(next, "first").result.subchatStatus, "running");
 });
+
+test("resume conflicts retain the running subchat instead of marking it failed", () => {
+  const previous = chatWith({ id: "resume", name: "subagent", status: "running" });
+  const next = applyLiveStreamEvent(previous, { type: "tool_result", id: "resume", result: { ok: false, error: "subchat existing-child is running; use /subagent stop first" } });
+  const tool = getTool(next, "resume");
+  assert.equal(tool.result.subchatId, "existing-child");
+  assert.equal(tool.result.subchatStatus, "running");
+  assert.equal(tool.status, "running");
+  assert.match(tool.result.error, /is running/);
+});
+
+
+test("server snapshots authoritatively reconcile every lifecycle transition", () => {
+  const states = ["queued", "running", "done", "paused", "cancelled", "failed", "interrupted"];
+  for (const before of states) {
+    for (const after of states) {
+      const previous = chatWith(agent("first", before));
+      const snapshot = liveChatFromPayload(chatWith(agent("first", after)), "project");
+      const tool = getTool(preserveLiveWorkState(previous, snapshot), "first");
+      assert.equal(tool.result.subchatStatus, after, `${before} -> ${after}`);
+      assert.equal(tool.status, ["running", "queued"].includes(after) ? "running" : after === "done" ? "success" : "error", `${before} -> ${after}`);
+    }
+  }
+});
+
+test("a replayed start targets the original tool without duplicating it", () => {
+  const previous = chatWith(agent("first", "done"), agent("second"));
+  const next = applyLiveStreamEvent(previous, { type: "tool_start", id: "first", name: "subagent" });
+  assert.equal(next.messages.flatMap(message => message.toolCalls ?? []).filter(tool => tool.id === "first").length, 1);
+  assert.equal(getTool(next, "first").result.subchatStatus, "done");
+  assert.equal(getTool(next, "first").status, "success");
+});

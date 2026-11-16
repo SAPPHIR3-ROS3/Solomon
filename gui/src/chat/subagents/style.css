@@ -88,3 +88,13 @@
   color: var(--color-text-muted);
   flex: 0 0 auto;
 }
+
+.chat-subchat-error {
+  color: var(--color-text);
+  font: 400 14px/1.5 "Geist Mono", monospace;
+  margin: 0;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
