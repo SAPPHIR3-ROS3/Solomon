@@ -1,0 +1,1 @@
+import{n as e,t}from"./vendor~org~ocaml-CMUFrfFB.js";t();export{e as default};

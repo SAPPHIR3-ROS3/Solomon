@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-sJBDdmOt.js";var t,n;function r(){return(r=e((()=>{t=Object.defineProperty,n=(e,n)=>t(e,`name`,{value:n,configurable:!0})})))()}export{r as n,n as t};

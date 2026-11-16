@@ -1,0 +1,1 @@
+import{n as e,t}from"./app~text.html.basic-CtRD92F9.js";t();export{e as default};

@@ -1,0 +1,1 @@
+import{n as e,t}from"./vendor~typst~org~nim~mdc~markdown~fsharp~erlang-CMgaHOJ5.js";t();export{e as default};

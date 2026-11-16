@@ -1,0 +1,1 @@
+import"./d3-selection-DaGbIZS0.js";import{n as e,t}from"./vendor~sankeyDiagram-WGJFYUXA-DusVoMqQ.js";e();export{t as diagram};

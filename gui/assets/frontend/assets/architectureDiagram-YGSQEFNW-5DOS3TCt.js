@@ -1,0 +1,1 @@
+import"./vendor~architectureDiagram-YGSQEFNW-uBuiqPNH.js";import{n as e,t}from"./vendor~architectureDiagram-YGSQEFNW-DpM3dAj6.js";e();export{t as diagram};
