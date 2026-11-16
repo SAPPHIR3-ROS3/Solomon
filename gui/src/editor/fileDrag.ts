@@ -65,7 +65,7 @@ export function useFileDrag(projectID: string | undefined, entries: Record<strin
       if (!button || !event.dataTransfer || busy) { if (button) event.preventDefault(); return; }
       source = entryFor(button) ?? null;
       if (!source) { event.preventDefault(); return; }
-      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.effectAllowed = "copyMove";
       event.dataTransfer.setData("application/x-solomon-workspace-entry", source.path);
       ghost = button.cloneNode(true) as HTMLElement;
       ghost.className = "editor-file-drag-ghost";

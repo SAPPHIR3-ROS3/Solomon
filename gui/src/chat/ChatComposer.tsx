@@ -1,3 +1,5 @@
+import { installWorkspaceDrop } from "./workspaceDrop";
+import { fetchProjectAtMentionSuggestions } from "../projects/projects";
 import { ReasoningControl } from "./ReasoningControl";
 import { type ReasoningCapability } from "../projects/reasoning";
 import { composerDraftKey, useComposerDraft } from "./composerDrafts";
@@ -63,6 +65,8 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const composerRef = useRef<HTMLFormElement>(null);
   const key = draftKey ?? composerDraftKey(projectID);
+  const activeDraftKey = useRef(key);
+  activeDraftKey.current = key;
   const { draft, images, clips, setDraft, setImages, setClips, clearSentDraft } = useComposerDraft(key);
   const [capability, setCapability] = useState<ReasoningCapability>();
   const [reasoning, setReasoning] = useState<ReasoningEffort>(initialReasoning);
@@ -74,6 +78,20 @@ export function ChatComposer({
   const [internalOpenMenu, setInternalOpenMenu] = useState<ChatComposerMenu>(null);
   const mode = controlledMode ?? internalMode;
   const openMenu = controlledOpenMenu === undefined ? internalOpenMenu : controlledOpenMenu;
+
+  useEffect(() => {
+    const target = composerRef.current;
+    if (!target || !projectID) return;
+    return installWorkspaceDrop(target, projectID, (reference) => {
+      void fetchProjectAtMentionSuggestions(reference.projectID, reference.path).then((suggestions) => {
+        if (activeDraftKey.current !== key) return;
+        const suggestion = suggestions.find((item) => item.path.replace(/\/$/, "") === reference.path);
+        if (!suggestion) throw new Error("This file cannot be added to chat.");
+        setDraft((current) => `${current}${current && !/\s$/.test(current) ? " " : ""}${suggestion.tag} `);
+        target.querySelector("textarea")?.focus();
+      }).catch((error) => notifyError(error instanceof Error ? error.message : "Unable to add file to chat."));
+    });
+  }, [projectID, key, setDraft]);
 
   function setOpenMenu(menu: ChatComposerMenu) {
     if (controlledOpenMenu === undefined) setInternalOpenMenu(menu);
