@@ -2,6 +2,8 @@ package agentruntime
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/filechanges"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/termcolor"
@@ -17,6 +19,24 @@ import (
 func (r *Runtime) toolEnv(inv tooling.Invocation) *agenttools.Env {
 	checkpointSeq := inv.CheckpointSeq
 	return &agenttools.Env{
+		DeferredToolStart: func(child tooling.Invocation) {
+			if r.machineMode() {
+				event := cievents.ToolStart(0, child.ToolCallID, child.Name, child.Args, checkpointSeq, "")
+				event["parent_tool_call_id"] = inv.ToolCallID
+				r.ciEmit(event)
+			} else {
+				r.printToolLine(checkpointSeq, "", child.Name, child.Args)
+			}
+		},
+		DeferredToolResult: func(child tooling.Invocation, result json.RawMessage, err error) {
+			errText := ""
+			if err != nil {
+				errText = err.Error()
+			}
+			event := cievents.ToolResult(0, child.ToolCallID, child.Name, result, errText)
+			event["parent_tool_call_id"] = inv.ToolCallID
+			r.ciEmit(event)
+		},
 		RecordFileChanges: func(changes []filechanges.Change, committed []filechanges.Commit) {
 			r.recordChatFileChanges(checkpointSeq, changes, committed)
 		},

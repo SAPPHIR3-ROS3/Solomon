@@ -191,6 +191,9 @@ func apiToolCallsFromMessage(projectID, parentChatID string, messages []chatstor
 			}
 		}
 		out = append(out, tool)
+		if call.Name == "orchestrate" {
+			out = append(out, orchestrateAPICalls(tool)...)
+		}
 		if includeNested && call.Name == "subagent" && subchat != nil {
 			out = append(out, nestedSubagentToolCalls(projectID, parentChatID, subchat, map[string]bool{}, runActive, tool.SubagentDepth)...)
 		}

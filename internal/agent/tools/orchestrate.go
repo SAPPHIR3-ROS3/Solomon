@@ -65,23 +65,44 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 		logging.Log(logging.WARNING_LOG_LEVEL, "orchestrate compile failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return orchestrateCompileErrorResult(a.Source, err), nil
 	}
+	var calls []orchestrateCall
+	var callsMu sync.Mutex
 	var attachments []images.Attachment
 	var attachmentsMu sync.Mutex
 	done, err := parent.RunGlobal(ctx, wasm, deferredExecMode(env), func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
-		return orchestrateHostCall(ctx, env, name, args, func(imgs []images.Attachment) {
+		callsMu.Lock()
+		index := len(calls)
+		inv := tooling.Invocation{Name: name, Args: args, ToolCallID: fmt.Sprintf("%s/sdk/%d", env.ParentToolCallID, index+1)}
+		calls = append(calls, orchestrateCall{ID: inv.ToolCallID, Name: name, Arguments: args})
+		callsMu.Unlock()
+		if env.DeferredToolStart != nil {
+			env.DeferredToolStart(inv)
+		}
+		result, callErr := orchestrateHostCall(ctx, env, inv, func(imgs []images.Attachment) {
 			attachmentsMu.Lock()
 			defer attachmentsMu.Unlock()
 			attachments = append(attachments, imgs...)
 		})
+		if callErr != nil {
+			result, _ = json.Marshal(map[string]any{"error": callErr.Error()})
+		}
+		callsMu.Lock()
+		calls[index].Result = result
+		callsMu.Unlock()
+		if env.DeferredToolResult != nil {
+			env.DeferredToolResult(inv, result, callErr)
+		}
+		return result, callErr
 	})
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "orchestrate sandbox run failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return nil, err
 	}
 	out := map[string]any{
-		"ok":          done.Error == "",
-		"tool_calls":  done.ToolCalls,
-		"duration_ms": done.DurationMs,
+		"ok":             done.Error == "",
+		"tool_calls":     done.ToolCalls,
+		"sdk_tool_calls": calls,
+		"duration_ms":    done.DurationMs,
 	}
 	if strings.TrimSpace(done.Output) != "" {
 		out["output"] = done.Output
@@ -121,11 +142,11 @@ func orchestrateCompileErrorResult(source string, err error) map[string]any {
 	}
 }
 
-func orchestrateHostCall(ctx context.Context, env *Env, name string, args json.RawMessage, collect func([]images.Attachment)) (json.RawMessage, error) {
+func orchestrateHostCall(ctx context.Context, env *Env, inv tooling.Invocation, collect func([]images.Attachment)) (json.RawMessage, error) {
 	hostEnv := *env
 	hostEnv.AllowDeferredTools = true
 	hostEnv.ParentToolName = "orchestrate"
-	result, err := Exec(ctx, &hostEnv, "agent", tooling.Invocation{Name: name, Args: args})
+	result, err := Exec(ctx, &hostEnv, "agent", inv)
 	if err != nil {
 		return nil, err
 	}
