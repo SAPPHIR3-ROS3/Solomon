@@ -26,6 +26,10 @@ export function mergeGitFileStatuses(...sources: Record<string, string>[]) {
   return result;
 }
 
+export function fileBrowserStatuses(...sources: Record<string, string>[]) {
+  return Object.fromEntries(Object.entries(mergeGitFileStatuses(...sources)).filter(([, status]) => status !== "D"));
+}
+
 export function gitStatusFolderStatuses(fileStatus: Record<string, string>) {
   const folderStatus: Record<string, string> = {};
   for (const [filePath, status] of Object.entries(fileStatus)) {

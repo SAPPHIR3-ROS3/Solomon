@@ -1,4 +1,4 @@
-import { mergeGitFileStatuses } from "./right-panel/status";
+import { fileBrowserStatuses } from "./right-panel/status";
 import { FileBrowser } from "./right-panel/Browser";
 import { useResearchContextMenu } from "../research/ContextMenu";
 import { FileEntries, entryMatchesFilter } from "./right-panel/Files";
@@ -374,7 +374,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
             {!error && !project && !temporaryWorkspace ? <p className="right-side-panel-message">No project open.</p> : null}
             {entries[""]?.length === 0 ? <p className="right-side-panel-message">This folder is empty.</p> : null}
             {nameFilter && entries[""] && !entries[""].some((entry) => entryMatchesFilter(entry, nameFilter, entries)) ? <p className="right-side-panel-message">No files match this search.</p> : null}
-            <FileEntries projectID={project?.id} allowAddToChat rootPath={project?.path ?? temporaryWorkspace?.path} onOpenFile={project ? onOpenFile : undefined} fileStatus={mergeGitFileStatuses(gitStatus.changes, gitStatus.staged)} depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
+            <FileEntries projectID={project?.id} allowAddToChat rootPath={project?.path ?? temporaryWorkspace?.path} onOpenFile={project ? onOpenFile : undefined} fileStatus={fileBrowserStatuses(gitStatus.changes, gitStatus.staged)} depth={0} entries={entries} expandedDirectories={expandedDirectories} nameFilter={nameFilter} onToggleDirectory={toggleDirectory} parentPath="" />
         </FileBrowser>
       </> : visibleView === "history" ? <GitHistoryView allowAddToChat onOpenFile={onOpenFile} error={gitHistoryError} gitStatus={gitStatus} gitStatusError={gitStatusError} gitStatusLoading={gitStatusLoading} history={gitHistory} loading={gitHistoryLoading} project={project} /> : <section aria-label="Deep research" className="right-side-panel-research" id="right-side-panel-research" role="tabpanel">
         {!project ? <p className="right-side-panel-message">Open a project to view its deep research.</p> : null}

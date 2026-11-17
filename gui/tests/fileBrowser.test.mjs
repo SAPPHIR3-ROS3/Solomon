@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const server = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), server: { middlewareMode: true, hmr: false } });
 after(() => server.close());
 const { readWorkspaceFileReference } = await server.ssrLoadModule("/src/chat/fileReferences.ts");
-const { gitStatusFolderStatuses, mergeGitFileStatuses } = await server.ssrLoadModule("/src/shell/right-panel/status.ts");
+const { gitStatusFolderStatuses, mergeGitFileStatuses, fileBrowserStatuses } = await server.ssrLoadModule("/src/shell/right-panel/status.ts");
 
 test("workspace drops accept references only for the active project", () => {
   const payload = JSON.stringify({ projectID: "project", path: "src/file with spaces.ts" });
@@ -41,5 +41,22 @@ test("Modified files override additions and deletions across all ancestors", () 
 test("Staged additions cannot hide unstaged modifications", () => {
   const files = mergeGitFileStatuses({ "src/file.ts": "M" }, { "src/file.ts": "A" });
   assert.deepEqual(files, { "src/file.ts": "M" });
+  assert.deepEqual(gitStatusFolderStatuses(files), { src: "M" });
+});
+
+
+test("File browser ignores deletions while Git retains them", () => {
+  const changes = { "product/old.txt": "D", "product/new/file.txt": "U" };
+  const staged = { "deleted/file.txt": "D" };
+  const files = fileBrowserStatuses(changes, staged);
+  assert.deepEqual(files, { "product/new/file.txt": "U" });
+  assert.deepEqual(gitStatusFolderStatuses(files), { product: "A", "product/new": "A" });
+  assert.deepEqual(gitStatusFolderStatuses(staged), { deleted: "D" });
+  assert.deepEqual(changes, { "product/old.txt": "D", "product/new/file.txt": "U" });
+});
+
+test("File browser keeps modified folders yellow and deleted-only folders undecorated", () => {
+  assert.deepEqual(fileBrowserStatuses({ "src/old.ts": "D" }), {});
+  const files = fileBrowserStatuses({ "src/old.ts": "D", "src/new.ts": "U", "src/edited.ts": "M" });
   assert.deepEqual(gitStatusFolderStatuses(files), { src: "M" });
 });
