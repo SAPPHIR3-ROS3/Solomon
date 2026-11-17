@@ -1,3 +1,4 @@
+import { mergeGitFileStatuses } from "../shell/right-panel/status";
 import { FileBrowser } from "../shell/right-panel/Browser";
 import { useFileDrag } from "./fileDrag";
 import { useFileContextMenu } from "../shell/FileContextMenu";
@@ -433,7 +434,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   }
 
   const active = files.find((file) => file.id === activeTabId);
-  const fileStatus = useMemo(() => ({ ...git.changes, ...git.staged }), [git]);
+  const fileStatus = useMemo(() => mergeGitFileStatuses(git.changes, git.staged), [git]);
   const entryMap = useMemo(() => ({ "": entries, ...children }), [entries, children]);
   const fileDragHost = useFileDrag(project?.id, entryMap, setMessage);
   if (!project) return <>

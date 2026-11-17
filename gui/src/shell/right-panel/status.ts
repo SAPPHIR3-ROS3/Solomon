@@ -14,16 +14,29 @@ export function gitStatusLabel(status: string) {
   return "changed";
 }
 
+const statusPriority: Record<string, number> = { R: 1, C: 1, A: 2, U: 2, D: 3, M: 4 };
+
+export function mergeGitFileStatuses(...sources: Record<string, string>[]) {
+  const result: Record<string, string> = {};
+  for (const source of sources) {
+    for (const [path, status] of Object.entries(source)) {
+      if ((statusPriority[status] ?? 0) > (statusPriority[result[path]] ?? 0)) result[path] = status;
+    }
+  }
+  return result;
+}
+
 export function gitStatusFolderStatuses(fileStatus: Record<string, string>) {
   const folderStatus: Record<string, string> = {};
-  const priority: Record<string, number> = { R: 1, C: 1, A: 2, U: 2, M: 3, D: 4 };
   for (const [filePath, status] of Object.entries(fileStatus)) {
+    const folderState = status === "U" ? "A" : status;
     const parts = filePath.split("/");
     parts.pop();
     let folderPath = "";
     for (const part of parts) {
       folderPath = folderPath ? `${folderPath}/${part}` : part;
-      if ((priority[status] ?? 0) > (priority[folderStatus[folderPath]] ?? 0)) folderStatus[folderPath] = status;
+      const previous = folderStatus[folderPath];
+      if ((statusPriority[folderState] ?? 0) > (statusPriority[previous] ?? 0)) folderStatus[folderPath] = folderState;
     }
   }
   return folderStatus;
