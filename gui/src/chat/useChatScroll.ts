@@ -109,8 +109,8 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
     }
     lastScrollTopRef.current = currentScrollTop;
     writePosition(chatID, { top: currentScrollTop, following: isFollowingBottomRef.current });
-    shell.style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, currentScrollTop / 18)));
-  }, [cancelScheduledScroll, chatID]);
+    (viewRef.current ?? shell).style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, currentScrollTop / 18)));
+  }, [cancelScheduledScroll, chatID, viewRef]);
 
   const scrollToBottom = useCallback(() => {
     cancelScheduledScroll();
@@ -172,7 +172,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
       if (shell && saved && !saved.following) {
         shell.scrollTop = saved.top;
         lastScrollTopRef.current = shell.scrollTop;
-        shell.style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, shell.scrollTop / 18)));
+        (viewRef.current ?? shell).style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, shell.scrollTop / 18)));
       }
       restoringRef.current = false;
       setIsAwayFromBottom(Boolean(shell && !isFollowingBottomRef.current && shell.scrollHeight - shell.scrollTop - shell.clientHeight > FOLLOW_BOTTOM_THRESHOLD_PX));
@@ -183,7 +183,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
       writePosition(chatID, { top: restoringRef.current && saved ? saved.top : lastScrollTopRef.current, following: isFollowingBottomRef.current });
       cancelScheduledScroll();
     };
-  }, [cancelScheduledScroll, chatID, scheduleScrollToBottom]);
+  }, [cancelScheduledScroll, chatID, scheduleScrollToBottom, viewRef]);
 
   useLayoutEffect(() => {
     const view = viewRef.current;

@@ -50,7 +50,7 @@
 
 @keyframes chat-worked-for-glow {
   from { background-position: -3ch 0; }
-  to { background-position: calc(100% + 3ch) 0; }
+  to { background-position: 28ch 0; }
 }
 
 .app-shell .chat-worked-for.is-live .chat-worked-for-wave,
@@ -63,6 +63,7 @@
   -webkit-background-clip: text;
   color: transparent;
   animation: chat-worked-for-glow 1.6s linear infinite;
+  contain: paint;
 }
 
 @media (prefers-reduced-motion: reduce) {
