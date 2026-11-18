@@ -103,7 +103,7 @@ func TestFileChangesDesktopShellFromHomeProject(t *testing.T) {
 	}
 	target := filepath.Join(desktop, "test.txt")
 	var changes []filechanges.Change
-	env := &Env{ProjRoot: home, AllowDeferredTools: true, RecordFileChanges: func(c []filechanges.Change, _ []filechanges.Commit) { changes = append(changes, c...) }}
+	env := &Env{ProjRoot: home, AllowDeferredTools: true, ParentToolName: "orchestrate", RecordFileChanges: func(c []filechanges.Change, _ []filechanges.Commit) { changes = append(changes, c...) }}
 	create := `printf '%s\n' 'own line' > "$HOME/Desktop/test.txt"`
 	paths := ShellFileChangePaths(home, create)
 	found := false
@@ -161,7 +161,7 @@ func TestFileChangesXDGDesktopVariableCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	var changes []filechanges.Change
-	env := &Env{ProjRoot: home, AllowDeferredTools: true, RecordFileChanges: func(c []filechanges.Change, _ []filechanges.Commit) { changes = append(changes, c...) }}
+	env := &Env{ProjRoot: home, AllowDeferredTools: true, ParentToolName: "orchestrate", RecordFileChanges: func(c []filechanges.Change, _ []filechanges.Commit) { changes = append(changes, c...) }}
 	command := `desktop="$(xdg-user-dir DESKTOP 2>/dev/null || printf '%s/Desktop' "$HOME")"; mkdir -p "$desktop" || exit 1; target="$desktop/test.txt"; if [ -e "$target" ]; then n=1; while [ -e "$desktop/test-$n.txt" ]; do n=$((n+1)); done; target="$desktop/test-$n.txt"; fi; printf 'File di test.\n' > "$target" && printf 'Creato: %s\n' "$target"`
 	for _, expected := range []string{"Desktop/test.txt", "Desktop/test-1.txt"} {
 		changes = nil

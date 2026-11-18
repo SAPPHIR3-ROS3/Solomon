@@ -28,8 +28,6 @@ type request struct {
 	ID      json.RawMessage `json:"id"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params"`
-	Result  json.RawMessage `json:"result"`
-	Error   json.RawMessage `json:"error"`
 }
 type session struct {
 	servers        []json.RawMessage
@@ -52,15 +50,13 @@ type Server struct {
 	initialized bool
 	workers     sync.WaitGroup
 	storage     string
-	pending     map[string]chan request
-	nextID      uint64
 	stop        context.CancelFunc
 	outputErr   error
 	version     string
 }
 
 func New(out io.Writer, factory Factory) *Server {
-	return &Server{out: out, factory: factory, version: "development", sessions: map[string]*session{}, pending: map[string]chan request{}}
+	return &Server{out: out, factory: factory, version: "development", sessions: map[string]*session{}}
 }
 func (s *Server) send(v any) {
 	s.writeMu.Lock()
@@ -125,18 +121,6 @@ func (s *Server) Serve(ctx context.Context, in io.Reader) error {
 		}
 		if json.Unmarshal(scan.Bytes(), &r) != nil {
 			s.reply(json.RawMessage("null"), nil, -32600, "Invalid request")
-			continue
-		}
-		if r.JSONRPC == "2.0" && r.Method == "" && len(r.ID) > 0 && (len(r.Result) > 0 || len(r.Error) > 0) {
-			s.mu.Lock()
-			ch := s.pending[string(r.ID)]
-			s.mu.Unlock()
-			if ch != nil {
-				select {
-				case ch <- r:
-				default:
-				}
-			}
 			continue
 		}
 		if r.JSONRPC != "2.0" || r.Method == "" {
@@ -286,7 +270,7 @@ func (s *Server) handle(ctx context.Context, r request) {
 		go func() {
 			defer s.workers.Done()
 			defer cancel()
-			err := s.run(ctx, turn, v, p.SessionID, p.Prompt, func(u Update) {
+			err := s.run(ctx, turn, v, p.Prompt, func(u Update) {
 				s.mu.Lock()
 				if u["sessionUpdate"] == "config_option_update" {
 					u["configOptions"] = modeOptions(v.record.Mode, u["configOptions"])
@@ -372,13 +356,8 @@ func (s *Server) withRunner(lifetime, ctx context.Context, v *session, fn func()
 	}
 	return fn()
 }
-func (s *Server) run(lifetime, ctx context.Context, v *session, id string, blocks []Content, emit func(Update)) error {
+func (s *Server) run(lifetime, ctx context.Context, v *session, blocks []Content, emit func(Update)) error {
 	return s.withRunner(lifetime, ctx, v, func() error {
-		if pr, ok := v.runner.(PermissionRunner); ok {
-			pr.SetPermissionHandler(func(ctx context.Context, tool Update) error {
-				return nil
-			})
-		}
 		if v.record.Mode != "chat" {
 			v.record.Mode = "code"
 		}

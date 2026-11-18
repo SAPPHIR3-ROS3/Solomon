@@ -156,13 +156,12 @@ func TestACPBinaryProviderAndRestore(t *testing.T) {
 	}
 	c.call(t, "session/set_model", map[string]any{"sessionId": id, "modelId": "ci-env/test-model"})
 	promptID := c.request(t, "session/prompt", promptParams(id, "USE_TOOL"))
-	approved, seenTool, seenText := false, false, false
+	seenTool, seenText := false, false
 	var toolUpdates []any
 	for {
 		m := c.next(t)
 		if m["method"] == "session/request_permission" {
-			approved = true
-			c.send(t, map[string]any{"jsonrpc": "2.0", "id": m["id"], "result": map[string]any{"outcome": map[string]any{"outcome": "selected", "optionId": "allow_once"}}})
+			t.Fatal("unexpected permission request")
 		}
 		if m["method"] == "session/update" {
 			u := m["params"].(map[string]any)["update"].(map[string]any)
@@ -183,8 +182,8 @@ func TestACPBinaryProviderAndRestore(t *testing.T) {
 			break
 		}
 	}
-	if approved || !seenTool || !seenText {
-		t.Fatalf("incomplete tool conversation: permission=%v tool=%v text=%v toolUpdates=%v", approved, seenTool, seenText, toolUpdates)
+	if !seenTool || !seenText {
+		t.Fatalf("incomplete tool conversation: tool=%v text=%v toolUpdates=%v", seenTool, seenText, toolUpdates)
 	}
 	c.call(t, "session/set_config_option", map[string]any{"sessionId": id, "configId": "reasoning", "value": "low"})
 	c.call(t, "session/set_model", map[string]any{"sessionId": id, "modelId": "ci-env/second-model"})

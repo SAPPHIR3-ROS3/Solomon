@@ -17,7 +17,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
 type acpState struct {
@@ -67,13 +66,6 @@ func (r *acpRunner) RestoreContext(ctx context.Context, data json.RawMessage) er
 	r.runtime.Cfg.ReasoningEffort = state.Reasoning
 	config.RememberCurrentModelMode(r.runtime.Cfg)
 	return nil
-}
-func (r *acpRunner) SetPermissionHandler(fn func(context.Context, acp.Update) error) {
-	r.runtime.AuthorizeTool = func(ctx context.Context, inv tooling.Invocation) error {
-		var args any
-		_ = json.Unmarshal(inv.Args, &args)
-		return fn(ctx, acp.Update{"toolCallId": inv.ToolCallID, "title": inv.Name, "kind": "other", "status": "pending", "rawInput": args})
-	}
 }
 func (r *acpRunner) Configure(ctx context.Context, key, value string) error {
 	switch key {

@@ -36,18 +36,14 @@ type ConfigRunner interface {
 	Configure(context.Context, string, string) error
 	Configuration() map[string]any
 }
-type PermissionRunner interface {
-	SetPermissionHandler(func(context.Context, Update) error)
-}
 type record struct {
-	ID          string          `json:"sessionId"`
-	CWD         string          `json:"cwd"`
-	Title       string          `json:"title"`
-	UpdatedAt   string          `json:"updatedAt"`
-	State       json.RawMessage `json:"state,omitempty"`
-	History     []Update        `json:"history"`
-	Mode        string          `json:"mode"`
-	Permissions map[string]bool `json:"permissions,omitempty"`
+	ID        string          `json:"sessionId"`
+	CWD       string          `json:"cwd"`
+	Title     string          `json:"title"`
+	UpdatedAt string          `json:"updatedAt"`
+	State     json.RawMessage `json:"state,omitempty"`
+	History   []Update        `json:"history"`
+	Mode      string          `json:"mode"`
 }
 
 func (s *Server) SetStorage(dir string) error {
@@ -119,7 +115,7 @@ func modes(mode string) map[string]any {
 	if mode != "chat" {
 		mode = "code"
 	}
-	return map[string]any{"currentModeId": mode, "availableModes": []any{map[string]any{"id": "code", "name": "Code", "description": "Use tools with Solomon execution policies"}, map[string]any{"id": "chat", "name": "Chat", "description": "Conversation without agent tools"}}}
+	return map[string]any{"currentModeId": mode, "availableModes": []any{map[string]any{"id": "code", "name": "Code", "description": "Use Solomon agent tools"}, map[string]any{"id": "chat", "name": "Chat", "description": "Conversation without agent tools"}}}
 }
 func (s *Server) sessionResult(v *session, includeID bool) map[string]any {
 	result := map[string]any{"modes": modes(v.record.Mode)}

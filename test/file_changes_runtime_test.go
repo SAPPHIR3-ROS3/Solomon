@@ -142,6 +142,7 @@ func TestFileChangesXDGCommandReachesSavedAssistantMessage(t *testing.T) {
 	r := &Runtime{ProjRoot: home, Cfg: config.EmptyRoot(), Out: &bytes.Buffer{}, Session: &chatstore.Session{Messages: []chatstore.Message{{Role: "user", CheckpointSeq: 0}, {Role: "assistant", CheckpointSeq: 5, Content: "Created"}}}}
 	env := r.ToolEnvForInvocationForTest(tooling.Invocation{CheckpointSeq: 4})
 	env.AllowDeferredTools = true
+	env.ParentToolName = "orchestrate"
 	env.ActivateInstructionsFromShellCommand = nil
 	command := `desktop="$(xdg-user-dir DESKTOP 2>/dev/null || printf '%s/Desktop' "$HOME")"; mkdir -p "$desktop" || exit 1; target="$desktop/test.txt"; if [ -e "$target" ]; then n=1; while [ -e "$desktop/test-$n.txt" ]; do n=$((n+1)); done; target="$desktop/test-$n.txt"; fi; printf 'File di test.\n' > "$target" && printf 'Creato: %s\n' "$target"`
 	raw, _ := json.Marshal(map[string]any{"command": command, "intent": "verify Desktop command reaches assistant metadata"})

@@ -121,16 +121,12 @@ func promptParams(id, text string) map[string]any {
 
 type savedRunner struct {
 	turns       int
-	permission  func(context.Context, acp.Update) error
 	lastContent []acp.Content
 }
 
-func (r *savedRunner) Close() error                       { return nil }
-func (r *savedRunner) Snapshot() (json.RawMessage, error) { return json.Marshal(r.turns) }
-func (r *savedRunner) Restore(data json.RawMessage) error { return json.Unmarshal(data, &r.turns) }
-func (r *savedRunner) SetPermissionHandler(fn func(context.Context, acp.Update) error) {
-	r.permission = fn
-}
+func (r *savedRunner) Close() error                                    { return nil }
+func (r *savedRunner) Snapshot() (json.RawMessage, error)              { return json.Marshal(r.turns) }
+func (r *savedRunner) Restore(data json.RawMessage) error              { return json.Unmarshal(data, &r.turns) }
 func (r *savedRunner) Configuration() map[string]any                   { return map[string]any{"configOptions": []any{}} }
 func (r *savedRunner) Configure(context.Context, string, string) error { return nil }
 func (r *savedRunner) PromptContent(ctx context.Context, blocks []acp.Content, emit func(acp.Update)) error {
@@ -142,11 +138,6 @@ func (r *savedRunner) Prompt(ctx context.Context, text string, emit func(acp.Upd
 		emit(acp.Update{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "waiting"}})
 		<-ctx.Done()
 		return ctx.Err()
-	}
-	if text == "tool" {
-		if err := r.permission(ctx, acp.Update{"toolCallId": "call-1", "title": "Test tool"}); err != nil {
-			return err
-		}
 	}
 	r.turns++
 	emit(acp.Update{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": fmt.Sprint(r.turns)}})

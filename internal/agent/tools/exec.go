@@ -100,6 +100,9 @@ func isSkillToolName(name string) bool {
 }
 
 func modeAllowed(env *Env, mode, tool string) bool {
+	if tool == "shell" {
+		return env != nil && env.AllowDeferredTools && env.ParentToolName == "orchestrate" && normalizeMode(mode) == "agent"
+	}
 	if tool == "cloakBrowser" {
 		return env != nil && env.AllowDeferredTools && normalizeMode(mode) == "agent"
 	}

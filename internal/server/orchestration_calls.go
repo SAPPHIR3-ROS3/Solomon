@@ -18,6 +18,9 @@ func orchestrateAPICalls(parent apiToolCall) []apiToolCall {
 	}
 	out := make([]apiToolCall, 0, len(calls))
 	for _, call := range calls {
+		if call.Name == "shell" {
+			continue
+		}
 		args := decodeArguments(string(call.Arguments))
 		result := apiToolResult(string(call.Result))
 		status := stringField(result, "status")

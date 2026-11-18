@@ -75,7 +75,7 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 		inv := tooling.Invocation{Name: name, Args: args, ToolCallID: fmt.Sprintf("%s/sdk/%d", env.ParentToolCallID, index+1)}
 		calls = append(calls, orchestrateCall{ID: inv.ToolCallID, Name: name, Arguments: args})
 		callsMu.Unlock()
-		if env.DeferredToolStart != nil {
+		if name != "shell" && env.DeferredToolStart != nil {
 			env.DeferredToolStart(inv)
 		}
 		result, callErr := orchestrateHostCall(ctx, env, inv, func(imgs []images.Attachment) {
@@ -89,7 +89,7 @@ func execOrchestrate(ctx context.Context, env *Env, raw json.RawMessage) (any, e
 		callsMu.Lock()
 		calls[index].Result = result
 		callsMu.Unlock()
-		if env.DeferredToolResult != nil {
+		if name != "shell" && env.DeferredToolResult != nil {
 			env.DeferredToolResult(inv, result, callErr)
 		}
 		return result, callErr

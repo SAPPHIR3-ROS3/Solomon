@@ -131,7 +131,7 @@ func (r *acpRunner) Close() error { return r.runtime.Close() }
 func (r *acpRunner) Prompt(ctx context.Context, text string, emit func(acp.Update)) error {
 	r.runtime.LastFinishReason = ""
 	if strings.TrimSpace(text) == "/help" {
-		emit(acp.Update{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "Solomon ACP supports text, images, embedded resources, tool approvals, session history, model selection, and reasoning configuration. Use /compact to summarize the conversation."}})
+		emit(acp.Update{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "Solomon ACP supports text, images, embedded resources, session history, model selection, and reasoning configuration. Use /compact to summarize the conversation."}})
 		return nil
 	}
 	if strings.HasPrefix(strings.TrimSpace(text), "/") && strings.TrimSpace(text) != "/compact" {

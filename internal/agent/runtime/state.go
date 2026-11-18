@@ -1,7 +1,6 @@
 package agentruntime
 
 import (
-	"context"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -12,7 +11,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooloutput"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/updater"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/webfetch"
@@ -23,8 +21,7 @@ import (
 )
 
 type Runtime struct {
-	AuthorizeTool func(context.Context, tooling.Invocation) error
-	commandOnly   bool
+	commandOnly bool
 
 	RL *readline.Instance
 

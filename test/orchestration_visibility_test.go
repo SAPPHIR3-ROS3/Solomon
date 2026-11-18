@@ -42,6 +42,7 @@ import "sdk"
 func main() {
  _, _ = sdk.ReadFile("missing.txt", "inspect missing file")
  _, _ = sdk.ReadFile("existing.txt", "inspect existing file")
+ _, _ = sdk.Shell("printf nested-shell-output", "check nested shell")
 }`})
 	var starts []tooling.Invocation
 	var finishes []string
@@ -70,6 +71,11 @@ func main() {
 	}
 	if starts[0].ToolCallID == starts[1].ToolCallID || !strings.Contains(finishes[0], "missing.txt") {
 		t.Fatalf("incorrect child identities or error: %v %v", starts, finishes)
+	}
+	orchestrated := result.(map[string]any)
+	encodedCalls, err := json.Marshal(orchestrated["sdk_tool_calls"])
+	if err != nil || !strings.Contains(string(encodedCalls), "nested-shell-output") || !strings.Contains(string(encodedCalls), `"name":"shell"`) {
+		t.Fatalf("shell output missing from orchestration: %s %v", encodedCalls, err)
 	}
 	session, err := chatstore.ReadSession(project.Project.ID, chat.ID)
 	if err != nil {
@@ -108,5 +114,22 @@ func main() {
 	}
 	if calls[2].ID != starts[1].ToolCallID || calls[2].Status != "success" {
 		t.Fatalf("missing successful tool details: %+v", calls[2])
+	}
+}
+
+func TestShellRequiresOrchestration(t *testing.T) {
+	for _, env := range []*agenttools.Env{
+		nil,
+		{},
+		{AllowDeferredTools: true},
+		{ParentToolName: "orchestrate"},
+		{AllowDeferredTools: true, ParentToolName: "other"},
+	} {
+		_, err := agenttools.Exec(t.Context(), env, "agent", tooling.Invocation{
+			Name: "shell", Args: json.RawMessage(`{"command":"printf forbidden","intent":"verify shell boundary"}`),
+		})
+		if err == nil || !strings.Contains(err.Error(), "not available") {
+			t.Fatalf("standalone shell accepted for %+v: %v", env, err)
+		}
 	}
 }

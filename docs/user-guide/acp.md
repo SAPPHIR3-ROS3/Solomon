@@ -9,22 +9,22 @@ Run `solomon acp` to serve stable ACP v1 over stdio. Messages use newline-delimi
 | `initialize` | Negotiate v1 and advertise implemented capabilities |
 | `session/new` | Initialize a provider and an independent conversation at the requested absolute working directory |
 | `session/prompt` | Process text, images, resource links, and embedded resources; stream messages, thoughts, tool calls and results |
-| `session/cancel` | Cancel processing or a pending permission request |
+| `session/cancel` | Cancel processing |
 | `$/cancel_request` | Cancel an in-flight request by its request ID |
 | `session/load` | Restore saved context and replay user messages and agent updates before responding |
 | `session/resume` | Restore saved context without replaying updates |
 | `session/list` | List saved sessions, optionally filtered by working directory, with pagination |
 | `session/close` | Cancel active work and release runtime resources while preserving saved history |
 | `session/delete` | Remove a saved conversation from the session history |
-| `session/set_mode` | Select Ask, Code, or Chat mode |
+| `session/set_mode` | Select Code or Chat mode |
 | `session/set_model` | Select a provider/model without changing global configuration |
 | `session/set_config_option` | Select a model or reasoning effort for this conversation |
 
 The initial session response includes modes and configuration selectors. The adapter discovers the catalogues of configured providers during session setup, with a five-second discovery budget. The active model and configured recent models remain available if a provider cannot be queried. Models are exposed through both `configOptions` and the legacy `models` session field; explicit model selection accepts `provider/model`. Reasoning values are `default`, `none`, `low`, `medium`, `high`, `xhigh`, and `max`; individual providers may impose narrower limits. `/help` and `/compact` are advertised as available commands. Model finish reasons are mapped to ACP completion, token-limit, and refusal stop reasons.
 
-## Permissions, tools, and MCP
+## Tools and MCP
 
-Code mode uses Solomon's existing execution policies. Chat mode selects Solomon's chat tool set. Mode changes require client requests.
+Code mode uses Solomon's agent tool set. Command execution is available only through `sdk.Shell` inside `orchestrate`; its results stay in the orchestration result. Tool permission requests are deferred and are not implemented. Chat mode selects Solomon's chat tool set. Mode changes require client requests.
 
 Client-supplied MCP servers support stdio, streamable HTTP, and SSE. Their environment variables and headers are forwarded. Client definitions replace local definitions with the same name. Invalid definitions or client servers that fail to connect fail session creation instead of being silently ignored.
 
@@ -32,7 +32,7 @@ Filesystem access and command execution use Solomon's native tools. ACP's `fs/*`
 
 ## Persistence and boundaries
 
-Conversations, provider/model selection, reasoning settings, mode, permission decisions, and replay history are stored under `$SOLOMON_HOME/acp/sessions` (normally `~/.solomon/acp/sessions`). Images and binary attachments are stored under `acp/attachments`. Session files are written atomically with owner-only permissions. Authentication uses existing Solomon provider credentials; missing configuration returns ACP's authentication-required error. No separate ACP login/logout method is advertised.
+Conversations, provider/model selection, reasoning settings, mode, and replay history are stored under `$SOLOMON_HOME/acp/sessions` (normally `~/.solomon/acp/sessions`). Images and binary attachments are stored under `acp/attachments`. Session files are written atomically with owner-only permissions. Authentication uses existing Solomon provider credentials; missing configuration returns ACP's authentication-required error. No separate ACP login/logout method is advertised.
 
 Prompt execution is serialized because existing Solomon tools use the process working directory. Each conversation retains independent context and cancellation remains responsive while another session is running. Transport errors are reported and disconnecting cancels active work.
 
