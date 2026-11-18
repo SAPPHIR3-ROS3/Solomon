@@ -1,4 +1,4 @@
-.network-heading { align-items: center; }
+.settings-models-panel-heading.network-heading { align-items: center; margin-bottom: 0; }
 .network-heading > div { min-width: 0; }
 .network-heading p { margin-top: 8px; }
 .network-refresh { align-items: center; display: inline-flex; gap: 7px; }
@@ -67,3 +67,7 @@
 .network-magic-dns-interface .settings-model-row-copy { flex: 1; min-width: 0; }
 .network-magic-dns-interface strong { color: var(--color-text); }
 .network-magic-dns-interface small { line-height: 1.5; }
+
+.settings-model-row.network-channel { border-top: 0; box-sizing: border-box; padding: 20px 0; }
+.network-interfaces > .network-interface:first-child { border-top: 1px solid var(--color-border); }
+.network-channel .settings-model-row-copy small { line-height: 1.5; }

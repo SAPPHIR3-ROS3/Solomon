@@ -23,14 +23,12 @@ func WrapDial(fallback func(context.Context, string, string) (net.Conn, error), 
 		if err != nil {
 			return nil, err
 		}
-		if !p.AllowedHostname(host) {
-			return nil, fmt.Errorf("Solomon access via this MagicDNS name is disabled")
-		}
+
 		dialer := net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 		if len(timeout) > 0 && timeout[0] > 0 {
 			dialer.Timeout = timeout[0]
 		}
-		if len(p.Disabled) == 0 {
+		if p.OutboundInterface == "" || p.OutboundInterface == "auto" {
 			return fallback(ctx, network, address)
 		}
 		ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
@@ -49,7 +47,7 @@ func WrapDial(fallback func(context.Context, string, string) (net.Conn, error), 
 		}
 		var failures []error
 		for _, row := range rows {
-			if !row.Enabled || !row.Up || row.Local {
+			if row.Name != p.OutboundInterface || !row.Up {
 				continue
 			}
 			for _, cidr := range row.Addresses {
@@ -77,8 +75,8 @@ func WrapDial(fallback func(context.Context, string, string) (net.Conn, error), 
 			}
 		}
 		if len(failures) == 0 {
-			return nil, fmt.Errorf("no enabled network interface can connect to %s", address)
+			return nil, fmt.Errorf("selected outbound interface cannot connect to %s", address)
 		}
-		return nil, fmt.Errorf("no enabled network interface can connect to %s: %w", address, errors.Join(failures...))
+		return nil, fmt.Errorf("selected outbound interface cannot connect to %s: %w", address, errors.Join(failures...))
 	}
 }

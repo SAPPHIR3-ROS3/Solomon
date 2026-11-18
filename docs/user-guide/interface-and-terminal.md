@@ -166,13 +166,17 @@ La selezione viene salvata per nome in `~/.solomon/network.json` (oppure nella
 home indicata da `SOLOMON_HOME`) ed è condivisa tra terminale e GUI.
 
 La disattivazione impedisce nuove richieste al server sull'indirizzo di
-quell'interfaccia e la esclude dalle connessioni HTTP gestite da Solomon,
-compresi provider, ricerca, fetch, autenticazione e aggiornamenti. Su Linux
-le connessioni vengono vincolate anche al dispositivo; sugli altri sistemi
-viene selezionato l'indirizzo sorgente e il percorso dipende dal sistema.
+quell'interfaccia, ma non blocca le richieste avviate dall'harness né le loro risposte.
+In **Network**, il menu **Harness communication channel** sceglie separatamente
+il canale delle connessioni in uscita gestite da Solomon, compresi provider,
+ricerca, fetch, autenticazione e aggiornamenti. **Auto**, il valore predefinito,
+usa il routing del sistema; è possibile scegliere anche un'interfaccia
+disabilitata per l'ingresso. Se il canale scelto non è disponibile, le richieste
+falliscono senza ripiegare su un'altra interfaccia. Il loopback resta locale.
+Su Linux il canale è vincolato al dispositivo; sugli altri sistemi viene
+selezionato l'indirizzo sorgente e il percorso dipende dal sistema.
 La risoluzione DNS resta gestita dal resolver di sistema. Programmi esterni,
 sidecar, shell e browser mantengono la propria configurazione di rete.
-Le connessioni già aperte possono proseguire fino alla loro chiusura.
 
 Il loopback resta sempre abilitato: se disattivi l'interfaccia da cui stai
 visitando la GUI, riapri Solomon localmente per riattivarla. La selezione non

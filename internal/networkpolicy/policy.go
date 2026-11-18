@@ -16,8 +16,9 @@ import (
 )
 
 type Policy struct {
-	Disabled         map[string]bool `json:"disabled"`
-	DisabledMagicDNS map[string]bool `json:"disabled_magic_dns,omitempty"`
+	OutboundInterface string          `json:"outbound_interface,omitempty"`
+	Disabled          map[string]bool `json:"disabled"`
+	DisabledMagicDNS  map[string]bool `json:"disabled_magic_dns,omitempty"`
 }
 type Interface struct {
 	Tailscale    *TailscaleInfo `json:"tailscale,omitempty"`
@@ -220,4 +221,33 @@ func (p Policy) AllowedHostname(host string) bool {
 	}
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	return !p.DisabledMagicDNS[host]
+}
+
+func SetOutbound(name string) error {
+	path, err := policyPath()
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	lock := flock.New(path + ".lock")
+	if err = lock.Lock(); err != nil {
+		return err
+	}
+	defer lock.Unlock()
+	p, err := Read()
+	if err != nil {
+		return err
+	}
+	if name == "auto" {
+		name = ""
+	}
+	if name != "" {
+		if _, err := net.InterfaceByName(name); err != nil {
+			return fmt.Errorf("unknown outbound interface %q: %w", name, err)
+		}
+	}
+	p.OutboundInterface = name
+	return writePolicy(path, p)
 }

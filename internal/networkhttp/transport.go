@@ -3,7 +3,6 @@ package networkhttp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
@@ -183,8 +182,7 @@ func systemRouteKey() string {
 	if err != nil {
 		key = err.Error()
 	} else {
-		data, _ := json.Marshal(policy)
-		key = string(data)
+		key = policy.OutboundInterface
 	}
 	if runtime.GOOS == "linux" {
 		for _, path := range []string{"/proc/net/route", "/proc/net/ipv6_route"} {

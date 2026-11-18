@@ -12,7 +12,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 )
 
-func TestPolicyChangeReplacesPreviouslyAllowedPool(t *testing.T) {
+func TestInboundPolicyDoesNotBlockOutgoingResponses(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) }))
 	defer server.Close()
@@ -45,8 +45,13 @@ func TestPolicyChangeReplacesPreviouslyAllowedPool(t *testing.T) {
 	if count == 0 {
 		t.Skip("no external interfaces")
 	}
-	if response, err := client.Get("http://192.0.2.1/"); err == nil {
-		response.Body.Close()
-		t.Fatal("reused a connection after disabling its interfaces")
+	response, err = client.Get("http://192.0.2.1/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil || string(body) != "ok" {
+		t.Fatalf("outgoing response blocked: %q %v", body, err)
 	}
 }

@@ -17,20 +17,32 @@ func handleNetworkInterfaces(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 	case http.MethodPatch:
 		var request struct {
-			Name    string `json:"name"`
-			Enabled *bool  `json:"enabled"`
+			Outbound *string `json:"outbound_interface"`
+			Name     string  `json:"name"`
+			Enabled  *bool   `json:"enabled"`
 		}
 		if err := decodeJSONBody(w, r, &request, 4096); err != nil {
 			writeAPIError(w, http.StatusBadRequest, err)
 			return
 		}
-		if request.Enabled == nil {
-			writeAPIError(w, http.StatusBadRequest, errors.New("enabled is required"))
-			return
-		}
-		if err := networkpolicy.Set(request.Name, *request.Enabled); err != nil {
-			writeAPIError(w, http.StatusBadRequest, err)
-			return
+		if request.Outbound != nil {
+			if request.Enabled != nil || request.Name != "" {
+				writeAPIError(w, http.StatusBadRequest, errors.New("cannot combine inbound and outbound changes"))
+				return
+			}
+			if err := networkpolicy.SetOutbound(*request.Outbound); err != nil {
+				writeAPIError(w, http.StatusBadRequest, err)
+				return
+			}
+		} else {
+			if request.Enabled == nil {
+				writeAPIError(w, http.StatusBadRequest, errors.New("enabled is required"))
+				return
+			}
+			if err := networkpolicy.Set(request.Name, *request.Enabled); err != nil {
+				writeAPIError(w, http.StatusBadRequest, err)
+				return
+			}
 		}
 	default:
 		w.Header().Set("Allow", "GET, PATCH")
@@ -42,6 +54,16 @@ func handleNetworkInterfaces(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, err)
 		return
 	}
+	p, err := networkpolicy.Read()
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	selected := p.OutboundInterface
+	if selected == "" {
+		selected = "auto"
+	}
+	w.Header().Set("X-Solomon-Outbound-Interface", selected)
 	writeJSON(w, http.StatusOK, rows)
 }
 

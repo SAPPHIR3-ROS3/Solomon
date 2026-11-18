@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isSensitiveNetworkAddress } from "./networkAddressPrivacy";
 import { SensitiveText } from "../SensitiveText";
+import { Select } from "../Select";
 import { serverEndpoint } from "../platform";
 import "./chat-settings.css";
 import "./network-settings.css";
@@ -8,16 +9,18 @@ import "./network-settings.css";
 type NetworkInterface = { number: number; name: string; type?: string; display_name?: string; tailscale?: { tailnet?: string; dns_name?: string; magic_dns?: string; magic_dns_enabled?: boolean; account?: string; tagged?: boolean }; enabled: boolean; up: boolean; local: boolean; addresses: string[] };
 export function NetworkSettings({ query }: { query: string }) {
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
+  const [outbound, setOutbound] = useState("auto");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  async function load(name?: string, enabled?: boolean) {
+  async function load(name?: string, enabled?: boolean, outboundInterface?: string) {
     setBusy(true); setError("");
     try {
-      const response = await fetch(await serverEndpoint("/__solomon/network-interfaces"), name === undefined
+      const response = await fetch(await serverEndpoint("/__solomon/network-interfaces"), name === undefined && outboundInterface === undefined
         ? { cache: "no-store" }
-        : { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, enabled }) });
+        : { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(outboundInterface === undefined ? { name, enabled } : { outbound_interface: outboundInterface }) });
       if (!response.ok) throw new Error(await response.text());
       setInterfaces(await response.json());
+      setOutbound(response.headers.get("X-Solomon-Outbound-Interface") || "auto");
     } catch (error) { setError(String(error)); }
     finally { setBusy(false); }
   }
@@ -27,14 +30,14 @@ export function NetworkSettings({ query }: { query: string }) {
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
   }, []);
-  if (!"network interfaces lan wifi wi-fi vpn tailscale internet".includes(query.trim().toLowerCase())) return null;
+  if (!"network interfaces lan wifi wi-fi vpn tailscale internet harness channel outbound".includes(query.trim().toLowerCase())) return null;
   return <section aria-label="Network" className="settings-models">
     <header className="settings-models-header"><h1>Network</h1></header>
     <div className="settings-models-content">
       <div className="settings-models-panel-heading network-heading">
         <div>
           <h2>Network interfaces</h2>
-          <p>Choose where Solomon is reachable and which connections it can use.</p>
+          <p>Choose where Solomon accepts incoming connections.</p>
         </div>
         <button className="settings-chat-retry network-refresh" type="button" disabled={busy} onClick={() => void load()}>
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 7a7 7 0 0 1 11.5-1L20 9M4 15l2.4 3A7 7 0 0 0 17.9 17" /></svg>
@@ -43,6 +46,18 @@ export function NetworkSettings({ query }: { query: string }) {
       </div>
       {error ? <div className="settings-chat-error" role="alert"><p>{error}</p></div> : null}
       {!interfaces.length ? <p className="settings-models-empty" role="status">{busy ? "Loading interfaces…" : error ? "" : "No network interfaces found."}</p> : null}
+      <div className="settings-model-row settings-language-row network-channel">
+        <div className="settings-model-row-copy"><label htmlFor="harness-channel"><strong>Harness communication channel</strong></label><small id="harness-channel-description">Route outgoing harness connections independently of incoming access. Auto uses system routing.</small></div>
+        <div className="settings-language-controls">
+          <div className="settings-input">
+            <Select id="harness-channel" label="Harness communication channel" describedBy="harness-channel-description" value={outbound} disabled={busy} onChange={value => void load(undefined, undefined, value)} options={[
+              { value: "auto", label: "Auto" },
+              ...(outbound !== "auto" && !interfaces.some(item => item.name === outbound) ? [{ value: outbound, label: `${outbound} (unavailable)` }] : []),
+              ...interfaces.map(item => ({ value: item.name, label: `${item.display_name || item.name}${item.up ? "" : " (link down)"}` })),
+            ]} />
+          </div>
+        </div>
+      </div>
       <div className="network-interfaces" aria-busy={busy}>
         {interfaces.map(item => {
           const labelID = `network-${item.number}-label`;
@@ -103,7 +118,7 @@ export function NetworkSettings({ query }: { query: string }) {
       <p className="network-note">Changes save automatically. Local access stays available. Turning off the interface you’re using may disconnect this page.</p>
       <details className="network-details">
         <summary>Connection details</summary>
-        <p>This selection applies to server access and outgoing HTTP connections. Existing streams may stay open until they finish. System DNS and external programs use their own network settings.</p>
+        <p>Interface switches only control incoming server access. Replies to outgoing requests remain allowed. The harness channel controls managed outgoing connections. System DNS and external programs use their own network settings.</p>
         <p>You can also manage these interfaces in the terminal with <code>/interface</code>.</p>
       </details>
     </div>

@@ -84,9 +84,10 @@ func TestAllExternalInterfacesDisabled(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if conn, err := networkpolicy.DialContext(ctx, "tcp", "192.0.2.1:80"); err == nil {
-		conn.Close()
-		t.Fatal("external dial allowed")
+	called := false
+	dial := networkpolicy.WrapDial(func(context.Context, string, string) (net.Conn, error) { called = true; return nil, nil })
+	if _, err := dial(ctx, "tcp", "192.0.2.1:80"); err != nil || !called {
+		t.Fatalf("auto routing blocked: %v", err)
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

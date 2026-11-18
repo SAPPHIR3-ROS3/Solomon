@@ -91,7 +91,7 @@ func TestMagicDNSSelectionPersistsIndependentlyOfParent(t *testing.T) {
 	}
 }
 
-func TestDisabledMagicDNSDialDoesNotResolveOrConnect(t *testing.T) {
+func TestDisabledMagicDNSDoesNotBlockOutboundDial(t *testing.T) {
 	t.Setenv("SOLOMON_HOME", t.TempDir())
 	path, err := networkpolicy.PolicyPath()
 	if err != nil {
@@ -102,10 +102,10 @@ func TestDisabledMagicDNSDialDoesNotResolveOrConnect(t *testing.T) {
 	}
 	called := false
 	dial := networkpolicy.WrapDial(func(context.Context, string, string) (net.Conn, error) { called = true; return nil, nil })
-	if _, err := dial(context.Background(), "tcp", "node.test.ts.net:80"); err == nil {
-		t.Fatal("disabled alias allowed")
+	if _, err := dial(context.Background(), "tcp", "node.test.ts.net:80"); err != nil {
+		t.Fatal(err)
 	}
-	if called {
-		t.Fatal("dialed disabled alias")
+	if !called {
+		t.Fatal("inbound alias restriction blocked outgoing connection")
 	}
 }

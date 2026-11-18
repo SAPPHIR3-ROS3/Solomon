@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkpolicy"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
@@ -84,5 +85,40 @@ func TestMagicDNSHostAccessDoesNotBlockLocalhost(t *testing.T) {
 		if got := server.AllowNetworkRequest(httptest.NewRecorder(), r); got != tc.allowed {
 			t.Fatalf("%s allowed=%v", tc.host, got)
 		}
+	}
+}
+
+func TestHarnessChannelAPI(t *testing.T) {
+	t.Setenv("SOLOMON_HOME", t.TempDir())
+	rows, err := networkpolicy.ListUnfiltered(networkpolicy.Policy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		if !row.Local {
+			if err := networkpolicy.Set(row.Name, false); err != nil {
+				t.Fatal(err)
+			}
+		}
+		body := fmt.Sprintf("{\"outbound_interface\":%q}", row.Name)
+		w := httptest.NewRecorder()
+		server.HandleNetworkInterfaces(w, httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(body)))
+		if w.Code != 200 || w.Header().Get("X-Solomon-Outbound-Interface") != row.Name {
+			t.Fatalf("%d %s", w.Code, w.Body.String())
+		}
+		p, err := networkpolicy.Read()
+		if err != nil || p.OutboundInterface != row.Name || (!row.Local && !p.Disabled[row.Name]) {
+			t.Fatalf("policy lost: %+v %v", p, err)
+		}
+	}
+	if networkpolicy.SetOutbound("missing-solomon-interface") == nil {
+		t.Fatal("unknown interface accepted")
+	}
+	if err := networkpolicy.SetOutbound("auto"); err != nil {
+		t.Fatal(err)
+	}
+	p, err := networkpolicy.Read()
+	if err != nil || p.OutboundInterface != "" {
+		t.Fatalf("auto not restored: %+v %v", p, err)
 	}
 }
