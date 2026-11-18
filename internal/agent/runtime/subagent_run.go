@@ -133,7 +133,7 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 		}
 		sess.Depth = subagentSessionDepth(sess)
 		if cfg.Task != "" {
-			sess.Messages = append(sess.Messages, chatstore.Message{Role: "user", Content: cfg.Task})
+			sess.Messages = append(sess.Messages, chatstore.Message{Role: "user", Content: cfg.Task, CreatedAt: time.Now().UTC()})
 			sess.LastMessageAt = time.Now().UTC()
 		}
 		if cfg.SysPromptPath == "" {
@@ -202,7 +202,7 @@ func (r *Runtime) prepareSubSession(ctx context.Context, cfg NestedRunConfig) (*
 		ReasoningEffort:  effort,
 		RoleProvider:     strings.TrimSpace(cfg.RoleProvider),
 		RoleModel:        strings.TrimSpace(cfg.RoleModel),
-		Messages:         []chatstore.Message{{Role: "user", Content: cfg.Task}},
+		Messages:         []chatstore.Message{{Role: "user", Content: cfg.Task, CreatedAt: spawn}},
 		ImageFiles:       cloneImageFiles(r.Session),
 	}
 	return sess, id, nil

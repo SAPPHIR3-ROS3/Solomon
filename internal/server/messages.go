@@ -296,6 +296,9 @@ func chatTitleInput(content string, hasImages bool) string {
 }
 
 func workedForSeconds(message chatstore.Message, source []chatstore.Message, index int) float64 {
+	if seconds, ok := elapsedTurnSeconds(source, index); ok {
+		return seconds
+	}
 	wall := message.TurnWallDisplay
 	if wall == 0 {
 		wall = message.TurnWallSecs
@@ -304,6 +307,48 @@ func workedForSeconds(message chatstore.Message, source []chatstore.Message, ind
 		wall = 0
 	}
 	return wall + messageToolWallSeconds(message, source, index)
+}
+
+func elapsedTurnSeconds(source []chatstore.Message, index int) (float64, bool) {
+	if index < 0 || index >= len(source) {
+		return 0, false
+	}
+	var start time.Time
+	for i := index - 1; i >= 0; i-- {
+		previous := source[i]
+		if isCompactionSummaryMessage(previous) {
+			break
+		}
+		if previous.Role == "user" && !isHiddenSessionMessage(previous) {
+			start = previous.CreatedAt
+			break
+		}
+	}
+	if start.IsZero() {
+		return 0, false
+	}
+	last := index
+	for i := index + 1; i < len(source); i++ {
+		next := source[i]
+		if isCompactionSummaryMessage(next) {
+			break
+		}
+		if isHiddenSessionMessage(next) {
+			continue
+		}
+		if next.Role == "user" {
+			break
+		}
+		last = i
+	}
+	end := source[last].CreatedAt
+	if !end.After(start) {
+		return 0, false
+	}
+	if last != index {
+		return 0, true
+	}
+	return end.Sub(start).Seconds(), true
 }
 
 func laterAssistantHasTurnWallDisplay(source []chatstore.Message, index int) bool {

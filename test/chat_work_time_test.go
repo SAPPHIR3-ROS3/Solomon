@@ -88,3 +88,20 @@ func TestLegacySynchronousSubagentWait(t *testing.T) {
 		t.Fatalf("missing timestamp produced wait: %v", got)
 	}
 }
+
+func TestWorkedForUsesElapsedTurnAcrossMidnight(t *testing.T) {
+	start := time.Date(2026, 11, 19, 23, 51, 12, 0, time.UTC)
+	elapsed := 39*time.Minute + 17*time.Second
+	source := []chatstore.Message{
+		{Role: "user", CreatedAt: start, Content: "Go"},
+		{Role: "assistant", CreatedAt: start.Add(20 * time.Second), TurnWallSecs: 20, ToolWallSecs: 3},
+		{Role: "user", GUIHidden: true, CreatedAt: start.Add(39 * time.Minute), Content: "[subagent-completed] Done"},
+		{Role: "assistant", CreatedAt: start.Add(elapsed), TurnWallDisplay: 45, Content: "Done"},
+		{Role: "user", CreatedAt: start.Add(time.Hour), Content: "Next"},
+	}
+	first, _ := server.ChatMessageFromSessionForTest("", "", source[1], source, 1, nil, false, "first")
+	last, _ := server.ChatMessageFromSessionForTest("", "", source[3], source, 3, nil, false, "last")
+	if first.WorkedFor != 0 || last.WorkedFor != elapsed.Seconds() {
+		t.Fatalf("worked for: first=%v last=%v; want first=0 last=%v", first.WorkedFor, last.WorkedFor, elapsed.Seconds())
+	}
+}

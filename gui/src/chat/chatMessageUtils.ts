@@ -114,6 +114,11 @@ export function liveWorkedForSeconds(chat: Chat, now: number): number | undefine
   // must not be attached to the preceding, already completed assistant turn.
   if (lastAssistantGroupIndex < 0 || lastAssistantGroupIndex !== groups.length - 1) return undefined;
 
+  const userStartedAt = groups[lastAssistantGroupIndex - 1]?.[0]?.message;
+  if (userStartedAt?.role === "user" && plausibleWorkStart(userStartedAt.createdAt, now)) {
+    return Math.max(0, (now - userStartedAt.createdAt!) / 1000);
+  }
+
   const lastAssistantGroup = groups[lastAssistantGroupIndex];
   const explicitStarts = lastAssistantGroup
     .map(({ message }) => message.workStartedAt)
