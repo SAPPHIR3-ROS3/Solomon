@@ -300,7 +300,9 @@ func (c *Client) call(ctx context.Context, intent, operation string, args any, o
 		}
 		if message := rpcErrorMessage(read.response.Error); message != "" {
 			err := fmt.Errorf("Cloak operation %s failed: %s", operation, message)
-			c.logCall(intent, operation, started, err)
+			if operation != "tool" {
+				c.logCall(intent, operation, started, err)
+			}
 			return err
 		}
 		if output != nil && len(read.response.Result) > 0 && string(read.response.Result) != "null" {

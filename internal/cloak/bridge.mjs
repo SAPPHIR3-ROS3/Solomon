@@ -12,8 +12,12 @@ const contexts = new Map();
 const inflight = new Map();
 
 function errorMessage(error) {
-  if (error instanceof Error) return error.stack ?? error.message;
-  return String(error);
+  const message = error instanceof Error ? error.message : String(error);
+  const [summary, callLog] = message.split(/\r?\nCall log:\r?\n/, 2);
+  if (error?.name === 'TimeoutError' && callLog?.includes('intercepts pointer events')) {
+    return summary.trim() + ' Another element blocked pointer events. Take a new snapshot and check for an overlay or dialog.';
+  }
+  return summary.trim();
 }
 
 async function ensureContext() {
@@ -198,7 +202,10 @@ async function callTool(name, args) {
     } else if (!result.pendingDialog) { inflight.delete(tabID); }
     return result;
   }
-  finally { page.off('dialog', listener); }
+  catch (error) {
+    if (inflight.get(tabID) === operation) inflight.delete(tabID);
+    throw error;
+  } finally { page.off('dialog', listener); }
 }
 
 function respond(id, result, error) {

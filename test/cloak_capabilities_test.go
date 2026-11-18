@@ -53,6 +53,11 @@ func TestCloakCapabilitiesRealBrowser(t *testing.T) {
 		t.Skip("set SOLOMON_TEST_CLOAK=1 to run installed CloakBrowser")
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/overlay" {
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, `<!doctype html><button>Covered</button><div style="position:fixed;inset:0;background:white"><button onclick="this.parentElement.remove()">Dismiss</button></div>`)
+			return
+		}
 		if r.URL.Path == "/api" {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Set-Cookie", "session=private-secret")
@@ -185,6 +190,15 @@ func TestCloakCapabilitiesRealBrowser(t *testing.T) {
 	if _, err := client.CallTool(ctx, "click", args(map[string]any{"uid": saveUID}), "verify stale snapshot rejection"); err == nil {
 		t.Fatal("stale snapshot accepted")
 	}
+	call("navigate_page", args(map[string]any{"url": server.URL + "/overlay"}))
+	elements = call("take_snapshot", args(nil))["elements"].([]any)
+	covered := args(map[string]any{"uid": find("Covered")})
+	_, err = client.CallTool(ctx, "click", covered, "verify blocked click feedback")
+	if err == nil || !strings.Contains(err.Error(), "Another element blocked pointer events") || strings.ContainsAny(err.Error(), "\r\n") {
+		t.Fatalf("expected a concise blocked click error, got %v", err)
+	}
+	call("click", args(map[string]any{"uid": find("Dismiss")}))
+	call("click", covered)
 	isolated := call("new_page", map[string]any{"url": server.URL, "isolatedContext": "fixture-context"})
 	call("close_page", map[string]any{"pageId": isolated["pageId"]})
 	call("close_page", args(nil))
