@@ -95,6 +95,18 @@ func TestDecodeAgentWireEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "MCP resource listing request",
+			wire: pbBytes(2, append(append(pbVarint(1, 17), pbBytes(15, []byte("exec-17"))...), pbBytes(17, nil)...)),
+			check: func(t *testing.T, got cursorauth.AgentEvent) {
+				request := got.Native
+				if got.Unknown != "" || request == nil || request.Kind != "list_mcp_resources" ||
+					request.ID != 17 || request.ExecID != "exec-17" ||
+					request.ResultField != 17 || request.RejectedField != 3 || request.ReasonField != 1 {
+					t.Fatalf("unexpected resource listing event: %+v, native=%+v", got, request)
+				}
+			},
+		},
+		{
 			name: "MCP allowlist precheck",
 			wire: pbBytes(2, precheckExec),
 			check: func(t *testing.T, got cursorauth.AgentEvent) {

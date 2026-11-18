@@ -262,6 +262,8 @@ func decodeAgentExec(data []byte) AgentEvent {
 		request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "shell stream", 14, 5, 3
 	case 16:
 		request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "background shell", 16, 3, 3
+	case 17:
+		request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "list_mcp_resources", 17, 3, 1
 	case 7, 29:
 		request.Kind, request.ResultField, request.RejectedField, request.ReasonField = "read", 7, 3, 2
 	case 3:

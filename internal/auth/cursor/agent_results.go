@@ -27,6 +27,9 @@ func (s *AgentSession) RejectNative(request AgentNativeRequest) error {
 	}
 	var result []byte
 	reason := "Use Solomon's provided MCP tools for workspace operations."
+	if request.Kind == "list_mcp_resources" {
+		reason = "Listing MCP resources is currently unavailable. Use searchTool instead to discover available tools."
+	}
 	if request.RejectedField > 0 {
 		result = pbBytes(request.RejectedField, pbString(request.ReasonField, reason))
 	} else if request.Kind == "fetch" {
