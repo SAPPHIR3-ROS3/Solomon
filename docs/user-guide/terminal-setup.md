@@ -125,7 +125,7 @@ On **Windows**, prefer **Windows Terminal** (`WT_SESSION`) for reliable input; l
 
 1. `/mo` + Tab → completes toward `/models`.
 2. Double Tab on a partial `/` command shows a candidate list.
-3. `/reasoning l` + Tab → completes toward `low`.
+3. `/reasoning l` + Tab → completes toward `low`. `/reasoning su` completes to `subagent`; `/reasoning subagent re` completes to `reset`.
 4. `!go te` + Tab → completes toward `test`.
 5. `!g` + Tab → offers PATH matches (e.g. `go`, `git` when on PATH).
 6. Buffer containing `[img-1]` + Tab does not corrupt the tag display.

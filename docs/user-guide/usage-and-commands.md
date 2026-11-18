@@ -178,6 +178,7 @@ Highlights:
 | `/mcp`, `/integrations` | List MCP servers; Cursor sidecar health and URL |
 | `/cursortools` | Confirm deprecated Cursor native tools stay off — only after `/connect` → Cursor API |
 | `/reasoning`, `/thinking` | Main-chat reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`/Extra high, `max`); streamed reasoning preview |
+| `/reasoning subagent [level\|reset]` | Show the subagent default, save a level (e.g. `high`), or restore the built-in default (`none`). `sub` is an alias. |
 | `/agents` | Show the global active-agent tree and control project subagents |
 | `/log`, `/stats`, `/max_response`, `/timeout` | Log verbosity; token footer; output cap; subagent minutes |
 | `/name`, `/language` | User name and reply language in system prompt (saved) |

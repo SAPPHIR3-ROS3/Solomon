@@ -310,7 +310,8 @@ Many slash commands write back to `config.toml` on save:
 |---------------|--------------|-------|
 | `/name` | `user_name` | `/name clear` removes |
 | `/language` | `response_language` | `/language clear` resets to English; custom rules and instruction files may stay in another language — see [Project instructions](project-instructions.md) |
-| `/reasoning` | `reasoning_effort` | Main chat default; nested runs can override with `reasoningEffort` or `subagent_reasoning_effort` |
+| `/reasoning` | `reasoning_effort` | Main chat default |
+| `/reasoning subagent [level\|reset]` | `subagent_reasoning_effort` | Show or save the subagent default, or reset it to the built-in default (`none`); a per-run `reasoningEffort` takes precedence |
 | `/thinking` | `show_thinking` | Streamed reasoning preview |
 | `/stats` | `show_usage_stats` | Token line after assistant turns |
 | `/max_response` | `max_response_tokens` | Assistant output cap |

@@ -30,6 +30,9 @@ func SlashSuggestAt(line []rune, col int, env ReplCompleteEnv, slashHistory []st
 		return pickSlashSuggestion(prefix, matches, slashHistory)
 	}
 	candidates := slashStaticArgCandidates(ctx.Cmd)
+	if ctx.Cmd == "reasoning" {
+		ctx.ArgStart, candidates = reasoningCompletionArgs(line, ctx.ArgStart, col)
+	}
 	if candidates == nil {
 		switch ctx.Cmd {
 		case "resume":

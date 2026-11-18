@@ -19,7 +19,8 @@ Solomon espone alcune funzioni nella GUI e altre nel terminale. Questa pagina in
 | Creare una chat | GUI | Condivisa | New chat; `/new` |
 | Selezionare provider e modello | GUI | Condivisa | Model picker; `/models` |
 | Collegare un provider | Prevista | Terminale | `/connect`, `/onboard` o `config.toml` |
-| Cambiare reasoning | GUI | Condivisa | Controllo reasoning nella Home; `/reasoning` |
+| Cambiare reasoning della chat principale | GUI | Condivisa | Controllo reasoning nella Home; `/reasoning` |
+| Cambiare reasoning predefinito dei subagent | Prevista | Terminale | `/reasoning subagent high`; `/reasoning subagent reset` ripristina il default |
 | Attivare fast mode | Prevista | Terminale | `/fast` |
 | Cambiare lingua delle risposte | Prevista | Terminale | `/language` |
 | Mostrare reasoning e statistiche | GUI | Terminale | Transcript delle chat persistite; `/thinking`, `/stats` |

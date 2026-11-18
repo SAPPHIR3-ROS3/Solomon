@@ -73,6 +73,10 @@ func (c *replCompleter) completeSlashCtx(ctx SlashContext, line []rune, pos int)
 		prefix := strings.ToLower(rest)
 		return completeCandidates(line, pos, ctx.CmdStart, prefix, c.slashCommandNames())
 	}
+	if ctx.Cmd == "reasoning" {
+		start, candidates := reasoningCompletionArgs(line, ctx.ArgStart, pos)
+		return completeCandidates(line, pos, start, strings.ToLower(string(line[start:pos])), candidates)
+	}
 	argPrefix := strings.ToLower(string(line[ctx.ArgStart:pos]))
 	return c.completeArg(ctx.Cmd, line, pos, ctx.ArgStart, argPrefix)
 }

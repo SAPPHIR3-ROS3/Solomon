@@ -19,7 +19,7 @@ func Reasoning(d Deps, parts []string) error {
 		PrintSystemf(d.Out, "reasoning_effort=%s (main); subagent_reasoning_effort=%s", mainLab, subLab)
 		return nil
 	}
-	if strings.EqualFold(parts[1], "sub") {
+	if strings.EqualFold(parts[1], "subagent") || strings.EqualFold(parts[1], "sub") {
 		if len(parts) < 3 {
 			if lab := d.Cfg.SubagentReasoningEffortLabel(); lab != "" {
 				PrintSystemf(d.Out, "subagent_reasoning_effort=%s", lab)
@@ -28,7 +28,19 @@ func Reasoning(d Deps, parts []string) error {
 			}
 			return nil
 		}
-		canonical, err := config.ParseReasoningEffortToken(strings.Join(parts[2:], " "))
+		arg := strings.Join(parts[2:], " ")
+		if strings.EqualFold(arg, "reset") {
+			previous := d.Cfg.SubagentReasoningEffort
+			d.Cfg.SubagentReasoningEffort = ""
+			if err := d.SaveCfg(); err != nil {
+				d.Cfg.SubagentReasoningEffort = previous
+				return err
+			}
+			effective, _ := d.Cfg.EffectiveSubagentReasoningEffort("")
+			PrintSystemf(d.Out, "subagent_reasoning_effort=%s (default restored)", effective)
+			return nil
+		}
+		canonical, err := config.ParseReasoningEffortToken(arg)
 		if err != nil {
 			return err
 		}
