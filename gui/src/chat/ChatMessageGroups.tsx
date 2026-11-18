@@ -6,7 +6,7 @@ import type { ChatMessage, ChatToolCall } from "./chatTypes";
 import type { CheckpointMetadata, IndexedChatMessage } from "./chatViewTypes";
 import { ChatImageAttachments, CheckpointLabel, CompactionCard, InterruptedGenerationMarker } from "./ChatMessageParts";
 import { assistantFooterMessage, groupChatTurns, isEmptyAssistantPlaceholder, parseChatBannerError, toolActivityCollapsed, toolCheckpoint } from "./chatMessageUtils";
-import { BriefThought, LiveThoughtSummary, MessageFooter, ReasoningBlock, ReasoningSummaryBlock, WorkedForCounter } from "./ChatMessageFooter";
+import { BriefThought, LiveThoughtSummary, MessageFooter, ReasoningBlock, WorkedForCounter } from "./ChatMessageFooter";
 import { MarkdownContent } from "./MarkdownContent";
 import { chatPresentationKey } from "./chatPresentationKey";
 import { useStartToolCallsCollapsed, useGUIChatPreferencesState } from "../settings/chatPreferences";
@@ -128,7 +128,8 @@ const AssistantTurn = memo(function AssistantTurn({
   const rawActivityEntries = responseEntry ? entries.filter((_, index) => index !== responseIndex) : entries;
   const toolCalls = rawActivityEntries.flatMap(({ message }) => message.toolCalls ?? []);
   const hasToolCalls = toolCalls.length > 0;
-  const activeGenerationMessageID = isWorking ? ([...entries].reverse().find((entry) => !isEmptyAssistantPlaceholder(entry.message)) ?? entries.at(-1))?.message.id : undefined;
+  const lastMessage = entries.at(-1)?.message;
+  const activeGenerationMessageID = isWorking && !lastMessage?.toolCalls?.length ? lastMessage?.id : undefined;
   const activityEntries = withActivityCheckpoints(rawActivityEntries, toolCalls);
   const shownActivityEntries = activityEntries.filter((entry) => !isEmptyAssistantPlaceholder(entry.message));
   const [collapsedOverride, setCollapsedOverride] = useState<boolean | undefined>(undefined);
@@ -164,7 +165,8 @@ const AssistantTurn = memo(function AssistantTurn({
   return (
     <div className="chat-turn is-assistant">
       <div className={timelineClassName} ref={timelineRef}>
-        {(!hasToolCalls || !isToolActivityCollapsed) ? shownActivityEntries.map((entry, entryIndex) => {
+        {shownActivityEntries.map((entry, entryIndex) => {
+          if (hasToolCalls && isToolActivityCollapsed && !entry.message.reasoning?.trim()) return null;
           const actions = messageActions(entry, { onOpenSubagent, onStopTool });
           const toolActivity = hasToolCalls ? {
             isCollapsed: isToolActivityCollapsed,
@@ -182,14 +184,13 @@ const AssistantTurn = memo(function AssistantTurn({
               toolActivity={toolActivity}
             />
           );
-        }) : null}
+        })}
         {hasToolCalls ? (
           <ToolActivityCollapseControl
             isCollapsed={isToolActivityCollapsed}
             isWorking={activeGenerationMessageID !== undefined}
             onToggleCollapsed={toggleToolActivity}
             entries={activityEntries}
-            thoughtFor={isToolActivityCollapsed ? aggregateThoughtFor(activityEntries) : undefined}
             toolCalls={toolCalls}
             rateLimitNotice={rateLimitNotice}
           />
@@ -320,7 +321,7 @@ function ChatMessageBody({ checkpoint, isWorking = false, message, onOpenSubagen
     <article className={"chat-message is-" + message.role}>
       {checkpoint && !(message.role === "assistant" && message.toolCalls?.length) ? <CheckpointLabel label={checkpoint.label} /> : null}
       {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
-      {message.role === "assistant" && !toolActivity?.isCollapsed ? <ReasoningBlock isLive={isWorking} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} suppressBriefThought={suppressBriefThought} /> : null}
+      {message.role === "assistant" && (!toolActivity?.isCollapsed || message.reasoning?.trim()) ? <ReasoningBlock isLive={isWorking && !message.content.trim()} isCollapsed={isReasoningCollapsed} message={message} onToggle={toggleReasoning} suppressBriefThought={suppressBriefThought} /> : null}
       {message.toolCalls?.length ? (
         <ToolActivity
           isCollapsed={toolActivity?.isCollapsed}
@@ -366,25 +367,16 @@ function ToolActivity({ isCollapsed: controlledIsCollapsed, onOpenSubagent, onSt
   );
 }
 
-function aggregateThoughtFor(entries: IndexedChatMessage[]): number | undefined {
-  const durations = entries
-    .filter(({ message }) => Boolean(message.reasoning?.trim()))
-    .map(({ message }) => message.thoughtFor ?? message.stats?.ttftSeconds)
-    .filter((value): value is number => value !== undefined && Number.isFinite(value) && value > 0);
-  if (durations.length === 0) return undefined;
-  return durations.reduce((total, value) => total + value, 0);
-}
-
-function ToolActivityCollapseControl({ entries, isCollapsed, isWorking, onToggleCollapsed, rateLimitNotice, thoughtFor, toolCalls }: { entries: IndexedChatMessage[]; isCollapsed: boolean; isWorking: boolean; onToggleCollapsed: () => void; rateLimitNotice?: string; thoughtFor?: number; toolCalls: ChatToolCall[] }) {
+function ToolActivityCollapseControl({ entries, isCollapsed, isWorking, onToggleCollapsed, rateLimitNotice, toolCalls }: { entries: IndexedChatMessage[]; isCollapsed: boolean; isWorking: boolean; onToggleCollapsed: () => void; rateLimitNotice?: string; toolCalls: ChatToolCall[] }) {
   const collapseLabel = toolActivityCollapseLabel(isCollapsed, toolCalls.length);
   const hasReasoning = entries.some(({ message }) => Boolean(message.reasoning?.trim()));
 
   return (
     <section aria-label="Tool activity" className={"chat-tool-activity chat-tool-activity-controls" + (isCollapsed ? " is-collapsed" : "")}>
       {isCollapsed ? <CollapsedActivityCheckpoints entries={entries} toolCalls={toolCalls} /> : null}
-      {isCollapsed && (thoughtFor !== undefined || !hasReasoning) ? (
+      {isCollapsed && !hasReasoning ? (
         <div className="chat-tool-collapsed-summary">
-          {thoughtFor !== undefined ? <ReasoningSummaryBlock isLive={isWorking} seconds={thoughtFor} /> : isWorking ? <LiveThoughtSummary startedAt={entries.find(({ message }) => message.workStartedAt !== undefined)?.message.workStartedAt ?? entries[0]?.message.createdAt} /> : <BriefThought />}
+          {isWorking ? <LiveThoughtSummary startedAt={entries.find(({ message }) => message.workStartedAt !== undefined)?.message.workStartedAt ?? entries[0]?.message.createdAt} /> : <BriefThought />}
         </div>
       ) : null}
       <button aria-expanded={!isCollapsed} aria-label={collapseLabel} className="chat-tool-collapse-all" onClick={onToggleCollapsed} type="button">

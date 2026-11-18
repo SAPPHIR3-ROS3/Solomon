@@ -89,7 +89,7 @@ test("a running turn keeps tool calls mounted between calls", () => {
   assert.equal(toolActivityCollapsed({ ...base, isWorking: true, override: true }), true);
 });
 
-test("collapsed tool activity keeps a single thought summary", () => {
+test("collapsed tool activity keeps individual thought blocks", () => {
   const tool = (id) => ({ id, name: "shell", status: "success", result: { output: "done", status: "success" } });
   const indexed = (id, sequence, thoughtFor, reasoning) => ({
     checkpoint: { branch: "", label: "[#" + String(sequence).padStart(3, "0") + "]", sequence },
@@ -105,7 +105,7 @@ test("collapsed tool activity keeps a single thought summary", () => {
     ],
     rateLimitNotice: "HTTP 429",
   }));
-  assert.deepEqual(html.match(/thought for \d+s/g), ["thought for 19s"]);
+  assert.deepEqual(html.match(/thought for \d+s/g), ["thought for 6s", "thought for 8s", "thought for 5s"]);
 });
 
 test("groups intermediate assistant replies into expanded tool activity by default", () => {
@@ -159,7 +159,7 @@ test("reasoning controls require actual text rather than first-token timing", ()
   }
 });
 
-test("thought for appears with the first tool call or streamed reply", () => {
+test("thought for runs only while reasoning streams", () => {
   const originalNow = Date.now;
   Date.now = () => 15000;
   try {
@@ -171,9 +171,9 @@ test("thought for appears with the first tool call or streamed reply", () => {
     assert.doesNotMatch(reasoning, /chat-reasoning-copy/);
     const tool = renderToStaticMarkup(createElement(ChatMessageGroups,{isWorking:true,liveWorkedFor:5,messages:indexChatMessages([{id:"u",role:"user",content:"Go"},{id:"a",role:"assistant",content:"",workStartedAt:10000,toolCalls:[{id:"t",name:"shell",status:"running"}]}])}));
     assert.match(tool, /worked for 5s/);
-    assert.match(tool, /thought for 5s/);
+    assert.doesNotMatch(tool, /thought for 5s/);
     const reply = renderToStaticMarkup(createElement(ChatMessageGroups,{isWorking:true,liveWorkedFor:5,messages:indexChatMessages([{id:"u",role:"user",content:"Go"},{id:"a",role:"assistant",content:"Hello",workStartedAt:10000}])}));
-    assert.match(reply, /thought for 5s/);
+    assert.doesNotMatch(reply, /thought for 5s/);
     const completed = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"live",role:"assistant",content:"",reasoning:"Done",thoughtFor:3,workStartedAt:10000},isCollapsed:true,onToggle(){}}));
     assert.match(completed, /thought for 3s/);
     assert.doesNotMatch(completed, /is-live/);
@@ -296,8 +296,7 @@ test("streaming keeps the whole tool turn above collapse until the answer settle
     const waitingCollapse = waiting.indexOf("chat-tool-collapse-all");
     assert.equal(waiting.indexOf('data-message-id="pending"'), -1);
     assert.ok(waiting.indexOf('data-message-id="tools"') < waitingCollapse);
-    assert.match(waiting, /thought for 5s/);
-    assert.doesNotMatch(waiting, /thought briefly/);
+    assert.doesNotMatch(waiting, /thought for 5s/);
     const partial = renderToStaticMarkup(createElement(ChatMessageGroups, {
       isWorking: true,
       liveWorkedFor: 6,
@@ -306,7 +305,7 @@ test("streaming keeps the whole tool turn above collapse until the answer settle
     const partialCollapse = partial.indexOf("chat-tool-collapse-all");
     assert.ok(partial.indexOf("Still thinking") < partialCollapse);
     assert.ok(partial.indexOf("Partial answer") < partialCollapse);
-    assert.match(partial, /thought for 3s/);
+    assert.doesNotMatch(partial, /thought for 3s/);
     const done = renderToStaticMarkup(createElement(ChatMessageGroups, {
       isWorking: false,
       messages: indexChatMessages([...base, { id: "pending", role: "assistant", content: "Final answer", reasoning: "Last thought", thoughtFor: 4, workStartedAt: 12000 }]),
@@ -344,4 +343,18 @@ test("persisted internal corrections keep assistant work in one visible turn", a
   assert.doesNotMatch(html, /Your previous native API tool call/);
   assert.match(html, /Working/);
   assert.match(html, /Recovered/);
+});
+
+
+test("inter-tool reasoning stays before its tool and stops while it runs", () => {
+  const messages = indexChatMessages([
+    { id: "a", role: "assistant", content: "", toolCalls: [{ id: "t1", name: "shell", intent: "First tool", status: "success" }] },
+    { id: "b", role: "assistant", content: "", reasoning: "Between tools", toolCalls: [{ id: "t2", name: "shell", intent: "Second tool", status: "running" }] },
+  ]);
+  const html = renderToStaticMarkup(createElement(ChatMessageGroups, { messages, isWorking: true }));
+  const first = html.indexOf("First tool");
+  const reasoning = html.indexOf("Between tools");
+  const second = html.indexOf("Second tool");
+  assert.ok(first >= 0 && first < reasoning && reasoning < second);
+  assert.doesNotMatch(html, /thought for|chat-reasoning[^\"]*is-live/);
 });
