@@ -153,7 +153,7 @@ func ReadSubSession(projectHex, origin, id string) (*SubSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(p)
+	b, err := readSessionFile(p)
 	if err != nil {
 		return nil, err
 	}
