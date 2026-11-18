@@ -166,7 +166,7 @@ const AssistantTurn = memo(function AssistantTurn({
     <div className="chat-turn is-assistant">
       <div className={timelineClassName} ref={timelineRef}>
         {shownActivityEntries.map((entry, entryIndex) => {
-          if (hasToolCalls && isToolActivityCollapsed && !entry.message.reasoning?.trim()) return null;
+          if (hasToolCalls && isToolActivityCollapsed) return null;
           const actions = messageActions(entry, { onOpenSubagent, onStopTool });
           const toolActivity = hasToolCalls ? {
             isCollapsed: isToolActivityCollapsed,

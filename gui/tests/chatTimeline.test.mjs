@@ -89,7 +89,7 @@ test("a running turn keeps tool calls mounted between calls", () => {
   assert.equal(toolActivityCollapsed({ ...base, isWorking: true, override: true }), true);
 });
 
-test("collapsed tool activity keeps individual thought blocks", () => {
+test("collapsed tool activity hides individual thought blocks", () => {
   const tool = (id) => ({ id, name: "shell", status: "success", result: { output: "done", status: "success" } });
   const indexed = (id, sequence, thoughtFor, reasoning) => ({
     checkpoint: { branch: "", label: "[#" + String(sequence).padStart(3, "0") + "]", sequence },
@@ -105,7 +105,8 @@ test("collapsed tool activity keeps individual thought blocks", () => {
     ],
     rateLimitNotice: "HTTP 429",
   }));
-  assert.deepEqual(html.match(/thought for \d+s/g), ["thought for 6s", "thought for 8s", "thought for 5s"]);
+  assert.match(html, /is-tool-activity-collapsed/);
+  assert.doesNotMatch(html, /thought for \d+s|chat-assistant-segment/);
 });
 
 test("groups intermediate assistant replies into expanded tool activity by default", () => {
