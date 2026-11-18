@@ -221,7 +221,13 @@ export function ModelsPage() {
             <div>
               <h2 id="settings-providers-title">Providers</h2>
               <p>Manage the providers configured in Solomon.</p>
+              <p role="status" aria-live="polite">
+                {state.loading ? "Refreshing providers…" : refreshedAt ? `Providers updated at ${refreshedAt}` : ""}
+              </p>
             </div>
+            <button aria-label="Refresh providers" title="Retry provider connections" className="settings-models-refresh" disabled={state.loading} onClick={() => void loadCatalog(true)} type="button">
+              <RefreshIcon />
+            </button>
           </div>
 
           <div className="settings-provider-list">
