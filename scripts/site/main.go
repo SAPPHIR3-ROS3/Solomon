@@ -178,10 +178,12 @@ func generate(docs, output, repository, revision, base, theme string) error {
 	if err != nil {
 		return err
 	}
-	for _, pair := range [][2]string{{docs, output}, {output, docs}} {
-		rel, err := filepath.Rel(pair[0], pair[1])
-		if err != nil || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
-			return fmt.Errorf("docs and output must not overlap")
+	if strings.EqualFold(filepath.VolumeName(docs), filepath.VolumeName(output)) {
+		for _, pair := range [][2]string{{docs, output}, {output, docs}} {
+			rel, err := filepath.Rel(pair[0], pair[1])
+			if err != nil || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+				return fmt.Errorf("docs and output must not overlap")
+			}
 		}
 	}
 	files := map[string]string{}

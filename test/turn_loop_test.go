@@ -354,14 +354,18 @@ func TestRunAgentTurns_synchronousSubagentReturnsToParent(t *testing.T) {
 	if backend.turnN != 3 {
 		t.Fatalf("StreamTurn calls=%d, want parent, nested, parent", backend.turnN)
 	}
-	if len(rt.Session.Messages) != 4 {
+	if len(rt.Session.Messages) != 5 {
 		t.Fatalf("messages=%d: %+v", len(rt.Session.Messages), rt.Session.Messages)
 	}
 	if rt.Session.Messages[2].Role != "tool" || !strings.Contains(rt.Session.Messages[2].Content, "nested done") {
 		t.Fatalf("synchronous subagent result=%+v", rt.Session.Messages[2])
 	}
-	if rt.Session.Messages[3].Content != "parent continued" {
-		t.Fatalf("parent did not continue=%+v", rt.Session.Messages[3])
+	completion := rt.Session.Messages[3]
+	if completion.Role != "user" || !completion.GUIHidden || !strings.HasPrefix(completion.Content, "[subagent-completed]") {
+		t.Fatalf("subagent completion=%+v", completion)
+	}
+	if rt.Session.Messages[4].Content != "parent continued" {
+		t.Fatalf("parent did not continue=%+v", rt.Session.Messages[4])
 	}
 }
 
