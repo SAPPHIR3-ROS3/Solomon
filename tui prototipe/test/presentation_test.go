@@ -122,7 +122,7 @@ func TestArchiveHasNoMockupTruncation(t *testing.T) {
 }
 
 func TestCompleteToolCallComponent(t *testing.T) {
-	cmd := exec.Command("../laboratory", "--snapshot", "120", "100", "tool_call")
+	cmd := exec.Command("../mission", "--snapshot", "120", "100", "tool_call")
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestCompleteToolCallComponent(t *testing.T) {
 
 func TestWrappedStringsKeepSyntaxColor(t *testing.T) {
 	sgr := regexp.MustCompile("\\x1b\\[[0-9;]*m")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		for _, width := range []string{"42", "80", "120"} {
 			out, err := exec.Command("../"+name, "--snapshot", width, "80", "wrapped_strings").Output()
 			if err != nil {
@@ -179,7 +179,7 @@ func TestWrappedStringsKeepSyntaxColor(t *testing.T) {
 
 func TestWrappedCodeKeepsTwoSpaceIndentation(t *testing.T) {
 	strip := regexp.MustCompile("\\x1b\\[[0-9;]*m")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		out, err := exec.Command("../"+name, "--snapshot", "80", "100", "wrapped_strings").Output()
 		if err != nil {
 			t.Fatal(err)
@@ -222,7 +222,7 @@ func TestWrappedCodeKeepsTwoSpaceIndentation(t *testing.T) {
 }
 
 func TestToolCallExecutionBeforeSource(t *testing.T) {
-	out, err := exec.Command("../laboratory", "--snapshot", "120", "100", "tool_call").Output()
+	out, err := exec.Command("../mission", "--snapshot", "120", "100", "tool_call").Output()
 	if err != nil {
 		t.Fatal(err)
 	}

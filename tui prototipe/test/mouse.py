@@ -31,7 +31,7 @@ class MouseTests(unittest.TestCase):
         self.update_screen(master, screen)
 
     def test_card_click_after_scrolling_and_resize(self):
-        for name in ("atelier", "orbit", "paper", "mission"):
+        for name in ("atelier", "paper", "mission"):
             with self.subTest(layout=name), tempfile.TemporaryDirectory(prefix="solomon-tui-mouse-") as folder:
                 env = dict(os.environ, SOLOMON_TUI_CONFIG=str(Path(folder) / "interface.json"), TERM="xterm-256color", COLORTERM="truecolor")
                 master, slave = pty.openpty()
@@ -79,7 +79,7 @@ class MouseTests(unittest.TestCase):
             env = dict(os.environ, SOLOMON_TUI_CONFIG=str(Path(folder) / "interface.json"), TERM="xterm-256color", COLORTERM="truecolor")
             master, slave = pty.openpty()
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
-            process = subprocess.Popen([str(ROOT / "laboratory"), "--components"], stdin=slave, stdout=slave, stderr=slave, env=env)
+            process = subprocess.Popen([str(ROOT / "mission"), "--components"], stdin=slave, stdout=slave, stderr=slave, env=env)
             screen = Screen()
             try:
                 self.update_screen(master, screen, 0.4)
@@ -149,7 +149,7 @@ class MouseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="solomon-tui-mouse-") as folder:
             config = Path(folder) / "interface.json"
             env = dict(os.environ, SOLOMON_TUI_CONFIG=str(config), TERM="xterm-256color", COLORTERM="truecolor")
-            subprocess.run([str(ROOT / "laboratory"), "--init-config"], env=env, capture_output=True, check=True)
+            subprocess.run([str(ROOT / "mission"), "--init-config"], env=env, capture_output=True, check=True)
             master, slave = pty.openpty()
             original = termios.tcgetattr(slave)
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))

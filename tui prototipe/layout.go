@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var names = []string{"", "ATELIER", "ORBIT", "PAPER", "MISSION"}
+var names = []string{"", "ATELIER", "", "PAPER", "MISSION"}
 
 func (m model) View() string {
 	return m.zones.Capture(animateNotification(animateWorkedFor(animateModeProgress(animateToolIndicators(m.renderView())))), lipgloss.Width)
@@ -43,7 +43,7 @@ func (m model) footer() string {
 		return mockupSurface(" Build failed · "+m.devStatus, m.width, 1)
 	}
 	label := ""
-	for position, i := range []int{2, 4} {
+	for position, i := range []int{4} {
 		if position > 0 {
 			label += "  "
 		} else {
@@ -76,14 +76,14 @@ func (m model) conversation(width, height int) string {
 func (m model) commandPalette() string {
 	width := min(68, m.width-4)
 	content := bold("COMMAND CENTER", gold) + "\n\n"
-	for _, i := range []int{2, 4} {
+	for _, i := range []int{4} {
 		prefix := "  "
 		if i == m.variant {
 			prefix = "› "
 		}
 		content += clickZone(fmt.Sprintf("layout:%d", i), text(fmt.Sprintf("%s%s  %s", prefix, strings.ToUpper(configuredHint("global", fmt.Sprintf("layout_%d", i))), names[i]), ink)) + "\n"
 	}
-	content += "\n" + clickZone("action:new_thread", text("Ctrl+N  New thread", gold)) + "\n" + clickZone("action:toggle_details", text("Ctrl+D  Tool details", muted)) + "\n\n" + text("Enter  next layout     Esc  close", muted)
+	content += "\n" + clickZone("action:new_thread", text("Ctrl+N  New thread", gold)) + "\n" + clickZone("action:toggle_details", text("Ctrl+D  Tool details", muted)) + "\n\n" + text("Esc  close", muted)
 	dialog := mockupSurface(box(content, width, 16, border), width, 16)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
 }

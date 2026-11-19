@@ -93,6 +93,7 @@ type apiStats struct {
 	ReasoningEffort           string  `json:"reasoningEffort,omitempty"`
 	Provider                  string  `json:"provider,omitempty"`
 	Model                     string  `json:"model,omitempty"`
+	ContextEstimated          bool    `json:"contextEstimated,omitempty"`
 	ContextTokens             int64   `json:"contextTokens"`
 	CachedPromptTokens        int64   `json:"cachedPromptTokens"`
 	CacheCreationPromptTokens int64   `json:"cacheCreationPromptTokens"`

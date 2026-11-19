@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
@@ -45,4 +47,24 @@ func toolingResultJSON(v any) string {
 		return `{"error":"marshal"}`
 	}
 	return string(b)
+}
+
+func bindGenerationStop(ctx context.Context, stop context.CancelCauseFunc, stopErr error) func() {
+	setGenerationStop(stop)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+	go func() {
+		for {
+			select {
+			case <-signals:
+				stop(stopErr)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return func() {
+		signal.Stop(signals)
+		clearGenerationStop()
+	}
 }

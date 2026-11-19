@@ -60,7 +60,7 @@ class ResponsivenessTests(unittest.TestCase):
             master, slave = pty.openpty()
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
             env = dict(os.environ, SOLOMON_TUI_CONFIG=str(Path(folder) / "interface.json"), TERM="xterm-256color", COLORTERM="truecolor")
-            process = subprocess.Popen([str(ROOT / "laboratory"), "--components"], stdin=slave, stdout=slave, stderr=slave, env=env)
+            process = subprocess.Popen([str(ROOT / "mission"), "--components"], stdin=slave, stdout=slave, stderr=slave, env=env)
             screen = Screen()
             try:
                 screen.feed(self.drain(master, 0.4))

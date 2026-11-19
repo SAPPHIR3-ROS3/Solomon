@@ -284,7 +284,7 @@ func MessageParamsWithEncryptedReasoning(system string, msgs []chatstore.Message
 			}
 			out = append(out, openai.AssistantMessage(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content)))
 		case "tool":
-			out = append(out, openai.ToolMessage(chatstore.ScrubLiteralImgPlaceholdersForAPI(m.Content), m.ToolCallID))
+			out = append(out, openai.ToolMessage(chatstore.ScrubLiteralImgPlaceholdersForAPI(chatstore.ModelToolContent(m.Content)), m.ToolCallID))
 			pendingImages = append(pendingImages, toolImageContentParts(m.ToolImages)...)
 		case "user":
 			content := m.Content

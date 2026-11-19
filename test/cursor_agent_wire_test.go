@@ -107,6 +107,26 @@ func TestDecodeAgentWireEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "MCP state request with trailing execution metadata",
+			wire: pbBytes(2, append(append(append(append([]byte{}, stateExec...),
+				pbBytes(57, []byte("machine"))...), pbVarint(58, 1)...), pbVarint(59, 1)...)),
+			check: func(t *testing.T, got cursorauth.AgentEvent) {
+				if got.Unknown != "" || got.MCPState == nil || got.MCPState.ID != 10 || got.MCPState.ExecID != "exec-10" {
+					t.Fatalf("unexpected MCP state event: %+v", got)
+				}
+			},
+		},
+		{
+			name: "unknown execution request reports wire shape only",
+			wire: pbBytes(2, pbBytes(61, pbBytes(1, []byte("private value")))),
+			check: func(t *testing.T, got cursorauth.AgentEvent) {
+				const want = "exec:field_61 (wire_type=2 payload_bytes=15 nested_fields=1 field_tags=[1:2])"
+				if got.Unknown != want {
+					t.Fatalf("unknown event = %q, want %q", got.Unknown, want)
+				}
+			},
+		},
+		{
 			name: "MCP allowlist precheck",
 			wire: pbBytes(2, precheckExec),
 			check: func(t *testing.T, got cursorauth.AgentEvent) {

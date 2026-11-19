@@ -188,6 +188,18 @@ func lastAssistantMessageIndex(msgs []Message) int {
 	return -1
 }
 
+func EstimatePromptContext(messages []Message) int64 {
+	var total int64
+	for _, message := range messages {
+		if message.Role == "tool" {
+			message.Content = ModelToolContent(message.Content)
+			message.APIContent = ""
+		}
+		total += MessageWireWeight(message, false, tokcount.DefaultModel)
+	}
+	return total
+}
+
 func MessageWireWeight(m Message, includeReasoning bool, model string) int64 {
 	tpm, _ := tokcount.MessageOverhead(model)
 	var n int64

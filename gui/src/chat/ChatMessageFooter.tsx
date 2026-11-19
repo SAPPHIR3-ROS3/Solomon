@@ -99,7 +99,7 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
     ["provider", stats.provider || "—"],
     ["model", stats.model || "—"],
     ["reasoning effort", stats.reasoningEffort || "—"],
-    ["context", formatStatsTokenCount(stats.contextTokens)],
+    [stats.contextEstimated ? "context estimate" : "context", formatStatsTokenCount(stats.contextTokens)],
     ["cached input", stats.cachedPromptTokens == null || stats.cachedPromptTokens < 0 ? "—" : formatStatsTokenCount(stats.cachedPromptTokens)],
     ["cache write", stats.cacheCreationPromptTokens == null || stats.cacheCreationPromptTokens < 0 ? "—" : formatStatsTokenCount(stats.cacheCreationPromptTokens)],
     ["reasoning", formatStatsTokenCount(stats.reasoningTokens)],
@@ -122,7 +122,7 @@ function MessageStatsPopover({ id, stats, workedFor }: { id: string; stats: Chat
           </div>
         ))}
       </dl>
-      <div className="chat-stats-note">All token, cache and speed counters refer to the last request. Cache counters are included in context. Turn duration covers the whole turn.</div>
+      <div className="chat-stats-note">{stats.contextEstimated ? "Context is estimated from the prompt. Cache and total report Cursor usage across the execution." : "All token, cache and speed counters refer to the last request. Cache counters are included in context."} Turn duration covers the whole turn.</div>
     </div>
   );
 }

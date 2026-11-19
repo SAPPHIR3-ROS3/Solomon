@@ -31,7 +31,7 @@ export type ChatRuntime = {
   deleteMessage: (chatID: string, messageID: string) => Promise<void>;
   stopChat: (chatID: string) => void;
   stopTool: (chatID: string, messageID: string, toolID: string) => void;
-  loadSubchat: (subchatID: string) => Promise<ChatMessage[]>;
+  loadSubchat: (subchatID: string) => Promise<LiveChat>;
 };
 
 export function useChatRuntime(): ChatRuntime {
@@ -384,7 +384,7 @@ export function useChatRuntime(): ChatRuntime {
   const stopChat = useCallback((chatID: string) => {
     const chat = getChat(chatID);
     if (!chat?.projectID) return;
-    if (deletingMessages.current.has(chatID)) return;
+    if (deletingMessages.current.has(chatID) || stopRequested.current.has(chatID)) return;
     stopRequested.current.add(chatID);
     const retryTimer = streamRetryTimers.current.get(chatID);
     if (retryTimer !== undefined) window.clearTimeout(retryTimer);
@@ -394,9 +394,8 @@ export function useChatRuntime(): ChatRuntime {
     streams.current.delete(chatID);
     markStreaming(chatID, false);
     updateChat(chatID, (current) => ({ ...current, status: "interrupted" }));
-    void settleChatStop(chat.projectID, chatID).then(() => {
-      stopRequested.current.delete(chatID);
-      publishMessageQueues();
+    void settleChatStop(chat.projectID, chatID, true, true).then((latest) => {
+      updateChat(chatID, (current) => ({ ...current, ...latest }));
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to stop chat")).finally(() => { stopRequested.current.delete(chatID); updateChat(chatID, (current) => ({ ...current })); publishMessageQueues(); });
   }, [markStreaming, publishMessageQueues]);
 
@@ -415,9 +414,9 @@ export function useChatRuntime(): ChatRuntime {
 			.catch((reason: unknown) => setError(reason instanceof Error ? reason.message : subchatID ? "Unable to stop subchat" : "Unable to stop chat"));
   }, []);
 
-  const loadSubchat = useCallback(async (subchatID: string): Promise<ChatMessage[]> => {
+  const loadSubchat = useCallback(async (subchatID: string): Promise<LiveChat> => {
     const chat = selectedChatID ? getChat(selectedChatID) : null;
-    if (!chat?.projectID) return [];
+    if (!chat?.projectID) throw new Error("No project selected");
 		const subchat = await fetchLiveSubchat(chat.projectID, subchatID);
 		if (subchat.subchatStatus) {
 			const running = subchat.subchatStatus === "running" || subchat.subchatStatus === "queued";
@@ -432,7 +431,7 @@ export function useChatRuntime(): ChatRuntime {
 				})),
 			}));
     }
-    return subchat.messages;
+    return subchat;
   }, [selectedChatID]);
 
   return {

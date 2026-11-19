@@ -12,7 +12,7 @@ func defaultKeys() map[string]map[string][]string {
 		"global": {
 			"quit": {"ctrl+q"}, "new_thread": {"ctrl+n"}, "toggle_details": {"ctrl+d"}, "toggle_artifact": {"ctrl+o"}, "commands": {"ctrl+k"}, "models": {"ctrl+p"}, "reasoning": {"ctrl+r"}, "cancel": {"esc"},
 			"scroll_up": {"ctrl+up"}, "scroll_down": {"ctrl+down"}, "page_up": {"pgup"}, "page_down": {"pgdown"}, "scroll_start": {"home", "ctrl+home"}, "scroll_end": {"end", "ctrl+end"}, "artifact_previous": {"alt+up"}, "artifact_next": {"alt+down"},
-			"layout_1": {"f1"}, "layout_2": {"f2"}, "layout_3": {"f3"}, "layout_4": {"f4"}, "archive": {"f5"}, "gallery": {"f6"}, "components": {"f7"},
+			"layout_1": {"f1"}, "layout_2": {}, "layout_3": {"f3"}, "layout_4": {"f4"}, "archive": {"f5"}, "gallery": {"f6"}, "components": {"f7"},
 		},
 		"composer":    {"send": {"enter"}, "newline": {"ctrl+j", "alt+enter"}, "history_previous": {"up"}, "history_next": {"down"}, "clear_draft": {"ctrl+u"}, "backspace": {"backspace", "ctrl+h"}, "toggle_mode": {"tab"}},
 		"suggestions": {"previous": {"up"}, "next": {"down"}, "complete": {"tab"}, "accept": {"enter"}, "dismiss": {"esc"}},

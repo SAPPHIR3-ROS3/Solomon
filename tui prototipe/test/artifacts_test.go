@@ -11,7 +11,7 @@ import (
 
 func TestArtifactFramesAreClosed(t *testing.T) {
 	strip := regexp.MustCompile("\\x1b\\[[0-9;]*m")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		for _, width := range []string{"42", "80", "120"} {
 			out, err := exec.Command("../"+name, "--snapshot", width, "200", "tool_call").Output()
 			if err != nil {
@@ -33,11 +33,6 @@ func TestArtifactFramesAreClosed(t *testing.T) {
 				vertical := "│"
 				bottom := "└"
 				bottomRight := "┘"
-				if name == "orbit" {
-					right = "╮"
-					bottom = "╰"
-					bottomRight = "╯"
-				}
 				if name == "mission" {
 					right = "┓"
 					vertical = "┃"

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -12,8 +11,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/tui/live"
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-var defaultVariant = "4"
 
 type tickMsg time.Time
 
@@ -54,9 +51,13 @@ type model struct {
 	zones                                           *interaction.Map
 	mouseEvents                                     *mouseQueue
 	componentCache                                  *componentRenderCache
+	backend                                         backendState
 }
 
 func newModel(variant int) model {
+	if variant != 4 {
+		variant = 4
+	}
 	cfg := live.Default()
 	path, pathErr := live.Path()
 	watcher := live.NewWatcher(path)
@@ -207,7 +208,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch action {
 		case "quit":
 			return m, tea.Quit
-		case "layout_2", "layout_4":
+		case "layout_4":
 			index, offset := m.scrollAnchor()
 			atBottom := m.scroll == 0
 			m.variant, _ = strconv.Atoi(strings.TrimPrefix(action, "layout_"))
@@ -317,21 +318,7 @@ func main() {
 		fmt.Println(path)
 		return
 	}
-	variant, _ := strconv.Atoi(defaultVariant)
-	switch strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe") {
-	case "orbit":
-		variant = 2
-	case "mission", "laboratory":
-		variant = 4
-	}
-	if len(os.Args) > 1 {
-		if n, e := strconv.Atoi(os.Args[1]); e == nil && n >= 1 && n <= 4 {
-			variant = n
-		}
-	}
-	if variant != 2 && variant != 4 {
-		variant = 4
-	}
+	variant := 4
 	if len(os.Args) > 1 && os.Args[1] == "--snapshot" {
 		m := newModel(variant)
 		if len(os.Args) > 3 {

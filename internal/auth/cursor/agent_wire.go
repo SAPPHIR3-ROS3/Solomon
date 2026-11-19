@@ -17,6 +17,7 @@ import (
 type agentWireField struct {
 	number int
 	wire   int
+	size   int
 	bytes  []byte
 	value  uint64
 }
@@ -34,6 +35,7 @@ func agentWireFields(data []byte) ([]agentWireField, error) {
 			return nil, fmt.Errorf("invalid protobuf field number %d", number)
 		}
 		field := agentWireField{number: number, wire: wire}
+		start := len(data)
 		switch wire {
 		case 0:
 			value, consumed := binary.Uvarint(data)
@@ -62,6 +64,10 @@ func agentWireFields(data []byte) ([]agentWireField, error) {
 			data = data[4:]
 		default:
 			return nil, fmt.Errorf("unsupported protobuf wire type %d in field %d", wire, number)
+		}
+		field.size = start - len(data)
+		if wire == 2 {
+			field.size = len(field.bytes)
 		}
 		fields = append(fields, field)
 	}
@@ -240,7 +246,12 @@ func decodeAgentExec(data []byte) AgentEvent {
 		return AgentEvent{Err: fmt.Errorf("Cursor Agent exec decode: %w", err)}
 	}
 	message, ok := lastAgentWireField(fields, func(number int) bool {
-		return number != 1 && number != 15 && number != 19 && number != 55
+		switch number {
+		case 1, 15, 19, 55, 57, 58, 59:
+			return false
+		default:
+			return true
+		}
 	})
 	if !ok {
 		return AgentEvent{Unknown: "exec:empty"}
@@ -285,9 +296,23 @@ func decodeAgentExec(data []byte) AgentEvent {
 	case 43:
 		request.Kind = "precheck_web_fetch"
 	default:
-		return AgentEvent{Unknown: fmt.Sprintf("exec:field_%d", message.number)}
+		return AgentEvent{Unknown: describeUnknownAgentExec(message)}
 	}
 	return AgentEvent{Native: request}
+}
+
+func describeUnknownAgentExec(field agentWireField) string {
+	description := fmt.Sprintf("exec:field_%d (wire_type=%d payload_bytes=%d", field.number, field.wire, field.size)
+	if field.wire == 2 && field.size > 0 && field.size <= 1024 {
+		if children, err := agentWireFields(field.bytes); err == nil {
+			tags := make([]string, 0, min(len(children), 16))
+			for _, child := range children[:min(len(children), 16)] {
+				tags = append(tags, fmt.Sprintf("%d:%d", child.number, child.wire))
+			}
+			description += fmt.Sprintf(" nested_fields=%d field_tags=[%s]", len(children), strings.Join(tags, ","))
+		}
+	}
+	return description + ")"
 }
 
 func decodeAgentTool(data []byte, base AgentExecRequest) AgentEvent {

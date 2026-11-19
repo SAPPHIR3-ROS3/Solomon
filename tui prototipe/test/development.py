@@ -60,7 +60,7 @@ class DevelopmentTests(unittest.TestCase):
             folder=Path(temporary)
             config=folder/"interface.json"
             env=dict(os.environ,SOLOMON_TUI_CONFIG=str(config),TERM="xterm-256color",COLORTERM="truecolor")
-            subprocess.run([str(ROOT/"laboratory"),"--init-config"],env=env,capture_output=True,check=True)
+            subprocess.run([str(ROOT/"mission"),"--init-config"],env=env,capture_output=True,check=True)
             old_config=json.loads(config.read_text())
             old_config["text"].pop("tool_icon")
             state=folder/"state.json"
@@ -69,7 +69,7 @@ class DevelopmentTests(unittest.TestCase):
             env["SOLOMON_TUI_STATE_PATH"]=str(state)
             master,slave=pty.openpty()
             fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack("HHHH",40,120,0,0))
-            process=subprocess.Popen([str(ROOT/"laboratory")],stdin=slave,stdout=slave,stderr=slave,env=env)
+            process=subprocess.Popen([str(ROOT/"mission")],stdin=slave,stdout=slave,stderr=slave,env=env)
             try:
                 output=self.drain(master,0.5)
                 self.assertIsNone(process.poll(),"new frontend rejected an older session")

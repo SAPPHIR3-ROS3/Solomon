@@ -60,7 +60,10 @@ func (r *Runtime) runSubagentTool(ctx context.Context, cfg NestedRunConfig) (Nes
 	if cfg.RunInBackground {
 		return r.startSubagentBackground(ctx, cfg)
 	}
-	return r.runNestedWithConfig(ctx, cfg)
+	r.subagentCompletions.begin()
+	result, err := r.runNestedWithConfig(ctx, cfg)
+	r.finishSubagent(cfg, result, err)
+	return result, err
 }
 
 func (r *Runtime) startSubagentBackground(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
@@ -79,17 +82,25 @@ func (r *Runtime) startSubagentBackground(ctx context.Context, cfg NestedRunConf
 			return NestedRunResult{}, err
 		}
 	}
-	if err := r.persistSubSession(sess); err != nil {
+	bgCtx, cancel := context.WithCancel(context.Background())
+	h, err := globalSubagentRegistry.registerRun(ctx, sess, cancel)
+	if err != nil {
+		cancel()
 		return NestedRunResult{}, err
 	}
-	bgCtx, cancel := context.WithCancel(context.Background())
-	h := globalSubagentRegistry.registerRun(id, cancel)
+	if err := r.persistSubSession(sess); err != nil {
+		cancel()
+		globalSubagentRegistry.finishRun(id)
+		return NestedRunResult{}, err
+	}
 	title := sess.Title
 	_ = globalSubagentRegistry.upsertActiveEntry(r.activeEntryFor(sess))
+	r.subagentCompletions.begin()
 	go func() {
 		defer globalSubagentRegistry.finishRun(id)
 		defer cancel()
 		res, err := r.runNestedWithConfig(bgCtx, cfgWithID(cfg, sess))
+		r.finishSubagent(cfg, res, err)
 		if !r.machineMode() {
 			if err != nil {
 				turnloop.WriteSystemDeferred(r.Out, subagentFailedSystemMessage(title, err))

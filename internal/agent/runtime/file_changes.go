@@ -47,7 +47,7 @@ func (r *Runtime) recordChatFileChanges(seq int, changes []filechanges.Change, c
 	r.mutateSession(func(s *chatstore.Session) {
 		turn := seq
 		for i := len(s.Messages) - 1; i >= 0; i-- {
-			if s.Messages[i].Role == "user" {
+			if s.Messages[i].Role == "user" && !s.Messages[i].GUIHidden {
 				turn = s.Messages[i].CheckpointSeq
 				break
 			}
@@ -211,7 +211,7 @@ func (r *Runtime) saveTurnFileChanges(seq int) error {
 		}
 		sort.Slice(summary, func(i, j int) bool { return summary[i].Path < summary[j].Path })
 		for i := len(s.Messages) - 1; i >= 0; i-- {
-			if s.Messages[i].Role == "user" {
+			if s.Messages[i].Role == "user" && !s.Messages[i].GUIHidden {
 				break
 			}
 			if s.Messages[i].Role == "assistant" {

@@ -88,6 +88,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   }
 
   if (type === "tool_start") {
+    if (stringValue(event.parent_tool_call_id ?? event.parentToolCallID)) return chat;
     if (chat.messages.at(-1)?.role !== "assistant") {
       chat = { ...chat, messages: [...chat.messages, { id: `stream-tool-${stringValue(event.id) || chat.messages.length}`, role: "assistant", content: "", toolCalls: [] }] };
     }
@@ -125,6 +126,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   }
 
   if (type === "tool_result") {
+    if (stringValue(event.parent_tool_call_id ?? event.parentToolCallID)) return chat;
     const id = stringValue(event.id);
     const result = normalizeToolResult(event.result, stringValue(event.error));
     return updateTool(chat, id, (tool) => mergeSubagentTool(tool, { ...tool, result, status: result.status }));

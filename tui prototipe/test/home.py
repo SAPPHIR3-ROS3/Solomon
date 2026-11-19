@@ -31,7 +31,7 @@ class HomeTests(unittest.TestCase):
         os.close(slave)
 
     def test_image_command_interrupts_streaming(self):
-        for name in ("orbit", "mission"):
+        for name in ("mission",):
             with self.subTest(layout=name):
                 master, slave, original, process = self.start(name)
                 try:

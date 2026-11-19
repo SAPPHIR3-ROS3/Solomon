@@ -37,7 +37,7 @@ class TerminalTests(unittest.TestCase):
         return tuple(map(int, matches[-1]))
 
     def test_scroll_wheel_and_paging(self):
-        for name in ("atelier", "orbit", "paper", "mission"):
+        for name in ("atelier", "paper", "mission"):
             for dataset in ("--demo", "--artifacts"):
                 with self.subTest(layout=name, dataset=dataset):
                     master, slave = pty.openpty()
@@ -98,7 +98,7 @@ class TerminalTests(unittest.TestCase):
                         os.close(slave)
 
     def test_slash_and_fragmented_mouse(self):
-        for name in ("atelier", "orbit", "paper", "mission"):
+        for name in ("atelier", "paper", "mission"):
             with self.subTest(layout=name):
                 master, slave = pty.openpty()
                 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
@@ -147,7 +147,7 @@ class TerminalTests(unittest.TestCase):
                     os.close(slave)
 
     def test_interaction_and_terminal_restore(self):
-        for name in ("atelier", "orbit", "paper", "mission"):
+        for name in ("atelier", "paper", "mission"):
             with self.subTest(layout=name):
                 master, slave = pty.openpty()
                 original = termios.tcgetattr(slave)

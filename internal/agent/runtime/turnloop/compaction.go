@@ -2,32 +2,51 @@ package turnloop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tokcount"
 )
 
-func compactBeforeRequest(ctx context.Context, h Host) error {
+func cursorPromptOverhead(system string, tools []llm.ToolDef) int64 {
+	definitions, _ := json.Marshal(tools)
+	return tokcount.TextTokens(system, tokcount.DefaultModel) + tokcount.TextTokens(string(definitions), tokcount.DefaultModel)
+}
+
+func compactBeforeRequest(ctx context.Context, h Host, msgs []chatstore.Message, contextEstimate int64) (bool, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return false, err
 	}
 	threshold := h.CompactionThreshold()
 	if threshold <= 0 {
-		return nil
+		return false, nil
 	}
-	msgs, _ := h.SessionMessagesSnapshot()
 	lastAssistant := -1
 	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == "assistant" {
+		if msgs[i].Role == "assistant" && (contextEstimate == 0 || !chatstore.IsCompactionSummary(msgs[i])) {
 			lastAssistant = i
 			break
 		}
 	}
-	if lastAssistant < 0 || msgs[lastAssistant].PromptTokens < threshold {
-		return nil
+	if lastAssistant < 0 {
+		return false, nil
+	}
+	promptTokens := msgs[lastAssistant].PromptTokens
+	if contextEstimate > 0 {
+		promptTokens = contextEstimate
+		model, _, _ := strings.Cut(strings.TrimPrefix(h.ModelName(), "cursor-"), "[")
+		if model == "grok-4.7" || strings.HasPrefix(model, "grok-4.7-") {
+			threshold = min(threshold, 256*1024*4/5)
+		}
+	}
+	if promptTokens < threshold {
+		return false, nil
 	}
 	end := len(msgs)
 	for end > 0 && msgs[end-1].Role == "user" {
@@ -42,7 +61,19 @@ func compactBeforeRequest(ctx context.Context, h Host) error {
 			}
 		}
 		if !found {
-			return nil
+			return false, nil
+		}
+	}
+	pendingStart := end
+	if contextEstimate > 0 && end == len(msgs) {
+		for i := end - 1; i >= 0; i-- {
+			if msgs[i].Role == "user" {
+				pendingStart = i
+				break
+			}
+		}
+		if pendingStart == end {
+			return false, nil
 		}
 	}
 	deps := h.SlashDeps(ctx)
@@ -51,23 +82,26 @@ func compactBeforeRequest(ctx context.Context, h Host) error {
 	}
 	body, err := commands.SummarizeBody(deps)
 	if err != nil {
-		return fmt.Errorf("auto-compact: %w", err)
+		return false, fmt.Errorf("auto-compact: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return false, err
 	}
 	var chatID string
 	h.MutateSession(func(s *chatstore.Session) {
 		chatID = s.ID
 		pending := append([]chatstore.Message(nil), s.Messages[end:]...)
+		if pendingStart < end {
+			pending = append([]chatstore.Message{s.Messages[pendingStart]}, pending...)
+		}
 		chatstore.ApplyCompactionWithPendingMessages(s, body, time.Now(), pending)
 	})
 	if err := h.PersistSession(); err != nil {
-		return fmt.Errorf("auto-compact: %w", err)
+		return false, fmt.Errorf("auto-compact: %w", err)
 	}
 	if h.MachineMode() {
 		h.CIEmit(cievents.ContextCompacted(deps.ProjHex, chatID))
 	}
 	commands.PrintSystem(h.Out(), "context summarized")
-	return nil
+	return true, nil
 }

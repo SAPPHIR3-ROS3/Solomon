@@ -1,3 +1,5 @@
+import type { LiveChat } from "./chatClient";
+import { ScrollToBottom } from "./scroll/Bottom";
 import { SubchatNavigator } from "./subagents/Navigator";
 import { DiagramUnitContext, useDiagramUnit } from "./diagramSizing";
 import "./subagents/style.css";
@@ -53,7 +55,7 @@ type ChatViewProps = {
   onStopTool: (chatID: string, messageID: string, toolID: string) => void;
   onStopStreaming: (chatID: string) => void;
   openSubagentRequest?: OpenSubagentRequest | null;
-  loadSubchat?: (subchatID: string) => Promise<ChatMessage[]>;
+  loadSubchat?: (subchatID: string) => Promise<LiveChat>;
   queuedMessages?: readonly ChatMessage[];
   branch?: string;
   worktree?: string;
@@ -82,7 +84,8 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   const composerRef = useRef<HTMLFormElement>(null);
   const diagramUnit = useDiagramUnit(viewRef, composerRef);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
-  const isChatWorking = chat.status === "running" || (isStreaming && chat.status === undefined);
+  const isChatWorking = chat.status === "running" || (isStreaming && chat.status === undefined)
+    || chat.messages.some(message => message.toolCalls?.some(tool => tool.name === "subagent" && subagentIsActive(subagentStatus(tool))));
   const { messages: displayedMessages, animationMessageID } = usePacedChatMessages(composerDraftKey(chat.projectID, chat.id), chat.messages, chatPreferences.floatingLetters);
   const lastMessageContent = displayedMessages.at(-1)?.content ?? "";
   const animatedMessage = displayedMessages.find(message => message.id === animationMessageID) ?? displayedMessages.at(-1);
@@ -257,9 +260,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
       </div>
 		{openSubagentTool ? <SubchatNavigator key={openSubchatID ?? openSubagentTool.id} loadSubchat={loadSubchat} tools={chat.messages.flatMap(message => message.toolCalls ?? [])} root={openSubagentTool} onCollapse={() => { setOpenSubagent(null); setForcedSubagent(null); }} /> : null}
       <div className="welcome-composer-dock chat-composer-dock" ref={composerDockRef}>
-        <button aria-hidden={!isAwayFromBottom} aria-label="Scroll to bottom" className={`chat-scroll-to-bottom${isAwayFromBottom ? " is-visible" : ""}`} disabled={!isAwayFromBottom} onClick={scrollToBottom} tabIndex={isAwayFromBottom ? 0 : -1} title="Scroll to bottom" type="button">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14m-6-6 6 6 6-6" /></svg>
-        </button>
+        {!openSubagentTool ? <ScrollToBottom visible={isAwayFromBottom} onClick={scrollToBottom} /> : null}
         {queuedMessages.length ? (
           <div aria-label="Queued messages" aria-live="polite" className="chat-pending-messages">
             {queuedMessages.map((message) => (
@@ -300,7 +301,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
             projectID={chat.projectID}
             draftKey={composerDraftKey(chat.projectID, chat.id)}
             resetKey={chat.id}
-            isStreaming={isStreaming}
+            isStreaming={isStreaming || chat.status === "running" || activeSubagents.length > 0}
           />
         </div>
         <div aria-label="Git context and notifications" className="welcome-git-controls">

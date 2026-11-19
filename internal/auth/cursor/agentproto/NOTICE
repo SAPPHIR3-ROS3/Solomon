@@ -2,3 +2,5 @@ Cursor Agent v1 protobuf contract
 Source: https://github.com/can1357/oh-my-pi/tree/33cc6b9a043a74e00a157e72ca909272796d8461/packages/ai/src/providers/cursor/proto
 The generated Go binding was obtained from https://github.com/enderzcx/cursor-agent2api.
 License: MIT (see LICENSE in this directory).
+ExecServerMessage metadata fields 57–59 were checked against the Cursor CLI
+2026.11.17-f532c45 Linux x64 distribution published at https://cursor.com/install.

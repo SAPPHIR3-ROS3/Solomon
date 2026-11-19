@@ -65,7 +65,7 @@
   height: 22px;
 }
 
-.chat-subagent-tree:not(:has(> .chat-subagent-children)) > .chat-subagent-card {
+.chat-tool-activity .chat-subagent-tree:not(:has(> .chat-subagent-children)) > .chat-subagent-card {
   border-inline-start-color: transparent;
 }
 

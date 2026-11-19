@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
@@ -188,8 +189,16 @@ func (a *chatAPI) handleDeleteChatMessage(w http.ResponseWriter, _ *http.Request
 	writeJSON(w, http.StatusOK, apiChatFromSession(projectID, sess, nil))
 }
 
-func (a *chatAPI) handleStopChat(w http.ResponseWriter, _ *http.Request, projectID, chatID string) {
-	if !a.cancelRun(projectID + "\x00" + chatID) {
+func (a *chatAPI) handleStopChat(w http.ResponseWriter, r *http.Request, projectID, chatID string) {
+	stopping := a.cancelRun(projectID + "\x00" + chatID)
+	if r.URL.Query().Get("subagents") == "true" {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		if err := agentruntime.StopChatSubagents(ctx, projectID, chatID); err != nil {
+			writeAPIError(w, http.StatusGatewayTimeout, err)
+			return
+		}
+	} else if !stopping {
 		writeAPIError(w, http.StatusNotFound, errors.New("chat is not running"))
 		return
 	}

@@ -9,7 +9,7 @@ import (
 
 func TestNoPreviewLabels(t *testing.T) {
 	forbidden := regexp.MustCompile("(?i)\\bpreview\\b")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		for _, state := range []string{"home", "slash", "model", "reasoning", "palette"} {
 			out, err := exec.Command("../"+name, "--snapshot", "120", "40", state).CombinedOutput()
 			if err != nil {
@@ -25,7 +25,7 @@ func TestNoPreviewLabels(t *testing.T) {
 func TestMockupChromeIsSeparateFromChat(t *testing.T) {
 	blue := regexp.MustCompile("\\x1b\\[[0-9;]*48;2;6;28;59[0-9;]*m")
 	strip := regexp.MustCompile("\\x1b\\[[0-9;]*m")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		cmd := exec.Command("../"+name, "--snapshot", "120", "40", "user")
 		out, err := cmd.Output()
 		if err != nil {
@@ -48,7 +48,7 @@ func TestMockupChromeIsSeparateFromChat(t *testing.T) {
 }
 
 func TestGalleryHasNoIllustrativeLabels(t *testing.T) {
-	out, err := exec.Command("../laboratory", "--transcript", "gallery").Output()
+	out, err := exec.Command("../mission", "--transcript", "gallery").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestGalleryHasNoIllustrativeLabels(t *testing.T) {
 
 func TestEmptyComposerCursorBeforePlaceholder(t *testing.T) {
 	strip := regexp.MustCompile("\\x1b\\[[0-9;]*m")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		out, err := exec.Command("../"+name, "--snapshot", "120", "40").Output()
 		if err != nil {
 			t.Fatal(err)

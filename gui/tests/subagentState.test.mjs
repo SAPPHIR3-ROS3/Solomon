@@ -174,3 +174,22 @@ test("a replayed start targets the original tool without duplicating it", () => 
   assert.equal(getTool(next, "first").result.subchatStatus, "done");
   assert.equal(getTool(next, "first").status, "success");
 });
+
+test("an inner tool failure leaves the enclosing subagent active until its lifecycle ends", () => {
+  const previous = chatWith(agent("parent"));
+  previous.messages.push({ id: "inner", role: "assistant", content: "", toolCalls: [{ id: "inner-tool", name: "shell", status: "running" }] });
+  const next = applyLiveStreamEvent(previous, { type: "tool_result", id: "inner-tool", result: { ok: false, error: "Command failed" } });
+  assert.equal(getTool(next, "inner-tool").status, "error");
+  assert.equal(getTool(next, "parent").result.subchatStatus, "running");
+  const finished = preserveLiveWorkState(next, chatWith(agent("parent", "done")));
+  assert.equal(getTool(finished, "parent").status, "success");
+});
+
+test("the completed subchat lifecycle overrides a failed invocation result", () => {
+  const previous = chatWith(agent("first"));
+  const next = applyLiveStreamEvent(previous, { type: "tool_result", id: "first", result: {
+    status: "error", error: "An earlier tool failed", subchatId: "child-first", subagentStatus: "done",
+  } });
+  assert.equal(getTool(next, "first").result.subchatStatus, "done");
+  assert.equal(getTool(next, "first").status, "success");
+});

@@ -139,7 +139,9 @@ run_cli_upgrade() {
   local exe="$1"
   local log="$2"
   # Older releases reopen /dev/tty when restarting the upgraded CLI.
-  python3 "$script_dir/upgrade_smoke_pty.py" "$exe" upgrade >"$log" 2>&1 &
+  local pty_runner="$smoke_root/upgrade_smoke_pty"
+  (cd "$script_dir/.." && go build -o "$pty_runner" ./scripts/upgrade_smoke_pty)
+  "$pty_runner" "$exe" upgrade >"$log" 2>&1 &
   local upgrade_pid=$!
   if wait_for_target_version "$exe" "$log"; then
     wait "$upgrade_pid" 2>/dev/null || true
@@ -208,6 +210,7 @@ main() {
   fi
 
   mkdir -p "$smoke_root"
+  smoke_root="$(cd "$smoke_root" && pwd)"
 
   for from_tag in "${sources[@]}"; do
     if [[ "$from_tag" == "$RELEASE_TAG" ]]; then

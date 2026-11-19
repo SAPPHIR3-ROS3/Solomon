@@ -49,6 +49,7 @@ type Message struct {
 	ReasoningTokens           int64   `json:"reasoning_tokens"`
 	ResponseTokens            int64   `json:"response_tokens"`
 	TurnTotalTokens           int64   `json:"turn_total_tokens"`
+	PromptContextEstimate     int64   `json:"prompt_context_estimate,omitempty"`
 	PromptTokens              int64   `json:"prompt_tokens,omitempty"`
 	CacheUsageTracked         bool    `json:"cache_usage_tracked,omitempty"`
 	CachedPromptTokens        int64   `json:"cached_prompt_tokens,omitempty"`

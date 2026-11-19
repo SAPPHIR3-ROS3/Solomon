@@ -15,22 +15,18 @@ func TestUpgradeFlow_smokePTYProvidesControllingTerminal(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix controlling terminal")
 	}
-	python, err := exec.LookPath("python3")
-	if err != nil {
-		t.Fatal("upgrade smoke requires python3:", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	script := filepath.Join(repoRoot(t), "scripts", "upgrade_smoke_pty.py")
-	command := exec.CommandContext(ctx, python, script, python, "-c", `
-import os, sys
-assert os.isatty(0)
-with open('/dev/tty') as terminal:
-    assert os.isatty(terminal.fileno())
-assert sys.argv[1] == 'argument with spaces'
-print('controlling terminal OK', flush=True)
-sys.exit(17)
-`, "argument with spaces")
+	binary := filepath.Join(t.TempDir(), "upgrade_smoke_pty")
+	build := exec.CommandContext(ctx, "go", "build", "-o", binary, "./scripts/upgrade_smoke_pty")
+	build.Dir = repoRoot(t)
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build PTY runner: %v\n%s", err, output)
+	}
+	command := exec.CommandContext(ctx, binary, "sh", "-c", `exec 3<>/dev/tty
+test -t 0 && test -t 3 && test "$1" = 'argument with spaces' || exit 1
+printf 'controlling terminal OK\n'
+exit 17`, "probe", "argument with spaces")
 	output, err := command.CombinedOutput()
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 17 {

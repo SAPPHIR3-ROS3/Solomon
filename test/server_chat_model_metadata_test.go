@@ -27,6 +27,8 @@ func TestMessageStatsPreserveRecordedTarget(t *testing.T) {
 		{Role: "assistant", Content: "hello", Provider: "custom-provider", Model: "recorded-model"},
 		{Role: "assistant", Content: "legacy answer", ResponseTokens: 5},
 		{Role: "assistant", Content: "reported zero", ResponseTokens: 1, CacheUsageTracked: true},
+		{Role: "assistant", Provider: "Cursor Sub", Model: "cursor-grok-4.7", PromptTokens: 658104, CachedPromptTokens: 560000},
+		{Role: "assistant", Provider: "Cursor Sub", Model: "cursor-grok-4.7", PromptTokens: 658104, PromptContextEstimate: 20000},
 	}
 	if err := chatstore.WriteSession(created.Project.ID, session); err != nil {
 		t.Fatal(err)
@@ -39,6 +41,9 @@ func TestMessageStatsPreserveRecordedTarget(t *testing.T) {
 	var opened struct {
 		Messages []struct {
 			Stats *struct {
+				ContextTokens             int64  `json:"contextTokens"`
+				ContextEstimated          bool   `json:"contextEstimated"`
+				TotalTokens               int64  `json:"totalTokens"`
 				Provider                  string `json:"provider"`
 				Model                     string `json:"model"`
 				ResponseTokens            int64  `json:"responseTokens"`
@@ -50,7 +55,7 @@ func TestMessageStatsPreserveRecordedTarget(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&opened); err != nil {
 		t.Fatal(err)
 	}
-	if len(opened.Messages) != 3 || opened.Messages[0].Stats == nil || opened.Messages[1].Stats == nil {
+	if len(opened.Messages) != 5 || opened.Messages[0].Stats == nil || opened.Messages[1].Stats == nil {
 		t.Fatalf("missing message statistics: %+v", opened.Messages)
 	}
 	stats := opened.Messages[0].Stats
@@ -67,5 +72,13 @@ func TestMessageStatsPreserveRecordedTarget(t *testing.T) {
 	zero := opened.Messages[2].Stats
 	if zero == nil || zero.CachedPromptTokens != 0 || zero.CacheCreationPromptTokens != 0 {
 		t.Fatalf("reported zero lost: %+v", zero)
+	}
+	cursor := opened.Messages[3].Stats
+	if cursor == nil || !cursor.ContextEstimated || cursor.ContextTokens <= 0 || cursor.ContextTokens >= 1000 || cursor.CachedPromptTokens != 560000 || cursor.TotalTokens != 658104 {
+		t.Fatalf("legacy Cursor stats: %+v", cursor)
+	}
+	cursor = opened.Messages[4].Stats
+	if cursor == nil || !cursor.ContextEstimated || cursor.ContextTokens != 20000 || cursor.TotalTokens != 658104 {
+		t.Fatalf("recorded Cursor stats: %+v", cursor)
 	}
 }

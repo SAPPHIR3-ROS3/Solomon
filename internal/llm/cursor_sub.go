@@ -191,7 +191,7 @@ func agentHistory(messages []chatstore.Message, imageFiles map[int]string) ([][]
 			if name == "" {
 				name = "tool"
 			}
-			parts = []any{map[string]any{"type": "tool-result", "toolCallId": msg.ToolCallID, "toolName": name, "result": map[string]any{"is_error": false, "content": msg.Content}}}
+			parts = []any{map[string]any{"type": "tool-result", "toolCallId": msg.ToolCallID, "toolName": name, "result": map[string]any{"is_error": false, "content": chatstore.ModelToolContent(msg.Content)}}}
 		}
 		for _, image := range msg.ToolImages {
 			if image.PresentationOnly {

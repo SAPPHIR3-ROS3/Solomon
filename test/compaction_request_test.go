@@ -11,6 +11,7 @@ import (
 
 	agentruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/images"
 )
@@ -164,5 +165,51 @@ func TestRunAgentTurns_interruptDuringAutoCompaction(t *testing.T) {
 	}
 	if backend.turnN != 0 {
 		t.Fatalf("StreamTurn calls=%d, want 0 (request must not start after interrupted compaction)", backend.turnN)
+	}
+}
+
+func TestRunAgentTurns_CursorCompactionUsesCurrentPrompt(t *testing.T) {
+	for _, toolContinuation := range []bool{false, true} {
+		t.Run(map[bool]string{false: "cumulative usage", true: "tool result without usage"}[toolContinuation], func(t *testing.T) {
+			pending := chatstore.Message{Role: "user", Content: "continue", APIContent: "continue this task exactly"}
+			oldAssistant := chatstore.Message{Role: "assistant", Content: "ready", PromptTokens: 2000000}
+			messages := []chatstore.Message{{Role: "user", Content: "start"}, oldAssistant, pending}
+			if toolContinuation {
+				oldAssistant = chatstore.Message{Role: "assistant", ToolCalls: []chatstore.ToolCall{{ID: "call-1", Name: "shell"}}}
+				messages = []chatstore.Message{pending, oldAssistant, {Role: "tool", ToolCallID: "call-1", Content: strings.Repeat("one two three four ", 55000)}}
+			}
+			backend := &turnScriptBackend{
+				protocol: llm.ProtocolOpenAI,
+				turns:    []llm.AssistantTurnResult{{Content: "done", Usage: llm.UsageStats{PromptTokens: 2000000}}},
+				texts:    []string{"work so far"},
+			}
+			rt := newTurnLoopRuntime(t, backend, &chatstore.Session{ID: "cursor-compact", Messages: messages}, func(r *agentruntime.Runtime) {
+				r.EphemeralSession = true
+				r.CompactionThresholdTokens = 262144
+				r.Prov = &config.Provider{Name: config.ProviderNameCursorSub, AuthKind: config.AuthKindOAuthCursor}
+				r.Model = "cursor-grok-4.7"
+			})
+			if err := rt.RunAgentTurnsForTest(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if backend.turnN != 1 {
+				t.Fatalf("turn requests = %d", backend.turnN)
+			}
+			request := backend.requests[0].Messages
+			if toolContinuation {
+				if backend.textN != 1 || len(request) != 2 || !chatstore.IsCompactionSummary(request[0]) || request[1].APIContent != pending.APIContent {
+					t.Fatalf("compaction did not preserve the active request: summary calls=%d, messages=%d", backend.textN, len(request))
+				}
+				if len(rt.Session.UncompactedRaw) != 1 || rt.Session.UncompactedRaw[0].Messages[2].ToolCallID != "call-1" {
+					t.Fatal("compaction did not archive the completed tool result")
+				}
+			} else if backend.textN != 0 || len(request) != len(messages) {
+				t.Fatalf("cumulative usage triggered compaction: summary calls=%d, messages=%d", backend.textN, len(request))
+			}
+			last := rt.Session.Messages[len(rt.Session.Messages)-1]
+			if last.PromptContextEstimate <= 0 || last.PromptContextEstimate >= 200000 || last.PromptTokens != 2000000 {
+				t.Fatalf("stored context estimate=%d and usage=%d", last.PromptContextEstimate, last.PromptTokens)
+			}
+		})
 	}
 }

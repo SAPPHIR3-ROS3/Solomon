@@ -95,7 +95,7 @@ func buildMessages(msgs []chatstore.Message, imageFiles map[int]string) []messag
 			var results []contentBlock
 			for i < len(msgs) && msgs[i].Role == "tool" {
 				tm := msgs[i]
-				var content any = chatstore.ScrubLiteralImgPlaceholdersForAPI(tm.Content)
+				var content any = chatstore.ScrubLiteralImgPlaceholdersForAPI(chatstore.ModelToolContent(tm.Content))
 				if len(tm.ToolImages) > 0 {
 					content = append([]contentBlock{{"type": "text", "text": content}}, toolImageBlocks(tm.ToolImages)...)
 				}

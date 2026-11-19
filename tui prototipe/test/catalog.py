@@ -50,6 +50,8 @@ class CatalogTests(MouseTests):
                         self.assertIn("subagents working", screen.text())
                 self.assertNotIn("F1 Atelier", screen.text())
                 self.assertNotIn("F3 Paper", screen.text())
+                self.assertNotIn("Orbit", screen.text())
+                self.assertNotIn("Laboratory", screen.text())
             finally:
                 process.kill()
                 process.wait()

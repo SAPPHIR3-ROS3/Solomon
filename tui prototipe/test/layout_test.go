@@ -13,7 +13,7 @@ import (
 )
 
 func TestSnapshots(t *testing.T) {
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		for _, size := range [][2]int{{42, 24}, {80, 24}, {100, 32}, {160, 48}, {220, 60}} {
 			for _, state := range []string{"home", "demo", "stream", "gallery", "palette", "slash", "image", "search", "code", "user"} {
 				t.Run(fmt.Sprintf("%s/%dx%d/%s", name, size[0], size[1], state), func(t *testing.T) {
@@ -61,7 +61,7 @@ func TestSnapshots(t *testing.T) {
 
 func TestLayoutsAreDistinct(t *testing.T) {
 	seen := map[string]bool{}
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		out, err := exec.Command("../"+name, "--snapshot", "120", "40").Output()
 		if err != nil {
 			t.Fatal(err)
@@ -89,7 +89,7 @@ func TestOriginalBanner(t *testing.T) {
 		t.Fatal(err)
 	}
 	escape := regexp.MustCompile("\\x1b\\[[0-9;]*m")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		for _, size := range [][2]int{{42, 24}, {100, 32}, {160, 48}} {
 			out, err := exec.Command("../"+name, "--snapshot", fmt.Sprint(size[0]), fmt.Sprint(size[1])).Output()
 			if err != nil {
@@ -111,7 +111,7 @@ func TestOriginalBanner(t *testing.T) {
 
 func TestComposerPinnedToBottom(t *testing.T) {
 	escape := regexp.MustCompile("\\x1b\\[[0-9;]*m")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		for _, size := range [][2]int{{42, 24}, {80, 24}, {100, 32}, {160, 48}, {220, 60}} {
 			for _, state := range []string{"demo", "stream", "gallery"} {
 				out, err := exec.Command("../"+name, "--snapshot", fmt.Sprint(size[0]), fmt.Sprint(size[1]), state).Output()
@@ -138,7 +138,7 @@ func TestComposerPinnedToBottom(t *testing.T) {
 
 func TestFrameGeometry(t *testing.T) {
 	escape := regexp.MustCompile("\\x1b\\[[0-9;]*m")
-	for _, name := range []string{"atelier", "orbit", "paper", "mission"} {
+	for _, name := range []string{"atelier", "paper", "mission"} {
 		for _, size := range [][2]int{{42, 24}, {80, 24}, {120, 40}, {180, 60}} {
 			out, err := exec.Command("../"+name, "--snapshot", fmt.Sprint(size[0]), fmt.Sprint(size[1])).Output()
 			if err != nil {

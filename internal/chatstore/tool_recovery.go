@@ -1,5 +1,23 @@
 package chatstore
 
+import "encoding/json"
+
+func ModelToolContent(content string) string {
+	var payload map[string]json.RawMessage
+	if json.Unmarshal([]byte(content), &payload) != nil {
+		return content
+	}
+	if _, ok := payload["sdk_tool_calls"]; !ok {
+		return content
+	}
+	delete(payload, "sdk_tool_calls")
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return content
+	}
+	return string(encoded)
+}
+
 // RepairInterruptedToolCalls closes calls whose results were lost before a new
 // user turn. It never executes a tool or claims that its side effects failed.
 func RepairInterruptedToolCalls(s *Session) int {

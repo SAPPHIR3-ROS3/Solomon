@@ -7,7 +7,7 @@ import (
 )
 
 func TestTranscriptIncludesSupplementaryArtifacts(t *testing.T) {
-	out, err := exec.Command("../laboratory", "--transcript").CombinedOutput()
+	out, err := exec.Command("../mission", "--transcript").CombinedOutput()
 	if err != nil {
 		t.Fatalf("transcript: %v\n%s", err, out)
 	}

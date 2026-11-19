@@ -1,17 +1,31 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 // An isolated GTK window under Xvfb: the same WebKitGTK engine as Wails on
 // Linux, without attaching to or restarting the user's desktop application.
 export async function launchDesktopWebKit() {
-  const child = spawn("xvfb-run", ["-a", "/usr/bin/python3", fileURLToPath(new URL("./webkit-driver.py", import.meta.url))], { stdio: ["pipe", "pipe", "pipe"], env: {...process.env, GDK_BACKEND: "x11", WAYLAND_DISPLAY: "", SOLOMON_TEST_ISOLATED_DISPLAY: "1"} });
+  const dir = await mkdtemp(join(tmpdir(), "solomon-webkit-"));
+  const binary = join(dir, "driver");
+  const cleanup = () => rm(dir, { recursive: true, force: true });
+  try {
+    await promisify(execFile)("go", ["build", "-tags", "webkitdriver", "-o", binary, "./gui/scripts/webkit-driver"], { cwd: fileURLToPath(new URL("../../", import.meta.url)), env: {...process.env, CGO_ENABLED: "1"} });
+  } catch (error) {
+    await cleanup();
+    throw error;
+  }
+  const child = spawn("xvfb-run", ["-a", binary], { stdio: ["pipe", "pipe", "pipe"], env: {...process.env, GDK_BACKEND: "x11", WAYLAND_DISPLAY: "", SOLOMON_TEST_ISOLATED_DISPLAY: "1"} });
   const pending = new Map();
   let sequence = 0;
   let stderr = "";
   child.stderr.on("data", chunk => { stderr = (stderr + chunk).slice(-4000); });
   const fail = error => { for (const task of pending.values()) { clearTimeout(task.timer); task.reject(error); } pending.clear(); };
   child.on("error", fail);
+  child.once("close", () => cleanup().catch(error => console.error(error)));
   child.on("exit", code => fail(new Error(`WebKitGTK driver exited (${code}): ${stderr}`)));
   createInterface({ input: child.stdout }).on("line", line => {
     let reply;

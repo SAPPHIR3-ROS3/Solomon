@@ -1,25 +1,23 @@
 # Solomon terminal explorations
 
-Four standalone Bubble Tea mockups. No daemon connection, model calls, credential access or execution of archived commands. The real chat is replayed as data; additional gallery states and new replies are simulated.
+A standalone Bubble Tea mockup of the Mission layout. No daemon connection, model calls, credential access or execution of archived commands. The real chat is replayed as data; additional gallery states and new replies are simulated.
 
 ## Run
 
-From this directory run `./atelier`, `./orbit`, `./paper` or `./mission`. The Linux amd64 executables are ignored by Git. Add `--demo` for the complete archived conversation, `--artifacts` for the illustrative gallery, or `--image` for the real embedded image. All fixtures and the PNG are embedded in each binary.
+From this directory run `./mission`. The Linux amd64 executables are ignored by Git. Add `--demo` for the complete archived conversation, `--artifacts` for the illustrative gallery, or `--image` for the real embedded image. All fixtures and the PNG are embedded in each binary.
 
 | Prototype | Direction |
 | --- | --- |
 | Atelier | Original Solomon banner and classic artifact rails |
-| Orbit | Centered welcome group and rounded artifact rails |
 | Paper | Compact left-aligned welcome and minimal artifact rails |
 | Mission | GUI-derived welcome: free crown with greeting overlay, workspace row, rounded composer with internal toolbar, branch controls and stats |
 
-The original crown, colors, split-banner junctions and gold framing remain Solomon's shared identity. Orbit centers the classic framed banner/composer group. Mission reproduces the structural layout of `gui/src/home/Welcome.tsx`, `gui/src/chat/ChatComposer.tsx` and `gui/src/home/welcome.css`: the original crown is unframed, the greeting overlays its middle, the workspace sits immediately above the rounded composer, model/reasoning/Agent/send controls sit inside it, and branch/worktree controls and stats sit below. The complete stage is centered and width-constrained like the GUI. After the first message the composer docks at the bottom. User messages have complete gold frames. Chat, normal artifacts and composer use the terminal's native background. Mockup-only controls use Solomon blue (#061c3b): layout/comparison toolbar, command-center comparison panel, fixture provenance, mockup slash commands and archive links/counters. Image pixels retain their own real colors. The redundant mode label under the composer and visible artifact/row counters have been removed.
+The original crown, colors, split-banner junctions and gold framing remain Solomon's shared identity. Mission reproduces the structural layout of `gui/src/home/Welcome.tsx`, `gui/src/chat/ChatComposer.tsx` and `gui/src/home/welcome.css`: the original crown is unframed, the greeting overlays its middle, the workspace sits immediately above the rounded composer, model/reasoning/Agent/send controls sit inside it, and branch/worktree controls and stats sit below. The complete stage is centered and width-constrained like the GUI. After the first message the composer docks at the bottom. User messages have complete gold frames. Chat, normal artifacts and composer use the terminal's native background. Mockup-only controls use Solomon blue (#061c3b): layout/comparison toolbar, command-center comparison panel, fixture provenance, mockup slash commands and archive links/counters. Image pixels retain their own real colors. The redundant mode label under the composer and visible artifact/row counters have been removed.
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
-| F1–F4 | Switch layout, preserving draft and reading anchor |
 | F7 or /components | Live component map |
 | F5 / F6 | Open archived conversation / illustrative gallery |
 | Enter | Execute a highlighted slash command or submit a simulated prompt |
@@ -75,9 +73,7 @@ Tests cover 200 layout/state/size snapshots, original banner rows, frame geometr
 
 Run `./mission` with no flags to see the GUI-derived empty-thread layout, rather than `--demo` which opens a conversation. Set `SOLOMON_PREVIEW_NAME` to customize the greeting; its default is `User`, matching the GUI fallback. The existing terminal background stays unchanged. Font size, shadow and sub-cell CSS spacing cannot be copied literally into character cells, but element order, overlay, alignment, width constraint, internal toolbar and docking transition are reproduced. On smaller terminals the crown compresses only while a picker or slash menu is open.
 
-Ctrl+P opens the model picker, Ctrl+R opens the reasoning picker, Up/Down changes selection and Enter or Escape closes it. Tab toggles Agent/Chat. Choices are local fixture values, not live model configuration. The bottom controls and token counters are mock presentation values. The other three prototypes retain their existing classic welcome layout for comparison.
-
-Additional regressions exercise plain `/image` during an active response on all four executables, Mission control selection, greeting overlay, workspace/composer alignment and the toolbar's position inside the composer.
+Ctrl+P opens the model picker, Ctrl+R opens the reasoning picker, Up/Down changes selection and Enter or Escape closes it. Tab toggles Agent/Chat. Choices are local fixture values, not live model configuration. The bottom controls and token counters are mock presentation values. Additional regressions exercise plain `/image` during an active response, Mission control selection, greeting overlay, workspace/composer alignment and the toolbar's position inside the composer.
 
 Scrolling PTY tests use an explicitly enabled, non-visible OSC trace (`SOLOMON_TUI_SCROLL_TRACE=1`) rather than requiring diagnostic counters in the normal interface. Normal launches emit no scroll trace and show no artifact counters.
 
@@ -87,7 +83,7 @@ From the repository root, `make tui-dev` opens Mission with live configuration a
 
 Use `make dev` and keep the terminal open. The component map shares the real renderers. Edits to `~/.solomon/customization/tui/interface.json` apply live, including shortcuts, without compiling; Go edits trigger a background candidate build and state-preserving handoff. `make components` opens the same map without source supervision. `--config <path>` or `SOLOMON_TUI_CONFIG` selects another interface file. F7 and `/components` open the map. Use `make test-live` and `make test-dev` for focused reload checks.
 
-One `laboratory` binary now implements all four layouts. The existing variant commands are aliases (or copies where symlinks are unavailable), so `make build` no longer compiles the full frontend four times. `make dev` does not run the test suite on every edit.
+`make build` produces `./mission`. `make dev` does not run the test suite on every edit.
 
 The shared runtime lives in the permanent `tui/` module, not inside prototype fixtures. See `../tui/README.md` and `../docs/user-guide/tui-customization.md`. The readline frontend and daemon are not restarted or migrated by these commands.
 

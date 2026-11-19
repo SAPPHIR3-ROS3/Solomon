@@ -59,7 +59,7 @@ the notification journal, and writing or rotating daily logs.
 
 ## Repository audit
 
-Run `python3 scripts/logging/audit.py` from the repository. It scans owned Go,
+Run `go run ./scripts/logging` from the repository. It scans owned Go,
 TypeScript, JavaScript, Python, shell and PowerShell sources, including the CLI,
 backend, desktop, GUI, integrations, TUI, prototype, site and build scripts.
 Generated code, bundled assets, dependencies and tests are excluded. It reports

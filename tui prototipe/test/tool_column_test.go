@@ -9,7 +9,7 @@ import (
 )
 
 func TestToolCardUsesDedicatedStatusColumn(t *testing.T) {
-	out, err := exec.Command("../laboratory", "--snapshot", "120", "100", "tool_call").Output()
+	out, err := exec.Command("../mission", "--snapshot", "120", "100", "tool_call").Output()
 	if err != nil {
 		t.Fatal(err)
 	}

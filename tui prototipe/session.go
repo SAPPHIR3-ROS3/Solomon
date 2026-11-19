@@ -64,7 +64,7 @@ func (m *model) restoreSession() error {
 		return err
 	}
 	m.variant = value.Variant
-	if m.variant != 2 && m.variant != 4 {
+	if m.variant != 4 {
 		m.variant = 4
 	}
 	m.width = value.Width

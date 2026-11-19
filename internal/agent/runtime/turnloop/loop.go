@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/signal"
 	"strings"
 	"time"
 
@@ -40,21 +38,7 @@ func Run(ctx context.Context, h Host) error {
 	stopErr := h.UserStopGeneration()
 	runCtx, stopRun := context.WithCancelCause(ctx)
 	defer stopRun(nil)
-	setGenerationStop(stopRun)
-	defer clearGenerationStop()
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt)
-	defer signal.Stop(sigCh)
-	go func() {
-		for {
-			select {
-			case <-sigCh:
-				stopRun(stopErr)
-			case <-runCtx.Done():
-				return
-			}
-		}
-	}()
+	defer bindGenerationStop(runCtx, stopRun, stopErr)()
 	out := h.Out()
 	mediaRoot := h.SlashDeps(runCtx).ProjRoot
 	var mux *btw.OutputMux
@@ -77,6 +61,7 @@ func Run(ctx context.Context, h Host) error {
 		}
 	}()
 	var usageTurns []llm.UsageStats
+	var usageContextEstimate int64
 	var usageSys string
 	var usageMsgs []chatstore.Message
 	flushUsageStats := func() {
@@ -84,13 +69,7 @@ func Run(ctx context.Context, h Host) error {
 			usageTurns = nil
 			return
 		}
-		agg := llm.AggregateConsecutiveTurnUsage(usageTurns)
-		ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok := llm.UsageTokensDisplayParts(usageSys, usageMsgs, agg)
-		fmt.Fprintln(out, termcolor.UsageTokensLine(ctxTok, usrTok, reasonTok, respTok, totalTok, agg.CachedPromptTokens, agg.CacheCreationPromptTokens, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, ctxEst, agg.TurnWallSecs))
-		h.MutateSession(func(s *chatstore.Session) {
-			chatstore.ApplyTurnUsageDisplayToLastAssistant(s, ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok, agg.CachedPromptTokens, agg.CacheCreationPromptTokens, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, agg.TurnWallSecs)
-		})
-		h.PersistSessionOrLog("flushUsageStats")
+		printTurnUsage(h, out, usageSys, usageMsgs, usageTurns, usageContextEstimate)
 		usageTurns = nil
 	}
 	turnSeparatorPending := !h.MachineMode()
@@ -110,7 +89,15 @@ func Run(ctx context.Context, h Host) error {
 		}
 		toolDefs = llm.ToolDefsFromOpenAI(tools)
 	}
+	cursorSub := h.Provider().IsCursorSub()
+	var cursorOverhead int64
+	if cursorSub {
+		cursorOverhead = cursorPromptOverhead(sys, toolDefs)
+	}
 	for {
+		if _, err := deliverSubagentCompletions(runCtx, h, false); err != nil {
+			return err
+		}
 		if budget.exhausted() {
 			flushUsageStats()
 			if !h.MachineMode() {
@@ -118,7 +105,13 @@ func Run(ctx context.Context, h Host) error {
 			}
 			return nil
 		}
-		if err := compactBeforeRequest(runCtx, h); err != nil {
+		msgs, imageFiles := h.SessionMessagesSnapshot()
+		var contextEstimate int64
+		if cursorSub {
+			contextEstimate = cursorOverhead + chatstore.EstimatePromptContext(msgs)
+		}
+		compacted, err := compactBeforeRequest(runCtx, h, msgs, contextEstimate)
+		if err != nil {
 			if interruptedDuringGeneration(ctx, runCtx, err, stopErr) {
 				flushUsageStats()
 				logging.Log(logging.INFO_LOG_LEVEL, h.GenerationStoppedMessage())
@@ -134,7 +127,12 @@ func Run(ctx context.Context, h Host) error {
 			}
 			return err
 		}
-		msgs, imageFiles := h.SessionMessagesSnapshot()
+		if compacted {
+			msgs, imageFiles = h.SessionMessagesSnapshot()
+			if cursorSub {
+				contextEstimate = cursorOverhead + chatstore.EstimatePromptContext(msgs)
+			}
+		}
 		provider := h.Config().Current.Provider
 		if p := h.Provider(); p != nil && p.Name != "" {
 			provider = p.Name
@@ -254,7 +252,7 @@ func Run(ctx context.Context, h Host) error {
 		}
 		if h.Config().UsageStatsEnabled() {
 			usageTurns = append(usageTurns, turn.Usage)
-			usageSys, usageMsgs = sys, msgs
+			usageSys, usageMsgs, usageContextEstimate = sys, msgs, contextEstimate
 		}
 		proxyCorrection := strings.TrimSpace(turn.ProxyToolCorrection)
 		turnContent := turn.Content
@@ -278,6 +276,7 @@ func Run(ctx context.Context, h Host) error {
 		for _, tc := range turn.ToolCalls {
 			ast.ToolCalls = append(ast.ToolCalls, chatstore.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 		}
+		ast.PromptContextEstimate = contextEstimate
 		llm.PopulateAssistantTurnUsage(&ast, sys, msgs, turn.Usage)
 		chatstore.BackfillAssistantUsageFromTextIfEmpty(&ast, msgs)
 		h.MutateSession(func(s *chatstore.Session) {
@@ -310,9 +309,6 @@ func Run(ctx context.Context, h Host) error {
 		h.SyncLegacyToolCallsToLastAssistant(invs)
 		h.PersistSessionOrLog("toolInvocations")
 		if len(invs) == 0 {
-			// A provider-confirmed stop is the terminal signal for the whole
-			// run. In particular, do not start auto-compaction here: that can
-			// issue another completion after the assistant has already stopped.
 			explicitStop := strings.EqualFold(strings.TrimSpace(turn.FinishReason), llm.FinishReasonStop)
 			if !explicitStop && proxyCorrection != "" {
 				consecutiveProxyCorrections++
@@ -332,6 +328,11 @@ func Run(ctx context.Context, h Host) error {
 			flushUsageStats()
 			if h.MachineMode() {
 				h.SetCIFinalContent(turn.Content)
+			}
+			if delivered, err := deliverSubagentCompletions(runCtx, h, true); err != nil {
+				return err
+			} else if delivered {
+				continue
 			}
 			return nil
 		}

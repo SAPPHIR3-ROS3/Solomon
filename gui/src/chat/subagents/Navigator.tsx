@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import type { ChatMessage, ChatToolCall } from "../chatTypes";
+import type { ChatToolCall } from "../chatTypes";
 import { SubagentChatPanel } from "./Panel";
-import { subagentIsActive, subagentStatus } from "../ChatToolActivity";
+import type { LiveChat } from "../chatClient";
 import { openSubchatPath } from "./hierarchy";
 
 export function SubchatNavigator({ loadSubchat, onCollapse, root, tools }: {
-  loadSubchat?: (id: string) => Promise<ChatMessage[]>;
+  loadSubchat?: (id: string) => Promise<LiveChat>;
   onCollapse: () => void;
   root: ChatToolCall;
   tools: ChatToolCall[];
@@ -13,24 +13,29 @@ export function SubchatNavigator({ loadSubchat, onCollapse, root, tools }: {
   const [path, setPath] = useState<ChatToolCall[]>([]);
   const frame = path.at(-1) ?? root;
   const tool = tools.find(candidate => candidate.id === frame.id && candidate.result?.subchatId === frame.result?.subchatId) ?? frame;
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [snapshot, setSnapshot] = useState<LiveChat>();
   const [loading, setLoading] = useState(true);
   const id = tool.result?.subchatId;
-  const active = subagentIsActive(subagentStatus(tool));
+  const current = snapshot?.id === id ? snapshot : undefined;
+  const messages = current?.messages ?? [];
+  const currentTool: ChatToolCall = current?.subchatStatus ? {
+    ...tool,
+    result: { status: "success", ...tool.result, subchatStatus: current.subchatStatus },
+  } : tool;
   const back = useCallback(() => setPath(current => current.slice(0, -1)), []);
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
-    setMessages([]);
+    setSnapshot(undefined);
     setLoading(true);
     async function refresh() {
       try {
-        const next = id && loadSubchat ? await loadSubchat(id) : [];
+        if (!id || !loadSubchat) return;
+        const next = await loadSubchat(id);
         if (cancelled) return;
-        setMessages(next);
-        const descendantsActive = next.some(message => message.toolCalls?.some(call => call.name === "subagent" && subagentIsActive(subagentStatus(call))));
-        if (active || descendantsActive) timer = setTimeout(refresh, 1000);
+        setSnapshot(next);
+        timer = setTimeout(refresh, 1000);
       } catch {
         if (!cancelled) timer = setTimeout(refresh, 1000);
       } finally {
@@ -39,7 +44,7 @@ export function SubchatNavigator({ loadSubchat, onCollapse, root, tools }: {
     }
     void refresh();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [id, loadSubchat, active]);
+  }, [id, loadSubchat]);
 
   return <SubagentChatPanel
     isLoading={loading}
@@ -56,6 +61,6 @@ export function SubchatNavigator({ loadSubchat, onCollapse, root, tools }: {
       }
       setPath(current => openSubchatPath([root, ...current.filter(frame => frame.result?.subchatId !== root.result?.subchatId)], next).slice(1));
     }}
-    tool={tool}
+    tool={currentTool}
   />;
 }

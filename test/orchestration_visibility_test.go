@@ -105,15 +105,8 @@ func main() {
 		} `json:"messages"`
 	}
 	decodeServerTestJSON(t, response, &opened)
-	if len(opened.Messages) == 0 || len(opened.Messages[0].ToolCalls) != 3 {
-		t.Fatalf("missing SDK calls in reopened chat: %+v", opened)
-	}
-	calls := opened.Messages[0].ToolCalls
-	if calls[1].ID != starts[0].ToolCallID || calls[1].Name != "readFile" || calls[1].Status != "error" || calls[1].Input != "missing.txt" || calls[1].Intent != "inspect missing file" {
-		t.Fatalf("missing failed tool details: %+v", calls[1])
-	}
-	if calls[2].ID != starts[1].ToolCallID || calls[2].Status != "success" {
-		t.Fatalf("missing successful tool details: %+v", calls[2])
+	if len(opened.Messages) == 0 || len(opened.Messages[0].ToolCalls) != 1 || opened.Messages[0].ToolCalls[0].Name != "orchestrate" {
+		t.Fatalf("code mode script was split into separate tool calls: %+v", opened)
 	}
 }
 

@@ -17,7 +17,7 @@ import (
 
 func Threshold(d Deps, parts []string) error {
 	if len(parts) < 2 {
-		PrintSystemf(d.Out, "compaction_threshold_tokens=%d (auto /summarize before the next request when the last reported prompt_tokens >= this)", d.CompactionThresholdTokens())
+		PrintSystemf(d.Out, "compaction_threshold_tokens=%d (auto /summarize before the next request when the prompt token count or context estimate reaches the effective threshold)", d.CompactionThresholdTokens())
 		return nil
 	}
 	n, err := strconv.ParseInt(parts[1], 10, 64)

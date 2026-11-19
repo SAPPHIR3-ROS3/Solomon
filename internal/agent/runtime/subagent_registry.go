@@ -1,6 +1,7 @@
 package agentruntime
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -42,8 +43,9 @@ type activeNestedState struct {
 }
 
 type subagentRunHandle struct {
-	cancel func()
-	done   chan struct{}
+	projectID, chatID string
+	cancel            func()
+	done              chan struct{}
 }
 
 type subagentRegistry struct {
@@ -157,12 +159,36 @@ func (reg *subagentRegistry) removeActiveEntry(id string) error {
 	return reg.persistActive()
 }
 
-func (reg *subagentRegistry) registerRun(id string, cancel func()) *subagentRunHandle {
+func (reg *subagentRegistry) registerRun(ctx context.Context, sess *chatstore.SubSession, cancel func()) (*subagentRunHandle, error) {
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
-	h := &subagentRunHandle{cancel: cancel, done: make(chan struct{})}
-	reg.runs[id] = h
-	return h
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	h := &subagentRunHandle{projectID: sess.ProjectHex, chatID: sess.ParentChatID, cancel: cancel, done: make(chan struct{})}
+	reg.runs[sess.ID] = h
+	return h, nil
+}
+
+func StopChatSubagents(ctx context.Context, projectID, chatID string) error {
+	reg := &globalSubagentRegistry
+	reg.mu.Lock()
+	var runs []*subagentRunHandle
+	for _, h := range reg.runs {
+		if h.projectID == projectID && h.chatID == chatID {
+			h.cancel()
+			runs = append(runs, h)
+		}
+	}
+	reg.mu.Unlock()
+	for _, h := range runs {
+		select {
+		case <-h.done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
 
 func (reg *subagentRegistry) finishRun(id string) {

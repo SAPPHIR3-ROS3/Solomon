@@ -1,4 +1,4 @@
-.PHONY: solomon build install hot-install install-prepare install-deploy test check-docs loc-chart server-stop desktop-dev desktop-build desktop-install gui-build gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install clean-cursor-proxy clean-cursor-bundle clean-temp-exe
+.PHONY: tui-dev solomon build install hot-install install-prepare install-deploy test check-docs loc-chart server-stop desktop-dev desktop-build desktop-install gui-build gui-deps cursor-stop cursor-build cursor-bundle cursor-proxy-deps cursor-proxy-build cursor-proxy-test cursor-proxy-test-clean cloak-install clean-cursor-proxy clean-cursor-bundle clean-temp-exe
 
 GOOS := $(shell go env GOOS)
 ifeq ($(GOOS),windows)
@@ -101,6 +101,10 @@ define INSTALL_STEP_SKIPPED
 	@$(FIX_TTY)
 endef
 endif
+
+tui-dev: export SOLOMON_TUI_WORKSPACE := $(CURDIR)
+tui-dev:
+	cd "tui prototipe" && go run ./cmd/tui-dev
 
 cursor-stop:
 	@$(FIX_TTY)

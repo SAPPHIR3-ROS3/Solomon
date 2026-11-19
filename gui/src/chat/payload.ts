@@ -148,6 +148,7 @@ function statsFromPayload(payload: unknown): ChatStats {
     provider: stringValue(record.provider) || undefined,
     model: stringValue(record.model) || undefined,
     contextTokens: numberValue(record.contextTokens, 0) ?? 0,
+    ...(record.contextEstimated === true ? { contextEstimated: true } : {}),
     cachedPromptTokens: numberValue(record.cachedPromptTokens, -1) ?? -1,
     cacheCreationPromptTokens: numberValue(record.cacheCreationPromptTokens, -1) ?? -1,
     outputTokensPerSecond: numberValue(record.outputTokensPerSecond, 0) ?? 0,

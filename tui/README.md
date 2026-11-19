@@ -1,6 +1,6 @@
 # Solomon TUI customization runtime
 
-Permanent, frontend-independent infrastructure for TUI personalization. This local module uses only the Go standard library and is not tied to prototype fixtures, providers, credentials, or the agent harness. The Bubble Tea laboratory currently consumes it through a local module replacement. The existing readline frontend is unchanged until the TUI 2.0 migration.
+Permanent, frontend-independent infrastructure for TUI personalization. This local module uses only the Go standard library and is not tied to prototype fixtures, providers, credentials, or the agent harness. The Bubble Tea prototype currently consumes it through a local module replacement. The existing readline frontend is unchanged until the TUI 2.0 migration.
 
 ## Packages
 
@@ -33,13 +33,13 @@ The supervisor provides `SOLOMON_TUI_STATE_PATH`, `SOLOMON_TUI_RELOAD_REQUEST` a
 
 After a successful build, the supervisor writes a random request token. The frontend reads it in its event loop, writes its presentation state with `state.Save(path, token, payload)`, verifies that the request remains current, and exits normally after restoring terminal attributes. Only then does the supervisor verify the envelope/token and start the candidate. A failed build keeps the existing frontend; a handoff timeout does not kill it. An immediately failing candidate is rolled back to the previous binary.
 
-The envelope is versioned and limited to 16 MiB. The payload belongs to the frontend. Store UI state such as draft, active chat ID, scroll anchor and expanded cards, not authentication credentials or running harness objects. The laboratory includes its static messages and simulated streaming state. Production frontends must reconnect to daemon-owned sessions; this mechanism does not serialize or restart a live LLM request.
+The envelope is versioned and limited to 16 MiB. The payload belongs to the frontend. Store UI state such as draft, active chat ID, scroll anchor and expanded cards, not authentication credentials or running harness objects. The prototype includes its static messages and simulated streaming state. Production frontends must reconnect to daemon-owned sessions; this mechanism does not serialize or restart a live LLM request.
 
 This is true live reload for declarative configuration and state-preserving hot restart for Go logic, not dynamic Go-code replacement. Handoff timeout is 3 seconds and immediate-failure probation is 750 ms. Filesystems are polled without external watcher dependencies.
 
 ## Verification
 
-`make test` and `make vet` verify the module. Development supervisor tests cover compiler failure, watch filtering, invalid tokens, timeout, coalescing, cancellation, rollback and user quit. The laboratory adds Linux PTY tests for real compilation, checkpoint handoff, state restoration and terminal cleanup. Windows/macOS terminal parity remains a separate migration verification.
+`make test` and `make vet` verify the module. Development supervisor tests cover compiler failure, watch filtering, invalid tokens, timeout, coalescing, cancellation, rollback and user quit. The prototype adds Linux PTY tests for real compilation, checkpoint handoff, state restoration and terminal cleanup. Windows/macOS terminal parity remains a separate migration verification.
 
 ## Mouse interaction
 

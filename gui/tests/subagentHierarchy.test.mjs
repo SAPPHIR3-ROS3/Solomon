@@ -68,3 +68,20 @@ test("siblings share a branch attached to their calling subagent", () => {
   assert.equal((html.match(/class="chat-subagent-children"/g) ?? []).length, 2);
   assert.ok(html.indexOf('data-subchat-id="sub-1"') < html.indexOf('class="chat-subagent-children"'));
 });
+
+test("a completed subagent stays green after a recoverable tool error", () => {
+  const tool = { ...agent(1), result: { status: "error", subchatStatus: "done", error: "Earlier tool failed", subchatId: "sub-1" } };
+  const messages = [{ id: "reply", role: "assistant", content: "Recovered and completed", workedFor: 12,
+    toolCalls: [{ id: "shell", name: "shell", status: "error", result: { status: "error", error: "Command failed" } }] }];
+  const html = renderToStaticMarkup(createElement(SubagentChatPanel, { tool, messages, onCollapse() {} }));
+  assert.match(html, /chat-subchat-panel is-success/);
+  assert.match(html, /chat-tool-card is-error/);
+  assert.doesNotMatch(html, /chat-subchat-error/);
+  for (const subchatStatus of ["failed", "paused", "interrupted"]) {
+    const failed = renderToStaticMarkup(createElement(SubagentChatPanel, {
+      tool: { ...tool, result: { ...tool.result, subchatStatus } }, messages, onCollapse() {},
+    }));
+    assert.match(failed, /chat-subchat-panel is-error/);
+    assert.match(failed, /chat-subchat-error/);
+  }
+});

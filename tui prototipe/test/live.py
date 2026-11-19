@@ -20,7 +20,7 @@ class LiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="solomon-tui-live-") as folder:
             config = Path(folder) / "interface.json"
             env = dict(os.environ, SOLOMON_TUI_CONFIG=str(config), TERM="xterm-256color", COLORTERM="truecolor")
-            subprocess.run([str(ROOT / "laboratory"), "--init-config"], env=env, check=True, capture_output=True)
+            subprocess.run([str(ROOT / "mission"), "--init-config"], env=env, check=True, capture_output=True)
             settings = json.loads(config.read_text())
             master, slave = pty.openpty()
             original = termios.tcgetattr(slave)

@@ -24,22 +24,24 @@ export async function deletePersistedMessage(chat: Chat, messageID: string, runn
   return deleteLiveChatMessage(projectID, chat.id, target);
 }
 
-export async function settleChatStop(projectID: string, chatID: string, running = true) {
-  let latest = await fetchLiveChat(projectID, chatID);
-  if (running || latest.status === "running") {
-    try {
-      await stopLiveChat(projectID, chatID);
-    } catch (reason) {
-      latest = await fetchLiveChat(projectID, chatID);
-      if (latest.status === "running") throw reason;
-    }
-    const deadline = Date.now() + 30000;
-    do {
-      latest = await fetchLiveChat(projectID, chatID);
-      if (latest.status !== "running") break;
-      if (Date.now() >= deadline) throw new Error("Chat is still stopping. Try deleting the message again.");
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    } while (true);
+export async function settleChatStop(projectID: string, chatID: string, running = true, includeSubagents = false) {
+  if (!running && !includeSubagents) {
+    const latest = await fetchLiveChat(projectID, chatID);
+    if (latest.status !== "running") return latest;
   }
-  return latest;
+  try {
+    await stopLiveChat(projectID, chatID, includeSubagents);
+  } catch (reason) {
+    if (includeSubagents) throw reason;
+    const latest = await fetchLiveChat(projectID, chatID);
+    if (latest.status === "running") throw reason;
+    return latest;
+  }
+  const deadline = Date.now() + 30000;
+  while (true) {
+    const latest = await fetchLiveChat(projectID, chatID);
+    if (latest.status !== "running") return latest;
+    if (Date.now() >= deadline) throw new Error("Chat is still stopping.");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 }

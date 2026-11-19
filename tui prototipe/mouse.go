@@ -22,7 +22,7 @@ func (m model) mouseClick(event tea.MouseMsg) (tea.Model, tea.Cmd) {
 	switch kind {
 	case "layout":
 		variant, err := strconv.Atoi(value)
-		if err != nil || (variant != 2 && variant != 4) {
+		if err != nil || variant != 4 {
 			return m, nil
 		}
 		anchor, offset := m.scrollAnchor()

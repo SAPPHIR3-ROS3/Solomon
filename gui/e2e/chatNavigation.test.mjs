@@ -12,6 +12,8 @@ window.sent=[];window.failSend=false;window.holdSend=false;
 const messages=Array.from({length:60},(_,index)=>({id:String(index),role:index%2?'assistant':'user',content:'Message '+index+'\\nSecond line\\nThird line'}));
 function Fixture(){
  const [visible,setVisible]=React.useState(true),[id,setID]=React.useState('a'),[projectID,setProject]=React.useState('project-a'),[extra,setExtra]=React.useState(0);
+ const [subchatRequest,setSubchatRequest]=React.useState(null);
+ window.openSubchat=()=>setSubchatRequest({chatID:id,subchatID:'scroll-child',status:'done',title:'Scroll child'});
  window.addContent=()=>setExtra(n=>n+1);
  const chat={id,projectID,title:id,messages:extra?[...messages,{id:'extra',role:'assistant',content:'New streaming content '.repeat(extra)}]:messages};
  const send=async(id,text)=>{if(window.failSend)throw new Error('Send unavailable');window.sent.push({id,text});if(window.holdSend)await new Promise(resolve=>window.finishSend=resolve)};
@@ -20,7 +22,7 @@ function Fixture(){
  ...['a','b'].map(id=>React.createElement('button',{id:'chat-'+id,key:id,onClick:()=>{setVisible(true);setID(id)}},'Chat '+id)),
  React.createElement('button',{id:'editor',onClick:()=>setVisible(false)},'Editor'),React.createElement('button',{id:'agent',onClick:()=>setVisible(true)},'Agent'),
  React.createElement('button',{id:'project-a',onClick:()=>setProject('project-a')},'Project A'),React.createElement('button',{id:'project-b',onClick:()=>setProject('project-b')},'Project B')),
- visible?React.createElement(ChatView,{key:projectID+id,chat,onSend:send,onDeleteMessage(){},onStopTool(){},onStopStreaming(){}}):null);
+ visible?React.createElement(ChatView,{key:projectID+id,chat,openSubagentRequest:subchatRequest,onOpenedSubagentRequest:()=>setSubchatRequest(null),loadSubchat:async subchatID=>({id:subchatID,projectID,source:'daemon',title:'Scroll child',subchatStatus:'done',messages}),onSend:send,onDeleteMessage(){},onStopTool(){},onStopStreaming(){}}):null);
 }
 createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(Fixture)));
 `;
@@ -102,4 +104,29 @@ test('draft image URLs and terminal clips remain usable after navigation',async 
  assert.equal(sent.clips[0].text,'Keep terminal output');
  assert.equal(sent.images[0].name,'draft.png');
  await page.waitForFunction(()=>document.querySelector('textarea')?.value==='');
+});
+
+
+test('bottom buttons stay close to the composer and scroll only the open subchat',async t=>{
+ const page=await openPage(t);
+ const main=page.locator('.chat-messages-shell');
+ await page.waitForFunction(()=>{const node=document.querySelector('.chat-messages-shell');return node.scrollHeight-node.scrollTop-node.clientHeight<2});
+ await main.hover({position:{x:300,y:120}});await page.mouse.wheel(0,-1200);
+ const button=page.getByRole('button',{name:'Scroll to bottom',exact:true});
+ await button.waitFor({state:'visible'});
+ await page.waitForFunction(()=>{const button=document.querySelector('.chat-composer-dock > .chat-scroll-to-bottom');const composer=document.querySelector('.chat-composer');return Math.abs(composer.getBoundingClientRect().top-button.getBoundingClientRect().bottom-6)<1});
+ const parentTop=await main.evaluate(node=>node.scrollTop);
+ await page.evaluate(()=>window.openSubchat());
+ const panel=page.getByRole('dialog',{name:'Subagent chat',exact:true});await panel.waitFor();
+ assert.equal(await page.locator('.chat-composer-dock > .chat-scroll-to-bottom').count(),0);
+ const body=panel.locator('.chat-subchat-body');
+ await page.waitForFunction(()=>{const node=document.querySelector('.chat-subchat-body');return node&&node.scrollHeight-node.scrollTop-node.clientHeight<2});
+ await body.hover({position:{x:300,y:80}});await page.mouse.wheel(0,-1200);
+ const subButton=panel.getByRole('button',{name:'Scroll to bottom',exact:true});await subButton.waitFor({state:'visible'});
+ assert.equal(await page.getByRole('button',{name:'Scroll to bottom',exact:true}).count(),1);
+ await subButton.click();
+ await page.waitForFunction(()=>{const node=document.querySelector('.chat-subchat-body');return node.scrollHeight-node.scrollTop-node.clientHeight<2});
+ assert.ok(Math.abs(await main.evaluate(node=>node.scrollTop)-parentTop)<2);
+ await panel.getByRole('button',{name:'Collapse subagent chat',exact:true}).click();
+ await page.locator('.chat-composer-dock > .chat-scroll-to-bottom.is-visible').waitFor({state:'visible'});
 });

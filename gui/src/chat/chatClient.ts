@@ -100,8 +100,8 @@ export async function deleteLiveChatMessage(projectID: string, chatID: string, m
   return liveChatFromPayload(payload, projectID, assetOrigin(endpoint));
 }
 
-export async function stopLiveChat(projectID: string, chatID: string): Promise<void> {
-  const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/stop`);
+export async function stopLiveChat(projectID: string, chatID: string, includeSubagents = false): Promise<void> {
+  const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/stop${includeSubagents ? "?subagents=true" : ""}`);
   const response = await chatRequest("Unable to stop chat", endpoint, { method: "POST" });
   await readResponsePayload(response, "Unable to stop chat");
 }

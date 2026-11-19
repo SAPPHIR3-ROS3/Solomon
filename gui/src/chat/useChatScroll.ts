@@ -23,12 +23,12 @@ function writePosition(chatID: string, position: ChatScrollPosition) {
 type NullableRef<T> = RefObject<T | null>;
 
 type UseChatScrollOptions = {
-  bottomInset: number;
+  bottomInset?: number;
   chatID: string;
-  composerDockRef: NullableRef<HTMLElement>;
-  composerRef: NullableRef<HTMLElement>;
+  composerDockRef?: NullableRef<HTMLElement>;
+  composerRef?: NullableRef<HTMLElement>;
   contentKey: string;
-  viewRef: NullableRef<HTMLElement>;
+  viewRef?: NullableRef<HTMLElement>;
 };
 
 type ChatScrollBindings = {
@@ -109,7 +109,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
     }
     lastScrollTopRef.current = currentScrollTop;
     writePosition(chatID, { top: currentScrollTop, following: isFollowingBottomRef.current });
-    (viewRef.current ?? shell).style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, currentScrollTop / 18)));
+    (viewRef?.current ?? shell).style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, currentScrollTop / 18)));
   }, [cancelScheduledScroll, chatID, viewRef]);
 
   const scrollToBottom = useCallback(() => {
@@ -172,7 +172,7 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
       if (shell && saved && !saved.following) {
         shell.scrollTop = saved.top;
         lastScrollTopRef.current = shell.scrollTop;
-        (viewRef.current ?? shell).style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, shell.scrollTop / 18)));
+        (viewRef?.current ?? shell).style.setProperty("--chat-scroll-shadow-opacity", String(Math.min(1, shell.scrollTop / 18)));
       }
       restoringRef.current = false;
       setIsAwayFromBottom(Boolean(shell && !isFollowingBottomRef.current && shell.scrollHeight - shell.scrollTop - shell.clientHeight > FOLLOW_BOTTOM_THRESHOLD_PX));
@@ -186,9 +186,9 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
   }, [cancelScheduledScroll, chatID, scheduleScrollToBottom, viewRef]);
 
   useLayoutEffect(() => {
-    const view = viewRef.current;
-    const dock = composerDockRef.current;
-    const composer = composerRef.current;
+    const view = viewRef?.current;
+    const dock = composerDockRef?.current;
+    const composer = composerRef?.current;
     if (view && dock && composer && dockHeight !== null) {
       const next = dockHeight + "px";
       if (view.style.getPropertyValue("--chat-composer-dock-height") !== next) view.style.setProperty("--chat-composer-dock-height", next);
@@ -199,8 +199,8 @@ export function useChatScroll({ bottomInset, chatID, composerDockRef, composerRe
   }, [contentKey, dockHeight, scheduleScrollToBottom, viewRef, composerDockRef, composerRef]);
 
   useLayoutEffect(() => {
-    const dock = composerDockRef.current;
-    const view = viewRef.current;
+    const dock = composerDockRef?.current;
+    const view = viewRef?.current;
     if (!dock || !view) return;
     const read = () => {
       const height = Math.round(dock.getBoundingClientRect().height);

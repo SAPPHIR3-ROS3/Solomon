@@ -21,7 +21,8 @@ import (
 )
 
 type Runtime struct {
-	commandOnly bool
+	commandOnly         bool
+	subagentCompletions completionQueue
 
 	RL *readline.Instance
 

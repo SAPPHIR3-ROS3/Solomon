@@ -61,7 +61,7 @@ func (m model) handleComponentKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.componentScroll = 0
 	case "dismiss", "components":
 		m.componentOpen = false
-	case "layout_2", "layout_4":
+	case "layout_4":
 		m.variant, _ = strconv.Atoi(strings.TrimPrefix(action, "layout_"))
 		m.componentScroll = 0
 	case "scroll_start":

@@ -1,7 +1,7 @@
 .PHONY: build test test-live test-dev vet dev components config
 
 build:
-	go build -o laboratory .
+	go build -o mission .
 	go run ./cmd/launchers
 
 test: build
@@ -21,10 +21,10 @@ dev:
 	go run ./cmd/tui-dev --components
 
 components: build
-	./laboratory --components
+	./mission --components
 
 config: build
-	./laboratory --init-config
+	./mission --init-config
 
 test-live: build
 	python3 test/live.py

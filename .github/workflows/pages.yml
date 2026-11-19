@@ -6,9 +6,9 @@ on:
     paths:
       - "docs/**"
       - "site/**"
-      - "scripts/build_site.py"
+      - "scripts/build_site/**"
       - "scripts/site/**"
-      - "test/site_test.py"
+      - "test/site_test.go"
       - "go.mod"
       - "go.sum"
       - ".github/workflows/pages.yml"
@@ -16,9 +16,9 @@ on:
     paths:
       - "docs/**"
       - "site/**"
-      - "scripts/build_site.py"
+      - "scripts/build_site/**"
       - "scripts/site/**"
-      - "test/site_test.py"
+      - "test/site_test.go"
       - "go.mod"
       - "go.sum"
       - ".github/workflows/pages.yml"
@@ -43,20 +43,20 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.x'
-      - name: Provision pinned renderer dependency
-        run: go mod download github.com/yuin/goldmark
-      - name: Test site renderer offline
+      - name: Provision pinned renderer and HTML parser dependencies
+        run: go mod download github.com/yuin/goldmark golang.org/x/net
+      - name: Test Pages build and renderer offline
         env:
           GOPROXY: 'off'
           GOTOOLCHAIN: local
           GOSUMDB: 'off'
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: python3 -m unittest discover -s test -p site_test.py
+        run: go test -mod=readonly ./test/site_test.go
       - name: Build static website and wiki offline
-        run: python3 scripts/build_site.py --output "$RUNNER_TEMP/solomon-site" --repository "$GITHUB_REPOSITORY" --revision "$GITHUB_SHA" --base-url "https://sapphir3-ros3.github.io/Solomon/"
+        env:
+          GOPROXY: 'off'
+          GOTOOLCHAIN: local
+          GOSUMDB: 'off'
+        run: go run -mod=readonly ./scripts/build_site --output "$RUNNER_TEMP/solomon-site" --repository "$GITHUB_REPOSITORY" --revision "$GITHUB_SHA" --base-url "https://sapphir3-ros3.github.io/Solomon/"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ runner.temp }}/solomon-site
