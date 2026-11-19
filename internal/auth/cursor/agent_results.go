@@ -26,7 +26,7 @@ func (s *AgentSession) RejectNative(request AgentNativeRequest) error {
 		return s.Write(pbBytes(2, exec))
 	}
 	var result []byte
-	reason := "Use Solomon's provided MCP tools for workspace operations."
+	reason := fmt.Sprintf("The Cursor native tool %q is unavailable in Solomon.", request.Kind)
 	if request.Kind == "list_mcp_resources" {
 		reason = "Listing MCP resources is currently unavailable. Use searchTool instead to discover available tools."
 	}
