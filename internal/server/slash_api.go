@@ -108,7 +108,9 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		if text != "" {
 			sess.Messages = append(sess.Messages, chatstore.Message{GUIHidden: true, Role: "assistant", Content: text, CreatedAt: time.Now().UTC()})
 		}
-		sess.LastUserMessageAt = startedAt
+		if !regenerateCommand {
+			sess.LastUserMessageAt = startedAt
+		}
 		sess.LastMessageAt = time.Now().UTC()
 		if err := chatstore.WriteSession(projectID, sess); err != nil {
 			run.Emit(apiEvent("error", map[string]any{"error": err.Error()}))

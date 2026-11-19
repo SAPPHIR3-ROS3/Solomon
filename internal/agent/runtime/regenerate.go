@@ -3,6 +3,7 @@ package agentruntime
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
@@ -21,7 +22,13 @@ func (r *Runtime) regenerate(ctx context.Context) (turnErr error) {
 		return err
 	}
 	var err error
-	r.mutateSession(func(s *chatstore.Session) { err = s.TruncateForRegeneration() })
+	var sentAt time.Time
+	r.mutateSession(func(s *chatstore.Session) {
+		err = s.TruncateForRegeneration()
+		if err == nil {
+			sentAt = s.LastUserMessageAt
+		}
+	})
 	if err != nil {
 		return err
 	}
@@ -29,8 +36,7 @@ func (r *Runtime) regenerate(ctx context.Context) (turnErr error) {
 		return err
 	}
 	if r.EventSink != nil {
-		// The daemon publishes the truncated transcript before assistant deltas.
-		r.EventSink.Emit(cievents.Event{"type": "regenerate_start"})
+		r.EventSink.Emit(cievents.Event{"type": "regenerate_start", "ts": sentAt.Format(time.RFC3339Nano)})
 	} else {
 		if err := commands.Clear(r.slashDeps(ctx)); err != nil {
 			return err

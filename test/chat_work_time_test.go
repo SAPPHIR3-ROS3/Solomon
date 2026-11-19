@@ -105,3 +105,27 @@ func TestWorkedForUsesElapsedTurnAcrossMidnight(t *testing.T) {
 		t.Fatalf("worked for: first=%v last=%v; want first=0 last=%v", first.WorkedFor, last.WorkedFor, elapsed.Seconds())
 	}
 }
+
+func TestWorkedForStartsAtRegeneration(t *testing.T) {
+	original := time.Now().Add(-time.Hour)
+	session := chatstore.Session{Messages: []chatstore.Message{
+		{Role: "user", Content: "Question", CreatedAt: original, CheckpointSeq: 3},
+		{Role: "assistant", Content: "Previous answer"},
+	}}
+	before := time.Now()
+	if err := session.TruncateForRegeneration(); err != nil {
+		t.Fatal(err)
+	}
+	user := session.Messages[0]
+	if len(session.Messages) != 1 || user.Content != "Question" || user.CheckpointSeq != 3 ||
+		user.CreatedAt.Before(before) || user.CreatedAt.After(time.Now()) ||
+		!session.LastUserMessageAt.Equal(user.CreatedAt) {
+		t.Fatalf("unexpected regenerated session: %+v", session.Messages)
+	}
+	answer := chatstore.Message{Role: "assistant", Content: "New answer", CreatedAt: user.CreatedAt.Add(2 * time.Second)}
+	session.Messages = append(session.Messages, answer)
+	got, visible := server.ChatMessageFromSessionForTest("", "", answer, session.Messages, 1, nil, false, "answer")
+	if !visible || got.WorkedFor != 2 {
+		t.Fatalf("worked for %v seconds, visible=%v; want 2 seconds", got.WorkedFor, visible)
+	}
+}

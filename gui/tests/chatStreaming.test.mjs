@@ -7,6 +7,7 @@ const server = await createServer({ root: fileURLToPath(new URL("..", import.met
 after(() => server.close());
 const { createChatStreamBatch } = await server.ssrLoadModule("/src/chat/streamBatch.ts");
 const { applyLiveStreamEvent } = await server.ssrLoadModule("/src/chat/chatClient.ts");
+const { liveWorkedForSeconds } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
 const { saveChat, getChat, updateChat, clearChatStore } = await server.ssrLoadModule("/src/chat/chatStore.ts");
 
 test("replayed assistant messages use the event time", () => {
@@ -196,14 +197,19 @@ test("a skill request sent by the server appears once, and snapshots keep it unl
   assert.deepEqual(snapshot.messages.map(message => message.content), ["/teach review cryptography"]);
 });
 
-test("regenerate replaces the last answer while preserving the original user attachments", () => {
-  const user = { id: "user", role: "user", content: "question", images: [{ id: "image" }] };
+test("regenerate resets the send time and work timer while preserving user attachments", () => {
+  const ts = "2026-11-20T01:00:00Z";
+  const sentAt = Date.parse(ts);
+  const user = { id: "user", role: "user", content: "question", images: [{ id: "image" }], createdAt: sentAt - 3600000 };
   const history = { id: "earlier", role: "assistant", content: "earlier reply" };
   const chat = { id: "chat", messages: [history, user, { id: "old", role: "assistant", content: "old answer" }], status: "running" };
-  const regenerated = applyLiveStreamEvent(chat, { type: "regenerate_start" });
-  assert.deepEqual(regenerated.messages, [history, user]);
-  assert.equal(regenerated.messages[1], user);
+  const regenerated = applyLiveStreamEvent(chat, { type: "regenerate_start", ts });
+  assert.deepEqual(regenerated.messages, [history, { ...user, createdAt: sentAt }]);
+  assert.equal(regenerated.runStartedAt, sentAt);
+  const active = applyLiveStreamEvent(regenerated, { type: "assistant_start", ts });
+  assert.equal(liveWorkedForSeconds(active, sentAt + 2000), 2);
   assert.equal(regenerated.status, "running");
+  assert.equal(chat.messages[1].createdAt, sentAt - 3600000);
   assert.equal(chat.messages.length, 3);
 });
 

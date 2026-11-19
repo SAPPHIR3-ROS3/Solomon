@@ -9,7 +9,10 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   if (type === "regenerate_start") {
     let lastUser = chat.messages.length - 1;
     while (lastUser >= 0 && chat.messages[lastUser].role !== "user") lastUser--;
-    return { ...chat, messages: chat.messages.slice(0, lastUser + 1), rateLimitNotice: undefined };
+    const sentAt = eventTimeMilliseconds(event);
+    const messages = chat.messages.slice(0, lastUser + 1);
+    if (lastUser >= 0) messages[lastUser] = { ...messages[lastUser], createdAt: sentAt };
+    return { ...chat, messages, rateLimitNotice: undefined, runStartedAt: sentAt };
   }
   if (type === "chat_title") {
     const title = stringValue(event.title).trim();

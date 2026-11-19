@@ -16,7 +16,10 @@ func (s *Session) TruncateForRegeneration() error {
 				continue
 			}
 			s.Messages = s.Messages[:i+1]
-			s.LastMessageAt = time.Now()
+			sentAt := time.Now().UTC()
+			s.Messages[i].CreatedAt = sentAt
+			s.LastUserMessageAt = sentAt
+			s.LastMessageAt = sentAt
 			return nil
 		}
 	}
