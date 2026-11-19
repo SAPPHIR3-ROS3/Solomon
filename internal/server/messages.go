@@ -81,11 +81,12 @@ func apiMessagesFromSession(projectID, ownerID string, messages []chatstore.Mess
 			Summary:          compactionSummary(messages, dumps, lastDump),
 		})
 	}
+	contextEstimate := messageContextEstimator(messages)
 	for index, message := range messages {
 		if isHiddenSessionMessage(message) || isCompactionSummaryMessage(message) {
 			continue
 		}
-		if value, ok := apiMessageFromSession(projectID, ownerID, message, messages, index, imageFiles, runActive, fmt.Sprintf("m-%d", index)); ok {
+		if value, ok := apiMessageFromSession(projectID, ownerID, message, messages, index, imageFiles, runActive, fmt.Sprintf("m-%d", index), contextEstimate); ok {
 			out = append(out, value)
 		}
 	}
@@ -112,6 +113,7 @@ func apiEarlierMessages(projectID, ownerID string, messages []chatstore.Message,
 		archive := archiveMessagesForDisplay(dumps, dumpIndex)
 		visibleCount := countDisplayableMessages(archive)
 		retainedCount := chatMinInt(8, visibleCount)
+		contextEstimate := messageContextEstimator(archive)
 		visibleIndex := 0
 		for sourceIndex, archivedMessage := range archive {
 			if isHiddenSessionMessage(archivedMessage) || isCompactionSummaryMessage(archivedMessage) {
@@ -121,7 +123,7 @@ func apiEarlierMessages(projectID, ownerID string, messages []chatstore.Message,
 				visibleIndex++
 				continue
 			}
-			if value, ok := apiMessageFromSession(projectID, ownerID, archivedMessage, archive, sourceIndex, imageFiles, runActive, fmt.Sprintf("m-archive-%d-%d", dumpIndex, sourceIndex)); ok {
+			if value, ok := apiMessageFromSession(projectID, ownerID, archivedMessage, archive, sourceIndex, imageFiles, runActive, fmt.Sprintf("m-archive-%d-%d", dumpIndex, sourceIndex), contextEstimate); ok {
 				out = append(out, value)
 			}
 			visibleIndex++
@@ -182,7 +184,17 @@ func chatMinInt(left, right int) int {
 	return right
 }
 
-func apiMessageFromSession(projectID, ownerID string, message chatstore.Message, source []chatstore.Message, index int, imageFiles map[int]string, runActive bool, id string) (apiMessage, bool) {
+func messageContextEstimator(messages []chatstore.Message) func(int) int64 {
+	var total int64
+	next := 0
+	return func(index int) int64 {
+		total += chatstore.EstimatePromptContext(messages[next:index])
+		next = index
+		return total
+	}
+}
+
+func apiMessageFromSession(projectID, ownerID string, message chatstore.Message, source []chatstore.Message, index int, imageFiles map[int]string, runActive bool, id string, contextEstimate func(int) int64) (apiMessage, bool) {
 	if isHiddenSessionMessage(message) || isCompactionSummaryMessage(message) {
 		return apiMessage{}, false
 	}
@@ -202,7 +214,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 		value.FileChangesRecorded = message.FileChangesRecorded
 		value.Reasoning = reasoning
 		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive, true)
-		value.Stats = apiStatsFromMessage(message, source[:min(max(index, 0), len(source))])
+		value.Stats = apiStatsFromMessage(message, index, contextEstimate)
 		value.ThoughtFor = message.TurnTTFTSecs
 		if value.ThoughtFor == 0 {
 			value.ThoughtFor = message.TTFTSecs

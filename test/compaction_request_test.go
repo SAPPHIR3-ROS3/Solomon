@@ -172,11 +172,11 @@ func TestRunAgentTurns_CursorCompactionUsesCurrentPrompt(t *testing.T) {
 	for _, toolContinuation := range []bool{false, true} {
 		t.Run(map[bool]string{false: "cumulative usage", true: "tool result without usage"}[toolContinuation], func(t *testing.T) {
 			pending := chatstore.Message{Role: "user", Content: "continue", APIContent: "continue this task exactly"}
-			oldAssistant := chatstore.Message{Role: "assistant", Content: "ready", PromptTokens: 2000000}
+			oldAssistant := chatstore.Message{Role: "assistant", Content: strings.Repeat("one two three four ", 55000), PromptTokens: 2000000}
 			messages := []chatstore.Message{{Role: "user", Content: "start"}, oldAssistant, pending}
 			if toolContinuation {
 				oldAssistant = chatstore.Message{Role: "assistant", ToolCalls: []chatstore.ToolCall{{ID: "call-1", Name: "shell"}}}
-				messages = []chatstore.Message{pending, oldAssistant, {Role: "tool", ToolCallID: "call-1", Content: strings.Repeat("one two three four ", 55000)}}
+				messages = []chatstore.Message{pending, oldAssistant, {Role: "tool", ToolCallID: "call-1", Content: strings.Repeat("one two three four ", 70000)}}
 			}
 			backend := &turnScriptBackend{
 				protocol: llm.ProtocolOpenAI,
@@ -207,7 +207,7 @@ func TestRunAgentTurns_CursorCompactionUsesCurrentPrompt(t *testing.T) {
 				t.Fatalf("cumulative usage triggered compaction: summary calls=%d, messages=%d", backend.textN, len(request))
 			}
 			last := rt.Session.Messages[len(rt.Session.Messages)-1]
-			if last.PromptContextEstimate <= 0 || last.PromptContextEstimate >= 200000 || last.PromptTokens != 2000000 {
+			if last.PromptContextEstimate <= 0 || last.PromptContextEstimate >= rt.CompactionThresholdTokens || last.PromptTokens != 2000000 {
 				t.Fatalf("stored context estimate=%d and usage=%d", last.PromptContextEstimate, last.PromptTokens)
 			}
 		})

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/cievents"
@@ -40,10 +39,6 @@ func compactBeforeRequest(ctx context.Context, h Host, msgs []chatstore.Message,
 	promptTokens := msgs[lastAssistant].PromptTokens
 	if contextEstimate > 0 {
 		promptTokens = contextEstimate
-		model, _, _ := strings.Cut(strings.TrimPrefix(h.ModelName(), "cursor-"), "[")
-		if model == "grok-4.7" || strings.HasPrefix(model, "grok-4.7-") {
-			threshold = min(threshold, 256*1024*4/5)
-		}
 	}
 	if promptTokens < threshold {
 		return false, nil

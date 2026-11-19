@@ -106,7 +106,7 @@ type ChatMessageSnapshotForTest struct {
 }
 
 func ChatMessageFromSessionForTest(projectID, ownerID string, message chatstore.Message, source []chatstore.Message, index int, imageFiles map[int]string, runActive bool, id string) (ChatMessageSnapshotForTest, bool) {
-	value, visible := apiMessageFromSession(projectID, ownerID, message, source, index, imageFiles, runActive, id)
+	value, visible := apiMessageFromSession(projectID, ownerID, message, source, index, imageFiles, runActive, id, messageContextEstimator(source))
 	snapshot := ChatMessageSnapshotForTest{WorkedFor: value.WorkedFor}
 	if value.Stats != nil {
 		snapshot.HasStats = true

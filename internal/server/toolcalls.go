@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func apiStatsFromMessage(message chatstore.Message, prior []chatstore.Message) *apiStats {
+func apiStatsFromMessage(message chatstore.Message, index int, contextEstimate func(int) int64) *apiStats {
 	if message.Provider == "" && message.Model == "" && message.ReasoningEffort == "" && !message.CacheUsageTracked && !message.TurnDisplaySaved && message.PromptTokens == 0 && message.CachedPromptTokens == 0 && message.CacheCreationPromptTokens == 0 && message.UserPromptTokens == 0 && message.ReasoningTokens == 0 && message.ResponseTokens == 0 && message.TurnTotalTokens == 0 && message.TurnWallSecs == 0 {
 		return nil
 	}
@@ -23,7 +23,7 @@ func apiStatsFromMessage(message chatstore.Message, prior []chatstore.Message) *
 	if contextEstimated {
 		contextTokens = message.PromptContextEstimate
 		if contextTokens == 0 {
-			contextTokens = chatstore.EstimatePromptContext(prior)
+			contextTokens = contextEstimate(index)
 		}
 	}
 	return &apiStats{
