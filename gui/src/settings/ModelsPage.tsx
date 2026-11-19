@@ -336,34 +336,35 @@ function ProviderModelGroup({
         </button>
       </h3>
       <div className="settings-model-provider-list" hidden={!isOpen} id={listId}>
-        {provider.models.map((model) => {
-          const key = provider.provider + ":" + model;
-          const selected = key === currentKey;
-          const enabled = !(provider.disabled ?? []).includes(model);
-          return (
-            <div className={"settings-model-row" + (selected ? " is-current" : "")} key={key}>
-              <button aria-current={selected ? "true" : undefined} className="settings-model-select" disabled={Boolean(isSavingModel)} onClick={() => void onSelectModel(provider.provider, model)} type="button">
-                <span className="settings-model-row-copy">
-                  <span className="settings-model-row-title">
-                    <strong>{modelLabel(model)}</strong>
-                    <InputModeIcons modes={provider.metadata[model]?.input ?? []} />
-                  </span>
-                </span>
-                {isSavingModel === key ? <span className="settings-model-saving">Saving…</span> : selected ? <CheckIcon /> : null}
-              </button>
-              <button
-                aria-checked={enabled}
-                aria-label={`${enabled ? "Hide" : "Show"} ${modelLabel(model)} in the chat model selector`}
-                className={`settings-model-toggle${enabled ? " is-enabled" : ""}`}
-                onClick={() => void onToggleModel(provider.provider, model, !enabled)}
-                role="switch"
-                type="button"
-              >
-                <span aria-hidden="true" />
-              </button>
-            </div>
-          );
-        })}
+        {provider.models.filter((model) => !(provider.disabled ?? []).includes(model)).map((model) => (
+          <ModelCatalogRow
+            currentKey={currentKey}
+            enabled
+            isSavingModel={isSavingModel}
+            key={provider.provider + ":" + model}
+            model={model}
+            onSelectModel={onSelectModel}
+            onToggleModel={onToggleModel}
+            provider={provider}
+          />
+        ))}
+        {(provider.disabled ?? []).some((model) => provider.models.includes(model)) ? (
+          <section aria-label={`Disabled ${provider.provider} models`} className="settings-model-disabled-group">
+            <h4 className="settings-model-disabled-heading">Disabled</h4>
+            {provider.models.filter((model) => (provider.disabled ?? []).includes(model)).map((model) => (
+              <ModelCatalogRow
+                currentKey={currentKey}
+                enabled={false}
+                isSavingModel={isSavingModel}
+                key={provider.provider + ":" + model}
+                model={model}
+                onSelectModel={onSelectModel}
+                onToggleModel={onToggleModel}
+                provider={provider}
+              />
+            ))}
+          </section>
+        ) : null}
       </div>
     </section>
   );
@@ -392,6 +393,50 @@ export function AddProviderModal({ error, onClose, onSubmit }: { error?: string;
         <ProviderForm onCancel={onClose} onSubmit={onSubmit} />
         {error ? <p className="settings-models-error" role="alert">{error}</p> : null}
       </section>
+    </div>
+  );
+}
+
+function ModelCatalogRow({
+  currentKey,
+  enabled,
+  isSavingModel,
+  model,
+  onSelectModel,
+  onToggleModel,
+  provider,
+}: {
+  currentKey: string;
+  enabled: boolean;
+  isSavingModel: string;
+  model: string;
+  onSelectModel: (provider: string, model: string) => Promise<void>;
+  onToggleModel: (provider: string, model: string, enabled: boolean) => void;
+  provider: ProviderCatalog;
+}) {
+  const key = provider.provider + ":" + model;
+  const selected = key === currentKey;
+  return (
+    <div className={"settings-model-row" + (selected ? " is-current" : "")}>
+      <button aria-current={selected ? "true" : undefined} className="settings-model-select" disabled={Boolean(isSavingModel)} onClick={() => void onSelectModel(provider.provider, model)} type="button">
+        <span className="settings-model-row-copy">
+          <span className="settings-model-row-title">
+            <strong>{modelLabel(model)}</strong>
+            <InputModeIcons modes={provider.metadata[model]?.input ?? []} />
+          </span>
+        </span>
+        {isSavingModel === key ? <span className="settings-model-saving">Saving…</span> : selected ? <CheckIcon /> : null}
+      </button>
+      <button
+        aria-checked={enabled}
+        aria-label={`${enabled ? "Hide" : "Show"} ${modelLabel(model)} in the chat model selector`}
+        className={`settings-model-toggle${enabled ? " is-enabled" : ""}`}
+        onClick={() => void onToggleModel(provider.provider, model, !enabled)}
+        role="switch"
+        type="button"
+      >
+        <span aria-hidden="true" />
+      </button>
     </div>
   );
 }

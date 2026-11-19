@@ -2011,6 +2011,23 @@ button.right-side-panel-history-ref:hover {
   transform: rotate(0);
 }
 
+.settings-model-disabled-group {
+  margin-top: 0;
+}
+
+.settings-model-disabled-heading {
+  color: var(--color-text-muted);
+  font: 500 11px/1 "Geist Mono", ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  margin: 0;
+  padding: 2px 0 0;
+  text-transform: uppercase;
+}
+
+.settings-model-disabled-group > .settings-model-row:first-of-type {
+  border-top: 0;
+}
+
 .settings-model-row,
 .settings-provider-row {
   align-items: center;
