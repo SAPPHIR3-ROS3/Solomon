@@ -1,8 +1,9 @@
 import { themeZenUML } from "./zenumlTheme";
 import { themeTreemap } from "./treemapTheme";
 import { themeKanban, themeRadar, themeSankey } from "./chartTheme";
+import { separateParallelEdges } from "./parallelEdges";
 
-const version = "1";
+const version = "4";
 
 export function themeDiagram(code: string, original: string) {
   if (original.includes(`data-solomon-diagram-theme="${version}"`)) return original;
@@ -52,6 +53,7 @@ function removeBlack(svg: string) {
   const declarations = (value: string, target: string) => value.replace(/(--[\w-]+|fill|stroke|color|background(?:-color)?|stop-color|flood-color|border-color)\s*:\s*([^;{}]+)/gi,
     (_match, property: string, original: string) => `${property}:${paint(original, property, target)}`);
   const documentSVG = new DOMParser().parseFromString(svg, "image/svg+xml");
+  separateParallelEdges(documentSVG);
   for (const element of documentSVG.querySelectorAll("*")) {
     const owner = element.closest("marker, .arrow-head, .message, .edge, .link");
     const target = `${element.localName} ${element.getAttribute("class") || ""} ${element.parentElement?.getAttribute("class") || ""} ${owner?.localName || ""} ${owner?.getAttribute("class") || ""}`;

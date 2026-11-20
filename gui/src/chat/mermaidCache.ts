@@ -1,6 +1,6 @@
 import { themeDiagram } from "./diagramTheme";
 
-const storageKey = "solomon.mermaid.svg.v3";
+const storageKey = "solomon.mermaid.svg.v6";
 const diagrams = new Map<string, string>();
 let loaded = false;
 let chars = 0;
@@ -35,6 +35,9 @@ export function cachedDiagram(code: string) {
     try {
       window.localStorage.removeItem("solomon.mermaid.svg.v1");
       window.localStorage.removeItem("solomon.mermaid.svg.v2");
+      window.localStorage.removeItem("solomon.mermaid.svg.v3");
+      window.localStorage.removeItem("solomon.mermaid.svg.v4");
+      window.localStorage.removeItem("solomon.mermaid.svg.v5");
       const entries: unknown = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
       if (Array.isArray(entries)) for (const entry of entries) {
         if (!Array.isArray(entry) || entry.length !== 2 || !entry.every(value => typeof value === "string")) continue;

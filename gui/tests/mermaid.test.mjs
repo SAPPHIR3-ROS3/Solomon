@@ -124,7 +124,7 @@ test('renders diagrams and recovers from invalid streaming source', async () => 
       label: 'rgb(232, 229, 223)', line: 'rgb(59, 143, 209)',
       arrowFill: 'rgb(59, 143, 209)', arrowStroke: 'rgb(59, 143, 209)',
     });
-    await page.waitForFunction(() => localStorage.getItem('solomon.mermaid.svg.v3')?.includes('data-solomon-zenuml-theme'));
+    await page.waitForFunction(() => localStorage.getItem('solomon.mermaid.svg.v6')?.includes('data-solomon-zenuml-theme'));
 
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/fixture`);
     await page.waitForFunction(() => typeof window.show === 'function');
@@ -161,6 +161,52 @@ test('renders diagrams and recovers from invalid streaming source', async () => 
       Math.min(run.to, other.to) - Math.max(run.from, other.from) > 0.01,
     ));
     assert.deepEqual(overlapping, []);
+    await page.evaluate(() => window.show('```mermaid\nflowchart LR\nS-->B & G & F\nB-->D\nG-->D\nD-->C\nD-->C\nC-->E\nE-->B & F\n```', false));
+    await page.waitForFunction(() => document.querySelector('.chat-mermaid-preview')?.getAttribute('aria-busy') === 'false');
+    const parallel = await page.evaluate(() => {
+      const image = document.querySelector('.chat-mermaid-preview img');
+      const preview = image.closest('.chat-mermaid-preview');
+      const svg = new DOMParser().parseFromString(decodeURIComponent(image.src.split(',')[1]), 'image/svg+xml');
+      const node = svg.querySelector('g.node[id*="-flowchart-D-"]');
+      const center = Number(node.getAttribute('transform').split(',')[1].replace(')', ''));
+      const edges = [...svg.querySelectorAll('path[data-id^="L_D_C_"]')].map(path => ({
+        points: JSON.parse(atob(path.getAttribute('data-points'))),
+        arrow: path.hasAttribute('marker-end'),
+        path: path.getAttribute('d'),
+      }));
+      return { center, edges, fits: preview.scrollWidth === preview.clientWidth };
+    });
+    assert.ok(parallel.fits);
+    assert.equal(parallel.edges.length, 2);
+    const [upper, lower] = parallel.edges;
+    assert.deepEqual(upper.points.map(point => point.y - parallel.center), [-8, -8]);
+    assert.equal(lower.points.length, 6);
+    const [start, firstBend, drop, run, lastBend, end] = lower.points;
+    assert.equal(start.y, parallel.center + 8);
+    assert.equal(end.y, start.y);
+    assert.equal(firstBend.x, drop.x);
+    assert.equal(run.x, lastBend.x);
+    assert.equal(drop.y, run.y);
+    assert.ok(drop.y - start.y >= 12);
+    assert.ok(run.x - drop.x >= (end.x - start.x) / 2);
+    assert.ok(upper.arrow && lower.arrow);
+    assert.equal((lower.path.match(/L/g) ?? []).length, 5);
+    await page.evaluate(() => window.show('```mermaid\nflowchart LR\nS --> B\nS --> C\nB --> D\nC --> E\nD --> C\nD --> F\nE --> B\nE --> F\nG --> D\n```', false));
+    await page.waitForFunction(() => document.querySelector('.chat-mermaid-preview')?.getAttribute('aria-busy') === 'false');
+    const bypasses = await page.evaluate(() => {
+      const image = document.querySelector('.chat-mermaid-preview img');
+      const preview = image.closest('.chat-mermaid-preview');
+      const svg = new DOMParser().parseFromString(decodeURIComponent(image.src.split(',')[1]), 'image/svg+xml');
+      const route = id => {
+        const edge = svg.querySelector(`path[data-id="${id}"]`);
+        const points = JSON.parse(atob(edge.getAttribute('data-points')));
+        return { bottom: Math.max(...points.map(point => point.y)), gap: edge.getAttribute('d').split('M').length > 2, arrow: edge.hasAttribute('marker-end') };
+      };
+      return { red: route('L_S_C_0'), yellow: route('L_D_F_0'), fits: preview.scrollWidth === preview.clientWidth };
+    });
+    assert.ok(bypasses.fits);
+    assert.ok(bypasses.red.bottom - bypasses.yellow.bottom >= 24);
+    assert.ok(bypasses.red.gap && bypasses.red.arrow && bypasses.yellow.arrow);
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.evaluate(() => window.show('```mermaid\ntreemap-beta\n"Progetto"\n  "Frontend"\n    "GUI": 40\n    "TUI": 25\n  "Backend"\n    "API": 20\n    "Storage": 15\n```', false));
     await page.waitForFunction(() => document.querySelector('.chat-mermaid-preview')?.getAttribute('aria-busy') === 'false');
