@@ -60,6 +60,7 @@ function loadRenderer() {
         noteBorderColor: accent,
       },
       htmlLabels: false,
+      elk: { mergeEdges: false, straightenEdges: false, lineHops: "gap" },
       sankey: { linkColor: "target" },
       suppressErrorRendering: true,
       maxTextSize: 50_000,

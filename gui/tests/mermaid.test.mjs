@@ -124,7 +124,7 @@ test('renders diagrams and recovers from invalid streaming source', async () => 
       label: 'rgb(232, 229, 223)', line: 'rgb(59, 143, 209)',
       arrowFill: 'rgb(59, 143, 209)', arrowStroke: 'rgb(59, 143, 209)',
     });
-    await page.waitForFunction(() => localStorage.getItem('solomon.mermaid.svg.v2')?.includes('data-solomon-zenuml-theme'));
+    await page.waitForFunction(() => localStorage.getItem('solomon.mermaid.svg.v3')?.includes('data-solomon-zenuml-theme'));
 
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/fixture`);
     await page.waitForFunction(() => typeof window.show === 'function');
@@ -136,6 +136,32 @@ test('renders diagrams and recovers from invalid streaming source', async () => 
     await page.waitForFunction(() => document.querySelector('.chat-mermaid-preview')?.getAttribute('aria-busy') === 'false');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.chat-mermaid-preview')).transitionProperty), 'none');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.chat-mermaid-preview img')).animationName), 'none');
+    await page.setViewportSize({ width: 360, height: 700 });
+    await page.evaluate(() => window.show('```mermaid\nflowchart LR\nA-->B\nB-->C\nD-->E\nE-->F\nG-->D\nE-->A\nG-->C\nA-->F\nE-->G\nF-->A\nD-->G\n```', false));
+    await page.waitForFunction(() => document.querySelector('.chat-mermaid-preview')?.getAttribute('aria-busy') === 'false');
+    const routes = await page.evaluate(() => {
+      const image = document.querySelector('.chat-mermaid-preview img');
+      const preview = image.closest('.chat-mermaid-preview');
+      const svg = new DOMParser().parseFromString(decodeURIComponent(image.src.split(',')[1]), 'image/svg+xml');
+      return {
+        fits: image.getBoundingClientRect().right <= preview.getBoundingClientRect().right && preview.scrollWidth === preview.clientWidth,
+        points: [...svg.querySelectorAll('path[data-points]')].map(path => JSON.parse(atob(path.getAttribute('data-points')))),
+      };
+    });
+    assert.ok(routes.fits);
+    assert.equal(routes.points.length, 11);
+    const runs = routes.points.flatMap((points, edge) => points.slice(1).flatMap((end, index) => {
+      const start = points[index];
+      const axis = Math.abs(start.x - end.x) < 0.01 ? 'y' : Math.abs(start.y - end.y) < 0.01 ? 'x' : undefined;
+      if (!axis) return [];
+      return [{ edge, axis, lane: start[axis === 'x' ? 'y' : 'x'], from: Math.min(start[axis], end[axis]), to: Math.max(start[axis], end[axis]) }];
+    }));
+    const overlapping = runs.filter((run, index) => runs.slice(0, index).some(other =>
+      run.edge !== other.edge && run.axis === other.axis && Math.abs(run.lane - other.lane) < 0.01 &&
+      Math.min(run.to, other.to) - Math.max(run.from, other.from) > 0.01,
+    ));
+    assert.deepEqual(overlapping, []);
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.evaluate(() => window.show('```mermaid\ntreemap-beta\n"Progetto"\n  "Frontend"\n    "GUI": 40\n    "TUI": 25\n  "Backend"\n    "API": 20\n    "Storage": 15\n```', false));
     await page.waitForFunction(() => document.querySelector('.chat-mermaid-preview')?.getAttribute('aria-busy') === 'false');
     assert.equal(await page.evaluate(() => document.querySelector('.chat-mermaid-status')?.title || ''), '');
