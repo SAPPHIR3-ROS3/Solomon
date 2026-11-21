@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/ncruces/go-sqlite3"
@@ -93,11 +94,11 @@ func fileURI(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	slashed := filepath.ToSlash(absolute)
-	if filepath.VolumeName(absolute) != "" && slashed[0] != '/' {
-		slashed = "/" + slashed
+	path = (&url.URL{Path: filepath.ToSlash(absolute)}).EscapedPath()
+	if strings.HasPrefix(path, "//") {
+		path = "%2F" + path[1:]
 	}
-	return (&url.URL{Scheme: "file", Path: slashed}).String(), nil
+	return "file:" + path, nil
 }
 
 func OpenReadOnly(ctx context.Context, path string) (*sql.DB, error) {
