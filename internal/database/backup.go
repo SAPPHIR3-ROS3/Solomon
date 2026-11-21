@@ -10,6 +10,19 @@ import (
 	"github.com/ncruces/go-sqlite3/driver"
 )
 
+func BackupExisting(ctx context.Context, source, destination string) error {
+	uri, err := fileURI(source)
+	if err != nil {
+		return err
+	}
+	db, err := driver.Open(uri + "?mode=rw&_pragma=busy_timeout(5000)")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return Backup(ctx, db, destination)
+}
+
 func Backup(ctx context.Context, db *sql.DB, destination string) (err error) {
 	uri, err := fileURI(destination)
 	if err != nil {

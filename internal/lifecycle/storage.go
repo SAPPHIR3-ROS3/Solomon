@@ -37,7 +37,7 @@ func preserveStorage(ctx context.Context) (*databaseSnapshot, error) {
 	for _, kind := range []database.Kind{database.Data, database.Logs} {
 		if err := snapshot.preserveDatabase(ctx, kind); err != nil {
 			snapshot.close()
-			return nil, err
+			return nil, fmt.Errorf("back up %s database: %w", kind, err)
 		}
 	}
 	snapshot.files, err = updater.BackupInstallation(
@@ -62,13 +62,8 @@ func (s *databaseSnapshot) preserveDatabase(ctx context.Context, kind database.K
 	} else if err != nil {
 		return err
 	}
-	db, err := database.OpenReadOnly(ctx, path)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
 	destination := filepath.Join(s.directory, filepath.Base(path))
-	if err := database.Backup(ctx, db, destination); err != nil {
+	if err := database.BackupExisting(ctx, path, destination); err != nil {
 		return err
 	}
 	s.saved[kind] = destination
