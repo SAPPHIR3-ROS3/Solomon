@@ -1,7 +1,6 @@
 package test
 
 import (
-	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -9,9 +8,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func TestWriteSubagentSnapshotRetriesWindowsReaderLock(t *testing.T) {
+func TestWriteActiveRegistrySnapshotRetriesWindowsReaderLock(t *testing.T) {
 	path := sessionSnapshotPath(t)
-	if err := writeSubagentSnapshot(path, []byte("running")); err != nil {
+	if err := writeActiveRegistrySnapshot(path, []byte("running")); err != nil {
 		t.Fatal(err)
 	}
 	name, err := windows.UTF16PtrFromString(path)
@@ -24,7 +23,7 @@ func TestWriteSubagentSnapshotRetriesWindowsReaderLock(t *testing.T) {
 	}
 	released := make(chan struct{})
 	go func() { time.Sleep(100 * time.Millisecond); windows.CloseHandle(handle); close(released) }()
-	err = writeSubagentSnapshot(path, []byte("done"))
+	err = writeActiveRegistrySnapshot(path, []byte("done"))
 	<-released
 	if err != nil {
 		t.Fatal(err)
@@ -33,13 +32,7 @@ func TestWriteSubagentSnapshotRetriesWindowsReaderLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var snapshot struct {
-		Status string `json:"status"`
-	}
-	if err := json.Unmarshal(data, &snapshot); err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Status != "done" {
-		t.Fatalf("status = %q", snapshot.Status)
+	if status := snapshotContent(t, data); status != "done" {
+		t.Fatalf("status = %q", status)
 	}
 }
