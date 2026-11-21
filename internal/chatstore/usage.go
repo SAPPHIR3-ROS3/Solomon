@@ -29,9 +29,9 @@ func BackfillSessionAssistantUsage(msgs []Message) {
 	}
 }
 
-func ApplyTurnUsageDisplayToLastAssistant(s *Session, ctxTok, usrTok int64, ctxEst bool, reasonTok, respTok, totalTok, cachedPromptTok, cacheCreationPromptTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64) {
+func ApplyTurnUsageDisplayToLastAssistant(s *Session, ctxTok, usrTok int64, ctxEst bool, reasonTok, respTok, totalTok, cachedPromptTok, cacheCreationPromptTok int64, outputTPS, ttftSecs, promptTPS, turnWallSecs float64) int {
 	if s == nil {
-		return
+		return -1
 	}
 	for i := len(s.Messages) - 1; i >= 0; i-- {
 		if s.Messages[i].Role != "assistant" {
@@ -51,8 +51,9 @@ func ApplyTurnUsageDisplayToLastAssistant(s *Session, ctxTok, usrTok int64, ctxE
 		m.TurnTTFTSecs = ttftSecs
 		m.TurnPromptTPS = promptTPS
 		m.TurnWallDisplay = turnWallSecs
-		return
+		return i
 	}
+	return -1
 }
 
 func turnUsageCallFromMessage(m Message) turnUsageCall {

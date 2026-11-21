@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 )
 
 type Error struct {
@@ -42,7 +40,7 @@ func (s *Server) prepare(ctx context.Context, r request, v *session, includeID, 
 		if err != nil {
 			if includeID {
 				if s.storage != "" {
-					_ = os.Remove(filepath.Join(s.storage, v.record.ID+".json"))
+					_ = s.eraseStoredRecord(v.record.ID)
 				}
 				v.release()
 				delete(s.sessions, v.record.ID)

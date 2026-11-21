@@ -90,15 +90,16 @@ func RunUpdateCommand(args []string) bool {
 }
 
 type runtimeUpdateOps struct {
-	prepare        func() (staged, target string, err error)
-	stop           func(target string) error
-	commit         func(staged, target string) error
-	start          func(target string) error
-	restore        func(target string) error
-	quiesce        func() error
-	prepareRelated func(string) error
-	backupPaths    func() []string
-	cleanup        func()
+	prepare         func() (staged, target string, err error)
+	stop            func(target string) error
+	commit          func(staged, target string) error
+	start           func(target string) error
+	restore         func(target string) error
+	quiesce         func() error
+	prepareRelated  func(string) error
+	backupPaths     func() []string
+	cleanup         func()
+	preserveStorage func(context.Context) (*databaseSnapshot, error)
 }
 
 // Keep downloads outside the interruption window and restore the old runtime
@@ -129,9 +130,13 @@ func applyRuntimeUpdate(ctx context.Context, tag string, ops runtimeUpdateOps) (
 		return err
 	}
 	rollbackSafe := true
+	var storage *databaseSnapshot
 	defer func() {
 		if rollbackSafe {
 			backup.Close()
+			if storage != nil {
+				storage.close()
+			}
 		}
 	}()
 	commitAttempted := false
@@ -141,10 +146,22 @@ func applyRuntimeUpdate(ctx context.Context, tag string, ops runtimeUpdateOps) (
 				if stopErr := ops.quiesce(); stopErr != nil {
 					rollbackSafe = false
 					err = errors.Join(err, stopErr, fmt.Errorf("previous installation backups retained: %v", backup.Locations()))
+					if storage != nil {
+						err = errors.Join(err, fmt.Errorf("storage backup retained at %s", storage.directory))
+					}
 					return
 				}
 			}
 			if commitAttempted {
+				if storage != nil {
+					recoveryCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+					defer cancel()
+					if restoreErr := storage.restore(recoveryCtx); restoreErr != nil {
+						rollbackSafe = false
+						err = errors.Join(err, restoreErr, fmt.Errorf("storage backup retained at %s", storage.directory))
+						return
+					}
+				}
 				if rollbackErr := backup.Restore(); rollbackErr != nil {
 					rollbackSafe = false
 					err = errors.Join(err, rollbackErr)
@@ -156,6 +173,12 @@ func applyRuntimeUpdate(ctx context.Context, tag string, ops runtimeUpdateOps) (
 	}()
 	if err = ops.stop(target); err != nil {
 		return err
+	}
+	if ops.preserveStorage != nil {
+		storage, err = ops.preserveStorage(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	commitAttempted = true
 	if err = ops.commit(staged, target); err != nil {
@@ -275,7 +298,8 @@ func platformRuntimeUpdateOps(ctx context.Context, tag string, defaults ...serve
 		return fmt.Errorf("daemon did not become ready (expected version %q); inspect with solomon server logs", tag)
 	}
 	return runtimeUpdateOps{
-		prepare: func() (string, string, error) { return updater.PrepareInstall(ctx, tag, os.Stdout) },
+		preserveStorage: preserveStorage,
+		prepare:         func() (string, string, error) { return updater.PrepareInstall(ctx, tag, os.Stdout) },
 		prepareRelated: func(target string) (err error) {
 			preparedDesktop, err = updater.PrepareDesktopUpdate(ctx, tag, target, os.Stdout)
 			return err

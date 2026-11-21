@@ -120,22 +120,8 @@ func WriteSession(projectHex string, s *Session) (err error) {
 			logging.Log(logging.ERROR_LOG_LEVEL, "chatstore write session failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "chat_id": id, "err": err.Error()}})
 		}
 	}()
-	p, err := SessionPath(projectHex, s.ID)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-		return err
-	}
 	s.Capabilities.Backfill(s.Messages)
-	b, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := writeSessionFile(p, b); err != nil {
-		return err
-	}
-	if err := touchProjectStatsAfterWrite(projectHex, s); err != nil {
+	if err := storeChat(projectHex, s, false); err != nil {
 		return err
 	}
 	return nil
@@ -147,34 +133,27 @@ func RenameSessionFile(projectHex, oldID, newID string) (err error) {
 			logging.Log(logging.WARNING_LOG_LEVEL, "chatstore rename session file failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "old_id": oldID, "new_id": newID, "err": err.Error()}})
 		}
 	}()
-	oldPath, err := SessionPath(projectHex, oldID)
+	changed, err := renameStoredChat(projectHex, oldID, newID)
 	if err != nil {
 		return err
 	}
-	newPath, err := SessionPath(projectHex, newID)
-	if err != nil {
-		return err
+	if !changed {
+		if _, err := ReadSession(projectHex, oldID); err != nil {
+			return err
+		}
+		changed, err = renameStoredChat(projectHex, oldID, newID)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			return os.ErrNotExist
+		}
 	}
-	if err := os.Rename(oldPath, newPath); err != nil {
-		return err
-	}
-	_ = TouchProjectStatsAfterRename(projectHex, oldID, newID)
 	return nil
 }
 
 func RemoveSessionPath(projectHex, chatID string) error {
-	p, err := SessionPath(projectHex, chatID)
-	if err != nil {
-		return err
-	}
-	err = os.Remove(p)
-	if err != nil && os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return TouchProjectStatsAfterRemove(projectHex, chatID)
+	return removeStoredChat(projectHex, chatID)
 }
 
 func ReadSession(projectHex, chatIDHex string) (sess *Session, err error) {
@@ -183,26 +162,54 @@ func ReadSession(projectHex, chatIDHex string) (sess *Session, err error) {
 			logging.Log(logging.WARNING_LOG_LEVEL, "chatstore read session failed", logging.LogOptions{Params: map[string]any{"project": projectHex, "chat_id": chatIDHex, "err": err.Error()}})
 		}
 	}()
-	p, err := SessionPath(projectHex, chatIDHex)
+	session, known, err := loadChat(projectHex, chatIDHex)
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(p)
+	if known {
+		if session == nil {
+			return nil, os.ErrNotExist
+		}
+		if FinishSessionLoad(session) {
+			_ = WriteSession(projectHex, session)
+		}
+		return session, nil
+	}
+	path, err := SessionPath(projectHex, chatIDHex)
 	if err != nil {
 		return nil, err
 	}
-	var s Session
-	if err := json.Unmarshal(b, &s); err != nil {
+	session, err = readLegacyChat(path)
+	if err != nil {
 		return nil, err
 	}
-	if FinishSessionLoad(&s) {
-		_ = WriteSession(projectHex, &s)
+	FinishSessionLoad(session)
+	if session.ID == chatIDHex {
+		if err := storeChat(projectHex, session, true); err != nil {
+			logging.Diagnostic("chat conversion deferred", map[string]any{"error": err.Error()})
+		} else if stored, _, err := loadChat(projectHex, chatIDHex); err == nil {
+			if stored == nil {
+				return nil, os.ErrNotExist
+			}
+			return stored, nil
+		}
 	}
-	sess = &s
-	return sess, nil
+	return session, nil
 }
 
 func loadAllSessions(projectHex string) ([]*Session, error) {
+	known, indexed, err := storedChatIndex(projectHex)
+	if err != nil {
+		return nil, err
+	}
+	var out []*Session
+	for _, item := range indexed {
+		session, _, err := loadChat(projectHex, item.ID)
+		if err != nil || session == nil {
+			continue
+		}
+		out = append(out, session)
+	}
 	d, err := ChatsDir(projectHex)
 	if err != nil {
 		return nil, err
@@ -210,17 +217,16 @@ func loadAllSessions(projectHex string) ([]*Session, error) {
 	ents, err := os.ReadDir(d)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return out, nil
 		}
 		return nil, err
 	}
-	var out []*Session
 	for _, e := range ents {
 		if e.IsDir() {
 			continue
 		}
 		name := e.Name()
-		if !strings.HasSuffix(name, ".json") {
+		if !strings.HasSuffix(name, ".json") || known[strings.TrimSuffix(name, ".json")] {
 			continue
 		}
 		fp := filepath.Join(d, name)

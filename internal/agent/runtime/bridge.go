@@ -43,6 +43,16 @@ func (h turnHost) CompactionThreshold() int64                { return h.Runtime.
 func (h turnHost) MutateSession(fn func(*chatstore.Session)) { h.Runtime.mutateSession(fn) }
 func (h turnHost) PersistSessionOrLog(context string)        { h.Runtime.persistSessionOrLog(context) }
 func (h turnHost) PersistSession() error                     { return h.Runtime.persistSession() }
+func (h turnHost) MutateSessionMetadata(fn func(*chatstore.Session)) {
+	h.Runtime.chatPersistMu.Lock()
+	defer h.Runtime.chatPersistMu.Unlock()
+	fn(h.Runtime.Session)
+}
+
+func (h turnHost) SaveMainMessageChange(fn func(*chatstore.Session) int) error {
+	return h.Runtime.saveMainMessageChange(fn)
+}
+
 func (h turnHost) SystemPrompt(disableThinking bool) (string, error) {
 	return h.Runtime.systemPrompt(disableThinking)
 }

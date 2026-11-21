@@ -30,6 +30,8 @@ Usage:
   solomon temp exec [options] <prompt>
   solomon server <command>
   solomon image [options] <file>
+  solomon instructions restore-global
+  solomon storage verify-legacy-projects|verify-legacy-chats
   solomon interface [<n> <on|off>]
 
 Commands:

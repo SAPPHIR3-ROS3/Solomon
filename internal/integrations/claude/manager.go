@@ -11,6 +11,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"io"
 	"net/http"
 	"os"
@@ -104,6 +105,9 @@ func Ensure(ctx context.Context, cwd string) (baseURL, token string, err error) 
 	}
 	configureProcess(cmd)
 	if err := cmd.Start(); err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		return "", "", fmt.Errorf("start Claude sidecar: %w", err)
 	}
 	readyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -111,16 +115,27 @@ func Ensure(ctx context.Context, cwd string) (baseURL, token string, err error) 
 	base, err := readReady(readyCtx, stdout)
 	if err != nil {
 		_ = killProcess(cmd)
+		_ = cmd.Wait()
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		return "", "", err
 	}
 	if err := health(ctx, base, token); err != nil {
 		_ = killProcess(cmd)
+		_ = cmd.Wait()
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		return "", "", err
 	}
 	running = &sidecar{cmd: cmd, stdin: stdin, base: base, token: token, cwd: cwd}
 	go func(cmd *exec.Cmd) {
 		started := time.Now()
 		err := cmd.Wait()
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		logging.ProcessFinished(context.Background(), cmd, "claude.sidecar.wait", started, err)
 		mu.Lock()
 		if running != nil && running.cmd == cmd {
@@ -388,14 +403,10 @@ func newToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-func sidecarLog() (*os.File, error) {
-	home, err := os.UserHomeDir()
+func sidecarLog() (io.WriteCloser, error) {
+	home, err := paths.SolomonHome()
 	if err != nil {
 		return nil, err
 	}
-	dir := filepath.Join(home, ".solomon", "logs")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, err
-	}
-	return os.OpenFile(filepath.Join(dir, "claude-sidecar.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	return logging.OpenProcessLog(home, "claude-sidecar")
 }

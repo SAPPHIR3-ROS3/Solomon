@@ -32,7 +32,7 @@ type processState struct {
 	cwd                      string
 	allowCursorInternalTools bool
 	proxyObservability       bool
-	logFile                  *os.File
+	logFile                  io.WriteCloser
 }
 
 type Manager struct {
@@ -160,16 +160,12 @@ func preferNodeExe(p string) string {
 	return p
 }
 
-func sidecarLogFile() (*os.File, error) {
-	root, err := paths.SolomonHome()
+func sidecarLogFile() (io.WriteCloser, error) {
+	home, err := paths.SolomonHome()
 	if err != nil {
 		return nil, err
 	}
-	logDir := filepath.Join(root, "logs")
-	if err := os.MkdirAll(logDir, 0o700); err != nil {
-		return nil, err
-	}
-	return os.OpenFile(filepath.Join(logDir, "cursor-sidecar.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	return logging.OpenProcessLog(home, "cursor-sidecar")
 }
 
 func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port int) error {
@@ -192,7 +188,7 @@ func startLocked(dir, apiKey, cwd string, allowCursorInternalTools bool, port in
 	}
 	cmd.Env = append(os.Environ(), env...)
 	configureSidecarProcess(cmd)
-	var logFile *os.File
+	var logFile io.WriteCloser
 	if f, err := sidecarLogFile(); err == nil {
 		logFile = f
 		cmd.Stdout = logFile

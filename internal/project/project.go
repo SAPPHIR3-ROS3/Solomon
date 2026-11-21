@@ -47,17 +47,15 @@ func IDHexFromRoot(root string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func LoadMap(homeProjMap string) (m MapFile, err error) {
+func readLegacyMap(homeProjMap string) (m MapFile, err error) {
 	b, err := os.ReadFile(homeProjMap)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return MapFile{}, nil
 		}
-		logging.Log(logging.ERROR_LOG_LEVEL, "project map read failed", logging.LogOptions{Params: map[string]any{"path": homeProjMap, "err": err.Error()}})
 		return nil, err
 	}
 	if err := json.Unmarshal(b, &m); err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "project map unmarshal failed", logging.LogOptions{Params: map[string]any{"path": homeProjMap, "err": err.Error()}})
 		return nil, err
 	}
 	if runtime.GOOS == "windows" && len(m) > 0 {
@@ -68,29 +66,6 @@ func LoadMap(homeProjMap string) (m MapFile, err error) {
 		return out, nil
 	}
 	return m, nil
-}
-
-func SaveMap(homeProjMap string, m MapFile) error {
-	dir := filepath.Dir(homeProjMap)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "project map mkdir failed", logging.LogOptions{Params: map[string]any{"dir": dir, "err": err.Error()}})
-		return err
-	}
-	tmp := homeProjMap + ".tmp"
-	b, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "project map marshal failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-		return err
-	}
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "project map write temp failed", logging.LogOptions{Params: map[string]any{"path": tmp, "err": err.Error()}})
-		return err
-	}
-	if err := os.Rename(tmp, homeProjMap); err != nil {
-		logging.Log(logging.ERROR_LOG_LEVEL, "project map rename failed", logging.LogOptions{Params: map[string]any{"path": homeProjMap, "err": err.Error()}})
-		return err
-	}
-	return nil
 }
 
 func EnsureDirs(projectHex string) error {
@@ -146,8 +121,7 @@ func Resolve(absCwd string) (rootPath string, idHex string, err error) {
 	}
 	idHex = IDHexFromRoot(root)
 	logging.Log(logging.INFO_LOG_LEVEL, "registered new project", logging.LogOptions{Params: map[string]any{"id": idHex, "root": root}})
-	m[root] = idHex
-	if err := SaveMap(mapPath, m); err != nil {
+	if err := registerProject(mapPath, root, idHex); err != nil {
 		return "", "", err
 	}
 	if err := EnsureDirs(idHex); err != nil {

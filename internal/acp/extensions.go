@@ -88,6 +88,9 @@ func (s *Server) save(v *session) error {
 	if s.storage == "" {
 		return nil
 	}
+	if s.storageDB != nil {
+		return s.saveDatabaseRecord(v.record)
+	}
 	data, err := json.Marshal(v.record)
 	if err != nil {
 		return err
@@ -262,7 +265,7 @@ func (s *Server) extended(ctx context.Context, r request, p params) bool {
 				return true
 			}
 			if s.storage != "" {
-				err := os.Remove(filepath.Join(s.storage, v.record.ID+".json"))
+				err := s.eraseStoredRecord(v.record.ID)
 				if err != nil && !os.IsNotExist(err) {
 					s.reply(r.ID, nil, -32603, err.Error())
 					return true

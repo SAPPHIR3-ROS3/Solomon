@@ -277,11 +277,22 @@ export async function fetchProjectSidebarData(_signal?: AbortSignal): Promise<Pr
   return startProjectSidebarRequest();
 }
 
+let sidebarChatLimit = 30;
+
+export async function expandProjectSidebar(chatLimit: number): Promise<ProjectSidebarData> {
+  if (projectSidebarRequest) await projectSidebarRequest;
+  if (chatLimit > sidebarChatLimit) {
+    sidebarChatLimit = Math.min(10000, chatLimit);
+    projectSidebarCacheNeedsRefresh = true;
+  }
+  return fetchProjectSidebarData();
+}
+
 function startProjectSidebarRequest(): Promise<ProjectSidebarData> {
   if (projectSidebarRequest) return projectSidebarRequest;
   const stale = projectSidebarCache;
   projectSidebarRequest = (async () => {
-    const response = await fetch(await serverEndpoint("/__solomon/projects"));
+    const response = await fetch(await serverEndpoint(`/__solomon/projects?chat_limit=${sidebarChatLimit}`));
     if (!response.ok) throw new Error(`Unable to load projects: ${response.status}`);
     const payload: unknown = await response.json();
     return projectSidebarDataFromPayload(payload);
@@ -483,18 +494,6 @@ function readProjectSidebarCache(): ProjectSidebarData | null {
   }
 }
 
-export const PROJECT_FILES_CHANGED_EVENT = "solomon:project-files-changed";
-export type ProjectFileOperation = { action: "rename" | "delete" | "copy" | "move" | "create-file" | "create-folder"; path: string; destination?: string };
-export type ProjectFilesChanged = (ProjectFileOperation | { action: "restore"; path: string; destination?: undefined }) & { projectID: string };
-export async function operateProjectFile(projectID: string, operation: ProjectFileOperation): Promise<void> {
-  const response = await fetch(await serverEndpoint(`/__solomon/projects/${encodeURIComponent(projectID)}/file-operation`), {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(operation),
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(payload?.error ?? "File operation failed");
-  }
-  window.dispatchEvent(new CustomEvent<ProjectFilesChanged>(PROJECT_FILES_CHANGED_EVENT, { detail: { ...operation, projectID } }));
-}
+export { PROJECT_FILES_CHANGED_EVENT, operateProjectFile, type ProjectFileOperation, type ProjectFilesChanged } from "./files";
 export { getCachedProjectSlashCommands, fetchProjectSlashCommands } from "./slash";
 export type { SlashCommandSuggestion } from "./slash";

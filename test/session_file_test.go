@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,10 +11,10 @@ import (
 	"testing"
 )
 
-func TestWriteSessionFileReplacesCompleteSnapshot(t *testing.T) {
+func TestWriteActiveRegistryFileReplacesCompleteSnapshot(t *testing.T) {
 	path := sessionSnapshotPath(t)
 	for _, content := range []string{`{"messages":[]}`, `{"messages":["new"]}`} {
-		if err := writeSubagentSnapshot(path, []byte(content)); err != nil {
+		if err := writeActiveRegistrySnapshot(path, []byte(content)); err != nil {
 			t.Fatal(err)
 		}
 		got, err := os.ReadFile(path)
@@ -27,14 +28,14 @@ func TestWriteSessionFileReplacesCompleteSnapshot(t *testing.T) {
 	}
 }
 
-func TestWriteSessionFileConcurrentWriters(t *testing.T) {
+func TestWriteActiveRegistryFileConcurrentWriters(t *testing.T) {
 	path := sessionSnapshotPath(t)
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			if err := writeSubagentSnapshot(path, []byte(strings.Repeat(string(rune('a'+i)), 65536))); err != nil {
+			if err := writeActiveRegistrySnapshot(path, []byte(strings.Repeat(string(rune('a'+i)), 65536))); err != nil {
 				t.Error(err)
 			}
 		}(i)
@@ -49,7 +50,7 @@ func TestWriteSessionFileConcurrentWriters(t *testing.T) {
 	}
 }
 
-func TestWriteSessionFileRetainsSnapshotOnPublishFailure(t *testing.T) {
+func TestWriteActiveRegistryFileRetainsSnapshotOnPublishFailure(t *testing.T) {
 	path := sessionSnapshotPath(t)
 	if err := os.Mkdir(path, 0700); err != nil {
 		t.Fatal(err)
@@ -58,7 +59,7 @@ func TestWriteSessionFileRetainsSnapshotOnPublishFailure(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(path, "keep"), []byte("original"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	err := writeSubagentSnapshot(path, []byte("unsaved"))
+	err := writeActiveRegistrySnapshot(path, []byte("unsaved"))
 	if err == nil {
 		t.Fatal("expected publication failure")
 	}
@@ -80,7 +81,7 @@ func TestWriteSessionFileRetainsSnapshotOnPublishFailure(t *testing.T) {
 func sessionSnapshotPath(t *testing.T) string {
 	t.Helper()
 	t.Setenv("SOLOMON_HOME", t.TempDir())
-	path, err := chatstore.SubSessionPath("snapshot-test", chatstore.SubOriginParent, "snapshot")
+	path, err := paths.ActiveSubagentsPath()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,14 +90,14 @@ func sessionSnapshotPath(t *testing.T) string {
 	}
 	return path
 }
-func writeSubagentSnapshot(_ string, content []byte) error {
-	return chatstore.WriteSubSession("snapshot-test", &chatstore.SubSession{ID: "snapshot", Origin: chatstore.SubOriginParent, Status: string(content)})
+func writeActiveRegistrySnapshot(_ string, content []byte) error {
+	return chatstore.WriteActiveSubagents(&chatstore.ActiveSubagentsFile{Agents: []chatstore.ActiveSubagentEntry{{ID: "snapshot", Status: string(content)}}})
 }
 func snapshotContent(t *testing.T, data []byte) string {
 	t.Helper()
-	var snapshot chatstore.SubSession
+	var snapshot chatstore.ActiveSubagentsFile
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	return snapshot.Status
+	return snapshot.Agents[0].Status
 }

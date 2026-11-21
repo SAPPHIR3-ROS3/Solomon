@@ -10,9 +10,9 @@ export function removeQueuedMessage(queues: Map<string, ChatMessage[]>, chatID: 
   return true;
 }
 
-export async function deletePersistedMessage(chat: Chat, messageID: string, running: boolean) {
+export async function deletePersistedMessage(chat: Chat, messageID: string) {
   const projectID = chat.projectID!;
-  const latest = await settleChatStop(projectID, chat.id, running);
+  const latest = await settleChatStop(projectID, chat.id);
   let target = messageID;
   if (messageID.startsWith("user-")) {
     const users = chat.messages.filter((message) => message.role === "user");
@@ -24,8 +24,8 @@ export async function deletePersistedMessage(chat: Chat, messageID: string, runn
   return deleteLiveChatMessage(projectID, chat.id, target);
 }
 
-export async function settleChatStop(projectID: string, chatID: string, running = true, includeSubagents = false) {
-  if (!running && !includeSubagents) {
+export async function settleChatStop(projectID: string, chatID: string, includeSubagents = false) {
+  if (!includeSubagents) {
     const latest = await fetchLiveChat(projectID, chatID);
     if (latest.status !== "running") return latest;
   }

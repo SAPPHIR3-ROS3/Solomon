@@ -1,7 +1,9 @@
 package chatstore
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,31 +38,18 @@ func RememberTerminalChat(id, project, chat string) error {
 	if id == "" {
 		return nil
 	}
-	path, err := terminalChatPath(id)
+	if !ValidTerminalID(id) {
+		return fmt.Errorf("invalid terminal session ID")
+	}
+	db, _, err := openChatDatabase()
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	data, err := json.Marshal(terminalChat{Project: project, Chat: chat})
-	if err != nil {
-		return err
-	}
-	file, err := os.CreateTemp(filepath.Dir(path), ".terminal-chat-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(file.Name())
-	_, writeErr := file.Write(data)
-	closeErr := file.Close()
-	if writeErr != nil {
-		return writeErr
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	return os.Rename(file.Name(), path)
+	defer db.Close()
+	_, err = db.Exec(`
+INSERT INTO terminal_chat(terminal_id, project_id, chat_id) VALUES (?, ?, ?)
+ON CONFLICT(terminal_id) DO UPDATE SET project_id = excluded.project_id, chat_id = excluded.chat_id`, id, project, chat)
+	return err
 }
 
 func ReadTerminalChat(id, project string) (*Session, error) {
@@ -71,12 +60,28 @@ func ReadTerminalChat(id, project string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	db, _, err := openChatDatabase()
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	var record terminalChat
-	if err := json.Unmarshal(data, &record); err != nil {
+	err = db.QueryRow("SELECT project_id, chat_id FROM terminal_chat WHERE terminal_id = ?", id).Scan(&record.Project, &record.Chat)
+	if errors.Is(err, sql.ErrNoRows) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(data, &record); err != nil {
+			return nil, err
+		}
+		if _, err := db.Exec("INSERT OR IGNORE INTO terminal_chat(terminal_id, project_id, chat_id) VALUES (?, ?, ?)", id, record.Project, record.Chat); err != nil {
+			return nil, err
+		}
+		if err := db.QueryRow("SELECT project_id, chat_id FROM terminal_chat WHERE terminal_id = ?", id).Scan(&record.Project, &record.Chat); err != nil {
+			return nil, err
+		}
+	} else if err != nil {
 		return nil, err
 	}
 	if record.Project != project || record.Chat == "" {

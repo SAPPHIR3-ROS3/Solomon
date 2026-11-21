@@ -2,6 +2,8 @@ package logging
 
 import (
 	"bufio"
+	"context"
+	"database/sql"
 	f "fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/database"
 )
 
 const RED = "\033[91m"
@@ -33,6 +37,8 @@ var globalWriteConsole = true
 var globalWriteFile = false
 var globalLogDir = ""
 var globalRetentionDays = 7
+var globalLogDB *sql.DB
+var globalLogDay string
 
 var redText = func(text string) string { return RED + text + END }
 var greenText = func(text string) string { return GREEN + text + END }
@@ -60,6 +66,7 @@ var logColor = map[int]func(string) string{
 var logMu sync.Mutex
 
 type Config struct {
+	DatabaseHome string
 	Dir          string
 	WriteConsole bool
 	WriteFile    bool
@@ -148,7 +155,18 @@ func Configure(config Config) error {
 		}
 	}
 
+	var db *sql.DB
+	var databaseErr error
+	if config.WriteFile && config.DatabaseHome != "" {
+		db, databaseErr = database.Open(context.Background(), config.DatabaseHome, database.Logs)
+	}
 	logMu.Lock()
+	storageFailure("open_log_database", databaseErr)
+	if globalLogDB != nil {
+		_ = globalLogDB.Close()
+	}
+	globalLogDB = db
+	globalLogDay = ""
 	globalLogDir = config.Dir
 	globalWriteConsole = config.WriteConsole
 	globalWriteFile = config.WriteFile
@@ -200,9 +218,10 @@ func Log(currentLogLevel int, message string, options ...LogOptions) {
 		return
 	}
 
-	date := time.Now().Format(time.RFC3339)
+	now := time.Now()
+	date := now.Format(time.RFC3339)
 	if logOptions.Diagnostic {
-		date = time.Now().Format(time.RFC3339Nano)
+		date = now.Format(time.RFC3339Nano)
 	}
 	programCounter, filename, line, _ := runtime.Caller(1 + logOptions.CallerSkip)
 	caller := runtime.FuncForPC(programCounter).Name()
@@ -234,7 +253,15 @@ func Log(currentLogLevel int, message string, options ...LogOptions) {
 	}
 
 	if writeFile {
-		storageFailure("write_log", writeFileLog(logDir, fileMessage, retention))
+		if globalLogDB == nil {
+			storageFailure("write_log", writeFileLog(logDir, fileMessage, retention))
+		} else {
+			event := database.LogEvent{Time: now, Source: "application", Level: LevelLabel(currentLogLevel), Message: fileMessage, CorrelationKey: logCorrelation(parameters)}
+			if err := writeDatabaseLog(event, retention); err != nil {
+				storageFailure("write_log", err)
+				f.Fprintln(os.Stderr, fileMessage)
+			}
+		}
 	}
 }
 
@@ -245,7 +272,15 @@ func ReadLast(n int) ([]string, error) {
 
 	logMu.Lock()
 	dir := globalLogDir
+	var recent []string
+	var readErr error
+	if globalLogDB != nil {
+		recent, readErr = readDatabaseLogs(n)
+	}
 	logMu.Unlock()
+	if readErr != nil {
+		return nil, readErr
+	}
 
 	if dir == "" {
 		return []string{}, nil
@@ -255,7 +290,7 @@ func ReadLast(n int) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []string{}, nil
+			return recent, nil
 		}
 		return nil, err
 	}
@@ -271,6 +306,7 @@ func ReadLast(n int) ([]string, error) {
 		return nil, err
 	}
 
+	lines = append(lines, recent...)
 	if len(lines) <= n {
 		return lines, nil
 	}
@@ -348,4 +384,13 @@ func rotate(dir string, retention int) error {
 	}
 
 	return nil
+}
+
+func logCorrelation(params map[string]any) string {
+	for _, name := range []string{"request_id", "tool_call_id", "run_id", "chat_id"} {
+		if value, ok := params[name].(string); ok && value != "" {
+			return value
+		}
+	}
+	return ""
 }

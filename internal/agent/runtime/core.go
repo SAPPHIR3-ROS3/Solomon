@@ -363,6 +363,7 @@ func (r *Runtime) RunPromptOnce(ctx context.Context, line string) error {
 func (r *Runtime) mutateSession(fn func(*chatstore.Session)) {
 	r.chatPersistMu.Lock()
 	defer r.chatPersistMu.Unlock()
+	r.mainMessagesSynced = false
 	fn(r.Session)
 }
 
@@ -382,8 +383,14 @@ func (r *Runtime) writeSessionLocked() error {
 		return nil
 	}
 	if err := chatstore.WriteSession(r.ProjHex, r.Session); err != nil {
+		r.mainMessagesSynced = false
 		return err
 	}
+	r.mainMessagesSynced = true
+	return r.rememberPersistedChat()
+}
+
+func (r *Runtime) rememberPersistedChat() error {
 	if r.RL != nil {
 		return chatstore.RememberTerminalChat(os.Getenv("SOLOMON_TERMINAL_ID"), r.ProjHex, r.Session.ID)
 	}

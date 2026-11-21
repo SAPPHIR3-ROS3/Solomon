@@ -82,7 +82,7 @@ func (a *customizationAPI) handleGlobalAgents(w http.ResponseWriter, r *http.Req
 			return
 		}
 	}
-	content, err := os.ReadFile(p)
+	content, err := paths.ReadGlobalAgents(r.Context(), p)
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, err)
 		return

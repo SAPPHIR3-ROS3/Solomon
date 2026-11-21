@@ -17,8 +17,7 @@ func printTurnUsage(h Host, out io.Writer, system string, messages []chatstore.M
 		line += fmt.Sprintf("\tcontext estimate: %d", contextEstimate)
 	}
 	fmt.Fprintln(out, line)
-	h.MutateSession(func(s *chatstore.Session) {
-		chatstore.ApplyTurnUsageDisplayToLastAssistant(s, ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok, agg.CachedPromptTokens, agg.CacheCreationPromptTokens, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, agg.TurnWallSecs)
+	saveMainMessageChange(h, "flushUsageStats", func(s *chatstore.Session) int {
+		return chatstore.ApplyTurnUsageDisplayToLastAssistant(s, ctxTok, usrTok, ctxEst, reasonTok, respTok, totalTok, agg.CachedPromptTokens, agg.CacheCreationPromptTokens, agg.OutputTPS, agg.TTFTSecs, agg.PromptTPS, agg.TurnWallSecs)
 	})
-	h.PersistSessionOrLog("flushUsageStats")
 }

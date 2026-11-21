@@ -21,7 +21,16 @@ import (
 
 func (a *chatAPI) handleProjects(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		data, err := a.loadProjectSidebarData()
+		limit := 10000
+		if raw := r.URL.Query().Get("chat_limit"); raw != "" {
+			value, err := strconv.Atoi(raw)
+			if err != nil || value < 1 || value > limit {
+				writeAPIError(w, http.StatusBadRequest, errors.New("chat_limit must be between 1 and 10000"))
+				return
+			}
+			limit = value
+		}
+		data, err := a.loadProjectSidebarData(limit)
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, err)
 			return
@@ -44,7 +53,7 @@ func (a *chatAPI) handleProjects(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, err)
 		return
 	}
-	info, err := a.projectInfo(root, id)
+	info, err := a.projectInfo(root, id, 10000)
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, err)
 		return
@@ -232,7 +241,7 @@ func parseStartingAfter(r *http.Request) (int64, error) {
 	return value, nil
 }
 
-func (a *chatAPI) loadProjectSidebarData() (apiProjectSidebar, error) {
+func (a *chatAPI) loadProjectSidebarData(limit int) (apiProjectSidebar, error) {
 	mapPath, err := paths.ProjectsMapPath()
 	if err != nil {
 		return apiProjectSidebar{}, err
@@ -246,7 +255,7 @@ func (a *chatAPI) loadProjectSidebarData() (apiProjectSidebar, error) {
 		if !safeProjectID(id) {
 			continue
 		}
-		info, infoErr := a.projectInfo(root, id)
+		info, infoErr := a.projectInfo(root, id, limit)
 		if infoErr != nil {
 			return apiProjectSidebar{}, infoErr
 		}
@@ -273,8 +282,8 @@ func (a *chatAPI) loadProjectSidebarData() (apiProjectSidebar, error) {
 	return apiProjectSidebar{FastMode: fastMode, Projects: projects, ReasoningEffort: reasoning, UserName: userName}, nil
 }
 
-func (a *chatAPI) projectInfo(root, id string) (apiProject, error) {
-	sessions, err := chatstore.ListSummaries(id, 10000)
+func (a *chatAPI) projectInfo(root, id string, limit int) (apiProject, error) {
+	sessions, err := chatstore.ListSidebarSummaries(id, limit)
 	if err != nil {
 		return apiProject{}, err
 	}
@@ -293,9 +302,10 @@ func (a *chatAPI) projectInfo(root, id string) (apiProject, error) {
 	sort.SliceStable(chats, func(i, j int) bool {
 		return chats[i].LastMessageAt.After(chats[j].LastMessageAt)
 	})
+	count := len(chats)
 	var user, reasoning, response int64
-	if _, u, r, resp, statsErr := chatstore.ProjectWelcomeStats(id); statsErr == nil {
-		user, reasoning, response = u, r, resp
+	if total, u, r, resp, statsErr := chatstore.ProjectWelcomeStats(id); statsErr == nil {
+		count, user, reasoning, response = max(total, count), u, r, resp
 	}
 	name := filepath.Base(filepath.Clean(root))
 	if home, homeErr := os.UserHomeDir(); homeErr == nil && filepath.Clean(root) == filepath.Clean(home) {
@@ -306,7 +316,7 @@ func (a *chatAPI) projectInfo(root, id string) (apiProject, error) {
 		ID:         id,
 		Name:       name,
 		Path:       root,
-		ChatCount:  len(chats),
+		ChatCount:  count,
 		TokenStats: apiTokenStats{User: user, Reasoning: reasoning, Response: response, Total: user + reasoning + response},
 	}, nil
 }

@@ -33,7 +33,7 @@ func Run(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := logging.Configure(logging.Config{Dir: filepath.Join(home, "logs"), WriteFile: true}); err != nil {
+	if err := logging.Configure(logging.Config{DatabaseHome: home, Dir: filepath.Join(home, "logs"), WriteFile: true}); err != nil {
 		return err
 	}
 	switch args[0] {
@@ -259,7 +259,8 @@ func runProcess(mode, devDir string) error {
 	// Server commands bypass main's logging configuration. The notification
 	// journal and historical log reader still need the shared log directory.
 	if err := logging.Configure(logging.Config{
-		Dir: filepath.Join(home, "logs"), WriteConsole: true, WriteFile: true, Retention: 7,
+		DatabaseHome: home,
+		Dir:          filepath.Join(home, "logs"), WriteConsole: true, WriteFile: true, Retention: 7,
 	}); err != nil {
 		return err
 	}

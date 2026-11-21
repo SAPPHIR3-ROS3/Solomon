@@ -140,7 +140,7 @@ func Run(ctx context.Context, h Host) error {
 		reasoningEffort := h.Config().ReasoningEffortDisplayLabel()
 		fastMode := h.Config().FastModeEnabledForProvider(h.Provider())
 		var cacheKey string
-		h.MutateSession(func(s *chatstore.Session) {
+		mutateSessionMetadata(h, func(s *chatstore.Session) {
 			if s != nil {
 				cacheKey = strings.TrimSpace(s.ID)
 			}
@@ -161,7 +161,7 @@ func Run(ctx context.Context, h Host) error {
 		}
 		var astSeq int
 		var branchKey string
-		h.MutateSession(func(s *chatstore.Session) {
+		mutateSessionMetadata(h, func(s *chatstore.Session) {
 			astSeq = checkpoint.Bump(s)
 			branchKey = s.CheckpointBranchSuffix
 		})
@@ -279,12 +279,12 @@ func Run(ctx context.Context, h Host) error {
 		ast.PromptContextEstimate = contextEstimate
 		llm.PopulateAssistantTurnUsage(&ast, sys, msgs, turn.Usage)
 		chatstore.BackfillAssistantUsageFromTextIfEmpty(&ast, msgs)
-		h.MutateSession(func(s *chatstore.Session) {
+		saveMainMessageChange(h, "assistantTurn", func(s *chatstore.Session) int {
 			checkpoint.StampMsg(&ast, s, astSeq)
 			s.Messages = append(s.Messages, ast)
 			s.LastMessageAt = time.Now()
+			return len(s.Messages) - 1
 		})
-		h.PersistSessionOrLog("assistantTurn")
 		invs, toolIDs, rejectNative, malformed := h.ResolveTurnInvocations(turn, legacySW)
 		if rejectNative {
 			h.RecordRejectedToolCalls(turn, turnIdx, "native API tool_calls are disabled because legacy tools force is ON")
@@ -362,7 +362,7 @@ func Run(ctx context.Context, h Host) error {
 			var toolCpSeq int
 			if h.MachineMode() {
 				var toolBranch string
-				h.MutateSession(func(s *chatstore.Session) {
+				mutateSessionMetadata(h, func(s *chatstore.Session) {
 					toolCpSeq = checkpoint.Bump(s)
 					toolBranch = s.CheckpointBranchSuffix
 				})
@@ -395,15 +395,15 @@ func Run(ctx context.Context, h Host) error {
 			}
 		}
 		toolWallSecs := time.Since(toolStartedAt).Seconds()
-		h.MutateSession(func(s *chatstore.Session) {
+		saveMainMessageChange(h, "toolWallTime", func(s *chatstore.Session) int {
 			for i := len(s.Messages) - 1; i >= 0; i-- {
 				if s.Messages[i].Role == "assistant" && s.Messages[i].CheckpointSeq == astSeq {
 					s.Messages[i].ToolWallSecs += toolWallSecs
-					break
+					return i
 				}
 			}
+			return -1
 		})
-		h.PersistSessionOrLog("toolWallTime")
 		if interruptedDuringGeneration(ctx, runCtx, nil, stopErr) {
 			if err := appendSyntheticToolResults(h, astSeq, invs, toolIDs, 0); err != nil {
 				return err
@@ -440,7 +440,7 @@ func Run(ctx context.Context, h Host) error {
 			}
 			if err == nil && chatstore.IsCapabilityTool(inv.Name) {
 				rawPayload := toolingResultJSON(res)
-				h.MutateSession(func(s *chatstore.Session) { s.Capabilities.Capture(inv.Name, rawPayload) })
+				mutateSessionMetadata(h, func(s *chatstore.Session) { s.Capabilities.Capture(inv.Name, rawPayload) })
 			}
 			res, toolImages := images.TakeToolAttachments(res)
 			toolImages = mediaartifact.Capture(res, mediaRoot, toolImages)
@@ -470,12 +470,12 @@ func Run(ctx context.Context, h Host) error {
 			if len(toolImages) > 0 || len(mediaartifact.Find(res, mediaRoot)) > 0 {
 				tm.MediaRoot = mediaRoot
 			}
-			h.MutateSession(func(s *chatstore.Session) {
+			saveMainMessageChange(h, "toolResult", func(s *chatstore.Session) int {
 				checkpoint.StampMsg(&tm, s, toolCpSeq)
 				s.Messages = append(s.Messages, tm)
 				s.LastMessageAt = time.Now()
+				return len(s.Messages) - 1
 			})
-			h.PersistSessionOrLog("toolResult")
 		}
 		if stopAfterToolBatch {
 			flushUsageStats()

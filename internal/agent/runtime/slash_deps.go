@@ -52,6 +52,7 @@ func (r *Runtime) slashDeps(ctx context.Context) commands.Deps {
 			r.releaseReplSessionFileLock()
 			r.chatPersistMu.Lock()
 			r.Session = s
+			r.mainMessagesSynced = false
 			r.sessionFileCreated = s != nil && s.ID != ""
 			r.chatPersistMu.Unlock()
 			if r.RL != nil && (s == nil || s.ID == "") {

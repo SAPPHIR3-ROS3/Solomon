@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/database"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/processidentity"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	serverruntime "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/server"
@@ -279,11 +280,12 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 			}) {
 				return
 			}
-			records, err := filepath.Glob(filepath.Join(appHome, "run", "terminal-chats", "*.json"))
-			if err != nil || len(records) != 1 {
-				t.Fatalf("terminal ID changed across upgrade: %v (%v)", records, err)
+			db := openTestDatabase(t, appHome, database.Data)
+			var terminalID string
+			var count int
+			if err := db.QueryRow("SELECT count(*), min(terminal_id) FROM terminal_chat").Scan(&count, &terminalID); err != nil || count != 1 {
+				t.Fatalf("terminal ID changed across upgrade: %d records (%v)", count, err)
 			}
-			terminalID := strings.TrimSuffix(filepath.Base(records[0]), ".json")
 			restored, err := chatstore.ReadTerminalChat(terminalID, hex)
 			if err != nil || restored.ID != chat.ID {
 				t.Fatalf("wrong active chat: %+v (%v)", restored, err)

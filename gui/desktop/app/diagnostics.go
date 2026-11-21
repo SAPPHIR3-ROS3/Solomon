@@ -14,7 +14,7 @@ func configureDiagnostics() error {
 	if err != nil {
 		return err
 	}
-	if err := logging.Configure(logging.Config{Dir: filepath.Join(home, "logs"), WriteFile: true, Retention: 7}); err != nil {
+	if err := logging.Configure(logging.Config{DatabaseHome: home, Dir: filepath.Join(home, "logs"), WriteFile: true, Retention: 7}); err != nil {
 		return err
 	}
 	if cfg, err := config.LoadOptional(); err == nil && cfg != nil && cfg.LogLevel != "" {

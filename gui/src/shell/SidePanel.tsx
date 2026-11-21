@@ -1,3 +1,4 @@
+import { ShowMoreChats } from "./ShowMoreChats";
 import { RemovalDialog } from "./sidebar/RemovalDialog";
 import { useProjectScroll } from "./sidebar/useProjectScroll";
 import { Actions } from "./sidebar/Actions";
@@ -338,7 +339,7 @@ export function SidePanel({
           const isProjectOpen = openProjectIds.has(project.id);
           const visibleChatCount = visibleChatCounts.get(project.id) ?? INITIAL_CHAT_LIMIT;
           const visibleChats = [...project.chats].sort((left, right) => (Date.parse(right.lastMessageAt) || 0) - (Date.parse(left.lastMessageAt) || 0)).slice(0, visibleChatCount);
-          const remainingChatCount = project.chats.length - visibleChats.length;
+          const remainingChatCount = Math.max(project.chatCount, project.chats.length) - visibleChats.length;
 
           return (
             <section className="side-panel-project" key={project.id} onContextMenu={(event) => handleProjectContextMenu(event, project)}>
@@ -397,18 +398,10 @@ export function SidePanel({
                       title={chat.title}
                     />
                   ))}
-                  {remainingChatCount > 0 ? (
-                    <button
-                      className="side-panel-show-more"
-                      onClick={() => setVisibleChatCounts((chatCounts) => {
-                        const nextChatCounts = new Map(chatCounts);
-                        nextChatCounts.set(project.id, Math.min(project.chats.length, visibleChats.length + INITIAL_CHAT_LIMIT));
-                        return nextChatCounts;
-                      })}
-                      type="button"
-                    >
-                      Show more
-                    </button>
+                  {remainingChatCount > 0 && visibleChats.length < 10000 ? (
+                    <ShowMoreChats project={project} visible={visibleChats.length} step={INITIAL_CHAT_LIMIT}
+                      onProjects={(items) => setProjects(applyProjectChatActivity(items))}
+                      onCount={(count) => setVisibleChatCounts((counts) => new Map(counts).set(project.id, count))} />
                   ) : null}
                 </div>
               ) : null}

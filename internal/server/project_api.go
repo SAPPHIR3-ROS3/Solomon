@@ -335,7 +335,6 @@ func removeRegisteredProject(projectID string, removeData bool) error {
 	for root, id := range projectMap {
 		if strings.EqualFold(id, projectID) {
 			registered = append(registered, root)
-			delete(projectMap, root)
 		}
 	}
 	if len(registered) == 0 {
@@ -376,5 +375,5 @@ func removeRegisteredProject(projectID string, removeData bool) error {
 			return fmt.Errorf("remove project data: %w", err)
 		}
 	}
-	return project.SaveMap(mapPath, projectMap)
+	return project.UnregisterProject(mapPath, projectID, removeData)
 }

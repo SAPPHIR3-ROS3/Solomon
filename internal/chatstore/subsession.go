@@ -140,15 +140,16 @@ func WriteSubSession(projectHex string, s *SubSession) (err error) {
 	if s == nil || s.ID == "" {
 		return nil
 	}
-	p, err := SubSessionPath(projectHex, s.Origin, s.ID)
-	if err != nil {
-		return err
-	}
 	s.Capabilities.Backfill(s.Messages)
-	return writeJSONAtomic(p, s)
+	return storeAgent(projectHex, s, false)
 }
 
 func ReadSubSession(projectHex, origin, id string) (*SubSession, error) {
+	if stored, err := readAgent(projectHex, origin, id); err == nil {
+		return stored, nil
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
 	p, err := SubSessionPath(projectHex, origin, id)
 	if err != nil {
 		return nil, err
@@ -160,6 +161,17 @@ func ReadSubSession(projectHex, origin, id string) (*SubSession, error) {
 	var s SubSession
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil, err
+	}
+	if s.Origin == "" {
+		s.Origin = origin
+	}
+	if s.ProjectHex == "" {
+		s.ProjectHex = projectHex
+	}
+	if s.ID == id {
+		if err := storeAgent(projectHex, &s, true); err != nil {
+			logging.Diagnostic("subagent conversion deferred", map[string]any{"error": err.Error()})
+		}
 	}
 	return &s, nil
 }
@@ -174,19 +186,30 @@ func FindSubSessionByID(projectHex, id string) (*SubSession, error) {
 }
 
 func loadSubSessionsFromDir(dir string, origin string, projectHex string) ([]*SubSession, error) {
-	ents, err := os.ReadDir(dir)
+	ids, err := agentIDs(projectHex, origin)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
 		return nil, err
 	}
 	var out []*SubSession
+	known := make(map[string]bool)
+	for _, id := range ids {
+		known[id] = true
+		if session, err := readAgent(projectHex, origin, id); err == nil {
+			out = append(out, session)
+		}
+	}
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return out, nil
+		}
+		return nil, err
+	}
 	for _, e := range ents {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		if e.Name() == "activeSubagents.json" {
+		if e.Name() == "activeSubagents.json" || known[strings.TrimSuffix(e.Name(), ".json")] {
 			continue
 		}
 		b, err := os.ReadFile(filepath.Join(dir, e.Name()))

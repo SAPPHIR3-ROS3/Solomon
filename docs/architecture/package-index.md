@@ -49,7 +49,8 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/llm/streamio/` | Stream read/write utilities | [LLM layer](llm-layer.md) |
 | `internal/llm/transport/` | HTTP transport, retries, stream integrity | [LLM layer](llm-layer.md) |
 | `internal/tokcount/` | Tiktoken `o200k_base` prompt estimates (messages, tools, vision) | [LLM layer](llm-layer.md) |
-| `internal/chatstore/` | Session JSON read/write, images on disk | [Sessions and storage](sessions-and-storage.md) |
+| `internal/chatstore/` | Chat persistence, legacy session migration, and media references | [Sessions and storage](sessions-and-storage.md) |
+| `internal/database/` | SQLite schemas, connection reuse, event storage, and backups | [Sessions and storage](sessions-and-storage.md) |
 | `internal/project/` | Project hex id, workspace root resolution | [Sessions and storage](sessions-and-storage.md) |
 | `internal/paths/` | `~/.solomon` layout helpers | [Sessions and storage](sessions-and-storage.md) |
 | `internal/config/` | TOML config load/merge | [Configuration](../user-guide/configuration.md) |
@@ -190,6 +191,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/checkpoint/staging/` | Feature |
 | `internal/clipboard/` | Support |
 | `internal/config/` | Core |
+| `internal/database/` | Core |
 | `internal/desktopgit/` | Support |
 | `internal/docs/` | Feature |
 | `internal/filechanges/` | Feature |

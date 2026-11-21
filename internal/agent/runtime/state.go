@@ -44,6 +44,7 @@ type Runtime struct {
 	EphemeralSession bool
 
 	chatPersistMu              sync.Mutex
+	mainMessagesSynced         bool
 	deferredTitleScheduleMu    sync.Mutex
 	deferredTitleWorkerRunning bool
 	sessionFileCreated         bool

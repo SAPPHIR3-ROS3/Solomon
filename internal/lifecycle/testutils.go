@@ -5,16 +5,21 @@ import "context"
 // UpdateOpsForTest lets the repository's top-level tests exercise recovery
 // without touching any running application or external release.
 type UpdateOpsForTest struct {
-	Prepare func() (string, string, error)
-	Stop    func(string) error
-	Commit  func(string, string) error
-	Start   func(string) error
-	Restore func(string) error
-	Quiesce func() error
+	Prepare         func() (string, string, error)
+	Stop            func(string) error
+	Commit          func(string, string) error
+	Start           func(string) error
+	Restore         func(string) error
+	Quiesce         func() error
+	PreserveStorage bool
 }
 
 func ApplyUpdateForTest(ctx context.Context, tag string, ops UpdateOpsForTest) error {
-	return applyRuntimeUpdate(ctx, tag, runtimeUpdateOps{prepare: ops.Prepare, stop: ops.Stop, commit: ops.Commit, start: ops.Start, restore: ops.Restore, quiesce: ops.Quiesce})
+	runtimeOps := runtimeUpdateOps{prepare: ops.Prepare, stop: ops.Stop, commit: ops.Commit, start: ops.Start, restore: ops.Restore, quiesce: ops.Quiesce}
+	if ops.PreserveStorage {
+		runtimeOps.preserveStorage = preserveStorage
+	}
+	return applyRuntimeUpdate(ctx, tag, runtimeOps)
 }
 
 // ApplyReleaseUpdateForTest uses real release preparation and commit, replacing

@@ -16,11 +16,12 @@ import {
 } from "../projectBranches.ts";
 
 import { attachFastModeEndpoint, attachFilesystemDirectoryEntriesEndpoint, attachHomeDirectoryEntriesEndpoint, attachHomeGitEndpoints, attachProjectActionEndpoint, attachProjectsEndpoint, attachReasoningEffortEndpoint, attachUserNameEndpoint } from "./endpoints.ts";
-import { attachChatAPIProxy } from "./proxy.ts";
+import { attachChatAPIProxy, attachStoredProjectsProxy } from "./proxy.ts";
 
 export function projectsPlugin(): Plugin {
   return {
     configurePreviewServer(server) {
+      attachStoredProjectsProxy(server);
       attachProjectActionEndpoint(server);
       attachChatAPIProxy(server);
       attachProjectsEndpoint(server);
@@ -32,6 +33,7 @@ export function projectsPlugin(): Plugin {
       attachFastModeEndpoint(server);
     },
     configureServer(server) {
+      attachStoredProjectsProxy(server);
       attachProjectActionEndpoint(server);
       attachChatAPIProxy(server);
       attachProjectsEndpoint(server);

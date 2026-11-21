@@ -7,6 +7,8 @@ import (
 	"fmt"
 	guibundle "github.com/SAPPHIR3-ROS3/Solomon/v2026/gui"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/commands"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/database"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/memoryprofile"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
@@ -244,6 +246,8 @@ func Run(ctx context.Context, options Options) error {
 
 	serviceCtx, cancelService := context.WithCancel(ctx)
 	defer cancelService()
+	go chatstore.RunChatMigration(serviceCtx)
+	go database.RunArtifactCollection(serviceCtx, home)
 	frontend.ctx = serviceCtx
 	terminalManager := newTerminalManager(serviceCtx.Done())
 	defer terminalManager.CloseAll()

@@ -1,12 +1,14 @@
 package chatstore
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"os"
 	"path/filepath"
-	"sync"
+	"strings"
 
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
 )
 
@@ -21,13 +23,6 @@ type chatUsageTotals struct {
 type projectStatsFile struct {
 	Version int                        `json:"version"`
 	Chats   map[string]chatUsageTotals `json:"chats"`
-}
-
-var projectStatsLocks sync.Map
-
-func projectStatsLock(projectHex string) *sync.Mutex {
-	v, _ := projectStatsLocks.LoadOrStore(projectHex, &sync.Mutex{})
-	return v.(*sync.Mutex)
 }
 
 func projectStatsPath(projectHex string) (string, error) {
@@ -61,19 +56,6 @@ func sessionUsageTotals(s *Session) chatUsageTotals {
 	return out
 }
 
-func (f *projectStatsFile) sums() (chatCount int, userSum, reasonSum, respSum int64) {
-	if f == nil || len(f.Chats) == 0 {
-		return 0, 0, 0, 0
-	}
-	chatCount = len(f.Chats)
-	for _, t := range f.Chats {
-		userSum += t.UserSum
-		reasonSum += t.ReasonSum
-		respSum += t.RespSum
-	}
-	return chatCount, userSum, reasonSum, respSum
-}
-
 func loadProjectStatsFile(projectHex string) (*projectStatsFile, error) {
 	p, err := projectStatsPath(projectHex)
 	if err != nil {
@@ -94,144 +76,139 @@ func loadProjectStatsFile(projectHex string) (*projectStatsFile, error) {
 	return &f, nil
 }
 
-func saveProjectStatsFile(projectHex string, f *projectStatsFile) error {
-	if f == nil {
-		return nil
-	}
-	f.Version = projectStatsVersion
-	if f.Chats == nil {
-		f.Chats = map[string]chatUsageTotals{}
-	}
-	p, err := projectStatsPath(projectHex)
+func ProjectWelcomeStats(projectHex string) (chatCount int, userSum, reasonSum, respSum int64, err error) {
+	db, home, err := openChatDatabase()
 	if err != nil {
-		return err
+		return 0, 0, 0, 0, err
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-		return err
+	defer db.Close()
+	if err := backfillStoredUsage(db.DB, home, projectHex); err != nil {
+		return 0, 0, 0, 0, err
 	}
-	b, err := json.MarshalIndent(f, "", "  ")
+	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return err
+		return 0, 0, 0, 0, err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
+	defer tx.Rollback()
+	err = tx.QueryRow(`
+SELECT COUNT(*), COALESCE(SUM(u.user_tokens), 0), COALESCE(SUM(u.reasoning_tokens), 0),
+       COALESCE(SUM(u.response_tokens), 0)
+FROM chat_session c JOIN chat_usage u ON u.session_id = c.sha256 WHERE c.project_id = ?`,
+		projectHex).Scan(&chatCount, &userSum, &reasonSum, &respSum)
+	if err != nil {
+		return 0, 0, 0, 0, err
 	}
-	return os.Rename(tmp, p)
+	legacy, err := legacyUsage(tx, projectHex)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	for _, entry := range legacy {
+		userSum += entry.UserSum
+		reasonSum += entry.ReasonSum
+		respSum += entry.RespSum
+	}
+	return chatCount + len(legacy), userSum, reasonSum, respSum, nil
 }
 
-func rebuildProjectStatsLocked(projectHex string) error {
-	sessions, err := loadAllSessions(projectHex)
+func backfillStoredUsage(db *sql.DB, home, project string) error {
+	rows, err := db.Query(`
+SELECT c.chat_id, c.sha256 FROM chat_session c LEFT JOIN chat_usage u ON u.session_id = c.sha256
+WHERE c.project_id = ? AND u.session_id IS NULL`, project)
 	if err != nil {
 		return err
 	}
-	f := &projectStatsFile{Version: projectStatsVersion, Chats: map[string]chatUsageTotals{}}
-	for _, s := range sessions {
-		if s == nil || s.ID == "" {
+	defer rows.Close()
+	missing := make(map[string]string)
+	for rows.Next() {
+		var id, key string
+		if err := rows.Scan(&id, &key); err != nil {
+			return err
+		}
+		missing[id] = key
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for id, key := range missing {
+		session, _, err := readStoredChat(db, home, project, id)
+		if err != nil || session == nil {
 			continue
 		}
-		f.Chats[s.ID] = sessionUsageTotals(s)
+		usage := sessionUsageTotals(session)
+		if _, err := db.Exec(`
+INSERT OR IGNORE INTO chat_usage(session_id, user_tokens, reasoning_tokens, response_tokens)
+SELECT sha256, ?, ?, ? FROM chat_session WHERE sha256 = ?`,
+			usage.UserSum, usage.ReasonSum, usage.RespSum, key); err != nil {
+			return err
+		}
 	}
-	return saveProjectStatsFile(projectHex, f)
+	return nil
 }
 
-func RebuildProjectStats(projectHex string) error {
-	mu := projectStatsLock(projectHex)
-	mu.Lock()
-	defer mu.Unlock()
-	return rebuildProjectStatsLocked(projectHex)
-}
-
-func updateProjectStatsLocked(projectHex string, chatID string, totals chatUsageTotals) error {
-	f, err := loadProjectStatsFile(projectHex)
+func legacyUsage(tx *sql.Tx, project string) ([]chatUsageTotals, error) {
+	directory, err := ChatsDir(project)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if f == nil {
-		return rebuildProjectStatsLocked(projectHex)
+	entries, err := os.ReadDir(directory)
+	if os.IsNotExist(err) {
+		return nil, nil
 	}
-	f.Chats[chatID] = totals
-	return saveProjectStatsFile(projectHex, f)
-}
-
-func removeProjectStatsChatLocked(projectHex, chatID string) error {
-	f, err := loadProjectStatsFile(projectHex)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if f == nil || f.Chats == nil {
-		return nil
+	var cache *projectStatsFile
+	var known map[string]bool
+	var totals []chatUsageTotals
+	for _, entry := range entries {
+		id := strings.TrimSuffix(entry.Name(), ".json")
+		if entry.IsDir() || id == entry.Name() {
+			continue
+		}
+		if known == nil {
+			known, err = legacyChatAliases(tx, project)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if known[id] {
+			continue
+		}
+		if cache == nil {
+			cache, _ = loadProjectStatsFile(project)
+			if cache == nil {
+				cache = &projectStatsFile{}
+			}
+		}
+		if usage, ok := cache.Chats[id]; ok {
+			totals = append(totals, usage)
+			continue
+		}
+		session, err := readLegacyChat(filepath.Join(directory, entry.Name()))
+		if err == nil && session.ID != "" {
+			FinishSessionLoad(session)
+			totals = append(totals, sessionUsageTotals(session))
+		}
 	}
-	if _, ok := f.Chats[chatID]; !ok {
-		return nil
-	}
-	delete(f.Chats, chatID)
-	return saveProjectStatsFile(projectHex, f)
+	return totals, nil
 }
 
-func renameProjectStatsChatLocked(projectHex, oldID, newID string) error {
-	if oldID == "" || newID == "" || oldID == newID {
-		return nil
-	}
-	f, err := loadProjectStatsFile(projectHex)
+func legacyChatAliases(tx *sql.Tx, project string) (map[string]bool, error) {
+	rows, err := tx.Query("SELECT chat_id FROM chat_legacy_alias WHERE project_id = ?", project)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if f == nil || f.Chats == nil {
-		return nil
+	defer rows.Close()
+	known := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		known[id] = true
 	}
-	t, ok := f.Chats[oldID]
-	if !ok {
-		return nil
-	}
-	delete(f.Chats, oldID)
-	f.Chats[newID] = t
-	return saveProjectStatsFile(projectHex, f)
-}
-
-func touchProjectStatsAfterWrite(projectHex string, s *Session) error {
-	if s == nil || s.ID == "" {
-		return nil
-	}
-	mu := projectStatsLock(projectHex)
-	mu.Lock()
-	defer mu.Unlock()
-	return updateProjectStatsLocked(projectHex, s.ID, sessionUsageTotals(s))
-}
-
-func TouchProjectStatsAfterRemove(projectHex, chatID string) error {
-	if chatID == "" {
-		return nil
-	}
-	mu := projectStatsLock(projectHex)
-	mu.Lock()
-	defer mu.Unlock()
-	return removeProjectStatsChatLocked(projectHex, chatID)
-}
-
-func TouchProjectStatsAfterRename(projectHex, oldID, newID string) error {
-	mu := projectStatsLock(projectHex)
-	mu.Lock()
-	defer mu.Unlock()
-	return renameProjectStatsChatLocked(projectHex, oldID, newID)
-}
-
-func ProjectWelcomeStats(projectHex string) (chatCount int, userSum, reasonSum, respSum int64, err error) {
-	f, err := loadProjectStatsFile(projectHex)
-	if err != nil {
-		return 0, 0, 0, 0, err
-	}
-	if f != nil {
-		n, u, r, resp := f.sums()
-		return n, u, r, resp, nil
-	}
-	if err := RebuildProjectStats(projectHex); err != nil {
-		return 0, 0, 0, 0, err
-	}
-	f, err = loadProjectStatsFile(projectHex)
-	if err != nil || f == nil {
-		return 0, 0, 0, 0, err
-	}
-	n, u, r, resp := f.sums()
-	return n, u, r, resp, nil
+	return known, rows.Err()
 }

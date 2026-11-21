@@ -70,6 +70,30 @@ func resolveREPLWorkingDir(args []string) (string, error) {
 }
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "storage" {
+		var err error
+		switch {
+		case len(os.Args) == 3 && os.Args[2] == "verify-legacy-projects":
+			err = verifyLegacyRegistry(context.Background(), os.Stdout)
+		case len(os.Args) == 3 && os.Args[2] == "verify-legacy-chats":
+			err = verifyLegacyChats(context.Background(), os.Stdout)
+		default:
+			err = fmt.Errorf("usage: solomon storage verify-legacy-projects|verify-legacy-chats")
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) == 3 && os.Args[1] == "instructions" && os.Args[2] == "restore-global" {
+		if err := paths.RestoreGlobalAgents(context.Background()); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stdout, "Restored global AGENTS.md.")
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "acp" {
 		if err := runACP(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -191,7 +215,8 @@ func main() {
 	}
 	termcolor.Init(termcolor.InitOptions{Out: os.Stdout})
 	if err := logging.Configure(logging.Config{
-		Dir: filepath.Join(lroot, "logs"), WriteConsole: false, WriteFile: true, Retention: 7,
+		DatabaseHome: lroot,
+		Dir:          filepath.Join(lroot, "logs"), WriteConsole: false, WriteFile: true, Retention: 7,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		logging.Log(logging.ERROR_LOG_LEVEL, "configure logging failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})

@@ -97,3 +97,29 @@ test("development API imports external and browser files without overwriting", a
   assert.equal((await operate({ action: "import", path: "large.bin", destination: "large.bin", content: large.toString("base64") })).status, 200);
   assert.deepEqual(await readFile(path.join(workspace, "large.bin")), large);
 });
+
+test("development routes migrated projects through the daemon and preserves range headers", async () => {
+  const { createServer: createHTTPServer } = await import("node:http");
+  const daemon = createHTTPServer((request, response) => {
+    assert.equal(request.url, `/__solomon/projects/${projectID}/file?path=example.txt`);
+    assert.equal(request.headers.range, "bytes=1-2");
+    response.writeHead(206, { "Content-Range": "bytes 1-2/3" });
+    response.end("bc");
+  });
+  await new Promise((resolve) => daemon.listen(0, "127.0.0.1", resolve));
+  const state = path.join(home, "run", "server");
+  await mkdir(state, { recursive: true });
+  await writeFile(path.join(state, "state.json"), JSON.stringify({ url: `http://127.0.0.1:${daemon.address().port}` }));
+  const db = path.join(home, "data.db");
+  await writeFile(db, "");
+  try {
+    const response = await fetch(endpoint.replace("file-operation", "file?path=example.txt"), { headers: { Range: "bytes=1-2" } });
+    assert.equal(response.status, 206);
+    assert.equal(response.headers.get("content-range"), "bytes 1-2/3");
+    assert.equal(await response.text(), "bc");
+  } finally {
+    await rm(db);
+    await rm(state, { recursive: true });
+    await new Promise((resolve) => daemon.close(resolve));
+  }
+});

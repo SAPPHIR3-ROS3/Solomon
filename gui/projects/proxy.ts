@@ -41,6 +41,19 @@ export function attachChatAPIProxy(server: { middlewares: { use: (route: string,
   });
 }
 
+export function attachStoredProjectsProxy(server: { middlewares: { use: (route: string, handler: (request: UserNameRequest, response: UserNameResponse, next: () => void) => void) => void } }) {
+  server.middlewares.use(chatAPIPath, (request, response, next) => {
+    const suffix = request.url ?? "/";
+    void stat(path.join(solomonHome(), "data.db")).then(
+      () => proxyChatAPIRequest(request, response, `${chatAPIPath}${suffix === "/" ? "" : suffix.replace(/^\/\?/, "?")}`),
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") next();
+        else respondWithJson(response, 500, { error: "Unable to check Solomon project storage" });
+      },
+    ).catch((error: unknown) => respondWithJson(response, 502, { error: error instanceof Error ? error.message : "Solomon daemon is unavailable" }));
+  });
+}
+
 export async function proxyChatAPIRequest(request: UserNameRequest, response: UserNameResponse, targetPath: string): Promise<void> {
   if (requestHeader(request, chatProxyHeader) === "1") {
     respondWithJson(response, 502, { error: "Solomon daemon chat API is unavailable; restart the daemon" });
@@ -57,8 +70,10 @@ export async function proxyChatAPIRequest(request: UserNameRequest, response: Us
   const headers: Record<string, string> = {};
   const contentType = requestHeader(request, "content-type");
   const accept = requestHeader(request, "accept");
+  const range = requestHeader(request, "range");
   if (contentType) headers["content-type"] = contentType;
   if (accept) headers.accept = accept;
+  if (range) headers.range = range;
   headers[chatProxyHeader] = "1";
 
   let upstream: Response;

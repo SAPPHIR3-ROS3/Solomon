@@ -24,20 +24,44 @@ var summaries = struct {
 }{entries: map[string]summaryEntry{}}
 
 func ListSummaries(projectHex string, limit int) ([]*Session, error) {
+	known, result, err := storedChatIndex(projectHex)
+	if err != nil {
+		return nil, err
+	}
+	legacy, err := legacySummaries(projectHex, func() (map[string]bool, error) { return known, nil })
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, legacy...)
+	sort.Slice(result, func(i, j int) bool { return SessionActivityTime(result[i]).After(SessionActivityTime(result[j])) })
+	if limit >= 0 && len(result) > limit {
+		result = result[:limit]
+	}
+	return result, nil
+}
+
+func legacySummaries(projectHex string, loadKnown func() (map[string]bool, error)) ([]*Session, error) {
 	directory, err := ChatsDir(projectHex)
 	if err != nil {
 		return nil, err
 	}
 	entries, err := os.ReadDir(directory)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 	var result []*Session
+	var known map[string]bool
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		if known == nil {
+			known, err = loadKnown()
+			if err != nil {
+				return nil, err
+			}
+		}
+		if known[strings.TrimSuffix(entry.Name(), ".json")] {
 			continue
 		}
 		name := filepath.Join(directory, entry.Name())
@@ -68,10 +92,6 @@ func ListSummaries(projectHex string, limit int) ([]*Session, error) {
 		}
 		session := cached.session
 		result = append(result, &session)
-	}
-	sort.Slice(result, func(i, j int) bool { return SessionActivityTime(result[i]).After(SessionActivityTime(result[j])) })
-	if limit >= 0 && len(result) > limit {
-		result = result[:limit]
 	}
 	return result, nil
 }

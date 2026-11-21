@@ -109,18 +109,46 @@ func HotInstallWithProgress(ctx context.Context, target, defaultDevDir string, i
 }
 
 func hotInstall(target string, install func() error, ops runtimeUpdateOps) (err error) {
+	var storage *databaseSnapshot
+	cleanStorage := true
+	defer func() {
+		if storage != nil && cleanStorage {
+			storage.close()
+		}
+	}()
 	// A partial stop or failed installation must not silently leave clients down.
 	defer func() {
 		if err != nil {
 			if stopErr := ops.quiesce(); stopErr != nil {
+				cleanStorage = false
 				err = errors.Join(err, stopErr)
+				if storage != nil {
+					err = errors.Join(err, fmt.Errorf("storage backup retained at %s", storage.directory))
+				}
 				return
+			}
+			if storage != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				defer cancel()
+				if restoreErr := storage.restore(ctx); restoreErr != nil {
+					cleanStorage = false
+					err = errors.Join(err, restoreErr, fmt.Errorf("storage backup retained at %s", storage.directory))
+					return
+				}
 			}
 			err = errors.Join(err, ops.restore(target))
 		}
 	}()
 	if err = ops.stop(target); err != nil {
 		return err
+	}
+	if ops.preserveStorage != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		storage, err = ops.preserveStorage(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	if err = install(); err != nil {
 		return err

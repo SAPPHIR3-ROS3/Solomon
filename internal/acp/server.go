@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -50,6 +51,8 @@ type Server struct {
 	initialized bool
 	workers     sync.WaitGroup
 	storage     string
+	storageDB   *sql.DB
+	storageHome string
 	stop        context.CancelFunc
 	outputErr   error
 	version     string

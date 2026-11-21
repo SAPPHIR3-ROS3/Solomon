@@ -307,7 +307,6 @@ export function useChatRuntime(): ChatRuntime {
     if (removeQueuedMessage(messageQueues.current, chatID, messageID)) { publishMessageQueues(); return; }
     deletingMessages.current.add(chatID);
     stopRequested.current.add(chatID);
-    const running = streams.current.has(chatID) || chat.status === "running";
     streams.current.get(chatID)?.abort();
     streams.current.delete(chatID);
     markStreaming(chatID, false);
@@ -315,7 +314,7 @@ export function useChatRuntime(): ChatRuntime {
     if (timer !== undefined) window.clearTimeout(timer);
     streamRetryTimers.current.delete(chatID);
     try {
-      const latest = await deletePersistedMessage(chat, messageID, running);
+      const latest = await deletePersistedMessage(chat, messageID);
       forgetChatStreamCursor(chat.projectID, chatID);
       saveChat({ ...latest, workspaceName: chat.workspaceName, workspacePath: chat.workspacePath, branch: chat.branch, worktree: chat.worktree });
       setError("");
@@ -394,7 +393,7 @@ export function useChatRuntime(): ChatRuntime {
     streams.current.delete(chatID);
     markStreaming(chatID, false);
     updateChat(chatID, (current) => ({ ...current, status: "interrupted" }));
-    void settleChatStop(chat.projectID, chatID, true, true).then((latest) => {
+    void settleChatStop(chat.projectID, chatID, true).then((latest) => {
       updateChat(chatID, (current) => ({ ...current, ...latest }));
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to stop chat")).finally(() => { stopRequested.current.delete(chatID); updateChat(chatID, (current) => ({ ...current })); publishMessageQueues(); });
   }, [markStreaming, publishMessageQueues]);

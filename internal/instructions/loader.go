@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -91,10 +92,12 @@ func (l *Loader) LoadGlobal() (path, content string, ok bool) {
 	if err != nil {
 		return "", "", false
 	}
-	if c, ok := l.readCached(p); ok {
-		return p, c, true
+	raw, err := paths.ReadGlobalAgents(context.Background(), p)
+	if err != nil {
+		return "", "", false
 	}
-	return "", "", false
+	value, _ := truncateContent(string(raw), l.maxBytes())
+	return p, value, true
 }
 
 func (l *Loader) LoadRepoRoot(projRoot string) (path, content string, ok bool) {
