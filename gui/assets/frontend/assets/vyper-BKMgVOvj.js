@@ -1,0 +1,1 @@
+import{n as e,t}from"./vendor~vyper-BeptjCIR.js";t();export{e as default};

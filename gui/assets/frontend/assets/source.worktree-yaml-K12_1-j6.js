@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-sJBDdmOt.js";var t;function n(){return(n=e((()=>{t=`{"scopeName":"source.worktree-yaml","patterns":[{"include":"source.yaml"}],"name":"cursor:source.worktree-yaml"}`})))()}n();export{t as default};

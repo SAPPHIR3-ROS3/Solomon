@@ -1,0 +1,8 @@
+import{n as e}from"./rolldown-runtime-sJBDdmOt.js";import{n as t,r as n}from"./chunk-Y2CYZVJY-BLgfQGNL.js";import{r}from"./d3-selection-DaGbIZS0.js";import{A as i}from"./vendor~mermaid.core~xychartDiagram-GGNKY7IX~wardleyDiagram-S7YFUSEH~vennDiagram-NNMJR3RB~us~lbx8u1kv-s4HEorWx.js";import{a}from"./vendor~mermaid.core~usecaseDiagram-AFA6YXN4~swimlanesDiagram-OMPLPG4O~stateDiagram-v2-FJ4FJ~les9pk6u-C2Mcr33S.js";import{n as o}from"./chunk-R3KSYZAL-C9S2UyVD.js";import{f as s}from"./vendor~mermaid.core~xychartDiagram-GGNKY7IX~wardleyDiagram-S7YFUSEH~vennDiagram-NNMJR3RB~us~f43z61as-I1GRCphu.js";import{i as c}from"./vendor~mermaid.core~xychartDiagram-GGNKY7IX~usecaseDiagram-AFA6YXN4~swimlanesDiagram-OMPLPG~g776blst-D_BLOb9W.js";import{n as l}from"./chunk-X4PVCEUW-BYRofSsy.js";import{r as u}from"./vendor~mermaid.core~usecaseDiagram-AFA6YXN4~swimlanesDiagram-OMPLPG4O~stateDiagram-v2-FJ4FJ~cynu58gg-D09LDsyt.js";import{r as d}from"./chunk-LEVMRMFU-CMIX_cPf.js";import{l as f}from"./chunk-HFQBQIA3-CbpkeRib.js";import{t as p}from"./chunk-TU62E6Q5-CTg_32Vz.js";import{r as m}from"./chunk-M57EVK23-BmPdc11H.js";import{n as h}from"./chunk-CFHHFPVC-Cv2rvvRq.js";import{n as g}from"./vendor~mermaid.core~swimlanesDiagram-OMPLPG4O~sequenceDiagram-5NDRBG5M~kanban-definition-BZ~lkrp9wxh-BKgt0ihr.js";import{i as _,r as v,t as y}from"./vendor~swimlanesDiagram-OMPLPG4O~flowDiagram-MALGAFMO-CR9XOmD_.js";var b;function x(){return(x=e((()=>{v(),p(),g(),h(),f(),m(),a(),d(),u(),l(),c(),o(),s(),i(),r(),n(),b=y({styles:t(e=>`${_(e)}
+  .swimlane.cluster:not([data-color-id]) rect {
+    stroke: ${e.clusterBorder} !important;
+  }
+  [data-look="neo"].cluster rect {
+    filter: none;
+  }
+`,`getStyles`)})})))()}x();export{b as diagram};
