@@ -15,7 +15,7 @@ import (
 )
 
 func TestSettingsValidatedPersistence(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	logging.LogInit(logging.INFO_LOG_LEVEL)
 	if err := logging.Configure(logging.Config{Dir: t.TempDir(), WriteFile: true}); err != nil {
 		t.Fatal(err)

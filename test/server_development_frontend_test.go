@@ -18,7 +18,7 @@ import (
 )
 
 func TestExportGUISourcesPreservesCustomization(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	directory, err := serverruntime.ExportGUISourcesForTest()
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +46,7 @@ func TestDevelopmentSwitchKeepsDaemonAndRequestsAlive(t *testing.T) {
 		t.Skip("node required")
 	}
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte("user_name='Fixture'\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestDevelopmentRealExportedGUI(t *testing.T) {
 	if os.Getenv("SOLOMON_TEST_REAL_GUI") != "1" {
 		t.Skip("opt-in npm installation and actual Vite startup")
 	}
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	directory, err := serverruntime.ExportGUISourcesForTest()
 	if err != nil {
 		t.Fatal(err)
@@ -211,7 +211,7 @@ func TestDevelopmentRealExportedGUI(t *testing.T) {
 }
 
 func TestDevelopmentDependencyFailurePreservesInterface(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	t.Setenv("PATH", t.TempDir())
 	directory, err := serverruntime.ExportGUISourcesForTest()
 	if err != nil {

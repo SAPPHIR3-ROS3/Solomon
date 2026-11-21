@@ -161,7 +161,7 @@ func TestListSubAgentsWithoutTable(t *testing.T) {
 
 func TestConfigRolesValidationRejectsMissingProvider(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	writeTestConfig(t, home, `
 [providers.p]
 base_url = "http://127.0.0.1:9"
@@ -187,7 +187,7 @@ description = "broken"
 func TestConfigRolesValidationAcceptsValidEntry(t *testing.T) {
 	withMockRolesModelLister(t)
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	writeTestConfig(t, home, `
 [providers.p]
 base_url = "http://127.0.0.1:9"

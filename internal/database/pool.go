@@ -28,6 +28,26 @@ var dataPool struct {
 	current *poolEntry
 }
 
+func ReleaseDataPool(home string) error {
+	home, err := filepath.Abs(home)
+	if err != nil {
+		return err
+	}
+	dataPool.Lock()
+	defer dataPool.Unlock()
+	entry := dataPool.current
+	if entry == nil || entry.home != home {
+		return nil
+	}
+	dataPool.current = nil
+	entry.retired = true
+	if entry.holders == 0 {
+		return entry.db.Close()
+	}
+	entry.db.SetMaxIdleConns(0)
+	return nil
+}
+
 func BorrowData(ctx context.Context, home string) (*Lease, error) {
 	home, err := filepath.Abs(home)
 	if err != nil {

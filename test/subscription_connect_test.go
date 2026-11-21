@@ -23,7 +23,7 @@ func TestSubscriptionConnectKeepsCredentialsWhenCatalogFails(t *testing.T) {
 			if name == config.ProviderNameChatGPTSub {
 				requireCodexCallbackPort(t)
 			}
-			t.Setenv("SOLOMON_HOME", t.TempDir())
+			setSolomonHome(t, t.TempDir())
 			root := config.EmptyRoot()
 			config.AppendOrUpdateProvider(root, config.Provider{Name: "Existing", BaseURL: "https://example.com/v1/", APIKey: "existing-key"})
 			root.Current = config.Current{Provider: "Existing", Model: "existing-model"}

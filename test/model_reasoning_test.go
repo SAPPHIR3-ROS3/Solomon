@@ -6,7 +6,7 @@ import (
 )
 
 func TestModelReasoningUpdatesPreserveOtherModelAndFastMode(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	root.Providers = map[string]*config.Provider{"test": {Name: "test"}}
 	root.Current = config.Current{Provider: "test", Model: "alpha"}

@@ -59,7 +59,7 @@ func runReadChat(t *testing.T, mode string, args map[string]any) (map[string]jso
 
 func TestReadChatFlagsAndCrossProject(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	p := savedReadChat(t, home, "other-project", "", readChatFixture)
 	projectRoot := filepath.Join(home, "other", "workspace")
 	projectIDs, err := json.Marshal(map[string]string{projectRoot: "other-project"})
@@ -151,7 +151,7 @@ func TestReadChatFlagsAndCrossProject(t *testing.T) {
 
 func TestReadChatDefaultsAndSubchat(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	savedReadChat(t, home, "unregistered-project", "subchats", readChatFixture)
 	result, err := runReadChat(t, "chat", map[string]any{"chatId": "reference-chat"})
 	if err != nil {
@@ -171,7 +171,7 @@ func TestReadChatDefaultsAndSubchat(t *testing.T) {
 
 func TestReadChatLegacyTools(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	data := `{"id":"reference-chat","messages":[{"role":"assistant","content":"Before <tool_calls><tool name=\"shell\"><intent>Inspect</intent><args>{\"command\":\"pwd\"}</args></tool></tool_calls> After"},{"role":"user","content":"tool_result(legacy output)"}]}`
 	savedReadChat(t, home, "project", "", data)
 	for _, include := range []bool{false, true} {
@@ -209,7 +209,7 @@ func TestReadChatErrors(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("SOLOMON_HOME", home)
+			setSolomonHome(t, home)
 			switch tc.setup {
 			case "valid":
 				savedReadChat(t, home, "project", "", readChatFixture)
@@ -231,7 +231,7 @@ func TestReadChatErrors(t *testing.T) {
 
 func TestReadChatCancellation(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	savedReadChat(t, home, "project", "", readChatFixture)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -282,7 +282,7 @@ func TestReadChatExposure(t *testing.T) {
 
 func TestReadChatSDKRoundTrip(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	savedReadChat(t, home, "project", "", readChatFixture)
 	source := `package main
  import("fmt";"sdk")

@@ -13,7 +13,7 @@ import (
 func TestClaudeCodeVersion_FallbackWithoutCache(t *testing.T) {
 	claude.ResetVersionCacheForTest()
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if got := claude.Version(); got != claude.FallbackVersion {
 		t.Fatalf("version: got %q want fallback %q", got, claude.FallbackVersion)
 	}
@@ -22,7 +22,7 @@ func TestClaudeCodeVersion_FallbackWithoutCache(t *testing.T) {
 func TestClaudeCodeVersion_UsesFreshCache(t *testing.T) {
 	claude.ResetVersionCacheForTest()
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	cachePath := filepath.Join(home, "cache", "claude-code-version.json")
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0o700); err != nil {
 		t.Fatal(err)
@@ -45,7 +45,7 @@ func TestClaudeCodeVersion_UsesFreshCache(t *testing.T) {
 func TestClaudeCodeVersion_StaleCacheFallsBackWithoutNetwork(t *testing.T) {
 	claude.ResetVersionCacheForTest()
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	cachePath := filepath.Join(home, "cache", "claude-code-version.json")
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0o700); err != nil {
 		t.Fatal(err)

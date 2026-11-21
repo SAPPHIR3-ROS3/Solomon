@@ -15,7 +15,7 @@ import (
 
 func TestWelcomeBannerCustomLogoFitsTerminal(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	for _, dir := range []string{"ascii", "colors"} {
 		if err := os.MkdirAll(filepath.Join(home, "banner", dir), 0700); err != nil {
 			t.Fatal(err)

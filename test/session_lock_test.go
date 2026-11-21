@@ -8,7 +8,7 @@ import (
 )
 
 func TestSessionFileLockConflict(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	projHex := "0000000000000000000000000000000000000000000000000000000000000000"
 	chatID := "chat-lock-test"
 	sess := &chatstore.Session{ID: chatID}
@@ -30,7 +30,7 @@ func TestSessionFileLockConflict(t *testing.T) {
 }
 
 func TestSessionFileLockPlaceholderSkipped(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	projHex := "0000000000000000000000000000000000000000000000000000000000000000"
 	lock, err := chatstore.TryAcquireSessionFileLock(projHex, chatstore.NewPlaceholderChatID(time.Now()))
 	if err != nil {

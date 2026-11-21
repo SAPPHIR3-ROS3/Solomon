@@ -14,7 +14,7 @@ import (
 
 func TestSettingsReloadAvailabilityAndFailure(t *testing.T) {
 	logging.LogInit(logging.INFO_LOG_LEVEL)
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	cfg := config.EmptyRoot()
 	cfg.ResponseLanguage = "English"
 	if err := config.Save(cfg); err != nil {

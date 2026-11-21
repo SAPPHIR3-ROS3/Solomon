@@ -10,7 +10,7 @@ import (
 )
 
 func TestSessionSummariesSkipPayloadAndRefreshCache(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	project := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	path, err := chatstore.SessionPath(project, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 	if err != nil {
@@ -44,7 +44,7 @@ func TestSessionSummariesSkipPayloadAndRefreshCache(t *testing.T) {
 }
 
 func TestSessionSummaryCacheDetectsAtomicReplacement(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	project := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	path, err := chatstore.SessionPath(project, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 	if err != nil {

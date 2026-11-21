@@ -13,7 +13,7 @@ import (
 )
 
 func TestSlashActivateDeactivateRulesAndSkills(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	var output bytes.Buffer
 	deps := testDeps(nil)
 	deps.Out = &output

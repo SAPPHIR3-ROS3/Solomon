@@ -37,7 +37,7 @@ func (b *blockedResearchBackend) CompleteText(ctx context.Context, req llm.Simpl
 
 func TestResearchWebAdaptersSurviveParentRuntimeClose(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	var searches, fetches atomic.Int32
 	mcp := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "research", Version: "1"}, nil)
 	addSurfaceMCPTool(mcp, search.ExaSearchToolName, `{"results":[{"title":"Evidence","url":"https://example.com/research","highlights":["Useful research evidence"]}]}`, &searches)

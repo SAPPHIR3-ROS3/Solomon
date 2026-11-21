@@ -78,7 +78,7 @@ func TestFormatToolDisplayLines_subagentAsyncModeOmittedFromHeader(t *testing.T)
 func TestResolveSysPromptPath_defaultsToSolomonTemplates(t *testing.T) {
 	home := t.TempDir()
 	proj := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestResolveSysPromptPath_defaultsToSolomonTemplates(t *testing.T) {
 func TestResolveSysPromptPath_projectFileFallback(t *testing.T) {
 	home := t.TempDir()
 	proj := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestResolveSysPromptPath_projectFileFallback(t *testing.T) {
 func TestResolveSysPromptPath_bareTemplateName(t *testing.T) {
 	home := t.TempDir()
 	proj := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}

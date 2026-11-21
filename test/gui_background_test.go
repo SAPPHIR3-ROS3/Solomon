@@ -10,7 +10,7 @@ import (
 
 func TestGUIBackgroundPersistsAcrossOtherPreferences(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	path := filepath.Join(home, "config.toml")
 	if err := os.WriteFile(path, []byte("user_name = 'Fixture'\n[gui.background]\nfuture = 'preserve'\n"), 0600); err != nil {
 		t.Fatal(err)

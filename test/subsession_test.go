@@ -26,7 +26,7 @@ func TestSubchatIDUniqueWithSpawnTime(t *testing.T) {
 
 func TestSubSessionWriteReadParent(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	projHex := "abc123"
 	if err := os.MkdirAll(filepath.Join(home, "projects", projHex, "chats", "subchats"), 0o700); err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestSubSessionWriteReadParent(t *testing.T) {
 
 func TestActiveSubagentsRoundTrip(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := paths.EnsureSubagentsDir(); err != nil {
 		t.Fatal(err)
 	}

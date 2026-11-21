@@ -42,7 +42,7 @@ func TestServerLifecycleIntegration(t *testing.T) {
 	for _, variant := range variants {
 		t.Run(variant, func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("SOLOMON_HOME", filepath.Join(home, "home"))
+			setSolomonHome(t, filepath.Join(home, "home"))
 			t.Setenv("SOLOMON_SERVER_PORT", strconv.Itoa(freeServerPortForTest(t)))
 			gui := filepath.Join(home, "gui")
 			entry := filepath.Join(gui, "node_modules", "vite", "bin", "vite.js")

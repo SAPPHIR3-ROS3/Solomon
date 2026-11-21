@@ -14,7 +14,7 @@ import (
 
 func TestGlobalAgentsCreateEditAndClear(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "solomon")
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	a := serverruntime.GlobalAgentsHandlerForTest()
 	for _, step := range []struct {
 		method, body, content string
@@ -51,7 +51,7 @@ func TestGlobalAgentsCreateEditAndClear(t *testing.T) {
 
 func TestGlobalAgentsRejectInvalidUpdate(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	path := filepath.Join(home, "AGENTS.md")
 	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
 		t.Fatal(err)

@@ -71,7 +71,7 @@ func (b *turnScriptBackend) ListModels(ctx context.Context) ([]string, error) {
 
 func newTurnLoopRuntime(t *testing.T, backend llm.CompletionBackend, sess *chatstore.Session, tune func(*agentruntime.Runtime)) *agentruntime.Runtime {
 	t.Helper()
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	projRoot := t.TempDir()
 	prov := &config.Provider{Name: "test", BaseURL: "http://127.0.0.1:9", APIKey: "k", AuthKind: config.AuthKindAPIKey}
 	cfg := &config.Root{

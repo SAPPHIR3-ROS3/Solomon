@@ -14,7 +14,7 @@ import (
 func TestInstructionsPromptSectionsConditional(t *testing.T) {
 	root := t.TempDir()
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := os.WriteFile(filepath.Join(home, "AGENTS.md"), []byte("global agents"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestInstructionsPromptSectionsConditional(t *testing.T) {
 }
 
 func TestImagesWorkflowSection_inPrompts(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	section := prompt.ImagesWorkflowSection()
 	if section == "" {
 		t.Fatal("empty images workflow section")

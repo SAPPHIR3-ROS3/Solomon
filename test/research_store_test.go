@@ -10,7 +10,7 @@ import (
 
 func TestResearchPaths(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	hex := "93619f1ceceeb7a95e04d2d628313536bbde0774ac260359b480be61e04b58d2"
 	projRoot := filepath.Join(home, "projects", hex)
 	if err := os.MkdirAll(projRoot, 0o700); err != nil {
@@ -34,7 +34,7 @@ func TestResearchPaths(t *testing.T) {
 
 func TestDeleteResearchJob(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	hex := "93619f1ceceeb7a95e04d2d628313536bbde0774ac260359b480be61e04b58d2"
 	projRoot := filepath.Join(home, "projects", hex)
 	if err := os.MkdirAll(projRoot, 0o700); err != nil {

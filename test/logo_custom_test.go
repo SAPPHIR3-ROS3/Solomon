@@ -17,7 +17,7 @@ func TestWelcomeLogoOverride(t *testing.T) {
 	termcolor.Init(termcolor.InitOptions{Out: &output, ForceColor: true})
 	t.Cleanup(func() { termcolor.Init(termcolor.InitOptions{Out: &output, NoColor: true}) })
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	wantDefault := logo.WelcomeLogoLines()
 	if got := logo.WelcomeLogoLines(); !reflect.DeepEqual(got, wantDefault) {
 		t.Fatal("missing override should use embedded crown")

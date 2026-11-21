@@ -14,7 +14,7 @@ import (
 )
 
 func TestCleanupProjectTempRemovesDirectory(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	dir, err := chatstore.TempDir(testProjectHex)
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func TestCleanupProjectTempRemovesDirectory(t *testing.T) {
 }
 
 func TestRuntimeCloseCleansToolTempWhenLastInstance(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	t.Cleanup(func() { _ = tooloutput.CleanupProjectTemp(testProjectHex) })
 	dir, err := chatstore.TempDir(testProjectHex)
 	if err != nil {
@@ -62,7 +62,7 @@ func TestRuntimeCloseCleansToolTempWhenLastInstance(t *testing.T) {
 }
 
 func TestCloseProjectTempDefersWhenOthersActive(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	t.Cleanup(func() {
 		_ = tooloutput.CleanupProjectTemp(testProjectHex)
 		home, _ := paths.SolomonHome()
@@ -98,7 +98,7 @@ func TestCloseProjectTempDefersWhenOthersActive(t *testing.T) {
 }
 
 func TestCloseProjectTempFlushesDeferredOnLastInstance(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	otherHex := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	t.Cleanup(func() {
 		_ = tooloutput.CleanupProjectTemp(testProjectHex)

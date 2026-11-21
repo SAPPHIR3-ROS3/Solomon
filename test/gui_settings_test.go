@@ -29,7 +29,7 @@ func guiConfigDocument(t *testing.T, path string) map[string]any {
 
 func TestGUISettingsPersistSectionsAndPreserveBackendConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	path := filepath.Join(home, "config.toml")
 	// An invalid runtime role configuration must not block presentation settings.
 	source := "user_name = 'Fixture'\n[providers.OpenAI]\napi_key = 'fixture-secret'\n[roles.table]\ncharacteristics = ['speed']\n[[roles.subagent]]\nprovider = 'OpenAI'\nmodel = 'unknown'\n[unknown]\nkeep = ['a', 'b']\n[gui.chat]\nfuture_preference = 'preserve me'\n"
@@ -78,7 +78,7 @@ func TestGUISettingsMigrateModelPreferencesIntoConfig(t *testing.T) {
 	for _, legacy := range []bool{false, true} {
 		t.Run(map[bool]string{false: "named-provider", true: "legacy-provider"}[legacy], func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("SOLOMON_HOME", home)
+			setSolomonHome(t, home)
 			source := "[providers.OpenAI]\napi_key = 'fixture'\n[hidden_models]\nOpenAI = ['old-root']\n"
 			if legacy {
 				source = "[[providers]]\nname = 'OpenAI'\napi_key = 'fixture'\n[hidden_models]\nOpenAI = ['old-root']\n"
@@ -123,7 +123,7 @@ func TestGUISettingsMigrateModelPreferencesIntoConfig(t *testing.T) {
 }
 
 func TestGUISettingsConcurrentUpdatesAndStaleSaves(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	root.Providers = map[string]*config.Provider{"OpenAI": {Name: "OpenAI"}}
 	if err := config.Save(root); err != nil {
@@ -174,7 +174,7 @@ func TestGUISettingsConcurrentUpdatesAndStaleSaves(t *testing.T) {
 }
 
 func TestGUIResponseLanguageDefaultsAndUsesRuntimeConfig(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	root.Providers = map[string]*config.Provider{"OpenAI": {Name: "OpenAI"}}
 	if err := config.Save(root); err != nil {
@@ -220,7 +220,7 @@ func stringPointer(value string) *string { return &value }
 
 func TestGUIAdvancedAndNameTargetedPersistence(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	path := filepath.Join(home, "config.toml")
 	source := "user_name='Old'\nresponse_language='Italian'\nautoupdate=false\n[providers.OpenAI]\napi_key='secret'\n[tool_output]\nmax_bytes=65536\nmax_lines=2048\nfuture_key='keep'\n"
 	if err := os.WriteFile(path, []byte(source), 0600); err != nil {
@@ -284,7 +284,7 @@ func TestGUIAdvancedAndNameTargetedPersistence(t *testing.T) {
 
 func TestGUIDevServerPreferencesPersistAndPreserveConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	directory := filepath.Join(home, "gui")
 	if err := os.MkdirAll(filepath.Join(directory, "src"), 0700); err != nil {
 		t.Fatal(err)
@@ -354,7 +354,7 @@ func TestGUIDevServerPreferencesPersistAndPreserveConfig(t *testing.T) {
 }
 
 func TestGUIFileChangesPreferencePersists(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	if err := config.Save(root); err != nil {
 		t.Fatal(err)

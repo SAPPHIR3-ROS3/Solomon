@@ -80,7 +80,7 @@ func TestWriteActiveRegistryFileRetainsSnapshotOnPublishFailure(t *testing.T) {
 // Exercise persistence through its production API, including retained staging files.
 func sessionSnapshotPath(t *testing.T) string {
 	t.Helper()
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	path, err := paths.ActiveSubagentsPath()
 	if err != nil {
 		t.Fatal(err)

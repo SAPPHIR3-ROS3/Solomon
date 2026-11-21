@@ -9,6 +9,19 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/database"
 )
 
+func ReleaseLogDatabase(home string) error {
+	logMu.Lock()
+	defer logMu.Unlock()
+	if globalLogDB == nil || globalLogDatabaseHome != home {
+		return nil
+	}
+	err := globalLogDB.Close()
+	globalLogDB = nil
+	globalLogDatabaseHome = ""
+	globalWriteFile = false
+	return err
+}
+
 func writeDatabaseLog(event database.LogEvent, retention int) error {
 	ctx := context.Background()
 	if _, err := database.AppendLog(ctx, globalLogDB, event); err != nil {

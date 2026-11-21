@@ -65,7 +65,7 @@ func TestDesktopRuntime_proxyExposesServerVersion(t *testing.T) {
 }
 
 func TestDesktopRuntime_frontendFollowsDaemonAssets(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	proxy := httptest.NewServer(serverruntime.DesktopFrontend())
 	defer proxy.Close()
 	for _, version := range []string{"old daemon UI", "new daemon UI"} {
@@ -115,7 +115,7 @@ func TestDesktopRuntime_reusesHealthyDaemon(t *testing.T) {
 }
 
 func TestDesktopRuntime_missingCLIReportsStartupFailure(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	_, err := serverruntime.EnsureRunning(context.Background(), filepath.Join(t.TempDir(), "missing-solomon"))
 	if err == nil || !strings.Contains(err.Error(), "did not become ready") {
 		t.Fatalf("unexpected startup result: %v", err)
@@ -173,7 +173,7 @@ func TestDesktopRuntime_nativeOriginPreflight(t *testing.T) {
 }
 
 func TestDesktopRuntime_proxyAdaptsOriginAndTracksDaemon(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		originSeen := r.Header.Get("Origin")
 		w.Header().Set("X-Upstream-Origin", originSeen)
@@ -223,7 +223,7 @@ func TestDesktopRuntime_proxyAdaptsOriginAndTracksDaemon(t *testing.T) {
 }
 
 func TestDesktopRuntime_proxyStreamsSSEAndWebSockets(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	gate := make(chan struct{})
 	defer func() {
 		select {

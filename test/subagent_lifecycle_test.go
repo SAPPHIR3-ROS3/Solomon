@@ -48,7 +48,7 @@ func (b *lifecycleBackend) ListModels(context.Context) ([]string, error) { retur
 
 func TestSubagentBackgroundStopAndResumeLifecycle(t *testing.T) {
 	logging.LogInit(logging.ERROR_LOG_LEVEL)
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	projHex := "lifecycle-project"
 	prov := &config.Provider{Name: "test", BaseURL: "http://127.0.0.1:9", APIKey: "key", AuthKind: config.AuthKindAPIKey}
 	cfg := &config.Root{
@@ -120,7 +120,7 @@ func TestSubagentBackgroundStopAndResumeLifecycle(t *testing.T) {
 
 func TestSubagentSynchronousCancellationCleansLifecycle(t *testing.T) {
 	logging.LogInit(logging.ERROR_LOG_LEVEL)
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	projHex := "sync-lifecycle-project"
 	prov := &config.Provider{Name: "test", BaseURL: "http://127.0.0.1:9", APIKey: "key", AuthKind: config.AuthKindAPIKey}
 	cfg := &config.Root{

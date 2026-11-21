@@ -9,7 +9,7 @@ import (
 )
 
 func TestSkillActivationPersistsAndFiltersDiscovery(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	projRoot := t.TempDir()
 	projHex := "project-id"
 	globalKey := "global-key"

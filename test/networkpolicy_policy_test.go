@@ -12,7 +12,7 @@ import (
 )
 
 func TestSelectionPersistsAndPreservesLocalAccess(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	rows, err := networkpolicy.List()
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestSelectionPersistsAndPreservesLocalAccess(t *testing.T) {
 }
 
 func TestMalformedPolicyFailsClosed(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	path, err := networkpolicy.PolicyPath()
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestMalformedPolicyFailsClosed(t *testing.T) {
 }
 
 func TestAllExternalInterfacesDisabled(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	rows, err := networkpolicy.ListUnfiltered(networkpolicy.Policy{})
 	if err != nil {
 		t.Fatal(err)

@@ -13,7 +13,7 @@ import (
 
 func TestSavedDevServerSettingsControlDefaultStartup(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	directory := filepath.Join(home, "gui")
 	if err := os.MkdirAll(filepath.Join(directory, "src"), 0700); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestSavedDevServerSettingsControlDefaultStartup(t *testing.T) {
 
 func TestDevServerAcceptsQuotedRepositoryPath(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte("user_name='Fixture'\n"), 0600); err != nil {
 		t.Fatal(err)
 	}

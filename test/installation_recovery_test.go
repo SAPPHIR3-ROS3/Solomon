@@ -60,7 +60,7 @@ func TestDaemonRecoveryRefusesAnotherHome(t *testing.T) {
 	defer stop()
 	originalHome := state.Home
 	t.Setenv("SOLOMON_SERVER_PORT", strings.TrimPrefix(state.URL, "http://127.0.0.1:"))
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	if _, err := serverruntime.LoadRunningState(context.Background()); err == nil || !strings.Contains(err.Error(), "does not identify") {
 		t.Fatalf("adopted another installation: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestServerCommandsReportErrorsAndStartIsIdempotent(t *testing.T) {
 }
 
 func TestDaemonFallsBackFromOccupiedPort(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

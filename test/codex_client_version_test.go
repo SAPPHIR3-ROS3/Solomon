@@ -14,7 +14,7 @@ import (
 
 func TestCodexClientVersionRefreshAndFallback(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	calls := 0
 	version := "0.999.0"
 	status := http.StatusOK

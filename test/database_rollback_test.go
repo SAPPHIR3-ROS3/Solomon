@@ -17,7 +17,7 @@ import (
 func TestDatabaseUpdaterRollsBackAfterFirstWrite(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	path := filepath.Join(home, "AGENTS.md")
 	target := filepath.Join(home, "solomon")
 	staged := filepath.Join(home, "staged")

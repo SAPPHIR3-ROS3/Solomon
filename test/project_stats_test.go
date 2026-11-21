@@ -13,7 +13,7 @@ import (
 func TestProjectWelcomeStatsIncremental(t *testing.T) {
 	stopCursorSidecar(t)
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	hex := "93619f1ceceeb7a95e04d2d628313536bbde0774ac260359b480be61e04b58d2"
 	proot, err := paths.ProjectRoot(hex)
 	if err != nil {
@@ -75,7 +75,7 @@ func TestProjectWelcomeStatsIncremental(t *testing.T) {
 func TestListRecentOrdersByLatestActivity(t *testing.T) {
 	stopCursorSidecar(t)
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	hex := "93619f1ceceeb7a95e04d2d628313536bbde0774ac260359b480be61e04b58d2"
 	proot, err := paths.ProjectRoot(hex)
 	if err != nil {

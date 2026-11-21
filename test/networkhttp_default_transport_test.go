@@ -16,7 +16,7 @@ type fixtureTransport func(*http.Request) (*http.Response, error)
 func (f fixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestDefaultClientHonorsCustomTransportInstalledAfterInitialization(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	original := http.DefaultTransport
 	t.Cleanup(func() { http.DefaultTransport = original })
 	calls := 0
@@ -42,7 +42,7 @@ func TestDefaultClientHonorsCustomTransportInstalledAfterInitialization(t *testi
 
 func TestCustomDefaultTransportDoesNotBypassSavedSelection(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	original := http.DefaultTransport
 	t.Cleanup(func() { http.DefaultTransport = original })
 	calls := 0

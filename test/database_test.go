@@ -164,7 +164,7 @@ func openTestDatabase(t *testing.T, home string, kind database.Kind) *sql.DB {
 func TestDatabaseGlobalInstructionsRequireExplicitRestore(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	path, err := paths.EnsureGlobalAgentsPath()
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +196,7 @@ func TestDatabaseGlobalInstructionsRequireExplicitRestore(t *testing.T) {
 func TestDatabaseRegistryVerificationIsReadOnly(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	legacy, err := paths.ProjectsMapPath()
 	if err != nil {
 		t.Fatal(err)

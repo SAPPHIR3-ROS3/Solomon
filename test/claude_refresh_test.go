@@ -20,7 +20,7 @@ import (
 
 func expiredClaudeConfig(t *testing.T) *config.Root {
 	t.Helper()
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	provider, err := config.NewClaudeSubProvider(claude.TokenSet{AccessToken: "old-access", RefreshToken: "single-use-refresh", ExpiresAt: time.Now().Add(-time.Hour)})
 	if err != nil {

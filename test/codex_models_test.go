@@ -11,7 +11,7 @@ import (
 )
 
 func TestCodexListModels_MockHTTP(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/latest" {
 			_ = json.NewEncoder(w).Encode(map[string]string{"version": "0.999.0"})

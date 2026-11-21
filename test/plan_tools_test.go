@@ -20,7 +20,7 @@ func setupPlanTest(t *testing.T) (string, *chatstore.Session) {
 	t.Helper()
 	stopCursorSidecar(t)
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	plansDir, err := chatstore.PlansDir(testProjHex)
 	if err != nil {
 		t.Fatal(err)

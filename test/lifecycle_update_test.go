@@ -108,7 +108,7 @@ func testCoordinatedDaemonUpdate(t *testing.T, mode string) {
 		}
 	}
 	dir := t.TempDir()
-	t.Setenv("SOLOMON_HOME", filepath.Join(dir, "home"))
+	setSolomonHome(t, filepath.Join(dir, "home"))
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

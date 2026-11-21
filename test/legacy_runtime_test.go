@@ -111,7 +111,7 @@ func TestResolveTurnInvocations_unknownToolName(t *testing.T) {
 
 func TestRenderAgent_externalToolBridgeOmitsLegacyForceBlock(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +255,7 @@ func TestAugmentNestedCustomSystem_legacyForce(t *testing.T) {
 }
 
 func TestCursorProviderPreservesInteractionSurface(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}

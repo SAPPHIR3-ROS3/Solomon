@@ -16,7 +16,7 @@ import (
 
 func TestDatabaseChatPersistsOrderedStreamsAndAttachments(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	const project = "project"
 	const id = "original"
 	now := time.Unix(1700000000, 321).UTC()
@@ -79,7 +79,7 @@ func TestDatabaseChatPersistsOrderedStreamsAndAttachments(t *testing.T) {
 }
 
 func TestDatabaseChatImportsOnceAndKeepsSource(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	path, err := chatstore.SessionPath("project", "legacy")
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestDatabaseChatImportsOnceAndKeepsSource(t *testing.T) {
 }
 
 func TestDatabaseSubagentPreservesResumeState(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	at := time.Unix(1700000000, 123).UTC()
 	agent := &chatstore.SubSession{
 		ID: "test-agent", ProjectHex: "project", Origin: chatstore.SubOriginScheduled,
@@ -144,7 +144,7 @@ func TestDatabaseSubagentPreservesResumeState(t *testing.T) {
 
 func TestDatabaseChatUpdatesOnlyChangedPositions(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	now := time.Unix(1700000000, 0).UTC()
 	first := chatstore.Message{Role: "user", Content: "first", CreatedAt: now}
 	second := chatstore.Message{Role: "assistant", Content: "second", CreatedAt: now}
@@ -198,7 +198,7 @@ CREATE TRIGGER test_delete AFTER DELETE ON chat_membership BEGIN INSERT INTO tes
 
 func TestDatabaseStatsCombinesLegacyAndStoredWithoutDuplicates(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	const project = "project"
 	legacy := &chatstore.Session{ID: "legacy", Messages: []chatstore.Message{{Role: "assistant", UserPromptTokens: 7}}}
 	stored := &chatstore.Session{ID: "stored", Messages: []chatstore.Message{{Role: "assistant", UserPromptTokens: 11}}}
@@ -247,7 +247,7 @@ func TestDatabaseStatsCombinesLegacyAndStoredWithoutDuplicates(t *testing.T) {
 
 func TestDatabaseDirectMessageChangePreservesOtherPositions(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	first := chatstore.Message{Role: "user", Content: "first"}
 	last := chatstore.Message{Role: "assistant", Content: "last", ResponseTokens: 3}
 	session := &chatstore.Session{
@@ -287,7 +287,7 @@ BEGIN SELECT RAISE(ABORT, 'unrelated position removed'); END;
 
 func TestDatabaseSidebarMergesBeforeLimiting(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	const project = "sidebar"
 	base := time.Unix(1700000000, 0).UTC()
 	makeSession := func(id string, sent time.Time) *chatstore.Session {

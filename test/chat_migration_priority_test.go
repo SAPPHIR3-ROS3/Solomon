@@ -14,7 +14,7 @@ import (
 
 func TestDatabaseMigrationRetriesBusyWrites(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	path, err := chatstore.SessionPath("legacy", "legacy-chat")
 	if err != nil {
 		t.Fatal(err)

@@ -13,7 +13,7 @@ import (
 )
 
 func TestInboundPolicyDoesNotBlockOutgoingResponses(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) }))
 	defer server.Close()
 	dialer := net.Dialer{}

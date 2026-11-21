@@ -138,7 +138,7 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 			}
 			t.Setenv("HOME", home)
 			t.Setenv("USERPROFILE", home)
-			t.Setenv("SOLOMON_HOME", appHome)
+			setSolomonHome(t, appHome)
 			t.Setenv("SOLOMON_SERVER_PORT", fmt.Sprint(freeServerPortForTest(t)))
 			binary := filepath.Join(home, "solomon")
 			oldBytes, _ := os.ReadFile(oldBinary)

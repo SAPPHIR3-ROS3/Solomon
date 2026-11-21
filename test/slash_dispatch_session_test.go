@@ -290,7 +290,7 @@ func TestSlashDispatch_exitQuit(t *testing.T) {
 
 func TestSlashDispatch_rulesAndInstructions(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := os.WriteFile(filepath.Join(home, "AGENTS.md"), []byte("hello global agents"), 0o600); err != nil {
 		t.Fatal(err)
 	}

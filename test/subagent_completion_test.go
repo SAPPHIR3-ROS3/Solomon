@@ -19,7 +19,7 @@ func TestSubagentSetupFailureClearsRunningStatus(t *testing.T) {
 			name = "background"
 		}
 		t.Run(name, func(t *testing.T) {
-			t.Setenv("SOLOMON_HOME", t.TempDir())
+			setSolomonHome(t, t.TempDir())
 			cfg := &config.Root{Current: config.Current{Provider: "test", Model: "test-model"}}
 			r := agentruntime.NewTestRuntime(cfg, nil, "setup-failure", t.TempDir(), &chatstore.Session{ID: "parent"}, io.Discard)
 			_, err := r.RunSubagentToolForTest(context.Background(), agentruntime.NestedRunConfig{

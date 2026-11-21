@@ -15,7 +15,7 @@ import (
 )
 
 func TestCodexMiddlewareUsesConfiguredNetworkClient(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `{"version":"0.999.0"}`)
 	}))

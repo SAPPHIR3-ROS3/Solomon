@@ -38,7 +38,7 @@ func TestReleaseUpdateCommitsCLIAndDesktopTogether(t *testing.T) {
 	for _, scenario := range []string{"success", "no Go", "network", "CLI checksum", "missing desktop", "desktop checksum", "registration", "startup", "cancelled", "standalone"} {
 		t.Run(scenario, func(t *testing.T) {
 			cli, desktopPayload, _, _ := desktopInstallFixture(t)
-			t.Setenv("SOLOMON_HOME", t.TempDir())
+			setSolomonHome(t, t.TempDir())
 			t.Setenv("SOLOMON_BINARY", cli)
 			if scenario == "no Go" {
 				t.Setenv("PATH", t.TempDir())
@@ -183,7 +183,7 @@ func TestReleaseUpdateCommitsCLIAndDesktopTogether(t *testing.T) {
 func TestStandaloneUpgradeInfersLayoutAndHonorsExplicitSelection(t *testing.T) {
 	for _, layout := range []string{"", "split", "standalone"} {
 		t.Run("selection="+layout, func(t *testing.T) {
-			t.Setenv("SOLOMON_HOME", t.TempDir())
+			setSolomonHome(t, t.TempDir())
 			t.Setenv("SOLOMON_BINARY", filepath.Join(t.TempDir(), "solomon-standalone"))
 			if layout != "" {
 				if err := os.WriteFile(filepath.Join(os.Getenv("SOLOMON_HOME"), "config.toml"), []byte(fmt.Sprintf("install_layout = %q\n", layout)), 0600); err != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 func TestRuleActivationPersistsAcrossScopesAndRemoval(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	if _, err := instructions.AddRule(instructions.ScopeGlobal, "", "global rule"); err != nil {
 		t.Fatal(err)
 	}

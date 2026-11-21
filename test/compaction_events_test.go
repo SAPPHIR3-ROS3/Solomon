@@ -11,7 +11,7 @@ import (
 )
 
 func TestChatRunCompactionPublishesLiveSummarySnapshot(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	sess := &chatstore.Session{ID: "compacted-chat", Messages: []chatstore.Message{
 		{Role: "user", Content: "earlier question"},
 		{Role: "assistant", Content: "earlier answer"},

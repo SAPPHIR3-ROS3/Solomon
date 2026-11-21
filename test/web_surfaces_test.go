@@ -327,7 +327,7 @@ func (b *surfaceResearchBackend) ListModels(context.Context) ([]string, error) {
 }
 
 func TestDeepResearchRuntimeUsesInternalWebAdapters(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	projectRoot := t.TempDir()
 	provider := &config.Provider{Name: "test", BaseURL: "http://127.0.0.1:9", APIKey: "key", AuthKind: config.AuthKindAPIKey}
 	cfg := &config.Root{

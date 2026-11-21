@@ -11,7 +11,7 @@ import (
 
 func TestInstructionsLoadGlobalCreatesMissingFile(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "solomon")
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	loader := instructions.NewLoader()
 	path, content, ok := loader.LoadGlobal()
 	if !ok || path != filepath.Join(home, "AGENTS.md") || content != "" {
@@ -84,7 +84,7 @@ func TestInstructionsShellPaths(t *testing.T) {
 
 func TestInstructionsRulesAddRemoveRenumber(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	projHex := "abc123"
 	if _, err := instructions.AddRule(instructions.ScopeGlobal, "", "one"); err != nil {
 		t.Fatal(err)

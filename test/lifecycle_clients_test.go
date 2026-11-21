@@ -31,7 +31,7 @@ func TestLifecycleClientHelper(t *testing.T) {
 
 func TestLifecycleRegisteredClientStopsGracefullyAndRejectsStaleIdentity(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "home")
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)

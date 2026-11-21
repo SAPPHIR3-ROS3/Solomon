@@ -9,7 +9,7 @@ import (
 )
 
 func TestTerminalChatsRemainSeparateAndRejectWrongProject(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	const project = "project"
 	for _, id := range []string{"first", "second"} {
 		if err := chatstore.WriteSession(project, &chatstore.Session{ID: id, Title: id}); err != nil {

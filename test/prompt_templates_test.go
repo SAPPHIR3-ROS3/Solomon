@@ -14,7 +14,7 @@ import (
 
 func TestEnsureTemplatesInstalled(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.WriteTemplateFile("plan", "legacy plan\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestEnsureTemplatesInstalled(t *testing.T) {
 
 func TestStartupTemplatesAcceptModification(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	restore := prompt.SetInteractiveSessionCheckForTest(func() bool { return true })
 	defer restore()
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
@@ -81,7 +81,7 @@ func TestStartupTemplatesAcceptModification(t *testing.T) {
 
 func TestStartupTemplatesDenyResetsEmbedded(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	restore := prompt.SetInteractiveSessionCheckForTest(func() bool { return true })
 	defer restore()
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
@@ -112,7 +112,7 @@ func TestStartupTemplatesDenyResetsEmbedded(t *testing.T) {
 
 func TestStartupTemplatesPurgeRetiredConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestStartupTemplatesPurgeRetiredConfig(t *testing.T) {
 
 func TestStartupTemplatesAcceptAll(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	restore := prompt.SetInteractiveSessionCheckForTest(func() bool { return true })
 	defer restore()
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
@@ -167,7 +167,7 @@ func TestStartupTemplatesAcceptAll(t *testing.T) {
 
 func TestStartupTemplatesNonInteractiveError(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	restore := prompt.SetInteractiveSessionCheckForTest(func() bool { return false })
 	defer restore()
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
@@ -201,7 +201,7 @@ func TestStartupTemplatesNonInteractiveError(t *testing.T) {
 
 func TestInstallTemplatesAutoUpgradeStaleDisk(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.WriteTemplateFile("agent", "old embedded copy\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestInstallTemplatesAutoUpgradeStaleDisk(t *testing.T) {
 
 func TestInstallTemplatesSkipsStartupPromptForStaleWithoutConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.WriteTemplateFile("chat", "old copy\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestInstallTemplatesSkipsStartupPromptForStaleWithoutConfig(t *testing.T) {
 
 func TestWriteHelpIncludesPromptTemplates(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	var buf bytes.Buffer
 	commands.WriteHelp(&buf, "", "", config.EmptyRoot())
 	out := buf.String()
@@ -253,7 +253,7 @@ func TestWriteHelpIncludesPromptTemplates(t *testing.T) {
 
 func TestStartupTemplatesSkipsReadWhenMtimeUnchanged(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestStartupTemplatesSkipsReadWhenMtimeUnchanged(t *testing.T) {
 
 func TestStartupTemplatesBackfillsMtimeWhenSHAStillMatches(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := prompt.EnsureTemplatesInstalled(); err != nil {
 		t.Fatal(err)
 	}

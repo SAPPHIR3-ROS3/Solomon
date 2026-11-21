@@ -212,7 +212,7 @@ func TestCursorFastModeDisplayDefaultAndDisabled(t *testing.T) {
 
 func TestMigrateMisnamedCursorSub(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	cfgPath := filepath.Join(home, "config.toml")
 	raw := `
 [current]
@@ -264,7 +264,7 @@ func TestEnsureCursorSubRewritesSidecarBaseURL(t *testing.T) {
 
 func TestDropCursorAPIWhenSubPresent(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	cfgPath := filepath.Join(home, "config.toml")
 	raw := `
 [providers."Cursor API"]

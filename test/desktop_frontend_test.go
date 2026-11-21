@@ -14,7 +14,7 @@ func TestDesktopFrontendSurvivesUnavailableDaemon(t *testing.T) {
 	if !guibundle.Ready() {
 		t.Skip("frontend has not been bundled")
 	}
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	for _, staleState := range []bool{false, true} {
 		if staleState {
 			closed := httptest.NewServer(nil)

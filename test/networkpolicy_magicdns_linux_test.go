@@ -12,7 +12,7 @@ import (
 )
 
 func TestMagicDNSSelectionPersistsIndependentlyOfParent(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	rows, err := networkpolicy.ListUnfiltered(networkpolicy.Policy{})
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestMagicDNSSelectionPersistsIndependentlyOfParent(t *testing.T) {
 }
 
 func TestDisabledMagicDNSDoesNotBlockOutboundDial(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	path, err := networkpolicy.PolicyPath()
 	if err != nil {
 		t.Fatal(err)

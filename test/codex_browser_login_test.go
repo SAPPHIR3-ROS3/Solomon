@@ -198,7 +198,7 @@ func requireCodexCallbackPort(t *testing.T) {
 
 func TestCodexBrowserLoginRetryReleasesPreviousListener(t *testing.T) {
 	requireCodexCallbackPort(t)
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600}`)
 	}))
@@ -246,7 +246,7 @@ func TestCodexBrowserLoginRetryReleasesPreviousListener(t *testing.T) {
 
 func isolateCodexOAuth(t *testing.T) {
 	t.Helper()
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{"version":"0.153.3"}`) }))
 	t.Cleanup(registry.Close)
 	previous := codex.CodexVersionRegistryURL

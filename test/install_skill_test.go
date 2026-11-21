@@ -32,7 +32,7 @@ func TestInstallSkillRegisteredAndGated(t *testing.T) {
 }
 
 func TestInstallSkillLocalMarkdown(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := t.TempDir()
 	md := filepath.Join(root, "example.md")
 	if err := os.WriteFile(md, []byte("---\nname: example\ndescription: Test skill\n---\nTest body\n"), 0600); err != nil {

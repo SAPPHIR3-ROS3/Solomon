@@ -16,7 +16,7 @@ import (
 )
 
 func TestNetworkAPI(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	request := httptest.NewRequest(http.MethodGet, "/__solomon/network-interfaces", nil)
 	response := httptest.NewRecorder()
 	server.HandleNetworkInterfaces(response, request)
@@ -38,7 +38,7 @@ func TestNetworkAPI(t *testing.T) {
 }
 
 func TestNetworkRequestSelection(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	rows, err := networkpolicy.List()
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestNetworkRequestSelection(t *testing.T) {
 }
 
 func TestMagicDNSHostAccessDoesNotBlockLocalhost(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	home, err := paths.SolomonHome()
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func TestMagicDNSHostAccessDoesNotBlockLocalhost(t *testing.T) {
 }
 
 func TestHarnessChannelAPI(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	rows, err := networkpolicy.ListUnfiltered(networkpolicy.Policy{})
 	if err != nil {
 		t.Fatal(err)

@@ -16,7 +16,7 @@ import (
 )
 
 func TestProgrammingLanguagesPreservePreferencesAndStaleConfig(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	if err := config.Save(root); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestProgrammingLanguagesPreservePreferencesAndStaleConfig(t *testing.T) {
 }
 
 func TestProgrammingLanguagesRejectInvalidConfiguration(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	for _, tc := range []struct {
 		id    string
 		value config.ProgrammingLanguage

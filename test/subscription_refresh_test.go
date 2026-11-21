@@ -21,7 +21,7 @@ import (
 
 func subscriptionRefreshFixture(t *testing.T, name string) (*config.Root, *atomic.Int32) {
 	t.Helper()
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	kind := config.AuthKindOAuthChatGPT
 	if name == config.ProviderNameClaudeSub {
@@ -158,7 +158,7 @@ func TestSubscriptionRefreshRetriesDiskCommit(t *testing.T) {
 }
 
 func TestChatGPTRefreshErrorNamesProviderWithoutLeakingBody(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			io.WriteString(w, `{"version":"0.153.3"}`)

@@ -19,7 +19,7 @@ import (
 
 func TestSettingsToolAppliesLiveSnapshot(t *testing.T) {
 	logging.LogInit(logging.INFO_LOG_LEVEL)
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	initial := config.EmptyRoot()
 	initial.ResponseLanguage = "English"
 	initial.Current = config.Current{Provider: "active", Model: "model"}

@@ -11,7 +11,7 @@ import (
 
 func TestEnsureDefaultFileCreatesConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	exists, err := config.ConfigExists()
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +47,7 @@ func writeTestConfig(t *testing.T, home, body string) {
 
 func TestConfigToolsSectionLoadMerge(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	writeTestConfig(t, home, `
 legacy_tools = true
 legacy_tools_force = true
@@ -84,7 +84,7 @@ model = "m"
 
 func TestConfigToolsSectionSaveShape(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	writeTestConfig(t, home, `
 [providers.p]
 base_url = "http://127.0.0.1:9"

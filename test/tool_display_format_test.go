@@ -415,7 +415,7 @@ func TestFormatToolDisplayLines_orchestrateNestedParensColored(t *testing.T) {
 
 func TestFormatToolDisplayLines_subagentDefaultTemplate(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	tplDir := filepath.Join(home, "prompts", "templates")
 	if err := os.MkdirAll(tplDir, 0o700); err != nil {
 		t.Fatal(err)

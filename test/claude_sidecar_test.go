@@ -140,7 +140,7 @@ func TestClaudeRuntimeRetriesAFailedInstall(t *testing.T) {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+"/usr/bin:/bin")
 	t.Setenv("SOLOMON_NODE", filepath.Join(bin, "node"))
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	if _, err := claude.RuntimeDirForTest(t.Context()); err == nil {
 		t.Fatal("first install should fail")
 	}
@@ -172,7 +172,7 @@ func TestClaudeRuntimeRetriesAFailedInstall(t *testing.T) {
 
 func TestClaudeRuntimeLockHonorsCancellation(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	dir := filepath.Join(home, "integrations", "claude")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)

@@ -247,7 +247,7 @@ func TestServerRuntime_stopEndpointClearsState(t *testing.T) {
 }
 
 func TestServerRuntime_clearsStaleStateWhenUnhealthy(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	state := serverruntime.State{
 		PID:       1,
 		URL:       "http://127.0.0.1:1",
@@ -398,7 +398,7 @@ func freeServerPortForTest(t *testing.T) int {
 
 func startServerAtAddressForTest(t *testing.T, options serverruntime.Options, listenAddr string) (serverruntime.State, func()) {
 	t.Helper()
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	options.ListenAddr = listenAddr
 	ctx, cancel := context.WithCancel(context.Background())
 	errs := make(chan error, 1)

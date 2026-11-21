@@ -35,7 +35,7 @@ func TestModelVisibilityDefaultsEnabledAndCanToggle(t *testing.T) {
 
 func TestModelVisibilityRoundTripsThroughConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	r := &config.Root{Providers: map[string]*config.Provider{"OpenAI": {Name: "OpenAI"}}}
 	if err := config.SetModelEnabled(r, "OpenAI", "gpt-5", false); err != nil {
 		t.Fatalf("disable model: %v", err)
@@ -57,7 +57,7 @@ func TestModelVisibilityRoundTripsThroughConfig(t *testing.T) {
 
 func TestUpdateModelVisibilitySkipsLiveRoleValidation(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	configSource := `[providers.OpenAI]
 base_url = 'https://api.openai.com/v1'
 api_key = 'test'
@@ -112,7 +112,7 @@ model = 'gpt-5'
 }
 
 func TestModelVisibilitySurvivesStaleConfigSave(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := &config.Root{Providers: map[string]*config.Provider{"OpenAI": {Name: "OpenAI"}}}
 	// Existing preferences must be migrated without requiring hundreds of toggles.
 	for i := 0; i < 400; i++ {

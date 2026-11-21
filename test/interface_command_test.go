@@ -10,7 +10,7 @@ import (
 )
 
 func TestInterfaceCommand(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	var out bytes.Buffer
 	deps := commands.Deps{Out: &out}
 	if matched, err := commands.DispatchBuiltinSlash(deps, []string{"/interface"}, "interface"); !matched || err != nil {

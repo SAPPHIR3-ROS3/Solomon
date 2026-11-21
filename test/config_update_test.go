@@ -14,7 +14,7 @@ func TestInstallLayoutSurvivesConfigRoundTrip(t *testing.T) {
 	for _, layout := range []string{"split", "standalone"} {
 		for _, legacy := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/legacy=%v", layout, legacy), func(t *testing.T) {
-				t.Setenv("SOLOMON_HOME", t.TempDir())
+				setSolomonHome(t, t.TempDir())
 				text := fmt.Sprintf("install_layout = %q\n", layout)
 				if legacy {
 					text += "[[providers]]\nname = 'fixture'\n"
@@ -39,7 +39,7 @@ func TestInstallLayoutSurvivesConfigRoundTrip(t *testing.T) {
 }
 
 func TestTargetedConfigUpdatesPreserveEachOther(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	root.Providers = map[string]*config.Provider{}
 	root.Providers["test"] = &config.Provider{Name: "test"}
@@ -71,7 +71,7 @@ func TestTargetedConfigUpdatesPreserveEachOther(t *testing.T) {
 }
 
 func TestModelSwitchRestoresReasoningAndFastMode(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	root := config.EmptyRoot()
 	root.Providers = map[string]*config.Provider{"test": {Name: "test"}}
 	root.Current = config.Current{Provider: "test", Model: "alpha"}
@@ -114,7 +114,7 @@ func TestModelSwitchRestoresReasoningAndFastMode(t *testing.T) {
 }
 
 func TestConfigModeUpdatesSkipLiveRoleValidation(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	previous := config.RolesModelLister
 	calls := 0
 	config.RolesModelLister = func(context.Context, *config.Root, *config.Provider) ([]string, error) {

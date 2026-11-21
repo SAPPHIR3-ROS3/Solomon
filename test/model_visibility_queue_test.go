@@ -57,7 +57,7 @@ func TestModelVisibilityQueuePreservesUpdateOrder(t *testing.T) {
 
 func TestModelVisibilityQueuePersistsEveryUpdate(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	root := &config.Root{Providers: map[string]*config.Provider{"OpenAI": {Name: "OpenAI"}}}
 	if err := config.Save(root); err != nil {
 		t.Fatalf("save config: %v", err)

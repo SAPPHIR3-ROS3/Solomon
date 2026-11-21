@@ -38,7 +38,7 @@ func (b *depthBackend) StreamTurn(_ context.Context, req llm.TurnRequest, _ io.W
 func TestSubagentRecursionDepthLimit(t *testing.T) {
 	for _, limit := range []int{0, 2} {
 		t.Run(fmt.Sprint(limit), func(t *testing.T) {
-			t.Setenv("SOLOMON_HOME", t.TempDir())
+			setSolomonHome(t, t.TempDir())
 			provider := &config.Provider{Name: "test", AuthKind: config.AuthKindAPIKey, APIKey: "key"}
 			cfg := &config.Root{Current: config.Current{Provider: "test", Model: "test-model"}, Providers: map[string]*config.Provider{"test": provider}, SubagentMaxDepth: limit}
 			r := agentruntime.NewTestRuntime(cfg, provider, "depth-project", t.TempDir(), &chatstore.Session{ID: "parent"}, io.Discard)
@@ -75,7 +75,7 @@ func TestSubagentRecursionDepthLimit(t *testing.T) {
 }
 
 func TestSubagentResumeKeepsPersistedDepth(t *testing.T) {
-	t.Setenv("SOLOMON_HOME", t.TempDir())
+	setSolomonHome(t, t.TempDir())
 	cfg := &config.Root{SubagentMaxDepth: 2}
 	r := agentruntime.NewTestRuntime(cfg, nil, "depth-project", t.TempDir(), &chatstore.Session{ID: "parent"}, io.Discard)
 	session := &chatstore.SubSession{ID: "deep", Depth: 3, Status: chatstore.SubStatusDone, Origin: chatstore.SubOriginParent, ProjectHex: "depth-project"}
@@ -105,7 +105,7 @@ func TestSubagentResumeKeepsPersistedDepth(t *testing.T) {
 
 func TestSubagentDepthAdvancedSettings(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte("user_name='Test'\n"), 0600); err != nil {
 		t.Fatal(err)
 	}

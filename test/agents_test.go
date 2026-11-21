@@ -16,7 +16,7 @@ import (
 func TestAgentsGlobalTree(t *testing.T) {
 	t.Setenv("TERM", "dumb")
 	home := t.TempDir()
-	t.Setenv("SOLOMON_HOME", home)
+	setSolomonHome(t, home)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/__solomon/active-agents" {
 			t.Errorf("path = %s", r.URL.Path)

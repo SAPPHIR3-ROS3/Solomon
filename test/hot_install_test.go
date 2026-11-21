@@ -58,7 +58,7 @@ func runHotInstallWithRegisteredDesktop(t *testing.T, cancelDuringStop bool, fai
 	if runtime.GOOS == "darwin" {
 		t.Setenv("HOME", dir)
 	}
-	t.Setenv("SOLOMON_HOME", filepath.Join(dir, "home"))
+	setSolomonHome(t, filepath.Join(dir, "home"))
 	t.Setenv("SOLOMON_HOT_INSTALL_HELPER", "1")
 	if cancelDuringStop {
 		t.Setenv("SOLOMON_HOT_INSTALL_DELAY_EXIT", "1")
@@ -263,7 +263,7 @@ func TestHotInstallOrdersShutdownInstallAndRestartAndRecoversFailures(t *testing
 
 func TestHotInstallRejectsConcurrentUpdater(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("SOLOMON_HOME", dir)
+	setSolomonHome(t, dir)
 	if runtime.GOOS == "darwin" {
 		t.Setenv("HOME", dir)
 	}
@@ -283,7 +283,7 @@ func TestHotInstallRejectsConcurrentUpdater(t *testing.T) {
 
 func TestUpdateClientsIncludesRegisteredStandalone(t *testing.T) {
 	directory := t.TempDir()
-	t.Setenv("SOLOMON_HOME", filepath.Join(directory, "home"))
+	setSolomonHome(t, filepath.Join(directory, "home"))
 	t.Setenv("SOLOMON_HOT_INSTALL_HELPER", "1")
 	name := "solomon-standalone"
 	if runtime.GOOS == "windows" {

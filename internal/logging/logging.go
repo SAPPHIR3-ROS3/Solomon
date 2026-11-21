@@ -38,6 +38,7 @@ var globalWriteFile = false
 var globalLogDir = ""
 var globalRetentionDays = 7
 var globalLogDB *sql.DB
+var globalLogDatabaseHome string
 var globalLogDay string
 
 var redText = func(text string) string { return RED + text + END }
@@ -166,6 +167,7 @@ func Configure(config Config) error {
 		_ = globalLogDB.Close()
 	}
 	globalLogDB = db
+	globalLogDatabaseHome = config.DatabaseHome
 	globalLogDay = ""
 	globalLogDir = config.Dir
 	globalWriteConsole = config.WriteConsole
