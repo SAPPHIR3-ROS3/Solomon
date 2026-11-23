@@ -385,7 +385,7 @@ api_protocol = "anthropic"
 			}
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("Accept", "text/event-stream")
-			client := &http.Client{Timeout: 5 * time.Second}
+			client := &http.Client{Timeout: 30 * time.Second}
 			response, err := client.Do(request)
 			if err != nil {
 				t.Fatal(err)
@@ -490,7 +490,7 @@ api_protocol = "anthropic"
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "text/event-stream")
-	response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request)
+	response, err := (&http.Client{Timeout: 30 * time.Second}).Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}

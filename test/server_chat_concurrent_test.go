@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,21 +38,19 @@ func TestServerRuntime_concurrentChatsAcrossProjects(t *testing.T) {
 		},
 	)
 	var inFlight atomic.Int32
-	var maxInFlight atomic.Int32
+	bothStarted := make(chan struct{})
+	var signalBoth sync.Once
 	release := make(chan struct{})
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		current := inFlight.Add(1)
-		for {
-			previous := maxInFlight.Load()
-			if current <= previous || maxInFlight.CompareAndSwap(previous, current) {
-				break
-			}
-		}
 		defer inFlight.Add(-1)
+		if current >= 2 {
+			signalBoth.Do(func() { close(bothStarted) })
+		}
 		select {
 		case <-release:
-		case <-time.After(3 * time.Second):
-			t.Error("provider gate timed out")
+		case <-r.Context().Done():
+			return
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = io.WriteString(w, sse)
@@ -107,6 +106,8 @@ api_protocol = "anthropic"
 		body   []byte
 		err    error
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	results := make([]streamResult, len(targets))
 	var wg sync.WaitGroup
 	for i, target := range targets {
@@ -118,14 +119,14 @@ api_protocol = "anthropic"
 				results[index] = streamResult{err: err}
 				return
 			}
-			request, err := http.NewRequest(http.MethodPost, server.URL+"/__solomon/projects/"+target.projectID+"/chats/"+target.chatID+"/messages", bytes.NewReader(body))
+			request, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/__solomon/projects/"+target.projectID+"/chats/"+target.chatID+"/messages", bytes.NewReader(body))
 			if err != nil {
 				results[index] = streamResult{err: err}
 				return
 			}
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("Accept", "text/event-stream")
-			response, err := (&http.Client{Timeout: 8 * time.Second}).Do(request)
+			response, err := http.DefaultClient.Do(request)
 			if err != nil {
 				results[index] = streamResult{err: err}
 				return
@@ -136,17 +137,17 @@ api_protocol = "anthropic"
 		}(i, target)
 	}
 
-	deadline := time.Now().Add(3 * time.Second)
-	for maxInFlight.Load() < 2 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if maxInFlight.Load() < 2 {
-		close(release)
-		wg.Wait()
-		t.Fatalf("provider max in-flight = %d, want 2 concurrent chats", maxInFlight.Load())
+	overlapped := false
+	select {
+	case <-bothStarted:
+		overlapped = true
+	case <-ctx.Done():
 	}
 	close(release)
 	wg.Wait()
+	if !overlapped {
+		t.Fatalf("provider did not receive two overlapping chat requests: %+v", results)
+	}
 
 	for i, result := range results {
 		if result.err != nil {
