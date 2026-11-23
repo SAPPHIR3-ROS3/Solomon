@@ -24,6 +24,9 @@ func loadDesktopProjectGitStatus(projectID string) (desktopProjectGitStatus, err
 	if err != nil {
 		return desktopProjectGitStatus{}, err
 	}
+	if err := desktopgit.RequireGit(); err != nil {
+		return desktopProjectGitStatus{}, err
+	}
 	if !desktopIsGitRepo(root) {
 		return desktopProjectGitStatus{
 			Changes: map[string]string{},

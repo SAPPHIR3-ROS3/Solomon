@@ -26,6 +26,9 @@ func loadDesktopProjectGitHistory(projectID string) (desktopProjectGitHistory, e
 	if err != nil {
 		return desktopProjectGitHistory{}, err
 	}
+	if err := desktopgit.RequireGit(); err != nil {
+		return desktopProjectGitHistory{}, err
+	}
 	if !desktopIsGitRepo(root) {
 		return desktopProjectGitHistory{Commits: []desktopProjectGitCommit{}, IsRepo: false}, nil
 	}

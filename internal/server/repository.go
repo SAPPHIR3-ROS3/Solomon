@@ -239,6 +239,9 @@ func isGitRootOrBare(root string) bool {
 }
 
 func gitBranches(root string) (apiProjectBranches, error) {
+	if err := desktopgit.RequireGit(); err != nil {
+		return apiProjectBranches{}, err
+	}
 	if !isGitWorkTree(root) {
 		return apiProjectBranches{Branches: []string{}, IsRepo: false}, nil
 	}
@@ -272,6 +275,9 @@ func gitBranches(root string) (apiProjectBranches, error) {
 }
 
 func gitHistory(root string) (apiProjectGitHistory, error) {
+	if err := desktopgit.RequireGit(); err != nil {
+		return apiProjectGitHistory{}, err
+	}
 	if !isGitWorkTree(root) {
 		return apiProjectGitHistory{Commits: []desktopgit.Commit{}, IsRepo: false}, nil
 	}
@@ -287,6 +293,9 @@ func gitHistory(root string) (apiProjectGitHistory, error) {
 }
 
 func gitStatus(root string) (apiProjectGitStatus, error) {
+	if err := desktopgit.RequireGit(); err != nil {
+		return apiProjectGitStatus{}, err
+	}
 	if !isGitWorkTree(root) {
 		return apiProjectGitStatus{Changes: map[string]string{}, Staged: map[string]string{}, IsRepo: false}, nil
 	}
@@ -325,6 +334,9 @@ func unstageGitPaths(root string, paths []string) (apiProjectGitStatus, error) {
 }
 
 func applyGitIndex(root string, command, paths []string, action string) (apiProjectGitStatus, error) {
+	if err := desktopgit.RequireGit(); err != nil {
+		return apiProjectGitStatus{}, err
+	}
 	if !isGitWorkTree(root) {
 		return apiProjectGitStatus{}, fmt.Errorf("not a git repository")
 	}
@@ -393,6 +405,9 @@ func checkoutGitBranch(root, branch string) (apiProjectBranches, error) {
 }
 
 func gitWorktrees(root string) (apiProjectWorktrees, error) {
+	if err := desktopgit.RequireGit(); err != nil {
+		return apiProjectWorktrees{}, err
+	}
 	if !isGitRootOrBare(root) {
 		return apiProjectWorktrees{Worktrees: []apiProjectWorktree{}}, nil
 	}

@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/desktopgit"
 )
 
 type desktopProjectBranches struct {
@@ -87,6 +89,9 @@ func checkoutDesktopBranch(root, branch string) (desktopProjectBranches, error) 
 	if !validDesktopGitBranchName(branch) {
 		return desktopProjectBranches{}, fmt.Errorf("invalid branch name")
 	}
+	if err := desktopgit.RequireGit(); err != nil {
+		return desktopProjectBranches{}, err
+	}
 	if !desktopIsGitRepo(root) {
 		return desktopProjectBranches{}, fmt.Errorf("project is not a git repository")
 	}
@@ -121,6 +126,9 @@ func loadDesktopProjectBranches(projectID string) (desktopProjectBranches, error
 }
 
 func loadDesktopBranchesAtRoot(root string) (desktopProjectBranches, error) {
+	if err := desktopgit.RequireGit(); err != nil {
+		return desktopProjectBranches{}, err
+	}
 	if !desktopIsGitRepo(root) {
 		return desktopProjectBranches{IsRepo: false}, nil
 	}
@@ -140,6 +148,9 @@ func loadDesktopProjectWorktrees(projectID string) (desktopProjectWorktrees, err
 }
 
 func loadDesktopWorktreesAtRoot(root string) (desktopProjectWorktrees, error) {
+	if err := desktopgit.RequireGit(); err != nil {
+		return desktopProjectWorktrees{}, err
+	}
 	if !desktopCanListWorktrees(root) {
 		return desktopProjectWorktrees{Worktrees: []desktopProjectWorktree{}}, nil
 	}

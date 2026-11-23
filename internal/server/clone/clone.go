@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/desktopgit"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net/http"
 	"net/url"
@@ -41,6 +42,16 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	if err != nil || (remote.Scheme != "https" && remote.Scheme != "ssh") || remote.Host == "" || (remote.User != nil && (remote.Scheme != "ssh" || hasPassword(remote))) {
 		http.Error(w, "Use an HTTPS or SSH URL without embedded credentials", 400)
 		return
+	}
+	if err := desktopgit.RequireGit(); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	if strings.HasPrefix(request.Identity, "gh:") {
+		if _, err := exec.LookPath("gh"); err != nil {
+			http.Error(w, "GitHub CLI (gh) not found in PATH. Choose another identity or make gh available.", http.StatusServiceUnavailable)
+			return
+		}
 	}
 	home, _ := os.UserHomeDir()
 	destination := request.Destination
