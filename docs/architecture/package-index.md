@@ -80,6 +80,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/tooloutput/process/` | Cross-process temp cleanup coordination | [Supporting packages](supporting-packages.md) |
 | `internal/imagepreview/` | Fractional block image rendering | [Image previews](../user-guide/image-previews.md) |
 | `internal/mediaartifact/` | Media descriptors and persistent snapshots | [Image previews](../user-guide/image-previews.md) |
+| `internal/pdfinspect/` | PDF analysis, rendering, extraction, and editing with embedded PDFium WebAssembly | [Native tools](native-tools.md) |
 | `internal/terminalmedia/` | Terminal media presentation | [Image previews](../user-guide/image-previews.md) |
 | `internal/mcp/` | MCP client manager and OpenAI adapter | [MCP integration](mcp-integration.md) |
 | `internal/cloak/` | Go-owned native CloakBrowser client and minimal official Playwright shim | [MCP integration](mcp-integration.md#native-cloakbrowser-fallback) |
@@ -217,6 +218,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/modelsapi/` | Support |
 | `internal/modelsdev/` | Support |
 | `internal/pathglob/` | Feature |
+| `internal/pdfinspect/` | Feature |
 | `internal/plan/` | Feature |
 | `internal/paths/` | Core |
 | `internal/project/` | Core |
