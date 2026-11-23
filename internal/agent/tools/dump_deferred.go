@@ -50,6 +50,16 @@ func BuildDeferredToolDump() (string, error) {
 	if err := appendShellDump(b); err != nil {
 		return "", err
 	}
+	b.addBlock("analyzePDFFast", analyzePDFFastDescription, "AnalyzePDFFast(path, intent string) (json.RawMessage, error)")
+	b.addBlock("analyzePDFFull", analyzePDFFullDescription, "AnalyzePDFFull(path, intent string) (json.RawMessage, error)")
+	b.addBlock("readPDFPage", readPDFPageDescription, "ReadPDFPage(path string, page int, includeImage bool, intent string) (json.RawMessage, error)")
+	b.addBlock("readPDFPages", readPDFPagesDescription, "ReadPDFPages(path string, firstPage, lastPage int, includeImage bool, intent string) (json.RawMessage, error)")
+	b.addBlock("editPDFPages", editPDFPagesDescription, "EditPDFPages(outputPath string, sources []PDFPageSource, intent string) (PDFEditResult, error)")
+	b.addBlock("mergePDFs", mergePDFsDescription, "MergePDFs(outputPath string, paths []string, intent string) (PDFEditResult, error)")
+	b.addBlock("deletePDFPages", deletePDFPagesDescription, "DeletePDFPages(path, outputPath string, pages []int, intent string) (PDFEditResult, error)")
+	b.addBlock("annotatePDF", annotatePDFDescription, "AnnotatePDF(path, outputPath string, page int, kind string, rect []float32, text, intent string) (PDFEditResult, error)")
+	b.addBlock("extractPDFImages", extractPDFImagesDescription, "ExtractPDFImages(path, outputDir string, firstPage, lastPage int, intent string) (PDFImageResult, error)")
+	b.addBlock("searchInPDF", searchInPDFDescription, "SearchInPDF(path, query string, limit int, fuzzy bool, intent string) (json.RawMessage, error)")
 	b.addBlock("readBigMedia", readBigMediaDescription, "ReadBigMedia(path, intent string) (ReadResult, error)")
 	if err := appendReadFileDump(b); err != nil {
 		return "", err
