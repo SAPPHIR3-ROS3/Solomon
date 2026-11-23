@@ -10,7 +10,9 @@ import (
 	"strings"
 )
 
-var ErrNoImage = errors.New("no image in clipboard")
+var ErrNoImage = errors.New("no supported image in the clipboard: copy the image itself as PNG, JPEG, WebP, or GIF, or attach it by file path")
+var ErrUnavailable = errors.New("clipboard image access unavailable")
+var ErrImageTooLarge = errors.New("clipboard image exceeds 32 MiB or 32 mebipixels: resize it or attach it by file path")
 
 const (
 	psLoadWinForms = `Add-Type -AssemblyName System.Windows.Forms; `
@@ -18,64 +20,70 @@ const (
 )
 
 func HasImage() bool {
+	return ImageStatus() == nil
+}
+
+func ImageStatus() error {
 	switch runtime.GOOS {
 	case "darwin":
-		return hasImageDarwin()
+		return imageStatusDarwin()
 	case "linux":
-		return hasImageLinux()
+		return linuxImageStatus()
 	case "windows":
-		return hasImageWindows()
+		return imageStatusWindows()
+	default:
+		return fmt.Errorf("%w on %s: attach the image by file path", ErrUnavailable, runtime.GOOS)
 	}
-	return false
 }
 
-func hasImageDarwin() bool {
+func imageStatusDarwin() error {
 	info, err := exec.Command("osascript", "-e", "clipboard info").Output()
 	if err != nil {
-		return false
+		return fmt.Errorf("%w: macOS could not inspect the pasteboard (%v). Run Solomon from your desktop session or attach the image by file path", ErrUnavailable, err)
 	}
 	s := string(info)
-	return strings.Contains(s, "PNGf") || strings.Contains(s, "JPEG") || strings.Contains(s, "TIFF")
+	if !strings.Contains(s, "PNGf") && !strings.Contains(s, "JPEG") && !strings.Contains(s, "TIFF") {
+		return ErrNoImage
+	}
+	return nil
 }
 
-func hasImageLinux() bool {
-	if _, err := exec.LookPath("wl-paste"); err == nil {
-		out, err := exec.Command("wl-paste", "--list-types").Output()
-		if err == nil && strings.Contains(string(out), "image") {
-			return true
-		}
+func imageStatusWindows() error {
+	ps := psLoadWinForms + `$ErrorActionPreference = 'Stop'; [System.Windows.Forms.Clipboard]::ContainsImage()`
+	data, err := clipboardPowerShell(ps).Output()
+	if err != nil {
+		return fmt.Errorf("%w: Windows could not inspect the clipboard (%v). Run Solomon from your desktop session or attach the image by file path", ErrUnavailable, err)
 	}
-	if _, err := exec.LookPath("xclip"); err == nil {
-		out, err := exec.Command("xclip", "-selection", "clipboard", "-t", "TARGETS", "-o").Output()
-		if err == nil && (strings.Contains(string(out), "image/png") || strings.Contains(string(out), "image/jpeg")) {
-			return true
-		}
+	switch strings.TrimSpace(string(data)) {
+	case "True":
+		return nil
+	case "False":
+		return ErrNoImage
+	default:
+		return fmt.Errorf("%w: unexpected Windows clipboard response. Retry or attach the image by file path", ErrUnavailable)
 	}
-	return false
-}
-
-func hasImageWindows() bool {
-	ps := psLoadWinForms +
-		`if ([System.Windows.Forms.Clipboard]::ContainsImage()) { exit 0 } else { exit 1 }`
-	err := clipboardPowerShell(ps).Run()
-	return err == nil
 }
 
 func PasteImage(dir, chatID string, seq int) (string, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return "", fmt.Errorf("create images dir: %w", err)
+		return "", fmt.Errorf("cannot create attachment directory: %w. Check its permissions and available disk space", err)
 	}
 	path := filepath.Join(dir, fmt.Sprintf("%s.%d.png", chatID, seq))
+	var err error
 	switch runtime.GOOS {
 	case "darwin":
-		return path, pasteImageDarwin(path)
+		err = pasteImageDarwin(path)
 	case "linux":
-		return path, pasteImageLinux(path)
+		err = pasteImageLinux(path)
 	case "windows":
-		return path, pasteImageWindows(path)
+		err = pasteImageWindows(path)
 	default:
-		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+		err = fmt.Errorf("%w on %s: attach the image by file path", ErrUnavailable, runtime.GOOS)
 	}
+	if err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func pasteImageDarwin(path string) error {
@@ -86,37 +94,13 @@ write imgData to outFile
 close access outFile
 `, path)
 	if err := exec.Command("osascript", "-e", script).Run(); err != nil {
-		return fmt.Errorf("osascript save image failed: %w", err)
+		return fmt.Errorf("macOS could not save the clipboard image: %w. Copy the image as PNG and check attachment directory permissions", err)
 	}
 	st, err := os.Stat(path)
 	if err != nil || st.Size() == 0 {
 		return ErrNoImage
 	}
 	return nil
-}
-
-func pasteImageLinux(path string) error {
-	var lastErr error
-	if _, err := exec.LookPath("wl-paste"); err == nil {
-		cmd := exec.Command("wl-paste", "--type", "image/png")
-		out, err := cmd.Output()
-		if err == nil && len(out) > 0 {
-			return os.WriteFile(path, out, 0600)
-		}
-		lastErr = err
-	}
-	if _, err := exec.LookPath("xclip"); err == nil {
-		cmd := exec.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-o")
-		out, err := cmd.Output()
-		if err == nil && len(out) > 0 {
-			return os.WriteFile(path, out, 0600)
-		}
-		lastErr = err
-	}
-	if lastErr != nil {
-		return lastErr
-	}
-	return errors.New("neither wl-paste nor xclip found; install one to paste images on Linux")
 }
 
 func pasteImageWindows(path string) error {
@@ -127,7 +111,7 @@ func pasteImageWindows(path string) error {
 		`$img.Dispose()`
 	cmd := clipboardPowerShell(ps)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("powershell clipboard image: %w", err)
+		return fmt.Errorf("Windows could not save the clipboard image: %w. Copy the image again and check attachment directory permissions", err)
 	}
 	st, err := os.Stat(path)
 	if err != nil || st.Size() == 0 {

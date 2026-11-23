@@ -15,7 +15,7 @@ import (
 func (b ServerBridge) ClipboardImage() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	data, err := clipboard.ReadImage(ctx)
+	data, err := readDesktopClipboardImage(ctx)
 	if errors.Is(err, clipboard.ErrNoImage) {
 		return "", nil
 	}
@@ -24,7 +24,7 @@ func (b ServerBridge) ClipboardImage() (string, error) {
 	}
 	mime, ok := images.MIMEForBinary(data)
 	if !ok {
-		return "", fmt.Errorf("unsupported clipboard image")
+		return "", fmt.Errorf("unsupported clipboard image format. Export it as PNG and attach the file")
 	}
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data), nil
 }

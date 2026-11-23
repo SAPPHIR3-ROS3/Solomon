@@ -22,7 +22,7 @@ import (
 
 func signatureReadFile(path, intent string) {}
 
-const readFileDescription = "Read text or a PNG, JPEG, WebP, or GIF image relative to project root (absolute paths also accepted). GIFs attach only their first frame. Images are attached automatically for vision-capable models, including through orchestrate; no need to print image data. Optional startLine/endLine (1-based, inclusive) apply only to text. Discover unknown paths with find/listDir before reading; do not guess repository filenames. AGENTS.md instructions are loaded automatically when paths are activated; do not probe speculative AGENTS.md paths."
+const readFileDescription = "Read text or a PNG, JPEG, WebP, or GIF image relative to project root (absolute paths also accepted). GIFs attach only their first frame. Images are attached automatically for vision-capable models, including through orchestrate; no need to print image data. Optional startLine/endLine (1-based, inclusive) apply only to text. For supported images larger than 5 MiB, use readBigMedia. Discover unknown paths with find/listDir before reading; do not guess repository filenames. AGENTS.md instructions are loaded automatically when paths are activated; do not probe speculative AGENTS.md paths."
 
 const maxReadImageBytes = 5 * 1024 * 1024
 
@@ -95,7 +95,7 @@ func execReadFile(env *Env, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		if len(b) > maxReadImageBytes {
-			return nil, fmt.Errorf("readFile: image exceeds the 5 MiB limit")
+			return nil, fmt.Errorf("readFile: image exceeds the 5 MiB limit; use readBigMedia to attach a smaller copy")
 		}
 		cfg, _, err := image.DecodeConfig(bytes.NewReader(b))
 		if err != nil {
@@ -107,14 +107,12 @@ func execReadFile(env *Env, raw json.RawMessage) (any, error) {
 			if err != nil {
 				return nil, fmt.Errorf("readFile: invalid GIF: %w", err)
 			}
+			if len(attachment.Data) > maxReadImageBytes {
+				return nil, fmt.Errorf("readFile: GIF preview exceeds the 5 MiB limit; use readBigMedia to attach a smaller copy")
+			}
 			attachment.PresentationOnly = false
 		}
-		return map[string]any{
-			"path": p, "type": "image", "mime_type": mime,
-			"width": cfg.Width, "height": cfg.Height, "size_bytes": len(b),
-			"content":                 fmt.Sprintf("Image attached: %s (%s, %dx%d). Requires a vision-capable model.", p, mime, cfg.Width, cfg.Height),
-			images.ToolAttachmentsKey: []images.Attachment{attachment},
-		}, nil
+		return readImageResult(p, mime, cfg.Width, cfg.Height, len(b), attachment), nil
 	}
 	b, err := io.ReadAll(f)
 	if err != nil {
@@ -162,6 +160,15 @@ func execReadFile(env *Env, raw json.RawMessage) (any, error) {
 	result["start_line"] = start
 	result["end_line"] = end
 	return result, nil
+}
+
+func readImageResult(path, mime string, width, height, size int, attachment images.Attachment) map[string]any {
+	return map[string]any{
+		"path": path, "type": "image", "mime_type": mime,
+		"width": width, "height": height, "size_bytes": size,
+		"content":                 fmt.Sprintf("Image attached: %s (%s, %dx%d). Requires a vision-capable model.", path, mime, width, height),
+		images.ToolAttachmentsKey: []images.Attachment{attachment},
+	}
 }
 
 func splitFileLines(content string) []string {

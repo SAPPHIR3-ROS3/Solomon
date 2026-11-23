@@ -2,60 +2,31 @@ package clipboard
 
 import (
 	"context"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
-	"strings"
-	"time"
 )
 
 // ReadImage reads image bytes without changing the clipboard.
 func ReadImage(ctx context.Context) ([]byte, error) {
 	if runtime.GOOS == "linux" {
-		for _, source := range []struct {
-			name string
-			list []string
-			read func(string) []string
-		}{
-			{"wl-paste", []string{"--list-types"}, func(mime string) []string { return []string{"--no-newline", "--type", mime} }},
-			{"xclip", []string{"-selection", "clipboard", "-t", "TARGETS", "-o"}, func(mime string) []string { return []string{"-selection", "clipboard", "-t", mime, "-o"} }},
-		} {
-			types, err := exec.CommandContext(ctx, source.name, source.list...).Output()
-			if err != nil {
-				continue
-			}
-			for _, mime := range []string{"image/png", "image/jpeg", "image/webp", "image/gif"} {
-				for _, offered := range strings.Fields(string(types)) {
-					if offered != mime {
-						continue
-					}
-					cmd := exec.CommandContext(ctx, source.name, source.read(mime)...)
-					started := time.Now()
-					data, err := cmd.Output()
-					logging.ProcessFinished(ctx, cmd, "clipboard.read_image", started, err)
-					if err == nil && len(data) > 0 {
-						return data, nil
-					}
-				}
-			}
-		}
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		return nil, ErrNoImage
+		return readLinuxImage(ctx)
 	}
-	if !HasImage() {
-		return nil, ErrNoImage
+	if err := ImageStatus(); err != nil {
+		return nil, err
 	}
 	dir, err := os.MkdirTemp("", "solomon-clipboard-")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create temporary clipboard directory: %w. Check temporary directory permissions and available disk space", err)
 	}
 	defer os.RemoveAll(dir)
 	path, err := PasteImage(dir, "paste", 0)
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(path)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read the temporary clipboard image: %w. Check temporary directory permissions or attach the image by file path", err)
+	}
+	return data, nil
 }

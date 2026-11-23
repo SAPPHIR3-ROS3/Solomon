@@ -86,7 +86,7 @@ func isInternalToolName(name string) bool {
 	switch name {
 	case "docsRetrieval", "readChat",
 		"createPlan", "editPlan", "buildPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
-		"shell", "readFile", "editFile", "find", "listDir", "tree", "subagent", "fetchWeb", "webSearch",
+		"shell", "readFile", "readBigMedia", "editFile", "find", "listDir", "tree", "subagent", "fetchWeb", "webSearch",
 		"deepResearch", "researchStatus", "cloakBrowser", "httpRequest", "stat", "copyFile", "createDir",
 		"searchTools", "orchestrate", "settings", "customizeUI", "switchMode", "listSubAgents":
 		return true
@@ -179,6 +179,8 @@ func dispatchInternal(ctx context.Context, env *Env, mode string, inv tooling.In
 		return execDeletePlan(env, inv.Args)
 	case "shell":
 		return WithFileChangeTrackingPaths(ctx, env, shellInvocationPaths(env, inv.Args), func() (any, error) { return execShell(ctx, env, inv.Args) })
+	case "readBigMedia":
+		return execReadBigMedia(ctx, env, inv.Args)
 	case "readFile":
 		return execReadFile(env, inv.Args)
 	case "find":

@@ -50,6 +50,7 @@ func BuildDeferredToolDump() (string, error) {
 	if err := appendShellDump(b); err != nil {
 		return "", err
 	}
+	b.addBlock("readBigMedia", readBigMediaDescription, "ReadBigMedia(path, intent string) (ReadResult, error)")
 	if err := appendReadFileDump(b); err != nil {
 		return "", err
 	}

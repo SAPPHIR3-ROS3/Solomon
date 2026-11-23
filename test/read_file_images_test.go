@@ -93,7 +93,7 @@ func TestReadFileImagesRejectInvalidRangeAndOversize(t *testing.T) {
 		{"invalid", []byte("not a png"), nil, "invalid"},
 		{"broken-header", []byte("\x89PNG\r\n\x1a\n"), nil, "invalid image"},
 		{"range", pngData, map[string]any{"startLine": 1}, "only to text"},
-		{"oversize", append(append([]byte{}, pngData...), make([]byte, 5*1024*1024)...), nil, "5 MiB"},
+		{"oversize", append(append([]byte{}, pngData...), make([]byte, 5*1024*1024)...), nil, "use readBigMedia"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()

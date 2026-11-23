@@ -4,7 +4,7 @@ func AgentDeferredToolNames() []string {
 	return []string{
 		"deepResearch", "researchStatus", "cloakBrowser",
 		"createPlan", "editPlan", "addTodo", "todoList", "checkTodo", "removeTodo", "checkPlan", "deletePlan",
-		"shell", "readFile", "editFile", "find", "listDir", "tree", "fetchWeb", "webSearch",
+		"shell", "readFile", "readBigMedia", "editFile", "find", "listDir", "tree", "fetchWeb", "webSearch",
 	}
 }
 

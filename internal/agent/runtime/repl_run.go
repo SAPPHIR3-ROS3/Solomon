@@ -145,8 +145,8 @@ func (r *Runtime) saveReplClipboardImageTag() (string, error) {
 }
 
 func (r *Runtime) saveReplClipboardImage() (seq int, path string, err error) {
-	if !clipboard.HasImage() {
-		return 0, "", clipboard.ErrNoImage
+	if err := clipboard.ImageStatus(); err != nil {
+		return 0, "", err
 	}
 	var chatID string
 	r.mutateSession(func(s *chatstore.Session) {
@@ -157,7 +157,7 @@ func (r *Runtime) saveReplClipboardImage() (seq int, path string, err error) {
 	})
 	dir, err := paths.ChatImagesDir(r.ProjHex)
 	if err != nil {
-		return 0, "", err
+		return 0, "", fmt.Errorf("cannot open the attachment directory: %w. Check directory permissions and available disk space", err)
 	}
 	r.mutateSession(func(s *chatstore.Session) {
 		seq = s.ImageSeq
