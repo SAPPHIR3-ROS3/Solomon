@@ -1,3 +1,5 @@
+//go:build cgo && (dev || production) && !bindings
+
 package app
 
 /*
