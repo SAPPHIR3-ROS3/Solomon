@@ -199,18 +199,50 @@ func init(){ if address:=os.Getenv("SOLOMON_UPGRADE_FIXTURE"); address!="" { bas
 			exited := make(chan error, 1)
 			go func() { exited <- command.Wait() }()
 			t.Cleanup(func() {
-				if state, err := serverruntime.LoadState(); err == nil {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					request, _ := http.NewRequestWithContext(ctx, http.MethodPost, state.URL+"/_solomon/stop", nil)
-					if response, err := http.DefaultClient.Do(request); err == nil {
-						response.Body.Close()
-					}
-				}
 				_ = command.Process.Kill()
 				select {
 				case <-exited:
 				case <-time.After(5 * time.Second):
+					t.Error("test terminal process did not exit")
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				state, err := serverruntime.LoadState()
+				if os.IsNotExist(err) {
+					if _, lockErr := os.Stat(filepath.Join(appHome, "run", "server", "daemon.lock")); lockErr == nil {
+						if err := serverruntime.WaitForShutdown(ctx); err != nil {
+							t.Error(err)
+						}
+					}
+					return
+				}
+				if err != nil {
+					t.Errorf("read test daemon state: %v", err)
+					return
+				}
+				if state.Home != appHome || state.PIDIdentity == "" {
+					t.Error("test daemon state does not identify the fixture")
+					return
+				}
+				if processidentity.Read(state.PID) == state.PIDIdentity {
+					request, err := http.NewRequestWithContext(ctx, http.MethodPost, state.URL+"/_solomon/stop", nil)
+					if err != nil {
+						t.Errorf("prepare test daemon shutdown: %v", err)
+						return
+					}
+					response, err := http.DefaultClient.Do(request)
+					if err == nil {
+						response.Body.Close()
+						if response.StatusCode != http.StatusAccepted {
+							t.Errorf("test daemon rejected shutdown: %s", response.Status)
+						}
+					} else if processidentity.Read(state.PID) == state.PIDIdentity {
+						t.Errorf("stop test daemon: %v", err)
+					}
+				}
+				if err := serverruntime.WaitForShutdown(ctx); err != nil {
+					t.Error(err)
 				}
 			})
 			wait := func(label string, condition func() bool) bool {

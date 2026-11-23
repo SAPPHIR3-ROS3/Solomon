@@ -189,8 +189,14 @@ func TestNativeClipboardWaylandFailureMessages(t *testing.T) {
 }
 
 func TestNativeWaylandClipboard(t *testing.T) {
-	for _, manager := range []string{"ext_data_control_manager_v1", "zwlr_data_control_manager_v1"} {
-		t.Run(manager, func(t *testing.T) {
+	for _, tc := range []struct {
+		name, manager, mime string
+	}{
+		{"ext-data-control", "ext_data_control_manager_v1", "image/png"},
+		{"wlr-data-control", "zwlr_data_control_manager_v1", "image/jpeg"},
+		{"empty-selection", "ext_data_control_manager_v1", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			file := filepath.Join(dir, "wayland-test")
 			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: file, Net: "unix"})
@@ -202,8 +208,16 @@ func TestNativeWaylandClipboard(t *testing.T) {
 			t.Setenv("DISPLAY", "")
 			t.Setenv("PATH", dir)
 			var image bytes.Buffer
-			if err := png.Encode(&image, imagepkg.NewRGBA(imagepkg.Rect(0, 0, 2, 3))); err != nil {
-				t.Fatal(err)
+			picture := imagepkg.NewRGBA(imagepkg.Rect(0, 0, 2, 3))
+			switch tc.mime {
+			case "image/png":
+				if err := png.Encode(&image, picture); err != nil {
+					t.Fatal(err)
+				}
+			case "image/jpeg":
+				if err := jpeg.Encode(&image, picture, nil); err != nil {
+					t.Fatal(err)
+				}
 			}
 			result := make(chan error, 1)
 			go func() {
@@ -214,10 +228,14 @@ func TestNativeWaylandClipboard(t *testing.T) {
 				}
 				defer conn.Close()
 				conn.SetDeadline(time.Now().Add(5 * time.Second))
-				result <- serveWaylandClipboard(conn, manager, image.Bytes())
+				result <- serveWaylandClipboard(conn, tc.manager, tc.mime, image.Bytes())
 			}()
 			actual, err := clipboard.ReadImage(context.Background())
-			if err != nil || !bytes.Equal(actual, image.Bytes()) {
+			if tc.mime == "" {
+				if !errors.Is(err, clipboard.ErrNoImage) {
+					t.Fatalf("empty selection should report no image, got %v", err)
+				}
+			} else if err != nil || !bytes.Equal(actual, image.Bytes()) {
 				t.Fatalf("native Wayland read returned %d bytes: %v", len(actual), err)
 			}
 			if err := <-result; err != nil {
@@ -242,7 +260,7 @@ func waylandTestText(value string) []byte {
 	return data
 }
 
-func serveWaylandClipboard(conn *net.UnixConn, manager string, image []byte) error {
+func serveWaylandClipboard(conn *net.UnixConn, manager, mime string, image []byte) error {
 	read := func(object, opcode uint32) error {
 		var header [8]byte
 		if _, err := io.ReadFull(conn, header[:]); err != nil {
@@ -279,13 +297,20 @@ func serveWaylandClipboard(conn *net.UnixConn, manager string, image []byte) err
 			return err
 		}
 	}
+	if len(image) == 0 {
+		if err := write(6, 1, waylandTestPayload(0)); err != nil {
+			return err
+		}
+		return write(7, 0, waylandTestPayload(0))
+	}
 	const offer = 0xff000000
 	for _, event := range []struct {
 		id, opcode uint32
 		payload    []byte
 	}{
 		{6, 0, waylandTestPayload(offer)},
-		{offer, 0, waylandTestText("image/png")},
+		{offer, 0, waylandTestText("text/plain")},
+		{offer, 0, waylandTestText(mime)},
 		{6, 1, waylandTestPayload(offer)},
 		{7, 0, waylandTestPayload(0)},
 	} {
@@ -298,7 +323,9 @@ func serveWaylandClipboard(conn *net.UnixConn, manager string, image []byte) err
 	if err != nil {
 		return err
 	}
-	if n < 8 || binary.NativeEndian.Uint32(wire) != offer {
+	expected := waylandTestText(mime)
+	if n != 8+len(expected) || binary.NativeEndian.Uint32(wire) != offer ||
+		binary.NativeEndian.Uint32(wire[4:]) != uint32(n)<<16 || !bytes.Equal(wire[8:n], expected) {
 		return fmt.Errorf("expected Wayland offer receive request")
 	}
 	messages, err := unix.ParseSocketControlMessage(control[:nc])
