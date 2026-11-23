@@ -1,14 +1,9 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +12,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/atmention"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/database"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/paths"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/project"
 )
 
 func (a *chatAPI) handleProjects(w http.ResponseWriter, r *http.Request) {
@@ -311,13 +314,22 @@ func (a *chatAPI) projectInfo(root, id string, limit int) (apiProject, error) {
 	if home, homeErr := os.UserHomeDir(); homeErr == nil && filepath.Clean(root) == filepath.Clean(home) {
 		name = "Home"
 	}
+	home, err := paths.SolomonHome()
+	if err != nil {
+		return apiProject{}, err
+	}
+	state, err := database.ReadFolderState(context.Background(), home, id, "chats")
+	if err != nil {
+		return apiProject{}, err
+	}
 	return apiProject{
-		Chats:      chats,
-		ID:         id,
-		Name:       name,
-		Path:       root,
-		ChatCount:  count,
-		TokenStats: apiTokenStats{User: user, Reasoning: reasoning, Response: response, Total: user + reasoning + response},
+		ChatsCollapsed: state != nil && state.RootCollapsed,
+		Chats:          chats,
+		ID:             id,
+		Name:           name,
+		Path:           root,
+		ChatCount:      count,
+		TokenStats:     apiTokenStats{User: user, Reasoning: reasoning, Response: response, Total: user + reasoning + response},
 	}, nil
 }
 

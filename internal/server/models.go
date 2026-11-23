@@ -1,17 +1,19 @@
 package server
 
 import (
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/chatstore"
 )
 
 type apiProject struct {
-	Chats      []apiChatSummary `json:"chats"`
-	ID         string           `json:"id"`
-	Name       string           `json:"name"`
-	Path       string           `json:"path"`
-	ChatCount  int              `json:"chatCount"`
-	TokenStats apiTokenStats    `json:"tokenStats"`
+	ChatsCollapsed bool             `json:"chatsCollapsed"`
+	Chats          []apiChatSummary `json:"chats"`
+	ID             string           `json:"id"`
+	Name           string           `json:"name"`
+	Path           string           `json:"path"`
+	ChatCount      int              `json:"chatCount"`
+	TokenStats     apiTokenStats    `json:"tokenStats"`
 }
 
 type apiChatSummary struct {

@@ -95,7 +95,7 @@ func artifactReferences(ctx context.Context, path string, pins map[string]bool) 
 	if err := db.QueryRowContext(ctx, "SELECT * FROM pragma_application_id(), pragma_user_version()").Scan(&id, &version); err != nil {
 		return err
 	}
-	if id != 1397705796 || version < 1 || version > 8 {
+	if id != 1397705796 || version < 1 || version > dataSchemaVersion {
 		return fmt.Errorf("unsupported artifact reference database: %s", path)
 	}
 	for _, pair := range artifactColumns {

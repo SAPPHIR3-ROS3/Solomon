@@ -1,3 +1,4 @@
+import { chatFolderOverrides, saveFolderState } from "../projects/folders";
 import { ShowMoreChats } from "./ShowMoreChats";
 import { RemovalDialog } from "./sidebar/RemovalDialog";
 import { useProjectScroll } from "./sidebar/useProjectScroll";
@@ -5,7 +6,7 @@ import { Actions } from "./sidebar/Actions";
 import { ChatListButton, formatRelativeTime, FolderIcon, PlusIcon, ProjectTerminalIcon, SettingsIcon, CloseIcon } from "./sidebar/elements";
 export { ChatListButton } from "./sidebar/elements";
 import type { OpenChatContextMenu } from "./useChatContextMenu";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { cacheUserName, fetchProjectRemovalInfo, fetchProjectSidebarData, getCachedProjectSidebarData, getCachedUserName, PROJECTS_CHANGED_EVENT, type Project, type ProjectRemovalInfo, removeProjectFromDisk, removeProjectFromSidebar, saveUserName } from "../projects/projects";
 import { applyProjectChatActivity, PROJECT_CHAT_ACTIVITY_EVENT } from "../projects/chatActivity";
 import type { TemporaryWorkspace } from "../projects/temporaryWorkspace";
@@ -77,7 +78,7 @@ export function SidePanel({
   const [projectRemovalInfo, setProjectRemovalInfo] = useState<ProjectRemovalInfo | null>(null);
   const [isRemovingProject, setIsRemovingProject] = useState(false);
   const [isTemporaryWorkspaceOpen, setIsTemporaryWorkspaceOpen] = useState(true);
-  const [openProjectIds, setOpenProjectIds] = useState<Set<string>>(() => new Set(getCachedProjectSidebarData()?.projects.map((project) => project.id) ?? []));
+  const openProjectIds = useMemo(() => new Set(projects.filter((project) => !(chatFolderOverrides.get(project.id) ?? project.chatsCollapsed)).map((project) => project.id)), [projects]);
   const [visibleChatCounts, setVisibleChatCounts] = useState<Map<string, number>>(() => new Map());
   const { projectsListRef, projectScrollThumb, projectScrollShadowOpacity, projectBottomScrollShadowOpacity, startProjectScrollThumbDrag } = useProjectScroll({ bottomInset, openProjectIds, projects, temporaryWorkspace, visibleChatCounts });
   const [userName, setUserName] = useState(() => getCachedUserName() ?? "");
@@ -122,7 +123,6 @@ export function SidePanel({
         .then((data) => {
           if (requestController.signal.aborted || currentController !== requestController) return;
           setProjects(applyProjectChatActivity(data.projects));
-          setOpenProjectIds(new Set(data.projects.map((project) => project.id)));
           const nextUserName = data.userName.trim();
           cacheUserName(nextUserName);
           setUserName(nextUserName);
@@ -225,11 +225,7 @@ export function SidePanel({
 
   function removeProjectFromList(project: Project) {
     setProjects((currentProjects) => currentProjects.filter((currentProject) => currentProject.id !== project.id));
-    setOpenProjectIds((currentProjectIds) => {
-      const nextProjectIds = new Set(currentProjectIds);
-      nextProjectIds.delete(project.id);
-      return nextProjectIds;
-    });
+    chatFolderOverrides.delete(project.id);
   }
 
   function openProjectRemovalDialog(project: Project, removeData: boolean) {
@@ -347,12 +343,11 @@ export function SidePanel({
                 <button
                   aria-expanded={isProjectOpen}
                   className="side-panel-project-trigger"
-                  onClick={() => setOpenProjectIds((projectIds) => {
-                    const nextProjectIds = new Set(projectIds);
-                    if (isProjectOpen) nextProjectIds.delete(project.id);
-                    else nextProjectIds.add(project.id);
-                    return nextProjectIds;
-                  })}
+                  onClick={() => {
+                    chatFolderOverrides.set(project.id, isProjectOpen);
+                    setProjects((items) => items.map((item) => item.id === project.id ? { ...item, chatsCollapsed: isProjectOpen } : item));
+                    void saveFolderState(project.id, "chats", { expanded: [], rootCollapsed: isProjectOpen }).catch(() => undefined);
+                  }}
                   onKeyDown={(event) => handleProjectContextMenuKey(event, project)}
                   title={project.path}
                   type="button"

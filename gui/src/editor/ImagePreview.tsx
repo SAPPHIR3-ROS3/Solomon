@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { serverEndpoint } from "../platform";
 import { imageMimeType } from "./images";
 import "./images.css";
+import { useFilePosition, useViewportPosition } from "./filePosition";
 
 export function ImagePreview({ projectID, path }: { projectID: string; path: string }) {
   const [source, setSource] = useState("");
   const [error, setError] = useState(false);
   const [size, setSize] = useState("");
+  const host = useRef<HTMLElement>(null);
+  const { position, save } = useFilePosition(projectID, path, "preview");
+  const remember = useViewportPosition(host, position, save, Boolean(size));
   useEffect(() => {
     const controller = new AbortController();
     let objectURL = "";
@@ -24,7 +28,7 @@ export function ImagePreview({ projectID, path }: { projectID: string; path: str
     })();
     return () => { controller.abort(); if (objectURL) URL.revokeObjectURL(objectURL); };
   }, [projectID, path]);
-  return <section className="editor-image-preview" aria-label="Image preview">
+  return <section ref={host} onScroll={remember} className="editor-image-preview" aria-label="Image preview">
     {error ? <p role="alert">Unable to display this image. The file may be damaged or unsupported.</p> : source ? <img src={source} alt={path.split(/[\\/]/).at(-1) ?? path} onError={() => setError(true)} onLoad={(event) => { const image = event.currentTarget; setSize(`${image.naturalWidth} × ${image.naturalHeight}`); }} /> : <p role="status">Loading image…</p>}
     {!error && size ? <span className="editor-image-size">{size}</span> : null}
   </section>;

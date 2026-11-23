@@ -48,7 +48,7 @@ after(async () => {
   if (fixture) await rm(fixture, { recursive: true, force: true });
 });
 
-async function editorPage() {
+async function editorPage(folderStates, pdfPreferences, filePositions) {
   const context = await browser.newContext({ viewport: { width: 1200, height: 800 } });
   const page = await context.newPage();
   page.setDefaultTimeout(7000);
@@ -61,6 +61,20 @@ async function editorPage() {
     }
     return route.continue();
   });
+  for (const [endpoint, values] of [["folder-state?panel=editor", folderStates], ["pdf-preferences", pdfPreferences], ["file-position?*", filePositions]]) {
+    if (!values) continue;
+    await page.route(`**/__solomon/projects/*/${endpoint}`, (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const project = url.pathname.split("/").at(-2);
+      const id = values === filePositions ? JSON.stringify([project, url.searchParams.get("path"), url.searchParams.get("view")]) : project;
+      if (request.method() === "PUT") {
+        values.set(id, request.postDataJSON());
+        return route.fulfill({ status: 204 });
+      }
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify(values.get(id) ?? null) });
+    });
+  }
   const entry = `
     import React from 'react';
     import { createRoot } from 'react-dom/client';
@@ -90,8 +104,10 @@ async function editorPage() {
 
 const filePath = () => path.join(workspace, "src", "nested", "draft.txt");
 async function openDraft(page) {
-  await page.locator('#editor-files button[title="src"]').click();
-  await page.locator('#editor-files button[title="nested"]').click();
+  for (const name of ["src", "nested"]) {
+    const folder = page.locator(`#editor-files button[title="${name}"]`);
+    if (await folder.getAttribute("aria-expanded") !== "true") await folder.click();
+  }
   await page.locator('#editor-files button[title="draft.txt"]').click();
   await page.locator(".cm-content").waitFor();
 }
@@ -145,6 +161,71 @@ test("sessions are separate per project and restore after a page reload", async 
     await page.locator("#agent").click(); await page.locator("#editor").click();
     assert.equal(await page.getByRole("button", { name: "Project A folder" }).getAttribute("aria-expanded"), "false");
     assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test("editor restores folder state from the server after clearing browser storage", async () => {
+  const folderStates = new Map([[projectA.id, { expanded: ["src", "src/nested"], rootCollapsed: false }]]);
+  const { page, context } = await editorPage(folderStates);
+  try {
+    const file = page.locator('#editor-files button[title="draft.txt"]');
+    await file.waitFor();
+    const saved = page.waitForResponse((response) => response.url().includes("/folder-state?panel=editor") && response.request().method() === "PUT" && response.status() === 204);
+    await page.getByRole("button", { name: "Project A folder" }).click();
+    await saved;
+    assert.deepEqual(folderStates.get(projectA.id), { expanded: ["src", "src/nested"], rootCollapsed: true });
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.locator('.editor-root-identity[aria-expanded="false"]:enabled').waitFor();
+    assert.equal(await file.count(), 0);
+    await page.getByRole("button", { name: "Project A folder" }).click();
+    await file.waitFor();
+  } finally { await context.close(); }
+});
+
+test("PDF view preferences and reading position survive a reload", async () => {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>",
+    ...Array(3).fill("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] >>"),
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = objects.map((object, index) => {
+    const offset = pdf.length;
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    return `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.join("")}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${pdf.length}\n%%EOF\n`;
+  await writeFile(path.join(workspace, "one.pdf"), pdf);
+  await writeFile(path.join(workspace, "two.pdf"), pdf);
+
+  const preferences = new Map();
+  const positions = new Map();
+  const { page, context } = await editorPage(undefined, preferences, positions);
+  try {
+    await page.getByRole("button", { name: "one.pdf", exact: true }).click();
+    await page.getByRole("button", { name: "Continuous scrolling" }).click();
+    await page.getByRole("button", { name: "Horizontal scrolling" }).click();
+    await page.getByRole("button", { name: "Two-page view" }).click();
+    const saved = page.waitForResponse((response) => response.url().endsWith("/pdf-preferences") && response.request().postDataJSON()?.fitMode === "page" && response.status() === 204);
+    await page.getByRole("button", { name: "Fit to page" }).click();
+    await saved;
+    assert.deepEqual(preferences.get(projectA.id), { continuous: true, direction: "horizontal", twoPages: true, zoom: 1, fitMode: "page" });
+    const savedPage = page.waitForResponse(response => response.url().includes("/file-position?") &&
+      response.request().method() === "PUT" && response.request().postDataJSON().page === 3 &&
+      response.request().postDataJSON().left > 0);
+    await page.getByRole("button", { name: "Next page" }).click();
+    await savedPage;
+    await page.reload();
+    for (const file of ["one.pdf", "two.pdf"]) {
+      await page.getByRole("button", { name: file, exact: true }).click();
+      await page.getByRole("button", { name: "Horizontal scrolling", pressed: true }).waitFor();
+      await page.getByRole("button", { name: "Continuous scrolling", pressed: true }).waitFor();
+      await page.getByRole("button", { name: "Two-page view", pressed: true }).waitFor();
+      await page.getByRole("button", { name: "Fit to width" }).waitFor();
+      const expectedPage = file === "one.pdf" ? "3" : "1";
+      await page.waitForFunction(expected => document.querySelector('[aria-label="PDF page"]')?.value === expected, expectedPage);
+    }
   } finally { await context.close(); }
 });
 
@@ -280,7 +361,7 @@ test("editor tabs restore their own scroll and cursor across Agent switches and 
     await page.locator('#agent').click();
     const hidden = await page.evaluate(id=>JSON.parse(localStorage.getItem(`solomon.editor-session.v1.${id}`)),projectA.id);
     await page.locator('#editor').click();
-    try { await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller').scrollTop-top)<2,top); }
+    try { await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller')?.scrollTop-top)<2,top); }
     catch(error){throw new Error(error.message+'; top='+top+'; before='+JSON.stringify(before.views)+'; hidden='+JSON.stringify(hidden.views)+'; now='+JSON.stringify(await page.evaluate(id=>({top:document.querySelector('.cm-scroller')?.scrollTop,session:JSON.parse(localStorage.getItem(`solomon.editor-session.v1.${id}`))?.views}),projectA.id)));}
     assert.ok((await page.locator('.editor-status').innerText()).includes('Ln 260'));
     await page.locator('#editor-files button[title="another.txt"]').dblclick();
@@ -288,14 +369,39 @@ test("editor tabs restore their own scroll and cursor across Agent switches and 
     await shell.evaluate(node=>{node.scrollTop=700});await settle();
     const topB=await shell.evaluate(node=>node.scrollTop);
     await page.locator('.editor-tab-trigger').filter({hasText:'draft.txt'}).click();
-    await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller').scrollTop-top)<2,top);
+    await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller')?.scrollTop-top)<2,top);
     await page.locator('.editor-tab-trigger').filter({hasText:'another.txt'}).click();
-    await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller').scrollTop-top)<2,topB);
+    await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller')?.scrollTop-top)<2,topB);
     await page.reload();await page.waitForFunction(top=>Math.abs(document.querySelector('.cm-scroller')?.scrollTop-top)<2,topB);
     assert.deepEqual(errors,[]);
   } finally {await context.close();}
 });
 
+
+test("closed files recover saved cursor and scroll without browser storage", async () => {
+  const text = Array.from({ length: 260 }, (_, i) => `Line ${i + 1}`).join("\n");
+  await writeFile(filePath(), text);
+  const positions = new Map();
+  const key = JSON.stringify([projectA.id, "src/nested/draft.txt", "source"]);
+  const { page, context } = await editorPage(undefined, undefined, positions);
+  try {
+    await openDraft(page);
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("Control+End");
+    await page.waitForFunction(() => document.querySelector(".cm-scroller").scrollTop > 2000);
+    const saved = page.waitForResponse(response => response.url().includes("/file-position?") &&
+      response.request().method() === "PUT" && response.request().postDataJSON().head === text.length &&
+      Math.abs(response.request().postDataJSON().top - 1300) < 100);
+    await page.locator(".cm-scroller").evaluate(node => { node.scrollTop = 1300; });
+    await saved;
+    await page.getByRole("button", { name: "Close draft.txt" }).click();
+    await page.addInitScript(() => localStorage.clear());
+    await page.reload();
+    await openDraft(page);
+    await page.waitForFunction(top => Math.abs(document.querySelector(".cm-scroller")?.scrollTop - top) < 2, positions.get(key).top);
+    assert.match(await page.locator(".editor-status").innerText(), /Ln 260/);
+  } finally { await context.close(); }
+});
 
 test("undo and redo autosave the resulting content and survive view switches", async () => {
   await writeFile(filePath(), "Original");

@@ -6,12 +6,35 @@ import (
 	"fmt"
 )
 
+const dataSchemaVersion = 11
+
 const dataSchema = `
 CREATE TABLE IF NOT EXISTS project_registration (
     root_path TEXT PRIMARY KEY,
     project_id TEXT NOT NULL
 ) STRICT;
 CREATE INDEX IF NOT EXISTS project_registration_project ON project_registration (project_id);
+CREATE TABLE IF NOT EXISTS project_folder_state (
+    project_id TEXT NOT NULL,
+    panel TEXT NOT NULL,
+    state TEXT NOT NULL,
+    PRIMARY KEY (project_id, panel)
+) STRICT;
+CREATE TABLE IF NOT EXISTS project_pdf_preferences (
+    project_id TEXT PRIMARY KEY,
+    continuous INTEGER NOT NULL CHECK (continuous IN (0, 1)),
+    direction TEXT NOT NULL CHECK (direction IN ('vertical', 'horizontal')),
+    two_pages INTEGER NOT NULL CHECK (two_pages IN (0, 1)),
+    zoom REAL NOT NULL CHECK (zoom BETWEEN 0.25 AND 3),
+    fit_mode TEXT CHECK (fit_mode IN ('page', 'width'))
+) STRICT;
+CREATE TABLE IF NOT EXISTS project_file_position (
+    project_id TEXT NOT NULL,
+    path TEXT NOT NULL,
+    view TEXT NOT NULL,
+    position TEXT NOT NULL,
+    PRIMARY KEY (project_id, path, view)
+) STRICT;
 CREATE TABLE IF NOT EXISTS legacy_import (
     source TEXT PRIMARY KEY
 ) STRICT;
@@ -138,7 +161,7 @@ CREATE TABLE IF NOT EXISTS log_event (
 `
 
 func initialize(ctx context.Context, db *sql.DB, kind Kind) error {
-	schema, id, current := dataSchema, 1397705796, 8
+	schema, id, current := dataSchema, 1397705796, dataSchemaVersion
 	if kind == Logs {
 		schema, id, current = logSchema, 1397705804, 7
 	}
@@ -177,7 +200,7 @@ func initialize(ctx context.Context, db *sql.DB, kind Kind) error {
 			return err
 		}
 	}
-	if kind == Data {
+	if kind == Data && version < 8 {
 		if err := migrateSidebarOrder(ctx, tx); err != nil {
 			return err
 		}

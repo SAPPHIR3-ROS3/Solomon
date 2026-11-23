@@ -106,6 +106,9 @@ func UnregisterProject(path, id string, removeData bool) error {
 	defer tx.Rollback()
 	if removeData {
 		for _, query := range []string{
+			"DELETE FROM project_folder_state WHERE project_id = ?",
+			"DELETE FROM project_pdf_preferences WHERE project_id = ?",
+			"DELETE FROM project_file_position WHERE project_id = ?",
 			"DELETE FROM chat_session WHERE project_id = ?",
 			"DELETE FROM chat_legacy_alias WHERE project_id = ?",
 			"DELETE FROM chat_import_failure WHERE project_id = ?",

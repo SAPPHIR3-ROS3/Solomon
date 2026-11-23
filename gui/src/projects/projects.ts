@@ -50,6 +50,7 @@ export type ProjectTokenStats = {
 
 export type Project = {
   chats: ProjectChatSummary[];
+  chatsCollapsed?: boolean;
   id: string;
   name: string;
   path: string;

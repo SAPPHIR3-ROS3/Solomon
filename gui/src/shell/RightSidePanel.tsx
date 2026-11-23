@@ -1,3 +1,4 @@
+import { loadFolderState, saveFolderState } from "../projects/folders";
 import { fileBrowserStatuses } from "./right-panel/status";
 import { FileBrowser } from "./right-panel/Browser";
 import { useResearchContextMenu } from "../research/ContextMenu";
@@ -66,7 +67,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
   entriesRef.current = entries;
   const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(() => new Set());
   const expandedDirectoriesRef = useRef(expandedDirectories);
-  expandedDirectoriesRef.current = expandedDirectories;
+  const loadedExplorerRef = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [scrollShadowOpacity, setScrollShadowOpacity] = useState(0);
@@ -147,41 +148,39 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
 
   useEffect(() => {
     setEntries({});
+    loadedExplorerRef.current = null;
+    expandedDirectoriesRef.current = new Set();
+    setExpandedDirectories(expandedDirectoriesRef.current);
     setError("");
     setQuery("");
     setScrollShadowOpacity(0);
     setBottomScrollShadowOpacity(0);
     const explorerID = project?.id ?? temporaryWorkspace?.id;
     if (!explorerID) {
-      setExpandedDirectories(new Set());
       restoredScrollPositionRef.current = null;
       return;
     }
     const restoredState = loadExplorerState(explorerID);
-    const restoredDirectories = [...new Set(restoredState.expandedDirectories)]
-      .sort((left, right) => left.split("/").length - right.split("/").length);
-    setExpandedDirectories(new Set(restoredDirectories));
     restoredScrollPositionRef.current = { projectID: explorerID, scrollTop: restoredState.scrollTop };
-    if (!project && !temporaryWorkspace) return;
     let cancelled = false;
-    const fetchRootEntries = project
-      ? fetchProjectDirectoryEntries(project.id)
-      : fetchHomeDirectoryEntries(temporaryWorkspace!.path);
-    void fetchRootEntries
-      .then(async (rootEntries) => {
-        const restoredEntries: Record<string, ProjectDirectoryEntry[]> = {
-          "": rootEntries,
-        };
-        await Promise.all(restoredDirectories.map(async (path) => {
-          try {
-            restoredEntries[path] = project
-              ? await fetchProjectDirectoryEntries(project.id, path)
-              : await fetchHomeDirectoryEntries(path);
-          } catch {
-            // A folder may have been renamed or removed since the state was saved.
-          }
+    const fallback = { expanded: restoredState.expandedDirectories, rootCollapsed: false };
+    const folderState = project ? loadFolderState(project.id, "chat-files", fallback) : Promise.resolve(fallback);
+    const readDirectory = (path: string) => project
+      ? fetchProjectDirectoryEntries(project.id, path)
+      : fetchHomeDirectoryEntries(path || temporaryWorkspace!.path);
+    void Promise.all([folderState, readDirectory("")])
+      .then(async ([state, rootEntries]) => {
+        const restoredEntries: Record<string, ProjectDirectoryEntry[]> = { "": rootEntries };
+        const restoredDirectories = new Set(state.expanded);
+        await Promise.all([...restoredDirectories].map(async (path) => {
+          try { restoredEntries[path] = await readDirectory(path); }
+          catch { return; }
         }));
-        if (!cancelled) setEntries(restoredEntries);
+        if (cancelled) return;
+        loadedExplorerRef.current = explorerID;
+        expandedDirectoriesRef.current = restoredDirectories;
+        setExpandedDirectories(restoredDirectories);
+        setEntries(restoredEntries);
       })
       .catch(() => {
         if (!cancelled) setError("Could not load the project files.");
@@ -214,7 +213,7 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
       setScrollShadowOpacity(Math.min(1, files.scrollTop / 18));
       const scrollableHeight = files.scrollHeight - files.clientHeight;
       setBottomScrollShadowOpacity(Math.min(1, Math.max(0, scrollableHeight - files.scrollTop) / 18));
-      saveExplorerState(explorerID, expandedDirectories, files.scrollTop);
+      if (loadedExplorerRef.current === explorerID) saveExplorerState(explorerID, expandedDirectoriesRef.current, files.scrollTop);
     };
     const resizeObserver = new ResizeObserver(updateScrollChrome);
     resizeObserver.observe(files);
@@ -234,11 +233,10 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
       if (change.projectID !== project.id) return;
       const affected = (path: string) => path === change.path || path.startsWith(`${change.path}/`);
       const updatedPath = (path: string) => affected(path) && change.destination && change.action !== "copy" ? change.destination + path.slice(change.path.length) : path;
-      setExpandedDirectories((current) => {
-        const next = new Set([...current].filter((path) => !(change.action === "delete" && affected(path))).map(updatedPath));
-        saveExplorerState(project.id, next, filesRef.current?.scrollTop ?? 0);
-        return next;
-      });
+      if (loadedExplorerRef.current !== project.id) return;
+      const current = expandedDirectoriesRef.current;
+      const next = new Set([...current].filter((path) => !(change.action === "delete" && affected(path))).map(updatedPath));
+      if (next.size !== current.size || [...next].some((path) => !current.has(path))) updateExpandedDirectories(project.id, next);
       void Promise.all(Object.keys(entriesRef.current).map(async (path) => {
         const nextPath = updatedPath(path);
         try { return [nextPath, await fetchProjectDirectoryEntries(project.id, nextPath)] as const; }
@@ -320,17 +318,20 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
     };
   }, [project?.id, activeView]);
 
+  function updateExpandedDirectories(explorerID: string, next: Set<string>) {
+    expandedDirectoriesRef.current = next;
+    setExpandedDirectories(next);
+    saveExplorerState(explorerID, next, filesRef.current?.scrollTop ?? 0);
+    if (project) void saveFolderState(project.id, "chat-files", { expanded: [...next], rootCollapsed: false }).catch(() => setError("Could not save folder state."));
+  }
+
   function toggleDirectory(entry: ProjectDirectoryEntry) {
-    const isExpanded = expandedDirectories.has(entry.path);
     const explorerID = project?.id ?? temporaryWorkspace?.id;
-    if (!explorerID) return;
-    setExpandedDirectories((current) => {
-      const next = new Set(current);
-      if (isExpanded) next.delete(entry.path);
-      else next.add(entry.path);
-      saveExplorerState(explorerID, next, filesRef.current?.scrollTop ?? 0);
-      return next;
-    });
+    if (!explorerID || loadedExplorerRef.current !== explorerID) return;
+    const next = new Set(expandedDirectoriesRef.current);
+    const isExpanded = next.delete(entry.path);
+    if (!isExpanded) next.add(entry.path);
+    updateExpandedDirectories(explorerID, next);
     if (isExpanded || entries[entry.path]) return;
     const fetchChildEntries = !project && temporaryWorkspace
         ? fetchHomeDirectoryEntries(entry.path)
@@ -339,8 +340,10 @@ export function RightSidePanel({ bottomInset, onOpenResearch, onOpenFile, onWidt
           : null;
     if (!fetchChildEntries) return;
     void fetchChildEntries
-      .then((childEntries) => setEntries((current) => ({ ...current, [entry.path]: childEntries })))
-      .catch(() => setError("Could not load this folder."));
+      .then((childEntries) => {
+        if (loadedExplorerRef.current === explorerID) setEntries((current) => ({ ...current, [entry.path]: childEntries }));
+      })
+      .catch(() => { if (loadedExplorerRef.current === explorerID) setError("Could not load this folder."); });
   }
 
   return (

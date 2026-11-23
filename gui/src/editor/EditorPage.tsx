@@ -1,3 +1,5 @@
+import { useFolderState } from "./useFolderState";
+import { loadFolderState } from "../projects/folders";
 import { fileBrowserStatuses } from "../shell/right-panel/status";
 import { FileBrowser } from "../shell/right-panel/Browser";
 import { useFileDrag } from "./fileDrag";
@@ -33,10 +35,10 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const [children, setChildren] = useState<Record<string, ProjectDirectoryEntry[]>>({});
   const childrenRef = useRef(children);
   childrenRef.current = children;
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(restoredSession.expanded));
+  const [message, setMessage] = useState("");
+  const { expanded, setExpanded, rootCollapsed, setRootCollapsed, foldersReady, restoreFolders } = useFolderState(project?.id, restoredSession, setMessage);
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
-  const [rootCollapsed, setRootCollapsed] = useState(restoredSession.rootCollapsed);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [files, setFiles] = useState<OpenFile[]>(restoredSession.files);
@@ -52,7 +54,6 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const branchControlRef = useRef<HTMLDivElement>(null);
   const [branchLoading, setBranchLoading] = useState(false);
-  const [message, setMessage] = useState("");
   const [documentToolbarHost, setDocumentToolbarHost] = useState<HTMLDivElement | null>(null);
   const [languageStatusHost, setLanguageStatusHost] = useState<HTMLDivElement | null>(null);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
@@ -76,10 +77,15 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
         setEntries(nextEntries); setGit(status); setBranch(branches.current); setBranchOptions(branches.branches); setHistory(nextHistory);
       })
       .catch(() => { if (!cancelled) setMessage("Unable to read this folder."); });
-    void Promise.all(restoredSession.expanded.map(async (path) => {
-      try { return [path, await fetchProjectDirectoryEntries(project.id, path)] as const; }
-      catch { return [path, []] as const; }
-    })).then((loaded) => { if (!cancelled) setChildren(Object.fromEntries(loaded)); });
+    void loadFolderState(project.id, "editor", { expanded: restoredSession.expanded, rootCollapsed: restoredSession.rootCollapsed }).then(async (state) => {
+      const loaded = await Promise.all(state.expanded.map(async (path) => {
+        try { return [path, await fetchProjectDirectoryEntries(project.id, path)] as const; }
+        catch { return [path, []] as const; }
+      }));
+      if (cancelled) return;
+      setChildren(Object.fromEntries(loaded));
+      restoreFolders(state);
+    });
     void waitForEditorSaves(project.id).then(async () => {
       const loaded = new Map(await Promise.all(restoredSession.files.map(async (file) => {
         try { return [file.id, isPreviewFile(file.path) ? "" : await fetchProjectFile(project.id, file.path)] as const; }
@@ -458,10 +464,10 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       </header>
       {sideView === "files" ? <>
         <FileBrowser editor query={query} onQueryChange={setQuery} label={`${workspaceName} files`} id="editor-files" heading={<header className="editor-root editor-folder-row">
-          <button className="editor-root-identity" aria-expanded={!rootCollapsed} aria-label={`${workspaceName} folder`} onClick={() => setRootCollapsed((collapsed) => !collapsed)} title={workspaceName} type="button"><Chevron open={!rootCollapsed} /><strong>{workspaceName}</strong></button>
-          <CreateEntryActions key={project.id} projectID={project.id} parentPath={selectedFolderPath ?? activePath.split("/").slice(0, -1).join("/")} onCreated={(entry) => void revealCreatedEntry(entry)} />
+          <button className="editor-root-identity" aria-expanded={!rootCollapsed} aria-label={`${workspaceName} folder`} onClick={() => setRootCollapsed((collapsed) => !collapsed)} disabled={!foldersReady} title={workspaceName} type="button"><Chevron open={!rootCollapsed} /><strong>{workspaceName}</strong></button>
+          {foldersReady && <CreateEntryActions key={project.id} projectID={project.id} parentPath={selectedFolderPath ?? activePath.split("/").slice(0, -1).join("/")} onCreated={(entry) => void revealCreatedEntry(entry)} />}
         </header>}>
-            {!rootCollapsed ? <FileEntries projectID={project.id} rootPath={project.path} depth={0} entries={entryMap} expandedDirectories={expanded} fileStatus={fileStatus} nameFilter={query.trim().toLowerCase()} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} onToggleDirectory={toggleFolder} parentPath="" selectedPath={selectedFolderPath ?? activePath} /> : null}
+            {foldersReady && !rootCollapsed ? <FileEntries projectID={project.id} rootPath={project.path} depth={0} entries={entryMap} expandedDirectories={expanded} fileStatus={fileStatus} nameFilter={query.trim().toLowerCase()} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} onToggleDirectory={toggleFolder} parentPath="" selectedPath={selectedFolderPath ?? activePath} /> : null}
         </FileBrowser>
       </> : <div className="editor-git-host"><GitHistoryView error="" gitStatus={git} gitStatusError="" gitStatusLoading={false} history={history} loading={false} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} project={project} /></div>}
       <button aria-label="Resize editor side panel" className="editor-resize" onDoubleClick={() => setSideWidth(248)} onPointerDown={(event) => startSideResize(event, sideWidth, setSideWidth, setSideResizing)} title="Drag to resize" type="button" />
@@ -469,7 +475,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
     <main className="editor-workbench">
       {tabMenu.menu}
       {files.length ? <div className="editor-tabs-shell"><nav className="editor-tabs">{files.map((file) => { const state=statusLabel(fileStatus[file.path]); return <div className={`editor-tab status-${state}${file.id === activeTabId ? " active" : ""}`} key={file.id} onDragOver={(event) => { if (draggedTab.current) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); moveFile(file.id); }}><button className="editor-tab-trigger" draggable title="Drag to reorder; double-click to rename" onDragStart={(event) => { draggedTab.current = file.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-solomon-editor-tab", file.id); }} onDragEnd={() => { draggedTab.current = null; }} onContextMenu={(event) => tabMenu.open(event, { path: file.path, name: baseName(file.path), isDirectory: false })} onKeyDown={(event) => tabMenu.openWithKeyboard(event, { path: file.path, name: baseName(file.path), isDirectory: false })} onDoubleClick={(event) => tabMenu.rename({ path: file.path, name: baseName(file.path), isDirectory: false }, event.currentTarget)} onClick={() => setActiveTabId(file.id)}><FileIcon fileName={baseName(file.path)} /><span>{baseName(file.path)}</span>{file.content !== file.saved ? <i>M</i> : state !== "clean" ? <i>{state[0].toUpperCase()}</i> : null}</button><button className="editor-tab-close" aria-label={`Close ${baseName(file.path)}`} onClick={() => closeFile(file.id)}>×</button></div>; })}</nav></div> : null}
-      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Copy relative file path" title="Copy relative file path" className="editor-path-copy" type="button" onClick={() => { if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(active.path).catch(() => copyTextFallback(active.path)); else copyTextFallback(active.path); }}><CopyIcon /></button><div className="editor-document-controls" ref={setDocumentToolbarHost} /><button aria-label="Save file" className="editor-save" disabled={isPreviewFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isPdfFile(active.path) ? <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfPreview key={active.id} projectID={project.id} path={active.path} /></Suspense> : isPreviewFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <DocumentView toolbarHost={documentToolbarHost} statusBar={languageStatusHost} projectID={project.id} key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
+      {active ? <><div className="editor-breadcrumb"><FileIcon fileName={baseName(active.path)} />{active.path.split("/").map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}<button aria-label="Copy relative file path" title="Copy relative file path" className="editor-path-copy" type="button" onClick={() => { if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(active.path).catch(() => copyTextFallback(active.path)); else copyTextFallback(active.path); }}><CopyIcon /></button><div className="editor-document-controls" ref={setDocumentToolbarHost} /><button aria-label="Save file" className="editor-save" disabled={isPreviewFile(active.path) || active.content === active.saved} onClick={() => void saveFile(active.path, active.content)} type="button">Save</button></div>{isPdfFile(active.path) ? <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfPreview key={active.path} projectID={project.id} path={active.path} /></Suspense> : isPreviewFile(active.path) ? <ImagePreview key={`${project.id}:${active.path}`} projectID={project.id} path={active.path} /> : <DocumentView toolbarHost={documentToolbarHost} statusBar={languageStatusHost} projectID={project.id} key={active.id} viewState={viewsRef.current[active.id]} onViewState={(state) => { viewsRef.current[active.id] = state; if (project) storeEditorSession(project.id, sessionRef.current); }} file={active} onCursor={setCursor} onChange={(content) => setFiles((current) => current.map((file) => file.path === active.path ? { ...file, content } : file))} onSave={saveFile} />}</> : <div className="editor-welcome"><AsciiBanner /><strong>{workspaceName}</strong><span>Choose a file from the explorer</span></div>}
       {message ? <div className="editor-save-message">{message}</div> : null}
     </main>
     <footer className="editor-status">
