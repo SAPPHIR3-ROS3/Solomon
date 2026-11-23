@@ -108,9 +108,7 @@ func desktopSetupRequired(args []string) bool {
 		return true
 	}
 	switch args[1] {
-	case "version":
-		return len(args) < 3 || args[2] != "--binary"
-	case "server", "sandbox-worker", "desktop":
+	case "version", "server", "sandbox-worker", "desktop":
 		return false
 	default:
 		return true
