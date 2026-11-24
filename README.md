@@ -126,6 +126,12 @@ The first run launches an interactive setup for provider, API key, and model. Pr
 
 The full, ranked catalog lives in [docs/features.md](docs/features.md).
 
+### Install the web app on your phone
+
+Open Solomon using your server's HTTPS address. On Android, choose **Install app** in Chrome's menu. On iPhone, open Solomon in Safari, choose **Add to Home Screen**, and enable **Open as Web App** if shown. If you previously added a shortcut, remove it and install Solomon again.
+
+If you normally connect over HTTP on your LAN or tailnet, use an HTTPS reverse proxy for the Solomon server.
+
 ## What makes it different
 
 - **Checkpoint rewind** — every turn gets an id like `[#012]`; `/goto` rewinds or forks the transcript instead of starting over.
