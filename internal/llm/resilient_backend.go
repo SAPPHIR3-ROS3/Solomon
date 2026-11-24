@@ -49,14 +49,16 @@ func (b *ResilientBackend) maxAttempts() int {
 	return n
 }
 
-func (b *ResilientBackend) runWithRetry(ctx context.Context, opts StreamOpts, op func() error) error {
+func (b *ResilientBackend) runWithRetry(ctx context.Context, opts StreamOpts, op func(context.Context) error) error {
 	max := b.maxAttempts()
 	var lastErr error
 	for attempt := 1; attempt <= max; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		lastErr = op()
+		attemptCtx, trace := traceAPIAttempt(ctx)
+		lastErr = op(attemptCtx)
+		trace.duration = time.Since(trace.start)
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -73,7 +75,7 @@ func (b *ResilientBackend) runWithRetry(ctx context.Context, opts StreamOpts, op
 				b.Circuits.Trip(b.HostKey, b.Policy.CircuitOpen)
 				logCircuitTrip(b.HostKey, b.Policy.CircuitOpen)
 			}
-			logAPIFailure(b.HostKey, string(b.Protocol()), attempt, max, status, lastErr)
+			logAPIFailure(b.HostKey, string(b.Protocol()), attempt, max, status, lastErr, trace)
 			if attempt <= 1 {
 				return lastErr
 			}
@@ -86,7 +88,7 @@ func (b *ResilientBackend) runWithRetry(ctx context.Context, opts StreamOpts, op
 		if opts.OnRetry != nil {
 			opts.OnRetry(attempt, max, lastErr, wait)
 		}
-		logAPIRetry(b.HostKey, string(b.Protocol()), attempt, max, status, wait, lastErr)
+		logAPIRetry(b.HostKey, string(b.Protocol()), attempt, max, status, wait, lastErr, trace)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -111,9 +113,9 @@ func (b *ResilientBackend) ctxWithReadTimeout(ctx context.Context) (context.Cont
 
 func (b *ResilientBackend) StreamTurn(ctx context.Context, req TurnRequest, contentOut io.Writer, opts StreamOpts) (AssistantTurnResult, error) {
 	var result AssistantTurnResult
-	err := b.runWithRetry(ctx, opts, func() error {
+	err := b.runWithRetry(ctx, opts, func(attemptCtx context.Context) error {
 		var err error
-		result, err = b.Inner.StreamTurn(ctx, req, contentOut, opts)
+		result, err = b.Inner.StreamTurn(attemptCtx, req, contentOut, opts)
 		return err
 	})
 	return result, err
@@ -122,9 +124,9 @@ func (b *ResilientBackend) StreamTurn(ctx context.Context, req TurnRequest, cont
 func (b *ResilientBackend) StreamText(ctx context.Context, req SimpleCompletionRequest, contentOut io.Writer, opts StreamOpts) (string, UsageStats, error) {
 	var text string
 	var usage UsageStats
-	err := b.runWithRetry(ctx, opts, func() error {
+	err := b.runWithRetry(ctx, opts, func(attemptCtx context.Context) error {
 		var err error
-		text, usage, err = b.Inner.StreamText(ctx, req, contentOut, opts)
+		text, usage, err = b.Inner.StreamText(attemptCtx, req, contentOut, opts)
 		return err
 	})
 	return text, usage, err
@@ -135,9 +137,9 @@ func (b *ResilientBackend) CompleteText(ctx context.Context, req SimpleCompletio
 	cctx, cancel := b.ctxWithReadTimeout(ctx)
 	defer cancel()
 	opts := StreamOpts{}
-	err := b.runWithRetry(cctx, opts, func() error {
+	err := b.runWithRetry(cctx, opts, func(attemptCtx context.Context) error {
 		var err error
-		out, err = b.Inner.CompleteText(cctx, req)
+		out, err = b.Inner.CompleteText(attemptCtx, req)
 		return err
 	})
 	return out, err
@@ -148,9 +150,9 @@ func (b *ResilientBackend) ListModels(ctx context.Context) ([]string, error) {
 	cctx, cancel := b.ctxWithReadTimeout(ctx)
 	defer cancel()
 	opts := StreamOpts{}
-	err := b.runWithRetry(cctx, opts, func() error {
+	err := b.runWithRetry(cctx, opts, func(attemptCtx context.Context) error {
 		var err error
-		out, err = b.Inner.ListModels(cctx)
+		out, err = b.Inner.ListModels(attemptCtx)
 		return err
 	})
 	return out, err

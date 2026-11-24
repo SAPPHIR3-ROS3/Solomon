@@ -67,6 +67,11 @@ func ClassifyAPIError(err error, circuitOpen bool) (ErrorClass, int, time.Durati
 		}
 		return ErrorPermanent, apiErr.StatusCode, 0
 	}
+	var networkErr net.Error
+	if errors.Is(err, networkhttp.ErrRouteChanged) || errors.Is(err, context.DeadlineExceeded) ||
+		(errors.As(err, &networkErr) && networkErr.Timeout()) {
+		return ErrorRetryable, 0, 0
+	}
 	if code := statusCodeFromMessage(err.Error()); code > 0 {
 		if retryableStatus(code) {
 			return ErrorRetryable, code, 0
@@ -91,16 +96,6 @@ func retryableStatus(code int) bool {
 }
 
 func isRetryableNetErr(err error) bool {
-	if errors.Is(err, networkhttp.ErrRouteChanged) {
-		return true
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-	var ne net.Error
-	if errors.As(err, &ne) && ne.Timeout() {
-		return true
-	}
 	msg := strings.ToLower(err.Error())
 	for _, sub := range []string{
 		"connection reset",
@@ -228,8 +223,8 @@ func NewResilientHTTPClient(policy config.APIResiliencePolicy) *http.Client {
 	}
 }
 
-func logAPIRetry(hostKey, protocol string, attempt, max int, status int, wait time.Duration, err error) {
-	logging.Log(logging.WARNING_LOG_LEVEL, "LLM API retry", logging.LogOptions{Params: map[string]any{
+func logAPIRetry(hostKey, protocol string, attempt, max int, status int, wait time.Duration, err error, trace *apiHTTPTrace) {
+	params := map[string]any{
 		"provider_host": hostKey,
 		"protocol":      protocol,
 		"attempt":       attempt,
@@ -238,10 +233,12 @@ func logAPIRetry(hostKey, protocol string, attempt, max int, status int, wait ti
 		"retryable":     true,
 		"wait_ms":       wait.Milliseconds(),
 		"err":           err.Error(),
-	}})
+	}
+	trace.addFields(params)
+	logging.Log(logging.WARNING_LOG_LEVEL, "LLM API retry", logging.LogOptions{Params: params})
 }
 
-func logAPIFailure(hostKey, protocol string, attempt, max int, status int, err error) {
+func logAPIFailure(hostKey, protocol string, attempt, max int, status int, err error, trace *apiHTTPTrace) {
 	if errors.Is(err, context.Canceled) {
 		return
 	}
@@ -260,6 +257,7 @@ func logAPIFailure(hostKey, protocol string, attempt, max int, status int, err e
 			params[key] = value
 		}
 	}
+	trace.addFields(params)
 	logging.Log(logging.ERROR_LOG_LEVEL, "LLM API request failed", logging.LogOptions{Params: params})
 }
 

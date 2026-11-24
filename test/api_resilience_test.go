@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,13 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm"
 )
+
+func TestClassifyAPIError_TimeoutWithStatusDigitsInURL(t *testing.T) {
+	err := &url.Error{Op: "Post", URL: "http://127.0.0.1:34041/v1", Err: context.DeadlineExceeded}
+	if class, code, _ := llm.ClassifyAPIError(err, false); class != llm.ErrorRetryable || code != 0 {
+		t.Fatalf("timeout classified as %v with status %d", class, code)
+	}
+}
 
 func TestClassifyAPIError_RetryableAndPermanent(t *testing.T) {
 	t.Parallel()
@@ -43,9 +51,9 @@ func TestClassifyAPIError_RetryableAndPermanent(t *testing.T) {
 
 func TestBackoffDelay_CappedAndRetryAfter(t *testing.T) {
 	policy := config.APIResiliencePolicy{
-		BaseDelay:  time.Second,
-		MaxDelay:   5 * time.Second,
-		Jitter:     false,
+		BaseDelay: time.Second,
+		MaxDelay:  5 * time.Second,
+		Jitter:    false,
 	}
 	rng := rand.New(rand.NewSource(1))
 	wait := llm.BackoffDelay(policy, 2, 0, rng)
