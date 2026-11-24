@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { WORKSPACE_FILE_REFERENCE } from "../../chat/fileReferences";
 import type { ProjectDirectoryEntry } from "../../projects/projects";
-import { useFileContextMenu } from "../FileContextMenu";
+import { useFileContextMenu, type CreateEntry } from "../FileContextMenu";
 import { FolderIcon, ChatFolderIcon, FileIcon, IndexMark } from "./icons";
 import { gitStatusFolderStatuses, gitStatusLabel } from "./status";
 type FileEntriesProps = {
@@ -15,6 +15,7 @@ type FileEntriesProps = {
   fileStatus?: Record<string, string>;
   folderStatus?: Record<string, string>;
   nameFilter: string;
+  onCreateEntry?: CreateEntry;
   onOpenFile?: (entry: ProjectDirectoryEntry) => void;
   onOpenFileInNewTab?: (entry: ProjectDirectoryEntry) => void;
   onStageEntry?: (entry: ProjectDirectoryEntry) => void;
@@ -32,9 +33,9 @@ export function entryMatchesFilter(entry: ProjectDirectoryEntry, nameFilter: str
   return (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
 }
 
-export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onOpenFile, onOpenFileInNewTab, onStageEntry, onUnstageEntry, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
+export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDirectories, depth, entries, expandedDirectories, fileStatus, folderStatus, iconMode = "all", nameFilter, onCreateEntry, onOpenFile, onOpenFileInNewTab, onStageEntry, onUnstageEntry, onToggleDirectory, parentPath, selectedPath }: FileEntriesProps) {
   const directoryStatus = useMemo(() => folderStatus ?? gitStatusFolderStatuses(fileStatus ?? {}), [folderStatus, fileStatus]);
-  const contextMenu = useFileContextMenu({ projectID, allowAddToChat, rootPath, onOpenFile, onOpenFileInNewTab, onToggleDirectory, canRestore: onStageEntry ? (entry) => !entry.isDirectory && !!fileStatus?.[entry.path] && fileStatus[entry.path] !== "U" : undefined });
+  const contextMenu = useFileContextMenu({ projectID, allowAddToChat, rootPath, onCreateEntry, onOpenFile, onOpenFileInNewTab, onToggleDirectory, canRestore: onStageEntry ? (entry) => !entry.isDirectory && !!fileStatus?.[entry.path] && fileStatus[entry.path] !== "U" : undefined });
   return <>{entries[parentPath]?.filter((entry) => entryMatchesFilter(entry, nameFilter, entries)).map((entry) => {
     const hasMatchingChild = Boolean(nameFilter) && entry.isDirectory && (entries[entry.path] ?? []).some((child) => entryMatchesFilter(child, nameFilter, entries));
     const isExpanded = entry.isDirectory && (hasMatchingChild || (collapsedDirectories ? !collapsedDirectories.has(entry.path) : expandedDirectories.has(entry.path)));
@@ -70,7 +71,7 @@ export function FileEntries({ projectID, allowAddToChat, rootPath, collapsedDire
         {isExpanded ? (
           <div className="right-side-panel-file-children">
             {entries[entry.path] ? (
-              <FileEntries projectID={projectID} allowAddToChat={allowAddToChat} rootPath={rootPath} collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={directoryStatus} iconMode={iconMode} nameFilter={nameFilter} onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onStageEntry={onStageEntry} onUnstageEntry={onUnstageEntry} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
+              <FileEntries projectID={projectID} allowAddToChat={allowAddToChat} rootPath={rootPath} collapsedDirectories={collapsedDirectories} depth={depth + 1} entries={entries} expandedDirectories={expandedDirectories} fileStatus={fileStatus} folderStatus={directoryStatus} iconMode={iconMode} nameFilter={nameFilter} onCreateEntry={onCreateEntry} onOpenFile={onOpenFile} onOpenFileInNewTab={onOpenFileInNewTab} onStageEntry={onStageEntry} onUnstageEntry={onUnstageEntry} onToggleDirectory={onToggleDirectory} parentPath={entry.path} selectedPath={selectedPath} />
             ) : <span className="right-side-panel-loading">Loading…</span>}
           </div>
         ) : null}

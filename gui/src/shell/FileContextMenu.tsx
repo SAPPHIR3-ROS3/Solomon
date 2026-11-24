@@ -8,18 +8,21 @@ type FileClipboard = { projectID: string; entry: ProjectDirectoryEntry; cut: boo
 let fileClipboard: FileClipboard | null = null;
 type FileDialog = { kind: "rename" | "delete" | "paste" | "restore"; entry: ProjectDirectoryEntry; clipboard?: FileClipboard };
 
+export type CreateEntry = (kind: "file" | "folder", parentPath: string, trigger: HTMLButtonElement) => void;
+
 type Options = {
   projectID?: string;
   allowAddToChat?: boolean;
   clipboardDisabled?: boolean;
   rootPath?: string;
   canRestore?: (entry: ProjectDirectoryEntry) => boolean;
+  onCreateEntry?: CreateEntry;
   onOpenFile?: (entry: ProjectDirectoryEntry) => void;
   onOpenFileInNewTab?: (entry: ProjectDirectoryEntry) => void;
   onToggleDirectory: (entry: ProjectDirectoryEntry) => void;
 };
 
-export function useFileContextMenu({ projectID, allowAddToChat, clipboardDisabled = false, rootPath, canRestore, onOpenFile, onOpenFileInNewTab, onToggleDirectory }: Options) {
+export function useFileContextMenu({ projectID, allowAddToChat, clipboardDisabled = false, rootPath, canRestore, onCreateEntry, onOpenFile, onOpenFileInNewTab, onToggleDirectory }: Options) {
   const [target, setTarget] = useState<{ entry: ProjectDirectoryEntry; x: number; y: number } | null>(null);
   const [dialog, setDialog] = useState<FileDialog | null>(null);
   const [value, setValue] = useState("");
@@ -135,6 +138,10 @@ export function useFileContextMenu({ projectID, allowAddToChat, clipboardDisable
         {onOpenFileInNewTab ? <button role="menuitem" type="button" onClick={() => { onOpenFileInNewTab(entry); close(); }}>Open in new tab</button> : null}
       </>}
       {projectID ? <>
+        {entry.isDirectory && onCreateEntry ? (["file", "folder"] as const).map((kind) => <button key={kind} role="menuitem" type="button" onClick={() => {
+          setTarget(null);
+          if (triggerRef.current) onCreateEntry(kind, entry.path, triggerRef.current);
+        }}>New {kind}</button>) : null}
         {canRestore?.(entry) ? <button className="is-danger" role="menuitem" type="button" onClick={() => beginDialog("restore", entry)}>Restore changes</button> : null}
         {allowAddToChat ? <button disabled={busy} role="menuitem" type="button" onClick={() => void attach(entry)}>Add to chat</button> : null}
         {entry.isDirectory || onOpenFile || onOpenFileInNewTab || canRestore?.(entry) || allowAddToChat ? <div className="project-context-menu-divider" role="separator" /> : null}

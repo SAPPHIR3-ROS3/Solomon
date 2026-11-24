@@ -19,7 +19,7 @@ import { copyTextFallback } from "../chat/chatClipboard";
 import { AsciiBanner } from "../home/Welcome";
 import { FileEntries, GitHistoryIcon, GitHistoryView, NewDocumentIcon } from "../shell/RightSidePanel";
 import { SidePanelToggle } from "../shell/SidePanelToggle";
-import { CreateEntryActions } from "./CreateEntryActions";
+import { useCreateEntryActions } from "./CreateEntryActions";
 import { checkoutProjectBranch, fetchProjectBranches, fetchProjectDirectoryEntries, fetchProjectFile, fetchProjectGitHistory, fetchProjectGitStatus, PROJECT_GIT_BRANCH_CHANGED_EVENT, PROJECT_GIT_STATUS_CHANGED_EVENT, sameProjectDirectoryEntries, sameProjectGitHistory, sameProjectGitStatus, type Project, type ProjectDirectoryEntry, type ProjectGitHistory, type ProjectGitStatus, PROJECT_FILES_CHANGED_EVENT, type ProjectFilesChanged } from "../projects/projects";
 import { loadEditorSession, storeEditorSession, saveEditorFile, waitForEditorSaves, type OpenFile, type EditorSession } from "./editorSession";
 const EMPTY_GIT: ProjectGitStatus = { changes: {}, isRepo: false, staged: {} };
@@ -58,6 +58,7 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
   const [languageStatusHost, setLanguageStatusHost] = useState<HTMLDivElement | null>(null);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const tabMenu = useFileContextMenu({ projectID: project?.id, rootPath: project?.path, clipboardDisabled: true, onToggleDirectory: () => undefined });
+  const createEntry = useCreateEntryActions({ projectID: project?.id, parentPath: selectedFolderPath ?? activePath.split("/").slice(0, -1).join("/"), onCreated: (entry) => void revealCreatedEntry(entry) });
   const openFileTimer = useRef<number | undefined>(undefined);
 
   const viewsRef = useRef(restoredSession.views ?? {});
@@ -465,9 +466,9 @@ export function EditorPage({ bottomInset, onHome, project, initialFile, onInitia
       {sideView === "files" ? <>
         <FileBrowser editor query={query} onQueryChange={setQuery} label={`${workspaceName} files`} id="editor-files" heading={<header className="editor-root editor-folder-row">
           <button className="editor-root-identity" aria-expanded={!rootCollapsed} aria-label={`${workspaceName} folder`} onClick={() => setRootCollapsed((collapsed) => !collapsed)} disabled={!foldersReady} title={workspaceName} type="button"><Chevron open={!rootCollapsed} /><strong>{workspaceName}</strong></button>
-          {foldersReady && <CreateEntryActions key={project.id} projectID={project.id} parentPath={selectedFolderPath ?? activePath.split("/").slice(0, -1).join("/")} onCreated={(entry) => void revealCreatedEntry(entry)} />}
+          {foldersReady && createEntry.actions}
         </header>}>
-            {foldersReady && !rootCollapsed ? <FileEntries projectID={project.id} rootPath={project.path} depth={0} entries={entryMap} expandedDirectories={expanded} fileStatus={fileStatus} nameFilter={query.trim().toLowerCase()} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} onToggleDirectory={toggleFolder} parentPath="" selectedPath={selectedFolderPath ?? activePath} /> : null}
+            {foldersReady && !rootCollapsed ? <FileEntries projectID={project.id} rootPath={project.path} depth={0} entries={entryMap} expandedDirectories={expanded} fileStatus={fileStatus} nameFilter={query.trim().toLowerCase()} onCreateEntry={createEntry.begin} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} onToggleDirectory={toggleFolder} parentPath="" selectedPath={selectedFolderPath ?? activePath} /> : null}
         </FileBrowser>
       </> : <div className="editor-git-host"><GitHistoryView error="" gitStatus={git} gitStatusError="" gitStatusLoading={false} history={history} loading={false} onOpenFile={scheduleOpenFile} onOpenFileInNewTab={openFileInNewTab} project={project} /></div>}
       <button aria-label="Resize editor side panel" className="editor-resize" onDoubleClick={() => setSideWidth(248)} onPointerDown={(event) => startSideResize(event, sideWidth, setSideWidth, setSideResizing)} title="Drag to resize" type="button" />
