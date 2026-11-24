@@ -95,3 +95,11 @@
 .chat-assistant-timeline.has-tool-activity > .chat-assistant-segment.has-tool-activity + .chat-assistant-segment {
   margin-top: 0;
 }
+
+.chat-assistant-timeline.has-tool-activity > .chat-assistant-segment.has-tool-activity:has(+ .chat-assistant-segment .chat-reasoning.is-collapsed + .chat-tool-activity) .chat-tool-activity {
+  margin-bottom: 8px;
+}
+
+.chat-assistant-timeline.has-tool-activity .chat-reasoning.is-collapsed:has(+ .chat-tool-activity) {
+  padding-bottom: 0;
+}

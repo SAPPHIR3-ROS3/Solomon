@@ -85,13 +85,15 @@ export function normalizeToolResult(payload: unknown, error = ""): ChatToolResul
     ? record.error.trim()
     : firstString(objectValue(record.error), ["message", "detail", "error"]);
   const compileError = typeof record.compile_error === "string" ? record.compile_error.trim() : "";
-  const explicitError = error.trim() || recordError || compileError || (
+  const shellError = stringValue(record.shell_error).trim();
+  const failedExit = typeof record.exit === "number" && record.exit !== 0;
+  const explicitError = error.trim() || recordError || compileError || shellError || (
     (record.ok === false || recordStatus === "error" || recordStatus === "failed")
       ? firstString(record, ["message", "detail"])
       : ""
   );
   const result: ChatToolResult = {
-    status: explicitError || record.ok === false || compileError || recordStatus === "error" || recordStatus === "failed" ? "error" : "success",
+    status: explicitError || failedExit || record.ok === false || recordStatus === "error" || recordStatus === "failed" ? "error" : "success",
   };
   if (explicitError) result.error = explicitError;
   copyNumber(result, "count", record.count);
@@ -127,6 +129,7 @@ export function normalizeToolResult(payload: unknown, error = ""): ChatToolResul
   const todoItems = record.todoItems ?? record.todo_items;
   if (Array.isArray(todoItems)) result.todoItems = todoItems.flatMap(todoItemFromPayload);
   if (!result.output && record.reason && typeof record.reason === "string") result.output = record.reason;
+  if (failedExit && !result.output?.trim() && !result.error) result.error = `Command exited with code ${record.exit}.`;
   return result;
 }
 

@@ -294,11 +294,18 @@ func apiToolResult(raw string) map[string]any {
 	if calls, ok := result["tool_calls"].([]any); ok {
 		out["sdkCalls"] = len(calls)
 	}
-	if compileError := stringField(result, "compile_error"); compileError != "" && stringField(result, "error") == "" {
-		out["error"] = compileError
+	if stringField(out, "error") == "" {
+		if compileError := stringField(result, "compile_error"); compileError != "" {
+			out["error"] = compileError
+		} else if shellError := stringField(result, "shell_error"); shellError != "" {
+			out["error"] = shellError
+		}
 	}
 	status := "success"
-	if errText := stringField(result, "error"); errText != "" {
+	if errText := stringField(out, "error"); errText != "" {
+		status = "error"
+	}
+	if exit, ok := result["exit"].(float64); ok && exit != 0 {
 		status = "error"
 	}
 	if okValue, exists := result["ok"].(bool); exists && !okValue {

@@ -10,6 +10,28 @@ const { applyLiveStreamEvent } = await server.ssrLoadModule("/src/chat/chatClien
 const { liveWorkedForSeconds } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
 const { saveChat, getChat, updateChat, clearChatStore } = await server.ssrLoadModule("/src/chat/chatStore.ts");
 
+test("shell failures stay failed after a live result and a chat snapshot", () => {
+  for (const [result, status, error] of [
+    [{ exit: 0, output: "done" }, "success", undefined],
+    [{ exit: 1, output: "failed" }, "error", undefined],
+    [{ exit: -1, output: "" }, "error", "Command exited with code -1."],
+    [{ exit: 0, shell_error: "Could not start shell" }, "error", "Could not start shell"],
+  ]) {
+    let chat = { id: "chat", projectID: "project", messages: [], source: "daemon", status: "running" };
+    chat = applyLiveStreamEvent(chat, { type: "tool_start", id: "shell", name: "shell" });
+    chat = applyLiveStreamEvent(chat, { type: "tool_result", id: "shell", result });
+    assert.equal(chat.messages[0].toolCalls[0].status, status);
+    assert.equal(chat.messages[0].toolCalls[0].result.error, error);
+    chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: {
+      id: "chat", messages: [{ id: chat.messages[0].id, role: "assistant", content: "", toolCalls: [
+        { id: "shell", name: "shell", status, result: { ...result, status } },
+      ] }],
+    } });
+    assert.equal(chat.messages[0].toolCalls[0].status, status);
+    assert.equal(chat.messages[0].toolCalls[0].result.error, error);
+  }
+});
+
 test("replayed assistant messages use the event time", () => {
   const ts = "2026-10-20T13:00:00Z";
   const chat = applyLiveStreamEvent({ id: "chat", projectID: "project", messages: [], source: "daemon" }, { type: "assistant_start", ts, turn: 0 }, "", true);
