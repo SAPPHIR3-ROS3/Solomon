@@ -160,7 +160,6 @@ export function App() {
     setActiveTemporaryWorkspaceID(temporaryWorkspace.id);
     setWelcomeResetToken((current) => current + 1);
   }
-
   function openSettings() {
     closeNavigationPanels();
     showSettings();
@@ -481,6 +480,7 @@ export function App() {
           onStopTool={chatRuntime.stopTool}
           onStopStreaming={chatRuntime.stopChat}
           openSubagentRequest={openSubagentRequest}
+          onRemoveQueuedMessage={chatRuntime.removeQueuedMessage}
           queuedMessages={queuedMessages.get(selectedChat.id)}
           branch={selectedChat.branch}
           worktree={selectedChat.worktree}

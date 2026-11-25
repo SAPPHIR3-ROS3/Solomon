@@ -380,9 +380,6 @@
   z-index: 0;
 }
 .chat-composer { position: relative; z-index: 1; }
-.chat-pending-messages { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; position: relative; z-index: 1; }
-.chat-pending-turn { width: 100%; }
-.chat-pending-message { border-radius: 24px; box-shadow: 0 8px 20px rgb(0 0 0 / 24%); flex: none; margin: 0; }
 .chat-subagent-indicator { backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); background: color-mix(in srgb, var(--color-surface-raised) 28%, transparent); border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent); border-radius: 16px; box-shadow: 0 10px 24px rgb(0 0 0 / 42%), 0 3px 8px rgb(0 0 0 / 24%); margin: 0 0 8px; max-width: 100%; overflow: hidden; position: relative; width: fit-content; z-index: 1; }
 .chat-subagent-indicator.is-expanded { width: 100%; }
 .chat-subagent-indicator-toggle { align-items: center; appearance: none; background: transparent; border: 0; border-radius: inherit; color: var(--color-text-muted); cursor: pointer; display: flex; font: 560 12px/1 "Geist", sans-serif; gap: 8px; min-height: 38px; padding: 0 12px 0 20px; text-align: left; white-space: nowrap; }

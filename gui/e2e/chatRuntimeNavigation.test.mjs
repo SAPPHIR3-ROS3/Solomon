@@ -9,6 +9,8 @@ const fixtureModule = `
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { useChatRuntime } from '/src/chat/useChatRuntime.ts';
+import { MessageQueue } from '/src/chat/queue/MessageQueue.tsx';
+import '/src/chat/chat.css';
 import { saveChat, updateChat } from '/src/chat/chatStore.ts';
 import { markNavigationCommit, navigationForChat, navigationReport } from '/src/chat/navigationPerformance.ts';
 import { NavigationPerformanceSettings } from '/src/settings/NavigationPerformanceSettings.tsx';
@@ -40,9 +42,10 @@ function Fixture() {
   window.seedRunning = id => saveChat({id,title:id,projectID:project.id,source:'daemon',status:'running',messages:[{id:'message',role:'assistant',content:'Streaming answer'}]});
   window.sendMessage = runtime.sendMessage;
   window.deleteMessage = runtime.deleteMessage;
+  window.removeQueuedMessage = runtime.removeQueuedMessage;
   window.runtimeState = {error:runtime.error,queues:Object.fromEntries(runtime.queuedMessages),chats:runtime.chats};
   window.navigationState = { id: runtime.selectedChatID, loading: runtime.isLoading, error: runtime.error, branch: runtime.selectedChat?.branch };
-  return <><section id="transcript">{runtime.selectedChat?.messages.map(message => <p key={message.id}>{message.content}</p>)}</section>{showPanel ? <NavigationPerformanceSettings query="" /> : null}</>;
+  return <><section id="transcript">{runtime.selectedChat?.messages.map(message => <p key={message.id}>{message.content}</p>)}</section><MessageQueue messages={runtime.queuedMessages.get("queue") ?? []} onRemove={id => runtime.removeQueuedMessage("queue", id)} />{showPanel ? <NavigationPerformanceSettings query="" /> : null}</>;
 }
 createRoot(document.getElementById('root')).render(<Fixture />);
 `;
@@ -174,17 +177,36 @@ test("diagnostics record paint, request phases and browser stalls, survive reloa
 });
 
 
-test("queued deletion stays local and preserves the remaining queue", async t => {
+test("queued prompts scroll after three rows and can be removed locally during a run", async t => {
   const page = await fixture(t);
+  const queue = page.getByRole("list", { name: "Queued messages" });
   await page.evaluate(() => {
     window.seedRunning('queue');
-    window.sendMessage('queue',{id:'queued-a',role:'user',content:'First'});
-    window.sendMessage('queue',{id:'queued-b',role:'user',content:'Second'});
+    for (const id of ['a', 'b', 'c']) window.sendMessage('queue',{id,role:'user',content:id});
   });
-  await page.waitForFunction(() => window.runtimeState.queues.queue?.length === 2);
-  await page.evaluate(() => window.deleteMessage('queue','queued-a'));
-  await page.waitForFunction(() => window.runtimeState.queues.queue?.length === 1);
-  assert.deepEqual(await page.evaluate(() => window.runtimeState.queues.queue.map(message => message.id)),['queued-b']);
+  await queue.getByRole("button", { name: "Remove queued message 3" }).waitFor();
+  const dimensions = element => ({ height: element.clientHeight, content: element.scrollHeight, row: element.firstElementChild.offsetHeight });
+  const blur = await queue.evaluate(element => ({
+    background: getComputedStyle(element.previousElementSibling).backdropFilter,
+    list: getComputedStyle(element).backdropFilter,
+    row: getComputedStyle(element.firstElementChild).filter,
+  }));
+  assert.deepEqual(blur, { background: "blur(18px)", list: "none", row: "none" });
+  const three = await queue.evaluate(dimensions);
+  assert.equal(three.height, three.row * 3);
+  assert.equal(three.height, three.content);
+
+  await page.evaluate(() => window.sendMessage('queue',{id:'d',role:'user',content:'d'}));
+  const fourth = queue.getByRole("button", { name: "Remove queued message 4" });
+  await fourth.waitFor();
+  const four = await queue.evaluate(dimensions);
+  assert.equal(four.height, three.height);
+  assert.equal(four.content, four.row * 4);
+  await fourth.click();
+  await page.waitForFunction(() => window.runtimeState.queues.queue?.length === 3);
+  assert.deepEqual(await page.evaluate(() => window.runtimeState.queues.queue.map(message => message.id)),['a','b','c']);
+
+  await page.evaluate(() => window.removeQueuedMessage('queue','message'));
   assert.equal(await page.evaluate(() => window.pending.length),0);
   assert.equal(await page.evaluate(() => window.runtimeState.error),'');
 });
@@ -194,11 +216,15 @@ test("streaming deletion waits for shutdown before deleting or sending the queue
   await page.evaluate(() => {
     window.seedRunning('running');
     window.sendMessage('running',{id:'queued-next',role:'user',content:'Next'});
+    window.sendMessage('running',{id:'queued-remove',role:'user',content:'Remove'});
   });
-  await page.waitForFunction(() => window.runtimeState.queues.running?.length === 1);
+  await page.waitForFunction(() => window.runtimeState.queues.running?.length === 2);
   await page.evaluate(() => { window.deletionFinished = false; void window.deleteMessage('running','message').then(() => { window.deletionFinished = true; }); });
   const running = {...snapshot('running','Streaming answer'),status:'running'};
   await reply(page,'/chats/running',running);
+  await waitForRequest(page,'/stop');
+  await page.evaluate(() => window.removeQueuedMessage('running','queued-remove'));
+  await page.waitForFunction(() => window.runtimeState.queues.running?.length === 1);
   await reply(page,'/stop',{});
   await reply(page,'/chats/running',running);
   assert.equal(await page.evaluate(() => window.pending.some(request => request.path.endsWith('/messages/message') || request.path.endsWith('/messages'))),false);

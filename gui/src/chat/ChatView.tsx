@@ -20,12 +20,12 @@ import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTy
 import { fetchChatHistory, snapshotComposerImages } from "./chatClient";
 import { updateChat } from "./chatStore";
 import { useChatScroll } from "./useChatScroll";
-import { ChatImageAttachments, ModeSwitchNotice, SubagentActivityIndicator } from "./ChatMessageParts";
+import { ModeSwitchNotice, SubagentActivityIndicator } from "./ChatMessageParts";
 import { ChatMessageGroups, RateLimitNotice } from "./ChatMessageGroups";
 import { indexChatMessages, liveWorkedForSeconds } from "./chatMessageUtils";
 import { subagentIsActive, subagentStatus } from "./ChatToolActivity";
 import { BranchIcon, CloseIcon, FolderIcon, WorktreeIcon } from "./ChatIcons";
-import { MarkdownContent } from "./MarkdownContent";
+import { MessageQueue } from "./queue/MessageQueue";
 import type { ActiveSubagent } from "./chatViewTypes";
 import "./chat.css";
 import "./chat-timeline.css";
@@ -56,6 +56,7 @@ type ChatViewProps = {
   onStopStreaming: (chatID: string) => void;
   openSubagentRequest?: OpenSubagentRequest | null;
   loadSubchat?: (subchatID: string) => Promise<LiveChat>;
+  onRemoveQueuedMessage: (chatID: string, messageID: string) => void;
   queuedMessages?: readonly ChatMessage[];
   branch?: string;
   worktree?: string;
@@ -63,7 +64,7 @@ type ChatViewProps = {
   workspacePath?: string;
 };
 
-export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onSend, onStopTool, onStopStreaming, openSubagentRequest, queuedMessages = [], worktree, workspaceName, workspacePath }: ChatViewProps) {
+export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onRemoveQueuedMessage, onSend, onStopTool, onStopStreaming, openSubagentRequest, queuedMessages = [], worktree, workspaceName, workspacePath }: ChatViewProps) {
   const { chat: chatPreferences } = useGUIChatPreferencesState();
   const [quotaProvider, setQuotaProvider] = useState("");
   const [composerMenu, setComposerMenu] = useState<ChatComposerMenu>(null);
@@ -261,18 +262,6 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
 		{openSubagentTool ? <SubchatNavigator key={openSubchatID ?? openSubagentTool.id} loadSubchat={loadSubchat} tools={chat.messages.flatMap(message => message.toolCalls ?? [])} root={openSubagentTool} onCollapse={() => { setOpenSubagent(null); setForcedSubagent(null); }} /> : null}
       <div className="welcome-composer-dock chat-composer-dock" ref={composerDockRef}>
         {!openSubagentTool ? <ScrollToBottom visible={isAwayFromBottom} onClick={scrollToBottom} /> : null}
-        {queuedMessages.length ? (
-          <div aria-label="Queued messages" aria-live="polite" className="chat-pending-messages">
-            {queuedMessages.map((message) => (
-              <div className="chat-pending-turn chat-turn is-user" key={message.id}>
-              <article className="chat-message chat-pending-message is-user">
-                {message.images?.length ? <ChatImageAttachments images={message.images} /> : null}
-                <MarkdownContent content={message.content} />
-              </article>
-            </div>
-            ))}
-          </div>
-        ) : null}
         {activeSubagents.length ? (
           <SubagentActivityIndicator
             isExpanded={isSubagentIndicatorExpanded}
@@ -282,6 +271,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
           />
         ) : null}
         {isModeSwitchPending ? <ModeSwitchNotice progress={modeSwitchProgress} onCancel={cancelModeSwitch} /> : null}
+        <MessageQueue messages={queuedMessages} onRemove={(messageID) => onRemoveQueuedMessage(chat.id, messageID)} />
         <div aria-hidden="true" className="chat-composer-background" />
         <div className="chat-composer">
           <ChatComposer

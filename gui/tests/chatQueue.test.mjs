@@ -8,7 +8,7 @@ const server = await createServer({ root: fileURLToPath(new URL("..", import.met
 after(() => server.close());
 const { ChatView } = await server.ssrLoadModule("/src/chat/ChatView.tsx");
 const first = { id: "user-first", role: "user", content: "First prompt" };
-const props = { chat: { id: "chat-1", title: "Test", messages: [first], status: "running" }, isStreaming: true, onSend() {}, onDeleteMessage() {}, onStopTool() {}, onStopStreaming() {} };
+const props = { chat: { id: "chat-1", title: "Test", messages: [first], status: "running" }, isStreaming: true, onSend() {}, onDeleteMessage() {}, onRemoveQueuedMessage() {}, onStopTool() {}, onStopStreaming() {} };
 function sections(html) {
   const dock = html.indexOf('class="welcome-composer-dock chat-composer-dock"');
   assert.ok(dock > 0);
@@ -21,14 +21,15 @@ test("the first prompt stays in the transcript while the assistant starts", () =
 });
 test("queued prompts render in order above the composer and outside the transcript", () => {
   const queuedMessages = [
-    { id: "user-second", role: "user", content: "Second prompt" },
-    { id: "user-third", role: "user", content: "Third prompt", images: [{ name: "test.png", url: "data:image/png;base64,AAAA" }] },
+    { id: "user-second", role: "user", content: "Second prompt\r\nHidden second line" },
+    { id: "user-third", role: "user", content: "", images: [{ name: "test.png", url: "data:image/png;base64,AAAA" }] },
   ];
   const [transcript, composer] = sections(renderToStaticMarkup(createElement(ChatView, { ...props, queuedMessages })));
   assert.match(transcript, /First prompt/);
-  assert.doesNotMatch(transcript, /Second prompt|Third prompt/);
+  assert.doesNotMatch(transcript, /Second prompt|test.png/);
   assert.match(composer, /aria-label="Queued messages" aria-live="polite"/);
-  assert.ok(composer.indexOf("Second prompt") < composer.indexOf("Third prompt"));
-  assert.ok(composer.indexOf("Third prompt") < composer.indexOf('class="chat-composer"'));
-  assert.match(composer, /test.png/);
+  assert.ok(composer.indexOf("Second prompt") < composer.indexOf("test.png"));
+  assert.ok(composer.indexOf("test.png") < composer.indexOf('class="chat-composer"'));
+  assert.doesNotMatch(composer, /Hidden second line|data:image/);
+  assert.equal([...composer.matchAll(/aria-label="Remove queued message [12]"/g)].length, 2);
 });

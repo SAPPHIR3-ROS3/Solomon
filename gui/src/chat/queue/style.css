@@ -1,0 +1,59 @@
+.chat-pending-panel {
+  margin-bottom: 4px;
+  padding: 3px;
+  position: relative;
+  z-index: 1;
+}
+
+.chat-composer-background.chat-pending-background {
+  border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
+  border-radius: 18px;
+  height: auto;
+  inset: 0;
+}
+
+.chat-pending-messages {
+  --queue-row-height: 30px;
+  border-radius: 15px;
+  list-style: none;
+  margin: 0;
+  max-height: calc(3 * var(--queue-row-height));
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: 0;
+  position: relative;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: var(--app-scrollbar-width, thin);
+  z-index: 1;
+}
+
+.chat-pending-row {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  gap: 8px;
+  height: var(--queue-row-height);
+  padding: 0 8px 0 16px;
+}
+
+.chat-pending-row + .chat-pending-row {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 48%, transparent);
+}
+
+.chat-pending-preview {
+  color: color-mix(in srgb, var(--color-danger) 68%, var(--color-text));
+  flex: 1 1 auto;
+  font: 400 13px/1.35 "Geist", sans-serif;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-pending-row > .chat-delete-message {
+  flex: 0 0 auto;
+}
+
+.chat-composer-dock:has(.chat-pending-messages) > .chat-scroll-to-bottom {
+  bottom: calc(100% + 6px);
+}

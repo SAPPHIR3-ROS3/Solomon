@@ -21,6 +21,7 @@ export type ChatRuntime = {
   error: string;
   streamingChatIDs: ReadonlySet<string>;
   unreadCompletedChatIDs: ReadonlySet<string>;
+  removeQueuedMessage: (chatID: string, messageID: string) => void;
   queuedMessages: ReadonlyMap<string, readonly ChatMessage[]>;
   clearSelection: () => void;
   openProjectChat: (project: Project, chatID: string, navigationID?: number) => Promise<void>;
@@ -300,11 +301,17 @@ export function useChatRuntime(): ChatRuntime {
       }
     }
   }, [cancelPendingRequests, reconnectDaemonStream]);
+  const removeFromQueue = useCallback((chatID: string, messageID: string) => {
+    const removed = removeQueuedMessage(messageQueues.current, chatID, messageID);
+    if (removed) publishMessageQueues();
+    return removed;
+  }, [publishMessageQueues]);
+
   const deleteMessage = useCallback(async (chatID: string, messageID: string) => {
+    if (removeFromQueue(chatID, messageID)) return;
     const chat = getChat(chatID);
     if (!chat?.projectID || deletingMessages.current.has(chatID)) return;
     setError("");
-    if (removeQueuedMessage(messageQueues.current, chatID, messageID)) { publishMessageQueues(); return; }
     deletingMessages.current.add(chatID);
     stopRequested.current.add(chatID);
     streams.current.get(chatID)?.abort();
@@ -328,7 +335,7 @@ export function useChatRuntime(): ChatRuntime {
       updateChat(chatID, (current) => ({ ...current }));
       publishMessageQueues();
     }
-  }, [markStreaming, publishMessageQueues]);
+  }, [markStreaming, publishMessageQueues, removeFromQueue]);
   const renameChat = useCallback(async (projectID: string, chatID: string, title: string) => {
     const current = getChat(chatID);
     try {
@@ -442,6 +449,7 @@ export function useChatRuntime(): ChatRuntime {
     streamingChatIDs,
     unreadCompletedChatIDs,
     queuedMessages,
+    removeQueuedMessage: removeFromQueue,
     clearSelection,
     openProjectChat,
     sendNewProjectMessage,
