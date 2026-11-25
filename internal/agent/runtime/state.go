@@ -96,10 +96,8 @@ type Runtime struct {
 	atSkipNotify *atmention.Notifier
 	atSkipShown  bool
 
-	nestedMu                  sync.Mutex
-	nestedState               *activeNestedState
-	currentSubagentToolCallID string
-	roleBackends              roleBackendCache
+	pendingSpawnMu sync.Mutex
+	roleBackends   roleBackendCache
 
 	replSessFileLock   *chatstore.SessionFileLock
 	replSessFileLockID string

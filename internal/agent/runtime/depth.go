@@ -17,7 +17,8 @@ func subagentConfigDepth(ctx context.Context, cfg NestedRunConfig) NestedRunConf
 		cfg.Depth = parent + 1
 	}
 	if cfg.ParentSubchatID == "" {
-		cfg.ParentSubchatID, _ = ctx.Value(subagentCallerKey{}).(string)
+		caller, _ := ctx.Value(subagentCallerKey{}).(activeNestedState)
+		cfg.ParentSubchatID = caller.subchatID
 	}
 	return cfg
 }

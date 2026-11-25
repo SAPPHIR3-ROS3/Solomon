@@ -16,8 +16,7 @@ type Result struct {
 }
 
 // CanRunConcurrently reports whether a batch can use the shared runtime
-// concurrently. These tools deliberately remain serialized with any sibling
-// call because they mutate process-wide runtime state while they run.
+// concurrently.
 func CanRunConcurrently(invs []tooling.Invocation) bool {
 	for _, inv := range invs {
 		switch inv.Name {
@@ -43,5 +42,28 @@ func Execute(ctx context.Context, invs []tooling.Invocation, exec func(context.C
 		}(i)
 	}
 	wg.Wait()
+	return results
+}
+
+func RunNested(ctx context.Context, invs []tooling.Invocation, parallelNative bool, exec func(context.Context, tooling.Invocation) (any, error)) []Result {
+	if len(invs) > 1 && parallelNative && CanRunConcurrently(invs) {
+		return Execute(ctx, invs, exec)
+	}
+
+	results := make([]Result, len(invs))
+	for i := 0; i < len(invs); {
+		end := i + 1
+		if invs[i].Name == "subagent" {
+			for end < len(invs) && invs[end].Name == "subagent" {
+				end++
+			}
+		}
+		if end-i > 1 {
+			copy(results[i:end], Execute(ctx, invs[i:end], exec))
+		} else {
+			results[i].Value, results[i].Err = exec(ctx, invs[i])
+		}
+		i = end
+	}
 	return results
 }

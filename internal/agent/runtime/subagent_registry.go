@@ -146,6 +146,10 @@ func (reg *subagentRegistry) removeActiveEntry(id string) error {
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
+	return reg.removeActiveEntryLocked(id)
+}
+
+func (reg *subagentRegistry) removeActiveEntryLocked(id string) error {
 	if err := reg.loadActiveFile(); err != nil {
 		return err
 	}
@@ -164,6 +168,9 @@ func (reg *subagentRegistry) registerRun(ctx context.Context, sess *chatstore.Su
 	defer reg.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if _, running := reg.runs[sess.ID]; running {
+		return nil, fmt.Errorf("subchat %s is running; use /subagent stop first", sess.ID)
 	}
 	h := &subagentRunHandle{projectID: sess.ProjectHex, chatID: sess.ParentChatID, cancel: cancel, done: make(chan struct{})}
 	reg.runs[sess.ID] = h
@@ -193,12 +200,12 @@ func StopChatSubagents(ctx context.Context, projectID, chatID string) error {
 
 func (reg *subagentRegistry) finishRun(id string) {
 	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	_ = reg.removeActiveEntryLocked(id)
 	if h, ok := reg.runs[id]; ok {
 		close(h.done)
 		delete(reg.runs, id)
 	}
-	reg.mu.Unlock()
-	_ = reg.removeActiveEntry(id)
 }
 
 func (reg *subagentRegistry) cancelAndWait(id string, timeout time.Duration) error {

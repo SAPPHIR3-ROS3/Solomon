@@ -12,22 +12,9 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
 )
 
-func (r *Runtime) delegateSubagentFromNested(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
-	cfg = subagentConfigDepth(ctx, cfg)
-	if err := r.validateSubagentDepth(cfg.Depth); err != nil && cfg.ResumeID == "" {
-		return NestedRunResult{}, err
-	}
-	st := r.getNestedState()
-	if st == nil {
-		return NestedRunResult{}, fmt.Errorf("nested subagent state missing")
-	}
-	parentAvail := r.Session != nil && !r.EphemeralSession && strings.TrimSpace(st.parentChatID) != ""
-	if parentAvail {
-		prev := r.getNestedState()
-		r.setNestedState(nil)
-		defer r.setNestedState(prev)
-		res, err := r.runSubagentTool(ctx, cfg)
-		return res, err
+func (r *Runtime) delegateSubagentFromNested(ctx context.Context, cfg NestedRunConfig, st activeNestedState) (NestedRunResult, error) {
+	if r.Session != nil && !r.EphemeralSession && strings.TrimSpace(st.parentChatID) != "" {
+		return r.runSubagent(ctx, cfg)
 	}
 	pending := chatstore.PendingSubagentSpawn{
 		ParentSubchatID:    cfg.ParentSubchatID,
@@ -49,10 +36,12 @@ func (r *Runtime) delegateSubagentFromNested(ctx context.Context, cfg NestedRunC
 		NotifyNewChat:      st.origin == chatstore.SubOriginScheduled,
 		CreatedAt:          time.Now().UTC(),
 	}
+	r.pendingSpawnMu.Lock()
 	if sess, err := chatstore.FindSubSessionByID(st.projectHex, st.subchatID); err == nil && sess != nil {
 		sess.PendingSpawns = append(sess.PendingSpawns, pending)
 		_ = chatstore.WriteSubSession(sess.ProjectHex, sess)
 	}
+	r.pendingSpawnMu.Unlock()
 	if hasActiveUserSession() {
 		msg := "Return to the parent chat to resolve a pending subagent spawn."
 		if pending.NotifyNewChat {
@@ -100,7 +89,7 @@ func (r *Runtime) consumePendingSubagentSpawns() {
 }
 
 func (r *Runtime) execToolNestedAware(ctx context.Context, inv tooling.Invocation) (any, error) {
-	if inv.Name == "subagent" && r.nestedActive() {
+	if inv.Name == "subagent" {
 		var args map[string]json.RawMessage
 		if err := json.Unmarshal(inv.Args, &args); err != nil {
 			return nil, err
@@ -111,7 +100,7 @@ func (r *Runtime) execToolNestedAware(ctx context.Context, inv tooling.Invocatio
 		}
 		cfg.ParentToolCallID = inv.ToolCallID
 		cfg.ToolCall.ID = inv.ToolCallID
-		res, err := r.delegateSubagentFromNested(ctx, cfg)
+		res, err := r.runSubagentTool(ctx, cfg)
 		if err != nil {
 			return map[string]any{"error": err.Error()}, nil
 		}

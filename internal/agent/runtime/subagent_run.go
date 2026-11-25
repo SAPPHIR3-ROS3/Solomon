@@ -13,24 +13,6 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/title"
 )
 
-func (r *Runtime) nestedActive() bool {
-	r.nestedMu.Lock()
-	defer r.nestedMu.Unlock()
-	return r.nestedState != nil
-}
-
-func (r *Runtime) setNestedState(st *activeNestedState) {
-	r.nestedMu.Lock()
-	r.nestedState = st
-	r.nestedMu.Unlock()
-}
-
-func (r *Runtime) getNestedState() *activeNestedState {
-	r.nestedMu.Lock()
-	defer r.nestedMu.Unlock()
-	return r.nestedState
-}
-
 func (r *Runtime) runSubagentTool(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
 	cfg = subagentConfigDepth(ctx, cfg)
 	if cfg.ResumeID != "" {
@@ -43,9 +25,13 @@ func (r *Runtime) runSubagentTool(ctx context.Context, cfg NestedRunConfig) (Nes
 	if err := r.validateSubagentDepth(cfg.Depth); err != nil {
 		return NestedRunResult{}, err
 	}
-	if r.nestedActive() {
-		return r.delegateSubagentFromNested(ctx, cfg)
+	if st, ok := ctx.Value(subagentCallerKey{}).(activeNestedState); ok {
+		return r.delegateSubagentFromNested(ctx, cfg, st)
 	}
+	return r.runSubagent(ctx, cfg)
+}
+
+func (r *Runtime) runSubagent(ctx context.Context, cfg NestedRunConfig) (NestedRunResult, error) {
 	if cfg.Interrupt {
 		if cfg.ResumeID == "" {
 			return NestedRunResult{}, fmt.Errorf("interrupt requires resume")

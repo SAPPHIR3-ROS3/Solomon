@@ -48,6 +48,15 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	if err != nil {
 		return NestedRunResult{}, err
 	}
+	if cfg.ResumeID != "" && !cfg.RunInBackground {
+		runCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		if _, err := globalSubagentRegistry.registerRun(runCtx, sess, cancel); err != nil {
+			return NestedRunResult{}, err
+		}
+		defer globalSubagentRegistry.finishRun(id)
+		ctx = runCtx
+	}
 	defer func() {
 		if chatstore.SubSessionRunning(sess.Status) {
 			sess.Status = chatstore.SubStatusPaused
@@ -55,7 +64,6 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		}
 	}()
 	ctx = context.WithValue(ctx, subagentDepthKey{}, subagentSessionDepth(sess))
-	ctx = context.WithValue(ctx, subagentCallerKey{}, sess.ID)
 	system := cfg.SysPrompt
 	if system == "" {
 		p := cfg.SysPromptPath
@@ -92,14 +100,12 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			defer func() { _ = globalSubagentRegistry.removeActiveEntry(id) }()
 		}
 	}
-	prevNested := r.getNestedState()
-	r.setNestedState(&activeNestedState{
+	ctx = context.WithValue(ctx, subagentCallerKey{}, activeNestedState{
 		subchatID:    id,
 		origin:       sess.Origin,
 		parentChatID: sess.ParentChatID,
 		projectHex:   sess.ProjectHex,
 	})
-	defer r.setNestedState(prevNested)
 
 	quiet := cfg.RunInBackground
 	streamOut := r.Out
@@ -272,7 +278,6 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			inv := invs[i]
 			nestedCheckpointSeq++
 			stampNestedToolCallCheckpoint(msgs, i, nestedCheckpointSeq)
-			r.currentToolCpSeq = nestedCheckpointSeq
 			toolID := ""
 			if i < len(toolIDs) {
 				toolID = toolIDs[i]
@@ -296,16 +301,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			execInvs[i] = prepared[i].inv
 		}
 		toolStartedAt := time.Now()
-		results := make([]toolbatch.Result, len(execInvs))
-		if len(execInvs) > 1 && len(turn.ToolCalls) > 1 && toolbatch.CanRunConcurrently(execInvs) {
-			// Execute the batch concurrently, but append nested tool results in
-			// model order so the subchat transcript remains deterministic.
-			results = toolbatch.Execute(ctx, execInvs, r.execToolNestedAware)
-		} else {
-			for i := range execInvs {
-				results[i].Value, results[i].Err = r.execToolNestedAware(ctx, execInvs[i])
-			}
-		}
+		results := toolbatch.RunNested(ctx, execInvs, len(turn.ToolCalls) > 1, r.execToolNestedAware)
 
 		for i := len(msgs) - 1; i >= 0; i-- {
 			if msgs[i].Role == "assistant" {
