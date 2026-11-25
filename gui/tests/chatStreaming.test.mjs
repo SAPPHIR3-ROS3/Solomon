@@ -7,6 +7,7 @@ const server = await createServer({ root: fileURLToPath(new URL("..", import.met
 after(() => server.close());
 const { createChatStreamBatch } = await server.ssrLoadModule("/src/chat/streamBatch.ts");
 const { applyLiveStreamEvent } = await server.ssrLoadModule("/src/chat/chatClient.ts");
+const { chatPresentationKey } = await server.ssrLoadModule("/src/chat/chatPresentationKey.ts");
 const { liveWorkedForSeconds } = await server.ssrLoadModule("/src/chat/chatMessageUtils.ts");
 const { saveChat, getChat, updateChat, clearChatStore } = await server.ssrLoadModule("/src/chat/chatStore.ts");
 
@@ -36,6 +37,21 @@ test("replayed assistant messages use the event time", () => {
   const ts = "2026-10-20T13:00:00Z";
   const chat = applyLiveStreamEvent({ id: "chat", projectID: "project", messages: [], source: "daemon" }, { type: "assistant_start", ts, turn: 0 }, "", true);
   assert.equal(chat.messages[0].createdAt, Date.parse(ts));
+});
+
+test("streaming stays below the latest user message when a checkpoint is reused", () => {
+  const previous = { id: "old-answer", role: "assistant", content: "Old answer", checkpointSeq: 3 };
+  const user = { id: "user-1", role: "user", content: "New request" };
+  let chat = { id: "chat", projectID: "project", messages: [previous, user], source: "daemon", status: "running" };
+  const start = { type: "assistant_start", turn: 0, checkpoint_seq: 3 };
+  const delta = { type: "assistant_delta", channel: "content", delta: "New answer" };
+  assert.equal(applyLiveStreamEvent(chat, delta), chat);
+  chat = applyLiveStreamEvent(chat, start);
+  chat = applyLiveStreamEvent(chat, start, "", true);
+  chat = applyLiveStreamEvent(chat, delta);
+  assert.deepEqual(chat.messages.map(message => message.content), ["Old answer", "New request", "New answer"]);
+  assert.equal(chat.messages[0], previous);
+  assert.notEqual(chatPresentationKey(chat.messages[0]), chatPresentationKey(chat.messages[2]));
 });
 
 test("a live compaction snapshot shows the summary before the next assistant response", () => {

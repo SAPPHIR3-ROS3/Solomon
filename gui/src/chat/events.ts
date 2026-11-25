@@ -47,14 +47,13 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
     const turn = numberValue(event.turn, chat.messages.length);
     const checkpointSeq = numberValue(event.checkpoint_seq, undefined);
     const workStartedAt = eventTimeMilliseconds(event);
-    if (checkpointSeq !== undefined && chat.messages.some((message) => message.checkpointSeq === checkpointSeq && message.role === "assistant")) {
+    const last = chat.messages.at(-1);
+    if (checkpointSeq !== undefined && last?.role === "assistant" && last.kind !== "compaction" && last.checkpointSeq === checkpointSeq) {
       return {
         ...chat,
-        messages: chat.messages.map((message) => (
-          message.role === "assistant" && message.checkpointSeq === checkpointSeq && message.workStartedAt === undefined
-            ? { ...message, workStartedAt }
-            : message
-        )),
+        messages: last.workStartedAt === undefined
+          ? [...chat.messages.slice(0, -1), { ...last, workStartedAt }]
+          : chat.messages,
         runStartedAt: chat.runStartedAt ?? workStartedAt,
         status: "running",
       };
@@ -69,6 +68,9 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
       toolCalls: [],
       workStartedAt,
     };
+    if (checkpointSeq !== undefined && chat.messages.some((message) => message.role === "assistant" && message.checkpointSeq === checkpointSeq)) {
+      assistant.presentationID = assistant.id;
+    }
     return { ...chat, messages: [...chat.messages, assistant], runStartedAt: chat.runStartedAt ?? workStartedAt, status: "running" };
   }
 
@@ -281,13 +283,9 @@ function presentationIDsFor(previous: ChatMessage[], next: ChatMessage[]): Array
 }
 
 function updateLastAssistant(chat: LiveChat, update: (message: ChatMessage) => ChatMessage): LiveChat {
-  for (let index = chat.messages.length - 1; index >= 0; index -= 1) {
-    if (chat.messages[index].role !== "assistant") continue;
-    const messages = [...chat.messages];
-    messages[index] = update(messages[index]);
-    return { ...chat, messages };
-  }
-  return chat;
+  const last = chat.messages.at(-1);
+  if (last?.role !== "assistant" || last.kind === "compaction") return chat;
+  return { ...chat, messages: [...chat.messages.slice(0, -1), update(last)] };
 }
 
 
