@@ -108,6 +108,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
   ].join("\u0000");
   const indexedMessages = indexChatMessages(displayedMessages);
   const liveWorkedFor = isChatWorking ? liveWorkedForSeconds(chat, clockNow) : undefined;
+  const pendingWorkedFor = isChatWorking && chat.runStartedAt !== undefined ? Math.max(0, (clockNow - chat.runStartedAt) / 1000) : undefined;
   const { isAwayFromBottom, messagesRef, messagesShellRef, onMessagesKeyDown, onMessagesPointerDown, onMessagesScroll, onMessagesWheel, scrollToBottom } = useChatScroll({
     bottomInset,
     chatID: composerDraftKey(chat.projectID, chat.id),
@@ -257,7 +258,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
       <div aria-live="polite" className="chat-messages-shell" onKeyDown={onMessagesKeyDown} onPointerDown={onMessagesPointerDown} onScroll={handleMessagesScroll} onWheel={onMessagesWheel} ref={messagesShellRef} tabIndex={0}>
         <div className="chat-messages" ref={messagesRef}>
           {history.start > 0 || serverHistory ? <button className="chat-load-earlier" onClick={() => void loadEarlierMessages()} type="button">Load earlier messages</button> : null}
-          {chat.messages.length ? (
+          {chat.messages.length || pendingWorkedFor !== undefined ? (
             <ChatMessageGroups
               isWorking={isChatWorking}
               liveWorkedFor={liveWorkedFor}
@@ -266,6 +267,7 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
               onRegenerate={() => void sendFromComposer("/regenerate", [])}
               onRequestDelete={setDeleteTarget}
               onStopTool={stopMessageTool}
+              pendingWorkedFor={pendingWorkedFor}
               rateLimitNotice={chat.rateLimitNotice}
             />
           ) : chat.rateLimitNotice ? <RateLimitNotice raw={chat.rateLimitNotice} /> : <p className="chat-empty">This chat is ready for the first message.</p>}

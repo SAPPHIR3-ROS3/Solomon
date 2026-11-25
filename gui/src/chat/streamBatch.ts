@@ -24,7 +24,10 @@ export function createChatStreamBatch(onEvents: (events: BufferedChatStreamEvent
     }
     const last = pending.at(-1);
     if (last && last.event.channel === event.channel && last.replay === replay && last.imageOrigin === imageOrigin) {
-      last.event = { ...event, delta: `${last.event.delta ?? ""}${event.delta ?? ""}` };
+      const firstText = typeof last.event.delta === "string" && last.event.delta.trim()
+        ? last.event.firstTextAt ?? last.event.ts
+        : event.ts;
+      last.event = { ...event, delta: `${last.event.delta ?? ""}${event.delta ?? ""}`, ...(firstText === undefined ? {} : { firstTextAt: firstText }) };
     } else {
       pending.push({ event: { ...event }, replay, imageOrigin });
     }

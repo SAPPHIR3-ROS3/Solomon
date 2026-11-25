@@ -58,9 +58,14 @@ import { ChatView } from '/src/chat/ChatView.tsx';
 import { applyLiveStreamEvent } from '/src/chat/chatClient.ts';
 import '/src/styles.css';
 import '/src/home/welcome.css';
+const history = [
+  {id:'user',role:'user',content:'Test streaming'},
+  {id:'tool',role:'assistant',checkpointSeq:1,content:'',toolCalls:[{id:'t',name:'shell',status:'success',result:{status:'success',output:'done'}}]},
+];
 function Fixture() {
-  const [chat, setChat] = useState(() => applyLiveStreamEvent({id:'snapshot',projectID:'fixture',title:'Snapshot',messages:[{id:'user',role:'user',content:'Test streaming'}]}, {type:'assistant_start',turn:1,checkpoint_seq:1}));
+  const [chat, setChat] = useState({id:'snapshot',projectID:'fixture',title:'Snapshot',status:'running',messages:history});
   window.streamEvent = event => setChat(current => applyLiveStreamEvent(current,event));
+  window.saveResponse = (id, content) => window.streamEvent({type:'chat_snapshot',chat:{id:'snapshot',title:'Snapshot',status:'success',messages:[...history,{id,role:'assistant',checkpointSeq:2,checkpointBranch:'b',content}]}});
   return <ChatView chat={chat} isStreaming={chat.status==='running'} onSend={()=>{}} onDeleteMessage={()=>{}} onStopTool={()=>{}} onStopStreaming={()=>{}} />;
 }
 createRoot(document.getElementById('root')).render(<Fixture />);
@@ -278,12 +283,12 @@ test("fast bursts are presented in ordered small tokens even after the stream fi
     const burst = "abcdefghijklmnopqrstuvxyz0123456789".repeat(5);
     const full = burst + "FINALTOKENS0123456789";
     await page.evaluate(burst => {
-      const response = document.querySelector('.chat-message.is-assistant .chat-response-content');
       window.presentedPrefixes = [];
-      new MutationObserver(() => window.presentedPrefixes.push(response.textContent)).observe(response, { childList: true, characterData: true, subtree: true });
+      const read = () => document.querySelector('.chat-message.is-assistant .chat-response-content')?.textContent ?? '';
+      new MutationObserver(() => window.presentedPrefixes.push(read())).observe(document.querySelector('.chat-messages-shell'), { childList: true, characterData: true, subtree: true });
       window.updateResponse(burst);
     }, burst);
-    await page.waitForFunction(() => document.querySelector('.chat-message.is-assistant .chat-response-content').textContent.length > 0);
+    await page.waitForFunction(() => document.querySelector('.chat-message.is-assistant .chat-response-content')?.textContent.length > 0);
     assert.ok((await page.locator('.chat-message.is-assistant .chat-response-content').textContent()).length < burst.length);
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("typing during the queue");
     await page.evaluate(full => { window.updateResponse(full); window.setWorking(false); }, full);
@@ -293,13 +298,16 @@ test("fast bursts are presented in ordered small tokens even after the stream fi
     let previous = 0;
     for (const prefix of prefixes) {
       assert.ok(full.startsWith(prefix), "characters stay ordered and no token is skipped");
+      assert.ok(prefix.length >= previous, "revealed text must stay visible");
       assert.ok(prefix.length - previous <= 4, "a render must not reveal an entire line");
       previous = prefix.length;
     }
     assert.equal(await page.getByRole("textbox", { name: "Message", exact: true }).inputValue(), "typing during the queue");
     const reduced = full + "REDUCEDMOTION".repeat(20);
-    await page.evaluate(text => { window.setWorking(true); window.updateResponse(text); }, reduced);
     await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.evaluate(text => { window.setWorking(true); window.updateResponse(text); }, reduced);
+    await page.waitForFunction(length => document.querySelector('.chat-message.is-assistant .chat-response-content').textContent.length > length, full.length);
+    assert.ok((await page.locator('.chat-message.is-assistant .chat-response-content').textContent()).length < reduced.length);
     await page.waitForFunction(text => document.querySelector('.chat-message.is-assistant .chat-response-content').textContent === text, reduced);
     await page.emulateMedia({ reducedMotion: "no-preference" });
     const disabled = reduced + "DISABLED".repeat(20);
@@ -386,39 +394,49 @@ test("the persisted snapshot keeps the streaming response's progress and settled
   page.setDefaultTimeout(15000);
   const content = '## Test di streaming e formattazione\n\nQuesto paragrafo contiene **grassetto**, *corsivo* e `codice`. ' + 'Testo ancora in arrivo. '.repeat(8);
   try {
-    await page.route('**/__solomon/**', route => route.fulfill({json:{chat:{floatingLetters:true},projects:[],providers:[],recent:[]}}));
+    await page.route('**/__solomon/**', route => route.fulfill({json:{chat:{floatingLetters:true,autoCloseToolCalls:true,startToolCallsCollapsed:false},projects:[],providers:[],recent:[]}}));
     await page.route('**/__snapshot', route => route.fulfill({contentType:'text/html',body:'<div id="root" class="app-shell"></div><script type="module" src="/__snapshot.tsx"></script>'}));
     await page.goto(`${server.resolvedUrls.local[0]}__snapshot`);
     await page.locator('canvas').waitFor();
-    await page.evaluate(content => window.streamEvent({type:'assistant_delta',channel:'content',delta:content}), content);
-    await page.waitForFunction(() => document.querySelector('.is-assistant .chat-response-content')?.textContent.length > 90);
+    await page.evaluate(content => {
+      window.streamEvent({type:'assistant_start',turn:1,checkpoint_seq:2,checkpoint_branch:'b'});
+      window.streamEvent({type:'assistant_delta',channel:'content',delta:content});
+    }, content);
+    await page.waitForFunction(() => document.querySelector('[data-message-id^="stream-assistant"]')?.textContent.length > 90);
     await page.evaluate(content => {
       window.snapshotProgress = [];
-      const read = () => document.querySelector('.is-assistant .chat-response-content')?.textContent ?? '';
+      window.liveResponse = document.querySelector('[data-message-id^="stream-assistant"]');
+      const read = () => window.liveResponse.textContent;
       window.snapshotProgress.push(read());
       window.snapshotObserver = new MutationObserver(() => window.snapshotProgress.push(read()));
       window.snapshotObserver.observe(document.querySelector('.chat-messages-shell'),{childList:true,characterData:true,subtree:true});
-      window.streamEvent({type:'chat_snapshot',chat:{id:'snapshot',title:'Snapshot',status:'done',messages:[{id:'saved-user',role:'user',content:'Test streaming'},{id:'saved-assistant',role:'assistant',checkpointSeq:1,content}]}});
+      window.streamEvent({type:'assistant_end',content});
+      window.streamEvent({type:'run_end',exit_code:0});
+      window.saveResponse('saved-assistant', content);
     }, content);
     await page.waitForFunction(() => document.querySelector('[data-message-id="saved-assistant"]'));
+    assert.ok(await page.evaluate(() => {
+      const node = document.querySelector('[data-message-id="saved-assistant"]');
+      return node === window.liveResponse && Boolean(document.querySelector('.chat-tool-collapse-all').compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
+    }));
     await page.waitForTimeout(300);
     const progress = await page.evaluate(() => window.snapshotProgress.map(text => text.length));
     for(let index=1;index<progress.length;index++) {
       assert.ok(progress[index]>=progress[index-1], `saving must not rewind the response: ${progress}`);
       assert.ok(progress[index]-progress[index-1]<=8, `saving must preserve token pacing: ${progress}`);
     }
-    await page.waitForFunction(() => document.querySelector('.is-assistant .chat-response-content')?.textContent.endsWith('Testo ancora in arrivo.'));
+    await page.waitForFunction(() => document.querySelector('[data-message-id="saved-assistant"]')?.textContent.endsWith('Testo ancora in arrivo.'));
     await page.waitForFunction(() => Array.from(CSS.highlights.values()).every(value=>value.size===0));
     await page.evaluate(content => {
       window.snapshotObserver.disconnect();
-      window.streamEvent({type:'chat_snapshot',chat:{id:'snapshot',title:'Snapshot',status:'done',messages:[{id:'saved-user',role:'user',content:'Test streaming'},{id:'another-snapshot-id',role:'assistant',checkpointSeq:1,content}]}});
+      window.saveResponse('another-snapshot-id',content);
     },content);
     await page.locator('[data-message-id="another-snapshot-id"]').waitFor();
-    assert.ok((await page.locator('.is-assistant .chat-response-content').textContent()).endsWith('Testo ancora in arrivo.'));
+    assert.ok((await page.locator('[data-message-id="another-snapshot-id"]').textContent()).endsWith('Testo ancora in arrivo.'));
     assert.equal(await page.evaluate(()=>Array.from(CSS.highlights.values()).reduce((sum,value)=>sum+value.size,0)),0,'settled glyphs must not fly again after another snapshot');
     // A distinct checkpoint with the same text is a new response and must animate.
     await page.evaluate(content => {
-      window.streamEvent({type:'assistant_start',turn:2,checkpoint_seq:2});
+      window.streamEvent({type:'assistant_start',turn:2,checkpoint_seq:3});
       window.streamEvent({type:'assistant_delta',channel:'content',delta:content});
     },content);
     await page.waitForFunction(()=>document.querySelectorAll('.is-assistant .chat-response-content').length===2);

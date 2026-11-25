@@ -39,6 +39,25 @@ test("replayed assistant messages use the event time", () => {
   assert.equal(chat.messages[0].createdAt, Date.parse(ts));
 });
 
+test("reasoning uses the first reasoning delta and stops at the first answer delta even in batches", () => {
+  let chat = { id: "chat", projectID: "project", messages: [], source: "daemon" };
+  const at = seconds => `2026-10-20T13:00:${String(seconds).padStart(2, "0")}Z`;
+  const batch = createChatStreamBatch(events => {
+    for (const { event } of events) chat = applyLiveStreamEvent(chat, event);
+  });
+  batch.push({ type: "assistant_start", turn: 0, ts: at(0) });
+  batch.push({ type: "assistant_delta", channel: "reasoning", delta: " ", ts: at(7) });
+  batch.push({ type: "assistant_delta", channel: "reasoning", delta: "Plan", ts: at(8) });
+  batch.push({ type: "assistant_delta", channel: "reasoning", delta: " more", ts: at(9) });
+  batch.flush();
+  assert.equal(chat.messages[0].reasoningStartedAt, Date.parse(at(8)));
+  assert.equal(chat.messages[0].thoughtFor, undefined);
+  batch.push({ type: "assistant_delta", channel: "content", delta: "First", ts: at(10) });
+  batch.push({ type: "assistant_delta", channel: "content", delta: " answer", ts: at(11) });
+  batch.push({ type: "assistant_end", content: "First answer", ts: at(12) });
+  assert.equal(chat.messages[0].thoughtFor, 2);
+});
+
 test("streaming stays below the latest user message when a checkpoint is reused", () => {
   const previous = { id: "old-answer", role: "assistant", content: "Old answer", checkpointSeq: 3 };
   const user = { id: "user-1", role: "user", content: "New request" };

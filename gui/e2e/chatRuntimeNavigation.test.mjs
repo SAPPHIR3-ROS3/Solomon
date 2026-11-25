@@ -22,11 +22,11 @@ window.fetch = (url, options) => {
   // Deliberately allow late replies after abort to exercise the request guard.
   return new Promise(resolve => window.pending.push({ path: new URL(url, location.href).pathname, resolve }));
 };
-window.reply = (suffix, payload, status = 200) => {
+window.reply = (suffix, payload, status = 200, contentType = 'application/json') => {
   const index = window.pending.findIndex(request => request.path.endsWith(suffix));
   if (index < 0) throw new Error('No pending request: ' + suffix);
   const [request] = window.pending.splice(index, 1);
-  request.resolve(new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } }));
+  request.resolve(new Response(contentType === 'application/json' ? JSON.stringify(payload) : payload, { status, headers: { 'Content-Type': contentType } }));
 };
 window.seed = (id, content) => saveChat({ id, title: id, projectID: project.id, source: 'daemon', status: 'success', messages: [{ id: 'message', role: 'assistant', content }] });
 window.change = (id, content) => updateChat(id, chat => ({ ...chat, messages: chat.messages.map(message => ({ ...message, content })) }));
@@ -81,6 +81,19 @@ async function reply(page, suffix, payload, status = 200) {
   await waitForRequest(page, suffix);
   await page.evaluate(({ suffix, payload, status }) => window.reply(suffix, payload, status), { suffix, payload, status });
 }
+
+test("reconnecting keeps streamed text when the saved transcript is behind", async t => {
+  const page = await fixture(t);
+  const saved = { ...snapshot("live", "Streaming answer"), status: "running" };
+  await page.evaluate(() => { window.seedRunning("live"); window.openChat("live"); });
+  await reply(page, "/chats/live", saved);
+  await waitForRequest(page, "/chats/live/events");
+  await page.evaluate(() => window.reply("/chats/live/events", 'data: {"type":"assistant_delta","channel":"content","delta":" in progress","seq":1}\n\n', 200, "text/event-stream"));
+  await page.getByText("Streaming answer in progress", { exact: true }).waitFor();
+  await reply(page, "/chats/live", saved);
+  await waitForRequest(page, "/chats/live/events");
+  assert.equal(await page.locator("#transcript").textContent(), "Streaming answer in progress");
+});
 
 test("cached threads display before the refresh and remain visible when refresh fails", async t => {
   const page = await fixture(t);

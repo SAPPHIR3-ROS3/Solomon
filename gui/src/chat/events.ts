@@ -47,9 +47,10 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   if (type === "assistant_start") {
     const turn = numberValue(event.turn, chat.messages.length);
     const checkpointSeq = numberValue(event.checkpoint_seq, undefined);
+    const checkpointBranch = stringValue(event.checkpoint_branch) || undefined;
     const workStartedAt = eventTimeMilliseconds(event);
     const last = chat.messages.at(-1);
-    if (checkpointSeq !== undefined && last?.role === "assistant" && last.kind !== "compaction" && last.checkpointSeq === checkpointSeq) {
+    if (checkpointSeq !== undefined && last?.role === "assistant" && last.kind !== "compaction" && last.checkpointSeq === checkpointSeq && last.checkpointBranch === checkpointBranch) {
       return {
         ...chat,
         messages: last.workStartedAt === undefined
@@ -60,6 +61,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
       };
     }
     const assistant: ChatMessage = {
+      checkpointBranch,
       checkpointSeq,
       content: "",
       createdAt: workStartedAt,
@@ -69,7 +71,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
       toolCalls: [],
       workStartedAt,
     };
-    if (checkpointSeq !== undefined && chat.messages.some((message) => message.role === "assistant" && message.checkpointSeq === checkpointSeq)) {
+    if (checkpointSeq !== undefined && chat.messages.some((message) => message.role === "assistant" && message.checkpointSeq === checkpointSeq && message.checkpointBranch === checkpointBranch)) {
       assistant.presentationID = assistant.id;
     }
     return { ...chat, messages: [...chat.messages, assistant], runStartedAt: chat.runStartedAt ?? workStartedAt, status: "running" };
@@ -77,16 +79,28 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
 
   if (type === "assistant_delta") {
     const channel = stringValue(event.channel);
+    if (channel === "cursor_tool") return chat;
     const delta = stringValue(event.delta);
-    return updateLastAssistant(chat, (message) => channel === "reasoning"
-      ? { ...message, reasoning: `${message.reasoning ?? ""}${delta}` }
-      : { ...message, content: `${message.content}${delta}` });
+    const timestamp = eventTimeMilliseconds({ ts: event.firstTextAt ?? event.ts });
+    if (channel === "reasoning") {
+      return updateLastAssistant(chat, (message) => ({
+        ...message,
+        reasoning: `${message.reasoning ?? ""}${delta}`,
+        reasoningStartedAt: message.reasoningStartedAt ?? (delta.trim() && !message.content.trim() ? timestamp : undefined),
+      }));
+    }
+    return updateLastAssistant(chat, (message) => ({
+      ...message,
+      ...(channel === "content" && delta.trim() ? finishReasoning(message, timestamp) : {}),
+      content: `${message.content}${delta}`,
+    }));
   }
 
   if (type === "assistant_end") {
     const toolCalls = arrayValue(event.tool_calls).map((tool, index) => toolCallFromPayload(tool, index));
     return updateLastAssistant(chat, (message) => ({
       ...message,
+      ...finishReasoning(message, eventTimeMilliseconds(event)),
       content: stringValue(event.content) || message.content,
       reasoning: stringValue(event.reasoning) || message.reasoning,
       toolCalls: toolCalls.length ? mergeSubagentCalls(message.toolCalls, toolCalls) : message.toolCalls,
@@ -300,15 +314,20 @@ function carriedPresentationID(message: ChatMessage | undefined): string | undef
 }
 
 function presentationIDsFor(previous: ChatMessage[], next: ChatMessage[]): Array<string | undefined> {
-  const claimed = new Set<ChatMessage>();
+  const previousByID = new Map(previous.map((message) => [message.id, message]));
   const strong = next.map((message) => {
+    const candidate = previousByID.get(message.id);
+    return candidate?.role === message.role ? candidate : undefined;
+  });
+  const claimed = new Set(strong.filter((message) => message !== undefined));
+  next.forEach((message, index) => {
+    if (strong[index]) return;
     const match = previous.find((candidate) => !claimed.has(candidate) && candidate.role === message.role && (
-      candidate.id === message.id
-      || (message.checkpointSeq !== undefined && candidate.checkpointSeq === message.checkpointSeq && candidate.checkpointBranch === message.checkpointBranch)
+      (message.checkpointSeq !== undefined && candidate.checkpointSeq === message.checkpointSeq && candidate.checkpointBranch === message.checkpointBranch)
       || message.toolCalls?.some((tool) => candidate.toolCalls?.some((previousTool) => previousTool.id === tool.id))
     ));
     if (match) claimed.add(match);
-    return match;
+    strong[index] = match;
   });
   const locals = previous.filter((message) => !claimed.has(message) && localUserIdentity(message));
   const used = new Set<ChatMessage>();
@@ -330,6 +349,11 @@ function updateLastAssistant(chat: LiveChat, update: (message: ChatMessage) => C
   const last = chat.messages.at(-1);
   if (last?.role !== "assistant" || last.kind === "compaction") return chat;
   return { ...chat, messages: [...chat.messages.slice(0, -1), update(last)] };
+}
+
+function finishReasoning(message: ChatMessage, timestamp: number): Partial<ChatMessage> {
+  if (message.reasoningStartedAt === undefined || message.thoughtFor !== undefined) return {};
+  return { thoughtFor: Math.max(0, (timestamp - message.reasoningStartedAt) / 1000) };
 }
 
 

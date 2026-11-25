@@ -56,11 +56,19 @@ test("a pending user turn does not attach its live timer to the previous answer"
   const waiting = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages(messages),isWorking:true,liveWorkedFor:5}));
   assert.doesNotMatch(waiting,/chat-worked-for is-live/);
   assert.match(waiting,/worked for 14s/);
+  const pending = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages(messages),isWorking:true,pendingWorkedFor:5}));
+  assert.doesNotMatch(pending, /thought for/);
+  assert.match(pending.slice(pending.indexOf('Next question')), /worked for 5s/);
+  assert.equal((pending.match(/chat-worked-for is-live/g)??[]).length,1);
   const running = {...chat,messages:[...messages,{id:'new-answer',role:'assistant',content:'',workStartedAt:22000}]};
   assert.equal(liveWorkedForSeconds(running,25000),3);
   const active = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages(running.messages),isWorking:true,liveWorkedFor:3}));
   assert.equal((active.match(/chat-worked-for is-live/g)??[]).length,1);
   assert.ok(active.indexOf('chat-worked-for is-live')>active.indexOf('Next question'));
+  assert.doesNotMatch(active, /thought for/);
+  const reasoning = [...messages, { ...running.messages.at(-1), reasoning: "Plan", reasoningStartedAt: Date.now() }];
+  const streaming = renderToStaticMarkup(createElement(ChatMessageGroups,{messages:indexChatMessages(reasoning),isWorking:true,liveWorkedFor:3}));
+  assert.match(streaming, /class="chat-assistant-footer"><div[^>]+class="chat-reasoning chat-reasoning-summary is-live">.*?<\/div><span[^>]+class="chat-worked-for is-live"/);
   assert.equal(liveWorkedForSeconds({...running, messages:[{id:'a', role:'assistant', content:'', workStartedAt:0}]}, 25000), undefined);
 });
 
@@ -166,8 +174,8 @@ test("thought for runs only while reasoning streams", () => {
   try {
     const waiting = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"live",role:"assistant",content:"",reasoning:"",workStartedAt:10000},isCollapsed:true,isLive:true,onToggle(){}}));
     assert.doesNotMatch(waiting, /thought for|thought briefly/);
-    const reasoning = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"live",role:"assistant",content:"",reasoning:"Streaming reasoning",workStartedAt:10000},isCollapsed:true,isLive:true,onToggle(){}}));
-    assert.match(reasoning, /thought for 5s/);
+    const reasoning = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"live",role:"assistant",content:"",reasoning:"Streaming reasoning",workStartedAt:10000,reasoningStartedAt:13000},isCollapsed:true,isLive:true,onToggle(){}}));
+    assert.match(reasoning, /thought for 2s/);
     assert.match(reasoning, /is-live/);
     assert.doesNotMatch(reasoning, /chat-reasoning-copy/);
     const tool = renderToStaticMarkup(createElement(ChatMessageGroups,{isWorking:true,liveWorkedFor:5,messages:indexChatMessages([{id:"u",role:"user",content:"Go"},{id:"a",role:"assistant",content:"",workStartedAt:10000,toolCalls:[{id:"t",name:"shell",status:"running"}]}])}));
@@ -178,6 +186,8 @@ test("thought for runs only while reasoning streams", () => {
     const completed = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"live",role:"assistant",content:"",reasoning:"Done",thoughtFor:3,workStartedAt:10000},isCollapsed:true,onToggle(){}}));
     assert.match(completed, /thought for 3s/);
     assert.doesNotMatch(completed, /is-live/);
+    const historical = renderToStaticMarkup(createElement(ReasoningBlock,{message:{id:"old",role:"assistant",content:"Answer",reasoning:"Old reasoning",stats:{ttftSeconds:8}},isCollapsed:true,onToggle(){}}));
+    assert.doesNotMatch(historical, /thought for/);
   } finally {
     Date.now = originalNow;
   }
@@ -202,7 +212,7 @@ test("il contatore illumina le lettere in onda durante il lavoro e diventa giall
   assert.match(pulse, /\.app-shell \.chat-worked-for\.is-live \.chat-worked-for-wave(?:\s*,[^{}]+)?\s*\{[^}]*animation: chat-worked-for-glow/);
   assert.doesNotMatch(pulse, /\.chat-worked-for\.is-live\s*\{\s*animation:/);
   assert.match(pulse, /from \{ background-position: -3ch 0; \}/);
-  assert.match(pulse, /to \{ background-position: calc\(100% \+ 3ch\) 0; \}/);
+  assert.match(pulse, /to \{ background-position: 28ch 0; \}/);
   assert.match(pulse, /background-repeat: no-repeat;/);
   assert.match(pulse, /background-size: 3ch 100%;/);
   assert.match(pulse, /background-clip: text;/);
@@ -280,7 +290,7 @@ test("presentation keys stay stable when a snapshot adds checkpoint sequence", (
 
 await server.close();
 
-test("streaming keeps the whole tool turn above collapse until the answer settles", () => {
+test("streaming keeps the answer below tool activity through completion", () => {
   const originalNow = Date.now;
   Date.now = () => 15000;
   try {
@@ -304,9 +314,18 @@ test("streaming keeps the whole tool turn above collapse until the answer settle
       messages: indexChatMessages([...base, { id: "pending", role: "assistant", content: "Partial answer", reasoning: "Still thinking", workStartedAt: 12000 }]),
     }));
     const partialCollapse = partial.indexOf("chat-tool-collapse-all");
-    assert.ok(partial.indexOf("Still thinking") < partialCollapse);
-    assert.ok(partial.indexOf("Partial answer") < partialCollapse);
+    assert.ok(partial.indexOf("Still thinking") > partialCollapse);
+    assert.ok(partial.indexOf("Partial answer") > partialCollapse);
     assert.doesNotMatch(partial, /thought for 3s/);
+    const collapsed = renderToStaticMarkup(createElement(ChatMessageGroups, {
+      isWorking: true,
+      liveWorkedFor: 6,
+      rateLimitNotice: "Rate limit",
+      messages: indexChatMessages([...base, { id: "pending", role: "assistant", content: "Partial answer", reasoning: "Still thinking", workStartedAt: 12000 }]),
+    }));
+    assert.match(collapsed, /Show 1 tool calls/);
+    assert.ok(collapsed.indexOf("Still thinking") > collapsed.indexOf("chat-tool-collapse-all"));
+    assert.ok(collapsed.indexOf("Partial answer") > collapsed.indexOf("chat-tool-collapse-all"));
     const done = renderToStaticMarkup(createElement(ChatMessageGroups, {
       isWorking: false,
       messages: indexChatMessages([...base, { id: "pending", role: "assistant", content: "Final answer", reasoning: "Last thought", thoughtFor: 4, workStartedAt: 12000 }]),

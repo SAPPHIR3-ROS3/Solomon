@@ -6,6 +6,6 @@ import type { ChatMessage } from "./chatTypes";
 export function chatPresentationKey(message: ChatMessage): string {
   if (message.presentationID) return `${message.role}:id:${message.presentationID}`;
   return message.checkpointSeq !== undefined
-    ? `${message.role}:checkpoint:${message.checkpointSeq}`
+    ? `${message.role}:checkpoint:${message.checkpointSeq}${message.checkpointBranch ? `:${message.checkpointBranch}` : ""}`
     : `${message.role}:id:${message.id}`;
 }

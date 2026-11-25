@@ -118,6 +118,7 @@ export type ChatMessage = {
   kind?: "compaction";
   role: "assistant" | "user";
   reasoning?: string;
+  reasoningStartedAt?: number;
   stats?: ChatStats;
   status?: "interrupted";
   thoughtFor?: number;

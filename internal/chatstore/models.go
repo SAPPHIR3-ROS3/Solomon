@@ -56,6 +56,7 @@ type Message struct {
 	CacheCreationPromptTokens int64   `json:"cache_creation_prompt_tokens,omitempty"`
 	OutputTPS                 float64 `json:"output_tps,omitempty"`
 	TTFTSecs                  float64 `json:"ttft_secs,omitempty"`
+	ReasoningStreamSecs       float64 `json:"reasoning_stream_secs,omitempty"`
 	PromptTPS                 float64 `json:"prompt_tps,omitempty"`
 	ToolWallSecs              float64 `json:"tool_wall_secs,omitempty"`
 	TurnWallSecs              float64 `json:"turn_wall_secs,omitempty"`

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessage } from "./chatTypes";
 import { chatPresentationKey } from "./chatPresentationKey";
 
@@ -27,7 +27,6 @@ export function usePacedChatMessages(key: string, messages: ChatMessage[], enabl
     frame: 0, nextAt: 0, activeID: undefined as string | undefined,
   }));
   const state = useRef(session);
-  const media = useMemo(() => typeof window === "undefined" ? undefined : window.matchMedia("(prefers-reduced-motion: reduce)"), []);
 
   function cancel() {
     cancelAnimationFrame(state.current.frame);
@@ -41,7 +40,7 @@ export function usePacedChatMessages(key: string, messages: ChatMessage[], enabl
   function step(now: number) {
     const current = state.current;
     current.frame = 0;
-    if (media?.matches || document.hidden) { revealAll(); return; }
+    if (document.hidden) { revealAll(); return; }
     const next = current.messages.find(message => {
       const response = current.responses.get(chatPresentationKey(message));
       return response && response.shown.length < response.source.length;
@@ -60,8 +59,7 @@ export function usePacedChatMessages(key: string, messages: ChatMessage[], enabl
 
   useLayoutEffect(() => {
     const current = state.current;
-    const reset = key !== current.key || enabled !== current.enabled || !enabled || media?.matches || document.hidden;
-    const animate = !reset;
+    const reset = key !== current.key || enabled !== current.enabled || !enabled || document.hidden;
     const ids = new Set<string>();
     let changed = false;
     if (reset) { cancel(); current.activeID = undefined; current.responses.clear(); }
@@ -71,10 +69,14 @@ export function usePacedChatMessages(key: string, messages: ChatMessage[], enabl
       ids.add(identity);
       const previous = current.responses.get(identity);
       if (!previous) {
-        current.responses.set(identity, { source: message.content, shown: !reset && animate ? "" : message.content });
+        current.responses.set(identity, { source: message.content, shown: reset ? message.content : "" });
         changed = true;
       } else if (previous.source !== message.content) {
-        if (!animate || !message.content.startsWith(previous.shown)) previous.shown = message.content;
+        if (!message.content.startsWith(previous.shown)) {
+          const offset = Math.min(previous.shown.length, message.content.length);
+          const boundary = segmenter.segment(message.content).containing(offset)?.index ?? offset;
+          previous.shown = message.content.slice(0, boundary);
+        }
         previous.source = message.content;
         changed = true;
       }
@@ -82,29 +84,26 @@ export function usePacedChatMessages(key: string, messages: ChatMessage[], enabl
     for (const id of current.responses.keys()) if (!ids.has(id)) current.responses.delete(id);
     Object.assign(current, { key, enabled, messages });
     if (changed && !reset) redraw(value => value + 1);
-    if (enabled && !media?.matches && !document.hidden && !current.frame && [...current.responses.values()].some(response => response.shown !== response.source)) {
+    if (enabled && !document.hidden && !current.frame && [...current.responses.values()].some(response => response.shown !== response.source)) {
       current.nextAt = performance.now() + TOKEN_INTERVAL_MS;
       current.frame = requestAnimationFrame(step);
     }
-  }, [key, messages, enabled, media]);
+  }, [key, messages, enabled]);
 
   useEffect(() => {
-    if (!media) return;
-    const onMotion = () => { if (media?.matches) revealAll(); };
     const onVisibility = () => { if (document.hidden) revealAll(); };
-    media.addEventListener("change", onMotion);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancel();
-      media.removeEventListener("change", onMotion);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [media]);
+  }, []);
 
-  if (!enabled || !media || media.matches || document.hidden || state.current.key !== key) return { messages, animationMessageID: undefined };
+  if (!enabled || typeof document === "undefined" || document.hidden || state.current.key !== key || !state.current.enabled) return { messages, animationMessageID: undefined };
   const displayed = messages.map(message => {
-    const response = state.current.responses.get(chatPresentationKey(message));
-    return response && response.shown !== message.content ? { ...message, content: response.shown } : message;
+    if (message.role !== "assistant" || message.kind === "compaction") return message;
+    const shown = state.current.responses.get(chatPresentationKey(message))?.shown ?? "";
+    return shown === message.content ? message : { ...message, content: shown };
   });
   return { messages: displayed, animationMessageID: messages.find(message => chatPresentationKey(message) === state.current.activeID)?.id };
 }

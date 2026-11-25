@@ -73,6 +73,7 @@ type UsageStats struct {
 	PromptTPS                 float64
 	TurnWallSecs              float64
 	ThoughtSecs               float64
+	ReasoningStreamSecs       float64
 }
 
 type AssistantTurnResult struct {

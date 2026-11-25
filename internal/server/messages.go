@@ -221,10 +221,7 @@ func apiMessageFromSession(projectID, ownerID string, message chatstore.Message,
 		value.Reasoning = reasoning
 		value.ToolCalls = apiToolCallsFromMessage(projectID, ownerID, source, index, runActive, true)
 		value.Stats = apiStatsFromMessage(message, index, contextEstimate)
-		value.ThoughtFor = message.TurnTTFTSecs
-		if value.ThoughtFor == 0 {
-			value.ThoughtFor = message.TTFTSecs
-		}
+		value.ThoughtFor = message.ReasoningStreamSecs
 		value.WorkedFor = workedForSeconds(message, source, index)
 	}
 	if chatstore.MessageCheckpointTagVisible(message) {

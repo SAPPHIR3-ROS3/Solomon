@@ -91,6 +91,10 @@ export function useDaemonStream({ streams, streamRetryTimers, streamRetryAttempt
         const latest = await fetchLiveChat(projectID, chat.id);
         if (controller.signal.aborted) return;
         const current = getChat(chat.id);
+        if (latest.status === "running" && current?.status === "running") {
+          retryWhenDetached = true;
+          return;
+        }
         const merged = current ? preserveLiveWorkState(current, latest) : latest;
         saveChat({
           ...merged,

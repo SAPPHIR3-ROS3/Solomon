@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/config"
@@ -114,8 +115,27 @@ func (b *ResilientBackend) ctxWithReadTimeout(ctx context.Context) (context.Cont
 func (b *ResilientBackend) StreamTurn(ctx context.Context, req TurnRequest, contentOut io.Writer, opts StreamOpts) (AssistantTurnResult, error) {
 	var result AssistantTurnResult
 	err := b.runWithRetry(ctx, opts, func(attemptCtx context.Context) error {
+		var reasoningStarted, reasoningEnded time.Time
+		attemptOpts := opts
+		attemptOpts.OnDelta = func(channel, text string) {
+			if channel == "content" && strings.TrimSpace(text) != "" && reasoningEnded.IsZero() {
+				reasoningEnded = time.Now()
+			}
+			if reasoningStarted.IsZero() && reasoningEnded.IsZero() && channel == "reasoning" && strings.TrimSpace(text) != "" {
+				reasoningStarted = time.Now()
+			}
+			if opts.OnDelta != nil {
+				opts.OnDelta(channel, text)
+			}
+		}
 		var err error
-		result, err = b.Inner.StreamTurn(attemptCtx, req, contentOut, opts)
+		result, err = b.Inner.StreamTurn(attemptCtx, req, contentOut, attemptOpts)
+		if err == nil && !reasoningStarted.IsZero() {
+			if reasoningEnded.IsZero() {
+				reasoningEnded = time.Now()
+			}
+			result.Usage.ReasoningStreamSecs = reasoningEnded.Sub(reasoningStarted).Seconds()
+		}
 		return err
 	})
 	return result, err

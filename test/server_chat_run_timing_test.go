@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,13 +21,36 @@ import (
 func TestServerRuntime_runningChatKeepsRunStartAcrossFetches(t *testing.T) {
 	providerStarted := make(chan struct{})
 	releaseProvider := make(chan struct{})
-	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseProvider) }) }
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Stream bool `json:"stream"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if !request.Stream {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"content":[{"type":"text","text":"Generated title"}]}`)
+			return
+		}
 		close(providerStarted)
-		<-releaseProvider
 		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = io.WriteString(w, anthropicSSEBody(
+		const stop = "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+		_, _ = io.WriteString(w, strings.TrimSuffix(anthropicSSEBody(
 			map[string]any{"type": "message_start", "message": map[string]any{"usage": map[string]any{"input_tokens": 1}}},
+			map[string]any{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "thinking_delta", "thinking": "Plan"}},
+		), stop))
+		w.(http.Flusher).Flush()
+		time.Sleep(30 * time.Millisecond)
+		_, _ = io.WriteString(w, strings.TrimSuffix(anthropicSSEBody(
 			map[string]any{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": "ok"}},
+		), stop))
+		w.(http.Flusher).Flush()
+		<-releaseProvider
+		_, _ = io.WriteString(w, anthropicSSEBody(
 			map[string]any{"type": "message_delta", "usage": map[string]any{"output_tokens": 1}, "delta": map[string]any{"stop_reason": "end_turn"}},
 		))
 	}))
@@ -32,6 +58,7 @@ func TestServerRuntime_runningChatKeepsRunStartAcrossFetches(t *testing.T) {
 
 	server, stop := startServerForTest(t, serverruntime.Options{})
 	defer stop()
+	defer release()
 	writeChatProviderConfig(t, provider.URL)
 	projectID, chatID := createServerTestChat(t, server.URL)
 
@@ -42,19 +69,31 @@ func TestServerRuntime_runningChatKeepsRunStartAcrossFetches(t *testing.T) {
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "text/event-stream")
 	postDone := make(chan error, 1)
+	deltaReceived := make(chan struct{})
 	go func() {
 		response, requestErr := http.DefaultClient.Do(request)
 		if requestErr != nil {
 			postDone <- requestErr
 			return
 		}
-		_, readErr := io.Copy(io.Discard, response.Body)
-		closeErr := response.Body.Close()
-		if readErr != nil {
-			postDone <- readErr
-			return
+		defer response.Body.Close()
+		scanner := bufio.NewScanner(response.Body)
+		var received bool
+		for scanner.Scan() {
+			data, ok := strings.CutPrefix(scanner.Text(), "data: ")
+			if !ok || received {
+				continue
+			}
+			var event struct {
+				Type  string `json:"type"`
+				Delta string `json:"delta"`
+			}
+			if json.Unmarshal([]byte(data), &event) == nil && event.Type == "assistant_delta" && event.Delta == "ok" {
+				received = true
+				close(deltaReceived)
+			}
 		}
-		postDone <- closeErr
+		postDone <- scanner.Err()
 	}()
 
 	select {
@@ -72,10 +111,38 @@ func TestServerRuntime_runningChatKeepsRunStartAcrossFetches(t *testing.T) {
 		t.Fatalf("invalid run start %q: %v", first.RunStartedAt, err)
 	}
 
-	close(releaseProvider)
+	select {
+	case <-deltaReceived:
+	case err := <-postDone:
+		t.Fatalf("chat stream closed before the assistant delta: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("assistant delta was not streamed while the provider was running")
+	}
+	release()
 	if err := <-postDone; err != nil {
 		t.Fatal(err)
 	}
+	response, err := http.Get(server.URL + "/__solomon/projects/" + projectID + "/chats/" + chatID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved struct {
+		Messages []struct {
+			Content    string  `json:"content"`
+			Reasoning  string  `json:"reasoning"`
+			ThoughtFor float64 `json:"thoughtFor"`
+		} `json:"messages"`
+	}
+	decodeServerTestJSON(t, response, &saved)
+	for _, message := range saved.Messages {
+		if message.Content == "ok" {
+			if message.Reasoning != "Plan" || message.ThoughtFor < 0.02 {
+				t.Fatalf("persisted reasoning = %+v, want Plan with its streamed duration", message)
+			}
+			return
+		}
+	}
+	t.Fatal("assistant response is missing from the saved chat")
 }
 
 func writeChatProviderConfig(t *testing.T, providerURL string) {

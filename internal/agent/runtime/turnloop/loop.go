@@ -171,7 +171,11 @@ func Run(ctx context.Context, h Host) error {
 			turnSeparatorPending = false
 		}
 		if h.MachineMode() {
-			h.CIEmit(cievents.AssistantStart(turnIdx, astSeq))
+			event := cievents.AssistantStart(turnIdx, astSeq)
+			if branchKey != "" {
+				event["checkpoint_branch"] = branchKey
+			}
+			h.CIEmit(event)
 		} else {
 			reasoningEff := h.Config().ReasoningEffortDisplayLabel()
 			fastTag := ""
