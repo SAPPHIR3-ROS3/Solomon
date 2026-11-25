@@ -1,7 +1,8 @@
 import { orderSubagentTools, subagentLabel } from "./subagents/hierarchy";
 import { memo, useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { ChatImage, ChatMessage } from "./chatTypes";
+import type { ChatImage, ChatMessage, RateLimitResumeTarget } from "./chatTypes";
+import { formatErrorResetLabel, parseChatBannerError, rateLimitResetAtMs } from "./chatMessageUtils";
 import { ComposerCrownIcon } from "./ChatComposer";
 import type { ActiveSubagent } from "./chatViewTypes";
 import { CloseIcon } from "./ChatIcons";
@@ -256,3 +257,44 @@ type ChatMessageGroupHandlers = {
   onRequestDelete?: (message: ChatMessage) => void;
   onStopTool?: (messageID: string, toolID: string) => void;
 };
+
+export function RateLimitResumeCard({ isResuming, onToggle, raw, resetAt, scheduledAt, target }: {
+  isResuming: boolean;
+  onToggle: (armed: boolean) => void;
+  raw: string;
+  resetAt?: number;
+  scheduledAt?: number;
+  target?: RateLimitResumeTarget;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  const armed = scheduledAt !== undefined;
+  const resetAtMs = scheduledAt ?? resetAt ?? rateLimitResetAtMs(raw);
+  const waitingForReset = resetAtMs !== undefined && resetAtMs > now;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const banner = parseChatBannerError(raw);
+  const statusText = (resetAtMs === undefined ? undefined : formatErrorResetLabel(resetAtMs / 1000, 0, now)) ?? banner.resetLabel ?? banner.title;
+  const models = Array.from(new Set([
+    target?.model,
+    ...(target?.subagents ?? []).map((sub) => sub.model),
+  ].filter((value): value is string => Boolean(value))));
+  const modelsLabel = models.join(", ");
+
+  const buttonLabel = isResuming ? "Resuming..." : armed ? "Cancel auto-resume" : waitingForReset ? "Resume at reset" : "Resume now";
+
+  return (
+    <div aria-label="Resume after rate limit" className="chat-rate-limit-resume-card" role="region">
+      <div className="chat-rate-limit-resume-info">
+        <span className="chat-rate-limit-resume-text">{statusText}</span>
+        {modelsLabel ? <span className="chat-rate-limit-resume-models" title={modelsLabel}>{modelsLabel}</span> : null}
+      </div>
+      <button className={`chat-rate-limit-resume-button${armed ? " is-armed" : ""}`} disabled={isResuming} onClick={() => onToggle(!armed)} type="button">
+        {buttonLabel}
+      </button>
+    </div>
+  );
+}

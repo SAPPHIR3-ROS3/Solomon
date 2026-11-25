@@ -23,8 +23,10 @@ func (r *Runtime) resolveSubagentRole(cfg *NestedRunConfig) error {
 	if provider == "" || model == "" {
 		return fmt.Errorf("subagent: roleProvider and roleModel must both be set")
 	}
-	if _, err := roles.FindSubagent(config.RolesSubagentEntries(r.Cfg), provider, model); err != nil {
-		return err
+	if !cfg.savedTarget {
+		if _, err := roles.FindSubagent(config.RolesSubagentEntries(r.Cfg), provider, model); err != nil {
+			return err
+		}
 	}
 	cfg.RoleProvider = provider
 	cfg.RoleModel = model

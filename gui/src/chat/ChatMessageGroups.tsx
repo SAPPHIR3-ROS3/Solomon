@@ -223,6 +223,7 @@ const AssistantTurn = memo(function AssistantTurn({
   && previous.isWorking === next.isWorking
   && previous.onOpenSubagent === next.onOpenSubagent
   && previous.onStopTool === next.onStopTool
+  && previous.rateLimitNotice === next.rateLimitNotice
   && previous.entries.length === next.entries.length
   && previous.entries.every((entry, index) => entry === next.entries[index]));
 

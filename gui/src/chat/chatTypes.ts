@@ -130,6 +130,22 @@ export type ChatMessage = {
   summary?: string;
 };
 
+export type RateLimitResumeSubagent = {
+  subchatID: string;
+  provider?: string;
+  model?: string;
+  reasoningEffort?: string;
+  fastMode?: boolean;
+};
+
+export type RateLimitResumeTarget = {
+  provider?: string;
+  model?: string;
+  reasoningEffort?: string;
+  fastMode?: boolean;
+  subagents?: RateLimitResumeSubagent[];
+};
+
 export type Chat = {
   /** Transport metadata kept on cached API responses. */
   source?: ChatSource;
@@ -142,6 +158,9 @@ export type Chat = {
   runStartedAt?: number;
   knownCompactionIDs?: string[];
   rateLimitNotice?: string;
+  rateLimitResetAt?: number;
+  rateLimitScheduledAt?: number;
+  rateLimitResume?: RateLimitResumeTarget;
   status?: "error" | "interrupted" | "running" | "success";
   title: string;
   workspaceID?: string;

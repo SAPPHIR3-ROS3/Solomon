@@ -22,15 +22,21 @@ func apiChatFromSession(projectID string, sess *chatstore.Session, run *chatRun)
 		status = "running"
 		runStartedAt = run.startedAt.UTC().Format(time.RFC3339Nano)
 	}
+	resetAt := ""
+	if target := sess.RateLimitResume; target != nil && !target.ResetAt.IsZero() {
+		resetAt = target.ResetAt.Format(time.RFC3339Nano)
+	}
 	return apiChat{
-		CreatedAt:    sess.CreatedAt.UTC().Format(time.RFC3339Nano),
-		ID:           sess.ID,
-		Messages:     apiMessagesFromSession(projectID, sess.ID, sess.Messages, sess.ImageFiles, sess.UncompactedRaw, run != nil),
-		Mode:         "agent",
-		ProjectID:    projectID,
-		RunStartedAt: runStartedAt,
-		Status:       status,
-		Title:        sessionTitle(sess),
+		RateLimitResetAt: resetAt,
+		CreatedAt:        sess.CreatedAt.UTC().Format(time.RFC3339Nano),
+		ID:               sess.ID,
+		Messages:         apiMessagesFromSession(projectID, sess.ID, sess.Messages, sess.ImageFiles, sess.UncompactedRaw, run != nil),
+		Mode:             "agent",
+		ProjectID:        projectID,
+		RateLimitNotice:  sess.RateLimitNotice,
+		RunStartedAt:     runStartedAt,
+		Status:           status,
+		Title:            sessionTitle(sess),
 	}
 }
 

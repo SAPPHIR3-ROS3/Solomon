@@ -47,14 +47,17 @@ type fastModeRequest struct {
 }
 
 type apiChat struct {
-	CreatedAt    string       `json:"createdAt,omitempty"`
-	ID           string       `json:"id"`
-	Messages     []apiMessage `json:"messages"`
-	Mode         string       `json:"mode,omitempty"`
-	ProjectID    string       `json:"projectID,omitempty"`
-	Status       string       `json:"status,omitempty"`
-	RunStartedAt string       `json:"runStartedAt,omitempty"`
-	Title        string       `json:"title"`
+	CreatedAt            string       `json:"createdAt,omitempty"`
+	ID                   string       `json:"id"`
+	Messages             []apiMessage `json:"messages"`
+	Mode                 string       `json:"mode,omitempty"`
+	ProjectID            string       `json:"projectID,omitempty"`
+	RateLimitScheduledAt string       `json:"rateLimitScheduledAt,omitempty"`
+	RateLimitResetAt     string       `json:"rateLimitResetAt,omitempty"`
+	RateLimitNotice      string       `json:"rateLimitNotice,omitempty"`
+	Status               string       `json:"status,omitempty"`
+	RunStartedAt         string       `json:"runStartedAt,omitempty"`
+	Title                string       `json:"title"`
 }
 
 type apiMessage struct {

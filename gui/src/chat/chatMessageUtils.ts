@@ -215,13 +215,14 @@ export function parseChatBannerError(raw: string): ChatBannerError {
   if (/usage limit/i.test(text) || /rate[\s-]?limit/i.test(text) || /\b429\b/.test(text)) {
     const plan = text.match(/\(([^)\n]+) plan\)/i)?.[1] ?? text.match(/^plan:\s*(.+)$/im)?.[1];
     const reset = text.match(/^reset:\s*(.+)$/im)?.[1] ?? text.match(/resets?\s+(.+)$/im)?.[1];
+    const parsedResetAt = reset ? parseResetTimestampSeconds(reset) : 0;
     const message = (text.match(/^message:\s*(.+)$/im)?.[1] ?? text.replace(/^summary:\s*.+$/im, "").replace(/\s*\([^)]+ plan\)/i, "").replace(/;\s*resets?\s+.+$/im, "").replace(/^(type|plan|reset|hint|HTTP|attempts):\s*.+$/gim, "").trim()) || "The usage limit has been reached";
     return {
       title: "Usage limit reached",
       source,
       message,
       plan: plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : undefined,
-      resetLabel: reset ? `Resets ${reset}` : undefined,
+      resetLabel: parsedResetAt > 0 ? formatErrorResetLabel(parsedResetAt, 0) : reset ? `Resets ${reset}` : undefined,
       hint: "Wait for the reset, or pick another model.",
     };
   }
@@ -265,10 +266,10 @@ function errorBannerTitle(type: string): string {
   }
 }
 
-function formatErrorResetLabel(resetsAt: number, resetsInSeconds: number): string | undefined {
+export function formatErrorResetLabel(resetsAt: number, resetsInSeconds: number, now = Date.now()): string | undefined {
   const when = resetsAt > 0 ? new Date(resetsAt * 1000) : undefined;
   let seconds = resetsInSeconds;
-  if (seconds <= 0 && when) seconds = Math.max(0, Math.round((when.getTime() - Date.now()) / 1000));
+  if (seconds <= 0 && when) seconds = Math.max(0, Math.round((when.getTime() - now) / 1000));
   const wait = formatResetWait(seconds);
   if (when && wait) return `Resets ${when.toLocaleString()} · ${wait}`;
   if (when) return `Resets ${when.toLocaleString()}`;
@@ -278,6 +279,38 @@ function formatErrorResetLabel(resetsAt: number, resetsInSeconds: number): strin
 export function toolActivityCollapsed(input: { autoCloseToolCalls: boolean; hasRunningTools: boolean; isWorking: boolean; override?: boolean; preferencesReady: boolean; rateLimited: boolean; startToolCallsCollapsed: boolean }) {
   const collapseFinished = !input.isWorking && (input.startToolCallsCollapsed || (input.preferencesReady && input.autoCloseToolCalls));
   return !input.hasRunningTools && (input.override ?? (input.rateLimited || collapseFinished));
+}
+
+export function rateLimitResetAtMs(raw: string): number | undefined {
+  let text = raw.trim();
+  for (const prefix of ["ChatGPT Sub", "Claude Sub"]) {
+    if (text.startsWith(`${prefix}:`) || text.startsWith(`${prefix} `)) {
+      const colon = text.indexOf(":");
+      text = colon >= 0 ? text.slice(colon + 1).trim() : text.slice(prefix.length).trim();
+      break;
+    }
+  }
+  const jsonStart = text.indexOf("{");
+  if (jsonStart >= 0) {
+    try {
+      const parsed = JSON.parse(text.slice(jsonStart)) as Record<string, unknown>;
+      const nested = parsed.error;
+      const body = nested && typeof nested === "object" && !Array.isArray(nested) ? nested as Record<string, unknown> : parsed;
+      if (typeof body.resets_at === "number" && body.resets_at > 0) return body.resets_at * 1000;
+    } catch {
+      /* fall through to text parsing */
+    }
+  }
+  const reset = text.match(/^reset:\s*(.+)$/im)?.[1] ?? text.match(/resets?\s+(.+)$/im)?.[1];
+  const parsedResetAt = reset ? parseResetTimestampSeconds(reset) : 0;
+  return parsedResetAt > 0 ? parsedResetAt * 1000 : undefined;
+}
+
+function parseResetTimestampSeconds(raw: string): number {
+  const match = raw.match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/);
+  if (!match) return 0;
+  const parsed = Date.parse(`${match[1]}T${match[2]}`);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed / 1000) : 0;
 }
 
 function formatResetWait(seconds: number): string | undefined {

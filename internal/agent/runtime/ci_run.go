@@ -81,6 +81,10 @@ func (r *Runtime) wrapLLMErr(err error) error {
 }
 
 func (r *Runtime) runPromptOnceCI(ctx context.Context, line string) (err error) {
+	return r.runCIWithPrompt(line, func() error { return r.onUserMessage(ctx, line, false) })
+}
+
+func (r *Runtime) runCIWithPrompt(line string, run func() error) (err error) {
 	r.ciPrompt = line
 	r.ciTurn = 0
 	r.ciToolErr = false
@@ -112,7 +116,7 @@ func (r *Runtime) runPromptOnceCI(ctx context.Context, line string) (err error) 
 			err = flushErr
 		}
 	}()
-	return r.onUserMessage(ctx, line, false)
+	return run()
 }
 
 func (r *Runtime) streamOptsCI(turn int) llm.StreamOpts {

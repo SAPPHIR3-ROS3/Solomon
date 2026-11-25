@@ -123,6 +123,14 @@ export async function controlLiveSubchat(projectID: string, subchatID: string, a
   await readResponsePayload(response, "Unable to control subchat");
 }
 
+export async function setRateLimitResume(projectID: string, chatID: string, armed: boolean): Promise<number | undefined> {
+  const endpoint = await serverEndpoint(`${chatPath(projectID, chatID)}/rate-limit-resume`);
+  const response = await chatRequest("Unable to update rate-limit resume", endpoint, { method: armed ? "POST" : "DELETE" });
+  if (response.status === 204) return undefined;
+  const payload = await readResponsePayload(response, "Unable to update rate-limit resume");
+  return dateToMilliseconds(stringValue(objectValue(payload).scheduledAt));
+}
+
 export async function streamLiveChatMessage(
   projectID: string,
   chatID: string,
@@ -216,6 +224,9 @@ export function liveChatFromPayload(payload: unknown, projectID: string, imageOr
     messages,
     modeSwitchTarget: record.mode === "agent" ? undefined : "agent",
     projectID,
+    rateLimitNotice: stringValue(record.rateLimitNotice) || undefined,
+    rateLimitResetAt: dateToMilliseconds(stringValue(record.rateLimitResetAt)),
+    rateLimitScheduledAt: dateToMilliseconds(stringValue(record.rateLimitScheduledAt)),
     runStartedAt: dateToMilliseconds(stringValue(record.runStartedAt)),
     source: "daemon",
     status: chatStatusFromPayload(record.status),

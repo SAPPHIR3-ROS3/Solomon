@@ -48,7 +48,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	if err != nil {
 		return NestedRunResult{}, err
 	}
-	if cfg.ResumeID != "" && !cfg.RunInBackground {
+	if !cfg.RunInBackground {
 		runCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		if _, err := globalSubagentRegistry.registerRun(runCtx, sess, cancel); err != nil {
@@ -65,6 +65,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 	}()
 	ctx = context.WithValue(ctx, subagentDepthKey{}, subagentSessionDepth(sess))
 	system := cfg.SysPrompt
+	if system == "" {
+		system = sess.SysPrompt
+	}
 	if system == "" {
 		p := cfg.SysPromptPath
 		if p == "" && sess != nil {
@@ -148,7 +151,10 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			provider, model = cfg.RoleProvider, cfg.RoleModel
 		}
 		fastMode := r.Cfg.FastModeEnabledForProvider(config.ProviderByName(r.Cfg, provider))
-		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable, effort, cfg, id)
+		if cfg.ResumeID != "" && sess.FastMode != nil {
+			fastMode = *sess.FastMode
+		}
+		turn, legacySW, err := r.streamNestedAssistant(roundCtx, streamOut, system, msgs, r.subSessionImageFiles(sess), forceDisable, effort, cfg, id, fastMode)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
 			flushUsageStats()
@@ -191,6 +197,9 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 			}
 			sess.Status = chatstore.SubStatusPaused
 			sess.Messages = msgs
+			if notice, reset, limited := llm.RateLimitDetails(err, time.Now()); limited {
+				sess.RateLimitNotice, sess.RateLimitResetAt = notice, reset
+			}
 			_ = r.persistSubSession(sess)
 			return NestedRunResult{Output: transcript.String(), SubchatID: id, Status: sess.Status}, err
 		}
@@ -258,6 +267,7 @@ func (r *Runtime) runNestedWithConfig(ctx context.Context, cfg NestedRunConfig) 
 		}
 		if len(invs) == 0 {
 			flushUsageStats()
+			sess.RateLimitNotice, sess.RateLimitResetAt = "", time.Time{}
 			sess.Status = chatstore.SubStatusDone
 			sess.Messages = msgs
 			if err := r.persistSubSession(sess); err != nil {

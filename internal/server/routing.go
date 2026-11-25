@@ -141,6 +141,11 @@ func (a *chatAPI) handleProjectRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch parts[3] {
+	case "rate-limit-resume":
+		if len(parts) == 4 && (r.Method == http.MethodPost || r.Method == http.MethodDelete) {
+			a.handleRateLimitSchedule(w, r, projectID, root, chatID)
+			return
+		}
 	case "history":
 		if len(parts) == 4 && r.Method == http.MethodGet {
 			a.handleChatHistory(w, r, projectID, chatID)

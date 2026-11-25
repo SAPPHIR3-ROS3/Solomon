@@ -57,3 +57,80 @@
 .chat-composer-dock:has(.chat-pending-messages) > .chat-scroll-to-bottom {
   bottom: calc(100% + 6px);
 }
+
+.chat-rate-limit-resume-card {
+  align-items: center;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--color-surface-raised) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
+  border-bottom: 0;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 32%);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin: 0 0 -20px;
+  padding: 8px 12px 26px 16px;
+  position: relative;
+  z-index: 0;
+}
+
+.chat-rate-limit-resume-info {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chat-rate-limit-resume-text {
+  color: var(--color-text-muted);
+  font: 500 12px/1.2 "Geist", sans-serif;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-rate-limit-resume-models {
+  color: var(--color-text);
+  font: 560 11px/1.2 "Geist Mono", ui-monospace, monospace;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-rate-limit-resume-button {
+  appearance: none;
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface-raised));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 58%, var(--color-border));
+  border-radius: 8px;
+  color: var(--color-text);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: 600 12px/1 "Geist", sans-serif;
+  padding: 6px 12px;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.chat-rate-limit-resume-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 34%, var(--color-surface-raised));
+  border-color: var(--color-accent);
+}
+
+.chat-rate-limit-resume-button.is-armed {
+  background: color-mix(in srgb, var(--color-accent) 36%, var(--color-surface-raised));
+  border-color: var(--color-accent);
+}
+
+.chat-rate-limit-resume-button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.chat-rate-limit-resume-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

@@ -20,7 +20,7 @@ import type { ComposerImageAttachment, ComposerTerminalClip } from "./composerTy
 import { fetchChatHistory, snapshotComposerImages } from "./chatClient";
 import { updateChat } from "./chatStore";
 import { useChatScroll } from "./useChatScroll";
-import { ModeSwitchNotice, SubagentActivityIndicator } from "./ChatMessageParts";
+import { ModeSwitchNotice, RateLimitResumeCard, SubagentActivityIndicator } from "./ChatMessageParts";
 import { ChatMessageGroups, RateLimitNotice } from "./ChatMessageGroups";
 import { indexChatMessages, liveWorkedForSeconds } from "./chatMessageUtils";
 import { subagentIsActive, subagentStatus } from "./ChatToolActivity";
@@ -51,6 +51,7 @@ type ChatViewProps = {
   isStreaming?: boolean;
   onDeleteMessage: (chatID: string, messageID: string) => void;
   onOpenedSubagentRequest?: () => void;
+  onResumeRateLimit?: (chatID: string, armed: boolean) => Promise<void>;
   onSend: (chatID: string, message: ChatMessage) => void | Promise<void>;
   onStopTool: (chatID: string, messageID: string, toolID: string) => void;
   onStopStreaming: (chatID: string) => void;
@@ -64,9 +65,10 @@ type ChatViewProps = {
   workspacePath?: string;
 };
 
-export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onRemoveQueuedMessage, onSend, onStopTool, onStopStreaming, openSubagentRequest, queuedMessages = [], worktree, workspaceName, workspacePath }: ChatViewProps) {
+export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, loadSubchat, onDeleteMessage, onOpenedSubagentRequest, onRemoveQueuedMessage, onResumeRateLimit, onSend, onStopTool, onStopStreaming, openSubagentRequest, queuedMessages = [], worktree, workspaceName, workspacePath }: ChatViewProps) {
   const { chat: chatPreferences } = useGUIChatPreferencesState();
   const [quotaProvider, setQuotaProvider] = useState("");
+  const [isResumingRateLimit, setIsResumingRateLimit] = useState(false);
   const [composerMenu, setComposerMenu] = useState<ChatComposerMenu>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
   const [composerMode, setComposerMode] = useState<"agent" | "chat">(chat.modeSwitchTarget ? "chat" : "agent");
@@ -237,6 +239,16 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
     setComposerMode("chat");
   }
 
+  async function handleResumeRateLimit(armed: boolean) {
+    if (!onResumeRateLimit || isResumingRateLimit) return;
+    setIsResumingRateLimit(true);
+    try {
+      await onResumeRateLimit(chat.id, armed);
+    } finally {
+      setIsResumingRateLimit(false);
+    }
+  }
+
   return (
     <DiagramUnitContext.Provider value={diagramUnit}>
     <section aria-label={`Chat: ${chat.title}`} className="chat-view" ref={viewRef} style={{ bottom: Math.max(0, bottomInset) } as CSSProperties}>
@@ -272,6 +284,9 @@ export function ChatView({ bottomInset = 0, branch, chat, isStreaming = false, l
         ) : null}
         {isModeSwitchPending ? <ModeSwitchNotice progress={modeSwitchProgress} onCancel={cancelModeSwitch} /> : null}
         <MessageQueue messages={queuedMessages} onRemove={(messageID) => onRemoveQueuedMessage(chat.id, messageID)} />
+        {chat.rateLimitNotice && !isChatWorking && onResumeRateLimit ? (
+          <RateLimitResumeCard isResuming={isResumingRateLimit} onToggle={(armed) => void handleResumeRateLimit(armed)} resetAt={chat.rateLimitResetAt} scheduledAt={chat.rateLimitScheduledAt} raw={chat.rateLimitNotice} target={chat.rateLimitResume} />
+        ) : null}
         <div aria-hidden="true" className="chat-composer-background" />
         <div className="chat-composer">
           <ChatComposer

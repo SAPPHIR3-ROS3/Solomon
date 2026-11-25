@@ -115,6 +115,9 @@ func (a *chatAPI) handleSendSlashCommand(w http.ResponseWriter, r *http.Request,
 		if err := chatstore.WriteSession(projectID, sess); err != nil {
 			run.Emit(apiEvent("error", map[string]any{"error": err.Error()}))
 		}
+		if (skillTurn || regenerateCommand) && prov != nil {
+			saveRateLimitState(projectID, sess, rateLimitTarget(cfg, rt), commandErr)
+		}
 		if commandErr == nil {
 			for _, notice := range slashCommandNotifications(output.String()) {
 				run.Emit(apiEvent("notification", map[string]any{"message": notice["message"], "level": notice["level"]}))

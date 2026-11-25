@@ -55,6 +55,8 @@ type PendingSubagentSpawn struct {
 }
 
 type SubSession struct {
+	RateLimitNotice  string                 `json:"rate_limit_notice,omitempty"`
+	RateLimitResetAt time.Time              `json:"rate_limit_reset_at,omitzero"`
 	ParentSubchatID  string                 `json:"parent_subchat_id,omitempty"`
 	Depth            int                    `json:"depth,omitempty"`
 	FastMode         *bool                  `json:"fast_mode,omitempty"`
@@ -69,6 +71,9 @@ type SubSession struct {
 	ParentChatID     string                 `json:"parent_chat_id,omitempty"`
 	ParentToolCallID string                 `json:"parent_tool_call_id,omitempty"`
 	ProjectHex       string                 `json:"project_hex,omitempty"`
+	SysPrompt        string                 `json:"sys_prompt,omitempty"`
+	Provider         string                 `json:"provider,omitempty"`
+	Model            string                 `json:"model,omitempty"`
 	SysPromptPath    string                 `json:"sys_prompt_path,omitempty"`
 	Origin           string                 `json:"origin"`
 	ScheduledAt      *time.Time             `json:"scheduled_at,omitempty"`

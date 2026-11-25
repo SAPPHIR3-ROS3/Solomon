@@ -66,7 +66,15 @@ func (a *chatAPI) handleChat(w http.ResponseWriter, r *http.Request, projectID, 
 		writeAPIError(w, status, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, apiChatFromSession(projectID, sess, a.getRun(projectID+"\x00"+chatID)))
+	key := projectID + "\x00" + chatID
+	a.activeMu.Lock()
+	run, schedule := a.active[key], a.rateLimitSchedules[key]
+	a.activeMu.Unlock()
+	result := apiChatFromSession(projectID, sess, run)
+	if schedule != nil {
+		result.RateLimitScheduledAt = schedule.at.Format(time.RFC3339Nano)
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (a *chatAPI) handleChatHistory(w http.ResponseWriter, r *http.Request, projectID, chatID string) {

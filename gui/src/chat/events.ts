@@ -1,7 +1,8 @@
-import type { Chat, ChatMessage, ChatToolCall } from "./chatTypes";
+import type { Chat, ChatMessage, ChatToolCall, RateLimitResumeSubagent, RateLimitResumeTarget } from "./chatTypes";
 import type { LiveChat, ChatStreamEvent } from "./chatClient";
 import { liveChatFromPayload } from "./chatClient";
 import { rateLimitNoticeFromEvent } from "./chatMessageUtils";
+import { getCachedCurrentModel } from "../projects/models";
 import { arrayValue, stringValue, numberValue, messageFromPayload, toolCallFromPayload, normalizeToolResult, subchatStatusFromPayload, eventTimeMilliseconds } from "./payload";
 
 export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, imageOrigin = "", replay = false): LiveChat {
@@ -12,7 +13,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
     const sentAt = eventTimeMilliseconds(event);
     const messages = chat.messages.slice(0, lastUser + 1);
     if (lastUser >= 0) messages[lastUser] = { ...messages[lastUser], createdAt: sentAt };
-    return { ...chat, messages, rateLimitNotice: undefined, runStartedAt: sentAt };
+    return { ...chat, messages, rateLimitNotice: undefined, rateLimitResume: undefined, runStartedAt: sentAt };
   }
   if (type === "chat_title") {
     const title = stringValue(event.title).trim();
@@ -142,13 +143,14 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   }
   if (type === "error") {
     const rateLimitNotice = rateLimitNoticeFromEvent(event);
+    const rateLimitResume = rateLimitNotice ? captureRateLimitResumeTarget(chat) : chat.rateLimitResume;
     const next = rateLimitNotice ? stopOpenToolCalls(chat) : chat;
-    return { ...next, rateLimitNotice: rateLimitNotice ?? chat.rateLimitNotice, status: "error" };
+    return { ...next, rateLimitNotice: rateLimitNotice ?? chat.rateLimitNotice, rateLimitResume, status: "error" };
   }
   if (type === "run_end") {
     const exitCode = numberValue(event.exit_code ?? event.exitCode, undefined);
     const failed = exitCode !== undefined && exitCode !== 0;
-    return { ...chat, rateLimitNotice: failed ? chat.rateLimitNotice : undefined, status: failed ? "error" : "success" };
+    return { ...chat, rateLimitNotice: failed ? chat.rateLimitNotice : undefined, rateLimitResume: failed ? chat.rateLimitResume : undefined, status: failed ? "error" : "success" };
   }
   return chat;
 }
@@ -186,6 +188,7 @@ export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat 
     if (!Number.isFinite(message.checkpointSeq) || !Number.isFinite(message.workStartedAt)) continue;
     startedAtByCheckpoint.set(message.checkpointSeq, message.workStartedAt);
   }
+  const rateLimitNotice = next.rateLimitNotice ?? (previous.rateLimitScheduledAt === undefined ? previous.rateLimitNotice : undefined);
   return {
     ...next,
     knownCompactionIDs: archive.knownCompactionIDs,
@@ -195,8 +198,41 @@ export function preserveLiveWorkState(previous: Chat, next: LiveChat): LiveChat 
       const workStartedAt = startedAtByCheckpoint.get(message.checkpointSeq);
       return workStartedAt === undefined ? message : { ...message, workStartedAt };
     }),
-    rateLimitNotice: previous.rateLimitNotice,
+    rateLimitNotice,
+    rateLimitResume: rateLimitNotice ? previous.rateLimitResume : undefined,
     runStartedAt: next.runStartedAt ?? previous.runStartedAt,
+  };
+}
+
+function captureRateLimitResumeTarget(chat: LiveChat): RateLimitResumeTarget {
+  const existing = chat.rateLimitResume;
+  const lastStats = [...chat.messages].reverse().find((message) => message.role === "assistant" && (message.stats?.model || message.stats?.provider))?.stats;
+  const cached = getCachedCurrentModel();
+  const seen = new Set<string>();
+  const subagents: RateLimitResumeSubagent[] = [];
+  for (const message of chat.messages) {
+    for (const tool of message.toolCalls ?? []) {
+      if (tool.name !== "subagent") continue;
+      const subchatID = tool.result?.subchatId;
+      if (!subchatID || seen.has(subchatID)) continue;
+      const subStatus = tool.result?.subchatStatus ?? tool.status;
+      if (subStatus !== "running" && subStatus !== "queued" && subStatus !== "interrupted" && subStatus !== "paused") continue;
+      seen.add(subchatID);
+      subagents.push({
+        subchatID,
+        provider: tool.provider,
+        model: tool.model,
+        reasoningEffort: tool.reasoningEffort,
+        fastMode: tool.fastMode,
+      });
+    }
+  }
+  return {
+    provider: existing?.provider || lastStats?.provider || cached?.provider || undefined,
+    model: existing?.model || lastStats?.model || cached?.model || undefined,
+    reasoningEffort: existing?.reasoningEffort || lastStats?.reasoningEffort || undefined,
+    fastMode: existing?.fastMode,
+    subagents: subagents.length ? subagents : existing?.subagents,
   };
 }
 
@@ -205,7 +241,15 @@ function stopOpenToolCalls(chat: LiveChat): LiveChat {
     ...chat,
     messages: chat.messages.map((message) => ({
       ...message,
-      toolCalls: message.toolCalls?.map((tool) => tool.status === "running" ? { ...tool, status: "interrupted" } : tool),
+      toolCalls: message.toolCalls?.map((tool) => {
+        const subRunning = tool.result?.subchatStatus === "running" || tool.result?.subchatStatus === "queued";
+        if (tool.status !== "running" && !subRunning) return tool;
+        return {
+          ...tool,
+          status: "interrupted",
+          result: subRunning && tool.result ? { ...tool.result, subchatStatus: "interrupted" } : tool.result,
+        };
+      }),
     })),
   };
 }

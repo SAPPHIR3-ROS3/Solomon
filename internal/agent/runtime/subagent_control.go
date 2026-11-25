@@ -43,6 +43,7 @@ func (r *Runtime) controlSubagent(id, action string) error {
 	if err := globalSubagentRegistry.cancelAndWait(id, 10*time.Second); err != nil {
 		return err
 	}
+	sess.RateLimitNotice, sess.RateLimitResetAt = "", time.Time{}
 	if action == "cancel" {
 		sess.Status = chatstore.SubStatusCancelled
 	} else {

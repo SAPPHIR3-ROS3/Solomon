@@ -114,9 +114,11 @@ type Session struct {
 	ActivatedInstructionDirs []string          `json:"activated_instruction_dirs,omitempty"`
 	UncompactedRaw           []UncompactedDump `json:"uncompactedRaw,omitempty"`
 
-	PlanningActive   bool   `json:"planning_active,omitempty"`
-	ActivePlanName   string `json:"active_plan_name,omitempty"`
-	PlanImplementing bool   `json:"plan_implementing,omitempty"`
+	PlanningActive   bool             `json:"planning_active,omitempty"`
+	ActivePlanName   string           `json:"active_plan_name,omitempty"`
+	PlanImplementing bool             `json:"plan_implementing,omitempty"`
+	RateLimitResume  *RateLimitResume `json:"rate_limit_resume,omitempty"`
+	RateLimitNotice  string           `json:"rate_limit_notice,omitempty"`
 }
 
 // FileChangeLedger stores only this chat's tool deltas, never workspace totals.
@@ -136,4 +138,13 @@ type FileChangeSummary struct {
 	Binary       bool     `json:"binary,omitempty"`
 	AddedLines   []string `json:"addedLines,omitempty"`
 	RemovedLines []string `json:"removedLines,omitempty"`
+}
+
+type RateLimitResume struct {
+	ResetAt         time.Time `json:"reset_at"`
+	Provider        string    `json:"provider"`
+	Model           string    `json:"model"`
+	ReasoningEffort string    `json:"reasoning_effort"`
+	FastMode        *bool     `json:"fast_mode,omitempty"`
+	ResumeParent    bool      `json:"resume_parent"`
 }

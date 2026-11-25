@@ -131,8 +131,9 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 			close(titleDone)
 		}
 
-		if err := rt.RunPromptOnce(assistantCtx, content); err != nil {
-			logging.Diagnostic("chat prompt failed", map[string]any{"error_type": fmt.Sprintf("%T", err), "canceled": assistantCtx.Err() != nil})
+		promptErr := rt.RunPromptOnce(assistantCtx, content)
+		if promptErr != nil {
+			logging.Diagnostic("chat prompt failed", map[string]any{"error_type": fmt.Sprintf("%T", promptErr), "canceled": assistantCtx.Err() != nil})
 		}
 		close(assistantDone)
 		<-titleDone
@@ -141,6 +142,7 @@ func (a *chatAPI) handleSendChatMessage(w http.ResponseWriter, r *http.Request, 
 			run.Emit(apiEvent("chat_interrupted", map[string]any{"chatID": chatID}))
 		}
 		if latest, readErr := chatstore.ReadSession(projectID, chatID); readErr == nil {
+			saveRateLimitState(projectID, latest, rateLimitTarget(cfg, rt), promptErr)
 			run.Emit(apiEvent("chat_snapshot", map[string]any{
 				"chat": apiChatFromSession(projectID, latest, nil),
 			}))

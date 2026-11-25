@@ -10,6 +10,7 @@ import (
 )
 
 type NestedRunConfig struct {
+	savedTarget      bool
 	ParentSubchatID  string
 	Depth            int
 	SysPromptPath    string

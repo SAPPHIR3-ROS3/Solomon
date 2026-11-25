@@ -475,7 +475,7 @@ export function App() {
           isStreaming={streamingChatIDs.has(selectedChat.id)}
           loadSubchat={chatRuntime.loadSubchat}
           onDeleteMessage={chatRuntime.deleteMessage}
-          onOpenedSubagentRequest={() => setOpenSubagentRequest(null)}
+          onOpenedSubagentRequest={() => setOpenSubagentRequest(null)} onResumeRateLimit={chatRuntime.resumeRateLimit}
           onSend={chatRuntime.sendMessage}
           onStopTool={chatRuntime.stopTool}
           onStopStreaming={chatRuntime.stopChat}

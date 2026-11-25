@@ -5,7 +5,7 @@ import { isSlashCommand } from "./slashCommands";
 import { recordProjectChatActivity } from "../projects/chatActivity";
 import { beginNavigation, cancelNavigation, failNavigation, markNavigationSelection, measureNavigation, measureNavigationSync, setNavigationCache } from "./navigationPerformance";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { sendProjectCommand, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type LiveChat } from "./chatClient";
+import { sendProjectCommand, chatImageInputs, controlLiveSubchat, createLiveChat, deleteLiveChat, fetchLiveChat, fetchLiveSubchat, preserveLiveWorkState, renameLiveChat, setRateLimitResume, snapshotComposerImages, stopLiveChat, streamLiveChatEvents, streamLiveChatMessage, type LiveChat } from "./chatClient";
 import { forgetChatStreamCursor, forgetRememberedActiveChat, getChat, getChatStreamCursor, getUnreadCompletedChatIDs, rememberActiveChat, saveUnreadCompletedChatIDs, removeChat, saveChat, updateChat, useChatStore } from "./chatStore";
 import { subagentIsActive, subagentStatus } from "./ChatToolActivity";
 import type { Chat, ChatMessage } from "./chatTypes";
@@ -32,6 +32,7 @@ export type ChatRuntime = {
   deleteMessage: (chatID: string, messageID: string) => Promise<void>;
   stopChat: (chatID: string) => void;
   stopTool: (chatID: string, messageID: string, toolID: string) => void;
+  resumeRateLimit: (chatID: string, armed: boolean) => Promise<void>;
   loadSubchat: (subchatID: string) => Promise<LiveChat>;
 };
 
@@ -72,7 +73,7 @@ export function useChatRuntime(): ChatRuntime {
     message.toolCalls?.some((tool) => tool.name === "subagent" && (Boolean(tool.result?.subchatId) || subagentIsActive(subagentStatus(tool))))
   )) ?? false;
 
-  useSubagentRefresh(selectedChat, selectedSubagentsTracked, deletingMessages);
+  useSubagentRefresh(selectedChat, selectedSubagentsTracked || selectedChat?.rateLimitScheduledAt !== undefined, deletingMessages);
 
   const cancelPendingRequests = useCallback(() => {
     cancelNavigation(navigationIDRef.current);
@@ -121,7 +122,7 @@ export function useChatRuntime(): ChatRuntime {
     forgetChatStreamCursor(chat.projectID, chat.id);
     const isCommand = isSlashCommand(message.content);
     stopRequested.current.delete(chat.id);
-    updateChat(chat.id, (current) => ({ ...current, messages: isCommand ? current.messages : [...current.messages, message], rateLimitNotice: undefined, runStartedAt: Date.now(), status: "running" }));
+    updateChat(chat.id, (current) => ({ ...current, messages: isCommand ? current.messages : [...current.messages, message], rateLimitNotice: undefined, rateLimitResume: undefined, rateLimitResetAt: undefined, rateLimitScheduledAt: undefined, runStartedAt: Date.now(), status: "running" }));
     setError("");
     attachDaemonStream(chat, (signal, onEvent) => streamLiveChatMessage(
       chat.projectID!,
@@ -440,26 +441,25 @@ export function useChatRuntime(): ChatRuntime {
     return subchat;
   }, [selectedChatID]);
 
+  const resumeRateLimit = useCallback(async (chatID: string, armed: boolean) => {
+    const chat = getChat(chatID);
+    if (!chat?.projectID || !chat.rateLimitNotice) return;
+    setError("");
+    try {
+      const rateLimitScheduledAt = await setRateLimitResume(chat.projectID, chatID, armed);
+      updateChat(chatID, (current) => ({ ...current, rateLimitScheduledAt }));
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Unable to resume after rate limit");
+    }
+  }, []);
+
   return {
-    chats,
-    selectedChat,
-    selectedChatID,
-    isLoading,
-    error,
-    streamingChatIDs,
-    unreadCompletedChatIDs,
-    queuedMessages,
+    chats, selectedChat, selectedChatID, isLoading, error,
+    streamingChatIDs, unreadCompletedChatIDs, queuedMessages,
     removeQueuedMessage: removeFromQueue,
-    clearSelection,
-    openProjectChat,
-    sendNewProjectMessage,
-    sendMessage,
-    renameChat,
-    deleteChat,
-    deleteMessage,
-    stopChat,
-    stopTool,
-    loadSubchat,
+    clearSelection, openProjectChat, sendNewProjectMessage, sendMessage,
+    renameChat, deleteChat, deleteMessage,
+    stopChat, stopTool, resumeRateLimit, loadSubchat,
   };
 }
 

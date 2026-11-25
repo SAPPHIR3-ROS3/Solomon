@@ -21,19 +21,21 @@ const (
 )
 
 type chatAPI struct {
-	daemonCtx      context.Context
-	activeMu       sync.Mutex
-	active         map[string]*chatRun
-	atMentionIndex *atmention.IndexCache
-	browsers       *cloak.Sessions
+	daemonCtx          context.Context
+	activeMu           sync.Mutex
+	active             map[string]*chatRun
+	rateLimitSchedules map[string]*rateLimitSchedule
+	atMentionIndex     *atmention.IndexCache
+	browsers           *cloak.Sessions
 }
 
 func newChatAPI(daemonCtx context.Context) *chatAPI {
 	return &chatAPI{
-		daemonCtx:      daemonCtx,
-		browsers:       cloak.NewSessions(daemonCtx, nil),
-		active:         make(map[string]*chatRun),
-		atMentionIndex: atmention.NewIndexCache(),
+		daemonCtx:          daemonCtx,
+		browsers:           cloak.NewSessions(daemonCtx, nil),
+		active:             make(map[string]*chatRun),
+		rateLimitSchedules: make(map[string]*rateLimitSchedule),
+		atMentionIndex:     atmention.NewIndexCache(),
 	}
 }
 
@@ -43,6 +45,7 @@ func (a *chatAPI) beginRun(key string) (*chatRun, bool) {
 	if _, ok := a.active[key]; ok {
 		return nil, false
 	}
+	a.cancelRateLimitScheduleLocked(key)
 	run := newChatRun(a.daemonCtx)
 	logging.Diagnostic("chat run started", map[string]any{"run_id": fmt.Sprintf("%x", sha256.Sum256([]byte(key)))[:16]})
 	a.active[key] = run
