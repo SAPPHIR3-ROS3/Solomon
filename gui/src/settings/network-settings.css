@@ -70,4 +70,8 @@
 
 .settings-model-row.network-channel { border-top: 0; box-sizing: border-box; padding: 20px 0; }
 .network-interfaces > .network-interface:first-child { border-top: 1px solid var(--color-border); }
+.network-interfaces > .settings-model-disabled-group {
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
 .network-channel .settings-model-row-copy small { line-height: 1.5; }
