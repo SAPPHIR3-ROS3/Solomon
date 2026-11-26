@@ -67,13 +67,12 @@ export function ReasoningControl({ capability, value, onChange, open, onOpenChan
         <strong className="welcome-reasoning-value">
           <span aria-hidden="true" className="welcome-reasoning-value-sizer">
             <span>Extra high</span>
-            <span className="welcome-reasoning-fast-mark"><ComposerBoltIcon /></span>
           </span>
           <span className="welcome-reasoning-value-text">
             <span>{selectedLabel}</span>
-            <span className={`welcome-reasoning-fast-mark${fastActive ? " is-on" : ""}`}><ComposerBoltIcon /></span>
           </span>
         </strong>
+        {fastAvailable ? <span className={`welcome-reasoning-fast-mark${fastActive ? " is-on" : ""}`}><ComposerBoltIcon /></span> : null}
         <ComposerChevronIcon className={isOpen ? "is-open" : undefined} />
       </button>
       {isOpen ? (

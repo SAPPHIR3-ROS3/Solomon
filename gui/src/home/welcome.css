@@ -311,15 +311,17 @@
 }
 
 .welcome-composer {
-  --composer-inline-padding: 18px;
+  --composer-border-width: 1px;
+  --composer-inline-padding: 13px;
+  --composer-radius: 24px;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 24px;
+  border: var(--composer-border-width) solid var(--color-border);
+  border-radius: var(--composer-radius);
   display: grid;
   flex: none;
   gap: 14px;
   overflow: visible;
-  padding: 12px var(--composer-inline-padding) 14px;
+  padding: 12px var(--composer-inline-padding) var(--composer-inline-padding);
   position: relative;
   width: 100%;
   z-index: 1;
@@ -915,13 +917,13 @@
   max-height: var(--welcome-control-height);
   min-height: var(--welcome-control-height);
   overflow: hidden;
-  padding: 0 10px;
+  padding: 0 8px;
   text-transform: uppercase;
   transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .welcome-mode {
-  min-width: 84px;
+  min-width: 80px;
 }
 
 .welcome-fast svg,

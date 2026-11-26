@@ -20,7 +20,7 @@
   height: var(--welcome-control-height, 32px);
   line-height: 1.2;
   max-width: 230px;
-  padding: 0 8px;
+  padding: 0 6px;
 }
 
 .welcome-model-trigger:hover,
@@ -29,10 +29,15 @@
   color: var(--color-text);
 }
 
-.welcome-model-trigger span {
+.welcome-composer .welcome-model-trigger {
+  border-end-start-radius: max(0px, calc(var(--composer-radius) - var(--composer-border-width) - var(--composer-inline-padding)));
+}
+
+.welcome-model-trigger > span:not(.welcome-model-provider-icon) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  transform: translateY(-1px);
   white-space: nowrap;
 }
 

@@ -17,11 +17,11 @@
   display: grid;
   font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
   font-size: 11px;
-  grid-template-columns: minmax(4.8em, 1fr) 14px;
+  grid-template-columns: minmax(4.8em, 1fr) auto 14px;
   height: var(--welcome-control-height, 32px);
   line-height: 1;
-  min-width: 92px;
-  padding: 0 8px;
+  min-width: 88px;
+  padding: 0 6px;
 }
 
 .welcome-reasoning-label:hover,
@@ -50,7 +50,6 @@
 .welcome-reasoning-value-text {
   align-items: center;
   display: inline-flex;
-  gap: 4px;
   justify-content: center;
 }
 
@@ -60,23 +59,14 @@
 }
 
 .welcome-reasoning-fast-mark {
-  flex: none;
   height: var(--welcome-reasoning-bolt-size);
-  visibility: hidden;
+  margin-inline-start: 4px;
   width: var(--welcome-reasoning-bolt-size);
-}
-
-.welcome-reasoning-fast-mark.is-on {
-  visibility: visible;
-}
-
-.welcome-screen.is-hidden .welcome-reasoning-fast-mark.is-on {
-  visibility: hidden;
 }
 
 .welcome-reasoning-fast-mark svg {
   display: block;
-  fill: currentColor;
+  fill: none;
   height: var(--welcome-reasoning-bolt-size);
   stroke: currentColor;
   stroke-linecap: round;
@@ -85,11 +75,16 @@
   width: var(--welcome-reasoning-bolt-size);
 }
 
-.welcome-reasoning-value-text .welcome-reasoning-fast-mark {
+.welcome-reasoning-fast-mark.is-on {
   color: var(--welcome-reasoning-fast-accent);
 }
 
+.welcome-reasoning-fast-mark.is-on svg {
+  fill: currentColor;
+}
+
 .welcome-reasoning-label .welcome-chevron {
+  grid-column: 3;
   justify-self: end;
 }
 
@@ -105,7 +100,7 @@
   bottom: 39px;
   box-shadow: 0 18px 48px color-mix(in srgb, var(--color-canvas) 80%, transparent);
   left: 0;
-  padding: 12px 14px 13px;
+  padding: 16px 16px 13px;
   position: absolute;
   width: 246px;
   z-index: 13;
@@ -113,8 +108,6 @@
 
 .welcome-reasoning-popover.has-fast {
   --reasoning-side-gap: 24px;
-  padding-left: var(--reasoning-side-gap);
-  padding-right: var(--reasoning-side-gap);
   width: max-content;
 }
 
@@ -148,7 +141,6 @@
   align-items: center;
   color: var(--color-text-muted);
   display: flex;
-  font-size: 8px;
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -308,8 +300,6 @@
 .welcome-reasoning-popover,
 .welcome-reasoning-popover.has-fast {
   box-sizing: content-box;
-  padding-left: 24px;
-  padding-right: 24px;
   width: max-content;
 }
 

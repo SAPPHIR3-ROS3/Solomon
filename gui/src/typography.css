@@ -60,7 +60,7 @@ body { font-size: 17px; }
 .welcome-branch-error { font-size: 11px; }
 .welcome-reasoning-label { font-size: 12px; }
 .welcome-reasoning-label strong, .welcome-reasoning-value { font-size: 13px; }
-.welcome-reasoning-popover header { font-size: 9px; }
+.welcome-reasoning-popover header { font-size: 14px; }
 .welcome-reasoning-popover header strong { font-size: 10px; }
 .welcome-reasoning-ticks span, .welcome-reasoning-ticks small { font-size: 8px; }
 .welcome-reasoning-fast { font-size: 12px; }

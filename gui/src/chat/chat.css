@@ -424,8 +424,7 @@
 .chat-mode-switch-progress span { background: var(--color-crown-gold); border-radius: inherit; display: block; height: 100%; transform-origin: left center; transition: transform 50ms linear; width: 100%; }
 .chat-composer .welcome-composer {
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
-  border-radius: 24px;
+  border-color: color-mix(in srgb, var(--color-border) 82%, transparent);
   overflow: visible;
   box-shadow: 0 10px 24px rgb(0 0 0 / 42%), 0 3px 8px rgb(0 0 0 / 24%);
 }
