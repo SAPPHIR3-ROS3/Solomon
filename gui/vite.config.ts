@@ -54,7 +54,19 @@ export default defineConfig({
   // Keep browser-test configurations from invalidating the live desktop's
   // optimized dependency URLs while tests run alongside the development app.
   cacheDir: process.env.SOLOMON_VITE_CACHE_DIR || "node_modules/.vite-solomon-dev",
-  plugins: [react(), guiSettingsPlugin(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin(), syntaxAssetsPlugin(), bundleBudgetsPlugin()],
+  plugins: [{
+    name: "solomon-vite-ipad-resume",
+    apply: "serve",
+    enforce: "post",
+    transform(code, id) {
+      const path = id.split("?", 1)[0];
+      if (!/\/vite\/dist\/client\/(client|bundledDevClient)\.mjs$/.test(path)) return;
+      const disconnect = 'if (payload.event === "vite:ws:disconnect") {';
+      if (!code.includes(disconnect)) return;
+      return code.replace(disconnect, disconnect +
+        'if (typeof navigator !== "undefined" && (/iPad/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1))) break;');
+    },
+  }, react(), guiSettingsPlugin(), projectsPlugin(), customizationPlugin(), modelsPlugin(), rootIconPlugin(), syntaxAssetsPlugin(), bundleBudgetsPlugin()],
   optimizeDeps: {
     // Avoid scanning/prebundling every lazy syntax grammar on startup.
     // Prebundle the shared UI dependencies (including nested CommonJS), while
