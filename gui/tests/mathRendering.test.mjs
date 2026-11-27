@@ -58,6 +58,14 @@ test('supports dollar delimiters and math fences', () => {
   assert.ok(!html.includes('chat-code-block'));
 });
 
+test('keeps dollar prices and Markdown emphasis out of inline math', () => {
+  const html = render('**$47** come prezzo di partenza e **$150** come alternativa.');
+  assert.equal(formulas(html), 0);
+  assert.match(html, /<strong>\$47<\/strong> come prezzo di partenza e <strong>\$150<\/strong>/);
+  assert.equal(formulas(render('Da $47 a $150, con $2+3$ come esempio.')), 1);
+  assert.equal(formulas(render('`$47 a $150` e $47 + 3$')), 1);
+});
+
 test('preserves TeX examples in inline, fenced, indented and unclosed code', () => {
   for (const code of [
     '`\\(x\\)`',

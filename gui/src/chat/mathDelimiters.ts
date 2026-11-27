@@ -1,8 +1,9 @@
 // remark-math understands dollar delimiters. Convert TeX delimiters before
 // Markdown consumes their backslashes, leaving code and escaped backslashes alone.
 export function normalizeMathDelimiters(content: string): string {
-  const tokens = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[ \t]*\r?$|(?![\s\S]))|^(?: {4}|\t)[^\n]*(?:\n|$)|(`+)(?!`)[\s\S]*?(?<!`)\2(?!`)|\\\\|\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]/gm;
-  return content.replace(tokens, (token, _fence, _ticks, inline, display) => {
+  const tokens = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[ \t]*\r?$|(?![\s\S]))|^(?: {4}|\t)[^\n]*(?:\n|$)|(`+)(?!`)[\s\S]*?(?<!`)\2(?!`)|\\[\\$]|\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]|(?<!\$)(\$(?=\d+(?:[.,]\d+)*(?=[\s*_,.;:!?)\]])[^$`\\]*\$\d))/gm;
+  return content.replace(tokens, (token, _fence, _ticks, inline, display, currency) => {
+    if (currency !== undefined) return "\\$";
     if (inline !== undefined) {
       // A longer delimiter also allows literal dollars inside \text{...}.
       const delimiter = dollars(inline, 1);
