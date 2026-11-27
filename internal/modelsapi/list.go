@@ -3,15 +3,18 @@ package modelsapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/modelreasoning"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
 )
 
 type ListEntry struct {
@@ -41,9 +44,10 @@ func ListForProvider(baseURL, bearer string, apiProtocol string) ([]string, erro
 }
 
 func ListWithOpts(baseURL, bearer string, opts ListOpts) (out []string, err error) {
+	level := logging.WARNING_LOG_LEVEL
 	defer func() {
 		if err != nil {
-			logging.Log(logging.WARNING_LOG_LEVEL, "models API list failed", logging.LogOptions{Params: map[string]any{"base_url": baseURL, "err": err.Error()}})
+			logging.Log(level, "models API list failed", logging.LogOptions{Params: map[string]any{"base_url": baseURL, "err": err.Error()}})
 		}
 	}()
 	u := strings.TrimSuffix(baseURL, "/") + "/models"
@@ -68,6 +72,11 @@ func ListWithOpts(baseURL, bearer string, opts ListOpts) (out []string, err erro
 	cli := &http.Client{Transport: networkhttp.NewDefaultTransport(), Timeout: 60 * time.Second}
 	resp, err := cli.Do(req)
 	if err != nil {
+		host := req.URL.Hostname()
+		if opts.AllModels && errors.Is(err, syscall.ECONNREFUSED) &&
+			(strings.EqualFold(host, "localhost") || net.ParseIP(host).IsLoopback()) {
+			level = logging.DEBUG_LOG_LEVEL
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()

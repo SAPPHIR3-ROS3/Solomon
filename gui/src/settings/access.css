@@ -1,0 +1,58 @@
+.settings-access-navigation {
+  flex-wrap: wrap;
+}
+
+.right-side-panel-view-actions.settings-access-navigation button {
+  height: var(--settings-search-height);
+  max-width: 100%;
+  padding-inline: 10px;
+  width: calc(var(--settings-panel-width) - var(--settings-search-inline-spacing));
+}
+
+@media (max-width: 640px) {
+  .right-side-panel-view-actions.settings-access-navigation button {
+    width: 100%;
+  }
+}
+
+.settings-models-content.settings-access-content {
+  padding-top: 8px;
+}
+
+.settings-device-links {
+  margin-top: 16px;
+}
+
+.settings-device-link {
+  margin-bottom: 18px;
+}
+
+.settings-device-link h3 {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+
+.settings-device-link h3 small {
+  color: var(--color-text-muted);
+  margin-inline-start: 8px;
+}
+
+.settings-device-link table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: start;
+  width: 100%;
+}
+
+.settings-device-link th,
+.settings-device-link td {
+  border-bottom: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+  padding: 6px 8px 6px 0;
+  text-align: start;
+}
+.settings-device-link .settings-device-access {
+  text-align: end;
+  white-space: nowrap;
+  width: 7ch;
+}

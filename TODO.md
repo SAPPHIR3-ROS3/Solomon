@@ -32,6 +32,17 @@ Task ordinate con questa **priorità**: (1) **indipendenza** — prima le voci c
 - **Cosa manca (tipico desiderata):** sandbox o policy (whitelist comandi, blocchi per operazioni distruttive, conferme dove serve); **vincolo percorsi** sotto `ProjRoot` risolvendo e verificando prefisso; limiti più chiari per output sensibili.
 - **`intent`** su shell/edit è **solo metadati per il modello**, non un sistema di approvazioni.
 
+### Perimetro dei permessi
+
+- **Dispositivi e punti di accesso:** collegamento e revoca dei dispositivi, accesso locale o remoto via app, CLI e API, visibilità di host e progetti.
+- **Chat e sessioni:** lettura di cronologia e allegati, invio di messaggi, avvio e interruzione dell'agente, risposta alle richieste di approvazione, sincronizzazione ed esportazione.
+- **Filesystem dell'agente:** permessi distinti per lettura e scrittura dentro e fuori dalla cartella assegnata. Il confine vale anche per i processi avviati dall'agente.
+- **Internet e servizi:** ricerca, lettura, download, invio di dati, chiamate API e MCP. Distinguere l'accesso al servizio dalle operazioni che vi si possono compiere.
+- **Esecuzione locale:** avvio di processi, uso del terminale e controllo di app o emulatori.
+- **Credenziali e identità:** distinguere l'uso di una credenziale dalla sua lettura o esportazione. Rimandare i permessi legati alle sessioni autenticate del browser ai cambiamenti previsti per l'integrazione browser.
+- **Delega tra dispositivi:** solo placeholder nel design. L'interazione tra dispositivi e l'esecuzione di task su un altro host sono fuori dal perimetro attuale.
+- **Gestione dei permessi:** definire chi può concedere, modificare e revocare permessi, da quali dispositivi e per quali host o progetti.
+
 ---
 
 ## LOW PRIORITY

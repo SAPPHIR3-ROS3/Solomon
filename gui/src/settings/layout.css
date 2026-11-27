@@ -1,2 +1,6 @@
-.settings-page { --settings-panel-width:max(304px,var(--left-panel-width,248px)); }
+.settings-page {
+  --settings-panel-width: max(304px, var(--left-panel-width, 248px));
+  --settings-search-height: 36px;
+  --settings-search-inline-spacing: 16px;
+}
 .settings-navigation .settings-section-link > span { white-space:nowrap; }

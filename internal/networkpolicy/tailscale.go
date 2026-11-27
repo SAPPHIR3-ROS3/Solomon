@@ -3,15 +3,19 @@ package networkpolicy
 import (
 	"context"
 	"encoding/json"
-	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"net"
+	"net/netip"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 )
 
 type TailscaleInfo struct {
+	devices         []LinkDevice
 	MagicDNSEnabled bool   `json:"magic_dns_enabled"`
 	MagicDNS        string `json:"magic_dns,omitempty"`
 	Tailnet         string `json:"tailnet,omitempty"`
@@ -51,6 +55,12 @@ func applyTailscaleStatus(rows []Interface, data []byte) {
 			Tags         []string
 		}
 		User map[string]struct{ LoginName string }
+		Peer map[string]struct {
+			Online       bool
+			HostName     string
+			DNSName      string
+			TailscaleIPs []string
+		}
 	}
 	if json.Unmarshal(data, &status) != nil || status.Self == nil || status.CurrentTailnet == nil {
 		return
@@ -79,6 +89,33 @@ func applyTailscaleStatus(rows []Interface, data []byte) {
 			continue
 		}
 		info := &TailscaleInfo{Tailnet: status.CurrentTailnet.Name, DNSName: status.CurrentTailnet.MagicDNSSuffix, Tagged: len(status.Self.Tags) > 0}
+		if status.BackendState == "Running" {
+			for _, peer := range status.Peer {
+				if !peer.Online || strings.EqualFold(peer.HostName, "funnel-ingress-node") {
+					continue
+				}
+				hostname := strings.TrimSuffix(peer.DNSName, ".")
+				if hostname == "" {
+					hostname = peer.HostName
+				}
+				var addresses []netip.Addr
+				for _, address := range peer.TailscaleIPs {
+					if ip, err := netip.ParseAddr(address); err == nil {
+						addresses = append(addresses, ip)
+					}
+				}
+				if len(addresses) == 0 {
+					continue
+				}
+				slices.SortFunc(addresses, netip.Addr.Compare)
+				addresses = slices.Compact(addresses)
+				device := LinkDevice{IP: addresses[0].String(), Hostname: hostname}
+				for _, ip := range addresses {
+					device.IPs = append(device.IPs, ip.String())
+				}
+				info.devices = append(info.devices, device)
+			}
+		}
 		if status.BackendState == "Running" && status.CurrentTailnet.MagicDNSEnabled {
 			name := strings.TrimSuffix(status.Self.DNSName, ".")
 			if validMagicDNSName(name) {

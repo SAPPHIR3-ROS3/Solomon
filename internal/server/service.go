@@ -348,6 +348,8 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/globalAgents", customizationAPI.handleGlobalAgents)
 	mux.HandleFunc("/__solomon/gui-settings", handleGUISettings)
 	mux.HandleFunc("/__solomon/network-interfaces", handleNetworkInterfaces)
+	mux.HandleFunc("GET /__solomon/device-links", HandleDeviceLinks)
+	mux.HandleFunc("PATCH /__solomon/device-links", HandleDeviceLinks)
 	mux.HandleFunc("/__solomon/programming-languages", handleProgrammingLanguages)
 	mux.HandleFunc("/__solomon/language-document", handleLanguageDocument)
 	mux.HandleFunc("/__solomon/language-server", languageServerHandler(serviceCtx))
@@ -361,7 +363,7 @@ func Run(ctx context.Context, options Options) error {
 	mux.HandleFunc("/__solomon/terminal", terminalAPI.handleWebSocket)
 	mux.Handle("/", frontend)
 	httpServer.Handler = requestDiagnostics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !allowNetworkRequest(w, r) {
+		if !allowNetworkRequest(w, r) || !allowDeviceRequest(w, r) {
 			return
 		}
 		if r.URL.Path == "/health" || r.URL.Path == "/__solomon" || strings.HasPrefix(r.URL.Path, "/__solomon/") {

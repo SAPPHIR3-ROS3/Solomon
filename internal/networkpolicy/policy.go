@@ -16,9 +16,10 @@ import (
 )
 
 type Policy struct {
-	OutboundInterface string          `json:"outbound_interface,omitempty"`
-	Disabled          map[string]bool `json:"disabled"`
-	DisabledMagicDNS  map[string]bool `json:"disabled_magic_dns,omitempty"`
+	AllowedDevices    map[string]map[string]bool `json:"allowed_devices,omitempty"`
+	OutboundInterface string                     `json:"outbound_interface,omitempty"`
+	Disabled          map[string]bool            `json:"disabled"`
+	DisabledMagicDNS  map[string]bool            `json:"disabled_magic_dns,omitempty"`
 }
 type Interface struct {
 	Tailscale    *TailscaleInfo `json:"tailscale,omitempty"`

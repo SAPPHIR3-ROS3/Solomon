@@ -5,6 +5,8 @@ import { NavigationPerformanceSettings } from "./NavigationPerformanceSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { ProgrammingLanguages } from "../programming/Settings";
 import { NetworkSettings } from "./NetworkSettings";
+import { AccessSettings, accessSettingsMatch } from "./AccessSettings";
+import { prefetchDeviceLinks } from "./DeviceLinks";
 import { ChatSettings } from "./ChatSettings";
 import "./layout.css";
 
@@ -17,7 +19,7 @@ type SettingsPageProps = {
   onHome: () => void;
 };
 
-type SettingsSection = "programming-languages" | "network" | "general" | "chat" | "models" | "advanced" | "docs";
+type SettingsSection = "programming-languages" | "network" | "access" | "general" | "chat" | "models" | "advanced" | "docs";
 
 const locationEvent = "solomon-settings-location";
 
@@ -57,9 +59,11 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
   const [query, setQuery] = useState("");
   const [section, setSection] = useState<SettingsSection>("general");
   const isSearching = query.trim().length > 0;
+  const accessPage = isSearching ? accessSettingsMatch(query) : undefined;
 
   useEffect(() => {
     prefetchProviderQuotas();
+    prefetchDeviceLinks();
   }, []);
 
   return (
@@ -118,6 +122,18 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
             <NetworkIcon />
             <span>Network</span>
           </button>
+          <button
+            aria-current={section === "access" ? "page" : undefined}
+            className="settings-section-link"
+            onClick={() => { setQuery(""); setSection("access"); }}
+            type="button"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <rect x="5" y="10" width="14" height="11" rx="2" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3" />
+            </svg>
+            <span>Access</span>
+          </button>
           <button aria-current={section === "programming-languages" ? "page" : undefined} className="settings-section-link" onClick={() => setSection("programming-languages")} type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18" /></svg><span>Programming Languages</span>
           </button>
@@ -151,6 +167,9 @@ export function SettingsPage({ onHome }: SettingsPageProps) {
 
       <main aria-label="Settings content" className="settings-main">
         {isSearching || section === "network" ? <NetworkSettings query={query} /> : null}
+        {accessPage || (!isSearching && section === "access")
+          ? <AccessSettings initialPage={accessPage} key={accessPage} />
+          : null}
         {isSearching || section === "programming-languages" ? <ProgrammingLanguages query={query} /> : null}
         {isSearching || section === "general" ? <GeneralSettings query={query} /> : null}
         {isSearching || section === "chat" ? <ChatSettings query={query} /> : null}
