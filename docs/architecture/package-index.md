@@ -91,6 +91,7 @@ Deep dives stay in linked articles; this file is the single checklist.
 | `internal/instructions/` | `AGENTS.md` / fallbacks loader | [Supporting packages](supporting-packages.md) |
 | `internal/search/` | Legacy web search backends plus the internal Exa/Parallel router and monthly balance state | [Supporting packages](supporting-packages.md) |
 | `internal/webfetch/` | Legacy HTTP fetch plus internal Exa/Parallel/native CloakBrowser fetch adapters and router | [Supporting packages](supporting-packages.md) |
+| `internal/weblimit/` | Web backend rate-limit detection, reset handling, and browser suspensions | [MCP integration](mcp-integration.md) |
 | `internal/research/` | Research engine: asynchronous jobs, parsing, quality checks, LLM integration | [Deep research](research.md) |
 | `internal/research/html/` | HTML rendering templates for research results | [Deep research](research.md) |
 | `internal/roles/` | Manual subagent score catalog, table formatting, and role lookup | [Native tools](native-tools.md#subagent-roles) |
@@ -245,6 +246,7 @@ When adding a tool that needs runtime state, extend `toolenv.Env` first, wire fi
 | `internal/title/` | Support |
 | `internal/tokcount/` | Core |
 | `internal/webfetch/` | Support |
+| `internal/weblimit/` | Support |
 | `internal/tooling/` | Feature |
 | `internal/tooloutput/` | Feature |
 | `internal/tooloutput/process/` | Feature |
