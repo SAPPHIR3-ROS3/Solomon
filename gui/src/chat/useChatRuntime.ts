@@ -73,7 +73,7 @@ export function useChatRuntime(): ChatRuntime {
     message.toolCalls?.some((tool) => tool.name === "subagent" && (Boolean(tool.result?.subchatId) || subagentIsActive(subagentStatus(tool))))
   )) ?? false;
 
-  useSubagentRefresh(selectedChat, selectedSubagentsTracked || selectedChat?.rateLimitScheduledAt !== undefined, deletingMessages);
+  useSubagentRefresh(selectedChat, selectedSubagentsTracked || selectedChat?.rateLimitScheduledAt !== undefined, deletingMessages, streams);
 
   const cancelPendingRequests = useCallback(() => {
     cancelNavigation(navigationIDRef.current);

@@ -2,7 +2,6 @@ import { useSyncExternalStore } from "react";
 import type { Chat, ChatMessage } from "./chatTypes";
 
 const ACTIVE_CHAT_KEY = "solomon.active-chat";
-const CHAT_STREAM_CURSOR_PREFIX = "solomon.chat-stream-cursor.v1";
 const UNREAD_COMPLETED_CHAT_KEY = "solomon.unread-completed-chats.v1";
 
 export type ActiveChatSelection = {
@@ -42,6 +41,7 @@ export function cloneChat(chat: Chat): Chat {
 
 // The browser-side cache contains only chats loaded from the real daemon API.
 let chats: Chat[] = [];
+const chatStreamCursors = new Map<string, number>();
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -97,6 +97,7 @@ export function removeChat(chatID: string): boolean {
 
 export function clearChatStore(): void {
   chats = [];
+  chatStreamCursors.clear();
   notify();
 }
 
@@ -153,30 +154,21 @@ export function forgetRememberedActiveChat(): void {
 }
 
 function chatStreamCursorKey(projectID: string, chatID: string): string {
-  return `${CHAT_STREAM_CURSOR_PREFIX}.${encodeURIComponent(projectID)}.${encodeURIComponent(chatID)}`;
+  return JSON.stringify([projectID, chatID]);
 }
 
 export function getChatStreamCursor(projectID: string, chatID: string): number {
-  try {
-    if (typeof window === "undefined") return 0;
-    const value = Number(window.localStorage.getItem(chatStreamCursorKey(projectID, chatID)) ?? 0);
-    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
-  } catch {
-    return 0;
-  }
+  return chatStreamCursors.get(chatStreamCursorKey(projectID, chatID)) ?? 0;
 }
 
 export function saveChatStreamCursor(projectID: string, chatID: string, cursor: number): void {
-  try {
-    if (typeof window === "undefined") return;
-    const value = Number.isFinite(cursor) && cursor > 0 ? Math.floor(cursor) : 0;
-    if (value > 0) window.localStorage.setItem(chatStreamCursorKey(projectID, chatID), String(value));
-    else window.localStorage.removeItem(chatStreamCursorKey(projectID, chatID));
-  } catch {
-    // Stream replay remains correct for the current page when storage is unavailable.
+  if (Number.isFinite(cursor) && cursor >= 1) {
+    chatStreamCursors.set(chatStreamCursorKey(projectID, chatID), Math.floor(cursor));
+  } else {
+    forgetChatStreamCursor(projectID, chatID);
   }
 }
 
 export function forgetChatStreamCursor(projectID: string, chatID: string): void {
-  saveChatStreamCursor(projectID, chatID, 0);
+  chatStreamCursors.delete(chatStreamCursorKey(projectID, chatID));
 }

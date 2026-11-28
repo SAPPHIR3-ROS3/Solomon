@@ -114,6 +114,7 @@ export type ChatMessage = {
   historyAvailable?: boolean;
   id: string;
   presentationID?: string;
+  streamTurn?: number;
   images?: ChatImage[];
   kind?: "compaction";
   role: "assistant" | "user";

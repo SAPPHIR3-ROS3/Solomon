@@ -20,13 +20,25 @@ const originalFetch = window.fetch;
 window.fetch = (url, options) => {
   if (!String(url).includes('/__solomon/')) return originalFetch(url, options);
   // Deliberately allow late replies after abort to exercise the request guard.
-  return new Promise(resolve => window.pending.push({ path: new URL(url, location.href).pathname, resolve }));
+  return new Promise(resolve => window.pending.push({ path: new URL(url, location.href).pathname, query: new URL(url, location.href).search, resolve }));
 };
 window.reply = (suffix, payload, status = 200, contentType = 'application/json') => {
   const index = window.pending.findIndex(request => request.path.endsWith(suffix));
   if (index < 0) throw new Error('No pending request: ' + suffix);
   const [request] = window.pending.splice(index, 1);
   request.resolve(new Response(contentType === 'application/json' ? JSON.stringify(payload) : payload, { status, headers: { 'Content-Type': contentType } }));
+};
+window.openStream = suffix => {
+  const index = window.pending.findIndex(request => request.path.endsWith(suffix));
+  if (index < 0) throw new Error('No pending request: ' + suffix);
+  const [request] = window.pending.splice(index, 1);
+  const body = new ReadableStream({
+    start(controller) {
+      window.streamEvent = event => controller.enqueue(new TextEncoder().encode('data: ' + JSON.stringify(event) + '\\n\\n'));
+      window.closeStream = () => controller.close();
+    },
+  });
+  request.resolve(new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }));
 };
 window.seed = (id, content) => saveChat({ id, title: id, projectID: project.id, source: 'daemon', status: 'success', messages: [{ id: 'message', role: 'assistant', content }] });
 window.change = (id, content) => updateChat(id, chat => ({ ...chat, messages: chat.messages.map(message => ({ ...message, content })) }));
@@ -84,15 +96,86 @@ async function reply(page, suffix, payload, status = 200) {
 
 test("reconnecting keeps streamed text when the saved transcript is behind", async t => {
   const page = await fixture(t);
-  const saved = { ...snapshot("live", "Streaming answer"), status: "running" };
+  const saved = { ...snapshot("live", "Previous reply"), status: "running" };
   await page.evaluate(() => { window.seedRunning("live"); window.openChat("live"); });
   await reply(page, "/chats/live", saved);
   await waitForRequest(page, "/chats/live/events");
-  await page.evaluate(() => window.reply("/chats/live/events", 'data: {"type":"assistant_delta","channel":"content","delta":" in progress","seq":1}\n\n', 200, "text/event-stream"));
-  await page.getByText("Streaming answer in progress", { exact: true }).waitFor();
+  await page.evaluate(saved => {
+    window.openStream("/chats/live/events");
+    window.streamEvent({ type: "chat_start", chat: saved, user: { id: "stream-user-new", role: "user", content: "New prompt" }, seq: 1 });
+    window.streamEvent({ type: "assistant_start", turn: 0, checkpoint_seq: 4, seq: 2 });
+    window.streamEvent({ type: "assistant_delta", turn: 0, channel: "content", delta: "Streaming answer", seq: 3 });
+    window.closeStream();
+  }, saved);
+  await page.getByText("Streaming answer", { exact: true }).waitFor();
   await reply(page, "/chats/live", saved);
   await waitForRequest(page, "/chats/live/events");
-  assert.equal(await page.locator("#transcript").textContent(), "Streaming answer in progress");
+  assert.equal(await page.evaluate(() => window.pending.find(request => request.path.endsWith("/chats/live/events")).query), "?starting_after=3");
+  await page.evaluate(() => {
+    window.openStream("/chats/live/events");
+    window.streamEvent({ type: "assistant_delta", turn: 0, channel: "content", delta: " in progress", seq: 4 });
+  });
+  await page.getByText("Streaming answer in progress", { exact: true }).waitFor();
+  assert.deepEqual(await page.locator("#transcript p").allTextContents(), ["Previous reply", "New prompt", "Streaming answer in progress"]);
+});
+
+test("a late subagent refresh cannot roll back a streamed reply", async t => {
+  const page = await fixture(t);
+  const saved = snapshot("subagent", "Previous answer");
+  saved.messages[0].toolCalls = [{
+    id: "agent", name: "subagent", status: "success",
+    result: { status: "success", subchatId: "child", subchatStatus: "done" },
+  }];
+  await page.evaluate(() => window.openChat("subagent"));
+  await reply(page, "/chats/subagent", saved);
+  await waitForRequest(page, "/chats/subagent");
+
+  await page.evaluate(() => window.sendMessage("subagent", { id: "user-local", role: "user", content: "New request" }));
+  await waitForRequest(page, "/chats/subagent/messages");
+  await page.evaluate(() => {
+    window.openStream("/chats/subagent/messages");
+    window.streamEvent({ type: "assistant_start", turn: 0, seq: 1 });
+    window.streamEvent({ type: "assistant_delta", turn: 0, channel: "content", delta: "New", seq: 2 });
+  });
+  await page.getByText("New", { exact: true }).waitFor();
+  await reply(page, "/chats/subagent", { ...saved, status: "running" });
+  await page.evaluate(() => window.streamEvent({ type: "assistant_delta", turn: 0, channel: "content", delta: " answer!", seq: 3 }));
+  await page.waitForFunction(() => document.querySelector("#transcript p:last-child")?.textContent?.endsWith(" answer!"));
+  const transcript = page.locator("#transcript p");
+  assert.deepEqual(await transcript.allTextContents(), ["Previous answer", "New request", "New answer!"]);
+
+  const completed = { ...saved, status: "success", messages: [...saved.messages,
+    { id: "m-1", role: "user", content: "New request" },
+    { id: "m-2", role: "assistant", content: "New answer!" },
+  ] };
+  await page.evaluate(() => window.closeStream());
+  await reply(page, "/chats/subagent", completed);
+  await page.waitForFunction(() => window.runtimeState.chats.some(chat => chat.id === "subagent" && chat.status === "success"));
+  assert.deepEqual(await transcript.allTextContents(), ["Previous answer", "New request", "New answer!"]);
+  await reply(page, "/chats/subagent", { ...completed, title: "Refreshed title" });
+  await page.waitForFunction(() => window.runtimeState.chats.some(chat => chat.title === "Refreshed title"));
+});
+
+test("a reloaded page replays the active reply from its start", async t => {
+  const page = await fixture(t);
+  const history = snapshot("reload", "Previous reply");
+  await page.evaluate(() => {
+    localStorage.setItem("solomon.chat-stream-cursor.v1.project.reload", "3");
+  });
+  await page.reload();
+  await page.waitForFunction(() => Boolean(window.openChat));
+  await page.evaluate(() => window.openChat("reload"));
+  await reply(page, "/chats/reload", { ...history, status: "running" });
+  await waitForRequest(page, "/chats/reload/events");
+  assert.equal(await page.evaluate(() => window.pending.find(request => request.path.endsWith("/chats/reload/events")).query), "?starting_after=0");
+  await page.evaluate(history => {
+    window.openStream("/chats/reload/events");
+    window.streamEvent({ type: "chat_start", chat: history, user: { id: "stream-user-new", role: "user", content: "New prompt" }, seq: 1 });
+    window.streamEvent({ type: "assistant_start", turn: 0, checkpoint_seq: 4, seq: 2 });
+    window.streamEvent({ type: "assistant_delta", turn: 0, channel: "content", delta: "Live response", seq: 3 });
+  }, history);
+  await page.getByText("Live response", { exact: true }).waitFor();
+  assert.deepEqual(await page.locator("#transcript p").allTextContents(), ["Previous reply", "New prompt", "Live response"]);
 });
 
 test("cached threads display before the refresh and remain visible when refresh fails", async t => {

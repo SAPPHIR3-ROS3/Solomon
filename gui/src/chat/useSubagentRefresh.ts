@@ -4,7 +4,7 @@ import { fetchLiveChat, preserveLiveWorkState } from "./chatClient";
 import { getChat, saveChat } from "./chatStore";
 import type { Chat } from "./chatTypes";
 
-export function useSubagentRefresh(chat: Chat | null, active: boolean, deleting: RefObject<Set<string>>) {
+export function useSubagentRefresh(chat: Chat | null, active: boolean, deleting: RefObject<Set<string>>, streams: RefObject<Map<string, AbortController>>) {
   useEffect(() => {
     if (!chat?.projectID || !active) return;
     const projectID = chat.projectID;
@@ -16,12 +16,14 @@ export function useSubagentRefresh(chat: Chat | null, active: boolean, deleting:
       worktree: chat.worktree,
     };
     return startRefresh(async (signal) => {
-      const latest = await fetchLiveChat(projectID, chatID, signal);
-      if (signal.aborted || deleting.current.has(chatID)) return;
+      if (streams.current.has(chatID) || deleting.current.has(chatID)) return;
       const current = getChat(chatID);
+      if (current?.status === "running") return;
+      const latest = await fetchLiveChat(projectID, chatID, signal);
+      if (signal.aborted || deleting.current.has(chatID) || streams.current.has(chatID) || getChat(chatID) !== current) return;
       saveChat({ ...(current ? preserveLiveWorkState(current, latest) : latest), ...workspace });
     });
-  }, [chat?.id, chat?.projectID, chat?.workspaceName, chat?.workspacePath, chat?.branch, chat?.worktree, active, deleting]);
+  }, [chat?.id, chat?.projectID, chat?.workspaceName, chat?.workspacePath, chat?.branch, chat?.worktree, active, deleting, streams]);
 }
 
 export function startRefresh(task: (signal: AbortSignal) => Promise<void>) {

@@ -73,6 +73,31 @@ test("streaming stays below the latest user message when a checkpoint is reused"
   assert.notEqual(chatPresentationKey(chat.messages[0]), chatPresentationKey(chat.messages[2]));
 });
 
+test("only the started assistant turn accepts tagged deltas and completion", () => {
+  const previous = { id: "old", role: "assistant", content: "Previous reply", checkpointSeq: 4 };
+  let chat = { id: "chat", projectID: "project", messages: [previous], source: "daemon" };
+  const delta = { type: "assistant_delta", turn: 0, channel: "content", delta: "Live" };
+  const end = { type: "assistant_end", turn: 0, content: "Live reply" };
+  assert.equal(applyLiveStreamEvent(chat, delta), chat);
+  assert.equal(applyLiveStreamEvent(chat, end), chat);
+  chat = applyLiveStreamEvent(chat, { type: "assistant_start", turn: 0, checkpoint_seq: 4 });
+  assert.equal(applyLiveStreamEvent(chat, { ...delta, turn: 1 }), chat);
+  chat = applyLiveStreamEvent(chat, delta);
+  chat = applyLiveStreamEvent(chat, end);
+  assert.deepEqual(chat.messages.map(message => message.content), ["Previous reply", "Live reply"]);
+  assert.equal(chat.messages[0], previous);
+  assert.equal(applyLiveStreamEvent(chat, delta), chat);
+});
+
+test("the batch keeps assistant deltas from different turns separate", () => {
+  const events = [];
+  const batch = createChatStreamBatch(items => events.push(...items.map(item => item.event)));
+  batch.push({ type: "assistant_delta", channel: "content", turn: 0, delta: "first" });
+  batch.push({ type: "assistant_delta", channel: "content", turn: 1, delta: "second" });
+  batch.flush();
+  assert.deepEqual(events.map(event => [event.turn, event.delta]), [[0, "first"], [1, "second"]]);
+});
+
 test("a live compaction snapshot shows the summary before the next assistant response", () => {
   let chat = { id: "chat", projectID: "project", messages: [], source: "daemon", status: "running" };
   chat = applyLiveStreamEvent(chat, { type: "chat_snapshot", chat: {

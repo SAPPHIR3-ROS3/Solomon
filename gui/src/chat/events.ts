@@ -7,6 +7,7 @@ import { arrayValue, stringValue, numberValue, messageFromPayload, toolCallFromP
 
 export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, imageOrigin = "", replay = false): LiveChat {
   const type = stringValue(event.type);
+  const streamTurn = numberValue(event.turn, undefined);
   if (type === "regenerate_start") {
     let lastUser = chat.messages.length - 1;
     while (lastUser >= 0 && chat.messages[lastUser].role !== "user") lastUser--;
@@ -45,12 +46,12 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
   }
 
   if (type === "assistant_start") {
-    const turn = numberValue(event.turn, chat.messages.length);
+    const turn = streamTurn ?? chat.messages.length;
     const checkpointSeq = numberValue(event.checkpoint_seq, undefined);
     const checkpointBranch = stringValue(event.checkpoint_branch) || undefined;
     const workStartedAt = eventTimeMilliseconds(event);
     const last = chat.messages.at(-1);
-    if (checkpointSeq !== undefined && last?.role === "assistant" && last.kind !== "compaction" && last.checkpointSeq === checkpointSeq && last.checkpointBranch === checkpointBranch) {
+    if (checkpointSeq !== undefined && last?.role === "assistant" && last.kind !== "compaction" && last.streamTurn === streamTurn && last.checkpointSeq === checkpointSeq && last.checkpointBranch === checkpointBranch) {
       return {
         ...chat,
         messages: last.workStartedAt === undefined
@@ -68,6 +69,7 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
       id: `stream-assistant-${turn}-${Date.now()}`,
       reasoning: "",
       role: "assistant",
+      streamTurn,
       toolCalls: [],
       workStartedAt,
     };
@@ -87,13 +89,13 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
         ...message,
         reasoning: `${message.reasoning ?? ""}${delta}`,
         reasoningStartedAt: message.reasoningStartedAt ?? (delta.trim() && !message.content.trim() ? timestamp : undefined),
-      }));
+      }), streamTurn);
     }
     return updateLastAssistant(chat, (message) => ({
       ...message,
       ...(channel === "content" && delta.trim() ? finishReasoning(message, timestamp) : {}),
       content: `${message.content}${delta}`,
-    }));
+    }), streamTurn);
   }
 
   if (type === "assistant_end") {
@@ -104,7 +106,8 @@ export function applyLiveStreamEvent(chat: LiveChat, event: ChatStreamEvent, ima
       content: stringValue(event.content) || message.content,
       reasoning: stringValue(event.reasoning) || message.reasoning,
       toolCalls: toolCalls.length ? mergeSubagentCalls(message.toolCalls, toolCalls) : message.toolCalls,
-    }));
+      streamTurn: undefined,
+    }), streamTurn);
   }
 
   if (type === "tool_start") {
@@ -345,9 +348,9 @@ function presentationIDsFor(previous: ChatMessage[], next: ChatMessage[]): Array
   return next.map((_, index) => carriedPresentationID(strong[index] ?? paired.get(index)));
 }
 
-function updateLastAssistant(chat: LiveChat, update: (message: ChatMessage) => ChatMessage): LiveChat {
+function updateLastAssistant(chat: LiveChat, update: (message: ChatMessage) => ChatMessage, streamTurn?: number): LiveChat {
   const last = chat.messages.at(-1);
-  if (last?.role !== "assistant" || last.kind === "compaction") return chat;
+  if (last?.role !== "assistant" || last.kind === "compaction" || (streamTurn !== undefined && last.streamTurn !== streamTurn)) return chat;
   return { ...chat, messages: [...chat.messages.slice(0, -1), update(last)] };
 }
 

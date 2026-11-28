@@ -23,7 +23,7 @@ export function createChatStreamBatch(onEvents: (events: BufferedChatStreamEvent
       return;
     }
     const last = pending.at(-1);
-    if (last && last.event.channel === event.channel && last.replay === replay && last.imageOrigin === imageOrigin) {
+    if (last && last.event.channel === event.channel && last.event.turn === event.turn && last.replay === replay && last.imageOrigin === imageOrigin) {
       const firstText = typeof last.event.delta === "string" && last.event.delta.trim()
         ? last.event.firstTextAt ?? last.event.ts
         : event.ts;
