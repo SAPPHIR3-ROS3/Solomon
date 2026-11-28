@@ -3,11 +3,13 @@ package search
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/cloak"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/weblimit"
 )
 
 const (
@@ -21,6 +23,7 @@ const (
 // search page into the provider-neutral search response.
 type NativeCloakAdapter struct {
 	browser cloak.Browser
+	Limits  weblimit.BrowserLimits
 }
 
 func NewNativeCloakAdapter(browser cloak.Browser) (*NativeCloakAdapter, error) {
@@ -54,6 +57,15 @@ func (a *NativeCloakAdapter) Search(ctx context.Context, req Request) (Response,
 		return Response{}, fmt.Errorf("native cloak: %w", err)
 	}
 
+	parsedURL, err := url.Parse(searchURL)
+	if err != nil || parsedURL.Host == "" {
+		return Response{}, fmt.Errorf("native cloak: invalid search URL %q", searchURL)
+	}
+	origin := strings.ToLower(parsedURL.Host)
+	if err := a.Limits.Check(ctx, origin); err != nil {
+		return Response{}, err
+	}
+
 	tabID, err := a.browser.NewTab(ctx, intent)
 	if err != nil {
 		return Response{}, fmt.Errorf("native cloak new tab: %w", err)
@@ -63,6 +75,9 @@ func (a *NativeCloakAdapter) Search(ctx context.Context, req Request) (Response,
 	navigation, err := a.browser.Navigate(ctx, tabID, searchURL, intent)
 	if err != nil {
 		return Response{}, fmt.Errorf("native cloak navigate: %w", err)
+	}
+	if navigation.Status == http.StatusTooManyRequests {
+		return Response{}, a.Limits.Record(ctx, origin, navigation.RetryAfter)
 	}
 	if navigation.Status >= 400 {
 		return Response{}, fmt.Errorf("native cloak search page returned HTTP %d", navigation.Status)

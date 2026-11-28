@@ -50,6 +50,7 @@ type Manager struct {
 	oauthReady    map[string]bool
 	rateMu        sync.Mutex
 	rateLimits    map[string]time.Time
+	rateLimitChat string
 }
 
 type remoteBinding struct {

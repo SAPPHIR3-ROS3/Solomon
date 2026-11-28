@@ -89,6 +89,7 @@ async function navigate(args) {
     url: page.url(),
     status: response?.status?.() ?? 0,
     contentType: headers["content-type"] ?? "",
+    retryAfter: headers["retry-after"] ?? "",
   };
 }
 

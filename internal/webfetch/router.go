@@ -10,6 +10,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/search"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/weblimit"
 )
 
 type MCPAdapterServer struct {
@@ -30,6 +31,7 @@ type Router struct {
 	store         search.BalanceStore
 	volatile      *search.MemoryBalanceStore
 	now           func() time.Time
+	availability  map[string]func(context.Context) error
 }
 
 type RouterError struct {
@@ -97,6 +99,7 @@ func NewRouter(adapters map[string]Fetcher, options RouterOptions) *Router {
 }
 
 func NewMCPRouter(caller MCPToolCaller, servers []MCPAdapterServer, options RouterOptions) (*Router, error) {
+	availability := make(map[string]func(context.Context) error)
 	adapters := make(map[string]Fetcher)
 	seenServers := map[string]bool{}
 	for _, spec := range servers {
@@ -134,8 +137,15 @@ func NewMCPRouter(caller MCPToolCaller, servers []MCPAdapterServer, options Rout
 			return nil, err
 		}
 		adapters[adapterName] = fetcher
+		if checker, ok := caller.(weblimit.MCPAvailability); ok {
+			availability[adapterName] = func(ctx context.Context) error {
+				return checker.CheckInternalRateLimit(ctx, serverName)
+			}
+		}
 	}
-	return NewRouter(adapters, options), nil
+	router := NewRouter(adapters, options)
+	router.availability = availability
+	return router, nil
 }
 
 func (r *Router) Fetch(ctx context.Context, req Request) (Result, error) {
@@ -145,28 +155,63 @@ func (r *Router) Fetch(ctx context.Context, req Request) (Result, error) {
 	if len(r.adapters) == 0 {
 		return Result{}, errors.New("web fetch router has no configured adapters")
 	}
-	primary, err := r.reservePrimary()
+	errs := make([]error, 0, len(r.adapters))
+	check := func(backend string) error {
+		if available := r.availability[backend]; available != nil {
+			if err := available(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	available := func(order []string) []string {
+		var selected []string
+		for _, backend := range order {
+			if err := check(backend); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", backend, err))
+				continue
+			}
+			selected = append(selected, backend)
+		}
+		return selected
+	}
+	primaries, fallbacks := available(r.primaryOrder), available(r.fallbackOrder)
+	if len(primaries)+len(fallbacks) == 0 {
+		return Result{}, &RouterError{Err: errors.Join(errs...)}
+	}
+	primary, err := r.reservePrimary(primaries, fallbacks)
 	if err != nil {
 		return Result{}, err
 	}
-	order := r.attemptOrder(primary)
+	order := attemptOrder(primary, primaries, fallbacks)
 	attempts := make([]Attempt, 0, len(order))
-	errs := make([]error, 0, len(order))
 	for index, backend := range order {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
+		if err := check(backend); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", backend, err))
+			continue
+		}
 		if index > 0 {
 			if err := r.reserveAttempt(backend); err != nil {
 				return Result{}, err
 			}
 		}
+		usedFallback := index > 0 || (len(r.primaryOrder) > 0 && !r.isPrimary(backend))
 		started := time.Now()
 		result, fetchErr := r.adapters[backend].Fetch(ctx, req)
 		attempt := Attempt{Backend: backend, Success: fetchErr == nil, DurationMs: time.Since(started).Milliseconds()}
 		if fetchErr != nil {
+			if weblimit.IsSuspended(fetchErr) {
+				errs = append(errs, fmt.Errorf("%s: %w", backend, fetchErr))
+				continue
+			}
 			attempt.Error = fetchErr.Error()
 			attempts = append(attempts, attempt)
 			errs = append(errs, fmt.Errorf("%s: %w", backend, fetchErr))
 			logging.Log(logging.WARNING_LOG_LEVEL, "web fetch backend failed", logging.LogOptions{Params: map[string]any{
-				"backend": backend, "url": req.URL, "fallback": index > 0, "err": fetchErr.Error(),
+				"backend": backend, "url": req.URL, "fallback": usedFallback, "err": fetchErr.Error(),
 			}})
 			continue
 		}
@@ -179,10 +224,10 @@ func (r *Router) Fetch(ctx context.Context, req Request) (Result, error) {
 			continue
 		}
 		attempts = append(attempts, attempt)
-		result = withFetchMetadata(result, backend, index > 0, attempts)
-		r.recordNext(backend, primary, index > 0)
+		result = withFetchMetadata(result, backend, usedFallback, attempts)
+		r.recordNext(backend, primary, usedFallback)
 		logging.Log(logging.INFO_LOG_LEVEL, "web fetch backend completed", logging.LogOptions{Params: map[string]any{
-			"backend": backend, "url": req.URL, "fallback": index > 0, "attempts": len(attempts),
+			"backend": backend, "url": req.URL, "fallback": usedFallback, "attempts": len(attempts),
 		}})
 		return result, nil
 	}
@@ -190,14 +235,14 @@ func (r *Router) Fetch(ctx context.Context, req Request) (Result, error) {
 	return Result{}, &RouterError{Attempts: attempts, Err: errors.Join(errs...)}
 }
 
-func (r *Router) reservePrimary() (string, error) {
+func (r *Router) reservePrimary(primaries, fallbacks []string) (string, error) {
 	var selected string
 	month := r.currentMonth()
 	_, err := r.store.Update(func(state *search.BalanceState) error {
 		normalizeFetchBalanceState(state, month)
-		selected = chooseFetchBackend(*state, r.primaryOrder)
-		if selected == "" && len(r.fallbackOrder) > 0 {
-			selected = r.fallbackOrder[0]
+		selected = chooseFetchBackend(*state, primaries)
+		if selected == "" && len(fallbacks) > 0 {
+			selected = fallbacks[0]
 		}
 		if selected == "" {
 			return errors.New("web fetch router has no configured adapters")
@@ -211,7 +256,7 @@ func (r *Router) reservePrimary() (string, error) {
 		return selected, nil
 	}
 	logging.Log(logging.WARNING_LOG_LEVEL, "web fetch balance persistence failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-	return r.reserveVolatile(month, "")
+	return r.reserveVolatile(month, "", primaries, fallbacks)
 }
 
 func (r *Router) reserveAttempt(backend string) error {
@@ -228,20 +273,20 @@ func (r *Router) reserveAttempt(backend string) error {
 		return nil
 	}
 	logging.Log(logging.WARNING_LOG_LEVEL, "web fetch balance persistence failed", logging.LogOptions{Params: map[string]any{"backend": backend, "err": err.Error()}})
-	_, fallbackErr := r.reserveVolatile(month, backend)
+	_, fallbackErr := r.reserveVolatile(month, backend, nil, nil)
 	return fallbackErr
 }
 
-func (r *Router) reserveVolatile(month, preferred string) (string, error) {
+func (r *Router) reserveVolatile(month, preferred string, primaries, fallbacks []string) (string, error) {
 	var selected string
 	_, err := r.volatile.Update(func(state *search.BalanceState) error {
 		normalizeFetchBalanceState(state, month)
 		if preferred != "" {
 			selected = preferred
 		} else {
-			selected = chooseFetchBackend(*state, r.primaryOrder)
-			if selected == "" && len(r.fallbackOrder) > 0 {
-				selected = r.fallbackOrder[0]
+			selected = chooseFetchBackend(*state, primaries)
+			if selected == "" && len(fallbacks) > 0 {
+				selected = fallbacks[0]
 			}
 		}
 		if selected == "" {
@@ -283,17 +328,16 @@ func (r *Router) recordNext(backend, primary string, usedFallback bool) {
 	}
 }
 
-func (r *Router) attemptOrder(primary string) []string {
-	out := make([]string, 0, len(r.primaryOrder)+len(r.fallbackOrder))
-	if _, ok := r.adapters[primary]; ok {
-		out = append(out, primary)
-	}
-	for _, backend := range r.primaryOrder {
-		if backend != primary {
-			out = append(out, backend)
+func attemptOrder(primary string, primaries, fallbacks []string) []string {
+	out := []string{primary}
+	for _, order := range [][]string{primaries, fallbacks} {
+		for _, backend := range order {
+			if backend != primary {
+				out = append(out, backend)
+			}
 		}
 	}
-	return append(out, r.fallbackOrder...)
+	return out
 }
 
 func (r *Router) isPrimary(backend string) bool {

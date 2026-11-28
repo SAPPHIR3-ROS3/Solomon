@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	solomonmcp "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mcp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/weblimit"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -88,7 +90,7 @@ func TestLazyInternalAdapterDoesNotDiscoverCatalogs(t *testing.T) {
 	}
 }
 
-func TestInternalRateLimitSurvivesRuntimeAndSkipsFetch(t *testing.T) {
+func TestInternalUnknownRateLimitIsScopedToChat(t *testing.T) {
 	logging.LogInit()
 	for _, rpcError := range []bool{false, true} {
 		t.Run(fmt.Sprint(rpcError), func(t *testing.T) {
@@ -113,20 +115,21 @@ func TestInternalRateLimitSurvivesRuntimeAndSkipsFetch(t *testing.T) {
 			}))
 			defer httpServer.Close()
 			path := filepath.Join(t.TempDir(), "cooldowns.json")
-			newRuntime := func(headers map[string]string) *solomonmcp.Manager {
+			newRuntime := func(chat string, headers map[string]string) *solomonmcp.Manager {
 				m := solomonmcp.NewManagerForTest(&solomonmcp.Config{Servers: []solomonmcp.ServerConfig{{Name: "parallel-web", Type: solomonmcp.TransportStreamableHTTP, URL: httpServer.URL, Headers: headers, Internal: true, Adapter: "parallel"}}}, &solomonmcp.ManagerOptions{LazyInternalAdapters: true, InternalRateLimitPath: path})
+				m.SetRateLimitChat(chat)
 				if _, _, err := m.Connect(context.Background()); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() { _ = m.Close() })
 				return m
 			}
-			first := newRuntime(nil)
+			first := newRuntime("first", nil)
 			if _, err := first.CallInternalTool(context.Background(), "parallel-web", "web_search", "search", nil); err == nil {
 				t.Fatal("rate limit did not fail the call")
 			}
 			before := requests.Load()
-			for _, manager := range []*solomonmcp.Manager{first, newRuntime(nil)} {
+			for _, manager := range []*solomonmcp.Manager{first, newRuntime("first", nil)} {
 				if _, err := manager.CallInternalTool(context.Background(), "parallel-web", "web_fetch", "fetch", nil); err == nil || !strings.Contains(err.Error(), "suspended") {
 					t.Fatalf("expected shared cooldown, got %v", err)
 				}
@@ -134,11 +137,53 @@ func TestInternalRateLimitSurvivesRuntimeAndSkipsFetch(t *testing.T) {
 			if requests.Load() != before || calls.Load() != 1 {
 				t.Fatal("cooldown still contacted the provider")
 			}
-			changedKey := newRuntime(map[string]string{"x-api-key": "test-key"})
+			changedKey := newRuntime("first", map[string]string{"x-api-key": "test-key"})
 			_, _ = changedKey.CallInternalTool(context.Background(), "parallel-web", "web_search", "search", nil)
 			if calls.Load() != 2 {
 				t.Fatal("new credentials inherited the old cooldown")
 			}
+			second := newRuntime("second", nil)
+			_, _ = second.CallInternalTool(context.Background(), "parallel-web", "web_search", "search", nil)
+			first.SetRateLimitChat("third")
+			_, _ = first.CallInternalTool(context.Background(), "parallel-web", "web_search", "search", nil)
+			if calls.Load() != 4 {
+				t.Fatal("new chat inherited a rate limit with no reset")
+			}
+			first.SetRateLimitChat("first")
+			if err := first.CheckInternalRateLimit(context.Background(), "parallel-web"); !weblimit.IsSuspended(err) {
+				t.Fatalf("resumed chat lost its suspension: %v", err)
+			}
 		})
+	}
+}
+
+func TestInternalHTTPRateLimitUsesRetryAfter(t *testing.T) {
+	logging.LogInit()
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Retry-After", "3600")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+	ctx := context.Background()
+	manager := solomonmcp.NewManagerForTest(&solomonmcp.Config{Servers: []solomonmcp.ServerConfig{{
+		Name: "parallel-web", Type: solomonmcp.TransportStreamableHTTP, URL: server.URL, Internal: true, Adapter: "parallel",
+	}}}, &solomonmcp.ManagerOptions{LazyInternalAdapters: true})
+	t.Cleanup(func() { _ = manager.Close() })
+	if _, _, err := manager.Connect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	if _, err := manager.CallInternalTool(ctx, "parallel-web", "web_search", "search", nil); err == nil {
+		t.Fatal("expected HTTP 429 to fail the call")
+	}
+	var suspended *weblimit.Suspended
+	if err := manager.CheckInternalRateLimit(ctx, "parallel-web"); !errors.As(err, &suspended) || suspended.Until.Before(started.Add(time.Hour)) || suspended.Until.After(time.Now().Add(time.Hour)) {
+		t.Fatalf("expected provider retry time, got %v", err)
+	}
+	manager.SetRateLimitChat("new-chat")
+	if _, err := manager.CallInternalTool(ctx, "parallel-web", "web_fetch", "fetch", nil); !weblimit.IsSuspended(err) || requests.Load() != 1 {
+		t.Fatalf("expected suspension without replay, got %v and %d HTTP requests", err, requests.Load())
 	}
 }

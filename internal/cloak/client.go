@@ -48,6 +48,7 @@ type Navigation struct {
 	Title       string `json:"title"`
 	Status      int    `json:"status"`
 	ContentType string `json:"contentType"`
+	RetryAfter  string `json:"retryAfter,omitempty"`
 }
 
 type SnapshotOptions struct {

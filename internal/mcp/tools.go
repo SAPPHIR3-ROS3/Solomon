@@ -13,6 +13,7 @@ import (
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/mediaartifact"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/tooling"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/weblimit"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v2"
 )
@@ -125,19 +126,16 @@ func (m *Manager) CallInternalTool(ctx context.Context, serverName, toolName, in
 		return nil, err
 	}
 	defer func() {
-		message := ""
-		if callErr != nil {
-			message = callErr.Error()
-		} else if value, ok := result.(map[string]any); ok {
-			if failure, ok := value["error"]; ok {
-				message = fmt.Sprint(failure)
-			}
+		failure := callErr
+		if value, ok := result.(map[string]any); failure == nil && ok && value["error"] != nil {
+			failure = fmt.Errorf("MCP adapter: %v", value["error"])
 		}
-		if isRateLimit(message) {
-			m.recordInternalRateLimit(ctx, key)
-			if callErr == nil {
-				result, callErr = nil, fmt.Errorf("MCP adapter rate limit: %s", message)
+		if reset, limited := weblimit.Reset(failure, time.Now()); limited && !weblimit.IsSuspended(failure) {
+			var recorded *weblimit.Recorded
+			if !errors.As(failure, &recorded) {
+				m.recordInternalRateLimit(ctx, key, reset)
 			}
+			result, callErr = nil, failure
 		}
 	}()
 	binding, err := m.internalToolBinding(ctx, serverName, toolName)
@@ -256,7 +254,7 @@ func (m *Manager) callToolBinding(ctx context.Context, name string, binding *rem
 		return logFailure(unavailableError(binding.server.cfg.Name, "tools/call", err))
 	}
 	res, err := call(session)
-	if err != nil && isSessionFailure(err) {
+	if _, limited := weblimit.Reset(err, time.Now()); err != nil && isSessionFailure(err) && !(binding.server.cfg.Internal && limited) {
 		m.invalidateAndCloseSession(binding.server, session, err)
 		if m.toolCallMayRetry(binding.server.cfg.Name, binding.tool.ToolName, binding.tool.Definition, err) {
 			session, reconnectErr := m.ensureSession(ctx, binding.server)

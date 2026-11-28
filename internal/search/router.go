@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/weblimit"
 )
 
 // MCPAdapterServer identifies one internal MCP server without exposing its
@@ -34,6 +36,8 @@ type Router struct {
 	store         BalanceStore
 	volatile      *MemoryBalanceStore
 	now           func() time.Time
+	availability  map[string]func(context.Context) error
+	failures      sync.Map
 }
 
 // RouterError reports that every selected backend failed. Its Unwrap method
@@ -106,6 +110,7 @@ func NewRouter(adapters map[string]Engine, options RouterOptions) *Router {
 // internal adapter labels are ignored and logged so one optional backend does
 // not disable another valid backend from the same mcp.json.
 func NewMCPRouter(caller MCPToolCaller, servers []MCPAdapterServer, options RouterOptions) (*Router, error) {
+	availability := make(map[string]func(context.Context) error)
 	adapters := make(map[string]Engine)
 	seenServers := make(map[string]bool)
 	for _, spec := range servers {
@@ -143,8 +148,15 @@ func NewMCPRouter(caller MCPToolCaller, servers []MCPAdapterServer, options Rout
 			return nil, err
 		}
 		adapters[adapterName] = engine
+		if checker, ok := caller.(weblimit.MCPAvailability); ok {
+			availability[adapterName] = func(ctx context.Context) error {
+				return checker.CheckInternalRateLimit(ctx, serverName)
+			}
+		}
 	}
-	return NewRouter(adapters, options), nil
+	router := NewRouter(adapters, options)
+	router.availability = availability
+	return router, nil
 }
 
 func (r *Router) Search(ctx context.Context, req Request) (Response, error) {
@@ -154,29 +166,83 @@ func (r *Router) Search(ctx context.Context, req Request) (Response, error) {
 	if len(r.adapters) == 0 {
 		return Response{}, errors.New("web search router has no configured adapters")
 	}
-	primary, err := r.reservePrimary()
+	errs := make([]error, 0, len(r.adapters))
+	check := func(backend string) error {
+		if available := r.availability[backend]; available != nil {
+			if err := available(ctx); err != nil {
+				return err
+			}
+		}
+
+		if value, blocked := r.failures.Load(backend); blocked {
+			failure := value.(error)
+			if limit, ok := failure.(*weblimit.Suspended); !ok || r.now().Before(limit.Until) {
+				return failure
+			}
+		}
+		return nil
+	}
+	available := func(order []string) []string {
+		var selected []string
+		for _, backend := range order {
+			if err := check(backend); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", backend, err))
+				continue
+			}
+			selected = append(selected, backend)
+		}
+		return selected
+	}
+	primaries, fallbacks := available(r.primaryOrder), available(r.fallbackOrder)
+	if len(primaries)+len(fallbacks) == 0 {
+		return Response{}, &RouterError{Err: errors.Join(errs...)}
+	}
+	primary, err := r.reservePrimary(primaries, fallbacks)
 	if err != nil {
 		return Response{}, err
 	}
-	order := r.attemptOrder(primary)
+	order := attemptOrder(primary, primaries, fallbacks)
 	attempts := make([]BackendAttempt, 0, len(order))
-	errs := make([]error, 0, len(order))
 	for index, backend := range order {
+		if err := ctx.Err(); err != nil {
+			return Response{}, err
+		}
+		if err := check(backend); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", backend, err))
+			continue
+		}
 		if index > 0 {
 			if err := r.reserveAttempt(backend); err != nil {
 				return Response{}, err
 			}
 		}
+		usedFallback := index > 0 || (len(r.primaryOrder) > 0 && !r.isPrimary(backend))
 		started := time.Now()
-		response, callErr := RunEngine(ctx, backend, r.adapters[backend], req)
+		response, callErr := r.adapters[backend].Search(ctx, req)
+		if callErr == nil && len(response.Hits) == 0 {
+			callErr = ErrNoResults
+		}
 		attempt := BackendAttempt{Backend: backend, Success: callErr == nil, DurationMs: time.Since(started).Milliseconds()}
 		if callErr != nil {
+			if weblimit.IsSuspended(callErr) {
+				errs = append(errs, fmt.Errorf("%s: %w", backend, callErr))
+				continue
+			}
+			if until, limited := weblimit.Reset(callErr, r.now()); limited {
+				if _, native := r.adapters[backend].(*NativeCloakAdapter); !native && r.availability[backend] == nil {
+					r.failures.Store(backend, &weblimit.Suspended{Until: until})
+				}
+			} else if !errors.Is(callErr, ErrNoResults) && ctx.Err() == nil && !errors.Is(callErr, context.Canceled) {
+				r.failures.Store(backend, fmt.Errorf("search backend suspended after failure: %w", callErr))
+			}
 			attempt.Error = callErr.Error()
 			attempts = append(attempts, attempt)
 			errs = append(errs, fmt.Errorf("%s: %w", backend, callErr))
-			logging.Log(logging.WARNING_LOG_LEVEL, "web search backend failed", logging.LogOptions{Params: map[string]any{
-				"backend": backend, "query": req.Query, "fallback": index > 0, "err": callErr.Error(),
-			}})
+			if !errors.Is(callErr, ErrNoResults) && ctx.Err() == nil {
+				logging.Log(logging.WARNING_LOG_LEVEL, "web search backend failed", logging.LogOptions{Params: map[string]any{
+					"backend": backend, "query": req.Query, "fallback": usedFallback, "err": callErr.Error(),
+				}})
+			}
 			continue
 		}
 		attempts = append(attempts, attempt)
@@ -191,12 +257,12 @@ func (r *Router) Search(ctx context.Context, req Request) (Response, error) {
 		if metadata.Adapter == "" {
 			metadata.Adapter = backend
 		}
-		metadata.Fallback = index > 0
+		metadata.Fallback = usedFallback
 		metadata.Attempts = append(metadata.Attempts, attempts...)
 		response.Metadata = metadata
-		r.recordNext(backend, primary, index > 0)
+		r.recordNext(backend, primary, usedFallback)
 		logging.Log(logging.INFO_LOG_LEVEL, "web search backend completed", logging.LogOptions{Params: map[string]any{
-			"backend": backend, "query": req.Query, "fallback": index > 0, "attempts": len(attempts),
+			"backend": backend, "query": req.Query, "fallback": usedFallback, "attempts": len(attempts),
 		}})
 		return response, nil
 	}
@@ -204,14 +270,14 @@ func (r *Router) Search(ctx context.Context, req Request) (Response, error) {
 	return Response{}, &RouterError{Attempts: attempts, Err: errors.Join(errs...)}
 }
 
-func (r *Router) reservePrimary() (string, error) {
+func (r *Router) reservePrimary(primaries, fallbacks []string) (string, error) {
 	var selected string
 	month := r.currentMonth()
 	_, err := r.store.Update(func(state *BalanceState) error {
 		normalizeBalanceState(state, month)
-		selected = chooseBackend(*state, r.primaryOrder)
-		if selected == "" && len(r.fallbackOrder) > 0 {
-			selected = r.fallbackOrder[0]
+		selected = chooseBackend(*state, primaries)
+		if selected == "" && len(fallbacks) > 0 {
+			selected = fallbacks[0]
 		}
 		if selected == "" {
 			return errors.New("web search router has no configured adapters")
@@ -225,7 +291,7 @@ func (r *Router) reservePrimary() (string, error) {
 		return selected, nil
 	}
 	logging.Log(logging.WARNING_LOG_LEVEL, "web search balance persistence failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
-	return r.reserveVolatile(month, "")
+	return r.reserveVolatile(month, "", primaries, fallbacks)
 }
 
 func (r *Router) reserveAttempt(backend string) error {
@@ -242,20 +308,20 @@ func (r *Router) reserveAttempt(backend string) error {
 		return nil
 	}
 	logging.Log(logging.WARNING_LOG_LEVEL, "web search balance persistence failed", logging.LogOptions{Params: map[string]any{"backend": backend, "err": err.Error()}})
-	_, fallbackErr := r.reserveVolatile(month, backend)
+	_, fallbackErr := r.reserveVolatile(month, backend, nil, nil)
 	return fallbackErr
 }
 
-func (r *Router) reserveVolatile(month, preferred string) (string, error) {
+func (r *Router) reserveVolatile(month, preferred string, primaries, fallbacks []string) (string, error) {
 	var selected string
 	_, err := r.volatile.Update(func(state *BalanceState) error {
 		normalizeBalanceState(state, month)
 		if preferred != "" {
 			selected = preferred
 		} else {
-			selected = chooseBackend(*state, r.primaryOrder)
-			if selected == "" && len(r.fallbackOrder) > 0 {
-				selected = r.fallbackOrder[0]
+			selected = chooseBackend(*state, primaries)
+			if selected == "" && len(fallbacks) > 0 {
+				selected = fallbacks[0]
 			}
 		}
 		if selected == "" {
@@ -297,17 +363,15 @@ func (r *Router) recordNext(backend, primary string, usedFallback bool) {
 	}
 }
 
-func (r *Router) attemptOrder(primary string) []string {
-	out := make([]string, 0, len(r.primaryOrder)+len(r.fallbackOrder))
-	if _, ok := r.adapters[primary]; ok {
-		out = append(out, primary)
-	}
-	for _, backend := range r.primaryOrder {
-		if backend != primary {
-			out = append(out, backend)
+func attemptOrder(primary string, primaries, fallbacks []string) []string {
+	out := []string{primary}
+	for _, order := range [][]string{primaries, fallbacks} {
+		for _, backend := range order {
+			if backend != primary {
+				out = append(out, backend)
+			}
 		}
 	}
-	out = append(out, r.fallbackOrder...)
 	return out
 }
 

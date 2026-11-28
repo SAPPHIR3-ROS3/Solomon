@@ -2,19 +2,23 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/modelcontextprotocol/go-sdk/auth"
-	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 
+	providertransport "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/llm/transport"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/networkhttp"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/weblimit"
 )
 
 type commandTransport struct {
@@ -89,6 +93,8 @@ func (c *processConnection) Close() error {
 type headerTransport struct {
 	base    http.RoundTripper
 	headers map[string]string
+	manager *Manager
+	rateKey string
 }
 
 // persistentSSETransport keeps the initial connection timeout from cancelling
@@ -120,19 +126,38 @@ func (t *persistentSSETransport) Connect(ctx context.Context) (sdkmcp.Connection
 }
 
 func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.manager != nil {
+		if err := t.manager.checkInternalRateLimit(req.Context(), t.rateKey); err != nil {
+			return nil, err
+		}
+	}
 	clone := req.Clone(req.Context())
 	for k, v := range t.headers {
 		clone.Header.Set(k, v)
 	}
-	return t.base.RoundTrip(clone)
+	response, err := t.base.RoundTrip(clone)
+	if err != nil || t.rateKey == "" || response.StatusCode != http.StatusTooManyRequests {
+		return response, err
+	}
+	defer response.Body.Close()
+	var message string
+	if strings.Contains(response.Header.Get("Content-Type"), "json") {
+		body, err := io.ReadAll(io.LimitReader(response.Body, 16<<10))
+		if err == nil && json.Valid(body) {
+			message = string(body)
+		}
+	}
+	failure := providertransport.NewProviderHTTPError(http.StatusTooManyRequests, message, providertransport.ParseRetryAfterHeader(response))
+	reset, _ := weblimit.Reset(failure, time.Now())
+	t.manager.recordInternalRateLimit(req.Context(), t.rateKey, reset)
+	return nil, &weblimit.Recorded{Err: failure}
 }
 
-func httpClientWithHeaders(headers map[string]string) *http.Client {
+func (m *Manager) httpClient(sc ServerConfig) *http.Client {
 	base := networkhttp.New(http.DefaultTransport.(*http.Transport))
-	if len(headers) == 0 {
-		return &http.Client{Transport: base}
-	}
-	return &http.Client{Transport: &headerTransport{base: base, headers: headers}}
+	return &http.Client{Transport: &headerTransport{
+		base: base, headers: sc.Headers, manager: m, rateKey: internalRateLimitKey(sc),
+	}}
 }
 
 func (m *Manager) transportFor(ctx context.Context, sc ServerConfig, stderr io.Writer) (sdkmcp.Transport, error) {
@@ -143,7 +168,7 @@ func (m *Manager) transportFor(ctx context.Context, sc ServerConfig, stderr io.W
 		}
 		transport := &sdkmcp.StreamableClientTransport{
 			Endpoint:   sc.URL,
-			HTTPClient: httpClientWithHeaders(sc.Headers),
+			HTTPClient: m.httpClient(sc),
 			MaxRetries: 5,
 		}
 		if oauthHandler != nil {
@@ -155,7 +180,7 @@ func (m *Manager) transportFor(ctx context.Context, sc ServerConfig, stderr io.W
 		return &persistentSSETransport{
 			transport: sdkmcp.SSEClientTransport{
 				Endpoint:   sc.URL,
-				HTTPClient: httpClientWithHeaders(sc.Headers),
+				HTTPClient: m.httpClient(sc),
 			},
 		}, nil
 	}

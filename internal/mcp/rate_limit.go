@@ -11,30 +11,44 @@ import (
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/logging"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/weblimit"
 	"github.com/gofrs/flock"
 )
-
-// This is a local backoff, not an estimate of the provider's quota reset.
-const internalRateLimitCooldown = 15 * time.Minute
-
-func isRateLimit(message string) bool {
-	message = strings.ToLower(message)
-	return strings.Contains(message, "rate limit") || strings.Contains(message, "rate-limit") ||
-		strings.Contains(message, "too many requests") || strings.Contains(message, "http 429") ||
-		strings.Contains(message, "status code 429") || strings.Contains(message, "status 429")
-}
 
 func (m *Manager) internalRateLimitKey(serverName string) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, ss := range m.servers {
 		if ss.cfg.Name == serverName && ss.cfg.Internal {
-			// A changed endpoint or API key must not inherit the old cooldown.
-			data, _ := json.Marshal([]any{ss.cfg.Name, ss.cfg.URL, ss.cfg.Headers, ss.cfg.OAuth})
-			return fmt.Sprintf("%x", sha256.Sum256(data))
+			return internalRateLimitKey(ss.cfg)
 		}
 	}
 	return ""
+}
+
+func internalRateLimitKey(cfg ServerConfig) string {
+	if !cfg.Internal {
+		return ""
+	}
+	data, _ := json.Marshal([]any{cfg.Name, cfg.URL, cfg.Headers, cfg.OAuth})
+	return fmt.Sprintf("mcp:%x", sha256.Sum256(data))
+}
+
+func (m *Manager) CheckInternalRateLimit(ctx context.Context, serverName string) error {
+	return m.checkInternalRateLimit(ctx, m.internalRateLimitKey(serverName))
+}
+
+func (m *Manager) SetRateLimitChat(chat string) {
+	m.rateMu.Lock()
+	defer m.rateMu.Unlock()
+	m.rateLimitChat = chat
+}
+
+func (m *Manager) chatRateLimitKey(key string) string {
+	if m.rateLimitChat == "" {
+		return "local:" + key
+	}
+	return fmt.Sprintf("chat:%x:%s", sha256.Sum256([]byte(m.rateLimitChat)), key)
 }
 
 func (m *Manager) checkInternalRateLimit(ctx context.Context, key string) error {
@@ -44,13 +58,16 @@ func (m *Manager) checkInternalRateLimit(ctx context.Context, key string) error 
 	m.rateMu.Lock()
 	defer m.rateMu.Unlock()
 	m.loadRateLimits(ctx, false)
+	if until := m.rateLimits[m.chatRateLimitKey(key)]; until.Equal(weblimit.UnknownReset) {
+		return &weblimit.Suspended{Until: until}
+	}
 	if until := m.rateLimits[key]; time.Now().Before(until) {
-		return fmt.Errorf("MCP adapter rate limit: requests suspended until %s", until.Format(time.RFC3339))
+		return &weblimit.Suspended{Until: until}
 	}
 	return nil
 }
 
-func (m *Manager) recordInternalRateLimit(ctx context.Context, key string) {
+func (m *Manager) recordInternalRateLimit(ctx context.Context, key string, until time.Time) {
 	if key == "" {
 		return
 	}
@@ -59,7 +76,15 @@ func (m *Manager) recordInternalRateLimit(ctx context.Context, key string) {
 	if m.rateLimits == nil {
 		m.rateLimits = make(map[string]time.Time)
 	}
-	m.rateLimits[key] = time.Now().Add(internalRateLimitCooldown)
+	if until.Equal(weblimit.UnknownReset) {
+		key = m.chatRateLimitKey(key)
+	}
+	if until.After(m.rateLimits[key]) {
+		m.rateLimits[key] = until
+	}
+	if strings.HasPrefix(key, "local:") {
+		return
+	}
 	// Preserve the backoff even if the originating prompt was interrupted.
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
@@ -100,6 +125,9 @@ func (m *Manager) loadRateLimits(ctx context.Context, write bool) {
 			m.rateLimits = make(map[string]time.Time)
 		}
 		for key, until := range stored {
+			if len(key) == sha256.Size*2 || strings.HasPrefix(key, "local:") || (until.Equal(weblimit.UnknownReset) && !strings.HasPrefix(key, "chat:")) {
+				continue
+			}
 			if until.After(m.rateLimits[key]) {
 				m.rateLimits[key] = until
 			}
@@ -112,7 +140,13 @@ func (m *Manager) loadRateLimits(ctx context.Context, write bool) {
 		if !write {
 			return nil
 		}
-		data, err = json.Marshal(m.rateLimits)
+		clear(stored)
+		for key, until := range m.rateLimits {
+			if !strings.HasPrefix(key, "local:") {
+				stored[key] = until
+			}
+		}
+		data, err = json.Marshal(stored)
 		if err != nil {
 			return err
 		}
@@ -134,4 +168,12 @@ func (m *Manager) loadRateLimits(ctx context.Context, write bool) {
 	if err != nil {
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP adapter cooldown persistence failed", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 	}
+}
+
+func (m *Manager) CheckBrowserRateLimit(ctx context.Context, origin string) error {
+	return m.checkInternalRateLimit(ctx, "browser:"+origin)
+}
+
+func (m *Manager) RecordBrowserRateLimit(ctx context.Context, origin string, until time.Time) {
+	m.recordInternalRateLimit(ctx, "browser:"+origin, until)
 }

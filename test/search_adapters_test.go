@@ -179,7 +179,7 @@ func TestSearchRouterAlternatesConfiguredBackends(t *testing.T) {
 	}
 }
 
-func TestSearchRouterFallsBackAndPrioritizesFailedPrimary(t *testing.T) {
+func TestSearchRouterFallsBackAndSkipsFailedPrimary(t *testing.T) {
 	month := time.Date(2026, time.September, 8, 12, 0, 0, 0, time.UTC)
 	store := search.NewMemoryBalanceStore(search.BalanceState{})
 	exa := &searchRouterEngineTestDouble{name: search.ExaAdapterName, responses: []searchRouterResponse{
@@ -206,12 +206,12 @@ func TestSearchRouterFallsBackAndPrioritizesFailedPrimary(t *testing.T) {
 	if state.Counts[search.ExaAdapterName] != 1 || state.Counts[search.ParallelAdapterName] != 1 || state.Next != search.ExaAdapterName {
 		t.Fatalf("unexpected fallback state: %+v", state)
 	}
-	response, err = router.Search(context.Background(), search.Request{Query: "retry primary"})
+	response, err = router.Search(context.Background(), search.Request{Query: "next query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Engine != search.ExaAdapterName {
-		t.Fatalf("next request used %q; want failed primary %q", response.Engine, search.ExaAdapterName)
+	if response.Engine != search.ParallelAdapterName || len(response.Metadata.Attempts) != 1 || store.Snapshot().Counts[search.ExaAdapterName] != 1 {
+		t.Fatalf("next request did not skip failed primary: %+v", response)
 	}
 }
 
@@ -281,5 +281,35 @@ func TestSearchRouterReturnsAttemptsWhenAllBackendsFail(t *testing.T) {
 	var routerErr *search.RouterError
 	if !errors.As(err, &routerErr) || len(routerErr.Attempts) != 2 || !errors.Is(err, search.ErrNoResults) {
 		t.Fatalf("unexpected router error: %v", err)
+	}
+}
+
+func TestSearchRouterOnlyRetriesAfterRateLimitReset(t *testing.T) {
+	now := time.Date(2026, time.September, 8, 12, 0, 0, 0, time.UTC)
+	exa := &searchRouterEngineTestDouble{responses: []searchRouterResponse{
+		{err: errors.New(`HTTP 429: {"type":"rate_limit_error","resets_in_seconds":3600}`)},
+		{response: search.Response{Hits: []search.Hit{{URL: "https://exa.example/recovered"}}}},
+	}}
+	parallel := &searchRouterEngineTestDouble{responses: []searchRouterResponse{
+		{response: search.Response{Hits: []search.Hit{{URL: "https://parallel.example/fallback"}}}},
+		{response: search.Response{Hits: []search.Hit{{URL: "https://parallel.example/next"}}}},
+	}}
+	router := search.NewRouter(map[string]search.Engine{
+		search.ExaAdapterName: exa, search.ParallelAdapterName: parallel,
+	}, search.RouterOptions{Store: search.NewMemoryBalanceStore(search.BalanceState{}), Now: func() time.Time { return now }})
+	for _, step := range []struct {
+		advance  time.Duration
+		backend  string
+		attempts int
+	}{
+		{0, search.ParallelAdapterName, 2},
+		{59 * time.Minute, search.ParallelAdapterName, 1},
+		{time.Minute, search.ExaAdapterName, 1},
+	} {
+		now = now.Add(step.advance)
+		result, err := router.Search(context.Background(), search.Request{Query: "rate limit"})
+		if err != nil || result.Engine != step.backend || result.Metadata == nil || len(result.Metadata.Attempts) != step.attempts {
+			t.Fatalf("at %v expected %s after %d attempts, got %+v and %v", now, step.backend, step.attempts, result, err)
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/runtime/multiline"
 	agenttools "github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/agent/tools"
@@ -40,9 +41,25 @@ func (r *Runtime) InitMCP(ctx context.Context) {
 		logging.Log(logging.WARNING_LOG_LEVEL, "MCP disabled", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
 		return
 	}
+	r.chatPersistMu.Lock()
+	mgr.SetRateLimitChat(r.webRateLimitChat())
 	r.MCP = mgr
+	r.chatPersistMu.Unlock()
 	r.configureWebSearch(mgr)
 	go r.connectMCPBackground(ctx, mgr)
+}
+
+func (r *Runtime) webRateLimitChat() string {
+	if r.Session == nil {
+		return ""
+	}
+	if r.Session.CreatedAt.IsZero() {
+		if r.Session.ID == "" {
+			return ""
+		}
+		return r.ProjHex + "/" + r.Session.ID
+	}
+	return r.ProjHex + "/" + r.Session.CreatedAt.UTC().Format(time.RFC3339Nano)
 }
 
 func (r *Runtime) configureWebSearch(mgr *solomonmcp.Manager) {
@@ -75,13 +92,19 @@ func (r *Runtime) configureWebSearch(mgr *solomonmcp.Manager) {
 		logging.Log(logging.INFO_LOG_LEVEL, "native CloakBrowser fallback unavailable", logging.LogOptions{Params: map[string]any{"err": cloakErr.Error()}})
 	} else {
 		r.Cloak = nativeCloak
-		nativeSearchFallback, cloakErr = search.NewNativeCloakAdapter(nativeCloak)
+		searchAdapter, cloakErr := search.NewNativeCloakAdapter(nativeCloak)
 		if cloakErr != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "native CloakBrowser search adapter setup failed", logging.LogOptions{Params: map[string]any{"err": cloakErr.Error()}})
+		} else {
+			searchAdapter.Limits.Store = mgr
+			nativeSearchFallback = searchAdapter
 		}
-		nativeFetchFallback, cloakErr = webfetch.NewNativeCloakFetcher(nativeCloak)
+		fetchAdapter, cloakErr := webfetch.NewNativeCloakFetcher(nativeCloak)
 		if cloakErr != nil {
 			logging.Log(logging.WARNING_LOG_LEVEL, "native CloakBrowser fetch adapter setup failed", logging.LogOptions{Params: map[string]any{"err": cloakErr.Error()}})
+		} else {
+			fetchAdapter.Limits.Store = mgr
+			nativeFetchFallback = fetchAdapter
 		}
 	}
 	router, err := search.NewMCPRouter(mgr, servers, search.RouterOptions{Store: balanceStore, Fallback: nativeSearchFallback})

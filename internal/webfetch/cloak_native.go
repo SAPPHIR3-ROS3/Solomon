@@ -3,11 +3,13 @@ package webfetch
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/cloak"
+	"github.com/SAPPHIR3-ROS3/Solomon/v2026/internal/weblimit"
 )
 
 const CloakAdapterName = "cloak"
@@ -17,6 +19,7 @@ const CloakAdapterName = "cloak"
 // alongside the legacy fetch implementation.
 type NativeCloakFetcher struct {
 	browser cloak.Browser
+	Limits  weblimit.BrowserLimits
 }
 
 func NewNativeCloakFetcher(browser cloak.Browser) (*NativeCloakFetcher, error) {
@@ -41,6 +44,11 @@ func (f *NativeCloakFetcher) Fetch(ctx context.Context, req Request) (Result, er
 	if scheme := strings.ToLower(parsedURL.Scheme); scheme != "http" && scheme != "https" {
 		return Result{}, fmt.Errorf("native cloak: only http and https URLs are allowed")
 	}
+	origin := strings.ToLower(parsedURL.Host)
+	if err := f.Limits.Check(ctx, origin); err != nil {
+		return Result{}, err
+	}
+
 	intent := strings.TrimSpace(req.Intent)
 	if intent == "" {
 		intent = "web fetch fallback: " + rawURL
@@ -57,6 +65,9 @@ func (f *NativeCloakFetcher) Fetch(ctx context.Context, req Request) (Result, er
 	navigation, err := f.browser.Navigate(requestCtx, tabID, rawURL, intent)
 	if err != nil {
 		return Result{}, fmt.Errorf("native cloak navigate: %w", err)
+	}
+	if navigation.Status == http.StatusTooManyRequests {
+		return Result{}, f.Limits.Record(ctx, origin, navigation.RetryAfter)
 	}
 	if navigation.Status >= 400 {
 		return Result{}, fmt.Errorf("native cloak page returned HTTP %d", navigation.Status)
