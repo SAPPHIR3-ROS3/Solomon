@@ -3,7 +3,7 @@ const dialogs = new Map();
 const sessions = new Map();
 let nextMessage = 1;
 
-export async function attach(page, tabID) {
+export async function attach(page, tabID, legacyConsole = true) {
   consoles.set(tabID, []);
   const append = item => {
     const messages = consoles.get(tabID);
@@ -17,8 +17,17 @@ export async function attach(page, tabID) {
   page.on('framenavigated', frame => { if (frame === page.mainFrame()) consoles.set(tabID, []); });
   const session = await page.context().newCDPSession(page);
   sessions.set(tabID, session);
-  session.on('Console.messageAdded', ({ message }) => append({ type: message.level, text: String(message.text).slice(0, 16000), location: { url: message.url, lineNumber: message.line } }));
-  await session.send('Console.enable');
+  if (legacyConsole) {
+    session.on('Console.messageAdded', ({ message }) => append({ type: message.level, text: String(message.text).slice(0, 16000), location: { url: message.url, lineNumber: message.line } }));
+    await session.send('Console.enable');
+  } else {
+    await page.addInitScript(() => {
+      const warn = console.warn.bind(console);
+      globalThis.alert = function alert(message = '') {
+        warn('[Obscura alert, execution continued] ' + String(message).slice(0, 4000));
+      };
+    });
+  }
 }
 
 export function clear(tabID) {
@@ -96,8 +105,14 @@ export async function dispatch(name, args, state) {
     }
     case 'handle_dialog': {
       const dialog = dialogs.get(tabID);
-      if (!dialog) throw new Error('No pending dialog');
       if (!['accept', 'dismiss'].includes(args.action)) throw new Error('action must be accept or dismiss');
+      if (!dialog && state.obscura) return {
+        pageId: tabID,
+        handled: false,
+        status: 'planned',
+        message: 'No native dialog is pending. Obscura reports alert messages in list_console_messages without pausing scripts. Interactive alert, confirm and prompt handling requires native support.',
+      };
+      if (!dialog) throw new Error('No pending dialog');
       if (args.action === 'accept') await dialog.accept(args.promptText); else await dialog.dismiss();
       dialogs.delete(tabID);
       return { pageId: tabID, handled: true };

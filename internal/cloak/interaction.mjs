@@ -82,6 +82,61 @@ async function fill(locator, value) {
   }
 }
 
+async function uploadObscura(page, tabID, uid, files) {
+  await resolve(page, tabID, uid);
+  const session = await page.context().newCDPSession(page);
+  try {
+    const { root } = await session.send('DOM.getDocument', { depth: 0 });
+    const { nodeId } = await session.send('DOM.querySelector', {
+      nodeId: root.nodeId,
+      selector: '[data-solomon-cloak-id="' + uid + '"]',
+    });
+    if (!nodeId) throw new Error(staleMessage);
+    await session.send('DOM.setFileInputFiles', { nodeId, files });
+  } finally {
+    await session.detach().catch(() => undefined);
+  }
+}
+
+async function dragPoint(element) {
+  await element.scrollIntoViewIfNeeded({ timeout: 10000 });
+  const point = await element.evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    const left = Math.max(0, bounds.left);
+    const top = Math.max(0, bounds.top);
+    const right = Math.min(innerWidth, bounds.right);
+    const bottom = Math.min(innerHeight, bounds.bottom);
+    if (left >= right || top >= bottom) return null;
+    const x = (left + right) / 2;
+    const y = (top + bottom) / 2;
+    return node.contains(document.elementFromPoint(x, y)) ? { x, y } : null;
+  });
+  if (!point) throw new Error('The drag element has no unobstructed viewport center');
+  return point;
+}
+
+async function dragObscura(page, source, target) {
+  const start = await dragPoint(source);
+  const session = await page.context().newCDPSession(page);
+  const send = (type, point, fields) => session.send('Input.dispatchMouseEvent', { type, ...point, ...fields });
+  let current = start;
+  try {
+    await send('mouseMoved', start, { buttons: 0 });
+    await send('mousePressed', start, { button: 'left', buttons: 1, clickCount: 1 });
+    try {
+      const end = await dragPoint(target);
+      for (let step = 1; step <= 5; step++) {
+        current = { x: start.x + (end.x - start.x) * step / 5, y: start.y + (end.y - start.y) * step / 5 };
+        await send('mouseMoved', current, { button: 'none', buttons: 1 });
+      }
+    } finally {
+      await send('mouseReleased', current, { button: 'left', buttons: 0, clickCount: 1 });
+    }
+  } finally {
+    await session.detach().catch(() => undefined);
+  }
+}
+
 export async function dispatch(name, args, state) {
   const { page, tabID } = state;
   const handles = [];
@@ -109,10 +164,14 @@ export async function dispatch(name, args, state) {
       case 'drag': {
         const source = await element(args.from_uid);
         const target = await element(args.to_uid);
-        await source.hover({ timeout: 10000 });
-        await page.mouse.down();
-        try { await target.hover({ timeout: 10000 }); }
-        finally { await page.mouse.up(); }
+        if (state.obscura) {
+          await dragObscura(page, source, target);
+        } else {
+          await source.hover({ timeout: 10000 });
+          await page.mouse.down();
+          try { await target.hover({ timeout: 10000 }); }
+          finally { await page.mouse.up(); }
+        }
         break;
       }
       case 'hover': await (await element(args.uid)).hover({ timeout: 10000 }); break;
@@ -130,7 +189,9 @@ export async function dispatch(name, args, state) {
         break;
       case 'upload_file':
         if (!Array.isArray(args.filePaths) || !args.filePaths.length) throw new Error('filePaths is required');
-        await (await element(args.uid)).setInputFiles(args.filePaths, { timeout: 10000 }); break;
+        if (state.obscura) await uploadObscura(page, tabID, args.uid, args.filePaths);
+        else await (await element(args.uid)).setInputFiles(args.filePaths, { timeout: 10000 });
+        break;
       default: return undefined;
     }
     return args.includeSnapshot ? snapshot(page, tabID, args) : { pageId: tabID, ok: true };

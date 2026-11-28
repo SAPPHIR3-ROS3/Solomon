@@ -30,7 +30,7 @@ func Tools() []ToolSpec {
 		tool("drag", "Drag one snapshot element onto another.", page+"from_uid:s! to_uid:s! "+snapshot),
 		tool("fill", "Fill a field, select or checkbox.", page+"uid:s! value:s! "+snapshot),
 		tool("fill_form", "Fill multiple fields using uid/value objects.", page+"elements:a! "+snapshot),
-		tool("handle_dialog", "Accept or dismiss a pending JavaScript dialog.", page+"action:s! promptText:s"),
+		tool("handle_dialog", "Accept or dismiss a pending JavaScript dialog. On Obscura, alert messages appear in list_console_messages and scripts continue immediately. Interactive alert, confirm and prompt handling is planned.", page+"action:s! promptText:s"),
 		tool("hover", "Hover over a snapshot element.", page+"uid:s! "+snapshot),
 		tool("press_key", "Press a Playwright key or shortcut.", page+"key:s! "+snapshot),
 		tool("type_text", "Type into the focused field.", page+"text:s! submitKey:s"),
@@ -51,7 +51,7 @@ func Tools() []ToolSpec {
 		tool("performance_start_trace", "Start a native CDP trace; not Playwright execution tracing.", page+"reload:b autoStop:b ignoreCache:b durationMs:i"),
 		tool("performance_stop_trace", "Stop tracing and return bounded native metrics.", page),
 		tool("performance_analyze_insight", "Analyze supported native trace insights; not full DevTools parity.", page+"insightName:s! insightSetId:s!"),
-		tool("configure_webauthn", "Configure a virtual test authenticator, not real user passkeys.", page+"enabled:b! protocol:s transport:s hasResidentKey:b hasUserVerification:b isUserVerified:b"),
+		tool("configure_webauthn", "Configure a virtual test authenticator, not real user passkeys. Obscura returns a planned status until an official release supports virtual authenticators.", page+"enabled:b! protocol:s transport:s hasResidentKey:b hasUserVerification:b isUserVerified:b"),
 	}
 	return append(specs, memoryTools()...)
 }
@@ -59,7 +59,7 @@ func Tools() []ToolSpec {
 func memoryTools() []ToolSpec {
 	const page = "pageId:s! "
 	const heap = page + "snapshotId:s! "
-	return []ToolSpec{
+	specs := []ToolSpec{
 		tool("take_heapsnapshot", "Capture and cache a bounded V8 heap snapshot.", page),
 		tool("close_heapsnapshot", "Release a cached heap snapshot.", heap),
 		tool("get_heapsnapshot_summary", "Summarize heap objects and sizes.", heap),
@@ -75,4 +75,8 @@ func memoryTools() []ToolSpec {
 		tool("compare_heapsnapshots", "Compare class counts and sizes across two cached heaps.", page+"baseSnapshotId:s! currentSnapshotId:s! classIndex:i pageIdx:i pageSize:i"),
 		tool("analyze_heapsnapshot_contexts", "Inspect closure contexts with explicit analysis limitations.", heap+"pageIdx:i pageSize:i retainedSize:s"),
 	}
+	for index := range specs {
+		specs[index].Description += " Obscura support is planned once an official release can export V8 heap snapshots. Until then this operation returns a planned status on Obscura."
+	}
+	return specs
 }

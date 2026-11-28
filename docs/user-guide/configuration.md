@@ -356,6 +356,40 @@ Directory: `~/.solomon/logs`. Seven-day retention; file-only logging by default 
 
 The **`webSearch`** tool uses **`web_search_engine`** from `config.toml`. If empty or omitted, **`duckduckgo`** remains the compatibility default during the migration. Set it to **`internal`** to use the Exa/Parallel router with the native CloakBrowser fallback; `fetchWeb` uses the corresponding MCP fetch adapters and native fallback. Per-call **`engine`** and **`extras`** override merged config ([`MergeWebSearchExtras`](../../internal/agent/tools/web_search.go)).
 
+Obscura is an optional backend. Solomon installers and upgrades never download
+it. If you install the `obscura` executable on Solomon's `PATH`, Solomon starts
+it on demand with an authenticated loopback CDP endpoint. It prefers Obscura
+for browser tools and the native web fallback. If Obscura is absent or fails
+to initialize, Solomon uses CloakBrowser. Existing pages stay on the backend
+that created them.
+
+To use a separately managed Obscura instance, set
+`SOLOMON_OBSCURA_CDP_URL=ws://127.0.0.1:9222/devtools/browser` in the Solomon
+process environment. If the server uses `OBSCURA_CDP_TOKEN`, provide the same
+variable to Solomon. This endpoint takes precedence over the executable on
+`PATH`. The bridge uses the existing `playwright-core` installation. The virtual
+WebAuthn tool returns a planned status
+on Obscura until an official release supports virtual authenticators. The heap snapshot tools return a planned status
+on Obscura until an official release can export V8 heap snapshots. Obscura performance tools collect per-tab measurements on demand
+and report navigation, network events, User Timing and `EventLoopDelay`.
+Event loop samples measure timer drift in the main document after any requested
+reload. Scheduling and work in other tabs can affect the samples. Native trace insights
+(`LongTasks`, `LayoutWork`, `ScriptWork`) and `ignoreCache` are unavailable. With Obscura, `get_css_styles` returns
+computed and inline styles, plus candidate rules from accessible stylesheets.
+The result reports limitations and prompts the agent to investigate thoroughly
+when the task depends on which rule won the cascade. On Obscura v0.2.7, drag
+uses mouse movements and supports page handlers for those events. JavaScript
+`alert`, `confirm` and `prompt` are not surfaced as dialogs, so the dialog tool
+reports planned support when no native dialog is pending. Alert messages
+appear in `list_console_messages` while the page script continues immediately.
+
+For `upload_file` on a separately managed instance, use a dedicated Obscura
+server bound to loopback with
+`OBSCURA_CDP_TOKEN` and `--allow-file-access`. Obscura uses that flag for both
+CDP file uploads and `file://` navigation. Solomon validates upload paths
+against the workspace as usual and opens an upload CDP session only when the
+tool is called.
+
 | `web_search_engine` | Required `config.toml` | Notes |
 |--------------------|-------------------------|--------|
 | **`duckduckgo`** (default) | None | HTML results; no API key. |

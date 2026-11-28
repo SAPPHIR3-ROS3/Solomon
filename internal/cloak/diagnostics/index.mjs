@@ -1,11 +1,12 @@
 import * as network from './network.mjs';
 import * as performance from './performance.mjs';
+import * as measurements from './measurements.mjs';
 import * as heap from './heap/index.mjs';
 import * as webauthn from './webauthn.mjs';
 import * as css from './css.mjs';
 
 const attached = new Map();
-const modules = [network, performance, heap, webauthn, css];
+const modules = [network, measurements, performance, heap, webauthn, css];
 const names = new Set([
   'list_network_requests', 'get_network_request', 'list_console_messages', 'get_console_message',
   'performance_start_trace', 'performance_stop_trace', 'performance_analyze_insight',

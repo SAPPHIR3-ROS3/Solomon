@@ -75,12 +75,15 @@ type Link struct {
 }
 
 type Client struct {
-	mu         sync.Mutex
-	installDir string
-	cacheDir   string
-	nodePath   string
-	bridgePath string
-	stderr     io.Writer
+	mu          sync.Mutex
+	installDir  string
+	cacheDir    string
+	nodePath    string
+	bridgePath  string
+	cdpURL      string
+	obscuraPath string
+	managed     *obscuraProcess
+	stderr      io.Writer
 
 	cmd        *exec.Cmd
 	stdin      io.WriteCloser
@@ -99,9 +102,19 @@ func NewClient(options Options) (*Client, error) {
 			return nil, fmt.Errorf("%w: resolve install directory: %v", ErrUnavailable, err)
 		}
 	}
-	packageManifest := filepath.Join(installDir, "node_modules", "cloakbrowser", "package.json")
-	if _, err := os.Stat(packageManifest); err != nil {
-		return nil, fmt.Errorf("%w: official npm package is not installed at %s", ErrUnavailable, installDir)
+	cdpURL, err := obscuraEndpoint(os.Getenv("SOLOMON_OBSCURA_CDP_URL"))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	obscuraPath := ""
+	if cdpURL == "" {
+		obscuraPath, _ = exec.LookPath("obscura")
+	}
+	if cdpURL == "" && obscuraPath == "" {
+		packageManifest := filepath.Join(installDir, "node_modules", "cloakbrowser", "package.json")
+		if _, err := os.Stat(packageManifest); err != nil {
+			return nil, fmt.Errorf("%w: official npm package is not installed at %s", ErrUnavailable, installDir)
+		}
 	}
 	playwrightManifest := filepath.Join(installDir, "node_modules", "playwright-core", "package.json")
 	if _, err := os.Stat(playwrightManifest); err != nil {
@@ -140,11 +153,13 @@ func NewClient(options Options) (*Client, error) {
 		options.Stderr = os.Stderr
 	}
 	return &Client{
-		installDir: installDir,
-		cacheDir:   cacheDir,
-		nodePath:   nodePath,
-		bridgePath: bridgePath,
-		stderr:     options.Stderr,
+		installDir:  installDir,
+		cacheDir:    cacheDir,
+		nodePath:    nodePath,
+		bridgePath:  bridgePath,
+		cdpURL:      cdpURL,
+		obscuraPath: obscuraPath,
+		stderr:      options.Stderr,
 	}, nil
 }
 
@@ -250,7 +265,7 @@ func (c *Client) call(ctx context.Context, intent, operation string, args any, o
 	if c.closed {
 		return ErrUnavailable
 	}
-	if err := c.startLocked(); err != nil {
+	if err := c.startLocked(ctx); err != nil {
 		c.logCall(intent, operation, started, err)
 		return err
 	}
@@ -319,10 +334,25 @@ func (c *Client) call(ctx context.Context, intent, operation string, args any, o
 	}
 }
 
-func (c *Client) startLocked() error {
+func (c *Client) startLocked(ctx context.Context) error {
 	if c.cmd != nil {
 		return nil
 	}
+	if c.obscuraPath != "" {
+		managed, err := startObscura(ctx, c.obscuraPath, c.childEnvironment(), c.stderr)
+		if err == nil {
+			c.managed = managed
+		} else if ctx.Err() != nil {
+			return ctx.Err()
+		} else {
+			logging.Log(logging.WARNING_LOG_LEVEL, "Obscura startup failed, using CloakBrowser", logging.LogOptions{Params: map[string]any{"err": err.Error()}})
+		}
+	}
+	defer func() {
+		if c.cmd == nil {
+			c.stopObscuraLocked()
+		}
+	}()
 	cmd := exec.Command(c.nodePath, c.bridgePath)
 	cmd.Dir = c.installDir
 	cmd.Env = c.childEnvironment()
@@ -360,12 +390,14 @@ func (c *Client) waitProcess(cmd *exec.Cmd) {
 		return
 	}
 	c.processErr = err
+	c.stopObscuraLocked()
 	c.cmd = nil
 	c.stdin = nil
 	c.stdout = nil
 }
 
 func (c *Client) stopLocked() {
+	c.stopObscuraLocked()
 	cmd := c.cmd
 	stdin := c.stdin
 	stdout := c.stdout
@@ -409,6 +441,15 @@ func (c *Client) childEnvironment() []string {
 		"CLOAKBROWSER_CACHE_DIR="+c.cacheDir,
 		"CLOAKBROWSER_AUTO_UPDATE=false",
 	)
+	if c.managed != nil {
+		return append(env, "SOLOMON_OBSCURA_CDP_URL="+c.managed.endpoint, "OBSCURA_CDP_TOKEN="+c.managed.token)
+	}
+	if c.cdpURL != "" {
+		env = append(env, "SOLOMON_OBSCURA_CDP_URL="+c.cdpURL)
+		if token := os.Getenv("OBSCURA_CDP_TOKEN"); token != "" {
+			env = append(env, "OBSCURA_CDP_TOKEN="+token)
+		}
+	}
 	return env
 }
 
@@ -445,6 +486,9 @@ func (c *Client) logCall(intent, operation string, started time.Time, err error)
 		"backend":    "cloak",
 		"operation":  operation,
 		"durationMs": time.Since(started).Milliseconds(),
+	}
+	if c.cdpURL != "" || c.managed != nil {
+		params["backend"] = "obscura-or-cloak"
 	}
 	if strings.TrimSpace(intent) != "" {
 		params["intent"] = intent

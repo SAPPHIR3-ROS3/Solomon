@@ -5,11 +5,13 @@ import * as diagnostics from './diagnostics/index.mjs';
 
 let browser;
 let context;
+let usingObscura = false;
 let nextTabID = 1;
 const tabs = new Map();
 const metadata = new Map();
 const contexts = new Map();
 const inflight = new Map();
+const obscuraURL = process.env.SOLOMON_OBSCURA_CDP_URL;
 
 function errorMessage(error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -22,13 +24,35 @@ function errorMessage(error) {
 
 async function ensureContext() {
   if (context) return;
-  const { launch } = await import("cloakbrowser");
-  browser = await launch({
-    headless: true,
-    humanize: false,
-    geoip: false,
-  });
-  context = await browser.newContext();
+  let obscuraFailure;
+  if (obscuraURL) {
+    try {
+      const { chromium } = await import("playwright-core");
+      const token = process.env.OBSCURA_CDP_TOKEN;
+      browser = await chromium.connectOverCDP(obscuraURL, {
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        timeout: 5000,
+      });
+      context = await browser.newContext();
+      usingObscura = true;
+      return;
+    } catch (error) {
+      obscuraFailure = errorMessage(error);
+      if (browser) await browser.close().catch(() => undefined);
+      browser = undefined;
+    }
+  }
+  usingObscura = false;
+  try {
+    const { launch } = await import("cloakbrowser");
+    browser = await launch({ headless: true, humanize: false, geoip: false });
+    context = await browser.newContext();
+  } catch (error) {
+    if (browser) await browser.close().catch(() => undefined);
+    browser = undefined;
+    if (obscuraFailure) throw new Error('Obscura initialization failed: ' + obscuraFailure + '; CloakBrowser fallback failed: ' + errorMessage(error));
+    throw error;
+  }
 }
 
 function pageFor(tabID) {
@@ -52,8 +76,6 @@ async function newTab(contextName) {
   const tabID = `t${nextTabID++}`;
   tabs.set(tabID, page);
   metadata.set(tabID, { status: 0, contentType: "" });
-  await navigation.attach(page, tabID);
-  diagnostics.attach(page, tabID);
   page.on("close", () => {
     void interaction.clear(tabID);
     navigation.clear(tabID);
@@ -62,6 +84,13 @@ async function newTab(contextName) {
     tabs.delete(tabID);
     metadata.delete(tabID);
   });
+  try {
+    await navigation.attach(page, tabID, !usingObscura);
+    diagnostics.attach(page, tabID);
+  } catch (error) {
+    await page.close().catch(() => undefined);
+    throw error;
+  }
   return { tabID, url: page.url(), title: "" };
 }
 
@@ -162,6 +191,21 @@ async function dispatch(operation, args) {
 }
 
 async function callTool(name, args) {
+  if ((usingObscura || (!context && obscuraURL)) && name.includes('heapsnapshot')) {
+    return {
+      ok: false,
+      status: 'planned',
+      message: 'Heap snapshot tools will be implemented for Obscura when an official release can export V8 heap snapshots.',
+      upstream: 'https://github.com/h4ckf0r0day/obscura/pull/1593',
+    };
+  }
+  if ((usingObscura || (!context && obscuraURL)) && name === 'configure_webauthn') {
+    return {
+      ok: false,
+      status: 'planned',
+      message: 'Virtual WebAuthn authenticators are planned for Obscura once an official release supports them.',
+    };
+  }
   if (name === 'list_pages') {
     return { pages: await Promise.all([...tabs].map(async ([pageId, page]) => ({ pageId, url: page.url(), title: await page.title().catch(() => '') }))) };
   }
@@ -184,7 +228,7 @@ async function callTool(name, args) {
   let listener;
   const dialogEvent = new Promise(resolve => { listener = dialog => resolve({ pageId: tabID, pendingDialog: { type: dialog.type(), message: dialog.message().slice(0, 4000) } }); page.once('dialog', listener); });
   const execute = async () => {
-    const state = { page, context: page.context(), browser, tabID, resolve: uid => interaction.resolve(page, tabID, uid) };
+    const state = { page, context: page.context(), browser, tabID, obscura: usingObscura, resolve: uid => interaction.resolve(page, tabID, uid) };
     for (const module of [interaction, navigation, diagnostics]) {
       const parameters = { ...args };
       if (module === diagnostics) { delete parameters.pageId; delete parameters.tabID; }

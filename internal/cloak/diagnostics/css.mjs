@@ -37,6 +37,122 @@ function bounded(value) {
   return { ...data, truncated };
 }
 
+async function readObscuraStyles(element, uid, page) {
+  const styles = await element.evaluate((node, { pageIdx, pageSize }) => {
+    if (node.nodeType !== 1 || !node.isConnected) throw new Error('CSS requires a connected element');
+    let truncated = false;
+    const read = (style, limit) => {
+      if (!style) return [];
+      if (style.length > limit) truncated = true;
+      return Array.from({ length: Math.min(style.length, limit) }, (_, index) => {
+        const name = style.item(index);
+        const value = style.getPropertyValue(name);
+        if (value.length > 2048) truncated = true;
+        return { name, value: value.slice(0, 2048) };
+      }).filter(property => property.name);
+    };
+    const computed = read(node.ownerDocument.defaultView.getComputedStyle(node), 512);
+    const declarations = (style, limit) => read(style, limit).map(({ name, value }) => {
+      const priority = /\s*!\s*important\s*$/i;
+      return {
+        name, value: value.replace(priority, ''),
+        important: style.getPropertyPriority(name) === 'important' || priority.test(value),
+      };
+    });
+    const owner = node.ownerDocument;
+    const limitations = new Set([
+      'Candidate rules are selector matches. Cascade priority, including specificity, layers, origin and !important, is unresolved.',
+      'Inherited declarations, user-agent styles, pseudo-elements and animation rules may affect computed values.',
+    ]);
+    const candidates = [];
+    let total = 0;
+    let inspected = 0;
+    const offset = pageIdx * pageSize;
+    function visit(rules, source, conditions = [], depth = 0) {
+      for (const rule of rules ?? []) {
+        if (inspected >= 2000 || depth > 8) {
+          truncated = true;
+          limitations.add('The stylesheet scan reached its inspection limit.');
+          return;
+        }
+        inspected++;
+        if (rule.selectorText && rule.style) {
+          let matches;
+          try {
+            matches = node.matches(rule.selectorText);
+          } catch {
+            limitations.add('Some selectors could not be evaluated by Obscura.');
+            continue;
+          }
+          if (!matches) continue;
+          if (total++ >= offset && candidates.length < pageSize) {
+            candidates.push({
+              selector: String(rule.selectorText).slice(0, 2048),
+              source, conditions,
+              declarations: declarations(rule.style, 32),
+            });
+          }
+        }
+        if (rule.cssRules?.length) {
+          limitations.add('Nested rule conditions, such as media queries and supports, were not evaluated.');
+          const condition = rule.conditionText || rule.name || 'Unknown grouping rule';
+          visit(rule.cssRules, source, [...conditions, String(condition).slice(0, 512)], depth + 1);
+        }
+        if (rule.type === 3) limitations.add('Imported stylesheets may be absent from the candidate list.');
+      }
+    }
+    const root = node.getRootNode();
+    const sheets = [...(root.styleSheets ?? []), ...(root.adoptedStyleSheets ?? [])];
+    for (const [index, sheet] of sheets.entries()) {
+      if (index >= 100 || inspected >= 2000) {
+        truncated = true;
+        limitations.add('The stylesheet scan reached its inspection limit.');
+        break;
+      }
+      if (sheet.disabled) continue;
+      let rules;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        limitations.add('Some stylesheets are inaccessible, including possible cross-origin sheets.');
+        continue;
+      }
+      if (!rules?.length && sheet.href) {
+        limitations.add('Some linked stylesheets expose no rules through Obscura CSSOM.');
+      }
+      const conditions = sheet.media?.mediaText ? [sheet.media.mediaText.slice(0, 512)] : [];
+      if (conditions.length) limitations.add('Stylesheet media conditions were not evaluated.');
+      visit(rules, String(sheet.href || 'stylesheet ' + (index + 1)).slice(0, 2048), conditions);
+    }
+    return {
+      candidateRules: candidates, candidateTotal: total, candidateHasMore: total > offset + pageSize,
+      limitations: [...limitations],
+      computedStyle: computed,
+      customProperties: computed.filter(property => property.name.startsWith('--')),
+      inlineStyle: { cssProperties: declarations(node.style, 100) },
+      truncated,
+    };
+  }, page);
+  const result = bounded({
+    uid, pageIdx: page.pageIdx, pageSize: page.pageSize,
+    matchedCSSRules: null, total: null, hasMore: false,
+    attributesStyle: null, inherited: null, pseudoElements: null,
+    cssKeyframesRules: null, cssPropertyRules: null,
+    investigationRequired: true,
+    agentInstruction: 'If the task depends on why a style applies, investigate thoroughly before drawing conclusions. Check the relevant declarations, ancestor styles and active cascade conditions. Use source files or a browser with CSS provenance when available. State what remains unverified.',
+    limitations: styles.limitations,
+    candidateTotal: styles.candidateTotal,
+    candidateHasMore: styles.candidateHasMore,
+    computedStyle: styles.computedStyle,
+    customProperties: styles.customProperties,
+    inlineStyle: styles.inlineStyle,
+    candidateRules: styles.candidateRules,
+  });
+  result.truncated ||= styles.truncated;
+  if (result.truncated) result.limitations?.push('Some results were truncated by inspection or response limits.');
+  return result;
+}
+
 export async function dispatch(name, args = {}, state) {
   if (name !== 'get_css_styles') return undefined;
   rejectPaths(args);
@@ -47,6 +163,13 @@ export async function dispatch(name, args = {}, state) {
   const page = pagination([], args, 10, 50);
   const element = await locator.elementHandle({ timeout: 5000 });
   if (!element) throw new Error('The uid does not resolve to an attached element');
+  if (state.obscura) {
+    try {
+      return await readObscuraStyles(element, args.uid, page);
+    } finally {
+      await element.dispose().catch(() => undefined);
+    }
+  }
   const marker = 'data-cloak-' + randomUUID();
   let session;
   let searchId;
